@@ -1,0 +1,10 @@
+# Dependency directories
+node_modules
+.browser_modules
+
+# Logs
+*.log
+
+lib
+*-app/*
+!*-app/package.json

@@ -1,0 +1,23 @@
+{
+  "private": true,
+  "engines": {
+    "node": ">=18",
+    "npm": ">=8"
+  },
+  "scripts": {
+    "build:browser": "npm --prefix browser-app run bundle",
+    "build:electron": "npm --prefix electron-app run bundle",
+    "prepare": "lerna run prepare",
+    "postinstall": "theia check:theia-version",
+    "start:browser": "npm --prefix browser-app start",
+    "start:electron": "npm --prefix electron-app start",
+    "watch:browser": "lerna run --parallel watch --ignore electron-app",
+    "watch:electron": "lerna run --parallel watch --ignore browser-app"
+  },
+  "devDependencies": {
+    "lerna": "2.4.0"
+  },
+  "workspaces": [
+     "browser-app", "electron-app"
+  ]
+}
