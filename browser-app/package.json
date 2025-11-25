@@ -19,10 +19,10 @@
     "@theia/cli": "1.65.2"
   },
   "scripts": {
-    "bundle": "npm run rebuild && theia build --mode development",
+    "bundle": "yarn run rebuild && theia build --mode development",
     "rebuild": "theia rebuild:browser --cacheRoot ..",
     "start": "theia start",
-    "watch": "npm run rebuild && theia build --watch --mode development"
+    "watch": "yarn run rebuild && theia build --watch --mode development"
   },
   "theia": {
     "target": "browser"
