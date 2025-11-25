@@ -86,7 +86,18 @@ const PropertyListModal: React.FC<PropertyListModalProps> = ({ properties, onClo
                         ) : (
                             <ul style={{ listStyleType: 'none', padding: 0 }}>
                                 {filteredProperties.map((prop, index) => (
-                                    <li key={index} style={propertyListItemStyle}>
+                                    <li
+                                        key={index}
+                                        style={propertyListItemStyle}
+                                        onClick={() => console.log(prop.label)}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#e3f2fd';
+                                            e.currentTarget.style.cursor = 'pointer';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                        }}
+                                    >
                                         <div style={{ fontWeight: 'bold', color: '#007ACC' }}>{prop.label}</div>
                                         <div style={{ fontSize: '0.9em' }}>{prop.comment}</div>
                                     </li>
@@ -129,10 +140,12 @@ const modalContentStyle: React.CSSProperties = {
     boxShadow: '0 5px 15px rgba(0, 0, 0, 0.3)',
 };
 
+
 const propertyListItemStyle: React.CSSProperties = {
     marginBottom: '10px',
-    padding: '5px 0',
+    padding: '5px 6px',
     borderBottom: '1px dotted #eee',
+    transition: 'background-color 0.15s ease'
 };
 
 

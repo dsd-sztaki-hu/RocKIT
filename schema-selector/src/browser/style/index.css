@@ -5,3 +5,8 @@
     padding: 10px;
     text-transform: uppercase;
 }
+
+.schema-property-item:hover {
+    background-color: #e3f2fd;
+    cursor: pointer;
+}
