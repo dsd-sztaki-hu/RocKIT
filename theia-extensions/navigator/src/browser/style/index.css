@@ -15,39 +15,47 @@
  ********************************************************************************/
 
 .theia-Files {
-  height: 100%;
+    height: 100%;
 }
 
 .theia-navigator-container {
-  font-size: var(--theia-ui-font-size1);
-  padding: 5px;
-  position: relative;
+    font-size: var(--theia-ui-font-size1);
+    padding: 5px;
+    position: relative;
 }
 
 .theia-navigator-container .open-workspace-button-container {
-  margin: auto;
-  margin-top: 5px;
-  display: flex;
-  justify-content: center;
-  align-self: center;
+    margin: auto;
+    margin-top: 5px;
+    display: flex;
+    justify-content: center;
+    align-self: center;
 }
 
 .theia-navigator-container .center {
-  text-align: center;
+    text-align: center;
 }
 
 .lm-Widget .open-workspace-button {
-  padding: 4px 12px;
-  width: calc(100% - var(--theia-ui-padding) * 4);
-  margin-left: 0;
+    padding: 4px 12px;
+    width: calc(100% - var(--theia-ui-padding) * 4);
+    margin-left: 0;
 }
 
 .highlighted-jpg {
-    background-color: #8B0000; /* A dark red background */
-    color: white; /* Change text color to white for better readability */
+    background-color: #8B0000;
+    color: white;
 }
 
 .contains-jpg {
-    background-color: #ff8c00; /* Dark orange */
+    background-color: #ff8c00;
     color: white;
+}
+
+.theia-ExpansionToggle.codicon-chevron-down {
+    transition: transform 0.2s ease-in-out;
+}
+
+.theia-TreeNode.theia-mod-collapsed > .theia-TreeNodeSegment > .theia-ExpansionToggle.codicon-chevron-down {
+    transform: rotate(-90deg);
 }
