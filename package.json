@@ -25,7 +25,10 @@
     "browser-app",
     "electron-app"
   ],
-    "dependencies": {
-    "generator-theia-extension": "^0.1.47"
+  "resolutions": {
+    "@theia/core": "1.65.2",
+    "@theia/property-view": "1.65.2",
+    "@theia/workspace": "1.65.2",
+    "@theia/filesystem": "1.65.2"
   }
 }
