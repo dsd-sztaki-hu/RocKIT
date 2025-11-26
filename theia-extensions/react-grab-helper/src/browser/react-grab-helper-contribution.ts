@@ -1,3 +1,4 @@
+
 import { injectable  } from '@theia/core/shared/inversify';
 import { FrontendApplication, FrontendApplicationContribution } from '@theia/core/lib/browser';
 
