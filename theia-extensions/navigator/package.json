@@ -38,17 +38,15 @@
     "src"
   ],
   "scripts": {
-    "build": "theiaext build",
+    "build": "theiaext build && node scripts/copy-css.js",
     "clean": "theiaext clean",
     "compile": "theiaext compile",
     "lint": "theiaext lint",
     "test": "theiaext test",
-    "watch": "theiaext watch",
-    "copy-assets": "copyfiles -u 1 \"src/**/*.css\" lib"
+    "watch": "theiaext watch"
   },
   "devDependencies": {
-    "@theia/ext-scripts": "1.65.2",
-    "copyfiles": "^2.4.1"
+    "@theia/ext-scripts": "1.65.2"
   },
   "nyc": {
     "extends": "../../configs/nyc.json"
