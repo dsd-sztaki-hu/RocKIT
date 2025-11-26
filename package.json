@@ -18,7 +18,11 @@
     "lerna": "2.4.0"
   },
   "workspaces": [
+    "theia-extensions/*",
     "browser-app",
     "electron-app"
-  ]
+  ],
+  "dependencies": {
+    "generator-theia-extension": "^0.1.47"
+  }
 }
