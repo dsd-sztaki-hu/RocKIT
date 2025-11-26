@@ -20,7 +20,6 @@
     "@theia/filesystem": "1.65.2",
     "@theia/workspace": "1.65.2",
     "@theia/variable-resolver": "1.65.2",
-    "@monaco-editor/react": "^4.6.0",
     "tslib": "^2.6.2"
   },
   "devDependencies": {
