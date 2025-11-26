@@ -114,7 +114,6 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     }
 
     protected override renderTree(model: TreeModel): React.ReactNode {
-        console.log("HELLOOOOOOOO")
         if (this.model.root && this.isEmptyMultiRootWorkspace(model)) {
             return this.renderEmptyMultiRootWorkspace();
         }
