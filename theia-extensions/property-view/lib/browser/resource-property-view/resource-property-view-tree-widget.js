@@ -69,7 +69,7 @@ let ResourcePropertyViewTreeWidget = ResourcePropertyViewTreeWidget_1 = class Re
     async fillPropertiesTree(fileStatObject) {
         if (fileStatObject) {
             this.propertiesTree.clear();
-            const infoNode = this.createCategoryNode('info', nls_1.nls.localizeByDefault('Info'));
+            const infoNode = this.createCategoryNode('info', nls_1.nls.localizeByDefault('File Info'));
             this.propertiesTree.set('info', infoNode);
             // Add file properties to Info node
             infoNode.children.push(this.createResultLineNode('isDirectory', nls_1.nls.localize('theia/property-view/directory', 'Directory'), fileStatObject.isDirectory, infoNode));
@@ -99,7 +99,7 @@ let ResourcePropertyViewTreeWidget = ResourcePropertyViewTreeWidget_1 = class Re
             const fileName = this.getFileName(fileStat);
             const fileExtension = ((_a = fileName.split('.').pop()) === null || _a === void 0 ? void 0 : _a.toLowerCase()) || '';
             // Create content category node
-            const contentNode = this.createCategoryNode('content', nls_1.nls.localizeByDefault('Content'));
+            const contentNode = this.createCategoryNode('content', nls_1.nls.localizeByDefault('File Preview'));
             // Check if it's an image file
             const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp'];
             if (imageExtensions.includes(fileExtension)) {
@@ -235,7 +235,8 @@ let ResourcePropertyViewTreeWidget = ResourcePropertyViewTreeWidget_1 = class Re
             const language = parts[2] || 'plaintext';
             // For text content, render in a Monaco editor
             return React.createElement("div", { className: "resource-content-monaco-container" },
-                React.createElement(react_1.default, { language: language, value: content, theme: "vs-light" // Will be adjusted by CSS for theme support
+                React.createElement(react_1.default, { height: "300px" // Default height, will be adjusted by CSS
+                    , language: language, value: content, theme: "vs-light" // Will be adjusted by CSS for theme support
                     , options: {
                         readOnly: true,
                         minimap: { enabled: false },
