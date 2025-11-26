@@ -41,3 +41,8 @@
   width: calc(100% - var(--theia-ui-padding) * 4);
   margin-left: 0;
 }
+
+.highlighted-jpg {
+    background-color: #8B0000; /* A dark red background */
+    color: white; /* Change text color to white for better readability */
+}

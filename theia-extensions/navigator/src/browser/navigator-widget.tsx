@@ -18,8 +18,16 @@ import { injectable, inject, postConstruct } from '@theia/core/shared/inversify'
 import { Message } from '@theia/core/shared/@lumino/messaging';
 import URI from '@theia/core/lib/common/uri';
 import { CommandService } from '@theia/core/lib/common';
-import { Key, TreeModel, ContextMenuRenderer, ExpandableTreeNode, TreeProps, TreeNode } from '@theia/core/lib/browser';
-import { DirNode, FileStatNodeData } from '@theia/filesystem/lib/browser';
+import {
+    Key,
+    TreeModel,
+    ContextMenuRenderer,
+    ExpandableTreeNode,
+    TreeProps,
+    TreeNode,
+    NodeProps
+} from '@theia/core/lib/browser';
+import {DirNode, FileStatNode, FileStatNodeData} from '@theia/filesystem/lib/browser';
 import { WorkspaceService, WorkspaceCommands } from '@theia/workspace/lib/browser';
 import { WorkspaceNode, WorkspaceRootNode } from './navigator-tree';
 import { FileNavigatorModel } from './navigator-model';
@@ -217,4 +225,17 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         this.contextKeyService.isFileSystemResource.set(FileStatNodeData.is(this.model.selectedNodes[0]));
     }
 
+    /**
+     * Overrides the method from FileTreeWidget to add custom CSS classes.
+     */
+    protected override createNodeAttributes(node: TreeNode, props: NodeProps): React.Attributes & React.HTMLAttributes<HTMLElement> {
+        const attributes = super.createNodeAttributes(node, props);
+
+        if (FileStatNode.is(node) && node.fileStat.name.toLowerCase().endsWith('.jpg')) {
+            const existingClassName = attributes.className || '';
+            attributes.className = `${existingClassName} highlighted-jpg`.trim();
+        }
+
+        return attributes;
+    }
 }
