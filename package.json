@@ -24,8 +24,5 @@
     "theia-extensions/*",
     "browser-app",
     "electron-app"
-  ],
-    "dependencies": {
-    "generator-theia-extension": "^0.1.47"
-  }
+  ]
 }
