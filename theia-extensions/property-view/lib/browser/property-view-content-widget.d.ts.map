@@ -1,0 +1,1 @@
+{"version":3,"file":"property-view-content-widget.d.ts","sourceRoot":"","sources":["../../src/browser/property-view-content-widget.ts"],"names":[],"mappings":"AAgBA,OAAO,EAAE,MAAM,EAAE,MAAM,wCAAwC,CAAC;AAChE,OAAO,EAAE,mBAAmB,EAAE,MAAM,yBAAyB,CAAC;AAE9D;;;;GAIG;AACH,MAAM,WAAW,yBAA0B,SAAQ,MAAM;IACrD,yBAAyB,CAAC,mBAAmB,CAAC,EAAE,mBAAmB,EAAE,SAAS,CAAC,EAAE,MAAM,GAAG,IAAI,CAAC;CAClG"}

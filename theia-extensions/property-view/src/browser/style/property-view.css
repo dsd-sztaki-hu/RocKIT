@@ -49,3 +49,107 @@
 .theia-resource-tree-node-property {
   flex-basis: var(--theia-resource-tree-node-property-flex-basis);
 }
+
+/* Content preview styles */
+.resource-properties-widget {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.resource-properties-widget .theia-TreeNode {
+  flex-grow: 1;
+}
+
+.resource-properties-widget .theia-TreeNode.no-hover:hover {
+  background-color: transparent !important;
+}
+
+.resource-properties-widget .theia-TreeNode.no-hover:hover .theia-TreeNodeSegment {
+  background-color: transparent !important;
+}
+
+.resource-properties-widget .theia-TreeNode.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.resource-properties-widget .theia-TreeNode.no-select [style*="user-select: text"] {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+
+.resource-content-preview {
+  width: 100%;
+  padding: 5px;
+  margin: 0;
+  font-family: monospace;
+  font-size: 12px;
+  min-height: 100px;
+  max-height: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background-color: var(--theia-editor-background);
+  color: var(--theia-editor-foreground);
+  border: 1px solid var(--theia-editor-border);
+  border-radius: 2px;
+  user-select: text;
+  cursor: text;
+  outline: none;
+  pointer-events: auto; /* Ensure mouse events work */
+}
+
+.resource-content-image-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 5px;
+  user-select: none;
+}
+
+.resource-content-image-container img {
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+}
+
+/* Monaco Editor container */
+.resource-content-monaco-container {
+  width: 100%;
+  min-height: 100px;
+  height: auto;
+  max-height: 100%;
+  border: 1px solid var(--theia-editor-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+/* Override Monaco's default theme to match Theia's theme */
+.resource-content-monaco-container .monaco-editor {
+  padding: 5px;
+}
+
+/* Adjust Monaco theme based on Theia's theme */
+body.vs .resource-content-monaco-container .monaco-editor .monaco-editor-background,
+body.vs .resource-content-monaco-container .monaco-editor .inputarea {
+  background-color: var(--theia-editor-background);
+  color: var(--theia-editor-foreground);
+}
+
+body.vs-dark .resource-content-monaco-container .monaco-editor .monaco-editor-background,
+body.vs-dark .resource-content-monaco-container .monaco-editor .inputarea {
+  background-color: var(--theia-editor-background);
+  color: var(--theia-editor-foreground);
+}
+
+body.hc-black .resource-content-monaco-container .monaco-editor .monaco-editor-background,
+body.hc-black .resource-content-monaco-container .monaco-editor .inputarea {
+  background-color: var(--theia-editor-background);
+  color: var(--theia-editor-foreground);
+}
