@@ -25,7 +25,8 @@ import {
     ExpandableTreeNode,
     TreeProps,
     TreeNode,
-    NodeProps
+    NodeProps,
+    CompositeTreeNode
 } from '@theia/core/lib/browser';
 import {DirNode, FileStatNode, FileStatNodeData} from '@theia/filesystem/lib/browser';
 import { WorkspaceService, WorkspaceCommands } from '@theia/workspace/lib/browser';
@@ -236,6 +237,31 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
             attributes.className = `${existingClassName} highlighted-jpg`.trim();
         }
 
+        if (DirNode.is(node) && this.containsJpgFile(node)) {
+            const existingClassName = attributes.className || '';
+            attributes.className = `${existingClassName} contains-jpg`.trim();
+        }
+
         return attributes;
+    }
+
+    /**
+     * Recursively checks if a given TreeNode or any of its children is a .jpg file.
+     * @param node The node to start the search from.
+     * @returns True if a .jpg file is found in the subtree, otherwise false.
+     */
+    private containsJpgFile(node: TreeNode): boolean {
+        if (FileStatNode.is(node) && node.fileStat.name.toLowerCase().endsWith('.jpg')) {
+            return true;
+        }
+
+        if (CompositeTreeNode.is(node) && node.children) {
+            for (const child of node.children) {
+                if (this.containsJpgFile(child)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

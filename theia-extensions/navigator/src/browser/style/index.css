@@ -46,3 +46,8 @@
     background-color: #8B0000; /* A dark red background */
     color: white; /* Change text color to white for better readability */
 }
+
+.contains-jpg {
+    background-color: #ff8c00; /* Dark orange */
+    color: white;
+}
