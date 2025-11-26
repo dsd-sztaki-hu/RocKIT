@@ -26,3 +26,11 @@ and the Electron example.
     yarn watch
 
 Run the example as [described above](#Running-the-Electron-example)
+
+### react-grab support
+
+https://github.com/aidenybai/react-grab has been added via the `react-grab` extension. 
+
+The UI part works
+with cmd+c, but it doesn't collect the React specific file paths, only the
+HTML selection. So, this is of minimal use for now.
