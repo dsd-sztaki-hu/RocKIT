@@ -19,21 +19,20 @@ export class AppStateService {
     protected readonly storageService: StorageService;
 
     @postConstruct()
-    protected async init(): Promise<void> {
-        // restore persisted state if available
-        try {
-            const stored = await this.storageService.getData<AppState>(STORAGE_KEY);
-            if (stored) {
-                this.store.setState({
-                    dirty: false,
-                    theme: 'light',
-                    notifications: [],
-                    ...(stored as any) // avoid duplicate field TS error
-                });
-            }
-        } catch (e) {
-            console.error('Failed to restore app state', e);
-        }
+    protected init(): void {
+        // restore persisted state if available (fire-and-forget to keep binding synchronous)
+        this.storageService.getData<AppState>(STORAGE_KEY)
+            .then(stored => {
+                if (stored) {
+                    this.store.setState({
+                        dirty: false,
+                        theme: 'light',
+                        notifications: [],
+                        ...(stored as any) // avoid duplicate field TS error
+                    });
+                }
+            })
+            .catch(e => console.error('Failed to restore app state', e));
 
         // persist on every change
         this.onDidChangeState(({ current }) => {
@@ -87,6 +86,14 @@ export class AppStateService {
         this.updateState(prev => ({
             notifications: [...prev.notifications, message]
         }));
+    }
+
+    reset(): void {
+        this.store.setState({
+            dirty: false,
+            theme: 'light',
+            notifications: []
+        });
     }
 
     readonly onDidChangeNotificationCount: Event<number> =

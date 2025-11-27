@@ -1,6 +1,6 @@
 import { injectable, inject } from 'inversify';
-import { Command, CommandRegistry } from '@theia/core/lib/common';
-import { FrontendApplicationContribution, WidgetManager, ApplicationShell } from '@theia/core/lib/browser';
+import { Command, CommandRegistry, CommandContribution, MenuContribution, MenuModelRegistry } from '@theia/core/lib/common';
+import { FrontendApplicationContribution, WidgetManager, ApplicationShell, CommonMenus } from '@theia/core/lib/browser';
 import { AppStateService } from './state/app-state-service';
 import { SampleReactWidget } from './sample-react-widget';
 
@@ -10,7 +10,7 @@ export const OpenSampleWidgetCommand: Command = {
 };
 
 @injectable()
-export class AppStateSampleContribution implements FrontendApplicationContribution {
+export class AppStateSampleContribution implements FrontendApplicationContribution, CommandContribution, MenuContribution {
 
     @inject(AppStateService)
     protected readonly appState: AppStateService;
@@ -39,6 +39,13 @@ export class AppStateSampleContribution implements FrontendApplicationContributi
                 }
                 this.shell.activateWidget(widget.id);
             }
+        });
+    }
+
+    registerMenus(menus: MenuModelRegistry): void {
+        menus.registerMenuAction(CommonMenus.VIEW, {
+            commandId: OpenSampleWidgetCommand.id,
+            label: OpenSampleWidgetCommand.label
         });
     }
 }

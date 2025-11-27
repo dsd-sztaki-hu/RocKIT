@@ -56,6 +56,9 @@ export class SampleReactWidget extends ReactWidget {
         this.title.caption = SampleReactWidget.LABEL;
         this.title.closable = true;
         this.title.iconClass = 'fa fa-sliders';
+
+        // trigger initial render
+        this.update();
     }
 
     protected render(): React.ReactNode {
