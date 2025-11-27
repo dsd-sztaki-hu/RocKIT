@@ -1,32 +1,21 @@
 import { injectable, inject } from 'inversify';
 import { Command, CommandRegistry, CommandContribution, MenuContribution, MenuModelRegistry } from '@theia/core/lib/common';
-import { FrontendApplicationContribution, WidgetManager, ApplicationShell, CommonMenus } from '@theia/core/lib/browser';
-import { AppStateService } from './state/app-state-service';
+import { WidgetManager, ApplicationShell, CommonMenus } from '@theia/core/lib/browser';
 import { SampleReactWidget } from './sample-react-widget';
 
 export const OpenSampleWidgetCommand: Command = {
-    id: 'theia-app-state-extension:open-sample-widget',
+    id: 'theia-app-state-sample:open-sample-widget',
     label: 'Open AppState Sample Widget'
 };
 
 @injectable()
-export class AppStateSampleContribution implements FrontendApplicationContribution, CommandContribution, MenuContribution {
-
-    @inject(AppStateService)
-    protected readonly appState: AppStateService;
+export class AppStateSampleContribution implements CommandContribution, MenuContribution {
 
     @inject(WidgetManager)
     protected readonly widgetManager: WidgetManager;
 
     @inject(ApplicationShell)
     protected readonly shell: ApplicationShell;
-
-    onStart(): void {
-        // Listen to state changes and log them (as an example)
-        this.appState.onDidChangeState(({ current }) => {
-            console.log('[AppState] changed:', current);
-        });
-    }
 
     registerCommands(commands: CommandRegistry): void {
         commands.registerCommand(OpenSampleWidgetCommand, {

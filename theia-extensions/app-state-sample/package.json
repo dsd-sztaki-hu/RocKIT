@@ -1,0 +1,30 @@
+{
+  "name": "app-state-sample",
+  "version": "0.0.1",
+  "private": true,
+  "files": [
+    "lib",
+    "src"
+  ],
+  "scripts": {
+    "prepare": "yarn clean && yarn build",
+    "clean": "rimraf lib",
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "typescript": "~5.4.5",
+    "rimraf": "^5.0.0",
+    "jest": "^29.0.0",
+    "@types/jest": "^29.0.0"
+  },
+  "dependencies": {
+    "app-state": "0.0.1"
+  },
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/app-state-sample-frontend-module"
+    }
+  ]
+}

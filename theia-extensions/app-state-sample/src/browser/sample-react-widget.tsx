@@ -1,14 +1,15 @@
 import * as React from 'react';
 import { injectable, inject } from 'inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
-import { AppStateService } from './state/app-state-service';
-import { AppStateProvider, useAppState, useAppStateService } from './state/app-state-react';
+import { AppStateProvider, useAppState, useAppStateService } from 'app-state/lib/browser/state/app-state-react';
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
+import { AppState } from 'app-state/lib/browser/state/app-state';
 
 function SampleView() {
-    const appState = useAppStateService();
-    const dirty = useAppState(s => s.dirty);
-    const theme = useAppState(s => s.theme);
-    const notifCount = useAppState(s => s.notifications.length);
+    const service = useAppStateService();
+    const dirty = useAppState((s: AppState) => s.dirty);
+    const theme = useAppState((s: AppState) => s.theme);
+    const notifCount = useAppState((s: AppState) => s.notifications.length);
 
     return (
         <div style={{ padding: '1rem' }}>
@@ -17,12 +18,12 @@ function SampleView() {
             <p>Theme: {theme}</p>
             <p>Notifications: {notifCount}</p>
 
-            <button onClick={() => (appState.dirty = !dirty)}>
+            <button onClick={() => (service.dirty = !dirty)}>
                 Toggle dirty
             </button>
             <button
                 onClick={() =>
-                    appState.updateState(prev => ({
+                    service.updateState(prev => ({
                         theme: prev.theme === 'light' ? 'dark' : 'light'
                     }))
                 }
@@ -31,7 +32,7 @@ function SampleView() {
                 Toggle theme
             </button>
             <button
-                onClick={() => appState.addNotification('Hello from SampleView')}
+                onClick={() => service.addNotification('Hello from SampleView')}
                 style={{ marginLeft: '0.5rem' }}
             >
                 Add notification
@@ -43,7 +44,7 @@ function SampleView() {
 @injectable()
 export class SampleReactWidget extends ReactWidget {
 
-    static readonly ID = 'theia-app-state-extension:sample-react-widget';
+    static readonly ID = 'theia-app-state-sample:sample-react-widget';
     static readonly LABEL = 'AppState Sample';
 
     @inject(AppStateService)
@@ -56,8 +57,6 @@ export class SampleReactWidget extends ReactWidget {
         this.title.caption = SampleReactWidget.LABEL;
         this.title.closable = true;
         this.title.iconClass = 'fa fa-sliders';
-
-        // trigger initial render
         this.update();
     }
 

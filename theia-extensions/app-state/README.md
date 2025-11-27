@@ -21,54 +21,34 @@ View  >>> Open AppState Sample Widget
 
 ### Adding New State Values
 
-To add new state values, you need to modify the `AppState` interface in `src/browser/state/app-state.ts`:
+To add new state values, you need to modify the `defaultAppState` variable in `src/browser/state/app-state.ts`. THis defines the sahpe of the state object as well as defines default values.
 
 ```typescript
-export interface AppState {
-    roCrate?: string;
-    dirty: boolean;
-    theme: 'light' | 'dark';
-    notifications: string[];
-    // Add your new properties here
-    user?: {
-        name: string;
-        email: string;
-    };
-    settings?: {
-        autoSave: boolean;
-        fontSize: number;
-    };
+export const defaultAppState = {
+    roCrate: undefined as string | undefined,
+    dirty: false,
+    theme: 'light' as 'light' | 'dark',
+    notifications: [] as string[],
+    // Add settings object here
+    settings: {
+        autoSave: true,
+        fontSize: 14
+    }
 }
 ```
 
-```typescript
-    private readonly store = new SimpleStateStore<AppState>({
-        dirty: false,
-        theme: 'light',
-        notifications: []
-    });
-```
-After updating the interface, you need to add getters and setters to the `AppStateService` class in `src/browser/state/app-state-service.ts`:
+If you have `yarn watch:electron` or `yarn watch:browser` running accessors for the new state properties will be automatically generated in the `AppStateService` class. Otherwise , you can add them manually `src/browser/state/app-state-service.ts` like this:
 
 ```typescript
-// Example for adding user state
-get user(): { name: string; email: string } | undefined {
-    return this.getState().user;
-}
-
-set user(user: { name: string; email: string } | undefined) {
-    this.updateState({ user });
-}
-
-// Example for adding settings state
-get settings(): { autoSave: boolean; fontSize: number } | undefined {
+    get settings(): AppState['settings'] {
     return this.getState().settings;
 }
-
-set settings(settings: { autoSave: boolean; fontSize: number } | undefined) {
-    this.updateState({ settings });
-}
+    set settings(value: AppState['settings']) {
+        this.updateState({ settings: value });
+    }
 ```
+
+The generated acccessors can be further customized if needed.
 
 ### Using State in Other Extensions
 
