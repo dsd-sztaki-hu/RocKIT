@@ -16,6 +16,7 @@ node_modules
 *.log
 
 lib
-!theia-extensions/*/lib
 *-app/*
 !*-app/package.json
+yarn.lock
+*.tsbuildinfo
