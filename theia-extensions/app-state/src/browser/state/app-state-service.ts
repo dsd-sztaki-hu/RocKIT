@@ -1,7 +1,7 @@
 import { injectable, inject, postConstruct } from 'inversify';
 import { Event } from '@theia/core/lib/common';
 import { StorageService } from '@theia/core/lib/browser/storage-service';
-import { AppState } from './app-state';
+import { AppState, cloneDefaultAppState } from './app-state';
 import { SimpleStateStore, StateChange } from './state-store';
 
 const STORAGE_KEY = 'theia-app-state-extension:app-state';
@@ -9,11 +9,8 @@ const STORAGE_KEY = 'theia-app-state-extension:app-state';
 @injectable()
 export class AppStateService {
 
-    private readonly store = new SimpleStateStore<AppState>({
-        dirty: false,
-        theme: 'light',
-        notifications: []
-    });
+    // Default state values
+    private readonly store = new SimpleStateStore<AppState>(cloneDefaultAppState());
 
     @inject(StorageService)
     protected readonly storageService: StorageService;
@@ -24,15 +21,13 @@ export class AppStateService {
         this.storageService.getData<AppState>(STORAGE_KEY)
             .then(stored => {
                 if (stored) {
-                    this.store.setState({
-                        dirty: false,
-                        theme: 'light',
-                        notifications: [],
-                        ...(stored as any) // avoid duplicate field TS error
-                    });
-                }
-            })
-            .catch(e => console.error('Failed to restore app state', e));
+                this.store.setState({
+                    ...cloneDefaultAppState(),
+                    ...(stored as any) // avoid duplicate field TS error
+                });
+            }
+        })
+        .catch(e => console.error('Failed to restore app state', e));
 
         // persist on every change
         this.onDidChangeState(({ current }) => {
@@ -89,11 +84,7 @@ export class AppStateService {
     }
 
     reset(): void {
-        this.store.setState({
-            dirty: false,
-            theme: 'light',
-            notifications: []
-        });
+        this.store.setState(cloneDefaultAppState());
     }
 
     readonly onDidChangeNotificationCount: Event<number> =

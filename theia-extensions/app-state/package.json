@@ -9,8 +9,9 @@
   "scripts": {
     "prepare": "yarn clean && yarn build",
     "clean": "rimraf lib",
-    "build": "tsc",
-    "watch": "tsc -w",
+    "generate:accessors": "node ./scripts/generate-accessors.cjs",
+    "build": "yarn generate:accessors && tsc",
+    "watch": "yarn generate:accessors && tsc -w",
     "test": "jest"
   },
   "devDependencies": {
