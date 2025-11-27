@@ -16,11 +16,13 @@
     "@theia/process": "1.65.2",
     "@theia/terminal": "1.65.2",
     "@theia/workspace": "1.65.2",
-    "ro-crate-editor": "0.0.0"
+    "ro-crate-editor": "0.0.0",
+    "react-grab-helper": "0.0.0"
   },
   "devDependencies": {
     "@theia/cli": "1.65.2",
-    "electron": "37.2.1"
+    "electron": "37.2.1",
+    "react-grab": "^0.0.53"
   },
   "scripts": {
     "bundle": "npm run rebuild && theia build --mode development",
