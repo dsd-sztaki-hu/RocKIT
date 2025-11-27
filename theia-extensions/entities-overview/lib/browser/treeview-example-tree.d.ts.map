@@ -1,1 +1,0 @@
-{"version":3,"file":"treeview-example-tree.d.ts","sourceRoot":"","sources":["../../src/browser/treeview-example-tree.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,iBAAiB,EAAE,QAAQ,EAAE,QAAQ,EAAE,MAAM,yBAAyB,CAAC;AAMhF;;;;GAIG;AACH,qBAAa,mBAAoB,SAAQ,QAAQ;IACL,OAAO,CAAC,QAAQ,CAAC,WAAW,CAAiC;IAErG;;;;;OAKG;IACY,eAAe,CAAC,MAAM,EAAE,iBAAiB,GAAG,OAAO,CAAC,QAAQ,EAAE,CAAC;CAwBjF"}
