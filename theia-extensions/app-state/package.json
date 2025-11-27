@@ -1,0 +1,27 @@
+{
+  "name": "app-state",
+  "version": "0.0.1",
+  "private": true,
+  "files": [
+    "lib",
+    "src"
+  ],
+  "scripts": {
+    "prepare": "yarn clean && yarn build",
+    "clean": "rimraf lib",
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.0.0",
+    "jest": "^29.0.0",
+    "rimraf": "^5.0.0",
+    "typescript": "~5.4.5"
+  },
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/app-state-frontend-module"
+    }
+  ]
+}
