@@ -291,6 +291,7 @@ export class ResourcePropertyViewTreeWidget extends TreeWidget implements Proper
             const parts = node.property.split('::');
             const content = parts[1] || '';
             const language = parts[2] || 'plaintext';
+            const monacoTheme = this.getCurrentMonacoTheme();
             
             // For text content, render in a Monaco editor
             return <div className="resource-content-monaco-container">
@@ -298,7 +299,7 @@ export class ResourcePropertyViewTreeWidget extends TreeWidget implements Proper
                     height="300px" // Default height, will be adjusted by CSS
                     language={language}
                     value={content}
-                    theme="vs-light" // Will be adjusted by CSS for theme support
+                    theme={monacoTheme} // Will be adjusted by CSS for theme support
                     options={{
                         readOnly: true,
                         minimap: { enabled: false },
@@ -333,6 +334,17 @@ export class ResourcePropertyViewTreeWidget extends TreeWidget implements Proper
             </div>;
         }
     }
+
+    private getCurrentMonacoTheme(): string {
+    // Check the current body class to determine Theia's theme
+    if (document.body.classList.contains('theia-dark')) {
+        return 'vs-dark'; // Use dark theme for Monaco
+    } else if (document.body.classList.contains('theia-hc')) {
+        return 'hc-black'; // Use high contrast theme for Monaco
+    } else {
+        return 'vs'; // Use light theme for Monaco (default)
+        }
+    }  
 
     protected override createNodeAttributes(node: TreeNode, props: NodeProps): React.Attributes & React.HTMLAttributes<HTMLElement> {
         // For content nodes, modify the attributes to remove indentation and disable selection/hover

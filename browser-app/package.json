@@ -14,7 +14,7 @@
     "@theia/process": "1.65.2",
     "@theia/terminal": "1.65.2",
     "@theia/workspace": "1.65.2",
-    "@theia/property-view": "1.65.2",
+    "file-preview": "0.0.0",
     "react-grab-helper": "0.0.0"
   },
   "devDependencies": {
