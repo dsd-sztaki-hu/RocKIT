@@ -1,10 +1,20 @@
-import { injectable, inject, postConstruct } from 'inversify';
-import { Event } from '@theia/core/lib/common';
-import { StorageService } from '@theia/core/lib/browser/storage-service';
-import { AppState, cloneDefaultAppState } from './app-state';
-import { SimpleStateStore, StateChange } from './state-store';
+import {injectable, inject, postConstruct} from 'inversify';
+import {Event} from '@theia/core/lib/common';
+import {StorageService} from '@theia/core/lib/browser/storage-service';
+import {AppState, defaultAppState} from './app-state';
+import {SimpleStateStore, StateChange} from './state-store';
 
 const STORAGE_KEY = 'theia-app-state-extension:app-state';
+
+// Create a fresh copy so callers don't share mutable references (e.g., arrays)
+export function cloneDefaultAppState(): AppState {
+    return {
+        ...defaultAppState,
+        // copy array to avoid mutation sharing
+        notifications: [...defaultAppState.notifications]
+    };
+}
+
 
 @injectable()
 export class AppStateService {
@@ -21,16 +31,16 @@ export class AppStateService {
         this.storageService.getData<AppState>(STORAGE_KEY)
             .then(stored => {
                 if (stored) {
-                this.store.setState({
-                    ...cloneDefaultAppState(),
-                    ...(stored as any) // avoid duplicate field TS error
-                });
-            }
-        })
-        .catch(e => console.error('Failed to restore app state', e));
+                    this.store.setState({
+                        ...cloneDefaultAppState(),
+                        ...(stored as any) // avoid duplicate field TS error
+                    });
+                }
+            })
+            .catch(e => console.error('Failed to restore app state', e));
 
         // persist on every change
-        this.onDidChangeState(({ current }) => {
+        this.onDidChangeState(({current}) => {
             this.storageService.setData(STORAGE_KEY, current);
         });
     }
@@ -54,37 +64,45 @@ export class AppStateService {
         return this.store.onDidChangeSelector(selector, equals);
     }
 
-    // --- convenience getters/setters/actions ---
 
-    get roCrate(): string | undefined {
+    reset(): void {
+        this.store.setState(cloneDefaultAppState());
+    }
+
+    get roCrate(): AppState['roCrate'] {
+        console.log('Getting roCrate:', this.getState().roCrate);
         return this.getState().roCrate;
     }
-    set roCrate(json: string | undefined) {
-        this.updateState({ roCrate: json });
+    set roCrate(value: AppState['roCrate']) {
+        this.updateState({ roCrate: value });
     }
 
-    get dirty(): boolean {
+    get dirty(): AppState['dirty'] {
         return this.getState().dirty;
     }
-    set dirty(value: boolean) {
+    set dirty(value: AppState['dirty']) {
         this.updateState({ dirty: value });
     }
 
-    get theme(): 'light' | 'dark' {
+    get theme(): AppState['theme'] {
         return this.getState().theme;
     }
-    set theme(value: 'light' | 'dark') {
+    set theme(value: AppState['theme']) {
         this.updateState({ theme: value });
+    }
+
+    get notifications(): AppState['notifications'] {
+        return this.getState().notifications;
+    }
+
+    set notifications(value: AppState['notifications']) {
+        this.updateState({ notifications: value });
     }
 
     addNotification(message: string): void {
         this.updateState(prev => ({
             notifications: [...prev.notifications, message]
         }));
-    }
-
-    reset(): void {
-        this.store.setState(cloneDefaultAppState());
     }
 
     readonly onDidChangeNotificationCount: Event<number> =

@@ -11,7 +11,7 @@
     "clean": "rimraf lib",
     "generate:accessors": "node ./scripts/generate-accessors.cjs",
     "build": "yarn generate:accessors && tsc",
-    "watch": "yarn generate:accessors && tsc -w",
+    "watch": "node ./scripts/watch-all.cjs",
     "test": "jest"
   },
   "devDependencies": {
