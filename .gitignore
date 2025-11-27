@@ -18,5 +18,4 @@ node_modules
 lib
 *-app/*
 !*-app/package.json
-yarn.lock
 *.tsbuildinfo
