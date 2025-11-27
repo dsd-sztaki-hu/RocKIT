@@ -10,7 +10,7 @@ import { ExampleTreeLeaf, ExampleTreeNode } from './treeview-example-model';
 export interface Item {
     name: string; // name of the category/container or item
     children?: Item[]; // the directly contained items; only defined for categories/containers
-    quantity?: number; // the quantity of items available (to demonstrate decoration, ...); only defined for items
+    valid?: boolean; // whether the item is valid (to demonstrate decoration, ...); only defined for items
     backOrdered?: boolean; // whether this item was backordered (to demonstrate checkboxes); only defined for items
 }
 
@@ -21,13 +21,13 @@ export interface Item {
 export class TreeViewExampleTreeItemFactory {
     /**
      * Counter that for each item name stores the next id number to assign for that name,
-     * so that all tree items get a unique id 
+     * so that all tree items get a unique id
      */
     private readonly idCounter = new Map<string, number>();
 
     /**
      * Create a new tree node for the tree model from the given item.
-     * 
+     *
      * @param item the item to map to a tree node
      * @returns the tree node representing the given item
      */
@@ -51,7 +51,7 @@ export class TreeViewExampleTreeItemFactory {
 
                 /* NOTE!
                  * The checkboxInfo property can be used to add a checkbox to the tree node.
-                 * But at the moment (Theia 1.60.x), there is an issue with the UI in which the 
+                 * But at the moment (Theia 1.60.x), there is an issue with the UI in which the
                  * checkbox state is not properly reflected after the user clicks it.
                  * See https://github.com/eclipse-theia/theia/issues/15521 for details.
                  */
@@ -62,9 +62,9 @@ export class TreeViewExampleTreeItemFactory {
         }
     }
 
-    /** 
+    /**
      * Calculate a unique id for a given tree item by using the item's name and appending a unique counter.
-     * 
+     *
      * @param item the item to calculate the id for
      * @returns the unique id for the given item in the form "{name}-{counter}"
      */

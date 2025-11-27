@@ -1,6 +1,5 @@
 import { Emitter, Event } from '@theia/core';
-import { wait } from '@theia/core/lib/common/promise-util'
-import { DidChangeLabelEvent, LabelProviderContribution, TreeNode } from '@theia/core/lib/browser';
+import { DidChangeLabelEvent, LabelProviderContribution } from '@theia/core/lib/browser';
 import { injectable } from '@theia/core/shared/inversify';
 import { ExampleTreeLeaf, ExampleTreeNode } from './treeview-example-model';
 
@@ -34,8 +33,8 @@ export class TreeViewExampleLabelProvider implements LabelProviderContribution {
      *
      * This example demonstrates a name that is partially resolved asynchronously.
      * Whenever a name is requested for an `ExampleTreeLeaf` for the first time, a timer
-     * is scheduled. After the timer resolves, the quantity from the model is reported.
-     * In the meantime, a "calculating..." label is shown.
+     * is scheduled. After the timer resolves, the validity from the model is reported.
+     * In the meantime, a "checking..." label is shown.
      *
      * This works by emitting a label change event when the Promise is resolved.
      *
@@ -50,7 +49,7 @@ export class TreeViewExampleLabelProvider implements LabelProviderContribution {
 
         // in case of leaves, we simulate asynchronous retrieval
         if (ExampleTreeLeaf.is(element)) {
-            if (!element.quantityLabel) {
+            /*if (!element.quantityLabel) {
                 // if the quantityLabel is not yet set (not even 'calculating ...'), we schedule its retrieval
                 // by simulating a delay using wait(). In practice, you would call an expensive function returnung an
                 // actual promise instead of calling wait().
@@ -58,12 +57,10 @@ export class TreeViewExampleLabelProvider implements LabelProviderContribution {
                 wait(1000).then(() => {
                     element.quantityLabel = `${element.data.quantity}`;
                     this.fireNodeChange(element);
-                });                
-            }
+                });
+            }*/
 
-            // assemble the complete name from its parts
-            const orderedLabel = element.data.backOrdered ? ' - more are ordered' : '';
-            return element.data.name + ` (${element.quantityLabel + orderedLabel})`;
+            return element.data.name;
         }
 
         // this should not happen, because the canHandle() would only return >0 for the tree node types
@@ -82,23 +79,11 @@ export class TreeViewExampleLabelProvider implements LabelProviderContribution {
             return 'folder';
         }
         if (ExampleTreeLeaf.is(element)) {
-            return 'smile-o';
+            // Use different icons based on validity
+            return element.data.valid ? 'check-circle' : 'times-circle';
         }
 
         return undefined;
-    }
-
-    /**
-     * Fire the node change event.
-     *
-     * @param node the node that has been changed
-     */
-    fireNodeChange(node: TreeNode): void {
-        this.onDidChangeEmitter.fire({
-            // The element here is the tree row which has a `node` property
-            // Since we know exactly which node we have changed, we can match the changed node with the tree row's node
-            affects: (element: object) => 'node' in element && element.node === node
-        });
     }
 
     /**

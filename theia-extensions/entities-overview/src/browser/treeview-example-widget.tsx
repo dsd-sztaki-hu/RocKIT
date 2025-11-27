@@ -91,7 +91,26 @@ export class TreeViewExampleWidget extends TreeWidget {
         return {
             ...super.createNodeAttributes(node, props),
             ...this.getNodeDragHandlers(node),
+            onClick: () => this.handleNodeClick(node),
         };
+    }
+
+    /**
+     * Handle click events on tree nodes.
+     * For leaf nodes, this will log the name to the console.
+     *
+     * @param node the clicked node
+     */
+    protected handleNodeClick(node: TreeNode): void {
+        // Only handle clicks on leaf nodes
+        if (ExampleTreeLeaf.is(node)) {
+            console.log(`Clicked entity: ${node.data.name}`);
+            // You can also access other properties of the entity here
+            console.log(`Entity details:`, {
+                name: node.data.name,
+                valid: node.data.valid
+            });
+        }
     }
 
     /**

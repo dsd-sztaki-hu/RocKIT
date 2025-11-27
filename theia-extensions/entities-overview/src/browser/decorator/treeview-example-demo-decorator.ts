@@ -38,22 +38,20 @@ export class TreeviewExampleDemoDecorator implements TreeDecorator {
         for (const treeNode of new DepthFirstTreeIterator(tree.root)) {
             // in our case, we only decorate leaf nodes
             if (ExampleTreeLeaf.is(treeNode)) {
-                // we distinguish between high and low stock levels based on the quantity
-                const amount = treeNode.data.quantity || 0;
-                if (amount > 4) {
-                    // we use a green checkmark icon decoration for high stock levels
+                // we distinguish valid and invalid elements based on the valid property
+                const isValid = treeNode.data.valid;
+                if (!isValid) {
+                    // for invalid nodes, we use a red background color
                     result.set(treeNode.id, <WidgetDecoration.Data>{
                         iconOverlay: {
-                            position: WidgetDecoration.IconOverlayPosition.BOTTOM_RIGHT,
-                            iconClass: ['fa', 'fa-check-circle'],
-                            color: 'green'
-                        }
-                    });
-                } else {
-                    // for low stock levels, we use a red background color and a warning text suffix
-                    result.set(treeNode.id, <WidgetDecoration.Data>{
-                        backgroundColor: 'red',
-                        captionSuffixes: [{ data: 'Warning: low stock', fontData: { style: 'italic' } }]
+                            position: WidgetDecoration.IconOverlayPosition.BOTTOM_LEFT,
+                            iconClass: ['fa', 'fa-times'],
+                            color: '#ff4444',
+                        },
+                        // We can also add a caption suffix, this would be displayed after the name of the node.
+                        /*captionSuffixes: [{
+                            data: ' - invalid',
+                            fontData: { style: 'italic' } }]*/
                     });
                 }
             }

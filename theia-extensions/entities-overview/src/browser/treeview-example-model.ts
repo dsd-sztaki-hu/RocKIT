@@ -2,28 +2,31 @@ import { CompositeTreeNode, ExpandableTreeNode, SelectableTreeNode, TreeModelImp
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
 import { Item, TreeViewExampleTreeItemFactory } from './treeview-example-tree-item-factory';
 
-// Entity interface with type property
+// Entity interface with type and valid properties
 export interface Entity {
     id: string;
     technicalName: string;
     description: string;
-    type: 'author' | 'file' | 'dataset' | 'pointOfContact';
+    type: string;
+    valid: boolean;
 }
 
-// Mocked entities with type property
+// Mocked entities with type and valid properties
 export const MOCKED_ENTITIES: Entity[] = [
     // --- Authors ---
     {
         id: 'auth-1',
         technicalName: 'Tóth, Zoltán',
         description: 'Author - (SZTAKI staff)',
-        type: 'author'
+        type: 'author',
+        valid: true
     },
     {
         id: 'auth-2',
         technicalName: 'Nagy, Eszter',
         description: 'Author - (External Contributor)',
-        type: 'author'
+        type: 'author',
+        valid: true
     },
 
     // --- Files (From your image) ---
@@ -31,25 +34,29 @@ export const MOCKED_ENTITIES: Entity[] = [
         id: 'file-1',
         technicalName: 'jargon.html',
         description: 'File - Documentation Glossary',
-        type: 'file'
+        type: 'file',
+        valid: true
     },
     {
         id: 'file-2',
         technicalName: 'keyboard-interface.html',
         description: 'File - Accessibility Settings',
-        type: 'file'
+        type: 'file',
+        valid: false
     },
     {
         id: 'file-3',
         technicalName: 'label.html',
         description: 'File - UI Label definitions',
-        type: 'file'
+        type: 'file',
+        valid: true
     },
     {
         id: 'file-4',
         technicalName: 'large-scale.html',
         description: 'File - Scalability Tests',
-        type: 'file'
+        type: 'file',
+        valid: false
     },
 
     // --- Datasets (Implicit from image) ---
@@ -57,59 +64,65 @@ export const MOCKED_ENTITIES: Entity[] = [
         id: 'data-1',
         technicalName: 'SZTAKI_Dataset_V1',
         description: 'Dataset - Raw sensor logs',
-        type: 'dataset'
+        type: 'dataset',
+        valid: true
     },
     {
         id: 'data-2',
         technicalName: 'Export_2023_Q4',
         description: 'Dataset - Quarterly archive',
-        type: 'dataset'
+        type: 'dataset',
+        valid: false
     },
 
     // --- Point of Contact (Implicit from image) ---
     {
         id: 'poc-1',
-        technicalName: 'sysadmin@sztaki.hu',
+        technicalName: 'Tóth, Zoltán',
         description: 'Point of Contact - System Administrator',
-        type: 'pointOfContact'
+        type: 'pointOfContact',
+        valid: false
+    },
+
+    {
+        id: 'poc-2',
+        technicalName: 'Nagy, Eszter',
+        description: 'Author - (External Contributor)',
+        type: 'pointOfContact',
+        valid: true
     }
 ];
 
-// Group entities by type
-const ENTITIES_DATA: Item[] = [
-    {
-        name: 'Authors',
-        children: MOCKED_ENTITIES.filter(e => e.type === 'author').map(entity => ({
-            name: entity.technicalName,
-            id: entity.id,
-            description: entity.description
-        }))
-    },
-    {
-        name: 'Files',
-        children: MOCKED_ENTITIES.filter(e => e.type === 'file').map(entity => ({
-            name: entity.technicalName,
-            id: entity.id,
-            description: entity.description
-        }))
-    },
-    {
-        name: 'Datasets',
-        children: MOCKED_ENTITIES.filter(e => e.type === 'dataset').map(entity => ({
-            name: entity.technicalName,
-            id: entity.id,
-            description: entity.description
-        }))
-    },
-    {
-        name: 'Points of Contact',
-        children: MOCKED_ENTITIES.filter(e => e.type === 'pointOfContact').map(entity => ({
-            name: entity.technicalName,
-            id: entity.id,
-            description: entity.description
-        }))
-    }
-];
+// Function to extract unique entity types and capitalize the first letter
+function getUniqueEntityTypes(): string[] {
+    const types = new Set<string>();
+    MOCKED_ENTITIES.forEach(entity => types.add(entity.type));
+    return Array.from(types).map(type => type.charAt(0).toUpperCase() + type.slice(1));
+}
+
+// Function to create entities data dynamically based on unique types
+function createEntitiesData(): Item[] {
+    const uniqueTypes = getUniqueEntityTypes();
+
+    return uniqueTypes.map(typeName => {
+        const typeKey = typeName.charAt(0).toLowerCase() + typeName.slice(1);
+
+        return {
+            name: typeName,
+            children: MOCKED_ENTITIES
+                .filter(e => e.type === typeKey)
+                .map(entity => ({
+                    name: entity.technicalName,
+                    id: entity.id,
+                    description: entity.description,
+                    valid: entity.valid
+                }))
+        };
+    });
+}
+
+// Group entities by type dynamically
+const ENTITIES_DATA: Item[] = createEntitiesData();
 
 /** well-known ID for the root node in our tree */
 export const ROOT_NODE_ID = 'entities-overview-root';
@@ -125,10 +138,15 @@ export namespace ExampleTreeNode {
     }
 }
 
-/** Interface for a leaf node, along with a type-checking function */
+/**
+ *  Interface for a leaf node, along with a type-checking function
+ *
+ *  The "quantityLabel" property could be used to display a different label for invalid nodes.
+ *  It was originally used in the label-provider file's getName() function, still there commented out.
+ */
 export interface ExampleTreeLeaf extends TreeNode {
     data: Item;
-    quantityLabel?: string;
+    // quantityLabel?: string;
     type: 'leaf';
 }
 export namespace ExampleTreeLeaf {
@@ -199,7 +217,7 @@ export class TreeViewExampleModel extends TreeModelImpl {
      */
     public addItem(parent: TreeNode): void {
         if (ExampleTreeNode.is(parent)) {
-            const newItem: Item = { name: 'New Entity' };
+            const newItem: Item = { name: 'New Entity', valid: true };
             parent.data.children?.push(newItem);
             // since we have modified the tree structure, we need to refresh the parent node
             this.tree.refresh(parent);
