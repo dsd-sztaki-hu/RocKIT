@@ -9,7 +9,8 @@
     "src"
   ],
   "dependencies": {
-    "@theia/core": "1.65.2"
+    "@theia/core": "1.65.2",
+    "@arpproject/crate-builder-component-react": "0.80.0-arp.9"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",

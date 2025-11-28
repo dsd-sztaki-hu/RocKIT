@@ -12,6 +12,7 @@
         "emitDecoratorMetadata": true,
         "downlevelIteration": true,
         "resolveJsonModule": true,
+        "esModuleInterop": true,
         "module": "commonjs",
         "moduleResolution": "node",
         "target": "ES2017",

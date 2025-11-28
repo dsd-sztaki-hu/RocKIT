@@ -19,7 +19,8 @@
   },
   "devDependencies": {
     "@theia/cli": "1.65.2",
-    "react-grab": "^0.0.53"
+    "react-grab": "^0.0.53",
+    "@arpproject/crate-builder-component-react": "0.80.0-arp.9"
   },
   "scripts": {
     "bundle": "npm run rebuild && theia build --mode development",

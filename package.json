@@ -24,6 +24,7 @@
     "electron-app"
   ],
   "dependencies": {
-    "generator-theia-extension": "^0.1.47"
+    "generator-theia-extension": "^0.1.47",
+    "@arpproject/crate-builder-component-react": "0.80.0-arp.9"
   }
 }
