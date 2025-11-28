@@ -57,14 +57,36 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 @inject(AppStateService)
 protected readonly appState: AppStateService;
 
-// read / write
+// read / write primitives
 const current = this.appState.getState();
 this.appState.dirty = true;
-this.appState.updateState({ theme: 'dark' });
+
+// update nested object immutably so change events fire
+this.appState.settings = {
+  ...this.appState.settings,
+  fontSize: this.appState.settings.fontSize + 1
+};
+
+// or reducer-style update
+this.appState.updateState(prev => ({
+  settings: { ...prev.settings, autoSave: !prev.settings.autoSave }
+}));
 
 // listen
-this.appState.onDidChangeState(({ current }) => console.log(current));
+this.appState.onDidChangeState(({ current }) => console.log(current.settings));
+this.appState.onDidChangeSelector(s => s.settings.fontSize, (a, b) => a === b);
 ```
+
+
+### Immutable updates: arrays and objects
+
+Change detection uses reference equality by default. To ensure events fire:
+
+- Replace arrays: `appState.notifications = [...appState.notifications, 'New'];`
+- Replace objects: `appState.settings = { ...appState.settings, fontSize: appState.settings.fontSize + 1 };`
+- Reducer style: `appState.updateState(prev => ({ settings: { ...prev.settings, autoSave: !prev.settings.autoSave } }));`
+
+Avoid mutating existing arrays/objects in place, as the reference won’t change and selector listeners may not fire.
 
 ### Using State in React Widgets
 

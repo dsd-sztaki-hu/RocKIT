@@ -10,6 +10,7 @@ function SampleView() {
     const dirty = useAppState((s: AppState) => s.dirty);
     const theme = useAppState((s: AppState) => s.theme);
     const notifCount = useAppState((s: AppState) => s.notifications.length);
+    const settings = useAppState((s: AppState) => s.settings);
 
     return (
         <div style={{ padding: '1rem' }}>
@@ -17,6 +18,7 @@ function SampleView() {
             <p>Dirty: {dirty ? 'yes' : 'no'}</p>
             <p>Theme: {theme}</p>
             <p>Notifications: {notifCount}</p>
+            <p>Settings: autoSave={settings.autoSave ? 'on' : 'off'}, fontSize={settings.fontSize}</p>
 
             <button onClick={() => (service.dirty = !dirty)}>
                 Toggle dirty
@@ -36,6 +38,26 @@ function SampleView() {
                 style={{ marginLeft: '0.5rem' }}
             >
                 Add notification
+            </button>
+            <button
+                onClick={() =>
+                    service.updateState(prev => ({
+                        settings: { ...prev.settings, autoSave: !prev.settings.autoSave }
+                    }))
+                }
+                style={{ marginLeft: '0.5rem' }}
+            >
+                Toggle autoSave
+            </button>
+            <button
+                onClick={() =>
+                    service.updateState(prev => ({
+                        settings: { ...prev.settings, fontSize: prev.settings.fontSize + 1 }
+                    }))
+                }
+                style={{ marginLeft: '0.5rem' }}
+            >
+                Font +1
             </button>
         </div>
     );

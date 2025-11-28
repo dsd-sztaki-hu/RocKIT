@@ -107,4 +107,12 @@ export class AppStateService {
 
     readonly onDidChangeNotificationCount: Event<number> =
         this.onDidChangeSelector(s => s.notifications.length);
+
+    get settings(): AppState['settings'] {
+        return this.getState().settings;
+    }
+    set settings(value: AppState['settings']) {
+        this.updateState({ settings: value });
+    }
+
 }
