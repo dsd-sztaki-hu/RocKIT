@@ -1,6 +1,6 @@
 import { CompositeTreeNode, ExpandableTreeNode, SelectableTreeNode, TreeModelImpl, TreeNode } from '@theia/core/lib/browser';
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
-import { Item, TreeViewExampleTreeItemFactory } from './treeview-example-tree-item-factory';
+import { Item, EntitiesOverviewTreeItemFactory } from './entities-overview-tree-item-factory';
 
 // Entity interface with type and valid properties
 export interface Entity {
@@ -161,8 +161,8 @@ export namespace ExampleTreeLeaf {
  * This class contains the bridge between business model and tree model and realizes operations on the data.
  */
 @injectable()
-export class TreeViewExampleModel extends TreeModelImpl {
-    @inject(TreeViewExampleTreeItemFactory) private readonly itemFactory: TreeViewExampleTreeItemFactory;
+export class EntitiesOverviewModel extends TreeModelImpl {
+    @inject(EntitiesOverviewTreeItemFactory) private readonly itemFactory: EntitiesOverviewTreeItemFactory;
 
     /**
      * Initialize the tree model from the business model

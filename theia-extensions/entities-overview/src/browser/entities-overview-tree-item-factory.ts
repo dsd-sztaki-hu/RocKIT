@@ -1,5 +1,5 @@
 import { injectable } from '@theia/core/shared/inversify';
-import { ExampleTreeLeaf, ExampleTreeNode } from './treeview-example-model';
+import { ExampleTreeLeaf, ExampleTreeNode } from './entities-overview-model';
 
 /**
  * Interface for the "business model".
@@ -18,7 +18,7 @@ export interface Item {
  * This class encapsulates the logic for mapping business model items to tree nodes.
  */
 @injectable()
-export class TreeViewExampleTreeItemFactory {
+export class EntitiesOverviewTreeItemFactory {
     /**
      * Counter that for each item name stores the next id number to assign for that name,
      * so that all tree items get a unique id

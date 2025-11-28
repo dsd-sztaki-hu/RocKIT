@@ -3,13 +3,13 @@ import { DepthFirstTreeIterator, Tree, TreeDecorator } from '@theia/core/lib/bro
 import { WidgetDecoration } from '@theia/core/lib/browser/widget-decoration';
 import { Event } from '@theia/core/lib/common';
 import { injectable } from '@theia/core/shared/inversify';
-import { ExampleTreeLeaf } from '../treeview-example-model';
+import { ExampleTreeLeaf } from '../entities-overview-model';
 
 /**
  * Example TreeDecorator implementation for our tree widget.
  */
 @injectable()
-export class TreeviewExampleDemoDecorator implements TreeDecorator {
+export class EntitiesOverviewDecorator implements TreeDecorator {
     /** Decorator id - required by the TreeDecorator interface */
     id = 'TreeviewExampleDecorator';
 

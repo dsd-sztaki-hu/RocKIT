@@ -1,31 +1,31 @@
 import { Command, CommandRegistry, MenuModelRegistry } from '@theia/core';
 import { AbstractViewContribution } from '@theia/core/lib/browser';
 import { injectable } from '@theia/core/shared/inversify';
-import { ExampleTreeNode } from './treeview-example-model';
-import { TREEVIEW_EXAMPLE_CONTEXT_MENU, TreeViewExampleWidget } from './treeview-example-widget';
+import { ExampleTreeNode } from './entities-overview-model';
+import { TREEVIEW_EXAMPLE_CONTEXT_MENU, EntitiesOverviewWidget } from './entities-overview-widget';
 
-/** Definition of a command to show the TreeView Example View */
-export const OpenTreeviewExampleView: Command = {
+/** Definition of a command to show the Entities Overview View */
+export const OpenEntitiesOverviewView: Command = {
     id: 'theia-examples:treeview-example-view-command-id'
 };
 
 /** Definition of a command to add a new child (to demonstrate context menus) */
-export const TreeviewExampleTreeAddItem: Command = {
+export const EntitiesOverviewTreeAddItem: Command = {
     id: 'theia-examples:treeview-example-tree-add-item-command-id',
-    label: 'Example Tree View: Add New Child'
+    label: 'Entities Overview View: Add New Child'
 };
 
 /**
- * Contribution of the `TreeViewExampleWidget`
+ * Contribution of the `EntitiesOverviewViewContribution`
  */
 @injectable()
-export class TreeviewExampleViewContribution extends AbstractViewContribution<TreeViewExampleWidget> {
+export class EntitiesOverviewViewContribution extends AbstractViewContribution<EntitiesOverviewWidget> {
     constructor() {
         super({
-            widgetId: TreeViewExampleWidget.ID,
-            widgetName: TreeViewExampleWidget.LABEL,
+            widgetId: EntitiesOverviewWidget.ID,
+            widgetName: EntitiesOverviewWidget.LABEL,
             defaultWidgetOptions: { area: 'right' },
-            toggleCommandId: OpenTreeviewExampleView.id
+            toggleCommandId: OpenEntitiesOverviewView.id
         });
     }
 
@@ -33,7 +33,7 @@ export class TreeviewExampleViewContribution extends AbstractViewContribution<Tr
         super.registerCommands(commands);
 
         // register the "Add child item" command
-        commands.registerCommand(TreeviewExampleTreeAddItem, {
+        commands.registerCommand(EntitiesOverviewTreeAddItem, {
             execute: () => {
                 // get the TreeViewExampleWidget
                 const widget = this.tryGetWidget();
@@ -61,7 +61,7 @@ export class TreeviewExampleViewContribution extends AbstractViewContribution<Tr
         // add the "Add Child" menu item to the context menu
         menus.registerMenuAction([...TREEVIEW_EXAMPLE_CONTEXT_MENU, '_1'],
             {
-                commandId: TreeviewExampleTreeAddItem.id,
+                commandId: EntitiesOverviewTreeAddItem.id,
                 label: 'Add Child'
             });
     }

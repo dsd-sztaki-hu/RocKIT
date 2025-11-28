@@ -9,7 +9,7 @@ export const TreeviewExampleDecorator = Symbol('TreeviewExampleDecorator');
  * (Every tree widget has its own TreeDecoratorService instance to manage decorations specifically for that widget.)
  */
 @injectable()
-export class TreeviewExampleDecorationService extends AbstractTreeDecoratorService {
+export class EntitiesOverviewDecorationService extends AbstractTreeDecoratorService {
     constructor(@inject(ContributionProvider) @named(TreeviewExampleDecorator) protected readonly contributions: ContributionProvider<TreeDecorator>) {
         super(contributions.getContributions());
     }

@@ -1,13 +1,13 @@
 import { Emitter, Event } from '@theia/core';
 import { DidChangeLabelEvent, LabelProviderContribution } from '@theia/core/lib/browser';
 import { injectable } from '@theia/core/shared/inversify';
-import { ExampleTreeLeaf, ExampleTreeNode } from './treeview-example-model';
+import { ExampleTreeLeaf, ExampleTreeNode } from './entities-overview-model';
 
 /**
  * Provider for labels and icons for the `TreeViewExampleWidget`
  */
 @injectable()
-export class TreeViewExampleLabelProvider implements LabelProviderContribution {
+export class EntitiesOverviewLabelProvider implements LabelProviderContribution {
     /**
      * Emitter for the event that is emitted when the label of a tree item changes.
      */

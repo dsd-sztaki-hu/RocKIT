@@ -1,16 +1,16 @@
 import { CompositeTreeNode, TreeImpl, TreeNode } from '@theia/core/lib/browser';
 import { wait } from '@theia/core/lib/common/promise-util';
 import { inject } from '@theia/core/shared/inversify';
-import { ExampleTreeNode, ROOT_NODE_ID } from './treeview-example-model';
-import { TreeViewExampleTreeItemFactory } from './treeview-example-tree-item-factory';
+import { ExampleTreeNode, ROOT_NODE_ID } from './entities-overview-model';
+import { EntitiesOverviewTreeItemFactory } from './entities-overview-tree-item-factory';
 
 /**
  * Tree implementation.
  *
  * We override this to enable lazy child node resolution on node expansion.
  */
-export class TreeviewExampleTree extends TreeImpl {
-    @inject(TreeViewExampleTreeItemFactory) private readonly itemFactory: TreeViewExampleTreeItemFactory;
+export class EntitiesOverviewTree extends TreeImpl {
+    @inject(EntitiesOverviewTreeItemFactory) private readonly itemFactory: EntitiesOverviewTreeItemFactory;
 
     /**
      * Resolves children of the given parent node.

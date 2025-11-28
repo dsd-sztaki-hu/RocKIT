@@ -1,31 +1,31 @@
 import { bindContributionProvider } from '@theia/core';
 import { bindViewContribution, createTreeContainer, LabelProviderContribution, WidgetFactory } from '@theia/core/lib/browser';
 import { Container, ContainerModule, interfaces } from '@theia/core/shared/inversify';
-import { TreeviewExampleDecorationService, TreeviewExampleDecorator } from './decorator/treeview-example-decoration-service';
-import { TreeviewExampleDemoDecorator } from './decorator/treeview-example-demo-decorator';
-import { TreeViewExampleLabelProvider } from './treeview-example-label-provider';
-import { TreeViewExampleModel } from './treeview-example-model';
-import { TreeviewExampleTree } from './treeview-example-tree';
-import { TreeviewExampleViewContribution } from './treeview-example-view-contribution';
-import { TREEVIEW_EXAMPLE_CONTEXT_MENU, TreeViewExampleWidget } from './treeview-example-widget';
-import { TreeViewExampleTreeItemFactory } from './treeview-example-tree-item-factory';
+import { EntitiesOverviewDecorationService, TreeviewExampleDecorator } from './decorator/entities-overview-decoration-service';
+import { EntitiesOverviewDecorator } from './decorator/entities-overview-decorator';
+import { EntitiesOverviewLabelProvider } from './entities-overview-label-provider';
+import { EntitiesOverviewModel } from './entities-overview-model';
+import { EntitiesOverviewTree } from './entities-overview-tree';
+import { EntitiesOverviewViewContribution } from './entities-overview-view-contribution';
+import { TREEVIEW_EXAMPLE_CONTEXT_MENU, EntitiesOverviewWidget } from './entities-overview-widget';
+import { EntitiesOverviewTreeItemFactory } from './entities-overview-tree-item-factory';
 
 /**
  * Frontend contribution bindings.
  */
 export default new ContainerModule(bind => {
-    bindViewContribution(bind, TreeviewExampleViewContribution);
+    bindViewContribution(bind, EntitiesOverviewViewContribution);
 
     bind(WidgetFactory).toDynamicValue(ctx => ({
-        id: TreeViewExampleWidget.ID,
-        createWidget: () => createTreeViewExampleViewContainer(ctx.container).get(TreeViewExampleWidget)
+        id: EntitiesOverviewWidget.ID,
+        createWidget: () => createTreeViewExampleViewContainer(ctx.container).get(EntitiesOverviewWidget)
     })).inSingletonScope();
 
-    bind(TreeViewExampleModel).toSelf().inSingletonScope();
-    bind(LabelProviderContribution).to(TreeViewExampleLabelProvider);
+    bind(EntitiesOverviewModel).toSelf().inSingletonScope();
+    bind(LabelProviderContribution).to(EntitiesOverviewLabelProvider);
 
-    bind(TreeviewExampleDemoDecorator).toSelf().inSingletonScope();
-    bind(TreeviewExampleDecorator).toService(TreeviewExampleDemoDecorator);
+    bind(EntitiesOverviewDecorator).toSelf().inSingletonScope();
+    bind(TreeviewExampleDecorator).toService(EntitiesOverviewDecorator);
 });
 
 /**
@@ -37,18 +37,18 @@ export default new ContainerModule(bind => {
  */
 function createTreeViewExampleViewContainer(parent: interfaces.Container): Container {
     const child = createTreeContainer(parent, {
-        tree: TreeviewExampleTree,
-        model: TreeViewExampleModel,
-        widget: TreeViewExampleWidget,
+        tree: EntitiesOverviewTree,
+        model: EntitiesOverviewModel,
+        widget: EntitiesOverviewWidget,
         props: {
             contextMenuPath: TREEVIEW_EXAMPLE_CONTEXT_MENU,
             multiSelect: false,
             search: true,
             expandOnlyOnExpansionToggleClick: false
         },
-        decoratorService: TreeviewExampleDecorationService,
+        decoratorService: EntitiesOverviewDecorationService,
     });
     bindContributionProvider(child, TreeviewExampleDecorator);
-    child.bind(TreeViewExampleTreeItemFactory).toSelf().inSingletonScope();
+    child.bind(EntitiesOverviewTreeItemFactory).toSelf().inSingletonScope();
     return child;
 }

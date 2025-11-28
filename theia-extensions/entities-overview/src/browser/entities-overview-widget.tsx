@@ -2,19 +2,19 @@ import { Disposable, DisposableCollection, MenuPath, MessageService } from '@the
 import { ContextMenuRenderer, NodeProps, TreeModel, TreeNode, TreeProps, TreeWidget } from '@theia/core/lib/browser';
 import { inject, injectable } from '@theia/core/shared/inversify';
 import * as React from '@theia/core/shared/react';
-import '../../src/browser/styles/treeview-example-widget.css';
-import { ExampleTreeLeaf, ExampleTreeNode, TreeViewExampleModel } from './treeview-example-model';
+import '../../src/browser/styles/entities-overview-widget.css';
+import { ExampleTreeLeaf, ExampleTreeNode, EntitiesOverviewModel } from './entities-overview-model';
 
 /** Well-known constant for the context menu path */
 export const TREEVIEW_EXAMPLE_CONTEXT_MENU: MenuPath = ['theia-examples:treeview-example-context-menu'];
 
 /** Implementation of the Tree Widget */
 @injectable()
-export class TreeViewExampleWidget extends TreeWidget {
+export class EntitiesOverviewWidget extends TreeWidget {
     /** The ID of the view */
     static readonly ID = 'theia-examples:treeview-example-view';
     /** The label of the view */
-    static readonly LABEL = 'Example Tree View';
+    static readonly LABEL = 'Entitiew Overview';
 
     /** Used in Drag & Drop code to remember and cancel deferred expansion of hovered nodes */
     protected readonly toCancelNodeExpansion = new DisposableCollection();
@@ -24,15 +24,15 @@ export class TreeViewExampleWidget extends TreeWidget {
 
     constructor(
         @inject(TreeProps) public override readonly props: TreeProps,
-        @inject(TreeModel) public override readonly model: TreeViewExampleModel,
+        @inject(TreeModel) public override readonly model: EntitiesOverviewModel,
         @inject(ContextMenuRenderer) contextMenuRenderer: ContextMenuRenderer
     ) {
         super(props, model, contextMenuRenderer);
 
         // set the general properties for the view
-        this.id = TreeViewExampleWidget.ID;
-        this.title.label = TreeViewExampleWidget.LABEL;
-        this.title.caption = TreeViewExampleWidget.LABEL;
+        this.id = EntitiesOverviewWidget.ID;
+        this.title.label = EntitiesOverviewWidget.LABEL;
+        this.title.caption = EntitiesOverviewWidget.LABEL;
         this.title.closable = true;
         this.title.iconClass = 'fa fa-list-ul';
 
@@ -102,10 +102,8 @@ export class TreeViewExampleWidget extends TreeWidget {
      * @param node the clicked node
      */
     protected handleNodeClick(node: TreeNode): void {
-        // Only handle clicks on leaf nodes
         if (ExampleTreeLeaf.is(node)) {
             console.log(`Clicked entity: ${node.data.name}`);
-            // You can also access other properties of the entity here
             console.log(`Entity details:`, {
                 name: node.data.name,
                 valid: node.data.valid
