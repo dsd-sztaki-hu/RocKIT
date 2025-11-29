@@ -14,49 +14,53 @@
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 // *****************************************************************************
 
-import { ContributionProvider, Prioritizeable } from '@theia/core';
-import { inject, injectable, named, postConstruct } from '@theia/core/shared/inversify';
-import { EmptyPropertyViewWidgetProvider } from './empty-property-view-widget-provider';
-import { PropertyViewWidgetProvider } from './property-view-widget-provider';
+import { ContributionProvider, Prioritizeable } from '@theia/core'
+import { inject, injectable, named, postConstruct } from '@theia/core/shared/inversify'
+import { EmptyPropertyViewWidgetProvider } from './empty-property-view-widget-provider'
+import { PropertyViewWidgetProvider } from './property-view-widget-provider'
 
 /**
  * `PropertyViewService` provides an access to existing property view widget providers.
  */
 @injectable()
 export class PropertyViewService {
+  @inject(ContributionProvider)
+  @named(PropertyViewWidgetProvider)
+  private readonly contributions: ContributionProvider<PropertyViewWidgetProvider>
 
-    @inject(ContributionProvider) @named(PropertyViewWidgetProvider)
-    private readonly contributions: ContributionProvider<PropertyViewWidgetProvider>;
+  @inject(EmptyPropertyViewWidgetProvider)
+  private readonly emptyWidgetProvider: EmptyPropertyViewWidgetProvider
 
-    @inject(EmptyPropertyViewWidgetProvider)
-    private readonly emptyWidgetProvider: EmptyPropertyViewWidgetProvider;
+  private providers: PropertyViewWidgetProvider[] = []
 
-    private providers: PropertyViewWidgetProvider[] = [];
+  @postConstruct()
+  init(): void {
+    this.providers = this.providers.concat(this.contributions.getContributions())
+  }
 
-    @postConstruct()
-    init(): void {
-        this.providers = this.providers.concat(this.contributions.getContributions());
-    }
+  /**
+   * Return a property view widget provider with the highest priority for the given selection.
+   * Never reject, return the default provider ({@link EmptyPropertyViewWidgetProvider};
+   * displays `No properties available`) if there are no other matches.
+   */
+  async getProvider(selection: Object | undefined): Promise<PropertyViewWidgetProvider> {
+    const provider = await this.prioritize(selection)
+    return provider ?? this.emptyWidgetProvider
+  }
 
-    /**
-     * Return a property view widget provider with the highest priority for the given selection.
-     * Never reject, return the default provider ({@link EmptyPropertyViewWidgetProvider};
-     * displays `No properties available`) if there are no other matches.
-     */
-    async getProvider(selection: Object | undefined): Promise<PropertyViewWidgetProvider> {
-        const provider = await this.prioritize(selection);
-        return provider ?? this.emptyWidgetProvider;
-    }
-
-    protected async prioritize(selection: Object | undefined): Promise<PropertyViewWidgetProvider | undefined> {
-        const prioritized = await Prioritizeable.prioritizeAll(this.providers, async (provider: PropertyViewWidgetProvider) => {
-            try {
-                return await provider.canHandle(selection);
-            } catch {
-                return 0;
-            }
-        });
-        return prioritized.length !== 0 ? prioritized[0].value : undefined;
-    }
-
+  protected async prioritize(
+    selection: Object | undefined,
+  ): Promise<PropertyViewWidgetProvider | undefined> {
+    const prioritized = await Prioritizeable.prioritizeAll(
+      this.providers,
+      async (provider: PropertyViewWidgetProvider) => {
+        try {
+          return await provider.canHandle(selection)
+        } catch {
+          return 0
+        }
+      },
+    )
+    return prioritized.length !== 0 ? prioritized[0].value : undefined
+  }
 }

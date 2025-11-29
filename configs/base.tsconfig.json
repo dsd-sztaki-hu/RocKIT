@@ -19,12 +19,7 @@
     "moduleResolution": "Node",
     "target": "ES2019",
     "jsx": "react",
-    "lib": [
-      "ES2019",
-      "ES2020.Promise",
-      "DOM",
-      "DOM.AsyncIterable"
-    ],
+    "lib": ["ES2019", "ES2020.Promise", "DOM", "DOM.AsyncIterable"],
     "sourceMap": true
   }
 }

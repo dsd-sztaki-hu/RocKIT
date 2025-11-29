@@ -14,36 +14,46 @@
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 // *****************************************************************************
 
-import { codicon, LabelProvider, LabelProviderContribution, TreeNode } from '@theia/core/lib/browser';
-import { inject, injectable } from '@theia/core/shared/inversify';
-import { ResourcePropertiesCategoryNode, ResourcePropertiesItemNode } from './resource-property-view-tree-items';
+import {
+  codicon,
+  LabelProvider,
+  type LabelProviderContribution,
+  type TreeNode,
+} from '@theia/core/lib/browser'
+import { inject, injectable } from '@theia/core/shared/inversify'
+import {
+  ResourcePropertiesCategoryNode,
+  ResourcePropertiesItemNode,
+} from './resource-property-view-tree-items'
 
-export const DEFAULT_INFO_ICON = codicon('info');
+export const DEFAULT_INFO_ICON = codicon('info')
 
 @injectable()
 export class ResourcePropertiesLabelProvider implements LabelProviderContribution {
+  @inject(LabelProvider) protected readonly labelProvider: LabelProvider
 
-    @inject(LabelProvider) protected readonly labelProvider: LabelProvider;
+  canHandle(element: TreeNode): number {
+    return ResourcePropertiesCategoryNode.is(element) ||
+      ResourcePropertiesItemNode.is(element)
+      ? 75
+      : 0
+  }
 
-    canHandle(element: TreeNode): number {
-        return (ResourcePropertiesCategoryNode.is(element) || ResourcePropertiesItemNode.is(element)) ? 75 : 0;
+  getIcon(node: ResourcePropertiesCategoryNode | ResourcePropertiesItemNode): string {
+    if (ResourcePropertiesCategoryNode.is(node)) {
+      return node.icon ?? DEFAULT_INFO_ICON
     }
+    return node.icon ?? ''
+  }
 
-    getIcon(node: ResourcePropertiesCategoryNode | ResourcePropertiesItemNode): string {
-        if (ResourcePropertiesCategoryNode.is(node)) {
-            return node.icon ?? DEFAULT_INFO_ICON;
-        }
-        return node.icon ?? '';
-    }
+  getName(node: ResourcePropertiesCategoryNode | ResourcePropertiesItemNode): string {
+    return node.name
+  }
 
-    getName(node: ResourcePropertiesCategoryNode | ResourcePropertiesItemNode): string {
-        return node.name;
+  getLongName(node: ResourcePropertiesCategoryNode | ResourcePropertiesItemNode): string {
+    if (ResourcePropertiesItemNode.is(node)) {
+      return node.property
     }
-
-    getLongName(node: ResourcePropertiesCategoryNode | ResourcePropertiesItemNode): string {
-        if (ResourcePropertiesItemNode.is(node)) {
-            return node.property;
-        }
-        return this.getName(node);
-    }
+    return this.getName(node)
+  }
 }

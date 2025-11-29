@@ -14,11 +14,11 @@
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 // *****************************************************************************
 
-import { Navigatable } from '@theia/core/lib/browser';
-import { FileSelection } from '@theia/filesystem/lib/browser/file-selection';
-import { inject, injectable } from '@theia/core/shared/inversify';
-import { DefaultPropertyViewWidgetProvider } from '../property-view-widget-provider';
-import { ResourcePropertyViewTreeWidget } from './resource-property-view-tree-widget';
+import { Navigatable } from '@theia/core/lib/browser'
+import { inject, injectable } from '@theia/core/shared/inversify'
+import { FileSelection } from '@theia/filesystem/lib/browser/file-selection'
+import { DefaultPropertyViewWidgetProvider } from '../property-view-widget-provider'
+import { ResourcePropertyViewTreeWidget } from './resource-property-view-tree-widget'
 
 /**
  * Provides the {@link ResourcePropertyViewTreeWidget} for
@@ -26,30 +26,35 @@ import { ResourcePropertyViewTreeWidget } from './resource-property-view-tree-wi
  */
 @injectable()
 export class ResourcePropertyViewWidgetProvider extends DefaultPropertyViewWidgetProvider {
+  @inject(ResourcePropertyViewTreeWidget)
+  protected treeWidget: ResourcePropertyViewTreeWidget
 
-    @inject(ResourcePropertyViewTreeWidget) protected treeWidget: ResourcePropertyViewTreeWidget;
+  override readonly id = 'resources'
+  override readonly label = 'ResourcePropertyViewWidgetProvider'
 
-    override readonly id = 'resources';
-    override readonly label = 'ResourcePropertyViewWidgetProvider';
+  override canHandle(selection: Object | undefined): number {
+    return this.isFileSelection(selection) || this.isNavigatableSelection(selection)
+      ? 1
+      : 0
+  }
 
-    override canHandle(selection: Object | undefined): number {
-        return (this.isFileSelection(selection) || this.isNavigatableSelection(selection)) ? 1 : 0;
-    }
+  protected isFileSelection(selection: Object | undefined): boolean {
+    return !!selection && Array.isArray(selection) && FileSelection.is(selection[0])
+  }
 
-    protected isFileSelection(selection: Object | undefined): boolean {
-        return !!selection && Array.isArray(selection) && FileSelection.is(selection[0]);
-    }
+  protected isNavigatableSelection(selection: Object | undefined): boolean {
+    return !!selection && Navigatable.is(selection)
+  }
 
-    protected isNavigatableSelection(selection: Object | undefined): boolean {
-        return !!selection && Navigatable.is(selection);
-    }
+  override provideWidget(
+    selection: Object | undefined,
+  ): Promise<ResourcePropertyViewTreeWidget> {
+    return Promise.resolve(this.treeWidget)
+  }
 
-    override provideWidget(selection: Object | undefined): Promise<ResourcePropertyViewTreeWidget> {
-        return Promise.resolve(this.treeWidget);
-    }
-
-    override updateContentWidget(selection: Object | undefined): void {
-        this.getPropertyDataService(selection).then(service => this.treeWidget.updatePropertyViewContent(service, selection));
-    }
-
+  override updateContentWidget(selection: Object | undefined): void {
+    this.getPropertyDataService(selection).then((service) =>
+      this.treeWidget.updatePropertyViewContent(service, selection),
+    )
+  }
 }

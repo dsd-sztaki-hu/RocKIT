@@ -15,16 +15,11 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "target": "ES2017",
-    "jsx": "react",
-    "lib": [
-      "ES2017",
-      "dom"
-    ],
+    "jsx": "react-jsx",
+    "lib": ["ES2017", "dom"],
     "sourceMap": true,
     "rootDir": "src",
     "outDir": "lib"
   },
-  "include": [
-    "src"
-  ]
+  "include": ["src"]
 }

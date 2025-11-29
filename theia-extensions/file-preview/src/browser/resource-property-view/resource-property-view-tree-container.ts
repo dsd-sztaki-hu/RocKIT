@@ -14,34 +14,42 @@
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 // *****************************************************************************
 
-import { createTreeContainer, LabelProviderContribution, TreeProps } from '@theia/core/lib/browser';
-import { interfaces } from '@theia/core/shared/inversify';
-import { PropertyDataService } from '../property-data-service';
-import { PropertyViewWidgetProvider } from '../property-view-widget-provider';
-import { ResourcePropertyDataService } from './resource-property-data-service';
-import { ResourcePropertiesLabelProvider } from './resource-property-view-label-provider';
-import { ResourcePropertyViewTreeWidget } from './resource-property-view-tree-widget';
-import { ResourcePropertyViewWidgetProvider } from './resource-property-view-widget-provider';
+import {
+  createTreeContainer,
+  LabelProviderContribution,
+  type TreeProps,
+} from '@theia/core/lib/browser'
+import type { interfaces } from '@theia/core/shared/inversify'
+import { PropertyDataService } from '../property-data-service'
+import { PropertyViewWidgetProvider } from '../property-view-widget-provider'
+import { ResourcePropertyDataService } from './resource-property-data-service'
+import { ResourcePropertiesLabelProvider } from './resource-property-view-label-provider'
+import { ResourcePropertyViewTreeWidget } from './resource-property-view-tree-widget'
+import { ResourcePropertyViewWidgetProvider } from './resource-property-view-widget-provider'
 
 const RESOURCE_PROPERTY_VIEW_TREE_PROPS = {
-    multiSelect: true,
-    search: true,
-} as TreeProps;
+  multiSelect: true,
+  search: true,
+} as TreeProps
 
-function createResourcePropertyViewTreeWidget(parent: interfaces.Container): ResourcePropertyViewTreeWidget {
-    const child = createTreeContainer(parent, {
-        props: RESOURCE_PROPERTY_VIEW_TREE_PROPS,
-        widget: ResourcePropertyViewTreeWidget,
-    });
-    return child.get(ResourcePropertyViewTreeWidget);
+function createResourcePropertyViewTreeWidget(
+  parent: interfaces.Container,
+): ResourcePropertyViewTreeWidget {
+  const child = createTreeContainer(parent, {
+    props: RESOURCE_PROPERTY_VIEW_TREE_PROPS,
+    widget: ResourcePropertyViewTreeWidget,
+  })
+  return child.get(ResourcePropertyViewTreeWidget)
 }
 
 export function bindResourcePropertyView(bind: interfaces.Bind): void {
-    bind(LabelProviderContribution).to(ResourcePropertiesLabelProvider).inSingletonScope();
-    bind(PropertyDataService).to(ResourcePropertyDataService).inSingletonScope();
-    bind(PropertyViewWidgetProvider).to(ResourcePropertyViewWidgetProvider).inSingletonScope();
+  bind(LabelProviderContribution).to(ResourcePropertiesLabelProvider).inSingletonScope()
+  bind(PropertyDataService).to(ResourcePropertyDataService).inSingletonScope()
+  bind(PropertyViewWidgetProvider)
+    .to(ResourcePropertyViewWidgetProvider)
+    .inSingletonScope()
 
-    bind(ResourcePropertyViewTreeWidget).toDynamicValue(ctx =>
-        createResourcePropertyViewTreeWidget(ctx.container)
-    );
+  bind(ResourcePropertyViewTreeWidget).toDynamicValue((ctx) =>
+    createResourcePropertyViewTreeWidget(ctx.container),
+  )
 }

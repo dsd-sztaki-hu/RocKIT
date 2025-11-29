@@ -1,118 +1,116 @@
-import {injectable, inject, postConstruct} from 'inversify';
-import {Event} from '@theia/core/lib/common';
-import {StorageService} from '@theia/core/lib/browser/storage-service';
-import {AppState, defaultAppState} from './app-state';
-import {SimpleStateStore, StateChange} from './state-store';
+import { StorageService } from '@theia/core/lib/browser/storage-service'
+import type { Event } from '@theia/core/lib/common'
+import { inject, injectable, postConstruct } from 'inversify'
+import { type AppState, defaultAppState } from './app-state'
+import { SimpleStateStore, type StateChange } from './state-store'
 
-const STORAGE_KEY = 'theia-app-state-extension:app-state';
+const STORAGE_KEY = 'theia-app-state-extension:app-state'
 
 // Create a fresh copy so callers don't share mutable references (e.g., arrays)
 export function cloneDefaultAppState(): AppState {
-    return {
-        ...defaultAppState,
-        // copy array to avoid mutation sharing
-        notifications: [...defaultAppState.notifications]
-    };
+  return {
+    ...defaultAppState,
+    // copy array to avoid mutation sharing
+    notifications: [...defaultAppState.notifications],
+  }
 }
-
 
 @injectable()
 export class AppStateService {
+  // Default state values
+  private readonly store = new SimpleStateStore<AppState>(cloneDefaultAppState())
 
-    // Default state values
-    private readonly store = new SimpleStateStore<AppState>(cloneDefaultAppState());
+  @inject(StorageService)
+  protected readonly storageService: StorageService
 
-    @inject(StorageService)
-    protected readonly storageService: StorageService;
+  @postConstruct()
+  protected init(): void {
+    // restore persisted state if available (fire-and-forget to keep binding synchronous)
+    this.storageService
+      .getData<AppState>(STORAGE_KEY)
+      .then((stored) => {
+        if (stored) {
+          this.store.setState({
+            ...cloneDefaultAppState(),
+            ...(stored as any), // avoid duplicate field TS error
+          })
+        }
+      })
+      .catch((e) => console.error('Failed to restore app state', e))
 
-    @postConstruct()
-    protected init(): void {
-        // restore persisted state if available (fire-and-forget to keep binding synchronous)
-        this.storageService.getData<AppState>(STORAGE_KEY)
-            .then(stored => {
-                if (stored) {
-                    this.store.setState({
-                        ...cloneDefaultAppState(),
-                        ...(stored as any) // avoid duplicate field TS error
-                    });
-                }
-            })
-            .catch(e => console.error('Failed to restore app state', e));
+    // persist on every change
+    this.onDidChangeState(({ current }) => {
+      this.storageService.setData(STORAGE_KEY, current)
+    })
+  }
 
-        // persist on every change
-        this.onDidChangeState(({current}) => {
-            this.storageService.setData(STORAGE_KEY, current);
-        });
-    }
+  // --- core API ---
 
-    // --- core API ---
+  getState(): Readonly<AppState> {
+    return this.store.getState()
+  }
 
-    getState(): Readonly<AppState> {
-        return this.store.getState();
-    }
+  updateState(partial: Partial<AppState> | ((prev: AppState) => Partial<AppState>)) {
+    this.store.updateState(partial)
+  }
 
-    updateState(partial: Partial<AppState> | ((prev: AppState) => Partial<AppState>)) {
-        this.store.updateState(partial);
-    }
+  readonly onDidChangeState: Event<StateChange<AppState>> = this.store.onDidChangeState
 
-    readonly onDidChangeState: Event<StateChange<AppState>> = this.store.onDidChangeState;
+  onDidChangeSelector<R>(
+    selector: (state: AppState) => R,
+    equals?: (a: R, b: R) => boolean,
+  ): Event<R> {
+    return this.store.onDidChangeSelector(selector, equals)
+  }
 
-    onDidChangeSelector<R>(
-        selector: (state: AppState) => R,
-        equals?: (a: R, b: R) => boolean
-    ): Event<R> {
-        return this.store.onDidChangeSelector(selector, equals);
-    }
+  reset(): void {
+    this.store.setState(cloneDefaultAppState())
+  }
 
+  get roCrate(): AppState['roCrate'] {
+    console.log('Getting roCrate:', this.getState().roCrate)
+    return this.getState().roCrate
+  }
+  set roCrate(value: AppState['roCrate']) {
+    this.updateState({ roCrate: value })
+  }
 
-    reset(): void {
-        this.store.setState(cloneDefaultAppState());
-    }
+  get dirty(): AppState['dirty'] {
+    return this.getState().dirty
+  }
+  set dirty(value: AppState['dirty']) {
+    this.updateState({ dirty: value })
+  }
 
-    get roCrate(): AppState['roCrate'] {
-        console.log('Getting roCrate:', this.getState().roCrate);
-        return this.getState().roCrate;
-    }
-    set roCrate(value: AppState['roCrate']) {
-        this.updateState({ roCrate: value });
-    }
+  get theme(): AppState['theme'] {
+    return this.getState().theme
+  }
+  set theme(value: AppState['theme']) {
+    this.updateState({ theme: value })
+  }
 
-    get dirty(): AppState['dirty'] {
-        return this.getState().dirty;
-    }
-    set dirty(value: AppState['dirty']) {
-        this.updateState({ dirty: value });
-    }
+  get notifications(): AppState['notifications'] {
+    return this.getState().notifications
+  }
 
-    get theme(): AppState['theme'] {
-        return this.getState().theme;
-    }
-    set theme(value: AppState['theme']) {
-        this.updateState({ theme: value });
-    }
+  set notifications(value: AppState['notifications']) {
+    this.updateState({ notifications: value })
+  }
 
-    get notifications(): AppState['notifications'] {
-        return this.getState().notifications;
-    }
+  addNotification(message: string): void {
+    this.updateState((prev) => ({
+      notifications: [...prev.notifications, message],
+    }))
+  }
 
-    set notifications(value: AppState['notifications']) {
-        this.updateState({ notifications: value });
-    }
+  readonly onDidChangeNotificationCount: Event<number> = this.onDidChangeSelector(
+    (s) => s.notifications.length,
+  )
 
-    addNotification(message: string): void {
-        this.updateState(prev => ({
-            notifications: [...prev.notifications, message]
-        }));
-    }
-
-    readonly onDidChangeNotificationCount: Event<number> =
-        this.onDidChangeSelector(s => s.notifications.length);
-
-    get settings(): AppState['settings'] {
-        return this.getState().settings;
-    }
-    set settings(value: AppState['settings']) {
-        this.updateState({ settings: value });
-    }
-
+  get settings(): AppState['settings'] {
+    return this.getState().settings
+  }
+  set settings(value: AppState['settings']) {
+    this.updateState({ settings: value })
+  }
 }

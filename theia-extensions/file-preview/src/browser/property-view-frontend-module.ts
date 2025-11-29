@@ -14,36 +14,38 @@
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 // *****************************************************************************
 
-import { bindViewContribution, WidgetFactory } from '@theia/core/lib/browser';
-import { bindContributionProvider } from '@theia/core/lib/common/contribution-provider';
-import { ContainerModule } from '@theia/core/shared/inversify';
-import { EmptyPropertyViewWidgetProvider } from './empty-property-view-widget-provider';
-import { PropertyDataService } from './property-data-service';
-import { PropertyViewContribution } from './property-view-contribution';
-import { PropertyViewService } from './property-view-service';
-import { PropertyViewWidget } from './property-view-widget';
-import { PropertyViewWidgetProvider } from './property-view-widget-provider';
-import { bindResourcePropertyView } from './resource-property-view';
-import '../../src/browser/style/property-view.css';
+import { bindViewContribution, WidgetFactory } from '@theia/core/lib/browser'
+import { bindContributionProvider } from '@theia/core/lib/common/contribution-provider'
+import { ContainerModule } from '@theia/core/shared/inversify'
+import { EmptyPropertyViewWidgetProvider } from './empty-property-view-widget-provider'
+import { PropertyDataService } from './property-data-service'
+import { PropertyViewContribution } from './property-view-contribution'
+import { PropertyViewService } from './property-view-service'
+import { PropertyViewWidget } from './property-view-widget'
+import { PropertyViewWidgetProvider } from './property-view-widget-provider'
+import { bindResourcePropertyView } from './resource-property-view'
+import '../../src/browser/style/property-view.css'
 
-export default new ContainerModule(bind => {
-    console.log('✅ USING LOCAL PROPERTY-VIEW MODULE (1.65.2-custom)');
+export default new ContainerModule((bind) => {
+  console.log('✅ USING LOCAL PROPERTY-VIEW MODULE (1.65.2-custom)')
 
-    bind(PropertyViewService).toSelf().inSingletonScope();
+  bind(PropertyViewService).toSelf().inSingletonScope()
 
-    bindContributionProvider(bind, PropertyDataService);
-    bindContributionProvider(bind, PropertyViewWidgetProvider);
+  bindContributionProvider(bind, PropertyDataService)
+  bindContributionProvider(bind, PropertyViewWidgetProvider)
 
-    bind(EmptyPropertyViewWidgetProvider).toSelf().inSingletonScope();
-    bind(PropertyViewWidgetProvider).to(EmptyPropertyViewWidgetProvider);
+  bind(EmptyPropertyViewWidgetProvider).toSelf().inSingletonScope()
+  bind(PropertyViewWidgetProvider).to(EmptyPropertyViewWidgetProvider)
 
-    bind(PropertyViewWidget).toSelf();
-    bind(WidgetFactory).toDynamicValue(({ container }) => ({
-        id: PropertyViewWidget.ID,
-        createWidget: () => container.get(PropertyViewWidget)
-    })).inSingletonScope();
+  bind(PropertyViewWidget).toSelf()
+  bind(WidgetFactory)
+    .toDynamicValue(({ container }) => ({
+      id: PropertyViewWidget.ID,
+      createWidget: () => container.get(PropertyViewWidget),
+    }))
+    .inSingletonScope()
 
-    bindViewContribution(bind, PropertyViewContribution);
+  bindViewContribution(bind, PropertyViewContribution)
 
-    bindResourcePropertyView(bind);
-});
+  bindResourcePropertyView(bind)
+})

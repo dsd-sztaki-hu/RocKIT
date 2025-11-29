@@ -14,41 +14,42 @@
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 // *****************************************************************************
 
-import { nls } from '@theia/core/lib/common/nls';
-import { ReactWidget } from '@theia/core/lib/browser';
-import { injectable } from '@theia/core/shared/inversify';
-import * as React from '@theia/core/shared/react';
-import { PropertyViewContentWidget } from './property-view-content-widget';
-import { DefaultPropertyViewWidgetProvider } from './property-view-widget-provider';
+import { ReactWidget } from '@theia/core/lib/browser'
+import { nls } from '@theia/core/lib/common/nls'
+import { injectable } from '@theia/core/shared/inversify'
+import type { PropertyViewContentWidget } from './property-view-content-widget'
+import { DefaultPropertyViewWidgetProvider } from './property-view-widget-provider'
 
 /**
  * Property view widget that is shown if no property data or selection is available.
  * This widget is provided by the {@link EmptyPropertyViewWidgetProvider}.
  */
 class EmptyPropertyViewWidget extends ReactWidget implements PropertyViewContentWidget {
+  static readonly ID = 'theia-empty-property-view'
+  static readonly LABEL = 'No Properties'
 
-    static readonly ID = 'theia-empty-property-view';
-    static readonly LABEL = 'No Properties';
+  constructor() {
+    super()
+    this.id = EmptyPropertyViewWidget.ID
+    this.title.label = EmptyPropertyViewWidget.LABEL
+    this.title.caption = EmptyPropertyViewWidget.LABEL
+    this.title.closable = false
+    this.node.tabIndex = 0
+  }
 
-    constructor() {
-        super();
-        this.id = EmptyPropertyViewWidget.ID;
-        this.title.label = EmptyPropertyViewWidget.LABEL;
-        this.title.caption = EmptyPropertyViewWidget.LABEL;
-        this.title.closable = false;
-        this.node.tabIndex = 0;
-    }
+  updatePropertyViewContent(): void {
+    this.update()
+  }
 
-    updatePropertyViewContent(): void {
-        this.update();
-    }
+  protected render(): React.ReactNode {
+    return this.emptyComponent
+  }
 
-    protected render(): React.ReactNode {
-        return this.emptyComponent;
-    }
-
-    protected emptyComponent: JSX.Element = <div className={'theia-widget-noInfo'}>{nls.localize('theia/property-view/noProperties', 'No properties available.')}</div>;
-
+  protected emptyComponent: JSX.Element = (
+    <div className={'theia-widget-noInfo'}>
+      {nls.localize('theia/property-view/noProperties', 'No properties available.')}
+    </div>
+  )
 }
 
 /**
@@ -57,27 +58,28 @@ class EmptyPropertyViewWidget extends ReactWidget implements PropertyViewContent
  */
 @injectable()
 export class EmptyPropertyViewWidgetProvider extends DefaultPropertyViewWidgetProvider {
+  static readonly ID = 'no-properties'
+  override readonly id = EmptyPropertyViewWidgetProvider.ID
+  override readonly label = 'DefaultPropertyViewWidgetProvider'
 
-    static readonly ID = 'no-properties';
-    override readonly id = EmptyPropertyViewWidgetProvider.ID;
-    override readonly label = 'DefaultPropertyViewWidgetProvider';
+  private emptyWidget: EmptyPropertyViewWidget
 
-    private emptyWidget: EmptyPropertyViewWidget;
+  constructor() {
+    super()
+    this.emptyWidget = new EmptyPropertyViewWidget()
+  }
 
-    constructor() {
-        super();
-        this.emptyWidget = new EmptyPropertyViewWidget();
-    }
+  override canHandle(selection: Object | undefined): number {
+    return selection === undefined ? 1 : 0
+  }
 
-    override canHandle(selection: Object | undefined): number {
-        return selection === undefined ? 1 : 0;
-    }
+  override provideWidget(
+    selection: Object | undefined,
+  ): Promise<EmptyPropertyViewWidget> {
+    return Promise.resolve(this.emptyWidget)
+  }
 
-    override provideWidget(selection: Object | undefined): Promise<EmptyPropertyViewWidget> {
-        return Promise.resolve(this.emptyWidget);
-    }
-
-    override updateContentWidget(selection: Object | undefined): void {
-        this.emptyWidget.updatePropertyViewContent();
-    }
+  override updateContentWidget(selection: Object | undefined): void {
+    this.emptyWidget.updatePropertyViewContent()
+  }
 }

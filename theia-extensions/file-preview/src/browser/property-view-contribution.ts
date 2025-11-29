@@ -14,23 +14,21 @@
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 // *****************************************************************************
 
-import { AbstractViewContribution } from '@theia/core/lib/browser/shell/view-contribution';
-import { injectable } from '@theia/core/shared/inversify';
-import { PropertyViewWidget } from './property-view-widget';
+import { AbstractViewContribution } from '@theia/core/lib/browser/shell/view-contribution'
+import { injectable } from '@theia/core/shared/inversify'
+import { PropertyViewWidget } from './property-view-widget'
 
 @injectable()
 export class PropertyViewContribution extends AbstractViewContribution<PropertyViewWidget> {
-
-    constructor() {
-        super({
-            widgetId: PropertyViewWidget.ID,
-            widgetName: PropertyViewWidget.LABEL,
-            defaultWidgetOptions: {
-                area: 'bottom'
-            },
-            toggleCommandId: 'property-view:toggle',
-            toggleKeybinding: 'shift+alt+p'
-        });
-    }
-
+  constructor() {
+    super({
+      widgetId: PropertyViewWidget.ID,
+      widgetName: PropertyViewWidget.LABEL,
+      defaultWidgetOptions: {
+        area: 'bottom',
+      },
+      toggleCommandId: 'property-view:toggle',
+      toggleKeybinding: 'shift+alt+p',
+    })
+  }
 }
