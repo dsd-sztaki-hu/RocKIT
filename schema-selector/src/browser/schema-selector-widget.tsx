@@ -15,7 +15,7 @@ interface SchemaProperty {
 const SCHEMA_ORG_PROPERTIES_URL = 'https://schema.org/version/latest/schemaorg-current-http-properties.csv';
 
 // Helper function to parse CSV data
-const parseCsv = (csvText: string): SchemaProperty[] => {
+export const parseCsv = (csvText: string): SchemaProperty[] => {
     const lines = csvText.split('\n').filter(line => line.trim() !== '');
     if (lines.length <= 1) {
         return [];
