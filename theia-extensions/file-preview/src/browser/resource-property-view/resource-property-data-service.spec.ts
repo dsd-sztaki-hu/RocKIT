@@ -51,7 +51,7 @@ describe('resource-property-data-service', () => {
     const container = new Container()
     container.bind(ResourcePropertyDataService).toSelf().inSingletonScope()
     container.bind(FileService).toConstantValue({
-      async resolve(uri: URI): Promise<FileStat> {
+      async resolve(_uri: URI): Promise<FileStat> {
         return mockFileStat
       },
     } as FileService)

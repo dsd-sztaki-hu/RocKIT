@@ -47,7 +47,7 @@ export class ResourcePropertyViewWidgetProvider extends DefaultPropertyViewWidge
   }
 
   override provideWidget(
-    selection: Object | undefined,
+    _selection: Object | undefined,
   ): Promise<ResourcePropertyViewTreeWidget> {
     return Promise.resolve(this.treeWidget)
   }

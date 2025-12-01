@@ -74,12 +74,12 @@ export class EmptyPropertyViewWidgetProvider extends DefaultPropertyViewWidgetPr
   }
 
   override provideWidget(
-    selection: Object | undefined,
+    _selection: Object | undefined,
   ): Promise<EmptyPropertyViewWidget> {
     return Promise.resolve(this.emptyWidget)
   }
 
-  override updateContentWidget(selection: Object | undefined): void {
+  override updateContentWidget(_selection: Object | undefined): void {
     this.emptyWidget.updatePropertyViewContent()
   }
 }

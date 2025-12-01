@@ -360,7 +360,7 @@ export class ResourcePropertyViewTreeWidget
     }
   }
 
-  protected override renderCaption(node: TreeNode, props: NodeProps): React.ReactNode {
+  protected override renderCaption(node: TreeNode, _props: NodeProps): React.ReactNode {
     if (ResourcePropertiesCategoryNode.is(node)) {
       // Render category node (expandable node)
       return (
@@ -452,7 +452,6 @@ export class ResourcePropertyViewTreeWidget
       return (
         <div
           className="resource-content-preview"
-          tabIndex={0} // Make it focusable for keyboard navigation
           contentEditable={false} // Explicitly set to false to prevent editing
           onMouseDown={(e) => {
             // Ensure the element gets focus when clicked

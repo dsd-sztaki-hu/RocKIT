@@ -85,15 +85,15 @@ export abstract class DefaultPropertyViewWidgetProvider
     )
   }
 
-  canHandle(selection: Object | undefined): MaybePromise<number> {
+  canHandle(_selection: Object | undefined): MaybePromise<number> {
     return 0
   }
 
-  provideWidget(selection: Object | undefined): Promise<PropertyViewContentWidget> {
+  provideWidget(_selection: Object | undefined): Promise<PropertyViewContentWidget> {
     throw new Error('not implemented')
   }
 
-  updateContentWidget(selection: Object | undefined): void {
+  updateContentWidget(_selection: Object | undefined): void {
     // no-op
   }
 
