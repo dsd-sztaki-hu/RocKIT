@@ -29,7 +29,7 @@
   "scripts": {
     "bundle": "yarn run rebuild && theia build --mode development",
     "rebuild": "theia rebuild:electron --cacheRoot ..",
-    "start": "theia start",
+    "start": "node ../scripts/start-electron.js",
     "watch": "yarn run rebuild && theia build --watch --mode development"
   },
   "theia": {
