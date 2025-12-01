@@ -19,3 +19,4 @@ lib
 *-app/*
 !*-app/package.json
 *.tsbuildinfo
+yarn.lock
