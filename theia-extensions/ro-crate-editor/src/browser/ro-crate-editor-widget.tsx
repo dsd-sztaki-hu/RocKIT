@@ -2,8 +2,10 @@ import * as React from 'react';
 import { injectable } from 'inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 
-import { DescriboCrateBuilder } from '@arpproject/crate-builder-component-react';
-import "@arpproject/crate-builder-component-react/style.css";
+
+import { DescriboCrateBuilder } from '@arpproject/recrate';
+import "@arpproject/recrate/style.css";
+
 import emptyCrate from "../../data/crate.json";
 import profile from "../../data/profile.json";
 

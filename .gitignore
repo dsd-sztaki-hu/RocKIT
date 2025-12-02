@@ -7,5 +7,15 @@
 # Datasource local storage ignored files
 /dataSources/
 /dataSources.local.xml
-**/lib/
-**/src-gen/
+
+# Dependency directories
+node_modules
+.browser_modules
+
+# Logs
+*.log
+
+lib
+*-app/*
+!*-app/package.json
+*.tsbuildinfo
