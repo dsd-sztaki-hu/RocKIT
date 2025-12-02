@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "experimentalDecorators": true,
+    "noUnusedLocals": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "jsx": "react",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "es2017",
+    "lib": [
+      "es2017",
+      "dom"
+    ],
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "lib",
+    "rootDir": "src",
+    "baseUrl": ".",
+    "paths": {
+      "@theia/core": [
+        "node_modules/@theia/core/lib"
+      ],
+      "@theia/filesystem": [
+        "node_modules/@theia/filesystem/lib"
+      ],
+      "@theia/workspace": [
+        "node_modules/@theia/workspace/lib"
+      ],
+      "@theia/navigator": [
+        "node_modules/@theia/navigator/lib"
+      ],
+      "@theia/messages": [
+        "node_modules/@theia/messages/lib"
+      ]
+    }
+  },
+  "include": [
+    "src"
+  ]
+}

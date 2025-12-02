@@ -1,0 +1,31 @@
+{
+  "name": "metadata-schema-manager",
+  "version": "0.0.0",
+  "description": "A Theia extension to manage metadata schemas",
+  "keywords": [
+    "theia-extension",
+    "frontend"
+  ],
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/metadata-schema-manager-frontend-module.js"
+    }
+  ],
+  "dependencies": {
+    "@theia/core": "1.65.2",
+    "@theia/filesystem": "1.65.2",
+    "@theia/workspace": "1.65.2",
+    "@theia/monaco": "1.65.2",
+    "@theia/navigator": "1.65.2",
+    "@theia/messages": "1.65.2"
+  },
+  "devDependencies": {
+    "typescript": "^4.0.3",
+    "@types/node": "^13.13.46"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "prepublishOnly": "npm run build"
+  }
+}
