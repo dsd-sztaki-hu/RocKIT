@@ -7,17 +7,12 @@ import { URI } from '@theia/core/lib/common/uri';
 import { OpenFileDialogProps, FileDialogService } from '@theia/filesystem/lib/browser/file-dialog';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
+
+import { Box, Button, TextField, CircularProgress } from '@mui/material';
+import { DataGrid, GridColDef } from '@mui/x-data-grid';
+
+
 import '../../src/browser/style/index.css';
-
-// Define the type for the result of getValue if not available from the module
-interface EnvVariableResult {
-    name: string;
-    value?: string;
-    original?: string;
-}
-
-export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
-export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';
 
 export interface SchemaInfo {
     name: string;
@@ -26,152 +21,69 @@ export interface SchemaInfo {
     path: string;
 }
 
-type SortField = 'name' | 'source' | 'version';
-type SortDirection = 'asc' | 'desc';
+export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
+export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';
 
-// Enhanced Table Component
-const SchemaTable: React.FC<{
-    schemas: SchemaInfo[];
-    isLoading: boolean;
-}> = ({ schemas, isLoading }) => {
-    const [sortField, setSortField] = React.useState<SortField>('name');
-    const [sortDirection, setSortDirection] = React.useState<SortDirection>('asc');
-    const [filterText, setFilterText] = React.useState('');
+/* --------------------- Windows-safe URI --------------------- */
+function toFileUri(path: string): URI {
+    const normalized = path.replace(/\\/g, '/');
+    if (normalized.match(/^[a-zA-Z]:/)) {
+        return new URI('file:///' + normalized);
+    } else {
+        return new URI('file://' + normalized);
+    }
+}
 
-    const handleSort = (field: SortField) => {
-        if (sortField === field) {
-            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-        } else {
-            setSortField(field);
-            setSortDirection('asc');
-        }
-    };
+/* --------------------- MUI Data Grid Table --------------------- */
+const SchemaTable: React.FC<{ schemas: SchemaInfo[]; isLoading: boolean }> = ({ schemas, isLoading }) => {
+    const [filter, setFilter] = React.useState('');
 
-    const filteredAndSortedSchemas = React.useMemo(() => {
-        let result = [...schemas];
+    const columns: GridColDef[] = [
+        { field: 'name', headerName: 'Schema Name', flex: 1 },
+        { field: 'source', headerName: 'Source', width: 120 },
+        { field: 'version', headerName: 'Version', width: 130 }
+    ];
 
-        // Filter
-        if (filterText) {
-            result = result.filter(schema =>
-                schema.name.toLowerCase().includes(filterText.toLowerCase()) ||
-                schema.source.toLowerCase().includes(filterText.toLowerCase()) ||
-                schema.version.toLowerCase().includes(filterText.toLowerCase())
-            );
-        }
+    const rows = React.useMemo(() => {
+        return schemas
+            .filter(schema =>
+                !filter ||
+                schema.name.toLowerCase().includes(filter.toLowerCase()) ||
+                schema.source.toLowerCase().includes(filter.toLowerCase()) ||
+                schema.version.toLowerCase().includes(filter.toLowerCase())
+            )
+            .map((schema, index) => ({ id: index, ...schema }));
+    }, [schemas, filter]);
 
-        // Sort
-        result.sort((a, b) => {
-            const aVal = a[sortField];
-            const bVal = b[sortField];
-            const comparison = aVal.localeCompare(bVal);
-            return sortDirection === 'asc' ? comparison : -comparison;
-        });
-
-        return result;
-    }, [schemas, filterText, sortField, sortDirection]);
-
-    const getSortIcon = (field: SortField) => {
-        if (sortField !== field) return ' ↕';
-        return sortDirection === 'asc' ? ' ↑' : ' ↓';
-    };
-
-    return React.createElement('div', { style: { display: 'flex', flexDirection: 'column', height: '100%' } }, [
-        // Filter input
-        React.createElement('input', {
-            key: 'filter',
-            type: 'text',
-            placeholder: 'Filter schemas...',
-            value: filterText,
-            className: 'metadata-schema-filter',
-            onChange: (e: React.ChangeEvent<HTMLInputElement>) => setFilterText(e.target.value)
-        }),
-        // Table wrapper
-        React.createElement('div', { key: 'table-wrapper', className: 'metadata-schema-table-wrapper' }, [
-            React.createElement('table', {
-                key: 'schema-table',
-                className: 'metadata-schema-table'
-            }, [
-                // Table header
-                React.createElement('thead', { key: 'thead' }, [
-                    React.createElement('tr', { key: 'header-row' }, [
-                        React.createElement('th', {
-                            key: 'name-header',
-                            onClick: () => handleSort('name')
-                        }, [
-                            'Schema Name',
-                            React.createElement('span', { 
-                                key: 'sort-icon',
-                                className: 'metadata-schema-sort-icon' 
-                            }, getSortIcon('name'))
-                        ]),
-                        React.createElement('th', {
-                            key: 'source-header',
-                            onClick: () => handleSort('source')
-                        }, [
-                            'Source',
-                            React.createElement('span', { 
-                                key: 'sort-icon',
-                                className: 'metadata-schema-sort-icon' 
-                            }, getSortIcon('source'))
-                        ]),
-                        React.createElement('th', {
-                            key: 'version-header',
-                            onClick: () => handleSort('version')
-                        }, [
-                            'Version',
-                            React.createElement('span', { 
-                                key: 'sort-icon',
-                                className: 'metadata-schema-sort-icon' 
-                            }, getSortIcon('version'))
-                        ])
-                    ])
-                ]),
-                // Table body
-                React.createElement('tbody', { key: 'tbody' }, [
-                    isLoading ? (
-                        React.createElement('tr', { key: 'loading-row' }, [
-                            React.createElement('td', {
-                                key: 'loading-cell',
-                                colSpan: 3,
-                                className: 'metadata-schema-loading'
-                            }, 'Loading schemas...')
-                        ])
-                    ) : filteredAndSortedSchemas.length === 0 ? (
-                        React.createElement('tr', { key: 'no-data-row' }, [
-                            React.createElement('td', {
-                                key: 'no-data-cell',
-                                colSpan: 3,
-                                className: 'metadata-schema-empty-state'
-                            }, filterText ? 'No matching schemas found' : 'No schemas found')
-                        ])
-                    ) : (
-                        filteredAndSortedSchemas.map((schema, index) =>
-                            React.createElement('tr', { key: index }, [
-                                React.createElement('td', {
-                                    key: `name-${index}`
-                                }, schema.name),
-                                React.createElement('td', {
-                                    key: `source-${index}`
-                                },
-                                    React.createElement('span', {
-                                        className: schema.source === 'local' 
-                                            ? 'metadata-schema-source-local' 
-                                            : 'metadata-schema-source-remote'
-                                    }, schema.source.charAt(0).toUpperCase() + schema.source.slice(1))
-                                ),
-                                React.createElement('td', {
-                                    key: `version-${index}`,
-                                    className: 'metadata-schema-version'
-                                }, schema.version)
-                            ])
-                        )
-                    )
-                ])
-            ])
-        ])
-    ]);
+    return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 1 }}>
+            <TextField
+                label="Filter schemas"
+                size="small"
+                sx={{ marginBottom: 1 }}
+                value={filter}
+                onChange={e => setFilter(e.target.value)}
+            />
+            <Box sx={{ flexGrow: 1 }}>
+                {isLoading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', paddingTop: 4 }}>
+                        <CircularProgress />
+                    </Box>
+                ) : (
+                    <DataGrid
+                        rows={rows}
+                        columns={columns}
+                        disableRowSelectionOnClick
+                        density="compact"
+                        autoPageSize
+                    />
+                )}
+            </Box>
+        </Box>
+    );
 };
 
+/* --------------------- Main Widget Class --------------------- */
 @injectable()
 export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulWidget {
     static readonly ID = METADATA_SCHEMA_MANAGER_WIDGET_ID;
@@ -184,7 +96,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected schemas: SchemaInfo[] = [];
     protected isLoading = true;
-
     private reactRoot: any;
 
     constructor(
@@ -204,316 +115,166 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.title.caption = METADATA_SCHEMA_MANAGER_LABEL;
         this.title.closable = true;
         this.title.iconClass = 'fa fa-file-code';
-        console.log("Constructor called for MetadataSchemaManagerWidget");
-        this.setupDirectories();
     }
 
+    /* --------------------- Theme Helper (REMOVED) --------------------- */
+    // The getTheiaTheme method has been removed. Styling is now handled by index.css.
+
+
+    /* --------------------- Windows-safe URI (Rest of the class methods remain) --------------------- */
+
     protected async setupDirectories(): Promise<void> {
-        console.log("Starting setupDirectories");
-        const theiaConfigDirResult: EnvVariableResult | undefined = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
-        const theiaConfigDirPath = theiaConfigDirResult?.value;
-
-        if (!theiaConfigDirPath) {
-             console.error("Could not determine THEIA_CONFIG_DIR using EnvVariablesServer.");
-             this.messageService.error("Could not determine THEIA_CONFIG_DIR.");
-             this.isLoading = false;
-             this.update();
-             return;
-        }
-
-        console.log("THEIA_CONFIG_DIR found:", theiaConfigDirPath);
-
-        const theiaConfigDirUri = new URI(theiaConfigDirPath);
-        const homeDirUri = theiaConfigDirUri.parent;
-        const homePath = homeDirUri.path.toString();
-
-        console.log("Derived home path:", homePath);
-
-        const homeDir = new URI(homePath);
-        const aromaDir = homeDir.resolve('.aroma');
-        const schemasDir = aromaDir.resolve('metadata-schemas');
-        const localDir = schemasDir.resolve('local');
-        const remoteDir = schemasDir.resolve('remote');
-
         try {
-            if (!(await this.fileService.exists(aromaDir))) {
-                console.log("Creating .aroma directory");
-                await this.fileService.createFolder(aromaDir);
-            }
+            const result = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
+            const configPath = result?.value;
+            if (!configPath) throw new Error('THEIA_CONFIG_DIR not found');
 
-            if (!(await this.fileService.exists(schemasDir))) {
-                console.log("Creating metadata-schemas directory");
-                await this.fileService.createFolder(schemasDir);
-            }
+            const configUri = toFileUri(configPath);
+            const homeUri = configUri.parent;
 
-            if (!(await this.fileService.exists(localDir))) {
-                console.log("Creating local directory");
-                await this.fileService.createFolder(localDir);
-            }
+            const aromaDir = homeUri.resolve('.aroma');
+            const schemasDir = aromaDir.resolve('metadata-schemas');
+            const localDir = schemasDir.resolve('local');
+            const remoteDir = schemasDir.resolve('remote');
 
-            if (!(await this.fileService.exists(remoteDir))) {
-                console.log("Creating remote directory");
-                await this.fileService.createFolder(remoteDir);
-            }
+            if (!(await this.fileService.exists(aromaDir))) await this.fileService.createFolder(aromaDir);
+            if (!(await this.fileService.exists(schemasDir))) await this.fileService.createFolder(schemasDir);
+            if (!(await this.fileService.exists(localDir))) await this.fileService.createFolder(localDir);
+            if (!(await this.fileService.exists(remoteDir))) await this.fileService.createFolder(remoteDir);
 
-            console.log("Directories setup complete, loading schemas...");
             await this.loadSchemas();
-
-        } catch (error) {
-            console.error('Error setting up directories:', error);
-            this.messageService.error(`Error setting up directories: ${error}`);
+        } catch (err) {
+            this.messageService.error(`Error setting up directories: ${err}`);
             this.isLoading = false;
             this.update();
         }
     }
 
     protected async loadSchemas(): Promise<void> {
-        console.log("Starting loadSchemas");
         this.isLoading = true;
         this.schemas = [];
 
         try {
-            const theiaConfigDirResult: EnvVariableResult | undefined = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
-            const theiaConfigDirPath = theiaConfigDirResult?.value;
+            const result = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
+            const configPath = result?.value;
+            if (!configPath) throw new Error('THEIA_CONFIG_DIR not found');
 
-            if (!theiaConfigDirPath) {
-                 console.error("Could not determine THEIA_CONFIG_DIR for loading schemas using EnvVariablesServer.");
-                 this.messageService.error("Could not determine THEIA_CONFIG_DIR.");
-                 this.isLoading = false;
-                 this.update();
-                 return;
-            }
+            const homeUri = toFileUri(configPath).parent;
+            const schemasDir = homeUri.resolve('.aroma/metadata-schemas');
 
-            const theiaConfigDirUri = new URI(theiaConfigDirPath);
-            const homeDirUri = theiaConfigDirUri.parent;
-            const homePath = homeDirUri.path.toString();
+            for (const source of ['local', 'remote'] as const) {
+                const dir = schemasDir.resolve(source);
+                const stat = await this.fileService.resolve(dir);
+                if (!stat?.children) continue;
 
-            console.log("Loading schemas from home path:", homePath);
+                for (const file of stat.children) {
+                    if (!file.name.endsWith('.json')) continue;
 
-            const homeDir = new URI(homePath);
-            const schemasDir = homeDir.resolve('.aroma/metadata-schemas');
-            const localDir = schemasDir.resolve('local');
-            const remoteDir = schemasDir.resolve('remote');
-
-            const localUri = localDir;
-            const localStat = await this.fileService.resolve(localUri);
-            console.log("Local directory contents:", localStat?.children?.map(c => c.name) || "None");
-            if (localStat && localStat.children) {
-                for (const child of localStat.children) {
-                    if (child.name.endsWith('.json')) {
-                        console.log("Reading local schema:", child.name);
-                        const content = await this.fileService.read(child.resource);
-                        let schemaContent;
-                        try {
-                            schemaContent = JSON.parse(content.value);
-                            if (typeof schemaContent['schema:name'] !== 'string' || typeof schemaContent['pav:version'] !== 'string') {
-                                console.warn(`Schema ${child.name} is missing required 'schema:name' or 'pav:version' field.`);
-                                continue;
-                            }
-                        } catch (e) {
-                            console.warn(`Could not parse JSON from ${child.name}:`, e);
-                            continue;
-                        }
-                        const name = schemaContent['schema:name'];
-                        const version = schemaContent['pav:version'];
+                    try {
+                        const content = await this.fileService.read(file.resource);
+                        const parsed = JSON.parse(content.value);
+                        if (!parsed['schema:name'] || !parsed['pav:version']) continue;
 
                         this.schemas.push({
-                            name: name,
-                            source: 'local',
-                            version: version,
-                            path: child.resource.toString()
+                            name: parsed['schema:name'],
+                            version: parsed['pav:version'],
+                            source,
+                            path: file.resource.toString()
                         });
+                    } catch {
+                        console.warn(`Failed to parse JSON: ${file.name}`);
                     }
                 }
             }
-
-            const remoteUri = remoteDir;
-            const remoteStat = await this.fileService.resolve(remoteUri);
-            console.log("Remote directory contents:", remoteStat?.children?.map(c => c.name) || "None");
-            if (remoteStat && remoteStat.children) {
-                for (const child of remoteStat.children) {
-                    if (child.name.endsWith('.json')) {
-                        console.log("Reading remote schema:", child.name);
-                        const content = await this.fileService.read(child.resource);
-                        let schemaContent;
-                        try {
-                            schemaContent = JSON.parse(content.value);
-                            if (typeof schemaContent['schema:name'] !== 'string' || typeof schemaContent['pav:version'] !== 'string') {
-                                console.warn(`Schema ${child.name} is missing required 'schema:name' or 'pav:version' field.`);
-                                continue;
-                            }
-                        } catch (e) {
-                            console.warn(`Could not parse JSON from ${child.name}:`, e);
-                            continue;
-                        }
-                        const name = schemaContent['schema:name'];
-                        const version = schemaContent['pav:version'];
-
-                        this.schemas.push({
-                            name: name,
-                            source: 'remote',
-                            version: version,
-                            path: child.resource.toString()
-                        });
-                    }
-                }
-            }
-            console.log("Loaded schemas:", this.schemas);
-        } catch (error) {
-            console.error('Error loading schemas:', error);
-            this.messageService.error(`Error loading schemas: ${error}`);
-        } finally {
-            this.isLoading = false;
-            this.update();
+        } catch (err) {
+            this.messageService.error(`Error loading schemas: ${err}`);
         }
+
+        this.isLoading = false;
+        this.update();
     }
 
+
+    /* --------------------- Actions --------------------- */
     protected async importSchemaFromFile(): Promise<void> {
-        try {
-            const theiaConfigDirResult: EnvVariableResult | undefined = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
-            const theiaConfigDirPath = theiaConfigDirResult?.value;
+        const result = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
+        const configPath = result?.value;
+        if (!configPath) return;
 
-            if (!theiaConfigDirPath) {
-                 console.error("Could not determine THEIA_CONFIG_DIR for importing schema using EnvVariablesServer.");
-                 this.messageService.error("Could not determine THEIA_CONFIG_DIR.");
-                 return;
-            }
+        const localDir = toFileUri(configPath).parent.resolve('.aroma/metadata-schemas/local');
 
-            const theiaConfigDirUri = new URI(theiaConfigDirPath);
-            const homeDirUri = theiaConfigDirUri.parent;
-            const homePath = homeDirUri.path.toString();
+        const props: OpenFileDialogProps = {
+            title: 'Import Schema',
+            filters: { 'JSON': ['json'] },
+            canSelectFiles: true
+        };
 
-            const localDirUri = new URI(homePath).resolve('.aroma/metadata-schemas/local');
+        const fileUri = await this.fileDialogService.showOpenDialog(props);
+        if (!fileUri) return;
 
-            const dialogProps: OpenFileDialogProps = {
-                title: 'Import Schema from File',
-                filters: {
-                    'JSON files': ['json']
-                },
-                canSelectFolders: false,
-                canSelectFiles: true
-            };
+        const fileName = fileUri.path.base;
+        const targetUri = localDir.resolve(fileName);
+        const content = await this.fileService.read(fileUri);
 
-            const fileUri = await this.fileDialogService.showOpenDialog(dialogProps);
-
-            if (fileUri) {
-                const fileContent = await this.fileService.read(fileUri);
-                const fileName = fileUri.path.base;
-                const targetUri = localDirUri.resolve(fileName);
-
-                if (await this.fileService.exists(targetUri)) {
-                    const overwrite = confirm(`File ${fileName} already exists. Do you want to overwrite it?`);
-                    if (!overwrite) {
-                        return;
-                    }
-                }
-
-                await this.fileService.write(targetUri, fileContent.value);
-                this.messageService.info(`Schema ${fileName} imported successfully!`);
-                await this.loadSchemas();
-            }
-        } catch (error) {
-            console.error('Error importing schema from file:', error);
-            this.messageService.error(`Error importing schema: ${error}`);
+        if (await this.fileService.exists(targetUri)) {
+            if (!confirm(`Overwrite ${fileName}?`)) return;
         }
-    }
 
-    protected async importSchemaFromUrl(): Promise<void> {
-        console.log('Import schema from URL button clicked');
-        this.messageService.info('Import from URL feature is not yet implemented');
-    }
-
-    protected async refreshSchemas(): Promise<void> {
-        console.log("Refreshing schemas...");
+        await this.fileService.write(targetUri, content.value);
+        this.messageService.info(`Imported ${fileName}`);
         await this.loadSchemas();
     }
 
-    protected onActivateRequest(msg: Message): void {
-        super.onActivateRequest(msg);
-        console.log("onActivateRequest called");
-        this.update();
-        setTimeout(() => {
-            if (this.node && this.node.parentElement) {
-                this.node.parentElement.style.height = 'auto';
-                this.update();
-            }
-        }, 0);
+    protected async importSchemaFromUrl(): Promise<void> {
+        this.messageService.info('Import from URL not implemented yet.');
     }
 
+    protected async refreshSchemas(): Promise<void> {
+        await this.loadSchemas();
+    }
+
+    /* --------------------- Widget Lifecycle --------------------- */
     protected onAfterAttach(msg: Message): void {
         super.onAfterAttach(msg);
-        console.log("onAfterAttach called");
         this.node.innerHTML = '';
         this.render();
+        this.setupDirectories();
     }
 
     protected onUpdateRequest(msg: Message): void {
         super.onUpdateRequest(msg);
-        console.log("onUpdateRequest called, re-rendering");
         this.render();
     }
 
     protected render(): void {
-        console.log("Rendering Metadata Schema Manager Widget, isLoading:", this.isLoading, "schemas:", this.schemas.length);
-
-        const component = React.createElement('div', {
-            className: 'metadata-schema-manager-container'
-        }, [
-            React.createElement('div', {
-                key: 'controls',
-                className: 'metadata-schema-controls'
-            }, [
-                React.createElement('button', {
-                    key: 'import-file',
-                    className: 'theia-button',
-                    onClick: () => this.importSchemaFromFile()
-                }, 'Import Schema from File'),
-                React.createElement('button', {
-                    key: 'import-url',
-                    className: 'theia-button',
-                    onClick: () => this.importSchemaFromUrl()
-                }, 'Import Schema from URL'),
-                React.createElement('button', {
-                    key: 'refresh',
-                    className: 'theia-button',
-                    onClick: () => this.refreshSchemas()
-                }, 'Refresh')
-            ]),
-            React.createElement(SchemaTable, {
-                key: 'schema-table',
-                schemas: this.schemas,
-                isLoading: this.isLoading
-            })
-        ]);
+        if (!this.isAttached) return;
 
         const ReactDOM = require('react-dom/client');
-        if (ReactDOM.createRoot) {
-            if (!this.reactRoot) {
-                this.reactRoot = ReactDOM.createRoot(this.node);
-            }
-            this.reactRoot.render(component);
-        } else {
-            const legacyReactDOM = require('react-dom');
-            legacyReactDOM.render(component, this.node);
-        }
+        // Add the class name here so the external CSS can target the root container.
+        this.node.classList.add('metadata-schema-manager-widget');
+        
+        if (!this.reactRoot) this.reactRoot = ReactDOM.createRoot(this.node);
+
+        this.reactRoot.render(
+            // The Box components remain, but their styling is handled by index.css
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <Box sx={{ display: 'flex', gap: 1, padding: 1 }}>
+                    <Button variant="contained" onClick={() => this.importSchemaFromFile()}>Import From File</Button>
+                    <Button variant="contained" onClick={() => this.importSchemaFromUrl()}>Import From URL</Button>
+                    <Button variant="contained" onClick={() => this.refreshSchemas()}>Refresh</Button>
+                </Box>
+                <Box sx={{ flexGrow: 1 }}>
+                    <SchemaTable schemas={this.schemas} isLoading={this.isLoading} />
+                </Box>
+            </Box>
+        );
     }
 
     protected onBeforeDetach(msg: Message): void {
-        if (this.reactRoot) {
-            this.reactRoot.unmount();
-            this.reactRoot = null;
-        } else {
-            const ReactDOM = require('react-dom');
-            ReactDOM.unmountComponentAtNode(this.node);
-        }
+        if (this.reactRoot) this.reactRoot.unmount();
         super.onBeforeDetach(msg);
     }
 
-    storeState(): object {
-        return {};
-    }
-
-    restoreState(oldState: object): void {
-        // No state to restore
-    }
+    storeState(): object { return {}; }
+    restoreState(): void {}
 }

@@ -1,218 +1,123 @@
-/* Metadata Schema Manager Styles */
+/* src/browser/style/index.css */
 
-.metadata-schema-manager-container {
-    padding: 20px;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    background-color: var(--theia-editor-background);
+/* --- Theia Widget Container (Top-level Wrapper) --- */
+
+/* Ensure the root container of your widget adopts the editor background */
+.metadata-schema-manager-widget {
+    /* Use 'important' to ensure this overrides any default Theia padding/background for the container */
+    background-color: var(--theia-editor-background) !important;
     color: var(--theia-foreground);
+    padding: 0;
+    height: 100%;
+    /* Prevents scrollbars on the main widget itself if children are controlled */
+    overflow: hidden; 
 }
 
-/* Control Buttons */
-.metadata-schema-controls {
-    margin-bottom: 15px;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
+/* --- Control Buttons (MUI Buttons) --- */
 
-.metadata-schema-controls button {
-    flex: 1;
-    min-width: 150px;
-}
-
-/* Ensure all buttons have proper borders for high contrast themes */
-.metadata-schema-controls .theia-button {
-    /* Force a visible border in all themes */
+/* Targets the contained button variant */
+.MuiButton-contained {
+    /* Ensure the button uses Theia's intended background/foreground */
+    background-color: var(--theia-button-background) !important;
+    color: var(--theia-button-foreground) !important;
+    
     border: 1px solid var(--theia-contrastBorder, var(--theia-button-border, currentColor)) !important;
 }
 
-.metadata-schema-controls .theia-button:hover {
-    /* Ensure border remains visible on hover */
-    border-color: var(--theia-contrastActiveBorder, var(--theia-focusBorder, currentColor)) !important;
+.MuiButton-contained:hover {
+    background-color: var(--theia-button-hoverBackground) !important;
+    
+    /* Ensure the hover border uses the focus color for high visibility */
+    border-color: var(--theia-focusBorder) !important;
 }
 
-.metadata-schema-controls .theia-button:focus {
-    /* Strong focus indicator for accessibility */
+.MuiButton-contained:focus {
+    /* Use outline for better accessibility and high contrast */
     outline: 2px solid var(--theia-focusBorder) !important;
-    outline-offset: 2px !important;
+    outline-offset: 1px !important;
+    
+    /* Ensure the border remains high contrast when focused */
+    border-color: var(--theia-focusBorder) !important;
 }
+/* --- Filter Text Field (MUI TextField) --- */
 
-/* Filter Input */
-.metadata-schema-filter {
-    margin-bottom: 10px;
-    padding: 10px;
-    border: 1px solid var(--theia-input-border);
+/* Targets the main input root container for background/border fix */
+.MuiOutlinedInput-root {
+    /* This is the key fix for the white background in dark mode */
+    background-color: var(--theia-input-background) !important;
+    color: var(--theia-input-foreground) !important;
     border-radius: 3px;
-    background-color: var(--theia-input-background);
-    color: var(--theia-input-foreground);
-    font-size: 14px;
-    font-family: var(--theia-ui-font-family);
-    width: 100%;
-    box-sizing: border-box;
 }
 
-.metadata-schema-filter:focus {
-    outline: none;
-    border-color: var(--theia-focusBorder);
-    box-shadow: 0 0 0 1px var(--theia-focusBorder);
+/* Targets the input border (fieldset element) */
+.MuiOutlinedInput-notchedOutline {
+    border-color: var(--theia-input-border) !important;
 }
 
-.metadata-schema-filter::placeholder {
-    color: var(--theia-input-placeholderForeground);
+/* Focused input border */
+.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+    border-color: var(--theia-focusBorder) !important;
 }
 
-/* Table Container */
-.metadata-schema-table-wrapper {
-    flex-grow: 1;
-    overflow-y: auto;
-    border: 1px solid var(--theia-contrastBorder, var(--theia-panel-border));
-    border-radius: 3px;
-    background-color: var(--theia-editor-background);
+/* Hover input border */
+.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+    border-color: var(--theia-focusBorder) !important; /* Use focus color on hover for visibility */
 }
 
-/* Table */
-.metadata-schema-table {
-    width: 100%;
-    border-collapse: collapse;
-    background-color: var(--theia-editor-background);
+/* Input text and Label */
+.MuiInputBase-input {
+    color: var(--theia-input-foreground) !important;
+    padding: 8px 14px; /* Default MUI small size padding */
 }
 
-/* Table Header */
-.metadata-schema-table thead {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background-color: var(--theia-list-headerBackground, var(--theia-sideBar-background));
+.MuiInputLabel-root {
+    color: var(--theia-input-foreground) !important;
+}
+.MuiInputLabel-root.Mui-focused {
+    color: var(--theia-focusBorder) !important; /* Focus color for label */
 }
 
-.metadata-schema-table th {
-    padding: 12px 8px;
-    border: 1px solid var(--theia-contrastBorder, var(--theia-panel-border));
-    text-align: left;
-    cursor: pointer;
-    user-select: none;
-    font-weight: 600;
-    color: var(--theia-list-headerForeground, var(--theia-foreground));
-    background-color: var(--theia-list-headerBackground, var(--theia-sideBar-background));
-    transition: background-color 0.1s ease;
+/* --- Data Grid (MUI X-Data-Grid) --- */
+
+.MuiDataGrid-root {
+    /* Overall grid background and text color */
+    background-color: var(--theia-editor-background) !important;
+    color: var(--theia-foreground) !important;
+    border: 1px solid var(--theia-contrastBorder) !important;
+    box-shadow: none !important; 
 }
 
-.metadata-schema-table th:hover {
-    background-color: var(--theia-list-hoverBackground);
+/* Header */
+.MuiDataGrid-columnHeaders {
+    background-color: var(--theia-list-headerBackground) !important;
+    color: var(--theia-list-headerForeground) !important;
+    border-bottom: 1px solid var(--theia-contrastBorder) !important;
 }
 
-.metadata-schema-table th:active {
-    background-color: var(--theia-list-activeSelectionBackground);
-}
-
-/* Table Body */
-.metadata-schema-table tbody tr {
-    transition: background-color 0.1s ease;
-}
-
-.metadata-schema-table tbody tr:nth-child(even) {
-    background-color: var(--theia-editor-background);
-}
-
-.metadata-schema-table tbody tr:nth-child(odd) {
-    background-color: var(--theia-list-hoverBackground, rgba(255, 255, 255, 0.03));
-}
-
-.metadata-schema-table tbody tr:hover {
-    background-color: var(--theia-list-hoverBackground) !important;
-}
-
-.metadata-schema-table td {
-    padding: 10px 8px;
-    border: 1px solid var(--theia-contrastBorder, var(--theia-panel-border));
+/* Cells */
+.MuiDataGrid-cell {
+    border-right: 1px solid var(--theia-contrastBorder) !important;
+    border-color: var(--theia-contrastBorder) !important;
     color: var(--theia-foreground);
 }
 
-/* Empty State */
-.metadata-schema-empty-state {
-    padding: 40px 20px;
-    text-align: center;
-    font-style: italic;
-    color: var(--theia-descriptionForeground);
+/* Alternating Rows */
+.MuiDataGrid-row:nth-of-type(even) {
+    background-color: var(--theia-editor-background) !important;
 }
 
-/* Source Badge */
-.metadata-schema-source-local {
-    color: var(--theia-gitDecoration-addedResourceForeground, #28a745);
-    font-weight: 600;
+.MuiDataGrid-row:nth-of-type(odd) {
+    background-color: var(--theia-list-hoverBackground, rgba(255, 255, 255, 0.03)) !important;
 }
 
-.metadata-schema-source-remote {
-    color: var(--theia-gitDecoration-modifiedResourceForeground, #007bff);
-    font-weight: 600;
+/* Hover Effect */
+.MuiDataGrid-row:hover {
+    background-color: var(--theia-list-hoverBackground) !important;
 }
 
-/* Sort Indicators */
-.metadata-schema-sort-icon {
-    margin-left: 4px;
-    opacity: 0.6;
-    font-size: 12px;
-}
-
-/* Scrollbar Styling for Dark Theme */
-.metadata-schema-table-wrapper::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-}
-
-.metadata-schema-table-wrapper::-webkit-scrollbar-track {
-    background: var(--theia-scrollbar-shadow);
-}
-
-.metadata-schema-table-wrapper::-webkit-scrollbar-thumb {
-    background: var(--theia-scrollbarSlider-background);
-    border-radius: 5px;
-}
-
-.metadata-schema-table-wrapper::-webkit-scrollbar-thumb:hover {
-    background: var(--theia-scrollbarSlider-hoverBackground);
-}
-
-.metadata-schema-table-wrapper::-webkit-scrollbar-thumb:active {
-    background: var(--theia-scrollbarSlider-activeBackground);
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-    .metadata-schema-controls {
-        flex-direction: column;
-    }
-    
-    .metadata-schema-controls button {
-        width: 100%;
-    }
-    
-    .metadata-schema-table th,
-    .metadata-schema-table td {
-        padding: 8px 4px;
-        font-size: 13px;
-    }
-}
-
-/* Loading State */
-.metadata-schema-loading {
-    padding: 20px;
-    text-align: center;
-    color: var(--theia-descriptionForeground);
-    font-style: italic;
-}
-
-/* Accessibility */
-.metadata-schema-table th:focus,
-.metadata-schema-filter:focus {
-    outline: 2px solid var(--theia-focusBorder);
-    outline-offset: -1px;
-}
-
-/* Version Column - Monospace */
-.metadata-schema-version {
-    font-family: var(--theia-code-font-family, 'Menlo', 'Monaco', 'Courier New', monospace);
-    font-size: 0.95em;
+/* Footer */
+.MuiDataGrid-footerContainer {
+    border-top: 1px solid var(--theia-contrastBorder) !important;
+    background-color: var(--theia-editor-background) !important;
+    color: var(--theia-foreground) !important;
 }
