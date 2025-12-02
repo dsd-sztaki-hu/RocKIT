@@ -30,21 +30,24 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     static readonly ID = METADATA_SCHEMA_MANAGER_WIDGET_ID;
     static readonly LABEL = METADATA_SCHEMA_MANAGER_LABEL;
 
-    // Declare properties including the new EnvVariablesServer
+    // Declare properties including the new services
     protected readonly fileService: FileService;
     protected readonly fileDialogService: FileDialogService;
     protected readonly messageService: MessageService;
-    protected readonly envVariablesServer: EnvVariablesServer; // Add the env server
+    protected readonly envVariablesServer: EnvVariablesServer;
 
     protected schemas: SchemaInfo[] = [];
     protected isLoading = true;
 
-    // Initialize properties via constructor parameters, including the env server
+    // Keep track of the root for cleanup
+    private reactRoot: any; // This will hold the createRoot instance
+
+    // Initialize properties via constructor parameters
     constructor(
         @inject(FileService) fileService: FileService,
         @inject(FileDialogService) fileDialogService: FileDialogService,
         @inject(MessageService) messageService: MessageService,
-        @inject(EnvVariablesServer) envVariablesServer: EnvVariablesServer // Inject the env server
+        @inject(EnvVariablesServer) envVariablesServer: EnvVariablesServer
     ) {
         super();
         this.fileService = fileService;
@@ -118,6 +121,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
             console.log("Directories setup complete, loading schemas...");
             await this.loadSchemas();
+
         } catch (error) {
             console.error('Error setting up directories:', error);
             this.messageService.error(`Error setting up directories: ${error}`);
@@ -301,15 +305,36 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.messageService.info('Import from URL feature is not yet implemented');
     }
 
+    // Add a new method for refreshing the schema list
+    protected async refreshSchemas(): Promise<void> {
+        console.log("Refreshing schemas...");
+        await this.loadSchemas();
+    }
+
     protected onActivateRequest(msg: Message): void {
         super.onActivateRequest(msg);
         console.log("onActivateRequest called");
+        // Force a full update and render when the widget is activated
         this.update();
+        // Also, try to force a resize or layout update
+        // This is a workaround to fix potential layout issues after reopening
+        setTimeout(() => {
+            if (this.node && this.node.parentElement) {
+                // Trigger a resize event or force a layout recalculation
+                this.node.parentElement.style.height = 'auto';
+                // You might need to adjust this based on your actual layout
+                // Sometimes just calling update() multiple times helps
+                this.update();
+            }
+        }, 0); // Use setTimeout to ensure it runs after the current event loop
     }
 
     // Override onAfterAttach to ensure the node is ready before rendering
     protected onAfterAttach(msg: Message): void {
         super.onAfterAttach(msg);
+        console.log("onAfterAttach called");
+        // Clear the node's innerHTML before rendering to ensure a clean state
+        this.node.innerHTML = '';
         // Initial render after the widget's DOM node is attached
         this.render();
     }
@@ -321,26 +346,34 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.render();
     }
 
-    // New method to handle the React rendering directly into the widget's node
+    // New method to handle the React rendering directly into the widget's node using createRoot
     protected render(): void {
         console.log("Rendering Metadata Schema Manager Widget, isLoading:", this.isLoading, "schemas:", this.schemas.length);
 
         // Create the React component structure
-        const component = React.createElement('div', { className: 'metadata-schema-manager-container', style: { padding: '20px', backgroundColor: '#f5f5f5' } }, [
-            React.createElement('div', { key: 'controls', className: 'metadata-schema-controls', style: { marginBottom: '10px' } }, [
+        const component = React.createElement('div', { className: 'metadata-schema-manager-container', style: { padding: '20px', backgroundColor: '#f5f5f5', height: '100%', display: 'flex', flexDirection: 'column' } }, [
+            React.createElement('div', { key: 'controls', className: 'metadata-schema-controls', style: { marginBottom: '10px', display: 'flex', gap: '10px' } }, [
                 React.createElement('button', {
                     key: 'import-file',
                     className: 'theia-button',
                     onClick: () => this.importSchemaFromFile(),
-                    style: { marginRight: '10px' }
+                    style: { flex: '1' }
                 }, 'Import Schema from File'),
                 React.createElement('button', {
                     key: 'import-url',
                     className: 'theia-button secondary',
-                    onClick: () => this.importSchemaFromUrl()
-                }, 'Import Schema from URL')
+                    onClick: () => this.importSchemaFromUrl(),
+                    style: { flex: '1' }
+                }, 'Import Schema from URL'),
+                // Add the Refresh button with equal spacing
+                React.createElement('button', {
+                    key: 'refresh',
+                    className: 'theia-button secondary',
+                    onClick: () => this.refreshSchemas(),
+                    style: { flex: '1' }
+                }, 'Refresh')
             ]),
-            React.createElement('div', { key: 'table-container', className: 'metadata-schema-table-container' }, [
+            React.createElement('div', { key: 'table-container', className: 'metadata-schema-table-container', style: { flexGrow: 1, overflowY: 'auto' } }, [
                 React.createElement('table', {
                     key: 'schema-table',
                     className: 'theia-DataGrid',
@@ -384,17 +417,31 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             ])
         ]);
 
-        // Render the component into the widget's DOM node
-        // This uses the older ReactDOM.render, which is compatible with older React versions
-        // If Theia 1.65.2 uses React 18+, we might need to use createRoot instead
-        const ReactDOM = require('react-dom'); // Dynamically require ReactDOM
-        ReactDOM.render(component, this.node); // Render directly into the widget's node
+        // Render the component into the widget's DOM node using createRoot
+        const ReactDOM = require('react-dom/client'); // Import from client for createRoot
+        // If createRoot is not available, fall back to ReactDOM.render for older versions
+        if (ReactDOM.createRoot) {
+            // Create a new root if it doesn't exist, or update it if it does
+            if (!this.reactRoot) {
+                this.reactRoot = ReactDOM.createRoot(this.node);
+            }
+            this.reactRoot.render(component);
+        } else {
+            // Fallback for older React versions
+            const legacyReactDOM = require('react-dom');
+            legacyReactDOM.render(component, this.node);
+        }
     }
 
     // Override onBeforeDetach to cleanup React rendering if necessary
     protected onBeforeDetach(msg: Message): void {
-        const ReactDOM = require('react-dom');
-        ReactDOM.unmountComponentAtNode(this.node); // Clean up React rendering
+        if (this.reactRoot) {
+            this.reactRoot.unmount(); // Clean up React rendering with createRoot
+            this.reactRoot = null;
+        } else {
+            const ReactDOM = require('react-dom');
+            ReactDOM.unmountComponentAtNode(this.node); // Clean up React rendering with legacy API
+        }
         super.onBeforeDetach(msg);
     }
 
