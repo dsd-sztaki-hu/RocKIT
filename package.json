@@ -5,20 +5,22 @@
     "npm": ">=8"
   },
   "scripts": {
-    "build:browser": "npm --prefix browser-app run bundle",
-    "build:electron": "npm --prefix electron-app run bundle",
+    "build:file-preview": "yarn workspace file-preview build",
+    "build:browser": "yarn run build:file-preview && yarn workspace browser-app run bundle",
+    "build:electron": "yarn run build:file-preview && yarn workspace electron-app run bundle",
     "prepare": "lerna run prepare",
     "postinstall": "theia check:theia-version",
-    "start:browser": "npm --prefix browser-app start",
-    "start:electron": "npm --prefix electron-app start",
-    "watch:browser": "lerna run --parallel watch --ignore electron-app",
-    "watch:electron": "lerna run --parallel watch --ignore browser-app",
-    "test": "cd ro-crate-editor && npm test"
+    "start:browser": "yarn workspace browser-app start",
+    "start:electron": "yarn workspace electron-app start",
+    "watch:property-view": "yarn workspace @theia/property-view watch",
+    "watch:electron": "lerna run --parallel watch --scope app-state --scope electron-app",
+    "watch:browser": "lerna run --parallel watch --scope app-state --scope browser-app"
   },
   "devDependencies": {
     "lerna": "2.4.0"
   },
   "workspaces": [
+    "dev-packages/*",
     "theia-extensions/*",
     "browser-app",
     "electron-app"
