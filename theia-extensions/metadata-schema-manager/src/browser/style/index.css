@@ -1,7 +1,218 @@
-#widget-container h2 {
-    color: var(--theia-ui-font-color1);
-    font-size: 12px;
-    font-weight: 400;
+/* Metadata Schema Manager Styles */
+
+.metadata-schema-manager-container {
+    padding: 20px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--theia-editor-background);
+    color: var(--theia-foreground);
+}
+
+/* Control Buttons */
+.metadata-schema-controls {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.metadata-schema-controls button {
+    flex: 1;
+    min-width: 150px;
+}
+
+/* Ensure all buttons have proper borders for high contrast themes */
+.metadata-schema-controls .theia-button {
+    /* Force a visible border in all themes */
+    border: 1px solid var(--theia-contrastBorder, var(--theia-button-border, currentColor)) !important;
+}
+
+.metadata-schema-controls .theia-button:hover {
+    /* Ensure border remains visible on hover */
+    border-color: var(--theia-contrastActiveBorder, var(--theia-focusBorder, currentColor)) !important;
+}
+
+.metadata-schema-controls .theia-button:focus {
+    /* Strong focus indicator for accessibility */
+    outline: 2px solid var(--theia-focusBorder) !important;
+    outline-offset: 2px !important;
+}
+
+/* Filter Input */
+.metadata-schema-filter {
+    margin-bottom: 10px;
     padding: 10px;
-    text-transform: uppercase;
+    border: 1px solid var(--theia-input-border);
+    border-radius: 3px;
+    background-color: var(--theia-input-background);
+    color: var(--theia-input-foreground);
+    font-size: 14px;
+    font-family: var(--theia-ui-font-family);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.metadata-schema-filter:focus {
+    outline: none;
+    border-color: var(--theia-focusBorder);
+    box-shadow: 0 0 0 1px var(--theia-focusBorder);
+}
+
+.metadata-schema-filter::placeholder {
+    color: var(--theia-input-placeholderForeground);
+}
+
+/* Table Container */
+.metadata-schema-table-wrapper {
+    flex-grow: 1;
+    overflow-y: auto;
+    border: 1px solid var(--theia-contrastBorder, var(--theia-panel-border));
+    border-radius: 3px;
+    background-color: var(--theia-editor-background);
+}
+
+/* Table */
+.metadata-schema-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: var(--theia-editor-background);
+}
+
+/* Table Header */
+.metadata-schema-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: var(--theia-list-headerBackground, var(--theia-sideBar-background));
+}
+
+.metadata-schema-table th {
+    padding: 12px 8px;
+    border: 1px solid var(--theia-contrastBorder, var(--theia-panel-border));
+    text-align: left;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 600;
+    color: var(--theia-list-headerForeground, var(--theia-foreground));
+    background-color: var(--theia-list-headerBackground, var(--theia-sideBar-background));
+    transition: background-color 0.1s ease;
+}
+
+.metadata-schema-table th:hover {
+    background-color: var(--theia-list-hoverBackground);
+}
+
+.metadata-schema-table th:active {
+    background-color: var(--theia-list-activeSelectionBackground);
+}
+
+/* Table Body */
+.metadata-schema-table tbody tr {
+    transition: background-color 0.1s ease;
+}
+
+.metadata-schema-table tbody tr:nth-child(even) {
+    background-color: var(--theia-editor-background);
+}
+
+.metadata-schema-table tbody tr:nth-child(odd) {
+    background-color: var(--theia-list-hoverBackground, rgba(255, 255, 255, 0.03));
+}
+
+.metadata-schema-table tbody tr:hover {
+    background-color: var(--theia-list-hoverBackground) !important;
+}
+
+.metadata-schema-table td {
+    padding: 10px 8px;
+    border: 1px solid var(--theia-contrastBorder, var(--theia-panel-border));
+    color: var(--theia-foreground);
+}
+
+/* Empty State */
+.metadata-schema-empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    font-style: italic;
+    color: var(--theia-descriptionForeground);
+}
+
+/* Source Badge */
+.metadata-schema-source-local {
+    color: var(--theia-gitDecoration-addedResourceForeground, #28a745);
+    font-weight: 600;
+}
+
+.metadata-schema-source-remote {
+    color: var(--theia-gitDecoration-modifiedResourceForeground, #007bff);
+    font-weight: 600;
+}
+
+/* Sort Indicators */
+.metadata-schema-sort-icon {
+    margin-left: 4px;
+    opacity: 0.6;
+    font-size: 12px;
+}
+
+/* Scrollbar Styling for Dark Theme */
+.metadata-schema-table-wrapper::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.metadata-schema-table-wrapper::-webkit-scrollbar-track {
+    background: var(--theia-scrollbar-shadow);
+}
+
+.metadata-schema-table-wrapper::-webkit-scrollbar-thumb {
+    background: var(--theia-scrollbarSlider-background);
+    border-radius: 5px;
+}
+
+.metadata-schema-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: var(--theia-scrollbarSlider-hoverBackground);
+}
+
+.metadata-schema-table-wrapper::-webkit-scrollbar-thumb:active {
+    background: var(--theia-scrollbarSlider-activeBackground);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .metadata-schema-controls {
+        flex-direction: column;
+    }
+    
+    .metadata-schema-controls button {
+        width: 100%;
+    }
+    
+    .metadata-schema-table th,
+    .metadata-schema-table td {
+        padding: 8px 4px;
+        font-size: 13px;
+    }
+}
+
+/* Loading State */
+.metadata-schema-loading {
+    padding: 20px;
+    text-align: center;
+    color: var(--theia-descriptionForeground);
+    font-style: italic;
+}
+
+/* Accessibility */
+.metadata-schema-table th:focus,
+.metadata-schema-filter:focus {
+    outline: 2px solid var(--theia-focusBorder);
+    outline-offset: -1px;
+}
+
+/* Version Column - Monospace */
+.metadata-schema-version {
+    font-family: var(--theia-code-font-family, 'Menlo', 'Monaco', 'Courier New', monospace);
+    font-size: 0.95em;
 }

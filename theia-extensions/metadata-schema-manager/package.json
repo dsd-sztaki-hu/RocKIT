@@ -12,20 +12,20 @@
     }
   ],
   "dependencies": {
+    "@emotion/react": "^11.10.0",
+    "@emotion/styled": "^11.10.0",
+    "@mui/material": "^5.11.0",
+    "@mui/x-data-grid": "^6.0.0",
     "@theia/core": "1.65.2",
-    "@theia/filesystem": "1.65.2",
-    "@theia/workspace": "1.65.2",
-    "@theia/monaco": "1.65.2",
-    "@theia/navigator": "1.65.2",
-    "@theia/messages": "1.65.2"
+    "@theia/filesystem": "1.65.2"
   },
   "devDependencies": {
-    "typescript": "^4.0.3",
-    "@types/node": "^13.13.46"
+    "@types/node": "^13.13.46",
+    "typescript": "^4.0.3"
   },
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "yarn run build"
   }
 }
