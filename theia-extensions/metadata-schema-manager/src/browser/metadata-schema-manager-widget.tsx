@@ -8,9 +8,8 @@ import { OpenFileDialogProps, FileDialogService } from '@theia/filesystem/lib/br
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 
-import { Box, Button, TextField, CircularProgress } from '@mui/material';
-import { DataGrid, GridColDef } from '@mui/x-data-grid';
-
+import { Button, Input, Table, Spin } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 
 import '../../src/browser/style/index.css';
 
@@ -34,52 +33,71 @@ function toFileUri(path: string): URI {
     }
 }
 
-/* --------------------- MUI Data Grid Table --------------------- */
+/* --------------------- Ant Design Table --------------------- */
 const SchemaTable: React.FC<{ schemas: SchemaInfo[]; isLoading: boolean }> = ({ schemas, isLoading }) => {
     const [filter, setFilter] = React.useState('');
 
-    const columns: GridColDef[] = [
-        { field: 'name', headerName: 'Schema Name', flex: 1 },
-        { field: 'source', headerName: 'Source', width: 120 },
-        { field: 'version', headerName: 'Version', width: 130 }
+    const columns: ColumnsType<SchemaInfo> = [
+        {
+            title: 'Schema Name',
+            dataIndex: 'name',
+            key: 'name',
+            sorter: (a, b) => a.name.localeCompare(b.name),
+        },
+        {
+            title: 'Source',
+            dataIndex: 'source',
+            key: 'source',
+            width: 120,
+            sorter: (a, b) => a.source.localeCompare(b.source),
+        },
+        {
+            title: 'Version',
+            dataIndex: 'version',
+            key: 'version',
+            width: 130,
+            sorter: (a, b) => a.version.localeCompare(b.version),
+        }
     ];
 
-    const rows = React.useMemo(() => {
-        return schemas
-            .filter(schema =>
-                !filter ||
-                schema.name.toLowerCase().includes(filter.toLowerCase()) ||
-                schema.source.toLowerCase().includes(filter.toLowerCase()) ||
-                schema.version.toLowerCase().includes(filter.toLowerCase())
-            )
-            .map((schema, index) => ({ id: index, ...schema }));
+    const filteredData = React.useMemo(() => {
+        return schemas.filter(schema =>
+            !filter ||
+            schema.name.toLowerCase().includes(filter.toLowerCase()) ||
+            schema.source.toLowerCase().includes(filter.toLowerCase()) ||
+            schema.version.toLowerCase().includes(filter.toLowerCase())
+        );
     }, [schemas, filter]);
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 1 }}>
-            <TextField
-                label="Filter schemas"
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '8px' }}>
+            <Input
+                placeholder="Filter schemas"
                 size="small"
-                sx={{ marginBottom: 1 }}
+                style={{ marginBottom: '8px' }}
                 value={filter}
-                onChange={e => setFilter(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilter(e.target.value)}
             />
-            <Box sx={{ flexGrow: 1 }}>
+            <div style={{ flexGrow: 1, overflow: 'auto' }}>
                 {isLoading ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', paddingTop: 4 }}>
-                        <CircularProgress />
-                    </Box>
+                    <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '32px' }}>
+                        <Spin size="large" />
+                    </div>
                 ) : (
-                    <DataGrid
-                        rows={rows}
+                    <Table
+                        dataSource={filteredData}
                         columns={columns}
-                        disableRowSelectionOnClick
-                        density="compact"
-                        autoPageSize
+                        rowKey={(record, index) => `${record.name}-${index}`}
+                        size="small"
+                        pagination={{
+                            pageSize: 10,
+                            showSizeChanger: true,
+                            showTotal: (total) => `Total ${total} schemas`
+                        }}
                     />
                 )}
-            </Box>
-        </Box>
+            </div>
+        </div>
     );
 };
 
@@ -116,12 +134,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.title.closable = true;
         this.title.iconClass = 'fa fa-file-code';
     }
-
-    /* --------------------- Theme Helper (REMOVED) --------------------- */
-    // The getTheiaTheme method has been removed. Styling is now handled by index.css.
-
-
-    /* --------------------- Windows-safe URI (Rest of the class methods remain) --------------------- */
 
     protected async setupDirectories(): Promise<void> {
         try {
@@ -194,7 +206,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.update();
     }
 
-
     /* --------------------- Actions --------------------- */
     protected async importSchemaFromFile(): Promise<void> {
         const result = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
@@ -250,23 +261,27 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         if (!this.isAttached) return;
 
         const ReactDOM = require('react-dom/client');
-        // Add the class name here so the external CSS can target the root container.
         this.node.classList.add('metadata-schema-manager-widget');
         
         if (!this.reactRoot) this.reactRoot = ReactDOM.createRoot(this.node);
 
         this.reactRoot.render(
-            // The Box components remain, but their styling is handled by index.css
-            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                <Box sx={{ display: 'flex', gap: 1, padding: 1 }}>
-                    <Button variant="contained" onClick={() => this.importSchemaFromFile()}>Import From File</Button>
-                    <Button variant="contained" onClick={() => this.importSchemaFromUrl()}>Import From URL</Button>
-                    <Button variant="contained" onClick={() => this.refreshSchemas()}>Refresh</Button>
-                </Box>
-                <Box sx={{ flexGrow: 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div style={{ display: 'flex', gap: '8px', padding: '8px' }}>
+                    <Button type="primary" onClick={() => this.importSchemaFromFile()}>
+                        Import From File
+                    </Button>
+                    <Button type="primary" onClick={() => this.importSchemaFromUrl()}>
+                        Import From URL
+                    </Button>
+                    <Button type="primary" onClick={() => this.refreshSchemas()}>
+                        Refresh
+                    </Button>
+                </div>
+                <div style={{ flexGrow: 1 }}>
                     <SchemaTable schemas={this.schemas} isLoading={this.isLoading} />
-                </Box>
-            </Box>
+                </div>
+            </div>
         );
     }
 

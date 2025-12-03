@@ -1,123 +1,190 @@
 /* src/browser/style/index.css */
 
 /* --- Theia Widget Container (Top-level Wrapper) --- */
-
-/* Ensure the root container of your widget adopts the editor background */
 .metadata-schema-manager-widget {
-    /* Use 'important' to ensure this overrides any default Theia padding/background for the container */
     background-color: var(--theia-editor-background) !important;
     color: var(--theia-foreground);
     padding: 0;
     height: 100%;
-    /* Prevents scrollbars on the main widget itself if children are controlled */
     overflow: hidden; 
 }
 
-/* --- Control Buttons (MUI Buttons) --- */
-
-/* Targets the contained button variant */
-.MuiButton-contained {
-    /* Ensure the button uses Theia's intended background/foreground */
+/* --- Ant Design Buttons --- */
+.ant-btn-primary {
     background-color: var(--theia-button-background) !important;
     color: var(--theia-button-foreground) !important;
-    
     border: 1px solid var(--theia-contrastBorder, var(--theia-button-border, currentColor)) !important;
 }
 
-.MuiButton-contained:hover {
+.ant-btn-primary:hover {
     background-color: var(--theia-button-hoverBackground) !important;
-    
-    /* Ensure the hover border uses the focus color for high visibility */
     border-color: var(--theia-focusBorder) !important;
 }
 
-.MuiButton-contained:focus {
-    /* Use outline for better accessibility and high contrast */
+.ant-btn-primary:focus {
     outline: 2px solid var(--theia-focusBorder) !important;
     outline-offset: 1px !important;
-    
-    /* Ensure the border remains high contrast when focused */
     border-color: var(--theia-focusBorder) !important;
 }
-/* --- Filter Text Field (MUI TextField) --- */
 
-/* Targets the main input root container for background/border fix */
-.MuiOutlinedInput-root {
-    /* This is the key fix for the white background in dark mode */
+/* --- Ant Design Input (Filter Field) --- */
+.ant-input {
     background-color: var(--theia-input-background) !important;
     color: var(--theia-input-foreground) !important;
+    border: 1px solid var(--theia-input-border) !important;
     border-radius: 3px;
 }
 
-/* Targets the input border (fieldset element) */
-.MuiOutlinedInput-notchedOutline {
-    border-color: var(--theia-input-border) !important;
-}
-
-/* Focused input border */
-.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+.ant-input:hover {
     border-color: var(--theia-focusBorder) !important;
 }
 
-/* Hover input border */
-.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
-    border-color: var(--theia-focusBorder) !important; /* Use focus color on hover for visibility */
+.ant-input:focus,
+.ant-input-focused {
+    border-color: var(--theia-focusBorder) !important;
+    box-shadow: 0 0 0 2px var(--theia-focusBorder, rgba(24, 144, 255, 0.2)) !important;
 }
 
-/* Input text and Label */
-.MuiInputBase-input {
-    color: var(--theia-input-foreground) !important;
-    padding: 8px 14px; /* Default MUI small size padding */
+.ant-input::placeholder {
+    color: var(--theia-input-placeholderForeground, rgba(255, 255, 255, 0.4)) !important;
 }
 
-.MuiInputLabel-root {
-    color: var(--theia-input-foreground) !important;
-}
-.MuiInputLabel-root.Mui-focused {
-    color: var(--theia-focusBorder) !important; /* Focus color for label */
-}
-
-/* --- Data Grid (MUI X-Data-Grid) --- */
-
-.MuiDataGrid-root {
-    /* Overall grid background and text color */
+/* --- Ant Design Table --- */
+.ant-table {
     background-color: var(--theia-editor-background) !important;
     color: var(--theia-foreground) !important;
-    border: 1px solid var(--theia-contrastBorder) !important;
-    box-shadow: none !important; 
 }
 
-/* Header */
-.MuiDataGrid-columnHeaders {
+/* Table wrapper */
+.ant-table-wrapper {
+    background-color: var(--theia-editor-background) !important;
+}
+
+/* Table container */
+.ant-table-container {
+    border: 1px solid var(--theia-contrastBorder) !important;
+    background-color: var(--theia-editor-background) !important;
+}
+
+/* Table header */
+.ant-table-thead > tr > th {
     background-color: var(--theia-list-headerBackground) !important;
     color: var(--theia-list-headerForeground) !important;
     border-bottom: 1px solid var(--theia-contrastBorder) !important;
-}
-
-/* Cells */
-.MuiDataGrid-cell {
     border-right: 1px solid var(--theia-contrastBorder) !important;
-    border-color: var(--theia-contrastBorder) !important;
-    color: var(--theia-foreground);
 }
 
-/* Alternating Rows */
-.MuiDataGrid-row:nth-of-type(even) {
+/* Table cells */
+.ant-table-tbody > tr > td {
+    border-right: 1px solid var(--theia-contrastBorder) !important;
+    border-bottom: 1px solid var(--theia-contrastBorder) !important;
+    color: var(--theia-foreground) !important;
+    background-color: transparent !important;
+}
+
+/* Alternating row colors */
+.ant-table-tbody > tr:nth-of-type(even) {
     background-color: var(--theia-editor-background) !important;
 }
 
-.MuiDataGrid-row:nth-of-type(odd) {
+.ant-table-tbody > tr:nth-of-type(odd) {
     background-color: var(--theia-list-hoverBackground, rgba(255, 255, 255, 0.03)) !important;
 }
 
-/* Hover Effect */
-.MuiDataGrid-row:hover {
+/* Row hover effect */
+.ant-table-tbody > tr:hover > td {
     background-color: var(--theia-list-hoverBackground) !important;
 }
 
-/* Footer */
-.MuiDataGrid-footerContainer {
-    border-top: 1px solid var(--theia-contrastBorder) !important;
+/* Disable row selection styling (fixes sorting color issue) */
+.ant-table-tbody > tr.ant-table-row-selected > td {
+    background-color: inherit !important;
+}
+
+.ant-table-tbody > tr.ant-table-row-selected:hover > td {
+    background-color: var(--theia-list-hoverBackground) !important;
+}
+
+/* Override any cell-level background from Ant Design */
+.ant-table-cell {
+    background-color: transparent !important;
+}
+
+/* Force background inheritance for all table body cells */
+.ant-table-tbody > tr > td.ant-table-cell {
+    background: transparent !important;
+}
+
+/* Table footer / pagination */
+.ant-table-pagination.ant-pagination {
     background-color: var(--theia-editor-background) !important;
     color: var(--theia-foreground) !important;
+}
+
+.ant-pagination-item {
+    background-color: var(--theia-editor-background) !important;
+    border-color: var(--theia-contrastBorder) !important;
+}
+
+.ant-pagination-item a {
+    color: var(--theia-foreground) !important;
+}
+
+.ant-pagination-item-active {
+    background-color: var(--theia-button-background) !important;
+    border-color: var(--theia-focusBorder) !important;
+}
+
+.ant-pagination-item-active a {
+    color: var(--theia-button-foreground) !important;
+}
+
+.ant-pagination-prev button,
+.ant-pagination-next button,
+.ant-select-selector {
+    background-color: var(--theia-editor-background) !important;
+    color: var(--theia-foreground) !important;
+    border-color: var(--theia-contrastBorder) !important;
+}
+
+/* Sorting icons */
+.ant-table-column-sorter {
+    color: var(--theia-foreground) !important;
+}
+
+/* Empty state */
+.ant-table-placeholder {
+    background-color: var(--theia-editor-background) !important;
+    color: var(--theia-foreground) !important;
+}
+
+.ant-empty-description {
+    color: var(--theia-foreground) !important;
+}
+
+/* --- Ant Design Spin (Loading Spinner) --- */
+.ant-spin {
+    color: var(--theia-focusBorder) !important;
+}
+
+.ant-spin-dot-item {
+    background-color: var(--theia-focusBorder) !important;
+}
+
+/* --- Dropdown (for pagination size changer) --- */
+.ant-select-dropdown {
+    background-color: var(--theia-editor-background) !important;
+    border: 1px solid var(--theia-contrastBorder) !important;
+}
+
+.ant-select-item {
+    color: var(--theia-foreground) !important;
+}
+
+.ant-select-item-option-selected {
+    background-color: var(--theia-list-hoverBackground) !important;
+}
+
+.ant-select-item-option-active {
+    background-color: var(--theia-list-hoverBackground) !important;
 }
