@@ -1,17 +1,7 @@
 {
-    "include": [
-        "src/**/*.ts"
-    ],
-    "exclude": [
-        "src/typings",
-        "src/**/*.spec.ts"
-    ],
-    "reporter": [
-        "html",
-        "lcov"
-    ],
-    "extension": [
-        ".ts"
-    ],
-    "all": true
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/typings", "src/**/*.spec.ts"],
+  "reporter": ["html", "lcov"],
+  "extension": [".ts"],
+  "all": true
 }

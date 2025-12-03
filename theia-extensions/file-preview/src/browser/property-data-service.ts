@@ -14,35 +14,33 @@
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 // *****************************************************************************
 
-export const PropertyDataService = Symbol('PropertyDataService');
+export const PropertyDataService = Symbol('PropertyDataService')
 /**
  * `PropertyDataService` should be implemented to provide property data for the given selection.
  */
 export interface PropertyDataService {
+  /**
+   * A unique id for this provider.
+   */
+  readonly id: string
+  /**
+   * A human-readable name for this provider.
+   */
+  readonly label?: string
 
-    /**
-     * A unique id for this provider.
-     */
-    readonly id: string;
-    /**
-     * A human-readable name for this provider.
-     */
-    readonly label?: string;
+  /**
+   * Test whether this provider can provide property data for the given selection.
+   * Return a nonzero number if this provider can provide; otherwise it cannot.
+   * Never reject.
+   *
+   * A returned value indicating a priority of this provider.
+   */
+  canHandleSelection(selection: Object | undefined): number
 
-    /**
-     * Test whether this provider can provide property data for the given selection.
-     * Return a nonzero number if this provider can provide; otherwise it cannot.
-     * Never reject.
-     *
-     * A returned value indicating a priority of this provider.
-     */
-    canHandleSelection(selection: Object | undefined): number;
-
-    /**
-     * Provide property data for the given selection.
-     * Resolve to a property view content widget.
-     * Never reject if `canHandle` returns a positive number; otherwise should reject.
-     */
-    providePropertyData(selection: Object | undefined): Promise<Object | undefined>;
-
+  /**
+   * Provide property data for the given selection.
+   * Resolve to a property view content widget.
+   * Never reject if `canHandle` returns a positive number; otherwise should reject.
+   */
+  providePropertyData(selection: Object | undefined): Promise<Object | undefined>
 }

@@ -14,8 +14,8 @@
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 // *****************************************************************************
 
-import { Widget } from '@theia/core/lib/browser/widgets/widget';
-import { PropertyDataService } from './property-data-service';
+import type { Widget } from '@theia/core/lib/browser/widgets/widget'
+import type { PropertyDataService } from './property-data-service'
 
 /**
  * A widget that fetches the property data via the given {@link PropertyDataService} and the given selection
@@ -23,5 +23,8 @@ import { PropertyDataService } from './property-data-service';
  * This widget can be provided by a registered `PropertyViewWidgetProvider`.
  */
 export interface PropertyViewContentWidget extends Widget {
-    updatePropertyViewContent(propertyDataService?: PropertyDataService, selection?: Object): void;
+  updatePropertyViewContent(
+    propertyDataService?: PropertyDataService,
+    selection?: Object,
+  ): void
 }

@@ -1,10 +1,10 @@
-import { injectable } from 'inversify';
-import { Emitter, Event } from '@theia/core/lib/common';
+import { Emitter, type Event } from '@theia/core/lib/common'
+import { injectable } from 'inversify'
 
 export interface RoCrateEditorMessage {
-    senderId: string;
-    text: string;
-    timestamp: Date;
+  senderId: string
+  text: string
+  timestamp: Date
 }
 
 /**
@@ -13,28 +13,27 @@ export interface RoCrateEditorMessage {
  */
 @injectable()
 export class RoCrateEditorMessageService {
-    
-    protected readonly onMessageEmitter = new Emitter<RoCrateEditorMessage>();
-    
-    /**
-     * Event that fires when a new message is received.
-     */
-    readonly onMessage: Event<RoCrateEditorMessage> = this.onMessageEmitter.event;
-    
-    /**
-     * Send a message to all other widget instances.
-     * 
-     * @param senderId The ID of the widget sending the message
-     * @param text The message content
-     */
-    sendMessage(senderId: string, text: string): void {
-        const message: RoCrateEditorMessage = {
-            senderId,
-            text,
-            timestamp: new Date()
-        };
-        
-        // Emit the message to all listeners
-        this.onMessageEmitter.fire(message);
+  protected readonly onMessageEmitter = new Emitter<RoCrateEditorMessage>()
+
+  /**
+   * Event that fires when a new message is received.
+   */
+  readonly onMessage: Event<RoCrateEditorMessage> = this.onMessageEmitter.event
+
+  /**
+   * Send a message to all other widget instances.
+   *
+   * @param senderId The ID of the widget sending the message
+   * @param text The message content
+   */
+  sendMessage(senderId: string, text: string): void {
+    const message: RoCrateEditorMessage = {
+      senderId,
+      text,
+      timestamp: new Date(),
     }
+
+    // Emit the message to all listeners
+    this.onMessageEmitter.fire(message)
+  }
 }

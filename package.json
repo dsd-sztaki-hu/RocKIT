@@ -14,10 +14,17 @@
     "start:electron": "yarn workspace electron-app start",
     "watch:property-view": "yarn workspace @theia/property-view watch",
     "watch:electron": "lerna run --parallel watch --scope app-state --scope electron-app",
-    "watch:browser": "lerna run --parallel watch --scope app-state --scope browser-app"
+    "watch:browser": "lerna run --parallel watch --scope app-state --scope browser-app",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome format .",
+    "format:fix": "biome format --write .",
+    "check": "biome check .",
+    "check:fix": "biome check --write ."
   },
   "devDependencies": {
-    "lerna": "2.4.0"
+    "lerna": "2.4.0",
+    "@biomejs/biome": "2.3.2"
   },
   "workspaces": [
     "dev-packages/*",

@@ -14,52 +14,51 @@
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 // *****************************************************************************
 
-import { ContributionProvider, MaybePromise, Prioritizeable } from '@theia/core';
-import { inject, injectable, named, postConstruct } from '@theia/core/shared/inversify';
-import { PropertyDataService } from './property-data-service';
-import { PropertyViewContentWidget } from './property-view-content-widget';
+import { ContributionProvider, type MaybePromise, Prioritizeable } from '@theia/core'
+import { inject, injectable, named, postConstruct } from '@theia/core/shared/inversify'
+import { PropertyDataService } from './property-data-service'
+import type { PropertyViewContentWidget } from './property-view-content-widget'
 
-export const PropertyViewWidgetProvider = Symbol('PropertyViewWidgetProvider');
+export const PropertyViewWidgetProvider = Symbol('PropertyViewWidgetProvider')
 /**
  * The `PropertyViewWidgetProvider` should be implemented to provide a property view content widget for the given selection..
  */
 export interface PropertyViewWidgetProvider {
-    /**
-     * A unique id for this provider.
-     */
-    id: string;
-    /**
-     * A human-readable name for this provider.
-     */
-    label?: string;
+  /**
+   * A unique id for this provider.
+   */
+  id: string
+  /**
+   * A human-readable name for this provider.
+   */
+  label?: string
 
-    /**
-     * Test whether this provider can provide a widget for the given selection.
-     * A returned value indicating a priority of this provider.
-     *
-     * @param selection the global selection object
-     * @returns a nonzero number if this provider can provide; otherwise it cannot; never reject
-     */
-    canHandle(selection: Object | undefined): MaybePromise<number>;
+  /**
+   * Test whether this provider can provide a widget for the given selection.
+   * A returned value indicating a priority of this provider.
+   *
+   * @param selection the global selection object
+   * @returns a nonzero number if this provider can provide; otherwise it cannot; never reject
+   */
+  canHandle(selection: Object | undefined): MaybePromise<number>
 
-    /**
-     * Provide a widget for the given selection.
-     * Never reject if `canHandle` return a positive number; otherwise should reject.
-     *
-     * @param selection the global selection object
-     * @returns a resolved property view content widget.
-     */
-    provideWidget(selection: Object | undefined): Promise<PropertyViewContentWidget>;
+  /**
+   * Provide a widget for the given selection.
+   * Never reject if `canHandle` return a positive number; otherwise should reject.
+   *
+   * @param selection the global selection object
+   * @returns a resolved property view content widget.
+   */
+  provideWidget(selection: Object | undefined): Promise<PropertyViewContentWidget>
 
-    /**
-     * Update the widget with the given selection.
-     * Never reject if `canHandle` return a positive number; otherwise should reject.
-     *
-     * @param selection the global selection object
-     * @returns a resolved property view content widget.
-     */
-    updateContentWidget(selection: Object | undefined): void;
-
+  /**
+   * Update the widget with the given selection.
+   * Never reject if `canHandle` return a positive number; otherwise should reject.
+   *
+   * @param selection the global selection object
+   * @returns a resolved property view content widget.
+   */
+  updateContentWidget(selection: Object | undefined): void
 }
 
 /**
@@ -67,46 +66,57 @@ export interface PropertyViewWidgetProvider {
  * and should be extended to provide a property view content widget for the given selection.
  */
 @injectable()
-export abstract class DefaultPropertyViewWidgetProvider implements PropertyViewWidgetProvider {
+export abstract class DefaultPropertyViewWidgetProvider
+  implements PropertyViewWidgetProvider
+{
+  @inject(ContributionProvider)
+  @named(PropertyDataService)
+  protected readonly contributions: ContributionProvider<PropertyDataService>
 
-    @inject(ContributionProvider) @named(PropertyDataService)
-    protected readonly contributions: ContributionProvider<PropertyDataService>;
+  protected propertyDataServices: PropertyDataService[] = []
 
-    protected propertyDataServices: PropertyDataService[] = [];
+  id = 'default'
+  label = 'DefaultPropertyViewWidgetProvider'
 
-    id = 'default';
-    label = 'DefaultPropertyViewWidgetProvider';
+  @postConstruct()
+  init(): void {
+    this.propertyDataServices = this.propertyDataServices.concat(
+      this.contributions.getContributions(),
+    )
+  }
 
-    @postConstruct()
-    init(): void {
-        this.propertyDataServices = this.propertyDataServices.concat(this.contributions.getContributions());
-    }
+  canHandle(_selection: Object | undefined): MaybePromise<number> {
+    return 0
+  }
 
-    canHandle(selection: Object | undefined): MaybePromise<number> {
-        return 0;
-    }
+  provideWidget(_selection: Object | undefined): Promise<PropertyViewContentWidget> {
+    throw new Error('not implemented')
+  }
 
-    provideWidget(selection: Object | undefined): Promise<PropertyViewContentWidget> {
-        throw new Error('not implemented');
-    }
+  updateContentWidget(_selection: Object | undefined): void {
+    // no-op
+  }
 
-    updateContentWidget(selection: Object | undefined): void {
-        // no-op
-    }
+  protected async getPropertyDataService(
+    selection: Object | undefined,
+  ): Promise<PropertyDataService> {
+    const dataService = await this.prioritize(selection)
+    return dataService ?? this.propertyDataServices[0]
+  }
 
-    protected async getPropertyDataService(selection: Object | undefined): Promise<PropertyDataService> {
-        const dataService = await this.prioritize(selection);
-        return dataService ?? this.propertyDataServices[0];
-    }
-
-    protected async prioritize(selection: Object | undefined): Promise<PropertyDataService | undefined> {
-        const prioritized = await Prioritizeable.prioritizeAll(this.propertyDataServices, async (service: PropertyDataService) => {
-            try {
-                return service.canHandleSelection(selection);
-            } catch {
-                return 0;
-            }
-        });
-        return prioritized.length !== 0 ? prioritized[0].value : undefined;
-    }
+  protected async prioritize(
+    selection: Object | undefined,
+  ): Promise<PropertyDataService | undefined> {
+    const prioritized = await Prioritizeable.prioritizeAll(
+      this.propertyDataServices,
+      async (service: PropertyDataService) => {
+        try {
+          return service.canHandleSelection(selection)
+        } catch {
+          return 0
+        }
+      },
+    )
+    return prioritized.length !== 0 ? prioritized[0].value : undefined
+  }
 }
