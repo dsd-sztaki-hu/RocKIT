@@ -8,8 +8,9 @@ import { OpenFileDialogProps, FileDialogService } from '@theia/filesystem/lib/br
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 
-import { Button, Input, Table, Spin } from 'antd';
+import { Button, Input, Table, Spin, Modal } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { Key } from 'antd/es/table/interface';
 
 import '../../src/browser/style/index.css';
 
@@ -17,7 +18,7 @@ export interface SchemaInfo {
     name: string;
     source: 'local' | 'remote';
     version: string;
-    path: string;
+    path: string; // The file URI string
 }
 
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
@@ -34,8 +35,76 @@ function toFileUri(path: string): URI {
 }
 
 /* --------------------- Ant Design Table --------------------- */
-const SchemaTable: React.FC<{ schemas: SchemaInfo[]; isLoading: boolean }> = ({ schemas, isLoading }) => {
-    const [filter, setFilter] = React.useState('');
+interface SchemaTableProps {
+    schemas: SchemaInfo[];
+    isLoading: boolean;
+    onSelectionChange: (selectedRowKeys: Key[]) => void;
+    onDelete: (schemaPaths: string[]) => void; // Callback to handle deletion
+}
+
+const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, onSelectionChange, onDelete }) => {
+    const searchInput = React.useRef<any>(null);
+
+    const handleSearch = (selectedKeys: string[], confirm: () => void, dataIndex: string) => {
+        confirm();
+    };
+
+    const handleReset = (clearFilters: () => void) => {
+        clearFilters();
+    };
+
+    const getColumnSearchProps = (dataIndex: keyof SchemaInfo) => ({
+        filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: any) => (
+            <div style={{ padding: 8 }}>
+                <Input
+                    ref={searchInput}
+                    placeholder={`Search ${dataIndex}`}
+                    value={selectedKeys[0]}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                        setSelectedKeys(e.target.value ? [e.target.value] : [])
+                    }
+                    onPressEnter={() => handleSearch(selectedKeys as string[], confirm, dataIndex)}
+                    style={{ marginBottom: 8, display: 'block' }}
+                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <Button
+                        type="primary"
+                        onClick={() => handleSearch(selectedKeys as string[], confirm, dataIndex)}
+                        size="small"
+                        style={{ width: 90 }}
+                    >
+                        Search
+                    </Button>
+                    <Button
+                        onClick={() => clearFilters && handleReset(clearFilters)}
+                        size="small"
+                        style={{ width: 90 }}
+                    >
+                        Reset
+                    </Button>
+                </div>
+            </div>
+        ),
+        filterIcon: (filtered: boolean) => (
+            <span style={{ color: filtered ? '#1890ff' : undefined }}>🔍</span>
+        ),
+        onFilter: (value: any, record: SchemaInfo) =>
+            record[dataIndex]
+                .toString()
+                .toLowerCase()
+                .includes((value as string).toLowerCase()),
+        onFilterDropdownOpenChange: (visible: boolean) => {
+            if (visible) {
+                setTimeout(() => searchInput.current?.select(), 100);
+            }
+        },
+    });
+
+    const rowSelection = {
+        onChange: (selectedRowKeys: Key[]) => {
+            onSelectionChange(selectedRowKeys);
+        },
+    };
 
     const columns: ColumnsType<SchemaInfo> = [
         {
@@ -43,13 +112,18 @@ const SchemaTable: React.FC<{ schemas: SchemaInfo[]; isLoading: boolean }> = ({ 
             dataIndex: 'name',
             key: 'name',
             sorter: (a, b) => a.name.localeCompare(b.name),
+            ...getColumnSearchProps('name'),
         },
         {
             title: 'Source',
             dataIndex: 'source',
             key: 'source',
             width: 120,
-            sorter: (a, b) => a.source.localeCompare(b.source),
+            filters: [
+                { text: 'Local', value: 'local' },
+                { text: 'Remote', value: 'remote' },
+            ],
+            onFilter: (value, record) => record.source === value,
         },
         {
             title: 'Version',
@@ -57,27 +131,19 @@ const SchemaTable: React.FC<{ schemas: SchemaInfo[]; isLoading: boolean }> = ({ 
             key: 'version',
             width: 130,
             sorter: (a, b) => a.version.localeCompare(b.version),
-        }
+        },
+        {
+            title: 'Action',
+            key: 'action',
+            width: 100,
+            render: (_, record) => (
+                <a onClick={() => onDelete([record.path])}>Delete</a>
+            ),
+        },
     ];
-
-    const filteredData = React.useMemo(() => {
-        return schemas.filter(schema =>
-            !filter ||
-            schema.name.toLowerCase().includes(filter.toLowerCase()) ||
-            schema.source.toLowerCase().includes(filter.toLowerCase()) ||
-            schema.version.toLowerCase().includes(filter.toLowerCase())
-        );
-    }, [schemas, filter]);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '8px' }}>
-            <Input
-                placeholder="Filter schemas"
-                size="small"
-                style={{ marginBottom: '8px' }}
-                value={filter}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilter(e.target.value)}
-            />
             <div style={{ flexGrow: 1, overflow: 'auto' }}>
                 {isLoading ? (
                     <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '32px' }}>
@@ -85,9 +151,10 @@ const SchemaTable: React.FC<{ schemas: SchemaInfo[]; isLoading: boolean }> = ({ 
                     </div>
                 ) : (
                     <Table
-                        dataSource={filteredData}
+                        dataSource={schemas}
                         columns={columns}
-                        rowKey={(record, index) => `${record.name}-${index}`}
+                        rowKey={(record) => record.path} // Use path as unique key for selection
+                        rowSelection={{ type: 'checkbox', ...rowSelection }}
                         size="small"
                         pagination={{
                             pageSize: 10,
@@ -114,6 +181,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected schemas: SchemaInfo[] = [];
     protected isLoading = true;
+    protected selectedSchemaKeys: Key[] = []; // State for selected rows
     private reactRoot: any;
 
     constructor(
@@ -165,6 +233,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected async loadSchemas(): Promise<void> {
         this.isLoading = true;
         this.schemas = [];
+        this.selectedSchemaKeys = []; // Clear selection on load
 
         try {
             const result = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
@@ -207,6 +276,49 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     }
 
     /* --------------------- Actions --------------------- */
+
+    protected onSelectionChange = (selectedRowKeys: Key[]): void => {
+        this.selectedSchemaKeys = selectedRowKeys;
+        this.update();
+    };
+
+    protected async deleteSchemas(schemaPaths: string[]): Promise<void> {
+        if (schemaPaths.length === 0) return;
+
+        const count = schemaPaths.length;
+        const itemName = count > 1 ? `${count} selected items` : `the selected item`;
+        
+        // Show confirmation modal
+        Modal.confirm({
+            title: 'Confirm Deletion',
+            content: `Are you sure you want to delete ${itemName}?`,
+            okText: 'Yes',
+            cancelText: 'Cancel',
+            onOk: async () => {
+                this.isLoading = true;
+                this.update();
+                let successfulDeletes = 0;
+                
+                for (const path of schemaPaths) {
+                    try {
+                        const uri = new URI(path);
+                        await this.fileService.delete(uri);
+                        successfulDeletes++;
+                    } catch (err) {
+                        this.messageService.error(`Failed to delete schema at ${path}: ${err}`);
+                    }
+                }
+
+                if (successfulDeletes > 0) {
+                    this.messageService.info(`Successfully deleted ${successfulDeletes} schema(s).`);
+                }
+                
+                // Refresh table and clear selection
+                await this.loadSchemas();
+            }
+        });
+    }
+
     protected async importSchemaFromFile(): Promise<void> {
         const result = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
         const configPath = result?.value;
@@ -217,23 +329,45 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         const props: OpenFileDialogProps = {
             title: 'Import Schema',
             filters: { 'JSON': ['json'] },
-            canSelectFiles: true
+            canSelectFiles: true,
+            canSelectMany: true 
         };
 
-        const fileUri = await this.fileDialogService.showOpenDialog(props);
-        if (!fileUri) return;
+        const fileUriOrUris = await this.fileDialogService.showOpenDialog(props);
+        
+        if (!fileUriOrUris) return;
 
-        const fileName = fileUri.path.base;
-        const targetUri = localDir.resolve(fileName);
-        const content = await this.fileService.read(fileUri);
+        const fileUris: URI[] = Array.isArray(fileUriOrUris) ? fileUriOrUris : [fileUriOrUris];
 
-        if (await this.fileService.exists(targetUri)) {
-            if (!confirm(`Overwrite ${fileName}?`)) return;
+        let importCount = 0;
+        
+        for (const fileUri of fileUris) {
+            if (!fileUri) continue;
+
+            const fileName = fileUri.path.base;
+            const targetUri = localDir.resolve(fileName);
+            
+            try {
+                const content = await this.fileService.read(fileUri);
+
+                if (await this.fileService.exists(targetUri)) {
+                    if (!confirm(`Overwrite existing schema file ${fileName}?`)) {
+                        this.messageService.warn(`Skipped importing ${fileName}.`);
+                        continue;
+                    }
+                }
+
+                await this.fileService.write(targetUri, content.value);
+                importCount++;
+            } catch (error) {
+                this.messageService.error(`Failed to import ${fileName}: ${error}`);
+            }
         }
 
-        await this.fileService.write(targetUri, content.value);
-        this.messageService.info(`Imported ${fileName}`);
-        await this.loadSchemas();
+        if (importCount > 0) {
+            this.messageService.info(`Successfully imported ${importCount} schema(s).`);
+            await this.loadSchemas();
+        }
     }
 
     protected async importSchemaFromUrl(): Promise<void> {
@@ -265,6 +399,11 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         
         if (!this.reactRoot) this.reactRoot = ReactDOM.createRoot(this.node);
 
+        // Get SchemaInfo objects for selected keys
+        const selectedSchemaPaths = this.schemas
+            .filter(schema => this.selectedSchemaKeys.includes(schema.path))
+            .map(schema => schema.path);
+
         this.reactRoot.render(
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <div style={{ display: 'flex', gap: '8px', padding: '8px' }}>
@@ -277,9 +416,24 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     <Button type="primary" onClick={() => this.refreshSchemas()}>
                         Refresh
                     </Button>
+                    {/* Conditionally display Delete Selected button */}
+                    {this.selectedSchemaKeys.length > 0 && (
+                        <Button 
+                            type="primary" 
+                            danger 
+                            onClick={() => this.deleteSchemas(selectedSchemaPaths)}
+                        >
+                            Delete {this.selectedSchemaKeys.length} Selected Rows
+                        </Button>
+                    )}
                 </div>
                 <div style={{ flexGrow: 1 }}>
-                    <SchemaTable schemas={this.schemas} isLoading={this.isLoading} />
+                    <SchemaTable 
+                        schemas={this.schemas} 
+                        isLoading={this.isLoading} 
+                        onSelectionChange={this.onSelectionChange}
+                        onDelete={(paths) => this.deleteSchemas(paths)}
+                    />
                 </div>
             </div>
         );
