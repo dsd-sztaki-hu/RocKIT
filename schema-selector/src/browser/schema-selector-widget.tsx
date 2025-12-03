@@ -14,7 +14,6 @@ interface SchemaProperty {
 
 const SCHEMA_ORG_PROPERTIES_URL = 'https://schema.org/version/latest/schemaorg-current-http-properties.csv';
 
-// Helper function to parse CSV data
 export const parseCsv = (csvText: string): SchemaProperty[] => {
     const lines = csvText.split('\n').filter(line => line.trim() !== '');
     if (lines.length <= 1) {
@@ -23,7 +22,7 @@ export const parseCsv = (csvText: string): SchemaProperty[] => {
 
     const headerLine = lines[0];
     const headers = headerLine.split(',').map(header => header.trim().replace(/^"|"$/g, ''));
-    
+
     const labelIndex = headers.indexOf('label');
     const commentIndex = headers.indexOf('comment');
 
@@ -33,13 +32,19 @@ export const parseCsv = (csvText: string): SchemaProperty[] => {
     }
 
     const properties: SchemaProperty[] = [];
-    
+
     for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',');
-        
+
         if (values.length > commentIndex) {
+            const rawLabel = values[labelIndex] ? values[labelIndex].trim().replace(/^"|"$/g, '') : '';
+
+            if (!rawLabel) {
+                continue;
+            }
+
             properties.push({
-                label: values[labelIndex] ? values[labelIndex].trim().replace(/^"|"$/g, '') : 'N/A',
+                label: rawLabel,
                 comment: values[commentIndex] ? values[commentIndex].trim().replace(/^"|"$/g, '') : 'No description provided'
             });
         }
@@ -59,28 +64,102 @@ interface PropertyListModalProps {
 const PropertyListModal: React.FC<PropertyListModalProps> = ({ properties, onClose, loading, error }) => {
     const [searchTerm, setSearchTerm] = React.useState('');
 
-    const filteredProperties = properties.filter(prop => 
+    // --- DRAG STATE ---
+    const [position, setPosition] = React.useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = React.useState(false);
+    const [offset, setOffset] = React.useState({ x: 0, y: 0 });
+
+    const modalRef = React.useRef<HTMLDivElement>(null);
+
+    // --- DRAG HANDLERS ---
+    const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (e.button !== 0) return;
+        if (!modalRef.current) return;
+
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'BUTTON' || target.closest('li')) {
+            return;
+        }
+
+        const rect = modalRef.current.getBoundingClientRect();
+        setOffset({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
+        });
+        setIsDragging(true);
+        e.preventDefault();
+    };
+
+    React.useEffect(() => {
+        if (!isDragging) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            setPosition({
+                x: e.clientX - offset.x,
+                y: e.clientY - offset.y,
+            });
+        };
+
+        const handleMouseUp = () => {
+            setIsDragging(false);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging, offset]);
+
+    // --- STYLE APPLICATION ---
+
+    const filteredProperties = properties.filter(prop =>
         prop.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
         prop.comment.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const draggableModalContentStyle: React.CSSProperties = {
+        ...modalContentStyle,
+        position: 'fixed',
+        display: 'flex',
+        flexDirection: 'column',
+        ...(!isDragging && position.x === 0 && position.y === 0
+                ? { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }
+                : { top: position.y, left: position.x, transform: 'none' }
+        ),
+        cursor: isDragging ? 'grabbing' : 'grab',
+    };
+
     return (
         <div style={modalOverlayStyle}>
-            <div style={modalContentStyle}>
-                <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>Schema.org Properties List</h3>
+            <div
+                style={draggableModalContentStyle}
+                ref={modalRef}
+                onMouseUp={() => setIsDragging(false)}
+                onMouseDown={handleMouseDown}
+            >
+                <h3
+                    style={{ borderBottom: '1px solid #ccc', paddingBottom: '10px', flexShrink: 0 }}
+                >
+                    Schema.org Properties List
+                </h3>
+
                 <input
                     type="text"
                     placeholder="Search properties..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{ width: '98%', padding: '8px', marginBottom: '10px' }}
+                    style={{ width: '98%', padding: '8px', marginBottom: '10px', flexShrink: 0 }}
+                    onMouseDown={e => e.stopPropagation()}
                 />
 
-                {loading && <p>Loading properties...</p>}
-                {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+                {loading && <p style={{flexShrink: 0}}>Loading properties...</p>}
+                {error && <p style={{ color: 'red', flexShrink: 0 }}>Error: {error}</p>}
 
                 {!loading && !error && (
-                    <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                    <div style={{ flexGrow: 1, overflowY: 'auto' }}>
                         {filteredProperties.length === 0 ? (
                             <p>No properties match your search.</p>
                         ) : (
@@ -106,11 +185,12 @@ const PropertyListModal: React.FC<PropertyListModalProps> = ({ properties, onClo
                         )}
                     </div>
                 )}
-                
-                <button 
-                    onClick={onClose} 
-                    className='theia-button' 
-                    style={{ marginTop: '20px', float: 'right' }}
+
+                <button
+                    onClick={onClose}
+                    className='theia-button'
+                    style={{ marginTop: '20px', alignSelf: 'flex-end', flexShrink: 0 }}
+                    onMouseDown={e => e.stopPropagation()}
                 >
                     Close
                 </button>
@@ -119,30 +199,28 @@ const PropertyListModal: React.FC<PropertyListModalProps> = ({ properties, onClo
     );
 };
 
+// --- GLOBAL STYLES ---
+
 const modalOverlayStyle: React.CSSProperties = {
-    position: 'absolute',
+    position: 'fixed',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
+    zIndex: 99999,
 };
 
 const modalContentStyle: React.CSSProperties = {
     backgroundColor: 'white',
     padding: '20px',
     borderRadius: '5px',
-    width: '500px',
+    width: '800px',
+    height: '600px',
     boxShadow: '0 5px 15px rgba(0, 0, 0, 0.3)',
 };
 
-
 const propertyListItemStyle: React.CSSProperties = {
-    marginBottom: '10px',
     padding: '5px 6px',
     borderBottom: '1px dotted #eee',
     transition: 'background-color 0.15s ease'
@@ -211,25 +289,33 @@ export class SchemaSelectorWidget extends ReactWidget {
     render(): React.ReactElement {
         const header = `This is a sample widget which simply calls the messageService
         in order to display an info message to end users.`;
-        return <div id='widget-container'>
+
+        const widgetContent = <div id='widget-container'>
             <AlertMessage type='INFO' header={header} />
             <button id='displayMessageButton' className='theia-button secondary' title='Display Message' onClick={_a => this.displayMessage()}>Display Message</button>
-            
-            {/* --- NEW BUTTON --- */}
+
             <button id='addNewPropertyButton' className='theia-button primary' title='Add new Schema.org property' onClick={this.openModal}>
                 Add new property
             </button>
-                
-            {/* --- POPUP RENDER --- */}
-            {this.propertiesState.isModalOpen && (
+        </div>
+
+        const modal = this.propertiesState.isModalOpen
+            ? (
                 <PropertyListModal
                     properties={this.propertiesState.properties}
                     onClose={this.closeModal}
                     loading={this.propertiesState.loading}
                     error={this.propertiesState.error}
                 />
-            )}
-        </div>
+            )
+            : null;
+
+        return (
+            <>
+                {widgetContent}
+                {modal}
+            </>
+        );
     }
 
     protected displayMessage(): void {
@@ -243,5 +329,4 @@ export class SchemaSelectorWidget extends ReactWidget {
             htmlElement.focus();
         }
     }
-
 }
