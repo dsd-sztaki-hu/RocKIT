@@ -75,6 +75,13 @@ export class AppStateService {
     this.updateState({ roCrate: value })
   }
 
+  get profile(): AppState['roCrate'] {
+    return this.getState().profile
+  }
+  set profile(value: AppState['roCrate']) {
+    this.updateState({ profile: value })
+  }
+
   get dirty(): AppState['dirty'] {
     return this.getState().dirty
   }

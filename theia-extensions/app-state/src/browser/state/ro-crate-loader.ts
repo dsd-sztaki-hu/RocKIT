@@ -43,16 +43,31 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
       if (exists) {
         const content = await this.fileService.read(roCrateUri)
-        this.updateState(content.value)
+
+        try {
+          // Parse the string content into a JSON object
+          const jsonContent = JSON.parse(content.value)
+          this.updateState(jsonContent)
+        } catch (parseError) {
+          console.error(
+            'Parsing error: ',
+            parseError,
+            ' for content: ',
+            content.value,
+            '',
+          )
+          this.updateState(undefined)
+        }
       } else {
         this.updateState(undefined)
       }
     } catch (error) {
+      console.error('Error reading ro-crate-metadata.json: ', error)
       this.updateState(undefined)
     }
   }
 
-  private updateState(content: string | undefined): void {
+  private updateState(content: Record<string, any> | undefined): void {
     this.appStateService.roCrate = content
   }
 }
