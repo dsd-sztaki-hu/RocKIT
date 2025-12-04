@@ -371,7 +371,113 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     }
 
     protected async importSchemaFromUrl(): Promise<void> {
-        this.messageService.info('Import from URL not implemented yet.');
+        let url = '';
+        let apiKey = '';
+
+        // Create a promise-based modal for URL and API Key input
+        const getInputs = (): Promise<{ url: string; apiKey: string } | null> => {
+            return new Promise((resolve) => {
+                let inputUrl = '';
+                let inputApiKey = '';
+
+                Modal.confirm({
+                    title: 'Import Schema from URL',
+                    content: (
+                        <div>
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ display: 'block', marginBottom: '4px' }}>URL:</label>
+                                <Input
+                                    placeholder="Enter schema URL"
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => { inputUrl = e.target.value; }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '4px' }}>API Key:</label>
+                                <Input
+                                    placeholder="Enter API key"
+                                    type="password"
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => { inputApiKey = e.target.value; }}
+                                />
+                            </div>
+                        </div>
+                    ),
+                    okText: 'Import',
+                    cancelText: 'Cancel',
+                    onOk: () => {
+                        if (!inputUrl || !inputApiKey) {
+                            this.messageService.error('Both URL and API Key are required.');
+                            resolve(null);
+                            return;
+                        }
+                        resolve({ url: inputUrl, apiKey: inputApiKey });
+                    },
+                    onCancel: () => {
+                        resolve(null);
+                    }
+                });
+            });
+        };
+
+        const inputs = await getInputs();
+        if (!inputs) return;
+
+        url = inputs.url;
+        apiKey = inputs.apiKey;
+
+        try {
+            // Make the HTTP request with fetch (similar to curl)
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `apiKey ${apiKey}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const jsonData = await response.json();
+
+            // Validate required fields
+            if (!jsonData['schema:name'] || !jsonData['pav:version']) {
+                throw new Error('Invalid schema: missing schema:name or pav:version fields');
+            }
+
+            // Generate filename
+            const schemaName = jsonData['schema:name']
+                .toLowerCase()
+                .replace(/\s+/g, '_');
+            const version = jsonData['pav:version'];
+            const fileName = `remote_${schemaName}_v${version}.json`;
+
+            // Get remote directory path
+            const result = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
+            const configPath = result?.value;
+            if (!configPath) throw new Error('THEIA_CONFIG_DIR not found');
+
+            const remoteDir = toFileUri(configPath).parent.resolve('.aroma/metadata-schemas/remote');
+            const targetUri = remoteDir.resolve(fileName);
+
+            // Check if file already exists
+            if (await this.fileService.exists(targetUri)) {
+                const overwrite = confirm(`Schema file ${fileName} already exists. Overwrite?`);
+                if (!overwrite) {
+                    this.messageService.warn('Import cancelled.');
+                    return;
+                }
+            }
+
+            // Write the JSON file
+            await this.fileService.write(targetUri, JSON.stringify(jsonData, null, 2));
+
+            this.messageService.info(`Successfully imported schema: ${jsonData['schema:name']}`);
+            await this.loadSchemas();
+
+        } catch (error) {
+            this.messageService.error(`Failed to import schema from URL: ${error}`);
+        }
     }
 
     protected async refreshSchemas(): Promise<void> {
