@@ -1,6 +1,7 @@
 // Define the default application state. This defines the shape of the state and initial values.
 export const defaultAppState = {
-  roCrate: undefined as string | undefined,
+  roCrate: undefined as Record<string, any> | undefined,
+  profile: undefined as Record<string, any> | undefined,
   dirty: false,
   theme: 'light' as 'light' | 'dark',
   notifications: [] as string[],
