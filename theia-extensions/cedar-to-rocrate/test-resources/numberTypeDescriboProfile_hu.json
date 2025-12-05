@@ -1,0 +1,120 @@
+{
+  "metadata": {
+    "name": "constraintTest",
+    "version": 1.0,
+    "description": "",
+    "warnMissingProperty": true
+  },
+  "classes": {
+    "Dataset": {
+      "definition": "override",
+      "subClassOf": [],
+      "inputs": [
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/d30a5902-15b0-4aba-8cf1-3761ed43fe96",
+          "name": "anyNumber",
+          "label": "Tetszőleges szám",
+          "help": "Tetszőleges szám segítség",
+          "type": [
+            "Number"
+          ],
+          "required": true,
+          "multiple": false,
+          "minValue": 1,
+          "maxValue": 10,
+          "placeholder": "Watermark as Placeholder any",
+          "numberType": [
+            "Any"
+          ],
+          "deprecated": false
+        },
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/45915974-11ca-4dfb-8484-de9baf6d59c3",
+          "name": "longNumber",
+          "label": "Hosszú egész",
+          "help": "Hosszú egész segítség",
+          "type": [
+            "Number"
+          ],
+          "required": true,
+          "multiple": false,
+          "minValue": 1,
+          "maxValue": 10,
+          "placeholder": "Watermark as Placeholder long",
+          "numberType": [
+            "Long"
+          ],
+          "deprecated": false
+        },
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/32dc6256-873f-4e9d-af89-dd3d7a71e641",
+          "name": "intNumber",
+          "label": "Egész szám",
+          "help": "Egész szám segítésg",
+          "type": [
+            "Number"
+          ],
+          "required": true,
+          "multiple": false,
+          "minValue": 1,
+          "maxValue": 10,
+          "placeholder": "Watermark as Placeholder int",
+          "numberType": [
+            "Int"
+          ],
+          "deprecated": false
+        },
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/89b399c9-e35c-47f6-bc88-4118156a23bb",
+          "name": "doubleNumber",
+          "label": "Törtszám",
+          "help": "Törtszám segítség",
+          "type": [
+            "Number"
+          ],
+          "required": true,
+          "multiple": false,
+          "minValue": 2,
+          "maxValue": 20,
+          "placeholder": "Watermark as Placeholder double",
+          "numberType": [
+            "Double"
+          ],
+          "deprecated": false
+        },
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/9cbf95e6-d37a-4449-8ede-9f6d436e7470",
+          "name": "floatNumber",
+          "label": "Lebegőpontos szám",
+          "help": "Lebegőpontos szám segítség",
+          "type": [
+            "Number"
+          ],
+          "required": true,
+          "multiple": false,
+          "minValue": 2,
+          "maxValue": 29,
+          "placeholder": "Watermark as Placeholder float",
+          "numberType": [
+            "Float"
+          ],
+          "deprecated": false
+        }
+      ],
+      "label": "Adatcsomag",
+      "help": "Fájlok és metaadataik adatcsomagja"
+    }
+  },
+  "enabledClasses": [
+    "Dataset"
+  ],
+  "localisation": {
+    "Number": "Szám",
+    "TextArea": "Hosszú szöveg",
+    "Dataset": "Adatcsomag",
+    "Select": "Kiválasztás",
+    "Text": "Szöveg",
+    "File": "Fájl",
+    "Date": "Dátum"
+  }
+}

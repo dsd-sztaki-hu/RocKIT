@@ -1,0 +1,74 @@
+{
+  "metadata": {
+    "name": "constraintTest",
+    "version": 1.0,
+    "description": "",
+    "warnMissingProperty": true
+  },
+  "classes": {
+    "Dataset": {
+      "definition": "override",
+      "subClassOf": [],
+      "inputs": [
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/64b6d207-f302-4ccc-86b7-dd9ff967f2d3",
+          "name": "testTextField",
+          "label": "Teszt szövegmező",
+          "help": "Teszt szövegmező segítség",
+          "type": [
+            "Text"
+          ],
+          "required": true,
+          "multiple": false,
+          "minLength": 1,
+          "maxLength": 12,
+          "regex": "^a",
+          "placeholder": "Watermark as Placeholder text",
+          "deprecated": false
+        },
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/cebaa202-46f8-458c-9d3a-be54501a254f",
+          "name": "email",
+          "label": "Email cím",
+          "help": "Email segítség",
+          "type": [
+            "Text"
+          ],
+          "required": true,
+          "multiple": false,
+          "regex": "^((?!\\.)[\\w\\-_.]*[^.])(@\\w+(\\-?\\w+)*)(\\.\\w+(\\-?\\w+)*)*\\.[a-zA-Z]{2,}$",
+          "placeholder": "Watermark as Placeholder emial",
+          "deprecated": false
+        },
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/54ef3ac2-89f0-454e-a9db-0b4abfce630f",
+          "name": "phone",
+          "label": "Telefon",
+          "help": "Telefon segítség",
+          "type": [
+            "Text"
+          ],
+          "required": true,
+          "multiple": false,
+          "regex": "(?:([+]\\d{1,4})[-.\\s]?)?(?:[(](\\d{1,3})[)][-.\\s]?)?(\\d{1,4})[-.\\s]?(\\d{1,4})[-.\\s]?(\\d{1,9})",
+          "placeholder": "Watermark as placeholder phone",
+          "deprecated": false
+        }
+      ],
+      "label": "Adatcsomag",
+      "help": "Fájlok és metaadataik adatcsomagja"
+    }
+  },
+  "enabledClasses": [
+    "Dataset"
+  ],
+  "localisation": {
+    "Number": "Szám",
+    "TextArea": "Hosszú szöveg",
+    "Dataset": "Adatcsomag",
+    "Select": "Kiválasztás",
+    "Text": "Szöveg",
+    "File": "Fájl",
+    "Date": "Dátum"
+  }
+}
