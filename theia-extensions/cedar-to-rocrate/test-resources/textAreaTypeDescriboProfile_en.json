@@ -1,0 +1,38 @@
+{
+  "metadata": {
+    "name": "constraintTest",
+    "version": 1.0,
+    "description": "",
+    "warnMissingProperty": true
+  },
+  "classes": {
+    "Dataset": {
+      "definition": "override",
+      "subClassOf": [],
+      "inputs": [
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/136ff35e-188d-4f37-a998-bdf2695f06bf",
+          "name": "testParagraph",
+          "label": "Paragraph",
+          "help": "Paragraph Help Text",
+          "type": [
+            "TextArea"
+          ],
+          "required": true,
+          "multiple": false,
+          "placeholder": "Watermark as placeholder paragraph",
+          "deprecated": false
+        }
+      ],
+      "label": "Dataset",
+      "help": "A collection of files with metadata"
+    }
+  },
+  "enabledClasses": [
+    "Dataset"
+  ],
+  "localisation": {
+    "Dataset": "Dataset",
+    "File": "File"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "metadata": {
+    "name": "constraintTest",
+    "version": 1.0,
+    "description": "",
+    "warnMissingProperty": true
+  },
+  "classes": {
+    "Dataset": {
+      "definition": "override",
+      "subClassOf": [],
+      "inputs": [
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/136ff35e-188d-4f37-a998-bdf2695f06bf",
+          "name": "testParagraph",
+          "label": "Paragrafus",
+          "help": "Paragrafus segítség",
+          "type": [
+            "TextArea"
+          ],
+          "required": true,
+          "multiple": false,
+          "placeholder": "Watermark as placeholder paragraph",
+          "deprecated": false
+        }
+      ],
+      "label": "Adatcsomag",
+      "help": "Fájlok és metaadataik adatcsomagja"
+    }
+  },
+  "enabledClasses": [
+    "Dataset"
+  ],
+  "localisation": {
+    "Number": "Szám",
+    "TextArea": "Hosszú szöveg",
+    "Dataset": "Adatcsomag",
+    "Select": "Kiválasztás",
+    "Text": "Szöveg",
+    "File": "Fájl",
+    "Date": "Dátum"
+  }
+}
