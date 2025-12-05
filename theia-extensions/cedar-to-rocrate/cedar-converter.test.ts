@@ -3,13 +3,13 @@
  * Rewritten from CedarTemplateToDescriboProfileConverterTest.java
  * 
  * Run with: npm test
- * or: npx tsx cedar-template-to-describo-profile-converter.test.ts
+ * or: npx tsx cedar-converter.test.ts
  */
 
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { CedarTemplateToDescriboProfileConverter } from './cedar-template-to-describo-profile-converter.js';
+import { CedarTemplateToDescriboProfileConverter } from './cedar-converter.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -201,8 +201,8 @@ function runTests(): void {
 
 // Run tests when this file is executed
 // Usage: npm test
-// or: npx tsx cedar-template-to-describo-profile-converter.test.ts
-// or compile and run: tsc && node cedar-template-to-describo-profile-converter.test.js
+// or: npx tsx cedar-converter.test.ts
+// or compile and run: tsc && node cedar-converter.test.js
 runTests();
 
 export { runTests, assertEquals, readTestResource };

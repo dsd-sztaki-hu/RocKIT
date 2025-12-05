@@ -29,7 +29,7 @@ npm test
 
 ### Method 2: Using tsx directly
 ```bash
-npx tsx cedar-template-to-describo-profile-converter.test.ts
+npx tsx cedar-converter.test.ts
 ```
 
 ### Method 3: Compile first, then run (if tsx has platform issues)
@@ -37,7 +37,7 @@ If you encounter esbuild platform errors (e.g., darwin-x64 vs darwin-arm64), you
 ```bash
 # Make sure you're using Node.js >= 18 for compilation
 npx tsc
-node cedar-template-to-describo-profile-converter.test.js
+node cedar-converter.test.js
 ```
 
 ### Troubleshooting
@@ -52,8 +52,8 @@ node cedar-template-to-describo-profile-converter.test.js
 
 ## Files
 
-- `cedar-template-to-describo-profile-converter.ts` - Main converter implementation
-- `cedar-template-to-describo-profile-converter.test.ts` - Test suite
+- `cedar-converter.ts` - Main converter implementation
+- `cedar-converter.test.ts` - Test suite
 - `package.json` - Node.js package configuration
 - `tsconfig.json` - TypeScript compiler configuration
 
