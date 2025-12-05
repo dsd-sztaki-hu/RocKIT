@@ -54,6 +54,36 @@ export const parseCsv = (csvText: string): SchemaProperty[] => {
 
 // --- POPUP/MODAL COMPONENT ---
 
+const PropertyListView = React.memo<{ properties: SchemaProperty[] }>(({ properties }) => {
+    if (properties.length === 0) {
+        return <p>No properties match your search.</p>;
+    }
+
+    return (
+        <ul style={{ listStyleType: 'none', padding: 0 }}>
+            {properties.map((prop, index) => (
+                <li
+                    key={index}
+                    style={propertyListItemStyle}
+                    onClick={() => console.log(prop.label)}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#e3f2fd';
+                        e.currentTarget.style.cursor = 'pointer';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                >
+                    <div style={{ fontWeight: 'bold', color: '#007ACC' }}>{prop.label}</div>
+                    <div style={{ fontSize: '0.9em' }}>{prop.comment}</div>
+                </li>
+            ))}
+        </ul>
+    );
+});
+
+// --- POPUP/MODAL COMPONENT ---
+
 interface PropertyListModalProps {
     properties: SchemaProperty[];
     onClose: () => void;
@@ -64,10 +94,11 @@ interface PropertyListModalProps {
 const PropertyListModal: React.FC<PropertyListModalProps> = ({ properties, onClose, loading, error }) => {
     const [searchTerm, setSearchTerm] = React.useState('');
 
-    // --- DRAG STATE ---
     const [position, setPosition] = React.useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = React.useState(false);
     const [offset, setOffset] = React.useState({ x: 0, y: 0 });
+
+    const [hasMoved, setHasMoved] = React.useState(false);
 
     const modalRef = React.useRef<HTMLDivElement>(null);
 
@@ -82,10 +113,19 @@ const PropertyListModal: React.FC<PropertyListModalProps> = ({ properties, onClo
         }
 
         const rect = modalRef.current.getBoundingClientRect();
-        setOffset({
+
+        const newOffset = {
             x: e.clientX - rect.left,
             y: e.clientY - rect.top,
+        };
+        setOffset(newOffset);
+
+        setPosition({
+            x: rect.left,
+            y: rect.top
         });
+
+        setHasMoved(true);
         setIsDragging(true);
         e.preventDefault();
     };
@@ -113,19 +153,19 @@ const PropertyListModal: React.FC<PropertyListModalProps> = ({ properties, onClo
         };
     }, [isDragging, offset]);
 
-    // --- STYLE APPLICATION ---
-
-    const filteredProperties = properties.filter(prop =>
-        prop.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        prop.comment.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredProperties = React.useMemo(() => {
+        return properties.filter(prop =>
+            prop.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            prop.comment.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [properties, searchTerm]);
 
     const draggableModalContentStyle: React.CSSProperties = {
         ...modalContentStyle,
         position: 'fixed',
         display: 'flex',
         flexDirection: 'column',
-        ...(!isDragging && position.x === 0 && position.y === 0
+        ...(!hasMoved
                 ? { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }
                 : { top: position.y, left: position.x, transform: 'none' }
         ),
@@ -137,12 +177,9 @@ const PropertyListModal: React.FC<PropertyListModalProps> = ({ properties, onClo
             <div
                 style={draggableModalContentStyle}
                 ref={modalRef}
-                onMouseUp={() => setIsDragging(false)}
                 onMouseDown={handleMouseDown}
             >
-                <h3
-                    style={{ borderBottom: '1px solid #ccc', paddingBottom: '10px', flexShrink: 0 }}
-                >
+                <h3 style={{ borderBottom: '1px solid #ccc', paddingBottom: '10px', flexShrink: 0, userSelect: 'none' }}>
                     Schema.org Properties List
                 </h3>
 
@@ -160,29 +197,7 @@ const PropertyListModal: React.FC<PropertyListModalProps> = ({ properties, onClo
 
                 {!loading && !error && (
                     <div style={{ flexGrow: 1, overflowY: 'auto' }}>
-                        {filteredProperties.length === 0 ? (
-                            <p>No properties match your search.</p>
-                        ) : (
-                            <ul style={{ listStyleType: 'none', padding: 0 }}>
-                                {filteredProperties.map((prop, index) => (
-                                    <li
-                                        key={index}
-                                        style={propertyListItemStyle}
-                                        onClick={() => console.log(prop.label)}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.backgroundColor = '#e3f2fd';
-                                            e.currentTarget.style.cursor = 'pointer';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.backgroundColor = 'transparent';
-                                        }}
-                                    >
-                                        <div style={{ fontWeight: 'bold', color: '#007ACC' }}>{prop.label}</div>
-                                        <div style={{ fontSize: '0.9em' }}>{prop.comment}</div>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
+                        <PropertyListView properties={filteredProperties} />
                     </div>
                 )}
 
