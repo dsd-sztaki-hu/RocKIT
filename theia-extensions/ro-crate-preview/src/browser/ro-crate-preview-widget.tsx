@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { injectable, postConstruct, inject } from '@theia/core/shared/inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
-import { MessageService } from '@theia/core';
 import { Message } from '@theia/core/lib/browser';
 import { AlertMessage } from '@theia/core/lib/browser/widgets/alert-message';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
@@ -10,6 +9,22 @@ import ReactJson from 'react-json-view';
 
 const RO_CRATE_METADATA_FILE = 'ro-crate-metadata.json';
 
+const RoCrateJsonView = React.memo<{ jsonObject: any }>(({ jsonObject }) => {
+    return (
+        <div style={jsonContainerStyle}>
+            <ReactJson
+                src={jsonObject}
+                theme="monokai"
+                iconStyle={'triangle'}
+                collapsed={2}
+                displayDataTypes={false}
+                enableClipboard={true}
+                style={{ backgroundColor: 'transparent' }}
+            />
+        </div>
+    );
+});
+
 interface RoCrateModalProps {
     jsonObject: any;
     onClose: () => void;
@@ -17,18 +32,173 @@ interface RoCrateModalProps {
     error: string | null;
 }
 
-// --- Styles ---
+const RoCrateModal: React.FC<RoCrateModalProps> = ({ jsonObject, onClose, loading, error }) => {
+    // --- DRAG STATE ---
+    const [position, setPosition] = React.useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = React.useState(false);
+    const [offset, setOffset] = React.useState({ x: 0, y: 0 });
+    const [hasMoved, setHasMoved] = React.useState(false);
+
+    const [isCopied, setIsCopied] = React.useState(false);
+
+    const modalRef = React.useRef<HTMLDivElement>(null);
+
+    // --- COPY HANDLER ---
+    const handleCopy = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        try {
+            await navigator.clipboard.writeText(JSON.stringify(jsonObject, null, 2));
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 5000);
+        } catch (err) {
+            console.error('Failed to copy to clipboard', err);
+        }
+    };
+
+    // --- DRAG HANDLERS ---
+    const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (e.button !== 0) return;
+        if (!modalRef.current) return;
+
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'BUTTON' || target.closest('.copy-to-clipboard-container') || target.tagName === 'I') {
+            return;
+        }
+
+        const rect = modalRef.current.getBoundingClientRect();
+
+        const newOffset = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
+        };
+        setOffset(newOffset);
+
+        setPosition({
+            x: rect.left,
+            y: rect.top
+        });
+
+        setHasMoved(true);
+        setIsDragging(true);
+        e.preventDefault();
+    };
+
+    React.useEffect(() => {
+        if (!isDragging) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            setPosition({
+                x: e.clientX - offset.x,
+                y: e.clientY - offset.y,
+            });
+        };
+
+        const handleMouseUp = () => {
+            setIsDragging(false);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging, offset]);
+
+    // --- STYLES ---
+    const draggableModalContentStyle: React.CSSProperties = {
+        ...modalContentStyle,
+        position: 'fixed',
+        display: 'flex',
+        flexDirection: 'column',
+        ...(!hasMoved
+                ? { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }
+                : { top: position.y, left: position.x, transform: 'none' }
+        ),
+        cursor: isDragging ? 'grabbing' : 'auto',
+    };
+
+    return (
+        <div style={modalOverlayStyle}>
+            <div
+                style={draggableModalContentStyle}
+                ref={modalRef}
+                onMouseDown={handleMouseDown}
+            >
+                {/* Header */}
+                <div
+                    style={{
+                        borderBottom: '1px solid var(--theia-tree-indentGuidesStroke)',
+                        paddingBottom: '15px',
+                        marginBottom: '15px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        cursor: isDragging ? 'grabbing' : 'grab'
+                    }}
+                >
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, pointerEvents: 'none' }}>
+                        RO-Crate source: <span style={{color: '#ce9178'}}>{RO_CRATE_METADATA_FILE}</span>
+                    </h3>
+
+                    <div
+                        title="Copy raw JSON to clipboard"
+                        onClick={handleCopy}
+                        style={{
+                            cursor: 'pointer',
+                            padding: '5px 10px',
+                            color: isCopied ? '#4caf50' : 'var(--theia-editor-foreground)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontWeight: 'bold',
+                            fontSize: '14px'
+                        }}
+                    >
+                        {isCopied && <span>Copied</span>}
+
+                        <i
+                            className={isCopied ? "fa fa-check" : "fa fa-clipboard"}
+                            style={{ fontSize: '20px' }}
+                        ></i>
+                    </div>
+                </div>
+
+                {/* Content */}
+                {loading && <div style={{textAlign: 'center', padding: '20px'}}><i className="fa fa-spinner fa-spin"></i> Loading...</div>}
+
+                {error && <AlertMessage type='ERROR' header='Error'>{error}</AlertMessage>}
+
+                {!loading && !error && (
+                    <RoCrateJsonView jsonObject={jsonObject} />
+                )}
+
+                {/* Footer */}
+                <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                        onClick={onClose}
+                        className='theia-button secondary'
+                        onMouseDown={e => e.stopPropagation()}
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- GLOBAL STYLES ---
+
 const modalOverlayStyle: React.CSSProperties = {
-    position: 'absolute',
+    position: 'fixed',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'var(--theia-modal-backdrop)',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 99999,
 };
 
 const modalContentStyle: React.CSSProperties = {
@@ -37,8 +207,9 @@ const modalContentStyle: React.CSSProperties = {
     border: '1px solid var(--theia-widget-shadow)',
     padding: '20px',
     borderRadius: '4px',
-    width: '85%',
-    maxHeight: '85vh',
+    width: '64%',
+    height: '90vh',
+    maxHeight: '90vh',
     display: 'flex',
     flexDirection: 'column',
     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
@@ -51,48 +222,7 @@ const jsonContainerStyle: React.CSSProperties = {
     overflowY: 'auto',
     flexGrow: 1,
     border: '1px solid var(--theia-tree-indentGuidesStroke)',
-};
-
-const RoCrateModal: React.FC<RoCrateModalProps> = ({ jsonObject, onClose, loading, error }) => {
-    return (
-        <div style={modalOverlayStyle}>
-            <div style={modalContentStyle}>
-                {/* Header */}
-                <div style={{ borderBottom: '1px solid var(--theia-tree-indentGuidesStroke)', paddingBottom: '15px', marginBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
-                        RO-Crate source: <span style={{color: '#ce9178'}}>{RO_CRATE_METADATA_FILE}</span>
-                    </h3>
-                    <i className="fa fa-times" style={{cursor: 'pointer'}} onClick={onClose}></i>
-                </div>
-
-                {/* Content */}
-                {loading && <div style={{textAlign: 'center', padding: '20px'}}><i className="fa fa-spinner fa-spin"></i> Loading...</div>}
-
-                {error && <AlertMessage type='ERROR' header='Error'>{error}</AlertMessage>}
-
-                {!loading && !error && (
-                    <div style={jsonContainerStyle}>
-                        <ReactJson
-                            src={jsonObject}
-                            theme="monokai"
-                            iconStyle={'triangle'}
-                            collapsed={2}
-                            displayDataTypes={false}
-                            enableClipboard={true}
-                            style={{ backgroundColor: 'transparent' }}
-                        />
-                    </div>
-                )}
-
-                {/* Footer */}
-                <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-                    <button onClick={onClose} className='theia-button secondary'>
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
+    cursor: 'text'
 };
 
 @injectable()
@@ -100,9 +230,6 @@ export class RoCratePreviewWidget extends ReactWidget {
 
     static readonly ID = 'ro-crate-preview:widget';
     static readonly LABEL = 'RoCratePreview Widget';
-
-    @inject(MessageService)
-    protected readonly messageService!: MessageService;
 
     @inject(FileService)
     protected readonly fileService!: FileService;
@@ -127,7 +254,7 @@ export class RoCratePreviewWidget extends ReactWidget {
         this.title.label = RoCratePreviewWidget.LABEL;
         this.title.caption = RoCratePreviewWidget.LABEL;
         this.title.closable = true;
-        this.title.iconClass = 'fa fa-window-maximize'; // example widget icon.
+        this.title.iconClass = 'fa fa-window-maximize';
         this.update();
     }
 
@@ -149,8 +276,7 @@ export class RoCratePreviewWidget extends ReactWidget {
             const fileContent = content.value.toString('utf8');
 
             try {
-                const parsedJson = JSON.parse(fileContent);
-                this.previewState.jsonObject = parsedJson;
+                this.previewState.jsonObject = JSON.parse(fileContent);
             } catch (e) {
                 throw new Error("File content is not valid JSON.");
             }
@@ -195,16 +321,11 @@ export class RoCratePreviewWidget extends ReactWidget {
         </div>
     }
 
-    protected displayMessage(): void {
-        this.messageService.info('Congratulations: RoCratePreview Widget Successfully Created!');
-    }
-
     protected onActivateRequest(msg: Message): void {
         super.onActivateRequest(msg);
-        const htmlElement = document.getElementById('displayMessageButton');
+        const htmlElement = document.getElementById('viewRoCrateSourceButton');
         if (htmlElement) {
             htmlElement.focus();
         }
     }
-
 }
