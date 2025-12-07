@@ -18,13 +18,13 @@ export interface SchemaInfo {
     name: string;
     source: 'local' | 'remote';
     version: string;
-    path: string; // The file URI string
+    path: string;
 }
 
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
 export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';
 
-/* --------------------- Windows-safe URI --------------------- */
+/* --------------------- Windows-safe URI Helper --------------------- */
 function toFileUri(path: string): URI {
     const normalized = path.replace(/\\/g, '/');
     if (normalized.match(/^[a-zA-Z]:/)) {
@@ -39,7 +39,7 @@ interface SchemaTableProps {
     schemas: SchemaInfo[];
     isLoading: boolean;
     onSelectionChange: (selectedRowKeys: Key[]) => void;
-    onDelete: (schemaPaths: string[]) => void; // Callback to handle deletion
+    onDelete: (schemaPaths: string[]) => void;
 }
 
 const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, onSelectionChange, onDelete }) => {
@@ -60,7 +60,7 @@ const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, onSelecti
                     ref={searchInput}
                     placeholder={`Search ${dataIndex}`}
                     value={selectedKeys[0]}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                         setSelectedKeys(e.target.value ? [e.target.value] : [])
                     }
                     onPressEnter={() => handleSearch(selectedKeys as string[], confirm, dataIndex)}
@@ -153,7 +153,7 @@ const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, onSelecti
                     <Table
                         dataSource={schemas}
                         columns={columns}
-                        rowKey={(record) => record.path} // Use path as unique key for selection
+                        rowKey={(record) => record.path}
                         rowSelection={{ type: 'checkbox', ...rowSelection }}
                         size="small"
                         pagination={{
@@ -181,7 +181,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected schemas: SchemaInfo[] = [];
     protected isLoading = true;
-    protected selectedSchemaKeys: Key[] = []; // State for selected rows
+    protected selectedSchemaKeys: Key[] = [];
     private reactRoot: any;
 
     constructor(
@@ -203,48 +203,50 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.title.iconClass = 'fa fa-file-code';
     }
 
-    protected async setupDirectories(): Promise<void> {
+    /**
+     * Helper to get the AROMA_ROOT_PATH from environment variables
+     */
+    protected async getAromaRootUri(): Promise<URI | null> {
         try {
-            const result = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
-            const configPath = result?.value;
-            if (!configPath) throw new Error('THEIA_CONFIG_DIR not found');
-
-            const configUri = toFileUri(configPath);
-            const homeUri = configUri.parent;
-
-            const aromaDir = homeUri.resolve('.aroma');
-            const schemasDir = aromaDir.resolve('metadata-schemas');
-            const localDir = schemasDir.resolve('local');
-            const remoteDir = schemasDir.resolve('remote');
-
-            if (!(await this.fileService.exists(aromaDir))) await this.fileService.createFolder(aromaDir);
-            if (!(await this.fileService.exists(schemasDir))) await this.fileService.createFolder(schemasDir);
-            if (!(await this.fileService.exists(localDir))) await this.fileService.createFolder(localDir);
-            if (!(await this.fileService.exists(remoteDir))) await this.fileService.createFolder(remoteDir);
-
-            await this.loadSchemas();
-        } catch (err) {
-            this.messageService.error(`Error setting up directories: ${err}`);
-            this.isLoading = false;
-            this.update();
+            // This variable is set by scripts/app-setup.js
+            const result = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
+            const pathString = result?.value;
+            
+            if (!pathString) {
+                console.error('AROMA_ROOT_PATH not found in environment variables.');
+                return null;
+            }
+            return toFileUri(pathString);
+        } catch (error) {
+            console.error('Error retrieving AROMA_ROOT_PATH:', error);
+            return null;
         }
     }
 
     protected async loadSchemas(): Promise<void> {
         this.isLoading = true;
         this.schemas = [];
-        this.selectedSchemaKeys = []; // Clear selection on load
+        this.selectedSchemaKeys = [];
 
         try {
-            const result = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
-            const configPath = result?.value;
-            if (!configPath) throw new Error('THEIA_CONFIG_DIR not found');
+            const aromaRoot = await this.getAromaRootUri();
+            
+            if (!aromaRoot) {
+                this.messageService.error('Configuration Error: Root directory not found.');
+                this.isLoading = false;
+                this.update();
+                return;
+            }
 
-            const homeUri = toFileUri(configPath).parent;
-            const schemasDir = homeUri.resolve('.aroma/metadata-schemas');
+            const schemasDir = aromaRoot.resolve('metadata-schemas');
 
             for (const source of ['local', 'remote'] as const) {
                 const dir = schemasDir.resolve(source);
+                
+                // We assume directory exists because app-setup.js created it
+                // But we still check safely in case user deleted it manually
+                if (!await this.fileService.exists(dir)) continue;
+
                 const stat = await this.fileService.resolve(dir);
                 if (!stat?.children) continue;
 
@@ -287,8 +289,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
         const count = schemaPaths.length;
         const itemName = count > 1 ? `${count} selected items` : `the selected item`;
-        
-        // Show confirmation modal
+
         Modal.confirm({
             title: 'Confirm Deletion',
             content: `Are you sure you want to delete ${itemName}?`,
@@ -298,7 +299,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                 this.isLoading = true;
                 this.update();
                 let successfulDeletes = 0;
-                
+
                 for (const path of schemaPaths) {
                     try {
                         const uri = new URI(path);
@@ -312,41 +313,39 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                 if (successfulDeletes > 0) {
                     this.messageService.info(`Successfully deleted ${successfulDeletes} schema(s).`);
                 }
-                
-                // Refresh table and clear selection
+
                 await this.loadSchemas();
             }
         });
     }
 
     protected async importSchemaFromFile(): Promise<void> {
-        const result = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
-        const configPath = result?.value;
-        if (!configPath) return;
+        const aromaRoot = await this.getAromaRootUri();
+        if (!aromaRoot) return;
 
-        const localDir = toFileUri(configPath).parent.resolve('.aroma/metadata-schemas/local');
+        const localDir = aromaRoot.resolve('metadata-schemas/local');
 
         const props: OpenFileDialogProps = {
             title: 'Import Schema',
             filters: { 'JSON': ['json'] },
             canSelectFiles: true,
-            canSelectMany: true 
+            canSelectMany: true
         };
 
         const fileUriOrUris = await this.fileDialogService.showOpenDialog(props);
-        
+
         if (!fileUriOrUris) return;
 
         const fileUris: URI[] = Array.isArray(fileUriOrUris) ? fileUriOrUris : [fileUriOrUris];
 
         let importCount = 0;
-        
+
         for (const fileUri of fileUris) {
             if (!fileUri) continue;
 
             const fileName = fileUri.path.base;
             const targetUri = localDir.resolve(fileName);
-            
+
             try {
                 const content = await this.fileService.read(fileUri);
 
@@ -372,13 +371,20 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected async importSchemaFromUrl(): Promise<void> {
         let url = '';
-        let apiKey = '';
+        
+        // 1. Get API Key from Environment
+        const envVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
+        const apiKey = envVar?.value;
 
-        // Create a promise-based modal for URL and API Key input
-        const getInputs = (): Promise<{ url: string; apiKey: string } | null> => {
+        if (!apiKey) {
+            this.messageService.error('CEDAR_API_KEY is not configured in the environment.');
+            return;
+        }
+
+        // 2. Prompt ONLY for URL
+        const getInputs = (): Promise<string | null> => {
             return new Promise((resolve) => {
                 let inputUrl = '';
-                let inputApiKey = '';
 
                 Modal.confirm({
                     title: 'Import Schema from URL',
@@ -391,25 +397,20 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => { inputUrl = e.target.value; }}
                                 />
                             </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '4px' }}>API Key:</label>
-                                <Input
-                                    placeholder="Enter API key"
-                                    type="password"
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => { inputApiKey = e.target.value; }}
-                                />
+                            <div style={{ color: 'gray', fontSize: '12px' }}>
+                                <i>Using configured CEDAR_API_KEY</i>
                             </div>
                         </div>
                     ),
                     okText: 'Import',
                     cancelText: 'Cancel',
                     onOk: () => {
-                        if (!inputUrl || !inputApiKey) {
-                            this.messageService.error('Both URL and API Key are required.');
+                        if (!inputUrl) {
+                            this.messageService.error('URL is required.');
                             resolve(null);
                             return;
                         }
-                        resolve({ url: inputUrl, apiKey: inputApiKey });
+                        resolve(inputUrl);
                     },
                     onCancel: () => {
                         resolve(null);
@@ -418,14 +419,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             });
         };
 
-        const inputs = await getInputs();
-        if (!inputs) return;
-
-        url = inputs.url;
-        apiKey = inputs.apiKey;
+        url = await getInputs() || '';
+        if (!url) return;
 
         try {
-            // Make the HTTP request with fetch (similar to curl)
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
@@ -440,27 +437,21 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
             const jsonData = await response.json();
 
-            // Validate required fields
             if (!jsonData['schema:name'] || !jsonData['pav:version']) {
                 throw new Error('Invalid schema: missing schema:name or pav:version fields');
             }
 
-            // Generate filename
-            const schemaName = jsonData['schema:name']
-                .toLowerCase()
-                .replace(/\s+/g, '_');
+            const schemaName = jsonData['schema:name'].toLowerCase().replace(/\s+/g, '_');
             const version = jsonData['pav:version'];
             const fileName = `remote_${schemaName}_v${version}.json`;
 
-            // Get remote directory path
-            const result = await this.envVariablesServer.getValue('THEIA_CONFIG_DIR');
-            const configPath = result?.value;
-            if (!configPath) throw new Error('THEIA_CONFIG_DIR not found');
+            // Use our helper to get the path
+            const aromaRoot = await this.getAromaRootUri();
+            if (!aromaRoot) throw new Error('Root path configuration error');
 
-            const remoteDir = toFileUri(configPath).parent.resolve('.aroma/metadata-schemas/remote');
+            const remoteDir = aromaRoot.resolve('metadata-schemas/remote');
             const targetUri = remoteDir.resolve(fileName);
 
-            // Check if file already exists
             if (await this.fileService.exists(targetUri)) {
                 const overwrite = confirm(`Schema file ${fileName} already exists. Overwrite?`);
                 if (!overwrite) {
@@ -469,7 +460,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                 }
             }
 
-            // Write the JSON file
             await this.fileService.write(targetUri, JSON.stringify(jsonData, null, 2));
 
             this.messageService.info(`Successfully imported schema: ${jsonData['schema:name']}`);
@@ -489,7 +479,9 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         super.onAfterAttach(msg);
         this.node.innerHTML = '';
         this.render();
-        this.setupDirectories();
+        // NOTE: setupDirectories() call is removed intentionally.
+        // We now call loadSchemas() directly because directories are guaranteed by start-electron.js
+        this.loadSchemas();
     }
 
     protected onUpdateRequest(msg: Message): void {
@@ -502,10 +494,9 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
         const ReactDOM = require('react-dom/client');
         this.node.classList.add('metadata-schema-manager-widget');
-        
+
         if (!this.reactRoot) this.reactRoot = ReactDOM.createRoot(this.node);
 
-        // Get SchemaInfo objects for selected keys
         const selectedSchemaPaths = this.schemas
             .filter(schema => this.selectedSchemaKeys.includes(schema.path))
             .map(schema => schema.path);
@@ -522,11 +513,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     <Button type="primary" onClick={() => this.refreshSchemas()}>
                         Refresh
                     </Button>
-                    {/* Conditionally display Delete Selected button */}
                     {this.selectedSchemaKeys.length > 0 && (
-                        <Button 
-                            type="primary" 
-                            danger 
+                        <Button
+                            type="primary"
+                            danger
                             onClick={() => this.deleteSchemas(selectedSchemaPaths)}
                         >
                             Delete {this.selectedSchemaKeys.length} Selected Rows
@@ -534,9 +524,9 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     )}
                 </div>
                 <div style={{ flexGrow: 1 }}>
-                    <SchemaTable 
-                        schemas={this.schemas} 
-                        isLoading={this.isLoading} 
+                    <SchemaTable
+                        schemas={this.schemas}
+                        isLoading={this.isLoading}
                         onSelectionChange={this.onSelectionChange}
                         onDelete={(paths) => this.deleteSchemas(paths)}
                     />
@@ -551,5 +541,5 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     }
 
     storeState(): object { return {}; }
-    restoreState(): void {}
+    restoreState(): void { }
 }

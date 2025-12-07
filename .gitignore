@@ -20,3 +20,4 @@ lib
 !*-app/package.json
 *.tsbuildinfo
 yarn.lock
+.env

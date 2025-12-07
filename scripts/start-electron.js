@@ -2,29 +2,33 @@
 
 /**
  * start-electron.js
- *
- * Starts Theia in Electron mode with configured environment variables.
+ * * Orchestrates the application startup:
+ * 1. Runs AppSetup to prepare environment and filesystem
+ * 2. Spawns the Theia Electron backend
  */
 
 const { spawn } = require('child_process');
-const EnvConfig = require('./env-config');
+const AppSetup = require('./app-setup');
 
-// Create an instance of the environment configuration
-const envConfig = new EnvConfig();
+// 1. Initialize Setup
+const appSetup = new AppSetup();
 
-// Set the default THEIA_CONFIG_DIR
-envConfig.setDefaultTheiaConfigDir();
+// 2. Run Configuration & Initialization Steps
+appSetup.loadEnvironment();       // Load .env
+appSetup.initializeFileSystem();  // Create folders in os.homedir()
 
-// Spawn Theia in Electron mode with the configured environment
+console.log('Starting Theia Electron Backend...');
+
+// 3. Launch Theia
 const child = spawn(
-    'theia',               // command
-    ['start'],             // args
+    'theia',
+    ['start'],
     {
-        env: envConfig.getEnv(),  // pass the configured environment
-        shell: true,              // required for Windows
-        stdio: 'inherit'          // forward output to the console
+        // Pass the environment we prepared (containing CEDAR_API_KEY and AROMA_ROOT_PATH)
+        env: appSetup.getEnv(), 
+        shell: true,
+        stdio: 'inherit'
     }
 );
 
-// Exit with the same code as the Theia process
-child.on('close', code => process.exit(code));  
+child.on('close', code => process.exit(code));
