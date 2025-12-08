@@ -1,0 +1,51 @@
+{
+  "name": "file-preview",
+  "version": "0.0.0",
+  "description": "AROMA2 - File Preview Extension",
+  "private": true,
+  "keywords": [
+    "theia-extension"
+  ],
+  "license": "EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eclipse-theia/theia.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eclipse-theia/theia/issues"
+  },
+  "homepage": "https://github.com/eclipse-theia/theia",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "browser": "lib/browser/property-view-frontend-module.js",
+  "dependencies": {
+    "@theia/core": "1.65.2",
+    "@theia/filesystem": "1.65.2",
+    "@theia/workspace": "1.65.2",
+    "@theia/variable-resolver": "1.65.2",
+    "@monaco-editor/react": "^4.6.0",
+    "tslib": "^2.6.2"
+  },
+  "devDependencies": {
+    "@theia/ext-scripts": "1.65.2"
+  },
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/property-view-frontend-module"
+    }
+  ],
+  "scripts": {
+    "build": "theiaext build",
+    "clean": "theiaext clean",
+    "compile": "theiaext compile",
+    "lint": "theiaext lint",
+    "test": "theiaext test",
+    "watch": "theiaext watch"
+  },
+  "nyc": {
+    "extends": "../../configs/nyc.json"
+  },
+  "gitHead": "fe9aae0b3d5a6600472ab67cf495d5c0877b97fc"
+}

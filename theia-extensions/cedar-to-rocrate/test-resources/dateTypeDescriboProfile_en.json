@@ -1,0 +1,64 @@
+{
+  "metadata": {
+    "name": "constraintTest",
+    "version": 1.0,
+    "description": "",
+    "warnMissingProperty": true
+  },
+  "classes": {
+    "Dataset": {
+      "definition": "override",
+      "subClassOf": [],
+      "inputs": [
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/07c446b1-d6b6-43dc-92e1-131c7d1fc475",
+          "name": "dateField",
+          "label": "Date",
+          "help": "Date Help Text",
+          "type": [
+            "Date"
+          ],
+          "required": true,
+          "multiple": false,
+          "placeholder": "Watermark as Placeholder date",
+          "deprecated": false
+        },
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/7d264f1c-435b-4c33-84aa-7a0af284c9dc",
+          "name": "dateTime",
+          "label": "DateTime",
+          "help": "DateTime Help Text",
+          "type": [
+            "DateTime"
+          ],
+          "required": true,
+          "multiple": false,
+          "placeholder": "Watermark as Placeholder datetime",
+          "deprecated": false
+        },
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/29bd70df-ed29-4dc6-b97a-1a2555a31d93",
+          "name": "time",
+          "label": "Time",
+          "help": "Time Help Text",
+          "type": [
+            "Time"
+          ],
+          "required": true,
+          "multiple": false,
+          "placeholder": "Watermark as Placeholder time",
+          "deprecated": false
+        }
+      ],
+      "label": "Dataset",
+      "help": "A collection of files with metadata"
+    }
+  },
+  "enabledClasses": [
+    "Dataset"
+  ],
+  "localisation": {
+    "Dataset": "Dataset",
+    "File": "File"
+  }
+}

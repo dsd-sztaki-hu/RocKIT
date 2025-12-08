@@ -1,0 +1,75 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.3.2/schema.json",
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "correctness": {
+        "useHookAtTopLevel": "error",
+        "useExhaustiveDependencies": "warn"
+      },
+      "suspicious": {
+        // pataki@: turn on later
+        //        "noConsole": {
+        //          "level": "error",
+        //          "options": {
+        //            "allow": ["error", "warn", "info", "groupCollapsed", "groupEnd", "trace"]
+        //          }
+        //        }
+        "noAssignInExpressions": "off"
+      },
+      "a11y": {
+        "useButtonType": "off"
+      },
+      "style": {
+        "useTemplate": "off"
+      }
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    "formatWithErrors": false,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 90,
+    "lineEnding": "lf",
+    "includes": [
+      "**",
+      "!**/*/generated-new.ts",
+      "!**/*/generated-v2.ts",
+      "!**/.tamagui",
+      "!**/env-server.ts"
+    ]
+  },
+  "javascript": {
+    "formatter": {
+      "trailingCommas": "all",
+      "jsxQuoteStyle": "double",
+      "semicolons": "asNeeded",
+      "quoteStyle": "single"
+    },
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    }
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!.browser_modules",
+      "!dev-packages",
+      "!**/lib",
+      "!*-app/*",
+      "!**/.vscode",
+      "!**/.claude",
+      "!**/*.d.ts",
+      "!**/dist/**/*"
+    ]
+  }
+}
