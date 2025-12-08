@@ -43,6 +43,12 @@ export class RoCrateEditorWidget extends ReactWidget {
         this.update();
     }
 
+    protected handleSaveCrate = (saveData: any) => {
+        console.log("saveData", saveData);
+        const crate = saveData && (saveData as any).crate ? (saveData as any).crate : saveData;
+        this.appStateService.roCrate = crate;
+    }
+
     render(): React.ReactNode {
         const crateToUse = this.appStateService.roCrate;
         const profileToUse = this.appStateService.profile;
@@ -54,7 +60,7 @@ export class RoCrateEditorWidget extends ReactWidget {
                     crate={crateToUse}
                     profile={profileToUse}
                     entityId={"./"}
-                    onSaveCrate={(saveData: any) => console.log("saveData", saveData)}
+                    onSaveCrate={this.handleSaveCrate}
                     onNavigation={(entity: any) => console.log("entity", entity)}
                     onWarning={(w: any) => console.log("warning", w)}
                     onError={(e: any) => console.log("error", e)}
