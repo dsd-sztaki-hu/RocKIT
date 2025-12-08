@@ -15,24 +15,67 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Deep equality check that handles object key order differences
+// Also handles arrays (both primitives and objects) as order-independent (treats them as sets)
 function deepEqual(obj1: any, obj2: any): boolean {
+    // Same reference or both are null/undefined
     if (obj1 === obj2) return true;
+    
+    // One is null/undefined but not both
     if (obj1 == null || obj2 == null) return false;
+    
+    // Different types
     if (typeof obj1 !== typeof obj2) return false;
     
+    // Handle arrays
     if (Array.isArray(obj1) && Array.isArray(obj2)) {
         if (obj1.length !== obj2.length) return false;
-        return obj1.every((val, idx) => deepEqual(val, obj2[idx]));
+        
+        // Check if array contains only primitives (strings, numbers, booleans)
+        const isPrimitiveArray = obj1.length > 0 && 
+            obj1.every(item => item === null || (typeof item !== 'object' && !Array.isArray(item)));
+        
+        if (isPrimitiveArray) {
+            // For primitive arrays, treat as sets (order-independent)
+            const sorted1 = [...obj1].sort();
+            const sorted2 = [...obj2].sort();
+            return sorted1.every((val, idx) => deepEqual(val, sorted2[idx]));
+        } else {
+            // For arrays of objects or mixed types, treat as sets (order-independent)
+            // Check if each element in obj1 has a matching element in obj2
+            const usedIndices = new Set<number>();
+            return obj1.every(item1 => {
+                const foundIndex = obj2.findIndex((item2: any, idx: number) => {
+                    if (usedIndices.has(idx)) return false;
+                    if (deepEqual(item1, item2)) {
+                        usedIndices.add(idx);
+                        return true;
+                    }
+                    return false;
+                });
+                return foundIndex !== -1;
+            });
+        }
     }
     
-    if (typeof obj1 === 'object') {
+    // One is array but the other is not
+    if (Array.isArray(obj1) || Array.isArray(obj2)) return false;
+    
+    // Handle objects (but not null, which has typeof 'object')
+    if (typeof obj1 === 'object' && typeof obj2 === 'object') {
         const keys1 = Object.keys(obj1).sort();
         const keys2 = Object.keys(obj2).sort();
+        
+        // Different number of keys
         if (keys1.length !== keys2.length) return false;
-        if (!keys1.every(key => keys2.includes(key))) return false;
+        
+        // Keys must match (since both are sorted, we can compare directly)
+        if (keys1.join(',') !== keys2.join(',')) return false;
+        
+        // Recursively compare all values
         return keys1.every(key => deepEqual(obj1[key], obj2[key]));
     }
     
+    // Primitive values
     return obj1 === obj2;
 }
 
@@ -185,6 +228,24 @@ function runTests(): void {
         const expectedProfile = readTestResource('listTypeDescriboProfile_en.json');
         const generatedProfile = converter.processCedarTemplate(cedarTemplate);
         assertEquals(generatedProfile, expectedProfile, 'List type English test failed');
+    });
+
+    // Test: Citation Template conversion to English Describo profile
+    runTest('citationCedarTemplateEn', () => {
+        const converter = new CedarTemplateToDescriboProfileConverter('en');
+        const cedarTemplate = readTestResource('citationCedarTemplate.json');
+        const expectedProfile = readTestResource('citationDescriboProfile_en.json');
+        const generatedProfile = converter.processCedarTemplate(cedarTemplate);
+        assertEquals(generatedProfile, expectedProfile, 'Citation Template conversion to English Describo profile test failed');
+    });
+
+    // Test: Citation Template conversion to Hungarian Describo profile
+    runTest('citationCedarTemplateEn', () => {
+        const converter = new CedarTemplateToDescriboProfileConverter('hu');
+        const cedarTemplate = readTestResource('citationCedarTemplate.json');
+        const expectedProfile = readTestResource('citationDescriboProfile_hu.json');
+        const generatedProfile = converter.processCedarTemplate(cedarTemplate);
+        assertEquals(generatedProfile, expectedProfile, 'Citation Template conversion to Hungarian Describo profile test failed');
     });
 
     // Print summary
