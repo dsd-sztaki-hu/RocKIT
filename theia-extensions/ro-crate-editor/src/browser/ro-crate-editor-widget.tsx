@@ -1,13 +1,14 @@
 import * as React from 'react';
-import { injectable } from 'inversify';
+import { inject, injectable } from 'inversify';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
+
 
 
 import { DescriboCrateBuilder } from '@arpproject/recrate';
 import "@arpproject/recrate/style.css";
 
-import emptyCrate from "../../data/crate.json";
-import profile from "../../data/profile.json";
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
+import type { Disposable } from '@theia/core';
 
 @injectable()
 export class RoCrateEditorWidget extends ReactWidget {
@@ -15,6 +16,12 @@ export class RoCrateEditorWidget extends ReactWidget {
     static readonly ID = 'rocrate-editor-widget';
 
     protected instanceId: string = '';
+
+    @inject(AppStateService)
+    protected readonly appStateService: AppStateService;
+
+    protected crateSubscription?: Disposable;
+    protected profileSubscription?: Disposable;
 
     constructor() {
         super();
@@ -30,17 +37,22 @@ export class RoCrateEditorWidget extends ReactWidget {
         this.id = this.instanceId;
         this.title.label = `Editor ${this.instanceId}`;
 
+        this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)((_) => this.update());
+        this.profileSubscription = this.appStateService.onDidChangeSelector((s) => s.profile)((_) => this.update());
+
         this.update();
     }
 
     render(): React.ReactNode {
+        const crateToUse = this.appStateService.roCrate;
+        const profileToUse = this.appStateService.profile;
         return (
             <div style={{ padding: '1rem' }}>
                 <h3>Panel ID:</h3>
                 <pre>{this.instanceId}</pre>
                 <DescriboCrateBuilder
-                    crate={emptyCrate}
-                    profile={profile}
+                    crate={crateToUse}
+                    profile={profileToUse}
                     entityId={"./"}
                     onSaveCrate={(saveData: any) => console.log("saveData", saveData)}
                     onNavigation={(entity: any) => console.log("entity", entity)}
@@ -58,5 +70,11 @@ export class RoCrateEditorWidget extends ReactWidget {
                 />
             </div>
         );
+    }
+
+    dispose(): void {
+        super.dispose();
+        this.crateSubscription?.dispose();
+        this.profileSubscription?.dispose();
     }
 }
