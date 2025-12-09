@@ -6,7 +6,7 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from './app-state-service'
-import { InvalidCrateDialog } from './invalid-crate-dialog'
+import { ROCrateDialog } from './ro-crate-dialog'
 
 @injectable()
 export class RoCrateLoaderContribution implements FrontendApplicationContribution {
@@ -52,11 +52,22 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
           this.updateState(undefined, true)
 
-          const dialog = new InvalidCrateDialog(this.workspaceService)
-          dialog.open()
+          const dialog = new ROCrateDialog(
+            this.workspaceService,
+            this.fileService,
+            this.appStateService,
+          )
+          await dialog.open()
         }
       } else {
         this.updateState(undefined, false)
+        const dialog = new ROCrateDialog(
+          this.workspaceService,
+          this.fileService,
+          this.appStateService,
+          false,
+        )
+        await dialog.open()
       }
     } catch (error) {
       this.updateState(undefined, true)
