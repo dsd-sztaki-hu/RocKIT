@@ -18,6 +18,11 @@ import '../../src/browser/style/index.css';
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
 export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';
 
+// --- CONFIGURATION CONSTANTS ---
+// Change these values here to update which JSON fields are read across the entire widget
+export const SCHEMA_FIELD_NAME = 'schema:name';
+export const SCHEMA_FIELD_VERSION = 'pav:version';
+
 /* --------------------- Windows-safe URI Helper --------------------- */
 function toFileUri(path: string): URI {
     const normalized = path.replace(/\\/g, '/');
@@ -43,7 +48,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected isLoading = true;
     protected selectedSchemaKeys: Key[] = [];
     
-    // 1. Typed correctly to allow undefined
     private reactRoot: Root | undefined;
 
     constructor(
@@ -113,11 +117,16 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     try {
                         const content = await this.fileService.read(file.resource);
                         const parsed = JSON.parse(content.value);
-                        if (!parsed['schema:name'] || !parsed['pav:version']) continue;
+
+                        // USE CONSTANTS HERE
+                        const schemaName = parsed[SCHEMA_FIELD_NAME];
+                        const schemaVersion = parsed[SCHEMA_FIELD_VERSION];
+
+                        if (!schemaName || !schemaVersion) continue;
 
                         this.schemas.push({
-                            name: parsed['schema:name'],
-                            version: parsed['pav:version'],
+                            name: schemaName,
+                            version: schemaVersion,
                             source,
                             path: file.resource.toString()
                         });
@@ -238,9 +247,16 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             if (!response.ok) throw new Error(`Status: ${response.status}`);
             
             const jsonData = await response.json();
-            if (!jsonData['schema:name'] || !jsonData['pav:version']) throw new Error('Missing schema name or version');
 
-            const fileName = `remote_${jsonData['schema:name'].toLowerCase().replace(/\s+/g, '_')}_v${jsonData['pav:version']}.json`;
+            // USE CONSTANTS HERE
+            const schemaName = jsonData[SCHEMA_FIELD_NAME];
+            const schemaVersion = jsonData[SCHEMA_FIELD_VERSION];
+
+            if (!schemaName || !schemaVersion) {
+                throw new Error(`Invalid schema: missing ${SCHEMA_FIELD_NAME} or ${SCHEMA_FIELD_VERSION} fields`);
+            }
+
+            const fileName = `remote_${schemaName.toLowerCase().replace(/\s+/g, '_')}_v${schemaVersion}.json`;
             const aromaRoot = await this.getAromaRootUri();
             if(!aromaRoot) return;
 
@@ -251,7 +267,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             }
             
             await this.fileService.write(targetUri, JSON.stringify(jsonData, null, 2));
-            this.messageService.info(`Imported: ${jsonData['schema:name']}`);
+            this.messageService.info(`Imported: ${schemaName}`);
             await this.loadSchemas();
         } catch (error) {
             this.messageService.error(`Import failed: ${error}`);
@@ -282,7 +298,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         const ReactDOM = require('react-dom/client');
         this.node.classList.add('metadata-schema-manager-widget');
         
-        // 2. Safer root creation
         if (!this.reactRoot) {
              this.reactRoot = ReactDOM.createRoot(this.node);
         }
@@ -291,7 +306,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             .filter(schema => this.selectedSchemaKeys.includes(schema.path))
             .map(schema => schema.path);
 
-        // 3. Optional chaining to satisfy strict null checks
         this.reactRoot?.render(
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <div style={{ display: 'flex', gap: '8px', padding: '8px' }}>
