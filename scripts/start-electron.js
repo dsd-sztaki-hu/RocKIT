@@ -2,9 +2,8 @@
 
 /**
  * start-electron.js
- * * Orchestrates the application startup:
- * 1. Runs AppSetup to prepare environment and filesystem
- * 2. Spawns the Theia Electron backend
+ * * 1. Runs AppSetup (env loading, filesystem creation)
+ * 2. Delegates execution to "yarn workspace electron-app start"
  */
 
 const { spawn } = require('child_process');
@@ -14,17 +13,19 @@ const AppSetup = require('./app-setup');
 const appSetup = new AppSetup();
 
 // 2. Run Configuration & Initialization Steps
-appSetup.loadEnvironment();       // Load .env
-appSetup.initializeFileSystem();  // Create folders in os.homedir()
+appSetup.loadEnvironment();      
+appSetup.initializeFileSystem(); 
 
-console.log('Starting Theia Electron Backend...');
+console.log('Starting Theia Electron Backend via Yarn Workspace...');
 
-// 3. Launch Theia
+// 3. Launch via Yarn Workspace
+// This tells Yarn to go find the 'electron-app' package and run its 'start' script.
+// Yarn handles the directory switching automatically.
 const child = spawn(
-    'theia',
-    ['start'],
+    'yarn',
+    ['workspace', 'electron-app', 'start'],
     {
-        // Pass the environment we prepared (containing CEDAR_API_KEY and AROMA_ROOT_PATH)
+        // We stay in the root folder, Yarn handles the rest
         env: appSetup.getEnv(), 
         shell: true,
         stdio: 'inherit'
