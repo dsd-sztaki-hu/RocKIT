@@ -29,7 +29,8 @@
     "tslib": "^2.6.2"
   },
   "devDependencies": {
-    "@theia/ext-scripts": "1.65.2"
+    "@theia/ext-scripts": "1.65.2",
+    "rimraf": "6.0.0"
   },
   "theiaExtensions": [
     {
@@ -38,6 +39,7 @@
   ],
   "scripts": {
     "build": "theiaext build",
+    "postbuild": "rimraf tsconfig.tsbuildinfo",
     "clean": "theiaext clean",
     "compile": "theiaext compile",
     "lint": "theiaext lint",
