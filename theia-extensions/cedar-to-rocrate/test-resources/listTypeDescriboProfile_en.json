@@ -1,0 +1,60 @@
+{
+  "metadata": {
+    "name": "constraintTest",
+    "version": 1.0,
+    "description": "",
+    "warnMissingProperty": true
+  },
+  "classes": {
+    "Dataset": {
+      "definition": "override",
+      "subClassOf": [],
+      "inputs": [
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/e9501bbb-1a89-4d9b-a815-e91bc6659f4d",
+          "name": "radio",
+          "label": "Radio Choice",
+          "help": "Radio Choice Help Text",
+          "type": [
+            "Select"
+          ],
+          "values": [
+            "radio_opt_1",
+            "radio_opt_2"
+          ],
+          "required": true,
+          "multiple": false,
+          "placeholder": "Watermark as Placeholder radio",
+          "style": "radio",
+          "deprecated": false
+        },
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/03b55617-e9cc-4ebf-912a-de221241b45e",
+          "name": "list",
+          "label": "List Choice",
+          "help": "List Choice Help Text",
+          "type": [
+            "Select"
+          ],
+          "values": [
+            "list_opt_1",
+            "list_opt_2"
+          ],
+          "required": true,
+          "multiple": false,
+          "placeholder": "Watermark as Placeholder list",
+          "deprecated": false
+        }
+      ],
+      "label": "Dataset",
+      "help": "A collection of files with metadata"
+    }
+  },
+  "enabledClasses": [
+    "Dataset"
+  ],
+  "localisation": {
+    "Dataset": "Dataset",
+    "File": "File"
+  }
+}

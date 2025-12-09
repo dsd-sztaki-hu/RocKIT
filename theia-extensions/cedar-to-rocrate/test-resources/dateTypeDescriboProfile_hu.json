@@ -1,0 +1,69 @@
+{
+  "metadata": {
+    "name": "constraintTest",
+    "version": 1.0,
+    "description": "",
+    "warnMissingProperty": true
+  },
+  "classes": {
+    "Dataset": {
+      "definition": "override",
+      "subClassOf": [],
+      "inputs": [
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/07c446b1-d6b6-43dc-92e1-131c7d1fc475",
+          "name": "dateField",
+          "label": "Dátum",
+          "help": "Dátum segítség",
+          "type": [
+            "Date"
+          ],
+          "required": true,
+          "multiple": false,
+          "placeholder": "Watermark as Placeholder date",
+          "deprecated": false
+        },
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/7d264f1c-435b-4c33-84aa-7a0af284c9dc",
+          "name": "dateTime",
+          "label": "DátumIdő",
+          "help": "DátumIdő segítség",
+          "type": [
+            "DateTime"
+          ],
+          "required": true,
+          "multiple": false,
+          "placeholder": "Watermark as Placeholder datetime",
+          "deprecated": false
+        },
+        {
+          "id": "https://schema.cedardev.dsd.sztaki.hu/properties/29bd70df-ed29-4dc6-b97a-1a2555a31d93",
+          "name": "time",
+          "label": "Idő",
+          "help": "Idő segítség",
+          "type": [
+            "Time"
+          ],
+          "required": true,
+          "multiple": false,
+          "placeholder": "Watermark as Placeholder time",
+          "deprecated": false
+        }
+      ],
+      "label": "Adatcsomag",
+      "help": "Fájlok és metaadataik adatcsomagja"
+    }
+  },
+  "enabledClasses": [
+    "Dataset"
+  ],
+  "localisation": {
+    "Number": "Szám",
+    "TextArea": "Hosszú szöveg",
+    "Dataset": "Adatcsomag",
+    "Select": "Kiválasztás",
+    "Text": "Szöveg",
+    "File": "Fájl",
+    "Date": "Dátum"
+  }
+}
