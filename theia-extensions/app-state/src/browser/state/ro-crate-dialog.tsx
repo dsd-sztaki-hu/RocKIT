@@ -15,11 +15,15 @@ export class ROCrateDialog extends ReactDialog<string> {
     protected readonly jsonExists: boolean = true,
   ) {
     super({
-      title: jsonExists ? 'Invalid RO-Crate Metadata' : 'RO-Crate Metadata Not Found',
+      title: jsonExists
+        ? 'Invalid ro-crate-metadata.json'
+        : 'ro-crate-metadata.json Not Found',
     })
     this.title.closable = false
+    this.appendAcceptButton(
+      this.jsonExists ? 'Generate valid JSON file' : 'Generate JSON file',
+    )
     this.appendCloseButton('Close Workspace')
-    this.appendAcceptButton('Generate')
   }
 
   get value(): string {
@@ -150,7 +154,15 @@ export class ROCrateDialog extends ReactDialog<string> {
     }
     graph.push(metadataDescriptor)
 
-    await this.scanAndBuildEntities(rootUri, rootUri, graph, rootHasPart)
+    const rootStat = await this.fileService.resolve(rootUri, { resolveMetadata: true })
+    if (rootStat.children) {
+      for (const child of rootStat.children) {
+        if (child.name === 'ro-crate-metadata.json' || child.name.startsWith('.')) {
+          continue
+        }
+        await this.scanAndBuildEntities(child.resource, rootUri, graph, rootHasPart)
+      }
+    }
 
     const roCrate = {
       '@context': 'https://w3id.org/ro/crate/1.1/context',
@@ -158,6 +170,8 @@ export class ROCrateDialog extends ReactDialog<string> {
     }
 
     const metadataUri = rootUri.resolve('ro-crate-metadata.json')
-    await this.fileService.create(metadataUri, JSON.stringify(roCrate, null, 2))
+    await this.fileService.create(metadataUri, JSON.stringify(roCrate, null, 2), {
+      overwrite: true,
+    })
   }
 }
