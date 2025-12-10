@@ -11,6 +11,7 @@ import { inject, injectable } from 'inversify';
 import * as React from 'react';
 import type { Root } from 'react-dom/client';
 
+import { CedarTemplateToDescriboProfileConverter } from './cedar-converter';
 import { SchemaTable } from './schema-table';
 import type { SchemaInfo } from './types';
 import '../../src/browser/style/index.css';
@@ -18,12 +19,10 @@ import '../../src/browser/style/index.css';
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
 export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';
 
-// --- CONFIGURATION CONSTANTS ---
-// Change these values here to update which JSON fields are read across the entire widget
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
+export const SCHEMA_FIELD_ID = '@id';
 
-/* --------------------- Windows-safe URI Helper --------------------- */
 function toFileUri(path: string): URI {
     const normalized = path.replace(/\\/g, '/');
     if (normalized.match(/^[a-zA-Z]:/)) {
@@ -33,7 +32,6 @@ function toFileUri(path: string): URI {
     }
 }
 
-/* --------------------- Main Widget Class --------------------- */
 @injectable()
 export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulWidget {
     static readonly ID = METADATA_SCHEMA_MANAGER_WIDGET_ID;
@@ -43,6 +41,8 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected readonly fileDialogService: FileDialogService;
     protected readonly messageService: MessageService;
     protected readonly envVariablesServer: EnvVariablesServer;
+
+    private readonly converter = new CedarTemplateToDescriboProfileConverter();
 
     protected schemas: SchemaInfo[] = [];
     protected isLoading = true;
@@ -69,46 +69,41 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.title.iconClass = 'fa fa-file-code';
     }
 
-    // --- Helpers & Setup ---
+    // --- Helpers ---
 
     protected async getAromaRootUri(): Promise<URI | null> {
-        try {
-            const result = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
-            const pathString = result?.value;
-            
-            if (!pathString) {
-                console.error('AROMA_ROOT_PATH not found in environment variables.');
-                return null;
-            }
-            return toFileUri(pathString);
-        } catch (error) {
-            console.error('Error retrieving AROMA_ROOT_PATH:', error);
-            return null;
-        }
+        const result = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
+        const pathString = result?.value;
+        if (!pathString) return null;
+        return toFileUri(pathString);
     }
+
+    protected async getCedarDir(type: 'local' | 'remote'): Promise<URI | null> {
+        const root = await this.getAromaRootUri();
+        if (!root) return null;
+        return root.resolve(`metadata-schemas/cedar/${type}`);
+    }
+
+    protected async getRoCrateDir(type: 'local' | 'remote'): Promise<URI | null> {
+        const root = await this.getAromaRootUri();
+        if (!root) return null;
+        return root.resolve(`metadata-schemas/ro-crate/${type}`);
+    }
+
+    // --- Core Logic ---
 
     protected async loadSchemas(): Promise<void> {
         this.isLoading = true;
         this.schemas = [];
-        this.selectedSchemaKeys = [];
+        this.selectedSchemaKeys = []; // Reset selection on reload
+        this.update();
 
         try {
-            const aromaRoot = await this.getAromaRootUri();
-            
-            if (!aromaRoot) {
-                this.messageService.error('Configuration Error: Root directory not found.');
-                this.isLoading = false;
-                this.update();
-                return;
-            }
-
-            const schemasDir = aromaRoot.resolve('metadata-schemas');
-
             for (const source of ['local', 'remote'] as const) {
-                const dir = schemasDir.resolve(source);
-                if (!await this.fileService.exists(dir)) continue;
+                const cedarDir = await this.getCedarDir(source);
+                if (!cedarDir || !await this.fileService.exists(cedarDir)) continue;
 
-                const stat = await this.fileService.resolve(dir);
+                const stat = await this.fileService.resolve(cedarDir);
                 if (!stat?.children) continue;
 
                 for (const file of stat.children) {
@@ -118,15 +113,16 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                         const content = await this.fileService.read(file.resource);
                         const parsed = JSON.parse(content.value);
 
-                        // USE CONSTANTS HERE
                         const schemaName = parsed[SCHEMA_FIELD_NAME];
                         const schemaVersion = parsed[SCHEMA_FIELD_VERSION];
+                        const schemaId = parsed[SCHEMA_FIELD_ID];
 
                         if (!schemaName || !schemaVersion) continue;
 
                         this.schemas.push({
                             name: schemaName,
                             version: schemaVersion,
+                            reference: schemaId || '', 
                             source,
                             path: file.resource.toString()
                         });
@@ -143,19 +139,17 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.update();
     }
 
-    // --- Actions (Handlers) ---
-
     protected onSelectionChange = (selectedRowKeys: Key[]): void => {
         this.selectedSchemaKeys = selectedRowKeys;
         this.update();
     };
 
-    protected async deleteSchemas(schemaPaths: string[]): Promise<void> {
-        if (schemaPaths.length === 0) return;
+    protected async deleteSchemas(cedarPaths: string[]): Promise<void> {
+        if (cedarPaths.length === 0) return;
 
         Modal.confirm({
             title: 'Confirm Deletion',
-            content: `Delete ${schemaPaths.length} item(s)?`,
+            content: `Delete ${cedarPaths.length} schema? (Deletes both CEDAR and RO-Crate files)`,
             okText: 'Yes',
             cancelText: 'Cancel',
             onOk: async () => {
@@ -163,9 +157,20 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                 this.update();
                 let successfulDeletes = 0;
 
-                for (const path of schemaPaths) {
+                for (const pathStr of cedarPaths) {
                     try {
-                        await this.fileService.delete(new URI(path));
+                        // 1. Delete CEDAR File (Source)
+                        const cedarUri = new URI(pathStr);
+                        await this.fileService.delete(cedarUri);
+
+                        // 2. Delete RO-Crate File (Converted)
+                        const roCratePathStr = pathStr.replace('/metadata-schemas/cedar/', '/metadata-schemas/ro-crate/');
+                        const roCrateUri = new URI(roCratePathStr);
+
+                        if (await this.fileService.exists(roCrateUri)) {
+                            await this.fileService.delete(roCrateUri);
+                        }
+
                         successfulDeletes++;
                     } catch (err) {
                         this.messageService.error(`Failed to delete: ${err}`);
@@ -177,11 +182,66 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         });
     }
 
-    protected async importSchemaFromFile(): Promise<void> {
-        const aromaRoot = await this.getAromaRootUri();
-        if (!aromaRoot) return;
-        const localDir = aromaRoot.resolve('metadata-schemas/local');
+    // --- Import Processor ---
 
+    private async processImport(
+        fileName: string, 
+        rawContent: string, 
+        type: 'local' | 'remote',
+        progress: any
+    ): Promise<boolean> {
+        try {
+            progress.report({ message: 'Validating Schema...', work: { done: 10, total: 100 } });
+            
+            let parsedRaw: any;
+            try {
+                parsedRaw = JSON.parse(rawContent);
+            } catch (e) {
+                throw new Error('Invalid JSON format');
+            }
+
+            const schemaName = parsedRaw[SCHEMA_FIELD_NAME];
+            const schemaVersion = parsedRaw[SCHEMA_FIELD_VERSION];
+
+            if (!schemaName || !schemaVersion) {
+                throw new Error(`Missing required fields: ${SCHEMA_FIELD_NAME} or ${SCHEMA_FIELD_VERSION}`);
+            }
+
+            progress.report({ message: 'Checking Directories...', work: { done: 30, total: 100 } });
+            const cedarDir = await this.getCedarDir(type);
+            const roCrateDir = await this.getRoCrateDir(type);
+
+            if (!cedarDir || !roCrateDir) {
+                throw new Error('Configuration error: Directories not found');
+            }
+
+            const cedarUri = cedarDir.resolve(fileName);
+            const roCrateUri = roCrateDir.resolve(fileName);
+
+            if (await this.fileService.exists(cedarUri)) {
+                console.log(`Overwriting existing schema: ${fileName}`);
+            }
+
+            progress.report({ message: 'Converting to RO-Crate Profile...', work: { done: 70, total: 100 } });
+            let convertedContent: string;
+            try {
+                convertedContent = this.converter.processCedarTemplate(rawContent);
+            } catch (convErr) {
+                throw new Error(`Conversion Failed: ${convErr}`);
+            }
+
+            progress.report({ message: 'Saving Files...', work: { done: 90, total: 100 } });
+            await this.fileService.write(cedarUri, rawContent);
+            await this.fileService.write(roCrateUri, convertedContent);
+
+            return true;
+
+        } catch (error) {
+            throw error; 
+        }
+    }
+
+    protected async importSchemaFromFile(): Promise<void> {
         const fileUriOrUris = await this.fileDialogService.showOpenDialog({
             title: 'Import Schema',
             filters: { 'JSON': ['json'] },
@@ -192,21 +252,41 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         if (!fileUriOrUris) return;
         const fileUris: URI[] = Array.isArray(fileUriOrUris) ? fileUriOrUris : [fileUriOrUris];
 
-        for (const fileUri of fileUris) {
-            if (!fileUri) continue;
-            const fileName = fileUri.path.base;
-            const targetUri = localDir.resolve(fileName);
-            try {
-                const content = await this.fileService.read(fileUri);
-                if (await this.fileService.exists(targetUri)) {
-                    if (!confirm(`Overwrite ${fileName}?`)) continue;
+        this.messageService.showProgress({
+            text: 'Importing Schemas...'
+        }).then(async progress => {
+            let successCount = 0;
+            let failCount = 0;
+            
+            progress.report({ message: 'Reading Files...', work: { done: 0, total: 100 } });
+
+            for (let i = 0; i < fileUris.length; i++) {
+                const fileUri = fileUris[i];
+                const fileName = fileUri.path.base;
+                const percent = Math.floor(((i + 1) / fileUris.length) * 100);
+
+                try {
+                    const content = await this.fileService.read(fileUri);
+                    await this.processImport(fileName, content.value, 'local', progress);
+                    successCount++;
+                } catch (error) {
+                    failCount++;
+                    console.error(error);
+                    this.messageService.error(`Error importing ${fileName}: ${error instanceof Error ? error.message : error}`);
                 }
-                await this.fileService.write(targetUri, content.value);
-            } catch (error) {
-                this.messageService.error(`Failed to import ${fileName}: ${error}`);
+                progress.report({ work: { done: percent, total: 100 } });
             }
-        }
-        await this.loadSchemas();
+
+            progress.report({ message: 'Done', work: { done: 100, total: 100 } });
+            
+            if (successCount > 0) {
+                this.messageService.info(`Successfully imported ${successCount} schema(s).`);
+                await this.loadSchemas();
+            }
+            if (failCount > 0) {
+                this.messageService.warn(`Failed to import ${failCount} schema(s).`);
+            }
+        });
     }
 
     protected async importSchemaFromUrl(): Promise<void> {
@@ -222,11 +302,11 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         await new Promise((resolve) => {
             let inputUrl = '';
             Modal.confirm({
-                title: 'Import Schema from URL',
+                title: 'Import Schema from CEDAR URL (@id)',
                 content: (
                     <div style={{ marginTop: 10 }}>
                         <Input 
-                            placeholder="Enter URL" 
+                            placeholder="Enter CEDAR URL" 
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => inputUrl = e.target.value} 
                         />
                         <div style={{ fontSize: 12, color: '#888', marginTop: 5 }}>Using configured API Key</div>
@@ -239,46 +319,48 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
         if (!url) return;
 
-        try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `apiKey ${apiKey}` }
-            });
-            if (!response.ok) throw new Error(`Status: ${response.status}`);
-            
-            const jsonData = await response.json();
+        this.messageService.showProgress({
+            text: 'Importing from URL...'
+        }).then(async progress => {
+            try {
+                progress.report({ message: 'Downloading...', work: { done: 20, total: 100 } });
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `apiKey ${apiKey}` }
+                });
 
-            // USE CONSTANTS HERE
-            const schemaName = jsonData[SCHEMA_FIELD_NAME];
-            const schemaVersion = jsonData[SCHEMA_FIELD_VERSION];
+                if (!response.ok) {
+                    throw new Error(`Download failed with status: ${response.status}`);
+                }
+                
+                const rawString = await response.text();
+                const parsed = JSON.parse(rawString);
+                const name = parsed[SCHEMA_FIELD_NAME];
+                const version = parsed[SCHEMA_FIELD_VERSION];
+                
+                if (!name || !version) throw new Error('Cannot determine filename from schema content');
 
-            if (!schemaName || !schemaVersion) {
-                throw new Error(`Invalid schema: missing ${SCHEMA_FIELD_NAME} or ${SCHEMA_FIELD_VERSION} fields`);
+                const fileName = `remote_${name.toLowerCase().replace(/\s+/g, '_')}_v${version}.json`;
+
+                await this.processImport(fileName, rawString, 'remote', progress);
+
+                progress.report({ message: 'Finished', work: { done: 100, total: 100 } });
+                this.messageService.info(`Successfully imported: ${name}`);
+                await this.loadSchemas();
+
+            } catch (error) {
+                progress.cancel();
+                this.messageService.error(`Import Failed: ${error instanceof Error ? error.message : error}`);
             }
-
-            const fileName = `remote_${schemaName.toLowerCase().replace(/\s+/g, '_')}_v${schemaVersion}.json`;
-            const aromaRoot = await this.getAromaRootUri();
-            if(!aromaRoot) return;
-
-            const targetUri = aromaRoot.resolve('metadata-schemas/remote').resolve(fileName);
-
-            if (await this.fileService.exists(targetUri)) {
-                if (!confirm(`Overwrite ${fileName}?`)) return;
-            }
-            
-            await this.fileService.write(targetUri, JSON.stringify(jsonData, null, 2));
-            this.messageService.info(`Imported: ${schemaName}`);
-            await this.loadSchemas();
-        } catch (error) {
-            this.messageService.error(`Import failed: ${error}`);
-        }
+        });
     }
 
     protected async refreshSchemas(): Promise<void> {
         await this.loadSchemas();
     }
 
-    /* --------------------- Widget Lifecycle --------------------- */
+    /* --------------------- Lifecycle --------------------- */
     
     protected onAfterAttach(msg: Message): void {
         super.onAfterAttach(msg);
@@ -309,9 +391,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.reactRoot?.render(
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <div style={{ display: 'flex', gap: '8px', padding: '8px' }}>
-                    <Button type="primary" onClick={() => this.importSchemaFromFile()}>Import File</Button>
-                    <Button type="primary" onClick={() => this.importSchemaFromUrl()}>Import URL</Button>
+                    <Button type="primary" onClick={() => this.importSchemaFromFile()}>Import from File</Button>
+                    <Button type="primary" onClick={() => this.importSchemaFromUrl()}>Import from URL</Button>
                     <Button type="primary" onClick={() => this.refreshSchemas()}>Refresh</Button>
+                    
                     {this.selectedSchemaKeys.length > 0 && (
                         <Button type="primary" danger onClick={() => this.deleteSchemas(selectedSchemaPaths)}>
                             Delete {this.selectedSchemaKeys.length}

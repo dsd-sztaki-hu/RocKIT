@@ -2,7 +2,8 @@
   "compilerOptions": {
     "strict": true,
     "experimentalDecorators": true,
-    "noUnusedLocals": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "jsx": "react",
@@ -35,7 +36,7 @@
       "@theia/messages": [
         "node_modules/@theia/messages/lib"
       ]
-    }
+    },
   },
   "include": [
     "src"

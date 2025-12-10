@@ -14,10 +14,8 @@ interface SchemaTableProps {
 }
 
 export const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, onSelectionChange, onDelete }) => {
-    // 1. Typed the reference explicitly
     const searchInput = React.useRef<InputRef>(null);
 
-    // 2. Removed unused parameters
     const handleSearch = (confirm: () => void) => {
         confirm();
     };
@@ -27,7 +25,6 @@ export const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, on
     };
 
     const getColumnSearchProps = (dataIndex: keyof SchemaInfo) => ({
-        // 3. Replaced 'any' with 'FilterDropdownProps'
         filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: FilterDropdownProps) => (
             <div style={{ padding: 8 }}>
                 <Input
@@ -62,7 +59,6 @@ export const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, on
         filterIcon: (filtered: boolean) => (
             <span style={{ color: filtered ? '#1890ff' : undefined }}>🔍</span>
         ),
-        // 4. Typed value as 'boolean | Key' (Ant Design standard)
         onFilter: (value: boolean | Key, record: SchemaInfo) =>
             record[dataIndex]
                 .toString()
@@ -84,10 +80,17 @@ export const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, on
             ...getColumnSearchProps('name'),
         },
         {
+            title: 'Version',
+            dataIndex: 'version',
+            key: 'version',
+            width: 100,
+            sorter: (a, b) => a.version.localeCompare(b.version),
+        },
+        {
             title: 'Source',
             dataIndex: 'source',
             key: 'source',
-            width: 120,
+            width: 100,
             filters: [
                 { text: 'Local', value: 'local' },
                 { text: 'Remote', value: 'remote' },
@@ -95,18 +98,17 @@ export const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, on
             onFilter: (value, record) => record.source === value,
         },
         {
-            title: 'Version',
-            dataIndex: 'version',
-            key: 'version',
-            width: 130,
-            sorter: (a, b) => a.version.localeCompare(b.version),
+            title: 'Reference (@id)',
+            dataIndex: 'reference',
+            key: 'reference',
+            ellipsis: true,
+            ...getColumnSearchProps('reference'),
         },
         {
             title: 'Action',
             key: 'action',
-            width: 100,
+            width: 90,
             render: (_, record) => (
-                // 5. Fixed Accessibility: Use Button instead of <a>
                 <Button 
                     type="link" 
                     danger 
