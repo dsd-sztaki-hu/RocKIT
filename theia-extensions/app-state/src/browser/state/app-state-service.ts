@@ -82,6 +82,13 @@ export class AppStateService {
     this.updateState({ profile: value })
   }
 
+  get isROCrateInvalid(): AppState['isROCrateInvalid'] {
+    return this.getState().isROCrateInvalid
+  }
+  set isROCrateInvalid(value: AppState['isROCrateInvalid']) {
+    this.updateState({ isROCrateInvalid: value })
+  }
+
   get dirty(): AppState['dirty'] {
     return this.getState().dirty
   }
