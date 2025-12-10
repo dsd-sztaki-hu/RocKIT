@@ -5,7 +5,7 @@ import type { FileService } from '@theia/filesystem/lib/browser/file-service'
 import type { WorkspaceService } from '@theia/workspace/lib/browser'
 import * as mime from 'mime-types'
 import type * as React from 'react'
-import * as SparkMD5 from 'spark-md5'
+import SparkMD5 from 'spark-md5'
 
 @injectable()
 export class ROCrateDialog extends ReactDialog<string> {
