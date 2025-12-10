@@ -5,7 +5,5 @@
     <option name="enableLspFormat" value="true" />
     <option name="formatOnSave" value="true" />
     <option name="sortImportOnSave" value="true" />
-    <option name="enableLspFormat" value="true" />
-    <option name="formatOnSave" value="true" />
   </component>
 </project>
