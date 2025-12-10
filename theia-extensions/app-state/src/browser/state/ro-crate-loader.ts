@@ -52,22 +52,25 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
           this.updateState(undefined, true)
 
-          const dialog = new ROCrateDialog(
-            this.workspaceService,
-            this.fileService,
-            this.appStateService,
-          )
+          const dialog = new ROCrateDialog(this.workspaceService, this.fileService)
           await dialog.open()
+
+          const roCrateUri = rootUri.resolve('ro-crate-metadata.json')
+          const content = await this.fileService.read(roCrateUri)
+
+          const jsonContent = JSON.parse(content.value)
+          this.updateState(jsonContent, false)
         }
       } else {
         this.updateState(undefined, false)
-        const dialog = new ROCrateDialog(
-          this.workspaceService,
-          this.fileService,
-          this.appStateService,
-          false,
-        )
+        const dialog = new ROCrateDialog(this.workspaceService, this.fileService, false)
         await dialog.open()
+
+        const roCrateUri = rootUri.resolve('ro-crate-metadata.json')
+        const content = await this.fileService.read(roCrateUri)
+
+        const jsonContent = JSON.parse(content.value)
+        this.updateState(jsonContent, false)
       }
     } catch (error) {
       this.updateState(undefined, true)

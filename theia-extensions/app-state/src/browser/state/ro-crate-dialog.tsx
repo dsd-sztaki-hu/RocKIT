@@ -3,15 +3,15 @@ import type { URI } from '@theia/core/lib/common/uri'
 import { injectable } from '@theia/core/shared/inversify'
 import type { FileService } from '@theia/filesystem/lib/browser/file-service'
 import type { WorkspaceService } from '@theia/workspace/lib/browser'
+import * as mime from 'mime-types'
 import type * as React from 'react'
-import type { AppStateService } from './app-state-service'
+import * as SparkMD5 from 'spark-md5'
 
 @injectable()
 export class ROCrateDialog extends ReactDialog<string> {
   constructor(
     protected readonly workspaceService: WorkspaceService,
     protected readonly fileService: FileService,
-    protected readonly appStateService: AppStateService,
     protected readonly jsonExists: boolean = true,
   ) {
     super({
@@ -104,15 +104,18 @@ export class ROCrateDialog extends ReactDialog<string> {
     } else {
       const fileRelativePath =
         await this.workspaceService.getWorkspaceRelativePath(dirUri)
+      const content = await this.fileService.read(dirUri)
+
+      const mimeType = mime.lookup(fileStat.name) || 'application/octet-stream'
+
       const fileEntity = {
         '@id': fileRelativePath,
         '@type': 'File',
         name: fileStat.name,
-        encodingFormat: fileStat.name
-          .substring(fileStat.name.lastIndexOf('.'))
-          .toLowerCase(),
+        encodingFormat: mimeType,
         contentSize: fileStat.size ? `${fileStat.size}` : undefined,
         dateModified: fileStat.mtime ? new Date(fileStat.mtime).toISOString() : undefined,
+        hash: SparkMD5.hash(content.value),
       }
       graph.push(fileEntity)
       parentHasPart.push({ '@id': fileEntity['@id'] })
