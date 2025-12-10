@@ -2,8 +2,7 @@ import type { Message } from '@theia/core/lib/browser'
 import { AlertMessage } from '@theia/core/lib/browser/widgets/alert-message'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
-import { FileService } from '@theia/filesystem/lib/browser/file-service'
-import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import * as React from 'react'
 import ReactJson from 'react-json-view'
 
@@ -253,11 +252,8 @@ export class RoCratePreviewWidget extends ReactWidget {
   static readonly ID = 'ro-crate-preview:widget'
   static readonly LABEL = 'RoCratePreview Widget'
 
-  @inject(FileService)
-  protected readonly fileService!: FileService
-
-  @inject(WorkspaceService)
-  protected readonly workspaceService!: WorkspaceService
+  @inject(AppStateService)
+  protected readonly appStateService!: AppStateService
 
   private readonly previewState = {
     jsonObject: {} as any,
@@ -287,25 +283,10 @@ export class RoCratePreviewWidget extends ReactWidget {
     this.update()
 
     try {
-      const roots = this.workspaceService.tryGetRoots()
-      if (roots.length === 0) {
-        throw new Error('No workspace folder open.')
-      }
-      const rootUri = roots[0].resource
-      const fileUri = rootUri.resolve(RO_CRATE_METADATA_FILE)
-
-      const content: any = await this.fileService.readFile(fileUri)
-      const fileContent = content.value.toString('utf8')
-
-      try {
-        this.previewState.jsonObject = JSON.parse(fileContent)
-      } catch (e) {
-        throw new Error('File content is not valid JSON.')
-      }
+      this.previewState.jsonObject = this.appStateService.roCrate
     } catch (err: any) {
-      this.previewState.error = `Could not read ${RO_CRATE_METADATA_FILE}: ${err.message}`
+      this.previewState.error = `Could not read RO-Crate from Appstate: ${err.message}`
       this.previewState.jsonObject = {}
-      console.error('Error reading RO-Crate metadata:', err)
     } finally {
       this.previewState.loading = false
       this.update()
