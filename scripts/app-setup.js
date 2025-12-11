@@ -1,5 +1,14 @@
 #!/usr/bin/env node
 
+/**
+ * app-setup.js
+ * * Responsibilities:
+ * 1. Load environment variables (mainly for API keys)
+ * 2. FORCE the configuration directory to ~/.aroma (ignoring .env folder settings)
+ * 3. Set THEIA_CONFIG_DIR to redirect all Theia settings to ~/.aroma
+ * 4. Create the required folder structure
+ */
+
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -19,43 +28,36 @@ class AppSetup {
         if (result.error) {
             console.warn(`[AppSetup] Warning: No .env file found at ${envPath}`);
         } else if (result.parsed) {
+            // Load variables (like CEDAR_API_KEY)
             this._env = { ...this._env, ...result.parsed };
-            console.log('[AppSetup] Environment variables loaded successfully.');
+            console.log('[AppSetup] Environment variables loaded.');
         }
     }
 
     initializeFileSystem() {
-        const folderName = this._env.AROMA_FOLDER_NAME || '.aroma';
+        // 1. CONFIGURATION
+        const FOLDER_NAME = '.aroma'; 
         const userHome = os.homedir();
-        const aromaRootPath = path.join(userHome, folderName);
+        const aromaRootPath = path.join(userHome, FOLDER_NAME);
         const schemasRoot = path.join(aromaRootPath, 'metadata-schemas');
 
-        // Expected directory structure:
-        // $HOME/.aroma/metadata-schemas/
-        // ├── cedar/           <-- Raw CEDAR templates
-        // │   ├── local/
-        // │   └── remote/
-        // └── ro-crate/        <-- Converted RO-Crate profiles
-        //     ├── local/
-        //     └── remote/
-
+        // 2. Define Subdirectories
         const paths = {
             root: aromaRootPath,
             schemas: schemasRoot,
             
-            // CEDAR Folders (Raw inputs)
             cedarRoot: path.join(schemasRoot, 'cedar'),
             cedarLocal: path.join(schemasRoot, 'cedar', 'local'),
             cedarRemote: path.join(schemasRoot, 'cedar', 'remote'),
 
-            // RO-Crate Folders (Converted outputs)
             roCrateRoot: path.join(schemasRoot, 'ro-crate'),
             roCrateLocal: path.join(schemasRoot, 'ro-crate', 'local'),
             roCrateRemote: path.join(schemasRoot, 'ro-crate', 'remote'),
         };
 
-        console.log(`[AppSetup] Verifying filesystem structure at: ${paths.root}`);
+        console.log(`[AppSetup] Enforcing root directory: ${paths.root}`);
 
+        // 3. Create Directories
         try {
             Object.values(paths).forEach(dirPath => {
                 if (!fs.existsSync(dirPath)) {
@@ -69,8 +71,11 @@ class AppSetup {
             process.exit(1);
         }
 
-        this._env.AROMA_ROOT_PATH = paths.root;
-        console.log(`[AppSetup] Injected AROMA_ROOT_PATH=${paths.root}`);
+        // 4. Force Environment Overrides       
+        this._env.AROMA_ROOT_PATH = paths.root; // Used by your Widget
+        this._env.THEIA_CONFIG_DIR = paths.root; // Used by Theia (Settings, Logs, etc.)
+
+        console.log(`[AppSetup] Configuration locked: THEIA_CONFIG_DIR=${paths.root}`);
     }
 
     getEnv() {
