@@ -1,4 +1,4 @@
-import { parseCsv, SchemaSelectorWidget } from './schema-selector-widget';
+import { parseCsv, PropertySelectorWidget } from './property-selector-widget';
 import 'reflect-metadata';
 import { MessageService } from '@theia/core';
 import { ContainerModule, Container } from '@theia/core/shared/inversify';
@@ -42,7 +42,7 @@ describe('Schema CSV Parser Logic', () => {
 
 describe('SchemaSelectorWidget', () => {
 
-    let widget: SchemaSelectorWidget;
+    let widget: PropertySelectorWidget;
 
     const MOCK_CSV_RESPONSE = `label,comment
     Person,A human being.
@@ -61,14 +61,14 @@ describe('SchemaSelectorWidget', () => {
             bind(MessageService).toConstantValue({
                 info: jest.fn()
             } as any);
-            bind(SchemaSelectorWidget).toSelf();
+            bind(PropertySelectorWidget).toSelf();
         });
 
         const container = new Container();
         container.load(module);
 
         await act(async () => {
-            widget = container.resolve<SchemaSelectorWidget>(SchemaSelectorWidget);
+            widget = container.resolve<PropertySelectorWidget>(PropertySelectorWidget);
         });
     });
 

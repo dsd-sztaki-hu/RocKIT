@@ -1,13 +1,13 @@
 import { injectable } from '@theia/core/shared/inversify';
 import { MenuModelRegistry } from '@theia/core';
-import { SchemaSelectorWidget } from './schema-selector-widget';
+import { PropertySelectorWidget } from './property-selector-widget';
 import { AbstractViewContribution } from '@theia/core/lib/browser';
 import { Command, CommandRegistry } from '@theia/core/lib/common/command';
 
 export const SchemaSelectorCommand: Command = { id: 'schema-selector:command' };
 
 @injectable()
-export class SchemaSelectorContribution extends AbstractViewContribution<SchemaSelectorWidget> {
+export class PropertySelectorContribution extends AbstractViewContribution<PropertySelectorWidget> {
 
     /**
      * `AbstractViewContribution` handles the creation and registering
@@ -19,8 +19,8 @@ export class SchemaSelectorContribution extends AbstractViewContribution<SchemaS
      */
     constructor() {
         super({
-            widgetId: SchemaSelectorWidget.ID,
-            widgetName: SchemaSelectorWidget.LABEL,
+            widgetId: PropertySelectorWidget.ID,
+            widgetName: PropertySelectorWidget.LABEL,
             defaultWidgetOptions: { area: 'left' },
             toggleCommandId: SchemaSelectorCommand.id
         });

@@ -245,10 +245,10 @@ const propertyListItemStyle: React.CSSProperties = {
 // --- SHCEMA SELECTOR WIDGET CLASS ---
 
 @injectable()
-export class SchemaSelectorWidget extends ReactWidget {
+export class PropertySelectorWidget extends ReactWidget {
 
     static readonly ID = 'schema-selector:widget';
-    static readonly LABEL = 'SchemaSelector Widget';
+    static readonly LABEL = 'Property Selector Widget';
 
     @inject(MessageService)
     protected readonly messageService!: MessageService;
@@ -266,9 +266,9 @@ export class SchemaSelectorWidget extends ReactWidget {
     }
 
     protected async doInit(): Promise <void> {
-        this.id = SchemaSelectorWidget.ID;
-        this.title.label = SchemaSelectorWidget.LABEL;
-        this.title.caption = SchemaSelectorWidget.LABEL;
+        this.id = PropertySelectorWidget.ID;
+        this.title.label = PropertySelectorWidget.LABEL;
+        this.title.caption = PropertySelectorWidget.LABEL;
         this.title.closable = true;
         this.title.iconClass = 'fa fa-window-maximize'; // example widget icon.
         this.fetchSchemaProperties();

@@ -19,7 +19,7 @@
     "ro-crate-editor": "0.0.0",
     "react-grab-helper": "0.0.0",
     "app-state": "0.0.1",
-    "schema-selector": "0.0.0"
+    "property-selector": "0.0.0"
   },
   "devDependencies": {
     "@theia/cli": "1.65.2",
