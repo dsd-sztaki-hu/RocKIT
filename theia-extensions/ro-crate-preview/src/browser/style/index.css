@@ -1,7 +1,58 @@
 #widget-container h2 {
-    color: var(--theia-ui-font-color1);
-    font-size: 12px;
-    font-weight: 400;
-    padding: 10px;
-    text-transform: uppercase;
+  color: var(--theia-ui-font-color1);
+  font-size: 12px;
+  font-weight: 400;
+  padding: 10px;
+  text-transform: uppercase;
+}
+
+.contentWrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 1000px;
+  min-width: 800px;
+  overflow: hidden;
+}
+
+.header {
+  border-bottom: 1px solid var(--theia-tree-indentGuidesStroke);
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.jsonContainer {
+  background-color: #2d2d2d;
+  padding: 10px;
+  border-radius: 4px;
+  overflow-y: auto;
+  flex-grow: 1;
+  border: 1px solid var(--theia-tree-indentGuidesStroke);
+  cursor: text;
+}
+
+.copyButton {
+  background: none;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
