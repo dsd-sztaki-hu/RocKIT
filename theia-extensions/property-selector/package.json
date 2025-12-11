@@ -1,5 +1,5 @@
 {
-  "name": "schema-selector",
+  "name": "property-selector",
   "keywords": [
     "theia-extension"
   ],
@@ -30,7 +30,7 @@
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/schema-selector-frontend-module"
+      "frontend": "lib/browser/property-selector-frontend-module"
     }
   ]
 }
