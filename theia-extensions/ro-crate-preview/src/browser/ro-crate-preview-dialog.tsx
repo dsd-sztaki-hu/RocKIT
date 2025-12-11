@@ -7,7 +7,7 @@ import ReactJson from 'react-json-view'
 
 const RoCrateJsonView = React.memo<{ jsonObject: any }>(({ jsonObject }) => {
   return (
-    <div className={'jsonContainer'}>
+    <div className={'roCratePreviewJsonContainer'}>
       <ReactJson
         src={jsonObject}
         theme="monokai"
@@ -41,9 +41,9 @@ const RoCrateContent: React.FC<RoCrateContentProps> = ({ jsonObject, error }) =>
   }
 
   return (
-    <div className={'contentWrapper'}>
+    <div className={'roCratePreviewContentWrapper'}>
       {/* Header */}
-      <div className={'header'}>
+      <div className={'roCratePreviewHeader'}>
         <h3>
           <i className="fa fa-code" style={{ color: 'var(--theia-brand-color)' }} />
           RO-Crate Source:
@@ -51,7 +51,7 @@ const RoCrateContent: React.FC<RoCrateContentProps> = ({ jsonObject, error }) =>
         </h3>
 
         <button
-          className={'copyButton'}
+          className={'roCratePreviewCopyButton'}
           title="Copy raw JSON to clipboard"
           onClick={handleCopy}
           style={{

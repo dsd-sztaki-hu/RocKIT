@@ -6,7 +6,7 @@
   text-transform: uppercase;
 }
 
-.contentWrapper {
+.roCratePreviewContentWrapper {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -15,7 +15,7 @@
   overflow: hidden;
 }
 
-.header {
+.roCratePreviewHeader {
   border-bottom: 1px solid var(--theia-tree-indentGuidesStroke);
   padding-bottom: 10px;
   margin-bottom: 10px;
@@ -25,7 +25,7 @@
   flex-shrink: 0;
 }
 
-.jsonContainer {
+.roCratePreviewJsonContainer {
   background-color: #2d2d2d;
   padding: 10px;
   border-radius: 4px;
@@ -35,7 +35,7 @@
   cursor: text;
 }
 
-.copyButton {
+.roCratePreviewCopyButton {
   background: none;
   border: none;
   outline: none;
@@ -48,7 +48,7 @@
   font-size: 12px;
 }
 
-.header h3 {
+.roCratePreviewHeader h3 {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
