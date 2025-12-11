@@ -7,7 +7,7 @@ import ReactJson from 'react-json-view'
 
 const RoCrateJsonView = React.memo<{ jsonObject: any }>(({ jsonObject }) => {
   return (
-    <div style={jsonContainerStyle}>
+    <div className={'jsonContainer'}>
       <ReactJson
         src={jsonObject}
         theme="monokai"
@@ -41,39 +41,21 @@ const RoCrateContent: React.FC<RoCrateContentProps> = ({ jsonObject, error }) =>
   }
 
   return (
-    <div style={contentWrapperStyle}>
+    <div className={'contentWrapper'}>
       {/* Header */}
-      <div style={headerStyle}>
-        <h3
-          style={{
-            margin: 0,
-            fontSize: '14px',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
+      <div className={'header'}>
+        <h3>
           <i className="fa fa-code" style={{ color: 'var(--theia-brand-color)' }} />
           RO-Crate Source:
           <span style={{ color: '#ce9178', fontFamily: 'monospace' }}>AppState</span>
         </h3>
 
         <button
+          className={'copyButton'}
           title="Copy raw JSON to clipboard"
           onClick={handleCopy}
           style={{
-            background: 'none',
-            border: 'none',
-            outline: 'none',
-            cursor: 'pointer',
-            padding: '4px 8px',
             color: isCopied ? '#4caf50' : 'var(--theia-ui-font-color1)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontWeight: 'bold',
-            fontSize: '12px',
           }}
         >
           {isCopied ? <span>Copied</span> : <span>Copy JSON</span>}
@@ -95,37 +77,6 @@ const RoCrateContent: React.FC<RoCrateContentProps> = ({ jsonObject, error }) =>
       )}
     </div>
   )
-}
-
-// --- STYLES ---
-
-const contentWrapperStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  height: '100%',
-  minHeight: '1000px',
-  minWidth: '800px',
-  overflow: 'hidden',
-}
-
-const headerStyle: React.CSSProperties = {
-  borderBottom: '1px solid var(--theia-tree-indentGuidesStroke)',
-  paddingBottom: '10px',
-  marginBottom: '10px',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  flexShrink: 0,
-}
-
-const jsonContainerStyle: React.CSSProperties = {
-  backgroundColor: '#2d2d2d',
-  padding: '10px',
-  borderRadius: '4px',
-  overflowY: 'auto',
-  flexGrow: 1,
-  border: '1px solid var(--theia-tree-indentGuidesStroke)',
-  cursor: 'text',
 }
 
 // --- THEIA DIALOG CLASS ---
