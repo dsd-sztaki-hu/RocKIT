@@ -5,9 +5,6 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import * as React from 'react'
 import ReactJson from 'react-json-view'
 
-const RO_CRATE_METADATA_FILE = 'ro-crate-metadata.json'
-
-// --- JSON COMPONENT ---
 const RoCrateJsonView = React.memo<{ jsonObject: any }>(({ jsonObject }) => {
   return (
     <div style={jsonContainerStyle}>
@@ -24,7 +21,6 @@ const RoCrateJsonView = React.memo<{ jsonObject: any }>(({ jsonObject }) => {
   )
 })
 
-// --- MAIN CONTENT COMPONENT ---
 interface RoCrateContentProps {
   jsonObject: any
   error: string | null
@@ -33,7 +29,6 @@ interface RoCrateContentProps {
 const RoCrateContent: React.FC<RoCrateContentProps> = ({ jsonObject, error }) => {
   const [isCopied, setIsCopied] = React.useState(false)
 
-  // --- COPY HANDLER ---
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation()
     try {
@@ -61,9 +56,7 @@ const RoCrateContent: React.FC<RoCrateContentProps> = ({ jsonObject, error }) =>
         >
           <i className="fa fa-code" style={{ color: 'var(--theia-brand-color)' }} />
           RO-Crate Source:
-          <span style={{ color: '#ce9178', fontFamily: 'monospace' }}>
-            {RO_CRATE_METADATA_FILE}
-          </span>
+          <span style={{ color: '#ce9178', fontFamily: 'monospace' }}>AppState</span>
         </h3>
 
         <button
@@ -91,7 +84,6 @@ const RoCrateContent: React.FC<RoCrateContentProps> = ({ jsonObject, error }) =>
         </button>
       </div>
 
-      {/* Content Area */}
       {error ? (
         <div style={{ marginTop: '10px' }}>
           <AlertMessage type="ERROR" header="Error">
@@ -127,7 +119,7 @@ const headerStyle: React.CSSProperties = {
 }
 
 const jsonContainerStyle: React.CSSProperties = {
-  backgroundColor: '#2d2d2d', // Or use var(--theia-editor-background)
+  backgroundColor: '#2d2d2d',
   padding: '10px',
   borderRadius: '4px',
   overflowY: 'auto',
@@ -152,10 +144,8 @@ export class ROCratePreviewDialog extends ReactDialog<string> {
     let error: string | null = null
 
     try {
-      // Fetch data directly from the service when rendering
       jsonObject = this.appStateService.roCrate || {}
 
-      // Optional: Check if object is empty to show a friendly message
       if (Object.keys(jsonObject).length === 0) {
         error = 'The RO-Crate object is empty or could not be loaded.'
       }
@@ -166,7 +156,6 @@ export class ROCratePreviewDialog extends ReactDialog<string> {
     return <RoCrateContent jsonObject={jsonObject} error={error} />
   }
 
-  // Standard Dialog value getter
   get value(): string {
     return ''
   }
