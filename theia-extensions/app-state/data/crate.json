@@ -1,14 +1,567 @@
-{ "@context": "https://w3id.org/ro/crate/1.1/context", 
+{
+  "@context": [
+    "https://w3id.org/ro/crate/1.1/context",
+    {
+      "@arpPid": "https://dataverse.org/schema/file/arpPid",
+      "hasPart": "https://schema.org/hasPart",
+      "author": "http://purl.org/dc/terms/creator",
+      "subject": "http://purl.org/dc/terms/subject",
+      "dsDescriptionValue": "https://dataverse.org/schema/citation/dsDescriptionValue",
+      "producerName": "https://dataverse.org/schema/citation/producerName",
+      "description": "https://schema.org/description",
+      "title": "http://purl.org/dc/terms/title",
+      "datasetContact": "https://dataverse.org/schema/citation/datasetContact",
+      "authorAffiliation": "https://dataverse.org/schema/citation/authorAffiliation",
+      "datasetContactName": "https://dataverse.org/schema/citation/datasetContactName",
+      "datePublished": "https://schema.org/datePublished",
+      "license": "https://schema.org/license",
+      "datasetContactEmail": "https://dataverse.org/schema/citation/datasetContactEmail",
+      "authorName": "https://dataverse.org/schema/citation/authorName",
+      "dsDescription": "https://dataverse.org/schema/citation/dsDescription",
+      "subtitle": "https://dataverse.org/schema/citation/subtitle",
+      "contentSize": "https://schema.org/contentSize",
+      "producer": "https://dataverse.org/schema/citation/producer",
+      "encodingFormat": "https://schema.org/encodingFormat",
+      "softwareVersion": "https://dataverse.org/schema/citation/softwareVersion"
+    }
+  ],
   "@graph": [
     {
-        "@type": "CreativeWork",
-        "@id": "ro-crate-metadata.json",
-        "conformsTo": {"@id": "https://w3id.org/ro/crate/1.1"},
-        "about": {"@id": "./"}
+      "@id": "./",
+      "@type": "Dataset",
+      "name": "dinosaurs",
+      "title": "The Age of the Dinosaurs",
+      "author": [
+        {
+          "@id": "https://w3id.org/arp/dev/ro-id/hdl:21.T15999/DSDDEV/6KDQ2L/author/6373"
+        },
+        {
+          "@id": "https://w3id.org/arp/dev/ro-id/hdl:21.T15999/DSDDEV/6KDQ2L/author/6375"
+        },
+        {
+          "@id": "https://w3id.org/arp/dev/ro-id/hdl:21.T15999/DSDDEV/6KDQ2L/author/6551"
+        }
+      ],
+      "datasetContact": {
+        "@id": "https://w3id.org/arp/dev/ro-id/hdl:21.T15999/DSDDEV/6KDQ2L/datasetContact/6374"
+      },
+      "dsDescription": {
+        "@id": "https://w3id.org/arp/dev/ro-id/hdl:21.T15999/DSDDEV/6KDQ2L/dsDescription/6371"
+      },
+      "subject": "Earth and Environmental Sciences",
+      "producer": {
+        "@id": "https://w3id.org/arp/dev/ro-id/hdl:21.T15999/DSDDEV/6KDQ2L/producer/6372"
+      },
+      "license": "https://creativecommons.org/licenses/by-nc/4.0/",
+      "datePublished": "2025-09-09",
+      "hasPart": [
+        {
+          "@id": "dino11.jpg"
+        },
+        {
+          "@id": "dir2/"
+        },
+        {
+          "@id": "dir1/"
+        },
+        {
+          "@id": "dir3/"
+        },
+        {
+          "@id": "dinosaur_article.pdf"
+        },
+        {
+          "@id": "dino6.jpg"
+        }
+      ],
+      "@arpPid": "hdl:21.T15999/DSDDEV/6KDQ2L",
+      "subtitle": "some subtitle",
+      "conformsTo": [
+        {
+          "@id": "https://w3id.org/arp/dev/schema/33677b82-7973-3e4c-b09d-b5189e095627"
+        },
+        {
+          "@id": "https://w3id.org/arp/dev/schema/640c3586-5db2-3a81-a681-c008cf7404fe"
+        },
+        {
+          "@id": "https://w3id.org/arp/dev/schema/fb9141b4-efb6-3dea-ad33-6320b9adb552"
+        },
+        {
+          "@id": "https://w3id.org/arp/dev/schema/c9cac144-6260-33fe-886e-71a42914ef9f"
+        },
+        {
+          "@id": "https://w3id.org/arp/dev/schema/1053e91c-9ad0-3cee-8824-532b6fdbdc10"
+        },
+        {
+          "@id": "https://w3id.org/arp/dev/schema/92e5b89e-6300-3972-9540-c1ab5b93f1d9"
+        },
+        {
+          "@id": "https://repo.cedardev.dsd.sztaki.hu/templates/1ef9b21e-192b-4f8b-9c6a-98beb7af72f8"
+        }
+      ]
     },
     {
-      "@id": "./",
-      "@type": "Dataset"
+      "@id": "ro-crate-metadata.json",
+      "@type": "CreativeWork",
+      "name": "RO-Crate Metadata",
+      "about": {
+        "@id": "./"
+      },
+      "conformsTo": {
+        "@id": "https://w3id.org/ro/crate/1.1"
+      }
+    },
+    {
+      "@id": "dir3/",
+      "@type": "Dataset",
+      "name": "dir3",
+      "hasPart": [
+        {
+          "@id": "dir3/dir3.1/"
+        },
+        {
+          "@id": "dir3/dir3.2/"
+        }
+      ]
+    },
+    {
+      "@id": "dino6.jpg",
+      "@type": "File",
+      "name": "dino6.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "127795"
+    },
+    {
+      "@id": "dir2/dir2.1/dino2.jpg",
+      "@type": "File",
+      "name": "dino2.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "519109"
+    },
+    {
+      "@id": "dir3/dir3.2/dino12.jpg",
+      "@type": "File",
+      "name": "dino12.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "257024"
+    },
+    {
+      "@id": "dir3/dir3.2/",
+      "@type": "Dataset",
+      "name": "dir3.2",
+      "hasPart": [
+        {
+          "@id": "dir3/dir3.2/dino12.jpg"
+        },
+        {
+          "@id": "dir3/dir3.2/dino13.jpg"
+        },
+        {
+          "@id": "dir3/dir3.2/dino14.jpg"
+        },
+        {
+          "@id": "dir3/dir3.2/dino15.jpg"
+        }
+      ]
+    },
+    {
+      "@id": "dir2/dir2.1/dino4.jpg",
+      "@type": "File",
+      "name": "dino4.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "216166"
+    },
+    {
+      "@id": "dir3/dir3.1/dino10.jpg",
+      "@type": "File",
+      "name": "dino10.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "24156"
+    },
+    {
+      "@id": "dir2/",
+      "@type": "Dataset",
+      "name": "dir2",
+      "hasPart": [
+        {
+          "@id": "dir2/dir2.1/"
+        },
+        {
+          "@id": "dir2/dir2.2/"
+        }
+      ]
+    },
+    {
+      "@id": "dino11.jpg",
+      "@type": "File",
+      "name": "dino11.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "916716"
+    },
+    {
+      "@id": "dir2/dir2.1/dino3.jpg",
+      "@type": "File",
+      "name": "dino3.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "152689"
+    },
+    {
+      "@id": "dir3/dir3.2/dino13.jpg",
+      "@type": "File",
+      "name": "dino13.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "90321"
+    },
+    {
+      "@id": "dir1/",
+      "@type": "Dataset",
+      "name": "dir1",
+      "hasPart": [
+        {
+          "@id": "dir1/dir1.1/"
+        },
+        {
+          "@id": "dir1/dir1.2/"
+        }
+      ]
+    },
+    {
+      "@id": "dir3/dir3.2/dino14.jpg",
+      "@type": "File",
+      "name": "dino14.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "335350"
+    },
+    {
+      "@id": "dir1/dir1.2/",
+      "@type": "Dataset",
+      "name": "dir1.2"
+    },
+    {
+      "@id": "dir2/dir2.2/dino5.jpg",
+      "@type": "File",
+      "name": "dino5.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "170804"
+    },
+    {
+      "@id": "dir2/dir2.1/",
+      "@type": "Dataset",
+      "name": "dir2.1",
+      "hasPart": [
+        {
+          "@id": "dir2/dir2.1/dino2.jpg"
+        },
+        {
+          "@id": "dir2/dir2.1/dino3.jpg"
+        },
+        {
+          "@id": "dir2/dir2.1/dino4.jpg"
+        }
+      ]
+    },
+    {
+      "@id": "dir1/dir1.1/dino1.jpg",
+      "@type": "File",
+      "name": "dino1.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "33188"
+    },
+    {
+      "@id": "dir3/dir3.1/dino8.jpg",
+      "@type": "File",
+      "name": "dino8.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "261408"
+    },
+    {
+      "@id": "dir2/dir2.2/",
+      "@type": "Dataset",
+      "name": "dir2.2",
+      "hasPart": {
+        "@id": "dir2/dir2.2/dino5.jpg"
+      }
+    },
+    {
+      "@id": "dir3/dir3.2/dino15.jpg",
+      "@type": "File",
+      "name": "dino15.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "210319"
+    },
+    {
+      "@id": "dir3/dir3.1/dino9.jpg",
+      "@type": "File",
+      "name": "dino9.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "147272"
+    },
+    {
+      "@id": "dir1/dir1.1/",
+      "@type": "Dataset",
+      "name": "dir1.1",
+      "hasPart": {
+        "@id": "dir1/dir1.1/dino1.jpg"
+      }
+    },
+    {
+      "@id": "dir3/dir3.1/dino7.jpg",
+      "@type": "File",
+      "name": "dino7.jpg",
+      "encodingFormat": "image/jpeg",
+      "contentSize": "216361"
+    },
+    {
+      "@id": "dinosaur_article.pdf",
+      "@type": "File",
+      "name": "dinosaur_article.pdf",
+      "encodingFormat": "application/pdf",
+      "contentSize": "2089"
+    },
+    {
+      "@id": "dir3/dir3.1/",
+      "@type": "Dataset",
+      "name": "dir3.1",
+      "hasPart": [
+        {
+          "@id": "dir3/dir3.1/dino10.jpg"
+        },
+        {
+          "@id": "dir3/dir3.1/dino7.jpg"
+        },
+        {
+          "@id": "dir3/dir3.1/dino8.jpg"
+        },
+        {
+          "@id": "dir3/dir3.1/dino9.jpg"
+        }
+      ]
+    },
+    {
+      "@id": "https://w3id.org/arp/dev/ro-id/hdl:21.T15999/DSDDEV/6KDQ2L/datasetContact/6374",
+      "@type": "datasetContact",
+      "name": "Reka",
+      "datasetContactName": "Reka",
+      "datasetContactEmail": "csontosreka@sztaki.hu"
+    },
+    {
+      "@id": "https://w3id.org/arp/dev/ro-id/hdl:21.T15999/DSDDEV/6KDQ2L/author/6551",
+      "@type": "author",
+      "name": "Csontos Reka",
+      "authorName": "Csontos Reka",
+      "authorAffiliation": "Institute of Paleontological Studies"
+    },
+    {
+      "@id": "#9f17cfc2-c342-422f-a0d0-0e735c59855d",
+      "@type": "UpdateAction",
+      "name": "9f17cfc2-c342-422f-a0d0-0e735c59855d",
+      "result": {
+        "@id": "./"
+      },
+      "startTime": "2025-09-23T13:17:17.398083060Z",
+      "agent": {
+        "@id": "#ro-crate-java-2.1.0-rc3"
+      }
+    },
+    {
+      "@id": "https://w3id.org/arp/dev/ro-id/hdl:21.T15999/DSDDEV/6KDQ2L/author/6375",
+      "@type": "author",
+      "name": "John Smith",
+      "authorName": "John Smith",
+      "authorAffiliation": "Institute of Paleontological Studies"
+    },
+    {
+      "@id": "#6123af55-db25-472f-bf2c-c283aa526a52",
+      "@type": "UpdateAction",
+      "name": "6123af55-db25-472f-bf2c-c283aa526a52",
+      "result": {
+        "@id": "./"
+      },
+      "startTime": "2025-09-23T13:19:36.123803431Z",
+      "agent": {
+        "@id": "#ro-crate-java-2.1.0-rc3"
+      }
+    },
+    {
+      "@id": "#297677fa-502b-439e-90d6-af2758e79e24",
+      "@type": "UpdateAction",
+      "name": "297677fa-502b-439e-90d6-af2758e79e24",
+      "result": {
+        "@id": "./"
+      },
+      "startTime": "2025-09-23T13:18:45.970445003Z",
+      "agent": {
+        "@id": "#ro-crate-java-2.1.0-rc3"
+      }
+    },
+    {
+      "@id": "#14642722-cadb-4171-9cd8-7e5c9d5f922c",
+      "@type": "UpdateAction",
+      "name": "14642722-cadb-4171-9cd8-7e5c9d5f922c",
+      "result": {
+        "@id": "./"
+      },
+      "startTime": "2025-09-23T13:18:53.050589862Z",
+      "agent": {
+        "@id": "#ro-crate-java-2.1.0-rc3"
+      }
+    },
+    {
+      "@id": "#aa7c47f1-8a75-400d-8596-258a7194af46",
+      "@type": "UpdateAction",
+      "name": "aa7c47f1-8a75-400d-8596-258a7194af46",
+      "result": {
+        "@id": "./"
+      },
+      "startTime": "2025-09-23T13:17:20.898863709Z",
+      "agent": {
+        "@id": "#ro-crate-java-2.1.0-rc3"
+      }
+    },
+    {
+      "@id": "#264c8715-20ae-4068-ade2-563e6d5d86f9",
+      "@type": "UpdateAction",
+      "name": "264c8715-20ae-4068-ade2-563e6d5d86f9",
+      "result": {
+        "@id": "./"
+      },
+      "startTime": "2025-09-23T12:35:13.955812239Z",
+      "agent": {
+        "@id": "#ro-crate-java-2.1.0-rc3"
+      }
+    },
+    {
+      "@id": "#cdab84a9-4e92-4b86-a855-0cad9286f1f9",
+      "@type": "UpdateAction",
+      "name": "cdab84a9-4e92-4b86-a855-0cad9286f1f9",
+      "result": {
+        "@id": "./"
+      },
+      "startTime": "2025-09-23T13:18:49.350204976Z",
+      "agent": {
+        "@id": "#ro-crate-java-2.1.0-rc3"
+      }
+    },
+    {
+      "@id": "#8526cb86-0a98-45fd-9f35-97e8030ad3bc",
+      "@type": "UpdateAction",
+      "name": "8526cb86-0a98-45fd-9f35-97e8030ad3bc",
+      "result": {
+        "@id": "./"
+      },
+      "startTime": "2025-09-23T13:19:31.785238496Z",
+      "agent": {
+        "@id": "#ro-crate-java-2.1.0-rc3"
+      }
+    },
+    {
+      "@id": "https://w3id.org/arp/dev/ro-id/hdl:21.T15999/DSDDEV/6KDQ2L/producer/6372",
+      "@type": "producer",
+      "name": "Institute of Paleontological Studies",
+      "producerName": "Institute of Paleontological Studies"
+    },
+    {
+      "@id": "https://w3id.org/arp/dev/ro-id/hdl:21.T15999/DSDDEV/6KDQ2L/author/6373",
+      "@type": "author",
+      "name": "Jane Doe",
+      "authorName": "Jane Doe",
+      "authorAffiliation": "Institute of Paleontological Studies"
+    },
+    {
+      "@id": "#49299851-3e53-4089-83c8-9c77c02048bc",
+      "@type": "UpdateAction",
+      "name": "49299851-3e53-4089-83c8-9c77c02048bc",
+      "result": {
+        "@id": "./"
+      },
+      "startTime": "2025-09-23T13:18:42.271830436Z",
+      "agent": {
+        "@id": "#ro-crate-java-2.1.0-rc3"
+      }
+    },
+    {
+      "@id": "#5aa62115-5dd6-465d-b157-ddf021bd9bcc",
+      "@type": "UpdateAction",
+      "name": "5aa62115-5dd6-465d-b157-ddf021bd9bcc",
+      "result": {
+        "@id": "./"
+      },
+      "startTime": "2025-09-23T13:19:28.022850629Z",
+      "agent": {
+        "@id": "#ro-crate-java-2.1.0-rc3"
+      }
+    },
+    {
+      "@id": "#ro-crate-java-2.1.0-rc3",
+      "@type": "SoftwareApplication",
+      "name": "ro-crate-java",
+      "url": "https://github.com/kit-data-manager/ro-crate-java",
+      "version": "2.1.0-rc3",
+      "softwareVersion": "2.1.0-rc3",
+      "license": "Apache-2.0",
+      "description": "A Java library for creating and manipulating RO-Crates",
+      "Action": [
+        {
+          "@id": "ef5fbb65-c0ff-4d2c-ae0e-96040307845e"
+        },
+        {
+          "@id": "e6e969d3-767b-426c-a343-5210769aa717"
+        },
+        {
+          "@id": "31f24dc0-920f-4a90-875b-5b81ff66e4e2"
+        },
+        {
+          "@id": "958d839c-17c9-4d2b-9c50-dbd38daea7bf"
+        },
+        {
+          "@id": "8d588f28-dab7-4df5-af53-b890fa597d5a"
+        },
+        {
+          "@id": "dd41fcc5-3b38-4350-a1a0-b1b3ac51fb7d"
+        },
+        {
+          "@id": "531c0fef-babb-47d8-ae18-7f405379143b"
+        },
+        {
+          "@id": "2f592e69-8d09-45cf-9bbe-52218cc21abd"
+        },
+        {
+          "@id": "#264c8715-20ae-4068-ade2-563e6d5d86f9"
+        },
+        {
+          "@id": "#9f17cfc2-c342-422f-a0d0-0e735c59855d"
+        },
+        {
+          "@id": "#aa7c47f1-8a75-400d-8596-258a7194af46"
+        },
+        {
+          "@id": "#49299851-3e53-4089-83c8-9c77c02048bc"
+        },
+        {
+          "@id": "#297677fa-502b-439e-90d6-af2758e79e24"
+        },
+        {
+          "@id": "#cdab84a9-4e92-4b86-a855-0cad9286f1f9"
+        },
+        {
+          "@id": "#14642722-cadb-4171-9cd8-7e5c9d5f922c"
+        },
+        {
+          "@id": "#5aa62115-5dd6-465d-b157-ddf021bd9bcc"
+        },
+        {
+          "@id": "#8526cb86-0a98-45fd-9f35-97e8030ad3bc"
+        },
+        {
+          "@id": "#6123af55-db25-472f-bf2c-c283aa526a52"
+        }
+      ]
+    },
+    {
+      "@id": "https://w3id.org/arp/dev/ro-id/hdl:21.T15999/DSDDEV/6KDQ2L/dsDescription/6371",
+      "@type": "dsDescription",
+      "name": "Description of Dinosaurs",
+      "dsDescriptionValue": "This article provides a brief overview of the age of dinosaurs, including their origins, habitats, behavior, and extinction. It highlights the fascinating story of these ancient reptiles and their legacy in modern birds."
     }
   ]
 }
