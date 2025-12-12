@@ -1,12 +1,37 @@
 #widget-container h2 {
-    color: var(--theia-ui-font-color1);
-    font-size: 12px;
-    font-weight: 400;
-    padding: 10px;
-    text-transform: uppercase;
+  color: var(--theia-ui-font-color1);
+  font-size: 12px;
+  font-weight: 400;
+  padding: 10px;
+  text-transform: uppercase;
 }
 
 .schema-property-item:hover {
-    background-color: #e3f2fd;
-    cursor: pointer;
+  background-color: #e3f2fd;
+  cursor: pointer;
+}
+
+.propertySelectorModalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 99999;
+}
+
+.propertySelectorModalContent {
+  background-color: white;
+  padding: 20px;
+  border-radius: 5px;
+  width: 800px;
+  height: 600px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.propertySelectorPropertyListItem {
+  padding: 5px 6px;
+  border-bottom: 1px dotted #eee;
+  transition: background-color 0.15s ease;
 }
