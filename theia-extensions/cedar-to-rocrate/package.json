@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "TypeScript implementation of CedarTemplateToDescriboProfileConverter",
   "type": "module",
-  "main": "cedar-converter.ts",
+  "main": "dist/cedar-converter.js",
+  "types": "dist/cedar-converter.d.ts",
   "scripts": {
     "test": "tsx cedar-converter.test.ts",
     "test:compile": "tsc && node cedar-converter.test.js",

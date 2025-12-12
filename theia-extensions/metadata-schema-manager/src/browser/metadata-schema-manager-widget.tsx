@@ -11,7 +11,7 @@ import { inject, injectable } from 'inversify';
 import * as React from 'react';
 import type { Root } from 'react-dom/client';
 
-import { CedarTemplateToDescriboProfileConverter } from './cedar-converter';
+import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
 import { SchemaTable } from './schema-table';
 import type { SchemaInfo } from './types';
 import '../../src/browser/style/index.css';
