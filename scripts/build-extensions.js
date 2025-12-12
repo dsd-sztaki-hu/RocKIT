@@ -9,13 +9,17 @@ const { execSync } = require('child_process');
  */
 const extensionTasks = [
     { 
+        name: 'cedar-template-converter', 
+        command: 'yarn workspace cedar-template-converter build' 
+    },
+    { 
         name: 'file-preview', 
         command: 'yarn workspace file-preview build' 
     },
     { 
         name: 'metadata-schema-manager', 
         command: 'yarn workspace metadata-schema-manager build' 
-    },
+    }
     // Future example:
     // { name: 'new-extension', command: 'yarn workspace new-extension build' }
 ];

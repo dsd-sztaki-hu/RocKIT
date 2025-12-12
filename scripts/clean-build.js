@@ -38,7 +38,7 @@ rootFoldersToDelete.forEach(folderName => {
     removePath(path.join(rootDir, folderName));
 });
 
-// TASK B: Clean Extensions (node_modules, lib, src-gen)
+// TASK B: Clean Extensions (node_modules, lib, dist)
 if (fs.existsSync(extensionDir)) {
     const extensions = fs.readdirSync(extensionDir);
     extensions.forEach(ext => {
@@ -47,6 +47,7 @@ if (fs.existsSync(extensionDir)) {
         if (fs.statSync(extPath).isDirectory()) {
             removePath(path.join(extPath, 'node_modules'));
             removePath(path.join(extPath, 'lib'));
+            removePath(path.join(extPath, 'dist'));
         }
     });
 }
