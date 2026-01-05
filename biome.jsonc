@@ -31,7 +31,8 @@
         "useKeyWithClickEvents": "off"
       },
       "style": {
-        "useTemplate": "off"
+        "useTemplate": "off",
+        "useImportType": "off"
       }
     }
   },
