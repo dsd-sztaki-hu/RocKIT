@@ -16,6 +16,9 @@ node_modules
 *.log
 
 lib
+dist
 *-app/*
 !*-app/package.json
 *.tsbuildinfo
+yarn.lock
+.env

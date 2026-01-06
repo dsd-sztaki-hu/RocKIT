@@ -6,6 +6,7 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from './app-state-service'
+import { ROCrateDialog } from './ro-crate-dialog'
 // import { loadInitialCrateAndProfile } from './initial-state-loader'
 
 @injectable()
@@ -56,7 +57,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     const roots = this.workspaceService.tryGetRoots()
 
     if (!roots || roots.length === 0) {
-      this.updateState(undefined)
+      this.updateState(undefined, false)
       return
     }
 
@@ -64,36 +65,49 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
     try {
       const roCrateUri = rootUri.resolve('ro-crate-metadata.json')
-
       const exists = await this.fileService.exists(roCrateUri)
 
       if (exists) {
         const content = await this.fileService.read(roCrateUri)
 
         try {
-          // Parse the string content into a JSON object
           const jsonContent = JSON.parse(content.value)
-          this.updateState(jsonContent)
+          this.updateState(jsonContent, false)
         } catch (parseError) {
-          console.error(
-            'Parsing error: ',
-            parseError,
-            ' for content: ',
-            content.value,
-            '',
-          )
-          this.updateState(undefined)
+          console.error('Parsing error: ', parseError)
+
+          this.updateState(undefined, true)
+
+          const dialog = new ROCrateDialog(this.workspaceService, this.fileService)
+          await dialog.open()
+
+          const roCrateUri = rootUri.resolve('ro-crate-metadata.json')
+          const content = await this.fileService.read(roCrateUri)
+
+          const jsonContent = JSON.parse(content.value)
+          this.updateState(jsonContent, false)
         }
       } else {
-        this.updateState(undefined)
+        this.updateState(undefined, false)
+        const dialog = new ROCrateDialog(this.workspaceService, this.fileService, false)
+        await dialog.open()
+
+        const roCrateUri = rootUri.resolve('ro-crate-metadata.json')
+        const content = await this.fileService.read(roCrateUri)
+
+        const jsonContent = JSON.parse(content.value)
+        this.updateState(jsonContent, false)
       }
     } catch (error) {
-      console.error('Error reading ro-crate-metadata.json: ', error)
-      this.updateState(undefined)
+      this.updateState(undefined, true)
     }
   }
 
-  private updateState(content: Record<string, any> | undefined): void {
+  private updateState(
+    content: Record<string, any> | undefined,
+    isInvalid: boolean,
+  ): void {
     this.appStateService.roCrate = content
+    this.appStateService.isROCrateInvalid = isInvalid
   }
 }
