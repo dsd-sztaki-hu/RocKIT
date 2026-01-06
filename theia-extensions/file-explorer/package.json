@@ -39,6 +39,7 @@
   ],
   "scripts": {
     "build": "theiaext build && node scripts/copy-css.js",
+    "postbuild": "rimraf tsconfig.tsbuildinfo",
     "clean": "theiaext clean",
     "compile": "theiaext compile",
     "lint": "theiaext lint",
@@ -46,7 +47,8 @@
     "watch": "theiaext watch"
   },
   "devDependencies": {
-    "@theia/ext-scripts": "1.65.2"
+    "@theia/ext-scripts": "1.65.2",
+    "rimraf": "6.0.0"
   },
   "nyc": {
     "extends": "../../configs/nyc.json"
