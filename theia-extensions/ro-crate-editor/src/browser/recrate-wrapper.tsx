@@ -19,6 +19,7 @@ export const DescriboCrateBuilderWrapper = ({
     const lastNavTarget = React.useRef<string | undefined>(undefined);
     const prevEntityIdRef = React.useRef<string | undefined>(undefined);
     const transitionTimeoutRef = React.useRef<any>(null);
+    const containerRef = React.useRef<HTMLDivElement>(null);
 
     React.useEffect(() => {
         if (prevEntityIdRef.current !== currentEntityId) {
@@ -57,6 +58,13 @@ export const DescriboCrateBuilderWrapper = ({
             lastNavTarget.current = undefined;
         };
     }, []);
+    React.useEffect(() => {
+        requestAnimationFrame(() => {
+            containerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+            containerRef.current?.closest('.rocrate-editor')?.scrollTo({ top: 0, behavior: 'auto' });
+            window.scrollTo({ top: 0, behavior: 'auto' });
+        });
+    }, [currentEntityId]);
 
     const handleNavigationWrapper = React.useCallback((entity: any) => {
         const nextId = entity && entity["@id"];
@@ -81,9 +89,10 @@ export const DescriboCrateBuilderWrapper = ({
     }, [currentEntityId, onNavigation, entityId]);
 
     return (
-        <div>
+        <div ref={containerRef}>
             {loading && <div style={{ padding: '0.5rem', color: '#888' }}>Loading entity...</div>}
             <DescriboCrateBuilder
+                key={currentEntityId}
                 crate={crate}
                 profile={profile}
                 entityId={currentEntityId}
