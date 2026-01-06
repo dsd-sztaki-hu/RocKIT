@@ -166,8 +166,9 @@ export class DatasetPanelWidget extends ReactWidget {
           treeData={treeData}
           height={500}
           showIcon
-          expandedKeys={this.expandedKeys}
-          onExpand={(keys) => { this.expandedKeys = keys as string[]; this.update(); }}
+          defaultExpandedKeys={["./"]}
+          // expandedKeys={this.expandedKeys}
+          // onExpand={(keys) => { this.expandedKeys = keys as string[]; this.update(); }}
           titleRender={(item) => {
             const title = item.title as React.ReactNode;
             const isFolder = Array.isArray(item.children) && item.children.length > 0;
