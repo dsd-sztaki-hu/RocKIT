@@ -2,6 +2,7 @@
 export const defaultAppState = {
   roCrate: undefined as Record<string, any> | undefined,
   profile: undefined as Record<string, any> | undefined,
+  selectedEntityId: undefined as string | undefined,
   isROCrateInvalid: false,
   dirty: false,
   theme: 'light' as 'light' | 'dark',

@@ -7,7 +7,7 @@ import type { AppState } from './app-state';
  * loading from local JSON files.
  */
 export async function loadInitialCrateAndProfile(): Promise<
-  Pick<AppState, 'roCrate' | 'profile'>
+  Pick<AppState, 'roCrate' | 'profile' | 'selectedEntityId'>
 > {
   try {
     // Dynamically import the JSON files.
@@ -20,6 +20,7 @@ export async function loadInitialCrateAndProfile(): Promise<
     return {
       roCrate: crateData.default,
       profile: profileData.default,
+      selectedEntityId: undefined,
     };
   } catch (error) {
     console.error('Failed to load initial crate or profile data:', error);
@@ -28,6 +29,7 @@ export async function loadInitialCrateAndProfile(): Promise<
     return {
       roCrate: undefined,
       profile: undefined,
+      selectedEntityId: undefined,
     };
   }
 }

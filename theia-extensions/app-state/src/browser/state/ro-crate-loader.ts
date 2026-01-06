@@ -7,6 +7,7 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from './app-state-service'
 import { ROCrateDialog } from './ro-crate-dialog'
+// import { loadInitialCrateAndProfile } from './initial-state-loader'
 
 @injectable()
 export class RoCrateLoaderContribution implements FrontendApplicationContribution {
@@ -18,6 +19,31 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
   @inject(FileService)
   protected readonly fileService: FileService
+
+  // With this hack we can use the local crate.json and profile.json files for testing purposes
+  // async onStart(app: FrontendApplication): Promise<void> {
+  //   await this.appStateService.ready // Wait for AppStateService to be ready
+  //   // await this.syncRoCrateFromWorkspace()
+  //   const { roCrate, profile, selectedEntityId } = await loadInitialCrateAndProfile()
+  //   console.log('Setting roCrate in AppStateService:', roCrate);
+  //   this.appStateService.roCrate = roCrate
+  //   console.log('Setting profile in AppStateService:', profile);
+  //   this.appStateService.profile = profile
+  //   console.log('Setting selectedEntityId in AppStateService:', selectedEntityId);
+  //   this.appStateService.selectedEntityId = selectedEntityId
+
+  //   this.workspaceService.onWorkspaceChanged(async (roots) => {
+  //     await this.appStateService.ready // Wait for AppStateService to be ready
+  //     // await this.syncRoCrateFromWorkspace()
+  //     const { roCrate, profile, selectedEntityId } = await loadInitialCrateAndProfile()
+  //     console.log('Setting roCrate in AppStateService (onWorkspaceChanged):', roCrate);
+  //     this.appStateService.roCrate = roCrate
+  //     console.log('Setting profile in AppStateService (onWorkspaceChanged):', profile);
+  //     this.appStateService.profile = profile
+  //     console.log('Setting selectedEntityId in AppStateService (onWorkspaceChanged):', selectedEntityId);
+  //     this.appStateService.selectedEntityId = selectedEntityId
+  //   })
+  // }
 
   async onStart(app: FrontendApplication): Promise<void> {
     await this.syncRoCrateFromWorkspace()
