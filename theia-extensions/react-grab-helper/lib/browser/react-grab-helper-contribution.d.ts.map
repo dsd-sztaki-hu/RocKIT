@@ -1,0 +1,1 @@
+{"version":3,"file":"react-grab-helper-contribution.d.ts","sourceRoot":"","sources":["../../src/browser/react-grab-helper-contribution.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,mBAAmB,EAAE,+BAA+B,EAAE,MAAM,yBAAyB,CAAC;AAG/F,qBACa,sBAAuB,YAAW,+BAA+B;IAEpE,OAAO,CAAC,GAAG,EAAE,mBAAmB,GAAG,OAAO,CAAC,IAAI,CAAC;CAazD"}
