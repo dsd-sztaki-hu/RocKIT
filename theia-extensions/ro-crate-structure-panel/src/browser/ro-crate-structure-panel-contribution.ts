@@ -7,22 +7,22 @@ import {
 } from '@theia/core/lib/browser'
 import type { Command, CommandRegistry } from '@theia/core/lib/common/command'
 import { inject, injectable } from 'inversify'
-import { DatasetPanelWidget } from './dataset-panel-widget'
+import { RoCrateStructurePanelWidget } from './ro-crate-structure-panel-widget'
 
 export const DatasetPanelCommand: Command = {
   id: 'dataset-panel:command',
-  label: 'Open New Dataset Panel',
+  label: 'Open New RO-Crate Structure Panel',
 }
 
 @injectable()
-export class DatasetPanelContribution extends AbstractViewContribution<DatasetPanelWidget> {
+export class RoCrateStructurePanelContribution extends AbstractViewContribution<RoCrateStructurePanelWidget> {
   constructor(
     @inject(WidgetManager) protected readonly widgetManager: WidgetManager,
     @inject(ApplicationShell) protected readonly shell: ApplicationShell,
   ) {
     super({
-      widgetId: DatasetPanelWidget.ID,
-      widgetName: 'Dataset Panel',
+      widgetId: RoCrateStructurePanelWidget.ID,
+      widgetName: 'RO-Crate Structure Panel',
       defaultWidgetOptions: { area: 'main' },
     })
   }
@@ -30,9 +30,12 @@ export class DatasetPanelContribution extends AbstractViewContribution<DatasetPa
   registerCommands(registry: CommandRegistry): void {
     registry.registerCommand(DatasetPanelCommand, {
       execute: async () => {
-        const widget = await this.widgetManager.getOrCreateWidget(DatasetPanelWidget.ID, {
-          instance: Math.random().toString(),
-        })
+        const widget = await this.widgetManager.getOrCreateWidget(
+          RoCrateStructurePanelWidget.ID,
+          {
+            instance: Math.random().toString(),
+          },
+        )
         this.shell.addWidget(widget, { area: 'main' })
         this.shell.activateWidget(widget.id)
       },

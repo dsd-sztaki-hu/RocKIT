@@ -1,18 +1,18 @@
 import { bindViewContribution, WidgetFactory } from '@theia/core/lib/browser'
 import { ContainerModule } from '@theia/core/shared/inversify'
-import { DatasetPanelContribution } from './dataset-panel-contribution'
-import { DatasetPanelWidget } from './dataset-panel-widget'
+import { RoCrateStructurePanelContribution } from './ro-crate-structure-panel-contribution'
+import { RoCrateStructurePanelWidget } from './ro-crate-structure-panel-widget'
 
 import '../../src/browser/style/index.css'
 
 export default new ContainerModule((bind) => {
-  bind(DatasetPanelWidget).toSelf()
-  bindViewContribution(bind, DatasetPanelContribution)
+  bind(RoCrateStructurePanelWidget).toSelf()
+  bindViewContribution(bind, RoCrateStructurePanelContribution)
   bind(WidgetFactory)
     .toDynamicValue((ctx) => ({
-      id: DatasetPanelWidget.ID,
+      id: RoCrateStructurePanelWidget.ID,
       createWidget: (options: any) => {
-        const widget = ctx.container.get(DatasetPanelWidget)
+        const widget = ctx.container.get(RoCrateStructurePanelWidget)
         widget.initialize(options)
         return widget
       },

@@ -1,5 +1,5 @@
 {
-  "name": "dataset-panel",
+  "name": "ro-crate-structure-panel",
   "keywords": [
     "theia-extension"
   ],
@@ -32,7 +32,7 @@
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/dataset-panel-frontend-module"
+      "frontend": "lib/browser/ro-crate-structure-panel-frontend-module"
     }
   ]
 }
