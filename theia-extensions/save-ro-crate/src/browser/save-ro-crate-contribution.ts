@@ -53,16 +53,17 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
    * Checks if the active widget is one of your RO-Crate editors
    */
   private isRoCrateEditorFocused(): boolean {
-    const activeWidget = this.shell.activeWidget
+    const activeWidget = this.shell.activeWidget || this.shell.currentWidget
+
     if (!activeWidget) {
       return false
     }
 
-    if (activeWidget instanceof RoCrateEditorWidget) {
-      return true
-    }
-
-    return activeWidget.id.startsWith(RoCrateEditorWidget.ID)
+    // Check by class instance or ID prefix
+    return (
+      activeWidget instanceof RoCrateEditorWidget ||
+      activeWidget.id.startsWith(RoCrateEditorWidget.ID)
+    )
   }
 
   /**
