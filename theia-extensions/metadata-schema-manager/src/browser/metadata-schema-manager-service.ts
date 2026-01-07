@@ -4,9 +4,9 @@ import { MessageService } from '@theia/core/lib/common/message-service';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { URI } from '@theia/core/lib/common/uri';
-import { Emitter, Event } from '@theia/core/lib/common/event'; // Import Event tools
+import { Emitter, Event } from '@theia/core/lib/common/event';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
-import { Modal } from 'antd'; // Import UI for the popup
+import { Modal } from 'antd';
 
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
 import type { SchemaInfo } from './types';
@@ -16,6 +16,13 @@ export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
 export const SCHEMA_FIELD_ID = '@id';
 
+/**
+ * Service responsible for managing Metadata Schemas (CEDAR & RO-Crate profiles).
+ * Handles:
+ * 1. Auto-downloading missing schemas referenced in an active RO-Crate.
+ * 2. Importing schemas from Files or URLs (via Widget).
+ * 3. Converting raw CEDAR templates to RO-Crate profiles.
+ */
 @injectable()
 export class SchemaManagerService implements FrontendApplicationContribution {
     
@@ -27,20 +34,21 @@ export class SchemaManagerService implements FrontendApplicationContribution {
     private readonly converter = new CedarTemplateToDescriboProfileConverter();
     private isChecking = false;
 
-    // EVENT EMITTER: Notifies listeners (like the Widget) when data changes
+    // Event Emitter to notify UI when schemas are added/removed
     private readonly onDidChangeSchemasEmitter = new Emitter<void>();
     readonly onDidChangeSchemas: Event<void> = this.onDidChangeSchemasEmitter.event;
 
     @postConstruct()
     init() {
-        this.appStateService.onDidChangeSelector(state => state.roCrate)(
-            (newCrate) => {
-                if (newCrate) {
-                    console.log('[SchemaManager] RO-Crate changed, checking schemas...');
-                    this.checkAndDownloadSchemas(newCrate);
-                }
+        // Listen for RO-Crate changes in the App State
+        this.appStateService.onDidChangeSelector(
+            state => state.roCrate
+        )((newCrate) => {
+            if (newCrate) {
+                console.log('[SchemaManager] RO-Crate changed, initiating schema check...');
+                this.checkAndDownloadSchemas(newCrate);
             }
-        );
+        });
     }
 
     onStart(): void {
@@ -51,25 +59,89 @@ export class SchemaManagerService implements FrontendApplicationContribution {
     }
 
     /* ------------------------------------------------------------------
+       CORE PROCESSING LOGIC
+       ------------------------------------------------------------------ */
+
+    /**
+     * Centralized method to Process and Save a schema.
+     * Steps: Parse JSON -> Validate Metadata -> Convert -> Save to Disk.
+     * * @param rawContent The raw JSON string of the CEDAR template.
+     * @param type Where to save it ('local' or 'remote').
+     * @param originalFileName Optional. If provided, tries to preserve it; otherwise generates one.
+     * @returns The extracted Name of the schema.
+     * @throws Error if validation or conversion fails.
+     */
+    private async processAndSaveSchema(
+        rawContent: string, 
+        type: 'local' | 'remote', 
+        originalFileName?: string
+    ): Promise<string> {
+        let parsedRaw: any;
+        try {
+            parsedRaw = JSON.parse(rawContent);
+        } catch (e) {
+            throw new Error('Invalid JSON format');
+        }
+
+        const schemaName = parsedRaw[SCHEMA_FIELD_NAME];
+        const schemaVersion = parsedRaw[SCHEMA_FIELD_VERSION];
+
+        if (!schemaName || !schemaVersion) {
+            throw new Error(`Missing required fields: ${SCHEMA_FIELD_NAME} or ${SCHEMA_FIELD_VERSION}`);
+        }
+
+        // Generate filename if not provided or if we want to enforce structure for remote files
+        let fileName = originalFileName;
+        if (!fileName || type === 'remote') {
+            fileName = `remote_${schemaName.toLowerCase().replace(/\s+/g, '_')}_v${schemaVersion}.json`;
+        }
+
+        // Convert
+        let convertedContent: string;
+        try {
+            convertedContent = this.converter.processCedarTemplate(rawContent);
+        } catch (convErr) {
+            throw new Error(`Conversion logic failed: ${convErr}`);
+        }
+
+        // Save
+        const root = await this.getAromaRootUri();
+        if (!root) throw new Error('Root directory configuration missing');
+
+        const cedarUri = root.resolve(`metadata-schemas/cedar/${type}/${fileName}`);
+        const roCrateUri = root.resolve(`metadata-schemas/ro-crate/${type}/${fileName}`);
+
+        // Write files in parallel
+        await Promise.all([
+            this.fileService.write(cedarUri, rawContent),
+            this.fileService.write(roCrateUri, convertedContent)
+        ]);
+
+        return schemaName;
+    }
+
+    /* ------------------------------------------------------------------
        AUTO-DOWNLOAD LOGIC
        ------------------------------------------------------------------ */
 
+    /**
+     * Analyzes an RO-Crate to find schemas referenced in 'conformsTo' 
+     * that are missing from the local repository.
+     */
     protected async checkAndDownloadSchemas(roCrate: any): Promise<void> {
-        // Prevent re-entry or running on invalid data
         if (this.isChecking || !roCrate || !roCrate['@graph']) return;
         this.isChecking = true;
 
         try {
-            // 0. Safety Check: Are we online?
             if (!navigator.onLine) {
                 console.warn('[SchemaManager] Offline. Skipping schema check.');
                 return;
             }
 
-            // 1. Extract Schema UUIDs
             const requiredUUIDs = new Set<string>();
             const graph = Array.isArray(roCrate['@graph']) ? roCrate['@graph'] : [roCrate];
 
+            // 1. Extract UUIDs
             for (const entity of graph) {
                 if (entity.conformsTo) {
                     const conformsArray = Array.isArray(entity.conformsTo) ? entity.conformsTo : [entity.conformsTo];
@@ -86,7 +158,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
 
             if (requiredUUIDs.size === 0) return;
 
-            // 2. Filter out schemas we already have
+            // 2. Filter existing
             const missingUUIDs = await this.filterMissingSchemas(Array.from(requiredUUIDs));
 
             if (missingUUIDs.length === 0) {
@@ -94,8 +166,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                 return;
             }
 
-            // 3. USER FEEDBACK: Show Popup Dialog
-            // We wrap this in a Promise to "pause" execution until the user clicks OK
+            // 3. User Consent
             await new Promise<void>((resolve) => {
                 Modal.info({
                     title: 'Missing Metadata Schemas Detected',
@@ -106,16 +177,14 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                 });
             });
 
-            // 4. Download Process with Progress Bar
+            // 4. Download
             await this.messageService.showProgress({
                 text: 'Resolving Missing Schemas...'
             }).then(async progress => {
                 const total = missingUUIDs.length;
                 let completed = 0;
-
                 progress.report({ message: 'Starting downloads...', work: { done: 0, total } });
 
-                // Use Promise.all for parallel downloads (Faster!)
                 const downloadPromises = missingUUIDs.map(async (uuid) => {
                     try {
                         await this.downloadSchema(uuid);
@@ -123,17 +192,13 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                         console.error(`Failed to auto-download ${uuid}`, e);
                     } finally {
                         completed++;
-                        progress.report({ 
-                            message: `Downloading schemas (${completed}/${total})...`, 
-                            work: { done: completed, total } 
-                        });
+                        progress.report({ message: `Downloading (${completed}/${total})...`, work: { done: completed, total } });
                     }
                 });
 
                 await Promise.all(downloadPromises);
             });
 
-            // 5. NOTIFY: Fire event so the Widget updates automatically
             this.onDidChangeSchemasEmitter.fire();
             this.messageService.info('Missing schemas successfully synchronized.');
 
@@ -145,6 +210,34 @@ export class SchemaManagerService implements FrontendApplicationContribution {
         }
     }
 
+    protected async downloadSchema(uuid: string): Promise<void> {
+        const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
+        const apiKey = apiKeyVar?.value;
+
+        let url: string;
+        let headers: any = { 'Content-Type': 'application/json' };
+
+        if (apiKey) {
+            url = `https://repo.schema.researchdata.hu/templates/${uuid}`;
+            headers['Authorization'] = `apiKey ${apiKey}`;
+        } else {
+            const encodedUrl = encodeURIComponent(`https://repo.cedardev.dsd.sztaki.hu/templates/${uuid}`);
+            url = `https://open.cedardev.dsd.sztaki.hu/templates/${encodedUrl}`;
+        }
+
+        const response = await fetch(url, { method: 'GET', headers });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const rawString = await response.text();
+        
+        // Use unified processing method
+        const schemaName = await this.processAndSaveSchema(rawString, 'remote');
+        console.log(`[SchemaManager] Successfully downloaded: ${schemaName}`);
+    }
+
+    /**
+     * Checks filesystem to see which UUIDs are already present.
+     */
     protected async filterMissingSchemas(uuids: string[]): Promise<string[]> {
         const root = await this.getAromaRootUri();
         if (!root) return uuids;
@@ -180,41 +273,71 @@ export class SchemaManagerService implements FrontendApplicationContribution {
         return uuids.filter(uuid => !allFound.has(uuid));
     }
 
-    protected async downloadSchema(uuid: string): Promise<void> {
-        // NOTE: No try-catch here, we let the caller (Promise.all) handle errors
-        const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
-        const apiKey = apiKeyVar?.value;
-
-        let url: string;
-        let headers: any = { 'Content-Type': 'application/json' };
-
-        if (apiKey) {
-            url = `https://repo.schema.researchdata.hu/templates/${uuid}`;
-            headers['Authorization'] = `apiKey ${apiKey}`;
-        } else {
-            const encodedUrl = encodeURIComponent(`https://repo.cedardev.dsd.sztaki.hu/templates/${uuid}`);
-            url = `https://open.cedardev.dsd.sztaki.hu/templates/${encodedUrl}`;
-        }
-
-        const response = await fetch(url, { method: 'GET', headers });
-        
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const rawString = await response.text();
-        
-        const parsed = JSON.parse(rawString);
-        const name = parsed[SCHEMA_FIELD_NAME];
-        const version = parsed[SCHEMA_FIELD_VERSION];
-        
-        if (!name || !version) throw new Error('Invalid schema content');
-
-        const fileName = `remote_${name.toLowerCase().replace(/\s+/g, '_')}_v${version}.json`;
-        await this.saveSchemaPair(fileName, rawString, 'remote');
-    }
-
     /* ------------------------------------------------------------------
-       WIDGET SUPPORT LOGIC
+       WIDGET PUBLIC API
        ------------------------------------------------------------------ */
 
+    /**
+     * Imports schemas from a list of File URIs.
+     * @param fileUris URIs of files selected by user.
+     * @param progress Progress monitor object.
+     */
+    public async importFiles(fileUris: URI[], progress: any): Promise<{ success: number; fail: number }> {
+        let success = 0;
+        let fail = 0;
+        const total = fileUris.length;
+
+        progress.report({ message: 'Reading Files...', work: { done: 0, total } });
+
+        for (let i = 0; i < total; i++) {
+            const fileUri = fileUris[i];
+            const fileName = fileUri.path.base;
+
+            try {
+                const content = await this.fileService.read(fileUri);
+                // Use unified processing method
+                await this.processAndSaveSchema(content.value, 'local', fileName);
+                success++;
+            } catch (error) {
+                fail++;
+                console.error(`Import failed for ${fileName}`, error);
+            }
+            progress.report({ work: { done: i + 1, total } });
+        }
+        
+        progress.report({ message: 'Done', work: { done: total, total } });
+        if (success > 0) this.onDidChangeSchemasEmitter.fire();
+        return { success, fail };
+    }
+
+    /**
+     * Imports a single schema from a given URL.
+     */
+    public async importFromUrl(url: string, apiKey: string, progress: any): Promise<string> {
+        progress.report({ message: 'Downloading...', work: { done: 20, total: 100 } });
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `apiKey ${apiKey}` }
+        });
+
+        if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+        
+        const rawString = await response.text();
+        
+        progress.report({ message: 'Processing...', work: { done: 50, total: 100 } });
+        
+        // Use unified processing method
+        const schemaName = await this.processAndSaveSchema(rawString, 'remote');
+        
+        progress.report({ message: 'Finished', work: { done: 100, total: 100 } });
+        this.onDidChangeSchemasEmitter.fire();
+        return schemaName;
+    }
+
+    /**
+     * Loads all schemas for the UI Table.
+     */
     public async loadAllSchemas(): Promise<SchemaInfo[]> {
         const schemas: SchemaInfo[] = [];
         
@@ -244,12 +367,15 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                         source,
                         path: file.resource.toString()
                     });
-                } catch (e) { /* ignore */ }
+                } catch (e) { /* ignore parse errors */ }
             }
         }
         return schemas;
     }
 
+    /**
+     * Deletes schemas from both CEDAR and RO-Crate folders.
+     */
     public async deleteSchemas(cedarPaths: string[]): Promise<number> {
         let count = 0;
         for (const pathStr of cedarPaths) {
@@ -268,117 +394,31 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                 console.error(`Failed to delete ${pathStr}`, err);
             }
         }
-        // Notify listeners that data changed
         if (count > 0) this.onDidChangeSchemasEmitter.fire();
         return count;
     }
 
-    public async importFiles(fileUris: URI[], progress: any): Promise<{ success: number; fail: number }> {
-        let success = 0;
-        let fail = 0;
-
-        progress.report({ message: 'Reading Files...', work: { done: 0, total: 100 } });
-
-        for (let i = 0; i < fileUris.length; i++) {
-            const fileUri = fileUris[i];
-            const fileName = fileUri.path.base;
-            const percent = Math.floor(((i + 1) / fileUris.length) * 100);
-
-            try {
-                const content = await this.fileService.read(fileUri);
-                await this.processSingleImport(fileName, content.value, 'local', progress);
-                success++;
-            } catch (error) {
-                fail++;
-                console.error(error);
-            }
-            progress.report({ work: { done: percent, total: 100 } });
-        }
-        
-        progress.report({ message: 'Done', work: { done: 100, total: 100 } });
-        
-        if (success > 0) this.onDidChangeSchemasEmitter.fire(); // Notify update
-        return { success, fail };
-    }
-
-    public async importFromUrl(url: string, apiKey: string, progress: any): Promise<string> {
-        progress.report({ message: 'Downloading...', work: { done: 20, total: 100 } });
-        
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `apiKey ${apiKey}` }
-        });
-
-        if (!response.ok) throw new Error(`Download failed: ${response.status}`);
-        
-        const rawString = await response.text();
-        const parsed = JSON.parse(rawString);
-        const name = parsed[SCHEMA_FIELD_NAME];
-        const version = parsed[SCHEMA_FIELD_VERSION];
-        
-        if (!name || !version) throw new Error('Cannot determine filename');
-
-        const fileName = `remote_${name.toLowerCase().replace(/\s+/g, '_')}_v${version}.json`;
-
-        await this.processSingleImport(fileName, rawString, 'remote', progress);
-        
-        progress.report({ message: 'Finished', work: { done: 100, total: 100 } });
-        this.onDidChangeSchemasEmitter.fire(); // Notify update
-        return name;
-    }
-
-    private async processSingleImport(fileName: string, rawContent: string, type: 'local' | 'remote', progress: any): Promise<void> {
-        progress.report({ message: 'Validating Schema...', work: { done: 10, total: 100 } });
-        
-        let parsedRaw: any;
-        try {
-            parsedRaw = JSON.parse(rawContent);
-        } catch (e) {
-            throw new Error('Invalid JSON format');
-        }
-
-        if (!parsedRaw[SCHEMA_FIELD_NAME] || !parsedRaw[SCHEMA_FIELD_VERSION]) {
-            throw new Error(`Missing required fields`);
-        }
-
-        progress.report({ message: 'Saving...', work: { done: 50, total: 100 } });
-        await this.saveSchemaPair(fileName, rawContent, type);
-    }
-
-    public async saveSchemaPair(fileName: string, rawContent: string, type: 'local' | 'remote'): Promise<boolean> {
-        const root = await this.getAromaRootUri();
-        if (!root) return false;
-
-        const cedarUri = root.resolve(`metadata-schemas/cedar/${type}/${fileName}`);
-        const roCrateUri = root.resolve(`metadata-schemas/ro-crate/${type}/${fileName}`);
-
-        try {
-            const convertedContent = this.converter.processCedarTemplate(rawContent);
-            await this.fileService.write(cedarUri, rawContent);
-            await this.fileService.write(roCrateUri, convertedContent);
-            return true;
-        } catch (error) {
-            console.error(error);
-            return false;
-        }
-    }
+    // --- Helpers ---
 
     protected async getAromaRootUri(): Promise<URI | null> {
         const result = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
         if (!result?.value) return null;
-        
-        const pathStr = result.value;
-        const normalized = pathStr.replace(/\\/g, '/');
-        if (normalized.match(/^[a-zA-Z]:/)) {
-            return new URI('file:///' + normalized);
-        } else {
-            return new URI('file://' + normalized);
-        }
+        return toFileUri(result.value);
     }
 
     protected async getCedarDir(type: 'local' | 'remote'): Promise<URI | null> {
         const root = await this.getAromaRootUri();
         if (!root) return null;
         return root.resolve(`metadata-schemas/cedar/${type}`);
+    }
+}
+
+// Simple helper to convert string paths to URI objects safely
+function toFileUri(path: string): URI {
+    const normalized = path.replace(/\\/g, '/');
+    if (normalized.match(/^[a-zA-Z]:/)) {
+        return new URI('file:///' + normalized);
+    } else {
+        return new URI('file://' + normalized);
     }
 }

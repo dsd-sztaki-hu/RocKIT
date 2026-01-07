@@ -18,6 +18,10 @@ import '../../src/browser/style/index.css';
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
 export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';
 
+/**
+ * Widget for managing Metadata Schemas.
+ * Acts as a View layer, delegating logic to SchemaManagerService.
+ */
 @injectable()
 export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulWidget {
     static readonly ID = METADATA_SCHEMA_MANAGER_WIDGET_ID;
@@ -26,8 +30,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected readonly fileDialogService: FileDialogService;
     protected readonly messageService: MessageService;
     protected readonly envVariablesServer: EnvVariablesServer;
-    
-    // Injected Service (Handles all logic)
     protected readonly schemaManagerService: SchemaManagerService;
 
     protected schemas: SchemaInfo[] = [];
@@ -54,13 +56,15 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.title.closable = true;
         this.title.iconClass = 'fa fa-file-code';
 
-        // AUTO-REFRESH LISTENER
-        // When the Service finishes downloading/deleting, we reload the table automatically.
+        // Auto-refresh when service reports changes
         this.toDispose.push(
             this.schemaManagerService.onDidChangeSchemas(() => this.loadSchemas())
         );
     }
 
+    /**
+     * Reloads data from the service and updates the UI.
+     */
     protected async loadSchemas(): Promise<void> {
         this.isLoading = true;
         this.selectedSchemaKeys = [];
@@ -92,13 +96,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             onOk: async () => {
                 this.isLoading = true;
                 this.update();
-
                 const deletedCount = await this.schemaManagerService.deleteSchemas(paths);
-
                 if (deletedCount > 0) {
                     this.messageService.info(`Deleted ${deletedCount} schema(s).`);
                 }
-                // No need to call loadSchemas() manually, the Event Listener will do it!
             }
         });
     }
@@ -117,15 +118,9 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.messageService.showProgress({
             text: 'Importing Schemas...'
         }).then(async progress => {
-            
             const results = await this.schemaManagerService.importFiles(fileUris, progress);
-            
-            if (results.success > 0) {
-                this.messageService.info(`Successfully imported ${results.success} schema(s).`);
-            }
-            if (results.fail > 0) {
-                this.messageService.warn(`Failed to import ${results.fail} schema(s).`);
-            }
+            if (results.success > 0) this.messageService.info(`Successfully imported ${results.success} schema(s).`);
+            if (results.fail > 0) this.messageService.warn(`Failed to import ${results.fail} schema(s).`);
         });
     }
 
