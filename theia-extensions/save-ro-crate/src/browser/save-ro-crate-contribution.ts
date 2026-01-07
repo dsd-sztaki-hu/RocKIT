@@ -1,9 +1,4 @@
-import {
-  CommonCommands,
-  CommonMenus,
-  KeybindingContribution,
-  KeybindingRegistry,
-} from '@theia/core/lib/browser'
+import { ApplicationShell, CommonCommands, CommonMenus } from '@theia/core/lib/browser'
 import {
   Command,
   CommandContribution,
@@ -16,6 +11,7 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 
 export const SaveRoCrateCommand: Command = {
   id: 'ro-crate.save',
@@ -23,9 +19,7 @@ export const SaveRoCrateCommand: Command = {
 }
 
 @injectable()
-export class SaveRoCrateContribution
-  implements KeybindingContribution, CommandContribution, MenuContribution
-{
+export class SaveRoCrateContribution implements CommandContribution, MenuContribution {
   @inject(MessageService)
   protected readonly messageService!: MessageService
 
@@ -38,22 +32,62 @@ export class SaveRoCrateContribution
   @inject(WorkspaceService)
   protected readonly workspaceService: WorkspaceService
 
+  @inject(ApplicationShell)
+  protected readonly shell!: ApplicationShell
+
   registerCommands(registry: CommandRegistry): void {
+    // Register the custom button command
     registry.registerCommand(SaveRoCrateCommand, {
-      execute: async () => {
-        const roots = this.workspaceService.tryGetRoots()
-        const rootUri = roots[0].resource
-        const metadataUri = rootUri.resolve('ro-crate-metadata.json')
-        await this.fileService.create(
-          metadataUri,
-          JSON.stringify(this.appStateService.roCrate, null, 2),
-          {
-            overwrite: true,
-          },
-        )
-        this.messageService.info('RO-Crate saved successfully!')
-      },
+      execute: () => this.doSave(),
     })
+
+    // Register a handler for the global Save (Ctrl+S)
+    registry.registerHandler(CommonCommands.SAVE.id, {
+      execute: () => this.doSave(),
+      // Enable this handler ONLY when your widget is the one in focus
+      isEnabled: () => this.isRoCrateEditorFocused(),
+    })
+  }
+
+  /**
+   * Checks if the active widget is one of your RO-Crate editors
+   */
+  private isRoCrateEditorFocused(): boolean {
+    const activeWidget = this.shell.activeWidget
+    if (!activeWidget) {
+      return false
+    }
+
+    if (activeWidget instanceof RoCrateEditorWidget) {
+      return true
+    }
+
+    return activeWidget.id.startsWith(RoCrateEditorWidget.ID)
+  }
+
+  /**
+   * Shared saving logic
+   */
+  private async doSave(): Promise<void> {
+    const roots = this.workspaceService.tryGetRoots()
+    if (!roots || roots.length === 0) {
+      this.messageService.error('No workspace root found.')
+      return
+    }
+
+    const rootUri = roots[0].resource
+    const metadataUri = rootUri.resolve('ro-crate-metadata.json')
+
+    try {
+      await this.fileService.create(
+        metadataUri,
+        JSON.stringify(this.appStateService.roCrate, null, 2),
+        { overwrite: true },
+      )
+      this.messageService.info('RO-Crate saved successfully!')
+    } catch (error) {
+      this.messageService.error(`Failed to save: ${error}`)
+    }
   }
 
   registerMenus(menus: MenuModelRegistry): void {
@@ -61,15 +95,6 @@ export class SaveRoCrateContribution
       commandId: SaveRoCrateCommand.id,
       label: SaveRoCrateCommand.label,
       order: 'a11',
-    })
-  }
-
-  // Remove the default Ctrl+S keybinding and register our own
-  registerKeybindings(keybindings: KeybindingRegistry): void {
-    keybindings.unregisterKeybinding(CommonCommands.SAVE)
-    keybindings.registerKeybinding({
-      command: SaveRoCrateCommand.id,
-      keybinding: 'ctrl+s',
     })
   }
 }
