@@ -53,6 +53,12 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.title.caption = METADATA_SCHEMA_MANAGER_LABEL;
         this.title.closable = true;
         this.title.iconClass = 'fa fa-file-code';
+
+        // AUTO-REFRESH LISTENER
+        // When the Service finishes downloading/deleting, we reload the table automatically.
+        this.toDispose.push(
+            this.schemaManagerService.onDidChangeSchemas(() => this.loadSchemas())
+        );
     }
 
     protected async loadSchemas(): Promise<void> {
@@ -92,8 +98,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                 if (deletedCount > 0) {
                     this.messageService.info(`Deleted ${deletedCount} schema(s).`);
                 }
-                
-                await this.loadSchemas();
+                // No need to call loadSchemas() manually, the Event Listener will do it!
             }
         });
     }
@@ -117,7 +122,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             
             if (results.success > 0) {
                 this.messageService.info(`Successfully imported ${results.success} schema(s).`);
-                await this.loadSchemas();
             }
             if (results.fail > 0) {
                 this.messageService.warn(`Failed to import ${results.fail} schema(s).`);
@@ -160,10 +164,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         }).then(async progress => {
             try {
                 const schemaName = await this.schemaManagerService.importFromUrl(url, apiKey, progress);
-                
                 this.messageService.info(`Successfully imported: ${schemaName}`);
-                await this.loadSchemas();
-
             } catch (error) {
                 progress.cancel();
                 this.messageService.error(`Import Failed: ${error instanceof Error ? error.message : error}`);
