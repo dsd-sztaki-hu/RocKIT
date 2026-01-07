@@ -25,7 +25,7 @@ export class PropertyViewContribution extends AbstractViewContribution<PropertyV
       widgetId: PropertyViewWidget.ID,
       widgetName: PropertyViewWidget.LABEL,
       defaultWidgetOptions: {
-        area: 'bottom',
+        area: 'main',
       },
       toggleCommandId: 'property-view:toggle',
       toggleKeybinding: 'shift+alt+p',
