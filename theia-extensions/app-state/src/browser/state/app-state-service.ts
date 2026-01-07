@@ -21,7 +21,7 @@ export class AppStateService {
   private readonly store = new SimpleStateStore<AppState>(cloneDefaultAppState())
 
   @inject(StorageService)
-  protected readonly storageService: StorageService
+  protected readonly storageService!: StorageService
 
   @postConstruct()
   protected init(): void {
