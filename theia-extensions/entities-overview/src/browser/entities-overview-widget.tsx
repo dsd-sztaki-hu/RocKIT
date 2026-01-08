@@ -1,4 +1,4 @@
-import { Disposable, DisposableCollection, MenuPath, MessageService } from '@theia/core'
+import { DisposableCollection, MenuPath, MessageService } from '@theia/core'
 import {
   ContextMenuRenderer,
   NodeProps,
@@ -94,10 +94,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
   /**
    * Provide node element attributes for a given tree node.
    *
-   * In our example, we use this to add Drag & Drop event handlers to the tree nodes.
-   *
-   * Note: the Drag & Drop code has been taken and adapted from `file-tree-widget.tsx`
-   *
    * @param node the node to render
    * @param props the node props (currently transporting the depth of the item in the tree)
    * @returns the HTML element attributes.
@@ -108,7 +104,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
   ): React.Attributes & React.HTMLAttributes<HTMLElement> {
     return {
       ...super.createNodeAttributes(node, props),
-      ...this.getNodeDragHandlers(node),
       onClick: () => this.handleNodeClick(node),
     }
   }
@@ -126,142 +121,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
         name: node.data.name,
         valid: node.data.valid,
       })
-    }
-  }
-
-  /**
-   * Returns HTML attributes to install Drag & Drop event handlers for the given tree node.
-   *
-   * Note: the Drag & Drop code has been taken and adapted from `file-tree-widget.tsx`
-   *
-   * @param node the tree node
-   * @returns the drag event handlers to be used as additional HTML element attributes
-   */
-  protected getNodeDragHandlers(
-    node: TreeNode,
-  ): React.Attributes & React.HtmlHTMLAttributes<HTMLElement> {
-    return {
-      onDragStart: (event) => this.handleDragStartEvent(node, event),
-      onDragEnter: (event) => this.handleDragEnterEvent(node, event),
-      onDragOver: (event) => this.handleDragOverEvent(node, event),
-      onDragLeave: (event) => this.handleDragLeaveEvent(node, event),
-      onDrop: (event) => this.handleDropEvent(node, event),
-      draggable: ExampleTreeLeaf.is(node),
-    }
-  }
-
-  /**
-   * Handler for the _dragStart_ event.
-   *
-   * Stores the ID of the dragged tree node in the Drag & Drop data.
-   *
-   * @param node the tree node
-   * @param event the event
-   */
-  protected handleDragStartEvent(node: TreeNode, event: React.DragEvent): void {
-    event.stopPropagation()
-    if (event.dataTransfer) {
-      event.dataTransfer.setData('tree-node', node.id)
-    }
-  }
-
-  /**
-   * Handler for the _dragOver_ event.
-   *
-   * Registers deferred tree expansion that shall be triggered if the user hovers over an expandable tree item for
-   * some time.
-   *
-   * @param node the tree node
-   * @param event the event
-   */
-  protected handleDragOverEvent(
-    node: TreeNode | undefined,
-    event: React.DragEvent,
-  ): void {
-    event.preventDefault()
-    event.stopPropagation()
-    event.dataTransfer.dropEffect = 'move'
-
-    if (!this.toCancelNodeExpansion.disposed) {
-      return
-    }
-
-    const timer = setTimeout(() => {
-      if (!!node && ExampleTreeNode.is(node) && !node.expanded) {
-        this.model.expandNode(node)
-      }
-    }, 500)
-    this.toCancelNodeExpansion.push(Disposable.create(() => clearTimeout(timer)))
-  }
-
-  /**
-   * Handler for the _dragEnter_ event.
-   *
-   * Cancels any pending deferred tree extension, selects the current target node to highlight it in the UI, and
-   * sets the Drag & Drop indicator to "move".
-   *
-   * @param node the tree node
-   * @param event the event
-   */
-  protected handleDragEnterEvent(
-    node: TreeNode | undefined,
-    event: React.DragEvent,
-  ): void {
-    event.preventDefault()
-    event.stopPropagation()
-    this.toCancelNodeExpansion.dispose()
-
-    let target = node
-    if (target && ExampleTreeLeaf.is(target)) {
-      target = target.parent
-    }
-
-    if (!!target && ExampleTreeNode.is(target) && !target.selected) {
-      this.model.selectNode(target)
-    }
-  }
-
-  /**
-   * Handler for the _dragLeave_ event.
-   *
-   * Cancels any pending deferred tree extension.
-   *
-   * @param node the tree node
-   * @param event the event
-   */
-  protected handleDragLeaveEvent(
-    node: TreeNode | undefined,
-    event: React.DragEvent,
-  ): void {
-    event.preventDefault()
-    event.stopPropagation()
-    this.toCancelNodeExpansion.dispose()
-  }
-
-  /**
-   * Handler for the _drop_ event.
-   *
-   * Calls the code to move the dragged node to the new parent.
-   *
-   * @param node the tree node
-   * @param event the event
-   */
-  protected async handleDropEvent(
-    node: TreeNode | undefined,
-    event: React.DragEvent,
-  ): Promise<void> {
-    event.preventDefault()
-    event.stopPropagation()
-    event.dataTransfer.dropEffect = 'move'
-
-    let target = node
-    if (target && ExampleTreeLeaf.is(target)) {
-      target = target.parent
-    }
-
-    if (!!target && ExampleTreeNode.is(target)) {
-      const draggedNodeId = event.dataTransfer.getData('tree-node')
-      this.model.reparent(draggedNodeId, target)
     }
   }
 }
