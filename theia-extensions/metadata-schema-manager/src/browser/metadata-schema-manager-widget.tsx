@@ -18,10 +18,6 @@ import '../../src/browser/style/index.css';
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
 export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';
 
-/**
- * Widget for managing Metadata Schemas.
- * Acts as a View layer, delegating logic to SchemaManagerService.
- */
 @injectable()
 export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulWidget {
     static readonly ID = METADATA_SCHEMA_MANAGER_WIDGET_ID;
@@ -56,15 +52,11 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.title.closable = true;
         this.title.iconClass = 'fa fa-file-code';
 
-        // Auto-refresh when service reports changes
         this.toDispose.push(
             this.schemaManagerService.onDidChangeSchemas(() => this.loadSchemas())
         );
     }
 
-    /**
-     * Reloads data from the service and updates the UI.
-     */
     protected async loadSchemas(): Promise<void> {
         this.isLoading = true;
         this.selectedSchemaKeys = [];
@@ -126,25 +118,22 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected async importSchemaFromUrl(): Promise<void> {
         const envVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
-        const apiKey = envVar?.value;
-
-        if (!apiKey) {
-            this.messageService.error('CEDAR_API_KEY missing in environment.');
-            return;
-        }
+        const apiKey = envVar?.value; // Can be undefined
 
         let url = '';
         await new Promise((resolve) => {
             let inputUrl = '';
             Modal.confirm({
-                title: 'Import Schema from CEDAR URL (@id)',
+                title: 'Import Schema from URL',
                 content: (
                     <div style={{ marginTop: 10 }}>
                         <Input 
                             placeholder="Enter CEDAR URL" 
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => inputUrl = e.target.value} 
                         />
-                        <div style={{ fontSize: 12, color: '#888', marginTop: 5 }}>Using configured API Key</div>
+                        <div style={{ fontSize: 12, color: '#888', marginTop: 5 }}>
+                            {apiKey ? 'Using configured API Key' : 'No API Key configured - attempting open access'}
+                        </div>
                     </div>
                 ),
                 onOk: () => { resolve(inputUrl); },
@@ -158,6 +147,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             text: 'Importing from URL...'
         }).then(async progress => {
             try {
+                // Pass key (or undefined) to service
                 const schemaName = await this.schemaManagerService.importFromUrl(url, apiKey, progress);
                 this.messageService.info(`Successfully imported: ${schemaName}`);
             } catch (error) {
