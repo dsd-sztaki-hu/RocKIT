@@ -92,7 +92,7 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
 
       await this.fileService.create(previewUri, htmlContent, { overwrite: true })
 
-      await this.messageService.info('RO-Crate and Navigable Preview saved!', {
+      await this.messageService.info('RO-Crate and HTML preview file saved!', {
         timeout: 3000,
       })
     } catch (error) {
