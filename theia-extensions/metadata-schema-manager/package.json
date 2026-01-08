@@ -15,7 +15,8 @@
     "antd": "^5.11.0",
     "@theia/core": "1.65.2",
     "@theia/filesystem": "1.65.2",
-    "cedar-template-converter": "1.0.0"
+    "cedar-template-converter": "1.0.0",
+    "app-state": "0.0.1"
   },
   "devDependencies": {
     "@types/node": "^13.13.46",
