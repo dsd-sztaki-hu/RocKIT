@@ -23,7 +23,8 @@
         //            "allow": ["error", "warn", "info", "groupCollapsed", "groupEnd", "trace"]
         //          }
         //        }
-        "noAssignInExpressions": "off"
+        "noAssignInExpressions": "off",
+        "useIterableCallbackReturn": "off"
       },
       "a11y": {
         "useButtonType": "off",
