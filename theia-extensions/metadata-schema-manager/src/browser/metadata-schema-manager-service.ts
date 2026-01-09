@@ -11,9 +11,16 @@ import { Modal } from 'antd';
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
 import type { SchemaInfo } from './types';
 
+// --- Constants & Config ---
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
 export const SCHEMA_FIELD_ID = '@id';
+
+const REPO_DOMAINS = {
+    OPEN_DEV: 'open.cedardev.dsd.sztaki.hu',
+    REPO_DEV: 'repo.cedardev.dsd.sztaki.hu',
+    RESEARCH_DATA: 'repo.schema.researchdata.hu'
+};
 
 @injectable()
 export class SchemaManagerService implements FrontendApplicationContribution {
@@ -33,71 +40,46 @@ export class SchemaManagerService implements FrontendApplicationContribution {
     init() {
         this.appStateService.onDidChangeSelector(state => state.roCrate)(
             (newCrate) => {
-                if (newCrate) {
-                    this.checkAndDownloadSchemas(newCrate);
-                }
+                if (newCrate) this.checkAndDownloadSchemas(newCrate);
             }
         );
     }
 
     onStart(): void {
         const currentCrate = this.appStateService.roCrate;
-        if (currentCrate) {
-            this.checkAndDownloadSchemas(currentCrate);
-        }
+        if (currentCrate) this.checkAndDownloadSchemas(currentCrate);
     }
 
     /* ------------------------------------------------------------------
-       SMART FETCHING LOGIC (STRICT RULES)
+       SMART FETCHING LOGIC
        ------------------------------------------------------------------ */
 
-    /**
-     * Fetches a schema string applying strict domain-specific rules.
-     */
     private async smartFetchSchema(url: string, apiKey?: string): Promise<string> {
         
         // CASE 3: Open/Public Link
-        // URL: https://open.cedardev.dsd.sztaki.hu/...
-        // Action: Fetch directly. No API Key needed.
-        if (url.includes('open.cedardev.dsd.sztaki.hu')) {
+        if (url.includes(REPO_DOMAINS.OPEN_DEV)) {
             console.log('[SchemaManager] Detected Open Link. Fetching directly...');
             const response = await fetch(url, { method: 'GET' });
-            
-            if (!response.ok) {
-                throw new Error(`Open Link fetch failed (HTTP ${response.status}). The resource might not exist.`);
-            }
+            if (!response.ok) throw new Error(`Open Link fetch failed (HTTP ${response.status}).`);
             return await response.text();
         }
 
-        // CASE 2: Dev Repo Link
-        // URL: https://repo.cedardev.dsd.sztaki.hu/...
-        // Action: MUST be transformed to Open Link. Original is not used.
-        if (url.includes('repo.cedardev.dsd.sztaki.hu')) {
-            console.log('[SchemaManager] Detected Dev Repo Link. Transforming to Open Link...');
-            
-            // Transformation logic: Base URL + Encoded Original URL
+        // CASE 2: Dev Repo Link (Transform to Open)
+        if (url.includes(REPO_DOMAINS.REPO_DEV)) {
+            console.log('[SchemaManager] Detected Dev Repo Link. Transforming...');
             const encodedOriginal = encodeURIComponent(url);
-            const openUrl = `https://open.cedardev.dsd.sztaki.hu/templates/${encodedOriginal}`;
+            const openUrl = `https://${REPO_DOMAINS.OPEN_DEV}/templates/${encodedOriginal}`;
             
-            console.log(`[SchemaManager] Transformed URL: ${openUrl}`);
-
             const response = await fetch(openUrl, { method: 'GET' });
-            
-            if (!response.ok) {
-                throw new Error(`Transformed fetch failed (HTTP ${response.status}). Could not access the public version of this schema.`);
-            }
+            if (!response.ok) throw new Error(`Transformed fetch failed (HTTP ${response.status}).`);
             return await response.text();
         }
 
-        // CASE 1: Research Data Repo
-        // URL: https://repo.schema.researchdata.hu/...
-        // Action: MUST have API Key.
-        if (url.includes('repo.schema.researchdata.hu')) {
+        // CASE 1: Research Data Repo (Strict Auth)
+        if (url.includes(REPO_DOMAINS.RESEARCH_DATA)) {
             console.log('[SchemaManager] Detected Research Data Repo.');
-
             if (!apiKey) {
-                // Strict failure if no key
-                throw new Error('Access Denied: This repository (researchdata.hu) requires a configured CEDAR_API_KEY. Please check your .env file or environment variables.');
+                throw new Error('Access Denied: Missing CEDAR_API_KEY for this repository.');
             }
 
             const response = await fetch(url, { 
@@ -109,24 +91,19 @@ export class SchemaManagerService implements FrontendApplicationContribution {
             });
 
             if (response.status === 401 || response.status === 403) {
-                throw new Error('Access Denied: Your API Key was rejected (Unauthorized).');
+                throw new Error('Access Denied: API Key rejected.');
             }
-            if (!response.ok) {
-                throw new Error(`Authenticated fetch failed (HTTP ${response.status}).`);
-            }
+            if (!response.ok) throw new Error(`Authenticated fetch failed (HTTP ${response.status}).`);
             return await response.text();
         }
 
-        // FALLBACK: Unknown Domain
-        // Behavior: Try as-is. If key exists, send it. If not, don't.
+        // FALLBACK: Generic Fetch
         console.log('[SchemaManager] Unknown domain. Attempting generic fetch...');
         const headers: any = { 'Content-Type': 'application/json' };
         if (apiKey) headers['Authorization'] = `apiKey ${apiKey}`;
         
         const response = await fetch(url, { method: 'GET', headers });
-        if (!response.ok) {
-            throw new Error(`Download failed (HTTP ${response.status}). Please check the URL.`);
-        }
+        if (!response.ok) throw new Error(`Download failed (HTTP ${response.status}).`);
         return await response.text();
     }
 
@@ -144,91 +121,97 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                 return;
             }
 
-            const requiredUUIDs = new Set<string>();
-            const graph = Array.isArray(roCrate['@graph']) ? roCrate['@graph'] : [roCrate];
-
-            for (const entity of graph) {
-                if (entity.conformsTo) {
-                    const conformsArray = Array.isArray(entity.conformsTo) ? entity.conformsTo : [entity.conformsTo];
-                    for (const item of conformsArray) {
-                        const id = item['@id'];
-                        if (id && typeof id === 'string' && id.includes('/schema/')) {
-                            const parts = id.split('/');
-                            const uuid = parts[parts.length - 1];
-                            if (uuid) requiredUUIDs.add(uuid);
-                        }
-                    }
-                }
-            }
-
+            // 1. Extract UUIDs (Refactored to helper)
+            const requiredUUIDs = this.extractSchemaUUIDs(roCrate);
             if (requiredUUIDs.size === 0) return;
 
+            // 2. Check what is missing locally
             const missingUUIDs = await this.filterMissingSchemas(Array.from(requiredUUIDs));
-
             if (missingUUIDs.length === 0) return;
 
+            // 3. Prompt User
             await new Promise<void>((resolve) => {
                 Modal.info({
-                    title: 'Missing Metadata Schemas Detected',
-                    content: `The opened RO-Crate references ${missingUUIDs.length} schema(s) that are missing from your local repository. The application will now download and convert them automatically.`,
+                    title: 'Missing Metadata Schemas',
+                    content: `The RO-Crate references ${missingUUIDs.length} missing schema(s). Downloading now.`,
                     okText: 'OK',
                     onOk: () => resolve(),
                     maskClosable: false
                 });
             });
 
-            await this.messageService.showProgress({
-                text: 'Resolving Missing Schemas...'
-            }).then(async progress => {
-                const total = missingUUIDs.length;
-                let completed = 0;
-                progress.report({ message: 'Starting downloads...', work: { done: 0, total } });
+            // 4. Download
+            await this.messageService.showProgress({ text: 'Resolving Missing Schemas...' })
+                .then(async progress => {
+                    const total = missingUUIDs.length;
+                    let completed = 0;
+                    progress.report({ message: 'Starting...', work: { done: 0, total } });
 
-                const downloadPromises = missingUUIDs.map(async (uuid) => {
-                    try {
-                        await this.downloadSchemaByUUID(uuid);
-                    } catch (e) {
-                        console.error(`Failed to auto-download ${uuid}`, e);
-                    } finally {
-                        completed++;
-                        progress.report({ message: `Downloading (${completed}/${total})...`, work: { done: completed, total } });
-                    }
+                    await Promise.all(missingUUIDs.map(async (uuid) => {
+                        try {
+                            await this.downloadSchemaByUUID(uuid);
+                        } catch (e) {
+                            console.error(`Failed to auto-download ${uuid}`, e);
+                        } finally {
+                            completed++;
+                            progress.report({ 
+                                message: `Downloading (${completed}/${total})...`, 
+                                work: { done: completed, total } 
+                            });
+                        }
+                    }));
                 });
 
-                await Promise.all(downloadPromises);
-            });
-
             this.onDidChangeSchemasEmitter.fire();
-            this.messageService.info('Missing schemas successfully synchronized.');
+            this.messageService.info('Schemas synchronized.');
 
         } catch (error) {
             console.error('[SchemaManager] Error verifying schemas:', error);
-            this.messageService.error(`Schema Synchronization Error: ${error instanceof Error ? error.message : error}`);
+            this.messageService.error(`Schema Sync Error: ${error instanceof Error ? error.message : error}`);
         } finally {
             this.isChecking = false;
         }
     }
 
-    // Helper specific to UUID-based downloads (Auto-download)
+    /**
+     * Helper to extract UUIDs from RO-Crate JSON-LD graph
+     */
+    private extractSchemaUUIDs(roCrate: any): Set<string> {
+        const requiredUUIDs = new Set<string>();
+        const graph = Array.isArray(roCrate['@graph']) ? roCrate['@graph'] : [roCrate];
+
+        for (const entity of graph) {
+            if (!entity.conformsTo) continue;
+            
+            const conformsArray = Array.isArray(entity.conformsTo) ? entity.conformsTo : [entity.conformsTo];
+            
+            for (const item of conformsArray) {
+                const id = item['@id'];
+                if (id && typeof id === 'string' && id.includes('/schema/')) {
+                    const parts = id.split('/');
+                    const uuid = parts[parts.length - 1];
+                    if (uuid) requiredUUIDs.add(uuid);
+                }
+            }
+        }
+        return requiredUUIDs;
+    }
+
     protected async downloadSchemaByUUID(uuid: string): Promise<void> {
         const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
         const apiKey = apiKeyVar?.value;
 
-        // Determine URL based on API Key presence (Auto-selection logic)
+        // Auto-select URL based on API key presence
         let url: string;
         if (apiKey) {
-            url = `https://repo.schema.researchdata.hu/templates/${uuid}`;
+            url = `https://${REPO_DOMAINS.RESEARCH_DATA}/templates/${uuid}`;
         } else {
-            // Fallback to dev repo
-            const encodedUrl = encodeURIComponent(`https://repo.cedardev.dsd.sztaki.hu/templates/${uuid}`);
-            url = `https://open.cedardev.dsd.sztaki.hu/templates/${encodedUrl}`;
+            const encodedUrl = encodeURIComponent(`https://${REPO_DOMAINS.REPO_DEV}/templates/${uuid}`);
+            url = `https://${REPO_DOMAINS.OPEN_DEV}/templates/${encodedUrl}`;
         }
 
-        // Use Smart Fetch (even though we constructed it, it handles the actual fetch safely)
         const rawString = await this.smartFetchSchema(url, apiKey);
-        
         await this.processAndSaveSchema(rawString, 'remote');
-        console.log(`[SchemaManager] Successfully downloaded UUID: ${uuid}`);
     }
 
     protected async filterMissingSchemas(uuids: string[]): Promise<string[]> {
@@ -240,7 +223,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
             if (!await this.fileService.exists(dir)) return [];
             
             const stat = await this.fileService.resolve(dir);
-            if (!stat || !stat.children) return [];
+            if (!stat?.children) return [];
 
             const found: string[] = [];
             for (const file of stat.children) {
@@ -250,11 +233,11 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                     const parsed = JSON.parse(content.value);
                     const refId = parsed[SCHEMA_FIELD_ID];
                     if (refId && typeof refId === 'string') {
-                         for (const uuid of uuids) {
+                         uuids.forEach(uuid => {
                              if (refId.includes(uuid)) found.push(uuid);
-                         }
+                         });
                     }
-                } catch (e) { /* ignore */ }
+                } catch { /* ignore */ }
             }
             return found;
         };
@@ -300,11 +283,9 @@ export class SchemaManagerService implements FrontendApplicationContribution {
     public async importFromUrl(url: string, apiKey: string | undefined, progress: any): Promise<string> {
         progress.report({ message: 'Downloading...', work: { done: 20, total: 100 } });
         
-        // This now uses the STRICT logic defined above
         const rawString = await this.smartFetchSchema(url, apiKey);
         
         progress.report({ message: 'Processing...', work: { done: 50, total: 100 } });
-        
         const schemaName = await this.processAndSaveSchema(rawString, 'remote');
         
         progress.report({ message: 'Finished', work: { done: 100, total: 100 } });
@@ -384,7 +365,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                             path: file.resource.toString()
                         });
                     }
-                } catch (e) { /* ignore */ }
+                } catch { /* ignore */ }
             }
         }
         return schemas;
