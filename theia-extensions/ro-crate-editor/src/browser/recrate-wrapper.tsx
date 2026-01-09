@@ -102,6 +102,7 @@ export const DescriboCrateBuilderWrapper = ({
                 onError={(e: any) => console.log("error", e)}
                 enableReverseLinkBrowser={false}
                 enableBrowseEntities={false}
+                enableCratePreview={false}
                 enableUrlMarkup={false}
                 language={"en"}
                 readonly={loading ? true : false}
