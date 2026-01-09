@@ -115,6 +115,10 @@ export class EntitiesOverviewWidget extends TreeWidget {
    * @param node the clicked node
    */
   protected handleNodeClick(node: TreeNode): void {
+    if (ExampleTreeNode.is(node)) {
+      void this.model.toggleNodeExpansion(node)
+      return
+    }
     if (ExampleTreeLeaf.is(node)) {
       console.log(`Clicked entity: ${node.data.name}`)
       console.log(`Entity details:`, {
