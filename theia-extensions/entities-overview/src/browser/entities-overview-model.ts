@@ -6,130 +6,67 @@ import {
   TreeNode,
 } from '@theia/core/lib/browser'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import {
   EntitiesOverviewTreeItemFactory,
   Item,
 } from './entities-overview-tree-item-factory'
 
-// Entity interface with type and valid properties
-export interface Entity {
-  id: string
-  technicalName: string
-  description: string
-  type: string
-  valid: boolean
+function formatTypeLabel(rawType: string): string {
+  const trimmed = rawType.trim()
+  if (!trimmed) {
+    return 'Unknown'
+  }
+  const tail = trimmed.includes('/') ? trimmed.split('/').pop() || trimmed : trimmed
+  return tail.charAt(0).toUpperCase() + tail.slice(1)
 }
 
-// Mocked entities with type and valid properties
-export const MOCKED_ENTITIES: Entity[] = [
-  // --- Authors ---
-  {
-    id: 'auth-1',
-    technicalName: 'Tóth, Zoltán',
-    description: 'Author - (SZTAKI staff)',
-    type: 'author',
-    valid: true,
-  },
-  {
-    id: 'auth-2',
-    technicalName: 'Nagy, Eszter',
-    description: 'Author - (External Contributor)',
-    type: 'author',
-    valid: true,
-  },
-
-  // --- Files (From your image) ---
-  {
-    id: 'file-1',
-    technicalName: 'jargon.html',
-    description: 'File - Documentation Glossary',
-    type: 'file',
-    valid: true,
-  },
-  {
-    id: 'file-2',
-    technicalName: 'keyboard-interface.html',
-    description: 'File - Accessibility Settings',
-    type: 'file',
-    valid: false,
-  },
-  {
-    id: 'file-3',
-    technicalName: 'label.html',
-    description: 'File - UI Label definitions',
-    type: 'file',
-    valid: true,
-  },
-  {
-    id: 'file-4',
-    technicalName: 'large-scale.html',
-    description: 'File - Scalability Tests',
-    type: 'file',
-    valid: false,
-  },
-
-  // --- Datasets (Implicit from image) ---
-  {
-    id: 'data-1',
-    technicalName: 'SZTAKI_Dataset_V1',
-    description: 'Dataset - Raw sensor logs',
-    type: 'dataset',
-    valid: true,
-  },
-  {
-    id: 'data-2',
-    technicalName: 'Export_2023_Q4',
-    description: 'Dataset - Quarterly archive',
-    type: 'dataset',
-    valid: false,
-  },
-
-  // --- Point of Contact (Implicit from image) ---
-  {
-    id: 'poc-1',
-    technicalName: 'Tóth, Zoltán',
-    description: 'Point of Contact - System Administrator',
-    type: 'pointOfContact',
-    valid: false,
-  },
-
-  {
-    id: 'poc-2',
-    technicalName: 'Nagy, Eszter',
-    description: 'Author - (External Contributor)',
-    type: 'pointOfContact',
-    valid: true,
-  },
-]
-
-// Function to extract unique entity types and capitalize the first letter
-function getUniqueEntityTypes(): string[] {
-  const types = new Set<string>()
-  MOCKED_ENTITIES.forEach((entity) => types.add(entity.type))
-  return Array.from(types).map((type) => type.charAt(0).toUpperCase() + type.slice(1))
+function getEntityTypes(entity: Record<string, any>): string[] {
+  const rawTypes = entity?.['@type']
+  if (!rawTypes) {
+    return ['Unknown']
+  }
+  const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
+  return typeList.map((type) => formatTypeLabel(String(type)))
 }
 
-// Function to create entities data dynamically based on unique types
-function createEntitiesData(): Item[] {
-  const uniqueTypes = getUniqueEntityTypes()
+function getEntityName(entity: Record<string, any>): string {
+  const name = entity?.name ?? entity?.title ?? entity?.['@id'] ?? ''
+  return String(name)
+}
 
-  return uniqueTypes.map((typeName) => {
-    const typeKey = typeName.charAt(0).toLowerCase() + typeName.slice(1)
+function createEntitiesData(crate: Record<string, any> | undefined): Item[] {
+  const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+  const byType = new Map<string, Item[]>()
 
-    return {
-      name: typeName,
-      children: MOCKED_ENTITIES.filter((e) => e.type === typeKey).map((entity) => ({
-        name: entity.technicalName,
-        id: entity.id,
-        description: entity.description,
-        valid: entity.valid,
-      })),
+  for (const entry of graph) {
+    if (!entry || typeof entry !== 'object') {
+      continue
     }
-  })
-}
+    const entityId = entry?.['@id'] ? String(entry['@id']) : ''
+    const name = getEntityName(entry).trim()
+    const description =
+      typeof entry?.description === 'string' ? String(entry.description) : undefined
+    const valid = Boolean(name)
+    const displayName = name || entityId || '(unnamed)'
 
-// Group entities by type dynamically
-const ENTITIES_DATA: Item[] = createEntitiesData()
+    for (const typeLabel of getEntityTypes(entry)) {
+      const list = byType.get(typeLabel) ?? []
+      list.push({
+        name: displayName,
+        entityId,
+        description,
+        valid,
+      })
+      byType.set(typeLabel, list)
+    }
+  }
+
+  return Array.from(byType.entries()).map(([typeName, children]) => ({
+    name: typeName,
+    children: children.sort((a, b) => a.name.localeCompare(b.name)),
+  }))
+}
 
 /** well-known ID for the root node in our tree */
 export const ROOT_NODE_ID = 'entities-overview-root'
@@ -173,6 +110,8 @@ export namespace ExampleTreeLeaf {
 export class EntitiesOverviewModel extends TreeModelImpl {
   @inject(EntitiesOverviewTreeItemFactory)
   private readonly itemFactory: EntitiesOverviewTreeItemFactory
+  @inject(AppStateService)
+  private readonly appStateService: AppStateService
 
   /**
    * Initialize the tree model from the business model
@@ -181,6 +120,15 @@ export class EntitiesOverviewModel extends TreeModelImpl {
   protected override init(): void {
     super.init()
 
+    this.updateEntitiesFromCrate(this.appStateService.roCrate)
+    this.toDispose.push(
+      this.appStateService.onDidChangeSelector((state) => state.roCrate)((crate) => {
+        this.updateEntitiesFromCrate(crate)
+      }),
+    )
+  }
+
+  protected updateEntitiesFromCrate(crate: Record<string, any> | undefined): void {
     // create the root node
     const root: CompositeTreeNode = {
       id: ROOT_NODE_ID,
@@ -190,9 +138,9 @@ export class EntitiesOverviewModel extends TreeModelImpl {
     }
 
     // populate the direct children
-    ENTITIES_DATA.map((item) => this.itemFactory.toTreeNode(item)).forEach((node) =>
-      CompositeTreeNode.addChild(root, node),
-    )
+    createEntitiesData(crate)
+      .map((item) => this.itemFactory.toTreeNode(item))
+      .forEach((node) => CompositeTreeNode.addChild(root, node))
 
     // set the root node as root of the tree
     // This will also initialize the ID-node-map in the tree, so this should be called

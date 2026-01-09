@@ -1,4 +1,4 @@
-import { DisposableCollection, MenuPath, MessageService } from '@theia/core'
+import { MenuPath, MessageService } from '@theia/core'
 import {
   ContextMenuRenderer,
   NodeProps,
@@ -30,7 +30,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
   static readonly LABEL = 'Entities Overview'
 
   /** Used in Drag & Drop code to remember and cancel deferred expansion of hovered nodes */
-  protected readonly toCancelNodeExpansion = new DisposableCollection()
+  // protected readonly toCancelNodeExpansion = new DisposableCollection()
 
   /** The MessageService to demonstrate the action when a user opens (double-clicks) a node */
   @inject(MessageService) private readonly messageService: MessageService
@@ -57,7 +57,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
         }
       }),
     )
-    this.toDispose.push(this.toCancelNodeExpansion)
+    // this.toDispose.push(this.toCancelNodeExpansion)
   }
 
   /**
@@ -119,7 +119,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
       console.log(`Clicked entity: ${node.data.name}`)
       console.log(`Entity details:`, {
         name: node.data.name,
-        valid: node.data.valid,
+        id: node.data.entityId,
       })
     }
   }
