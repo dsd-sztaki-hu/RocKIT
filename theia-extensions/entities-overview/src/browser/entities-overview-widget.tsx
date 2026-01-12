@@ -7,6 +7,7 @@ import {
   TreeProps,
   TreeWidget,
 } from '@theia/core/lib/browser'
+import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import '../../src/browser/styles/entities-overview-widget.css'
@@ -77,7 +78,50 @@ export class EntitiesOverviewWidget extends TreeWidget {
    * @returns the node's CSS classes
    */
   protected override createNodeClassNames(node: TreeNode, props: NodeProps): string[] {
-    return super.createNodeClassNames(node, props).concat('theia-example-tree-node')
+    const classNames = super
+      .createNodeClassNames(node, props)
+      .concat('theia-example-tree-node')
+    if (ExampleTreeNode.is(node)) {
+      return classNames.filter(
+        (className) => className !== SELECTED_CLASS && className !== FOCUS_CLASS,
+      )
+    }
+    return classNames
+  }
+
+  protected override rowIsSelected(node: TreeNode, props: NodeProps): boolean {
+    if (ExampleTreeNode.is(node)) {
+      return false
+    }
+    return super.rowIsSelected(node, props)
+  }
+
+  protected override handleContextMenuEvent(
+    node: TreeNode | undefined,
+    event: React.MouseEvent<HTMLElement>,
+  ): void {
+    if (node && ExampleTreeNode.is(node)) {
+      const contextMenuPath = this.props.contextMenuPath
+      if (contextMenuPath) {
+        const { x, y } = event.nativeEvent
+        const args = this.toContextMenuArgs(node)
+        const target = event.currentTarget
+        setTimeout(
+          () =>
+            this.contextMenuRenderer.render({
+              menuPath: contextMenuPath,
+              context: target,
+              anchor: { x, y },
+              args,
+            }),
+          10,
+        )
+      }
+      event.stopPropagation()
+      event.preventDefault()
+      return
+    }
+    super.handleContextMenuEvent(node, event)
   }
 
   /**
