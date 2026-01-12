@@ -10,7 +10,10 @@ import {
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
+import { ApplicationShell, WidgetManager } from '@theia/core/lib/browser'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import '../../src/browser/styles/entities-overview-widget.css'
+import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import {
   EntitiesOverviewModel,
   ExampleTreeLeaf,
@@ -37,6 +40,9 @@ export class EntitiesOverviewWidget extends TreeWidget {
     @inject(TreeProps) public override readonly props: TreeProps,
     @inject(TreeModel) public override readonly model: EntitiesOverviewModel,
     @inject(ContextMenuRenderer) contextMenuRenderer: ContextMenuRenderer,
+    @inject(AppStateService) private readonly appStateService: AppStateService,
+    @inject(WidgetManager) private readonly widgetManager: WidgetManager,
+    @inject(ApplicationShell) private readonly shell: ApplicationShell,
   ) {
     super(props, model, contextMenuRenderer)
 
@@ -153,11 +159,20 @@ export class EntitiesOverviewWidget extends TreeWidget {
       return
     }
     if (ExampleTreeLeaf.is(node)) {
-      console.log(`Clicked entity: ${node.data.name}`)
-      console.log(`Entity details:`, {
-        name: node.data.name,
-        id: node.data.entityId,
-      })
+      const entityId = node.data.entityId
+      if (!entityId) {
+        return
+      }
+      this.appStateService.selectedEntityId = entityId
+      void this.openRoCrateEditor()
     }
+  }
+
+  protected async openRoCrateEditor(): Promise<void> {
+    const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
+      instance: Math.random().toString(),
+    })
+    this.shell.addWidget(widget, { area: 'main' })
+    this.shell.activateWidget(widget.id)
   }
 }
