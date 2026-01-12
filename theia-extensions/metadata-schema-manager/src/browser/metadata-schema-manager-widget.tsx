@@ -18,19 +18,10 @@ import '../../src/browser/style/index.css';
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
 export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';
 
-/**
- * Widget for managing Metadata Schemas.
- * Acts as a View layer, delegating logic to SchemaManagerService.
- */
 @injectable()
 export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulWidget {
     static readonly ID = METADATA_SCHEMA_MANAGER_WIDGET_ID;
     static readonly LABEL = METADATA_SCHEMA_MANAGER_LABEL;
-
-    protected readonly fileDialogService: FileDialogService;
-    protected readonly messageService: MessageService;
-    protected readonly envVariablesServer: EnvVariablesServer;
-    protected readonly schemaManagerService: SchemaManagerService;
 
     protected schemas: SchemaInfo[] = [];
     protected isLoading = true;
@@ -39,32 +30,23 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     private reactRoot: Root | undefined;
 
     constructor(
-        @inject(FileDialogService) fileDialogService: FileDialogService,
-        @inject(MessageService) messageService: MessageService,
-        @inject(EnvVariablesServer) envVariablesServer: EnvVariablesServer,
-        @inject(SchemaManagerService) schemaManagerService: SchemaManagerService
+        @inject(FileDialogService) protected readonly fileDialogService: FileDialogService,
+        @inject(MessageService) protected readonly messageService: MessageService,
+        @inject(EnvVariablesServer) protected readonly envVariablesServer: EnvVariablesServer,
+        @inject(SchemaManagerService) protected readonly schemaManagerService: SchemaManagerService
     ) {
         super();
-        this.fileDialogService = fileDialogService;
-        this.messageService = messageService;
-        this.envVariablesServer = envVariablesServer;
-        this.schemaManagerService = schemaManagerService;
-
         this.id = METADATA_SCHEMA_MANAGER_WIDGET_ID;
         this.title.label = METADATA_SCHEMA_MANAGER_LABEL;
         this.title.caption = METADATA_SCHEMA_MANAGER_LABEL;
         this.title.closable = true;
         this.title.iconClass = 'fa fa-file-code';
 
-        // Auto-refresh when service reports changes
         this.toDispose.push(
             this.schemaManagerService.onDidChangeSchemas(() => this.loadSchemas())
         );
     }
 
-    /**
-     * Reloads data from the service and updates the UI.
-     */
     protected async loadSchemas(): Promise<void> {
         this.isLoading = true;
         this.selectedSchemaKeys = [];
@@ -90,7 +72,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
         Modal.confirm({
             title: 'Confirm Deletion',
-            content: `Delete ${paths.length} schema(s)? (Deletes both CEDAR and RO-Crate files)`,
+            content: `Delete ${paths.length} schema(s)?`,
             okText: 'Yes',
             cancelText: 'Cancel',
             onOk: async () => {
@@ -115,11 +97,9 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         if (!fileUriOrUris) return;
         const fileUris: URI[] = Array.isArray(fileUriOrUris) ? fileUriOrUris : [fileUriOrUris];
 
-        this.messageService.showProgress({
-            text: 'Importing Schemas...'
-        }).then(async progress => {
+        this.messageService.showProgress({ text: 'Importing Schemas...' }).then(async progress => {
             const results = await this.schemaManagerService.importFiles(fileUris, progress);
-            if (results.success > 0) this.messageService.info(`Successfully imported ${results.success} schema(s).`);
+            if (results.success > 0) this.messageService.info(`Imported ${results.success} schema(s).`);
             if (results.fail > 0) this.messageService.warn(`Failed to import ${results.fail} schema(s).`);
         });
     }
@@ -128,23 +108,20 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         const envVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
         const apiKey = envVar?.value;
 
-        if (!apiKey) {
-            this.messageService.error('CEDAR_API_KEY missing in environment.');
-            return;
-        }
-
         let url = '';
         await new Promise((resolve) => {
             let inputUrl = '';
             Modal.confirm({
-                title: 'Import Schema from CEDAR URL (@id)',
+                title: 'Import Schema from URL',
                 content: (
                     <div style={{ marginTop: 10 }}>
                         <Input 
                             placeholder="Enter CEDAR URL" 
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => inputUrl = e.target.value} 
                         />
-                        <div style={{ fontSize: 12, color: '#888', marginTop: 5 }}>Using configured API Key</div>
+                        <div style={{ fontSize: 12, color: '#888', marginTop: 5 }}>
+                            {apiKey ? 'Using configured API Key' : 'No API Key - trying open access'}
+                        </div>
                     </div>
                 ),
                 onOk: () => { resolve(inputUrl); },
@@ -154,12 +131,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
         if (!url) return;
 
-        this.messageService.showProgress({
-            text: 'Importing from URL...'
-        }).then(async progress => {
+        this.messageService.showProgress({ text: 'Importing from URL...' }).then(async progress => {
             try {
                 const schemaName = await this.schemaManagerService.importFromUrl(url, apiKey, progress);
-                this.messageService.info(`Successfully imported: ${schemaName}`);
+                this.messageService.info(`Imported: ${schemaName}`);
             } catch (error) {
                 progress.cancel();
                 this.messageService.error(`Import Failed: ${error instanceof Error ? error.message : error}`);
@@ -215,7 +190,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                         schemas={this.schemas} 
                         isLoading={this.isLoading}
                         onSelectionChange={this.onSelectionChange}
-                        onDelete={this.deleteSchemas.bind(this)}
+                        onDelete={(paths) => this.deleteSchemas(paths)}
                     />
                 </div>
             </div>
