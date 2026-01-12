@@ -1,4 +1,4 @@
-import { MenuPath, MessageService } from '@theia/core'
+import { MenuPath } from '@theia/core'
 import {
   ContextMenuRenderer,
   NodeProps,
@@ -32,9 +32,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
   /** Used in Drag & Drop code to remember and cancel deferred expansion of hovered nodes */
   // protected readonly toCancelNodeExpansion = new DisposableCollection()
 
-  /** The MessageService to demonstrate the action when a user opens (double-clicks) a node */
-  @inject(MessageService) private readonly messageService: MessageService
-
   constructor(
     @inject(TreeProps) public override readonly props: TreeProps,
     @inject(TreeModel) public override readonly model: EntitiesOverviewModel,
@@ -49,14 +46,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
     this.title.closable = true
     this.title.iconClass = 'fa fa-list-ul'
 
-    // register action on double-click / ENTER key
-    this.toDispose.push(
-      this.model.onOpenNode((node: TreeNode) => {
-        if (ExampleTreeLeaf.is(node) || ExampleTreeNode.is(node)) {
-          this.messageService.info(`Example node ${node.data.name} was opened.`)
-        }
-      }),
-    )
     // this.toDispose.push(this.toCancelNodeExpansion)
   }
 

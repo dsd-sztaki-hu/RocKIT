@@ -30,6 +30,18 @@ function getEntityTypes(entity: Record<string, any>): string[] {
   return typeList.map((type) => formatTypeLabel(String(type)))
 }
 
+function hasType(entity: Record<string, any>, target: string): boolean {
+  const rawTypes = entity?.['@type']
+  if (!rawTypes) {
+    return false
+  }
+  const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
+  return typeList.some((type) => {
+    const value = String(type)
+    return value === target || value.endsWith(`/${target}`)
+  })
+}
+
 function getEntityName(entity: Record<string, any>): string {
   const name = entity?.name ?? entity?.title ?? entity?.['@id'] ?? ''
   return String(name)
@@ -41,6 +53,9 @@ function createEntitiesData(crate: Record<string, any> | undefined): Item[] {
 
   for (const entry of graph) {
     if (!entry || typeof entry !== 'object') {
+      continue
+    }
+    if (hasType(entry, 'CreativeWork')) {
       continue
     }
     const entityId = entry?.['@id'] ? String(entry['@id']) : ''
