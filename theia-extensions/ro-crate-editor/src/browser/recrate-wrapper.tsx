@@ -7,12 +7,14 @@ export const DescriboCrateBuilderWrapper = ({
     entityId,
     onSaveCrate,
     onNavigation,
+    onOpenSchemaManager
 }: {
     crate: Record<string, any> | undefined;
     profile: Record<string, any> | undefined;
     entityId: string | undefined;
     onSaveCrate: (data: any) => void;
     onNavigation: (entity: any) => void;
+    onOpenSchemaManager: (requested: boolean) => void;
 }) => {
     const [currentEntityId, setCurrentEntityId] = React.useState<string | undefined>(entityId);
     const [loading, setLoading] = React.useState<boolean>(false);
@@ -88,6 +90,13 @@ export const DescriboCrateBuilderWrapper = ({
         onNavigation(entity);
     }, [currentEntityId, onNavigation, entityId]);
 
+    const handleAddNewProfileRequest = React.useCallback((requested: boolean) => {
+        if (requested) {
+            onOpenSchemaManager(requested);
+        }
+    }, [onOpenSchemaManager]);
+
+
     return (
         <div ref={containerRef}>
             {loading && <div style={{ padding: '0.5rem', color: '#888' }}>Loading entity...</div>}
@@ -95,6 +104,7 @@ export const DescriboCrateBuilderWrapper = ({
                 key={currentEntityId}
                 crate={crate}
                 profile={profile}
+                onAddNewProfileRequest={handleAddNewProfileRequest}
                 entityId={currentEntityId}
                 onSaveCrate={onSaveCrate}
                 onNavigation={handleNavigationWrapper}

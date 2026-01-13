@@ -103,6 +103,17 @@ export class RoCrateEditorWidget extends ReactWidget {
     })
   }
 
+  protected handleSetProfile = (profile: any) => {
+    this.appStateService.profile = profile
+    this.localProfile = profile
+  }
+
+  protected handleOpenSchemaManager = (requested: boolean) => {
+    if (requested) {
+      console.log('open schema manager')
+    }
+  }
+
   render(): React.ReactNode {
     return (
       <div style={{ padding: '1rem' }}>
@@ -114,6 +125,8 @@ export class RoCrateEditorWidget extends ReactWidget {
           entityId={this.localSelectedEntityId}
           onSaveCrate={this.handleSaveCrate}
           onNavigation={this.handleNavigation}
+          //onSetProfile={this.handleSetProfile}
+          onOpenSchemaManager={this.handleOpenSchemaManager}
         />
       </div>
     )
