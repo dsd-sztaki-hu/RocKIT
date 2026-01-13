@@ -119,10 +119,19 @@ export class RoCrateEditorWidget extends ReactWidget {
     )
   }
 
+  protected unregisterFromAppState(): void {
+    const mapping = { ...this.appStateService.EIRCEIA }
+    if (this.id && mapping[this.id]) {
+      delete mapping[this.id]
+      this.appStateService.EIRCEIA = mapping
+    }
+  }
+
   dispose(): void {
-    super.dispose()
+    this.unregisterFromAppState()
     this.crateSubscription?.dispose()
     this.profileSubscription?.dispose()
     this.selectedEntityIdSubscription?.dispose()
+    super.dispose()
   }
 }
