@@ -177,39 +177,17 @@ export class EntitiesOverviewWidget extends TreeWidget {
         await this.shell.activateWidget(existingWidgetId)
         return
       }
-      this.unregisterEntityEditor(existingWidgetId)
     }
 
     const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
       instance: Math.random().toString(),
+      entityId,
     })
     await this.shell.addWidget(widget, { area: 'main' })
-    this.registerEntityEditor(widget.id, entityId)
     await this.shell.activateWidget(widget.id)
   }
 
   protected findWidgetIdForEntity(entityId: string): string | undefined {
-    const mapping = this.appStateService.EIRCEIA ?? {}
-    return Object.entries(mapping).find(([, id]) => id === entityId)?.[0]
-  }
-
-  protected unregisterEntityEditor(widgetId: string): void {
-    const mapping = { ...(this.appStateService.EIRCEIA ?? {}) }
-    if (widgetId in mapping) {
-      delete mapping[widgetId]
-      this.appStateService.EIRCEIA = Object.keys(mapping).length ? mapping : undefined
-    }
-  }
-
-  protected registerEntityEditor(widgetId: string, entityId: string): void {
-    // Map each entity to the widget that last opened it so the overview can reuse tabs.
-    const mapping = { ...(this.appStateService.EIRCEIA ?? {}) }
-    for (const key of Object.keys(mapping)) {
-      if (key === widgetId || mapping[key] === entityId) {
-        delete mapping[key]
-      }
-    }
-    mapping[widgetId] = entityId
-    this.appStateService.EIRCEIA = mapping
+    return this.appStateService.getEntityEditorWidgetId(entityId)
   }
 }

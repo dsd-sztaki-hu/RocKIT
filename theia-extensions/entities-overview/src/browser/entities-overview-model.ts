@@ -63,7 +63,7 @@ function createEntitiesData(crate: Record<string, any> | undefined): Item[] {
     const description =
       typeof entry?.description === 'string' ? String(entry.description) : undefined
     const valid = Boolean(name)
-    const displayName = name || entityId || '(unnamed)'
+    const displayName = entityId === './' ? './' : name || entityId || '(unnamed)'
 
     for (const typeLabel of getEntityTypes(entry)) {
       const list = byType.get(typeLabel) ?? []

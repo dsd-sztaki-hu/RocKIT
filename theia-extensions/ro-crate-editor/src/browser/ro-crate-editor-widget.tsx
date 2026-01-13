@@ -9,11 +9,17 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 
 import { DescriboCrateBuilderWrapper } from './recrate-wrapper'
 
+interface RoCrateEditorWidgetOptions {
+  instanceId?: string
+  entityId?: string
+}
+
 @injectable()
 export class RoCrateEditorWidget extends ReactWidget {
   static readonly ID = 'rocrate-editor-widget'
 
   protected instanceId: string = ''
+  protected assignedEntityId?: string
 
   @inject(AppStateService)
   protected readonly appStateService: AppStateService
@@ -40,23 +46,22 @@ export class RoCrateEditorWidget extends ReactWidget {
     })
   }
 
-  initialize(options: any = {}): void {
+  initialize(options: RoCrateEditorWidgetOptions = {}): void {
     this.instanceId =
       options.instanceId ??
       `${RoCrateEditorWidget.ID}:${Math.random().toString(36).substring(2)}`
 
     this.id = this.instanceId
-    this.title.label = `Editor ${this.instanceId}`
 
     // Assign initial values from app-state on component load
     this.localCrate = this.appStateService.roCrate
     this.localProfile = this.appStateService.profile
-    this.localSelectedEntityId = this.appStateService.selectedEntityId || './'
 
     this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
       (crate) => {
         this.localCrate = crate
         console.log('crate update')
+        this.updateTitleLabel()
         this.update()
       },
     )
@@ -70,12 +75,17 @@ export class RoCrateEditorWidget extends ReactWidget {
     this.selectedEntityIdSubscription = this.appStateService.onDidChangeSelector(
       (s) => s.selectedEntityId,
     )((selectedEntityId) => {
-      const prev = this.localSelectedEntityId
-      this.localSelectedEntityId = selectedEntityId
-      console.log('selectedEntityId update', { prev, next: selectedEntityId })
-      this.update()
+      if (selectedEntityId === this.assignedEntityId) {
+        const prev = this.localSelectedEntityId
+        this.localSelectedEntityId = selectedEntityId
+        console.log('selectedEntityId update', { prev, next: selectedEntityId })
+        this.updateTitleLabel()
+        this.update()
+      }
     })
 
+    const initialEntity = options.entityId ?? this.appStateService.selectedEntityId ?? './'
+    this.assignEntity(initialEntity)
     this.update()
   }
 
@@ -89,13 +99,11 @@ export class RoCrateEditorWidget extends ReactWidget {
   protected handleNavigation = (entity: any) => {
     const nextId = entity && entity['@id']
     console.log('navigation event', entity)
-    if (!nextId) {
+    if (!nextId || nextId === this.assignedEntityId) {
       return
     }
-    if (nextId === this.appStateService.selectedEntityId) {
-      return
-    }
-    const prevId = this.appStateService.selectedEntityId
+    const prevId = this.assignedEntityId
+    this.assignEntity(nextId)
     this.appStateService.selectedEntityId = nextId
     console.log('selectedEntityId set', {
       prev: prevId,
@@ -119,16 +127,47 @@ export class RoCrateEditorWidget extends ReactWidget {
     )
   }
 
-  protected unregisterFromAppState(): void {
-    const current = this.appStateService.EIRCEIA
-    if (!current || !this.id) {
+  protected assignEntity(entityId: string): void {
+    if (!this.id) {
       return
     }
-    const mapping = { ...current }
-    if (mapping[this.id]) {
-      delete mapping[this.id]
-      this.appStateService.EIRCEIA = Object.keys(mapping).length ? mapping : undefined
+    const prev = this.assignedEntityId
+    this.assignedEntityId = entityId
+    this.localSelectedEntityId = entityId
+    this.appStateService.registerEntityEditor(this.id, entityId)
+    console.log('Assigned entity to widget', { widget: this.id, prev, next: entityId })
+    this.updateTitleLabel()
+  }
+
+  protected updateTitleLabel(): void {
+    const entityId = this.assignedEntityId ?? './'
+    const entityDisplay = this.getEntityDisplayName(entityId)
+    this.title.label = `ROC-edit: ${entityDisplay}`
+  }
+
+  protected getEntityDisplayName(entityId: string): string {
+    if (entityId === './') {
+      return './'
     }
+    const rawGraph = this.localCrate?.['@graph']
+    const graph = Array.isArray(rawGraph) ? (rawGraph as Record<string, any>[]) : []
+    const entity = graph.find(
+      (entry) => entry && typeof entry === 'object' && String(entry['@id']) === entityId,
+    )
+    if (entity) {
+      const name = entity.name ?? entity.title ?? entity['@id']
+      if (typeof name === 'string' && name.trim()) {
+        return name.trim()
+      }
+    }
+    return entityId
+  }
+
+  protected unregisterFromAppState(): void {
+    if (!this.id) {
+      return
+    }
+    this.appStateService.unregisterEntityEditor(this.id)
   }
 
   dispose(): void {

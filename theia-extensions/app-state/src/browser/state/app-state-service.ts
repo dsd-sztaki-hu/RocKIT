@@ -122,6 +122,36 @@ export class AppStateService {
     this.updateState({ EIRCEIA: value })
   }
 
+  registerEntityEditor(widgetId: string, entityId: string): void {
+    const mapping = { ...(this.getState().EIRCEIA ?? {}) }
+    for (const key of Object.keys(mapping)) {
+      if (key === widgetId || mapping[key] === entityId) {
+        delete mapping[key]
+      }
+    }
+    mapping[widgetId] = entityId
+    this.updateState({ EIRCEIA: mapping })
+  }
+
+  unregisterEntityEditor(widgetId: string): void {
+    const mapping = { ...(this.getState().EIRCEIA ?? {}) }
+    if (widgetId in mapping) {
+      delete mapping[widgetId]
+      this.updateState({
+        EIRCEIA: Object.keys(mapping).length ? mapping : undefined,
+      })
+    }
+  }
+
+  getEntityEditorWidgetId(entityId: string): string | undefined {
+    const mapping = this.getState().EIRCEIA ?? {}
+    return Object.entries(mapping).find(([, id]) => id === entityId)?.[0]
+  }
+
+  getEntityForWidget(widgetId: string): string | undefined {
+    return this.getState().EIRCEIA?.[widgetId]
+  }
+
   get isROCrateInvalid(): AppState['isROCrateInvalid'] {
     return this.getState().isROCrateInvalid
   }
