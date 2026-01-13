@@ -13,6 +13,8 @@ import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import { RoCrateHtmlGenerator } from './ro-crate-html-generator'
+import { EditorWidget } from '@theia/editor/lib/browser'
+import { SaveableService } from '@theia/core/lib/browser/saveable-service'
 
 export const SaveRoCrateCommand: Command = {
   id: 'ro-crate.save',
@@ -39,18 +41,29 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
   @inject(RoCrateHtmlGenerator)
   protected readonly roCrateHtmlGenerator!: RoCrateHtmlGenerator
 
+  @inject(SaveableService)
+  protected readonly saveableService!: SaveableService
+
   registerCommands(registry: CommandRegistry): void {
     // Register the custom button command
     registry.registerCommand(SaveRoCrateCommand, {
       execute: () => this.doSave(),
     })
 
-    // Register a handler for the global Save (Ctrl+S)
-    registry.registerHandler(CommonCommands.SAVE.id, {
-      execute: () => this.doSave(),
-      // Enable this handler ONLY when your widget is the one in focus
-      isEnabled: () => this.isRoCrateEditorFocused(),
+    // Override the global Save command to enforce our enablement rules
+    registry.unregisterCommand(CommonCommands.SAVE.id)
+    registry.registerCommand(CommonCommands.SAVE, {
+      execute: () => this.handleSaveKeybinding(),
+      isEnabled: () => this.isRoCrateEditorFocused() || this.isFileEditorFocused(),
     })
+  }
+
+  private async handleSaveKeybinding(): Promise<void> {
+    if (this.isRoCrateEditorFocused()) {
+      await this.doSave()
+      return
+    }
+    await this.saveCurrentEditor()
   }
 
   /**
@@ -63,11 +76,31 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
       return false
     }
 
-    // Check by class instance or ID prefix
     return (
       activeWidget instanceof RoCrateEditorWidget ||
       activeWidget.id.startsWith(RoCrateEditorWidget.ID)
     )
+  }
+
+  /**
+   * Checks if the active widget is a file editor
+   */
+  private isFileEditorFocused(): boolean {
+    const activeWidget = this.shell.activeWidget || this.shell.currentWidget
+
+    if (!activeWidget) {
+      return false
+    }
+
+    return activeWidget instanceof EditorWidget
+  }
+
+  private async saveCurrentEditor(): Promise<void> {
+    const widget = this.shell.currentWidget
+    if (!widget) {
+      return
+    }
+    await this.saveableService.save(widget)
   }
 
   /**
