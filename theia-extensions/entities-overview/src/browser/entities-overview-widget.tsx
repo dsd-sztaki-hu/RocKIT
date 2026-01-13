@@ -1,16 +1,17 @@
 import { MenuPath } from '@theia/core'
 import {
+  ApplicationShell,
   ContextMenuRenderer,
   NodeProps,
   TreeModel,
   TreeNode,
   TreeProps,
   TreeWidget,
+  WidgetManager,
 } from '@theia/core/lib/browser'
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
-import { ApplicationShell, WidgetManager } from '@theia/core/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
@@ -164,15 +165,52 @@ export class EntitiesOverviewWidget extends TreeWidget {
         return
       }
       this.appStateService.selectedEntityId = entityId
-      void this.openRoCrateEditor()
+      void this.openRoCrateEditorForEntity(entityId)
     }
   }
 
-  protected async openRoCrateEditor(): Promise<void> {
+  protected async openRoCrateEditorForEntity(entityId: string): Promise<void> {
+    const existingWidgetId = this.findWidgetIdForEntity(entityId)
+    if (existingWidgetId) {
+      const existing = this.shell.getWidgetById(existingWidgetId)
+      if (existing) {
+        await this.shell.activateWidget(existingWidgetId)
+        return
+      }
+      this.unregisterEntityEditor(existingWidgetId)
+    }
+
     const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
       instance: Math.random().toString(),
     })
-    this.shell.addWidget(widget, { area: 'main' })
-    this.shell.activateWidget(widget.id)
+    await this.shell.addWidget(widget, { area: 'main' })
+    this.registerEntityEditor(widget.id, entityId)
+    await this.shell.activateWidget(widget.id)
+  }
+
+  protected findWidgetIdForEntity(entityId: string): string | undefined {
+    return Object.entries(this.appStateService.EIRCEIA).find(
+      ([, id]) => id === entityId,
+    )?.[0]
+  }
+
+  protected unregisterEntityEditor(widgetId: string): void {
+    const mapping = { ...this.appStateService.EIRCEIA }
+    if (widgetId in mapping) {
+      delete mapping[widgetId]
+      this.appStateService.EIRCEIA = mapping
+    }
+  }
+
+  protected registerEntityEditor(widgetId: string, entityId: string): void {
+    // Map each entity to the widget that last opened it so the overview can reuse tabs.
+    const mapping = { ...this.appStateService.EIRCEIA }
+    for (const key of Object.keys(mapping)) {
+      if (key === widgetId || mapping[key] === entityId) {
+        delete mapping[key]
+      }
+    }
+    mapping[widgetId] = entityId
+    this.appStateService.EIRCEIA = mapping
   }
 }
