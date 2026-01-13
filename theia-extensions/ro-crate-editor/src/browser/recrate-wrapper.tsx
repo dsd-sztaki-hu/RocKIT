@@ -100,7 +100,7 @@ export const DescriboCrateBuilderWrapper = ({
                 onNavigation={handleNavigationWrapper}
                 onWarning={(w: any) => console.log("warning", w)}
                 onError={(e: any) => console.log("error", e)}
-                enableReverseLinkBrowser={false}
+                enableReverseLinkBrowser={true}
                 enableBrowseEntities={false}
                 enableCratePreview={false}
                 enableUrlMarkup={false}
