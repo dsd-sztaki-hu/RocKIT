@@ -1,15 +1,20 @@
-import { Disposable, DisposableCollection, MenuPath, MessageService } from '@theia/core'
+import { MenuPath } from '@theia/core'
 import {
+  ApplicationShell,
   ContextMenuRenderer,
   NodeProps,
   TreeModel,
   TreeNode,
   TreeProps,
   TreeWidget,
+  WidgetManager,
 } from '@theia/core/lib/browser'
+import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import '../../src/browser/styles/entities-overview-widget.css'
+import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import {
   EntitiesOverviewModel,
   ExampleTreeLeaf,
@@ -30,15 +35,15 @@ export class EntitiesOverviewWidget extends TreeWidget {
   static readonly LABEL = 'Entities Overview'
 
   /** Used in Drag & Drop code to remember and cancel deferred expansion of hovered nodes */
-  protected readonly toCancelNodeExpansion = new DisposableCollection()
-
-  /** The MessageService to demonstrate the action when a user opens (double-clicks) a node */
-  @inject(MessageService) private readonly messageService: MessageService
+  // protected readonly toCancelNodeExpansion = new DisposableCollection()
 
   constructor(
     @inject(TreeProps) public override readonly props: TreeProps,
     @inject(TreeModel) public override readonly model: EntitiesOverviewModel,
     @inject(ContextMenuRenderer) contextMenuRenderer: ContextMenuRenderer,
+    @inject(AppStateService) private readonly appStateService: AppStateService,
+    @inject(WidgetManager) private readonly widgetManager: WidgetManager,
+    @inject(ApplicationShell) private readonly shell: ApplicationShell,
   ) {
     super(props, model, contextMenuRenderer)
 
@@ -49,15 +54,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
     this.title.closable = true
     this.title.iconClass = 'fa fa-list-ul'
 
-    // register action on double-click / ENTER key
-    this.toDispose.push(
-      this.model.onOpenNode((node: TreeNode) => {
-        if (ExampleTreeLeaf.is(node) || ExampleTreeNode.is(node)) {
-          this.messageService.info(`Example node ${node.data.name} was opened.`)
-        }
-      }),
-    )
-    this.toDispose.push(this.toCancelNodeExpansion)
+    // this.toDispose.push(this.toCancelNodeExpansion)
   }
 
   /**
@@ -88,15 +85,54 @@ export class EntitiesOverviewWidget extends TreeWidget {
    * @returns the node's CSS classes
    */
   protected override createNodeClassNames(node: TreeNode, props: NodeProps): string[] {
-    return super.createNodeClassNames(node, props).concat('theia-example-tree-node')
+    const classNames = super
+      .createNodeClassNames(node, props)
+      .concat('theia-example-tree-node')
+    if (ExampleTreeNode.is(node)) {
+      return classNames.filter(
+        (className) => className !== SELECTED_CLASS && className !== FOCUS_CLASS,
+      )
+    }
+    return classNames
+  }
+
+  protected override rowIsSelected(node: TreeNode, props: NodeProps): boolean {
+    if (ExampleTreeNode.is(node)) {
+      return false
+    }
+    return super.rowIsSelected(node, props)
+  }
+
+  protected override handleContextMenuEvent(
+    node: TreeNode | undefined,
+    event: React.MouseEvent<HTMLElement>,
+  ): void {
+    if (node && ExampleTreeNode.is(node)) {
+      const contextMenuPath = this.props.contextMenuPath
+      if (contextMenuPath) {
+        const { x, y } = event.nativeEvent
+        const args = this.toContextMenuArgs(node)
+        const target = event.currentTarget
+        setTimeout(
+          () =>
+            this.contextMenuRenderer.render({
+              menuPath: contextMenuPath,
+              context: target,
+              anchor: { x, y },
+              args,
+            }),
+          10,
+        )
+      }
+      event.stopPropagation()
+      event.preventDefault()
+      return
+    }
+    super.handleContextMenuEvent(node, event)
   }
 
   /**
    * Provide node element attributes for a given tree node.
-   *
-   * In our example, we use this to add Drag & Drop event handlers to the tree nodes.
-   *
-   * Note: the Drag & Drop code has been taken and adapted from `file-tree-widget.tsx`
    *
    * @param node the node to render
    * @param props the node props (currently transporting the depth of the item in the tree)
@@ -108,7 +144,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
   ): React.Attributes & React.HTMLAttributes<HTMLElement> {
     return {
       ...super.createNodeAttributes(node, props),
-      ...this.getNodeDragHandlers(node),
       onClick: () => this.handleNodeClick(node),
     }
   }
@@ -120,148 +155,39 @@ export class EntitiesOverviewWidget extends TreeWidget {
    * @param node the clicked node
    */
   protected handleNodeClick(node: TreeNode): void {
-    if (ExampleTreeLeaf.is(node)) {
-      console.log(`Clicked entity: ${node.data.name}`)
-      console.log(`Entity details:`, {
-        name: node.data.name,
-        valid: node.data.valid,
-      })
-    }
-  }
-
-  /**
-   * Returns HTML attributes to install Drag & Drop event handlers for the given tree node.
-   *
-   * Note: the Drag & Drop code has been taken and adapted from `file-tree-widget.tsx`
-   *
-   * @param node the tree node
-   * @returns the drag event handlers to be used as additional HTML element attributes
-   */
-  protected getNodeDragHandlers(
-    node: TreeNode,
-  ): React.Attributes & React.HtmlHTMLAttributes<HTMLElement> {
-    return {
-      onDragStart: (event) => this.handleDragStartEvent(node, event),
-      onDragEnter: (event) => this.handleDragEnterEvent(node, event),
-      onDragOver: (event) => this.handleDragOverEvent(node, event),
-      onDragLeave: (event) => this.handleDragLeaveEvent(node, event),
-      onDrop: (event) => this.handleDropEvent(node, event),
-      draggable: ExampleTreeLeaf.is(node),
-    }
-  }
-
-  /**
-   * Handler for the _dragStart_ event.
-   *
-   * Stores the ID of the dragged tree node in the Drag & Drop data.
-   *
-   * @param node the tree node
-   * @param event the event
-   */
-  protected handleDragStartEvent(node: TreeNode, event: React.DragEvent): void {
-    event.stopPropagation()
-    if (event.dataTransfer) {
-      event.dataTransfer.setData('tree-node', node.id)
-    }
-  }
-
-  /**
-   * Handler for the _dragOver_ event.
-   *
-   * Registers deferred tree expansion that shall be triggered if the user hovers over an expandable tree item for
-   * some time.
-   *
-   * @param node the tree node
-   * @param event the event
-   */
-  protected handleDragOverEvent(
-    node: TreeNode | undefined,
-    event: React.DragEvent,
-  ): void {
-    event.preventDefault()
-    event.stopPropagation()
-    event.dataTransfer.dropEffect = 'move'
-
-    if (!this.toCancelNodeExpansion.disposed) {
+    if (ExampleTreeNode.is(node)) {
+      void this.model.toggleNodeExpansion(node)
       return
     }
-
-    const timer = setTimeout(() => {
-      if (!!node && ExampleTreeNode.is(node) && !node.expanded) {
-        this.model.expandNode(node)
+    if (ExampleTreeLeaf.is(node)) {
+      const entityId = node.data.entityId
+      if (!entityId) {
+        return
       }
-    }, 500)
-    this.toCancelNodeExpansion.push(Disposable.create(() => clearTimeout(timer)))
-  }
-
-  /**
-   * Handler for the _dragEnter_ event.
-   *
-   * Cancels any pending deferred tree extension, selects the current target node to highlight it in the UI, and
-   * sets the Drag & Drop indicator to "move".
-   *
-   * @param node the tree node
-   * @param event the event
-   */
-  protected handleDragEnterEvent(
-    node: TreeNode | undefined,
-    event: React.DragEvent,
-  ): void {
-    event.preventDefault()
-    event.stopPropagation()
-    this.toCancelNodeExpansion.dispose()
-
-    let target = node
-    if (target && ExampleTreeLeaf.is(target)) {
-      target = target.parent
-    }
-
-    if (!!target && ExampleTreeNode.is(target) && !target.selected) {
-      this.model.selectNode(target)
+      this.appStateService.selectedEntityId = entityId
+      void this.openRoCrateEditorForEntity(entityId)
     }
   }
 
-  /**
-   * Handler for the _dragLeave_ event.
-   *
-   * Cancels any pending deferred tree extension.
-   *
-   * @param node the tree node
-   * @param event the event
-   */
-  protected handleDragLeaveEvent(
-    node: TreeNode | undefined,
-    event: React.DragEvent,
-  ): void {
-    event.preventDefault()
-    event.stopPropagation()
-    this.toCancelNodeExpansion.dispose()
+  protected async openRoCrateEditorForEntity(entityId: string): Promise<void> {
+    const existingWidgetId = this.findWidgetIdForEntity(entityId)
+    if (existingWidgetId) {
+      const existing = this.shell.getWidgetById(existingWidgetId)
+      if (existing) {
+        await this.shell.activateWidget(existingWidgetId)
+        return
+      }
+    }
+
+    const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
+      instance: Math.random().toString(),
+      entityId,
+    })
+    await this.shell.addWidget(widget, { area: 'main' })
+    await this.shell.activateWidget(widget.id)
   }
 
-  /**
-   * Handler for the _drop_ event.
-   *
-   * Calls the code to move the dragged node to the new parent.
-   *
-   * @param node the tree node
-   * @param event the event
-   */
-  protected async handleDropEvent(
-    node: TreeNode | undefined,
-    event: React.DragEvent,
-  ): Promise<void> {
-    event.preventDefault()
-    event.stopPropagation()
-    event.dataTransfer.dropEffect = 'move'
-
-    let target = node
-    if (target && ExampleTreeLeaf.is(target)) {
-      target = target.parent
-    }
-
-    if (!!target && ExampleTreeNode.is(target)) {
-      const draggedNodeId = event.dataTransfer.getData('tree-node')
-      this.model.reparent(draggedNodeId, target)
-    }
+  protected findWidgetIdForEntity(entityId: string): string | undefined {
+    return this.appStateService.getEntityEditorWidgetId(entityId)
   }
 }
