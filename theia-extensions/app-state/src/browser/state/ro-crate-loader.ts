@@ -109,6 +109,5 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
   ): void {
     this.appStateService.roCrate = content
     this.appStateService.isROCrateInvalid = isInvalid
-    this.appStateService.EIRCEIA = undefined
   }
 }

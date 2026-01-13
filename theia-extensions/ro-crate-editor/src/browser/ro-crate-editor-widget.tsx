@@ -84,7 +84,9 @@ export class RoCrateEditorWidget extends ReactWidget {
       }
     })
 
-    const initialEntity = options.entityId ?? this.appStateService.selectedEntityId ?? './'
+    const persistedEntity = this.appStateService.getEntityForWidget(this.instanceId)
+    const initialEntity =
+      persistedEntity ?? options.entityId ?? this.appStateService.selectedEntityId ?? './'
     this.assignEntity(initialEntity)
     this.update()
   }
@@ -142,7 +144,7 @@ export class RoCrateEditorWidget extends ReactWidget {
   protected updateTitleLabel(): void {
     const entityId = this.assignedEntityId ?? './'
     const entityDisplay = this.getEntityDisplayName(entityId)
-    this.title.label = `ROC-edit: ${entityDisplay}`
+    this.title.label = `ROC-edit:${entityDisplay}`
   }
 
   protected getEntityDisplayName(entityId: string): string {
@@ -168,6 +170,10 @@ export class RoCrateEditorWidget extends ReactWidget {
       return
     }
     this.appStateService.unregisterEntityEditor(this.id)
+  }
+
+  getAssignedEntityId(): string | undefined {
+    return this.assignedEntityId
   }
 
   dispose(): void {
