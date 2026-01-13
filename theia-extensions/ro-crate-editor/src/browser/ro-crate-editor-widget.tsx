@@ -120,10 +120,14 @@ export class RoCrateEditorWidget extends ReactWidget {
   }
 
   protected unregisterFromAppState(): void {
-    const mapping = { ...this.appStateService.EIRCEIA }
-    if (this.id && mapping[this.id]) {
+    const current = this.appStateService.EIRCEIA
+    if (!current || !this.id) {
+      return
+    }
+    const mapping = { ...current }
+    if (mapping[this.id]) {
       delete mapping[this.id]
-      this.appStateService.EIRCEIA = mapping
+      this.appStateService.EIRCEIA = Object.keys(mapping).length ? mapping : undefined
     }
   }
 

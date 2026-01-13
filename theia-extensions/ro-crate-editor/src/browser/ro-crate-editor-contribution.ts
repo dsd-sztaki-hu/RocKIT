@@ -58,7 +58,7 @@ export class RoCrateEditorContribution
 
     protected registerEditorWidget(widgetId: string, entityId: string): void {
         // Keep the shared EIRCEIA map keyed by the widget IDs that are actually open.
-        const mapping = { ...this.appStateService.EIRCEIA };
+        const mapping = { ...(this.appStateService.EIRCEIA ?? {}) };
         for (const key of Object.keys(mapping)) {
             if (key === widgetId || mapping[key] === entityId) {
                 delete mapping[key];

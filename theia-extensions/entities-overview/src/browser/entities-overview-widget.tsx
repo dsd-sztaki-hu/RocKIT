@@ -189,22 +189,21 @@ export class EntitiesOverviewWidget extends TreeWidget {
   }
 
   protected findWidgetIdForEntity(entityId: string): string | undefined {
-    return Object.entries(this.appStateService.EIRCEIA).find(
-      ([, id]) => id === entityId,
-    )?.[0]
+    const mapping = this.appStateService.EIRCEIA ?? {}
+    return Object.entries(mapping).find(([, id]) => id === entityId)?.[0]
   }
 
   protected unregisterEntityEditor(widgetId: string): void {
-    const mapping = { ...this.appStateService.EIRCEIA }
+    const mapping = { ...(this.appStateService.EIRCEIA ?? {}) }
     if (widgetId in mapping) {
       delete mapping[widgetId]
-      this.appStateService.EIRCEIA = mapping
+      this.appStateService.EIRCEIA = Object.keys(mapping).length ? mapping : undefined
     }
   }
 
   protected registerEntityEditor(widgetId: string, entityId: string): void {
     // Map each entity to the widget that last opened it so the overview can reuse tabs.
-    const mapping = { ...this.appStateService.EIRCEIA }
+    const mapping = { ...(this.appStateService.EIRCEIA ?? {}) }
     for (const key of Object.keys(mapping)) {
       if (key === widgetId || mapping[key] === entityId) {
         delete mapping[key]
