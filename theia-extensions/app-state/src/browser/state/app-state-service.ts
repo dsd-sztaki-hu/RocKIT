@@ -27,7 +27,7 @@ export class AppStateService {
   private _resolveReady!: () => void
 
   constructor() {
-    this._ready = new Promise<void>(resolve => {
+    this._ready = new Promise<void>((resolve) => {
       this._resolveReady = resolve
     })
   }
@@ -39,13 +39,13 @@ export class AppStateService {
       .getData<AppState>(STORAGE_KEY)
       .then((stored) => {
         if (stored) {
-          const { roCrate, profile, selectedEntityId, ...restStored } = stored;
+          const { roCrate, profile, selectedEntityId, ...restStored } = stored
           this.store.setState({
             ...cloneDefaultAppState(),
             ...(restStored as any), // Only restore other properties
           })
-          console.log('Stored state loaded:', stored);
-          console.log('Current state after restoration:', this.store.getState());
+          console.log('Stored state loaded:', stored)
+          console.log('Current state after restoration:', this.store.getState())
         }
         this._resolveReady()
       })
@@ -56,7 +56,7 @@ export class AppStateService {
 
     // persist on every change
     this.onDidChangeState(({ current }) => {
-      console.log('Persisting state to localStorage:', current);
+      console.log('Persisting state to localStorage:', current)
       this.storageService.setData(STORAGE_KEY, current)
     })
   }
@@ -85,7 +85,7 @@ export class AppStateService {
   }
 
   reset(): void {
-    console.log('AppStateService: Resetting state to defaults');
+    console.log('AppStateService: Resetting state to defaults')
     this.store.setState(cloneDefaultAppState())
   }
 
@@ -94,7 +94,7 @@ export class AppStateService {
     return this.getState().roCrate
   }
   set roCrate(value: AppState['roCrate']) {
-    console.log('AppStateService: Setting roCrate to:', value);
+    console.log('AppStateService: Setting roCrate to:', value)
     this.updateState({ roCrate: value })
   }
 
@@ -102,7 +102,7 @@ export class AppStateService {
     return this.getState().profile
   }
   set profile(value: AppState['profile']) {
-    console.log('AppStateService: Setting profile to:', value);
+    console.log('AppStateService: Setting profile to:', value)
     this.updateState({ profile: value })
   }
 
@@ -113,6 +113,13 @@ export class AppStateService {
   set selectedEntityId(value: AppState['selectedEntityId']) {
     console.log('Setting selectedEntityId:', value)
     this.updateState({ selectedEntityId: value })
+  }
+
+  get EIRCEIA(): AppState['EIRCEIA'] {
+    return this.getState().EIRCEIA
+  }
+  set EIRCEIA(value: AppState['EIRCEIA']) {
+    this.updateState({ EIRCEIA: value })
   }
 
   get isROCrateInvalid(): AppState['isROCrateInvalid'] {
