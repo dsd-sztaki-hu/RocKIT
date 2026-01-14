@@ -13,6 +13,7 @@ import type { Root } from 'react-dom/client';
 import { SchemaManagerService } from './metadata-schema-manager-service';
 import { SchemaTable } from './schema-table';
 import type { SchemaInfo } from './types';
+import { SchemaToolbar } from './schema-toolbar'; // NEW IMPORT
 import '../../src/browser/style/index.css';
 
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
@@ -208,43 +209,42 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     }
 
     protected render(): void {
-        if (!this.isAttached) return;
+            if (!this.isAttached) return;
 
-        const ReactDOM = require('react-dom/client');
-        this.node.classList.add('metadata-schema-manager-widget');
-        
-        if (!this.reactRoot) {
-             this.reactRoot = ReactDOM.createRoot(this.node);
-        }
+            const ReactDOM = require('react-dom/client');
+            this.node.classList.add('metadata-schema-manager-widget');
+            
+            if (!this.reactRoot) {
+                this.reactRoot = ReactDOM.createRoot(this.node);
+            }
 
-        const selectedSchemaPaths = this.schemas
-            .filter(schema => this.selectedSchemaKeys.includes(schema.path))
-            .map(schema => schema.path);
+            const selectedSchemaPaths = this.schemas
+                .filter(schema => this.selectedSchemaKeys.includes(schema.path))
+                .map(schema => schema.path);
 
-        this.reactRoot?.render(
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                <div style={{ display: 'flex', gap: '8px', padding: '8px' }}>
-                    <Button type="primary" onClick={() => this.importSchemaFromFile()}>Import from File</Button>
-                    <Button type="primary" onClick={() => this.importSchemaFromUrl()}>Import from URL</Button>
-                    <Button type="primary" onClick={() => this.refreshSchemas()}>Refresh</Button>
+            this.reactRoot?.render(
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                     
-                    {this.selectedSchemaKeys.length > 0 && (
-                        <Button type="primary" danger onClick={() => this.deleteSchemas(selectedSchemaPaths)}>
-                            Delete {this.selectedSchemaKeys.length}
-                        </Button>
-                    )}
-                </div>
-                <div style={{ flexGrow: 1 }}>
-                    <SchemaTable 
-                        schemas={this.schemas} 
-                        isLoading={this.isLoading}
-                        onSelectionChange={this.onSelectionChange}
-                        onDelete={(paths) => this.deleteSchemas(paths)}
+                    {/* REUSABLE TOOLBAR */}
+                    <SchemaToolbar 
+                        onImportFile={() => this.importSchemaFromFile()}
+                        onImportUrl={() => this.importSchemaFromUrl()}
+                        onRefresh={() => this.refreshSchemas()}
+                        onDelete={() => this.deleteSchemas(selectedSchemaPaths)}
+                        selectedCount={this.selectedSchemaKeys.length}
                     />
+
+                    <div style={{ flexGrow: 1 }}>
+                        <SchemaTable 
+                            schemas={this.schemas} 
+                            isLoading={this.isLoading}
+                            onSelectionChange={this.onSelectionChange}
+                            onDelete={(paths) => this.deleteSchemas(paths)}
+                        />
+                    </div>
                 </div>
-            </div>
-        );
-    }
+            );
+        }
 
     protected onBeforeDetach(msg: Message): void {
         if (this.reactRoot) {
