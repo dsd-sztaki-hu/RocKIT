@@ -18,10 +18,9 @@ import '../../src/browser/style/index.css';
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
 export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';
 
-/**
- * Widget for managing Metadata Schemas.
- * Acts as a View layer, delegating logic to SchemaManagerService.
- */
+// 5 Seconds Timeout for GUI Notifications
+const MSG_TIMEOUT = 5000;
+
 @injectable()
 export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulWidget {
     static readonly ID = METADATA_SCHEMA_MANAGER_WIDGET_ID;
@@ -56,15 +55,11 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.title.closable = true;
         this.title.iconClass = 'fa fa-file-code';
 
-        // Auto-refresh when service reports changes
         this.toDispose.push(
             this.schemaManagerService.onDidChangeSchemas(() => this.loadSchemas())
         );
     }
 
-    /**
-     * Reloads data from the service and updates the UI.
-     */
     protected async loadSchemas(): Promise<void> {
         this.isLoading = true;
         this.selectedSchemaKeys = [];
@@ -73,7 +68,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         try {
             this.schemas = await this.schemaManagerService.loadAllSchemas();
         } catch (err) {
-            this.messageService.error(`Error loading schemas: ${err}`);
+            this.messageService.error(
+                `Error loading schemas: ${err}`, 
+                { timeout: MSG_TIMEOUT }
+            );
         }
 
         this.isLoading = false;
@@ -90,7 +88,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
         Modal.confirm({
             title: 'Confirm Deletion',
-            content: `Delete ${paths.length} schema(s)? (Deletes both CEDAR and RO-Crate files)`,
+            content: `Delete ${paths.length} schema(s)?`,
             okText: 'Yes',
             cancelText: 'Cancel',
             onOk: async () => {
@@ -98,7 +96,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                 this.update();
                 const deletedCount = await this.schemaManagerService.deleteSchemas(paths);
                 if (deletedCount > 0) {
-                    this.messageService.info(`Deleted ${deletedCount} schema(s).`);
+                    this.messageService.info(
+                        `Deleted ${deletedCount} schema(s).`, 
+                        { timeout: MSG_TIMEOUT }
+                    );
                 }
             }
         });
@@ -118,9 +119,27 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.messageService.showProgress({
             text: 'Importing Schemas...'
         }).then(async progress => {
-            const results = await this.schemaManagerService.importFiles(fileUris, progress);
-            if (results.success > 0) this.messageService.info(`Successfully imported ${results.success} schema(s).`);
-            if (results.fail > 0) this.messageService.warn(`Failed to import ${results.fail} schema(s).`);
+            try {
+                const results = await this.schemaManagerService.importFiles(fileUris, progress);
+                
+                if (results.success > 0) {
+                    this.messageService.info(
+                        `Successfully imported ${results.success} schema(s).`, 
+                        { timeout: MSG_TIMEOUT }
+                    );
+                }
+                if (results.fail > 0) {
+                    this.messageService.warn(
+                        `Failed to import ${results.fail} schema(s).`, 
+                        { timeout: MSG_TIMEOUT }
+                    );
+                }
+            } catch (err) {
+                console.error(err);
+                this.messageService.error('Unexpected error during import.', { timeout: MSG_TIMEOUT });
+            } finally {
+                progress.cancel();
+            }
         });
     }
 
@@ -128,23 +147,20 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         const envVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
         const apiKey = envVar?.value;
 
-        if (!apiKey) {
-            this.messageService.error('CEDAR_API_KEY missing in environment.');
-            return;
-        }
-
         let url = '';
         await new Promise((resolve) => {
             let inputUrl = '';
             Modal.confirm({
-                title: 'Import Schema from CEDAR URL (@id)',
+                title: 'Import Schema from URL',
                 content: (
                     <div style={{ marginTop: 10 }}>
                         <Input 
                             placeholder="Enter CEDAR URL" 
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => inputUrl = e.target.value} 
                         />
-                        <div style={{ fontSize: 12, color: '#888', marginTop: 5 }}>Using configured API Key</div>
+                        <div style={{ fontSize: 12, color: '#888', marginTop: 5 }}>
+                            {apiKey ? 'Using configured API Key' : 'No API Key configured - attempting open access'}
+                        </div>
                     </div>
                 ),
                 onOk: () => { resolve(inputUrl); },
@@ -159,10 +175,18 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         }).then(async progress => {
             try {
                 const schemaName = await this.schemaManagerService.importFromUrl(url, apiKey, progress);
-                this.messageService.info(`Successfully imported: ${schemaName}`);
+                
+                this.messageService.info(
+                    `Successfully imported: ${schemaName}`, 
+                    { timeout: MSG_TIMEOUT }
+                );
             } catch (error) {
+                this.messageService.error(
+                    `Import Failed: ${error instanceof Error ? error.message : error}`, 
+                    { timeout: MSG_TIMEOUT }
+                );
+            } finally {
                 progress.cancel();
-                this.messageService.error(`Import Failed: ${error instanceof Error ? error.message : error}`);
             }
         });
     }
@@ -215,7 +239,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                         schemas={this.schemas} 
                         isLoading={this.isLoading}
                         onSelectionChange={this.onSelectionChange}
-                        onDelete={this.deleteSchemas.bind(this)}
+                        onDelete={(paths) => this.deleteSchemas(paths)}
                     />
                 </div>
             </div>
