@@ -29,7 +29,6 @@ import { bindContributionProvider } from '@theia/core/lib/common'
 import { ContainerModule } from '@theia/core/shared/inversify'
 import { FileTreeDecoratorAdapter } from '@theia/filesystem/lib/browser'
 import { bindFileNavigatorPreferences } from '../common/navigator-preferences'
-import { ApplicationFileMenuOverrides } from './application-file-menu-overrides'
 import { createFileNavigatorWidget } from './navigator-container'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
 import { FileNavigatorContribution } from './navigator-contribution'
@@ -94,9 +93,6 @@ export default new ContainerModule((bind) => {
   bind(NavigatorTabBarDecorator).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(NavigatorTabBarDecorator)
   bind(TabBarDecorator).toService(NavigatorTabBarDecorator)
-
-  bind(ApplicationFileMenuOverrides).toSelf().inSingletonScope()
-  bind(FrontendApplicationContribution).toService(ApplicationFileMenuOverrides)
 
   bind(NavigatorSymlinkDecorator).toSelf().inSingletonScope()
   bind(NavigatorTreeDecorator).toService(NavigatorSymlinkDecorator)
