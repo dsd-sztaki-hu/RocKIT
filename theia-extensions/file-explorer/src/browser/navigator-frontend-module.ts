@@ -43,6 +43,7 @@ import { NavigatorTreeDecorator } from './navigator-decorator-service';
 import { NavigatorDeletedEditorDecorator } from './open-editors-widget/navigator-deleted-editor-decorator';
 import { NavigatorSymlinkDecorator } from './navigator-symlink-decorator';
 import { FileTreeDecoratorAdapter } from '@theia/filesystem/lib/browser';
+import { WorkspaceMenuOverrides } from './workspace-menu-overrides';
 
 export default new ContainerModule(bind => {
     bindFileNavigatorPreferences(bind);
@@ -82,6 +83,9 @@ export default new ContainerModule(bind => {
     bind(NavigatorTabBarDecorator).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(NavigatorTabBarDecorator);
     bind(TabBarDecorator).toService(NavigatorTabBarDecorator);
+
+    bind(WorkspaceMenuOverrides).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(WorkspaceMenuOverrides);
 
     bind(NavigatorSymlinkDecorator).toSelf().inSingletonScope();
     bind(NavigatorTreeDecorator).toService(NavigatorSymlinkDecorator);
