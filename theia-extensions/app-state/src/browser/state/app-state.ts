@@ -11,6 +11,7 @@ export const defaultAppState = {
     autoSave: true,
     fontSize: 14,
   },
+  openSchemaSelectorWindow: false,
 }
 
 export type AppState = typeof defaultAppState

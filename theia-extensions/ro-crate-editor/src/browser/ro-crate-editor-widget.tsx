@@ -110,7 +110,7 @@ export class RoCrateEditorWidget extends ReactWidget {
 
   protected handleOpenSchemaManager = (requested: boolean) => {
     if (requested) {
-      console.log('open schema manager')
+      this.appStateService.openSchemaSelectorWindow = true
     }
   }
 

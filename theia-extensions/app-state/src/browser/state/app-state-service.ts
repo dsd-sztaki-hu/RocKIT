@@ -160,4 +160,11 @@ export class AppStateService {
   set settings(value: AppState['settings']) {
     this.updateState({ settings: value })
   }
+
+  get openSchemaSelectorWindow(): AppState['openSchemaSelectorWindow'] {
+    return this.getState().openSchemaSelectorWindow
+  }
+  set openSchemaSelectorWindow(value: AppState['openSchemaSelectorWindow']) {
+    this.updateState({ openSchemaSelectorWindow: value })
+  }
 }
