@@ -1,14 +1,14 @@
-import { FrontendApplicationContribution, CommonMenus } from '@theia/core/lib/browser'
 import { environment } from '@theia/core'
-import { isOSX } from '@theia/core/lib/common/os'
-import { CommandRegistry, MenuModelRegistry } from '@theia/core/lib/common'
+import { CommonMenus, FrontendApplicationContribution } from '@theia/core/lib/browser'
 import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding'
-import { injectable, inject } from '@theia/core/shared/inversify'
+import { CommandRegistry, MenuModelRegistry } from '@theia/core/lib/common'
+import { isOSX } from '@theia/core/lib/common/os'
+import { inject, injectable } from '@theia/core/shared/inversify'
 import { WorkspaceCommands } from '@theia/workspace/lib/browser'
 import { FILE_WORKSPACE } from '@theia/workspace/lib/browser/workspace-frontend-contribution'
 
 @injectable()
-export class WorkspaceMenuOverrides implements FrontendApplicationContribution {
+export class ApplicationFileMenuOverrides implements FrontendApplicationContribution {
   @inject(MenuModelRegistry)
   protected readonly menuRegistry: MenuModelRegistry
 
