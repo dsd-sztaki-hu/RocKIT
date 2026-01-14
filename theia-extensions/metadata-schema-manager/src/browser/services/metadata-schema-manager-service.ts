@@ -9,7 +9,7 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { Modal } from 'antd';
 
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
-import type { SchemaInfo } from './types';
+import type { SchemaInfo } from '../types';
 
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';

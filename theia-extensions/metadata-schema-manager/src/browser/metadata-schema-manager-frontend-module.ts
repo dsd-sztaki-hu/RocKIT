@@ -1,39 +1,33 @@
-// src/browser/metadata-schema-manager-frontend-module.ts
 import { ContainerModule } from 'inversify';
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common';
 import { WidgetFactory, FrontendApplicationContribution } from '@theia/core/lib/browser';
 
 import { MetadataSchemaManagerWidget, METADATA_SCHEMA_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
 import { MetadataSchemaManagerContribution } from './metadata-schema-manager-contribution';
-import { SchemaManagerService } from './metadata-schema-manager-service';
-import { SchemaSelectorDialogContribution } from './schema-selector-dialog'; // <--- NEW IMPORT
+import { SchemaManagerService } from './services/metadata-schema-manager-service'; // New Path
+import { MetadataSchemaSelectorContribution } from './components/metadata-schema-selector'; // New Path & Name
+
+import './style/index.css';
 
 export default new ContainerModule(bind => {
-    // 1. Widget Binding (Transient for new instances)
+    // 1. Widget
     bind(MetadataSchemaManagerWidget).toSelf().inTransientScope();
-    
     bind(WidgetFactory).toDynamicValue(ctx => ({
         id: METADATA_SCHEMA_MANAGER_WIDGET_ID,
-        createWidget: () => {
-            const widget = ctx.container.get(MetadataSchemaManagerWidget);
-            console.log("Creating new MetadataSchemaManagerWidget instance");
-            return widget;
-        }
+        createWidget: () => ctx.container.get(MetadataSchemaManagerWidget)
     })).inSingletonScope();
 
-    // 2. Service Binding (Logic & State)
+    // 2. Service
     bind(SchemaManagerService).toSelf().inSingletonScope();
-    
-    // 3. Main Contribution (Menus & Commands for the Manager Widget)
+    bind(FrontendApplicationContribution).toService(SchemaManagerService);
+
+    // 3. Manager Contribution (Menu/Commands)
     bind(MetadataSchemaManagerContribution).toSelf().inSingletonScope();
     bind(CommandContribution).toService(MetadataSchemaManagerContribution);
     bind(MenuContribution).toService(MetadataSchemaManagerContribution);
     bind(FrontendApplicationContribution).toService(MetadataSchemaManagerContribution);
 
-    // 4. Background Service Contribution (Auto-download logic on startup)
-    bind(FrontendApplicationContribution).toService(SchemaManagerService);
-
-    // 5. Selector Dialog Contribution (Listens to App State to open Modal)
-    bind(SchemaSelectorDialogContribution).toSelf().inSingletonScope();
-    bind(FrontendApplicationContribution).toService(SchemaSelectorDialogContribution);
+    // 4. Selector Dialog Contribution
+    bind(MetadataSchemaSelectorContribution).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(MetadataSchemaSelectorContribution);
 });

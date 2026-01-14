@@ -5,11 +5,11 @@ interface SchemaToolbarProps {
     onImportFile: () => void;
     onImportUrl: () => void;
     onRefresh: () => void;
-    onDelete?: () => void; // Optional, only for Manager
-    selectedCount?: number; // Optional, only for Manager
+    onDelete?: () => void;
+    selectedCount?: number;
 }
 
-export const SchemaToolbar: React.FC<SchemaToolbarProps> = ({
+export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
     onImportFile,
     onImportUrl,
     onRefresh,
@@ -29,4 +29,4 @@ export const SchemaToolbar: React.FC<SchemaToolbarProps> = ({
             )}
         </div>
     );
-};
+});
