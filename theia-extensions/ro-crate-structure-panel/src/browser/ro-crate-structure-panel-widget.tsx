@@ -30,6 +30,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     super()
     this.addClass('dataset-panel')
     this.title.closable = true
+    this.node.style.width = '100%'
+    this.node.style.height = '100%'
   }
 
   initialize(options: any = {}): void {
@@ -68,6 +70,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected treeData = this.dig()
 
   protected expandedKeys: string[] = []
+  protected containerRef: React.RefObject<HTMLDivElement> = React.createRef()
+  protected treeHeight: number = 400
 
   protected MemoTooltip: React.ComponentType<any> = React.memo(Tooltip as any)
 
@@ -169,6 +173,30 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     return { key, title: node.name || node.id, children } as TreeDataNode
   }
 
+  onAfterAttach(msg: any): void {
+    super.onAfterAttach(msg)
+    this.computeHeightAndUpdate()
+  }
+
+  onResize(msg: any): void {
+    super.onResize(msg)
+    this.computeHeightAndUpdate()
+  }
+
+  protected computeHeightAndUpdate(): void {
+    const el = this.containerRef?.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const style = window.getComputedStyle(el)
+    const topPad = parseFloat(style.paddingTop || '0')
+    const bottomPad = parseFloat(style.paddingBottom || '0')
+    const h = Math.max(0, Math.floor(rect.height - topPad - bottomPad))
+    if (h !== this.treeHeight) {
+      this.treeHeight = h
+      this.update()
+    }
+  }
+
   render(): React.ReactNode {
     const crateToUse = this.appStateService.roCrate
     const { root } = this.buildCrateTree(crateToUse)
@@ -179,10 +207,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       this.expandedKeys = [rootKey]
     }
     return (
-      <div style={{ padding: '1rem' }}>
+      <div ref={this.containerRef} style={{ padding: '1rem', width: '100%', height: '100%', boxSizing: 'border-box', overflowX: 'auto', overflowY: 'hidden' }}>
         <Tree
+          style={{ minWidth: '100%' }}
           treeData={treeData}
-          height={500}
+          height={this.treeHeight}
           showIcon
           defaultExpandedKeys={['./']}
           // expandedKeys={this.expandedKeys}
