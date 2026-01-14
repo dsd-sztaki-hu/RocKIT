@@ -113,6 +113,31 @@ export class SchemaManagerService implements FrontendApplicationContribution {
         return await response.text();
     }
 
+    /**
+     * Retrieves the Converted RO-Crate Profile JSON for a given Source (CEDAR) path.
+     * Used by the Selector to load the profile into App State.
+     */
+    public async getConvertedProfileContent(sourcePath: string): Promise<any> {
+        try {
+            // 1. Calculate path to the converted file
+            // Replaces '/metadata-schemas/cedar/' with '/metadata-schemas/ro-crate/'
+            const roCratePathStr = sourcePath.replace('/metadata-schemas/cedar/', '/metadata-schemas/ro-crate/');
+            const roCrateUri = new URI(roCratePathStr);
+
+            // 2. Check if it exists
+            if (!await this.fileService.exists(roCrateUri)) {
+                throw new Error('Converted profile file not found. Please re-import this schema.');
+            }
+
+            // 3. Read and Parse
+            const content = await this.fileService.read(roCrateUri);
+            return JSON.parse(content.value);
+        } catch (error) {
+            console.error('Failed to load converted profile:', error);
+            throw error;
+        }
+    }
+
     /* ------------------------------------------------------------------
        AUTO-DOWNLOAD LOGIC
        ------------------------------------------------------------------ */

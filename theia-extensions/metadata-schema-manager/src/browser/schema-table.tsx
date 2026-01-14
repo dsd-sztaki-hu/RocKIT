@@ -4,16 +4,16 @@ import type { ColumnsType } from 'antd/es/table';
 import type { FilterDropdownProps, Key } from 'antd/es/table/interface';
 import * as React from 'react';
 
-import type { SchemaInfo } from './types';
+import type { SchemaInfo, SchemaTableProps } from './types';
 
-interface SchemaTableProps {
-    schemas: SchemaInfo[];
-    isLoading: boolean;
-    onSelectionChange: (selectedRowKeys: Key[]) => void;
-    onDelete: (schemaPaths: string[]) => void;
-}
-
-export const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, onSelectionChange, onDelete }) => {
+export const SchemaTable: React.FC<SchemaTableProps> = ({ 
+    schemas, 
+    isLoading, 
+    onSelectionChange, 
+    onDelete,
+    onRowDoubleClick,
+    selectionType = 'checkbox'
+}) => {
     const searchInput = React.useRef<InputRef>(null);
 
     const handleSearch = (confirm: () => void) => {
@@ -104,7 +104,10 @@ export const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, on
             ellipsis: true,
             ...getColumnSearchProps('reference'),
         },
-        {
+    ];
+
+    if (onDelete) {
+        columns.push({
             title: 'Action',
             key: 'action',
             width: 90,
@@ -114,15 +117,20 @@ export const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, on
                     danger 
                     size="small" 
                     style={{ padding: 0 }} 
-                    onClick={() => onDelete([record.path])}
+                    // FIX: Typed the event 'e' explicitly
+                    onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        onDelete([record.path]);
+                    }}
                 >
                     Delete
                 </Button>
             ),
-        },
-    ];
+        });
+    }
 
     const rowSelection = {
+        type: selectionType,
         onChange: (selectedRowKeys: Key[]) => {
             onSelectionChange(selectedRowKeys);
         },
@@ -133,7 +141,7 @@ export const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, on
             dataSource={schemas}
             columns={columns}
             rowKey={(record) => record.path}
-            rowSelection={{ type: 'checkbox', ...rowSelection }}
+            rowSelection={rowSelection}
             size="small"
             pagination={{
                 pageSize: 10,
@@ -141,6 +149,13 @@ export const SchemaTable: React.FC<SchemaTableProps> = ({ schemas, isLoading, on
                 showTotal: (total) => `Total ${total} schemas`
             }}
             loading={isLoading}
+            onRow={(record) => ({
+                onDoubleClick: () => {
+                    if (onRowDoubleClick) {
+                        onRowDoubleClick(record);
+                    }
+                },
+            })}
         />
     );
 };
