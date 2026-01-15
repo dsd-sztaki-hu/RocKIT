@@ -1,5 +1,5 @@
 {
-  "name": "entities-overview",
+  "name": "AROMA-theia-overrides",
   "keywords": [
     "theia-extension"
   ],
@@ -9,23 +9,21 @@
     "src"
   ],
   "dependencies": {
-    "@theia/core": "1.65.2",
-    "app-state": "0.0.1",
-    "ro-crate-editor": "0.0.0"
+    "@theia/core": "1.65.2"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
     "typescript": "~5.4.5"
   },
   "scripts": {
-    "prepare": "yarn run clean && yarn run build",
+    "prepare": "npm run clean && npm run build",
     "clean": "rimraf lib",
     "build": "tsc",
     "watch": "tsc -w"
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/entities-overview-frontend-module"
+      "frontend": "lib/browser/AROMA-theia-overrides-frontend-module"
     }
   ]
 }

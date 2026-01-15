@@ -23,6 +23,8 @@ export const InitializeRoCrateCommand: Command = {
     label: 'Initialize RO-Crate'
 };
 
+const ROOT_ENTITY_ID = './';
+
 @injectable()
 export class RoCrateEditorContribution
     extends AbstractViewContribution<RoCrateEditorWidget> {
@@ -50,11 +52,12 @@ export class RoCrateEditorContribution
                 const widget = await this.widgetManager.getOrCreateWidget(
                     RoCrateEditorWidget.ID,
                     {
-                        instance: Math.random().toString()
+                        instance: Math.random().toString(),
+                        entityId: ROOT_ENTITY_ID
                     }
                 );
-                this.shell.addWidget(widget, { area: 'main' });
-                this.shell.activateWidget(widget.id);
+                await this.shell.addWidget(widget, { area: 'main' });
+                await this.shell.activateWidget(widget.id);
             }
         });
 
@@ -78,4 +81,5 @@ export class RoCrateEditorContribution
             label: InitializeRoCrateCommand.label
         });
     }
+
 }

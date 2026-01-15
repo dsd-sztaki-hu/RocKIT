@@ -11,10 +11,12 @@ import { Modal } from 'antd';
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
 import type { SchemaInfo } from './types';
 
-// --- Constants & Config ---
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
 export const SCHEMA_FIELD_ID = '@id';
+
+// 5 Seconds Timeout
+const MSG_TIMEOUT = 5000;
 
 const REPO_DOMAINS = {
     OPEN_DEV: 'open.cedardev.dsd.sztaki.hu',
@@ -40,14 +42,18 @@ export class SchemaManagerService implements FrontendApplicationContribution {
     init() {
         this.appStateService.onDidChangeSelector(state => state.roCrate)(
             (newCrate) => {
-                if (newCrate) this.checkAndDownloadSchemas(newCrate);
+                if (newCrate) {
+                    this.checkAndDownloadSchemas(newCrate);
+                }
             }
         );
     }
 
     onStart(): void {
         const currentCrate = this.appStateService.roCrate;
-        if (currentCrate) this.checkAndDownloadSchemas(currentCrate);
+        if (currentCrate) {
+            this.checkAndDownloadSchemas(currentCrate);
+        }
     }
 
     /* ------------------------------------------------------------------
@@ -121,28 +127,43 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                 return;
             }
 
-            // 1. Extract UUIDs (Refactored to helper)
-            const requiredUUIDs = this.extractSchemaUUIDs(roCrate);
+            const requiredUUIDs = new Set<string>();
+            const graph = Array.isArray(roCrate['@graph']) ? roCrate['@graph'] : [roCrate];
+
+            for (const entity of graph) {
+                if (entity.conformsTo) {
+                    const conformsArray = Array.isArray(entity.conformsTo) ? entity.conformsTo : [entity.conformsTo];
+                    for (const item of conformsArray) {
+                        const id = item['@id'];
+                        if (id && typeof id === 'string' && id.includes('/schema/')) {
+                            const parts = id.split('/');
+                            const uuid = parts[parts.length - 1];
+                            if (uuid) requiredUUIDs.add(uuid);
+                        }
+                    }
+                }
+            }
+
             if (requiredUUIDs.size === 0) return;
 
-            // 2. Check what is missing locally
             const missingUUIDs = await this.filterMissingSchemas(Array.from(requiredUUIDs));
+
             if (missingUUIDs.length === 0) return;
 
-            // 3. Prompt User
             await new Promise<void>((resolve) => {
                 Modal.info({
-                    title: 'Missing Metadata Schemas',
-                    content: `The RO-Crate references ${missingUUIDs.length} missing schema(s). Downloading now.`,
+                    title: 'Missing Metadata Schemas Detected',
+                    content: `The opened RO-Crate references ${missingUUIDs.length} schema(s) that are missing from your local repository. The application will now download and convert them automatically.`,
                     okText: 'OK',
                     onOk: () => resolve(),
                     maskClosable: false
                 });
             });
 
-            // 4. Download
-            await this.messageService.showProgress({ text: 'Resolving Missing Schemas...' })
-                .then(async progress => {
+            await this.messageService.showProgress({
+                text: 'Resolving Missing Schemas...'
+            }).then(async progress => {
+                try {
                     const total = missingUUIDs.length;
                     let completed = 0;
                     progress.report({ message: 'Starting...', work: { done: 0, total } });
@@ -154,54 +175,29 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                             console.error(`Failed to auto-download ${uuid}`, e);
                         } finally {
                             completed++;
-                            progress.report({ 
-                                message: `Downloading (${completed}/${total})...`, 
-                                work: { done: completed, total } 
-                            });
+                            progress.report({ message: `Downloading (${completed}/${total})...`, work: { done: completed, total } });
                         }
                     }));
-                });
+                } finally {
+                    progress.cancel(); // GUARANTEE CLOSE
+                }
+            });
 
             this.onDidChangeSchemasEmitter.fire();
-            this.messageService.info('Schemas synchronized.');
+            this.messageService.info('Missing schemas successfully synchronized.', { timeout: MSG_TIMEOUT });
 
         } catch (error) {
             console.error('[SchemaManager] Error verifying schemas:', error);
-            this.messageService.error(`Schema Sync Error: ${error instanceof Error ? error.message : error}`);
+            this.messageService.error(`Schema Synchronization Error: ${error instanceof Error ? error.message : error}`, { timeout: MSG_TIMEOUT });
         } finally {
             this.isChecking = false;
         }
-    }
-
-    /**
-     * Helper to extract UUIDs from RO-Crate JSON-LD graph
-     */
-    private extractSchemaUUIDs(roCrate: any): Set<string> {
-        const requiredUUIDs = new Set<string>();
-        const graph = Array.isArray(roCrate['@graph']) ? roCrate['@graph'] : [roCrate];
-
-        for (const entity of graph) {
-            if (!entity.conformsTo) continue;
-            
-            const conformsArray = Array.isArray(entity.conformsTo) ? entity.conformsTo : [entity.conformsTo];
-            
-            for (const item of conformsArray) {
-                const id = item['@id'];
-                if (id && typeof id === 'string' && id.includes('/schema/')) {
-                    const parts = id.split('/');
-                    const uuid = parts[parts.length - 1];
-                    if (uuid) requiredUUIDs.add(uuid);
-                }
-            }
-        }
-        return requiredUUIDs;
     }
 
     protected async downloadSchemaByUUID(uuid: string): Promise<void> {
         const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
         const apiKey = apiKeyVar?.value;
 
-        // Auto-select URL based on API key presence
         let url: string;
         if (apiKey) {
             url = `https://${REPO_DOMAINS.RESEARCH_DATA}/templates/${uuid}`;
@@ -212,6 +208,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
 
         const rawString = await this.smartFetchSchema(url, apiKey);
         await this.processAndSaveSchema(rawString, 'remote');
+        console.log(`[SchemaManager] Successfully downloaded UUID: ${uuid}`);
     }
 
     protected async filterMissingSchemas(uuids: string[]): Promise<string[]> {
@@ -223,7 +220,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
             if (!await this.fileService.exists(dir)) return [];
             
             const stat = await this.fileService.resolve(dir);
-            if (!stat?.children) return [];
+            if (!stat || !stat.children) return [];
 
             const found: string[] = [];
             for (const file of stat.children) {
@@ -233,11 +230,11 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                     const parsed = JSON.parse(content.value);
                     const refId = parsed[SCHEMA_FIELD_ID];
                     if (refId && typeof refId === 'string') {
-                         uuids.forEach(uuid => {
+                         for (const uuid of uuids) {
                              if (refId.includes(uuid)) found.push(uuid);
-                         });
+                         }
                     }
-                } catch { /* ignore */ }
+                } catch (e) { /* ignore */ }
             }
             return found;
         };
@@ -275,7 +272,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
             progress.report({ work: { done: i + 1, total } });
         }
         
-        progress.report({ message: 'Done', work: { done: total, total } });
+        // No explicit done report needed, let progress.cancel handle closure in caller
         if (success > 0) this.onDidChangeSchemasEmitter.fire();
         return { success, fail };
     }
@@ -286,9 +283,11 @@ export class SchemaManagerService implements FrontendApplicationContribution {
         const rawString = await this.smartFetchSchema(url, apiKey);
         
         progress.report({ message: 'Processing...', work: { done: 50, total: 100 } });
+        
         const schemaName = await this.processAndSaveSchema(rawString, 'remote');
         
-        progress.report({ message: 'Finished', work: { done: 100, total: 100 } });
+        // Final update before auto-close
+        progress.report({ work: { done: 100, total: 100 } });
         this.onDidChangeSchemasEmitter.fire();
         return schemaName;
     }

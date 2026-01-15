@@ -42,12 +42,12 @@
     margin-left: 0;
 }
 
-.highlighted-jpg {
+.not-in-ro-crate {
     background-color: #8B0000;
     color: white;
 }
 
-.contains-jpg {
+.contains-not-in-ro-crate {
     background-color: #ff8c00;
     color: white;
 }

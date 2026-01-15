@@ -18,10 +18,18 @@ import '../../src/browser/style/index.css';
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
 export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';
 
+// 5 Seconds Timeout for GUI Notifications
+const MSG_TIMEOUT = 5000;
+
 @injectable()
 export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulWidget {
     static readonly ID = METADATA_SCHEMA_MANAGER_WIDGET_ID;
     static readonly LABEL = METADATA_SCHEMA_MANAGER_LABEL;
+
+    protected readonly fileDialogService: FileDialogService;
+    protected readonly messageService: MessageService;
+    protected readonly envVariablesServer: EnvVariablesServer;
+    protected readonly schemaManagerService: SchemaManagerService;
 
     protected schemas: SchemaInfo[] = [];
     protected isLoading = true;
@@ -30,12 +38,17 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     private reactRoot: Root | undefined;
 
     constructor(
-        @inject(FileDialogService) protected readonly fileDialogService: FileDialogService,
-        @inject(MessageService) protected readonly messageService: MessageService,
-        @inject(EnvVariablesServer) protected readonly envVariablesServer: EnvVariablesServer,
-        @inject(SchemaManagerService) protected readonly schemaManagerService: SchemaManagerService
+        @inject(FileDialogService) fileDialogService: FileDialogService,
+        @inject(MessageService) messageService: MessageService,
+        @inject(EnvVariablesServer) envVariablesServer: EnvVariablesServer,
+        @inject(SchemaManagerService) schemaManagerService: SchemaManagerService
     ) {
         super();
+        this.fileDialogService = fileDialogService;
+        this.messageService = messageService;
+        this.envVariablesServer = envVariablesServer;
+        this.schemaManagerService = schemaManagerService;
+
         this.id = METADATA_SCHEMA_MANAGER_WIDGET_ID;
         this.title.label = METADATA_SCHEMA_MANAGER_LABEL;
         this.title.caption = METADATA_SCHEMA_MANAGER_LABEL;
@@ -55,7 +68,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         try {
             this.schemas = await this.schemaManagerService.loadAllSchemas();
         } catch (err) {
-            this.messageService.error(`Error loading schemas: ${err}`);
+            this.messageService.error(
+                `Error loading schemas: ${err}`, 
+                { timeout: MSG_TIMEOUT }
+            );
         }
 
         this.isLoading = false;
@@ -80,7 +96,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                 this.update();
                 const deletedCount = await this.schemaManagerService.deleteSchemas(paths);
                 if (deletedCount > 0) {
-                    this.messageService.info(`Deleted ${deletedCount} schema(s).`);
+                    this.messageService.info(
+                        `Deleted ${deletedCount} schema(s).`, 
+                        { timeout: MSG_TIMEOUT }
+                    );
                 }
             }
         });
@@ -97,10 +116,30 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         if (!fileUriOrUris) return;
         const fileUris: URI[] = Array.isArray(fileUriOrUris) ? fileUriOrUris : [fileUriOrUris];
 
-        this.messageService.showProgress({ text: 'Importing Schemas...' }).then(async progress => {
-            const results = await this.schemaManagerService.importFiles(fileUris, progress);
-            if (results.success > 0) this.messageService.info(`Imported ${results.success} schema(s).`);
-            if (results.fail > 0) this.messageService.warn(`Failed to import ${results.fail} schema(s).`);
+        this.messageService.showProgress({
+            text: 'Importing Schemas...'
+        }).then(async progress => {
+            try {
+                const results = await this.schemaManagerService.importFiles(fileUris, progress);
+                
+                if (results.success > 0) {
+                    this.messageService.info(
+                        `Successfully imported ${results.success} schema(s).`, 
+                        { timeout: MSG_TIMEOUT }
+                    );
+                }
+                if (results.fail > 0) {
+                    this.messageService.warn(
+                        `Failed to import ${results.fail} schema(s).`, 
+                        { timeout: MSG_TIMEOUT }
+                    );
+                }
+            } catch (err) {
+                console.error(err);
+                this.messageService.error('Unexpected error during import.', { timeout: MSG_TIMEOUT });
+            } finally {
+                progress.cancel();
+            }
         });
     }
 
@@ -120,7 +159,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => inputUrl = e.target.value} 
                         />
                         <div style={{ fontSize: 12, color: '#888', marginTop: 5 }}>
-                            {apiKey ? 'Using configured API Key' : 'No API Key - trying open access'}
+                            {apiKey ? 'Using configured API Key' : 'No API Key configured - attempting open access'}
                         </div>
                     </div>
                 ),
@@ -131,13 +170,23 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
         if (!url) return;
 
-        this.messageService.showProgress({ text: 'Importing from URL...' }).then(async progress => {
+        this.messageService.showProgress({
+            text: 'Importing from URL...'
+        }).then(async progress => {
             try {
                 const schemaName = await this.schemaManagerService.importFromUrl(url, apiKey, progress);
-                this.messageService.info(`Imported: ${schemaName}`);
+                
+                this.messageService.info(
+                    `Successfully imported: ${schemaName}`, 
+                    { timeout: MSG_TIMEOUT }
+                );
             } catch (error) {
+                this.messageService.error(
+                    `Import Failed: ${error instanceof Error ? error.message : error}`, 
+                    { timeout: MSG_TIMEOUT }
+                );
+            } finally {
                 progress.cancel();
-                this.messageService.error(`Import Failed: ${error instanceof Error ? error.message : error}`);
             }
         });
     }
