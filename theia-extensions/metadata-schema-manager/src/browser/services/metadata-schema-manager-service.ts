@@ -9,13 +9,12 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { Modal } from 'antd';
 
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
-import type { SchemaInfo } from './types';
+import type { SchemaInfo } from '../types';
 
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
 export const SCHEMA_FIELD_ID = '@id';
 
-// 5 Seconds Timeout
 const MSG_TIMEOUT = 5000;
 
 const REPO_DOMAINS = {
@@ -113,6 +112,30 @@ export class SchemaManagerService implements FrontendApplicationContribution {
         return await response.text();
     }
 
+    /**
+     * Retrieves the Converted RO-Crate Profile JSON for a given Source (CEDAR) path.
+     * Used by the Selector to load the profile into App State.
+     */
+    public async getConvertedProfileContent(sourcePath: string): Promise<any> {
+        try {
+            // 1. Calculate path to the converted file
+            const roCratePathStr = sourcePath.replace('/metadata-schemas/cedar/', '/metadata-schemas/ro-crate/');
+            const roCrateUri = new URI(roCratePathStr);
+
+            // 2. Check if it exists
+            if (!await this.fileService.exists(roCrateUri)) {
+                throw new Error('Converted profile file not found. Please re-import this schema.');
+            }
+
+            // 3. Read and Parse
+            const content = await this.fileService.read(roCrateUri);
+            return JSON.parse(content.value);
+        } catch (error) {
+            console.error('Failed to load converted profile:', error);
+            throw error;
+        }
+    }
+
     /* ------------------------------------------------------------------
        AUTO-DOWNLOAD LOGIC
        ------------------------------------------------------------------ */
@@ -179,7 +202,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                         }
                     }));
                 } finally {
-                    progress.cancel(); // GUARANTEE CLOSE
+                    progress.cancel();
                 }
             });
 
@@ -272,7 +295,6 @@ export class SchemaManagerService implements FrontendApplicationContribution {
             progress.report({ work: { done: i + 1, total } });
         }
         
-        // No explicit done report needed, let progress.cancel handle closure in caller
         if (success > 0) this.onDidChangeSchemasEmitter.fire();
         return { success, fail };
     }
@@ -286,7 +308,6 @@ export class SchemaManagerService implements FrontendApplicationContribution {
         
         const schemaName = await this.processAndSaveSchema(rawString, 'remote');
         
-        // Final update before auto-close
         progress.report({ work: { done: 100, total: 100 } });
         this.onDidChangeSchemasEmitter.fire();
         return schemaName;
