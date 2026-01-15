@@ -195,15 +195,18 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     if (existingWidgetId) {
       const existing = this.widgetManager.tryGetWidget(existingWidgetId)
       if (existing) {
+        this.appStateService.registerEntityEditor(existingWidgetId, entityId)
         await this.shell.activateWidget(existing.id)
         return
       }
     }
     const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
       instance: entityId,
+      entityId,
     })
-    this.shell.addWidget(widget, { area: 'main' })
-    this.shell.activateWidget(widget.id)
+    await this.shell.addWidget(widget, { area: 'main' })
+    this.appStateService.registerEntityEditor(widget.id, entityId)
+    await this.shell.activateWidget(widget.id)
   }
 
   render(): React.ReactNode {
