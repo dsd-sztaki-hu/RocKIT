@@ -1,11 +1,13 @@
 import { FileOutlined, FolderOpenOutlined, FolderOutlined } from '@ant-design/icons'
 import type { Disposable } from '@theia/core'
+import { ApplicationShell, WidgetManager } from '@theia/core/lib/browser'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import type { TreeDataNode } from 'antd'
 import { Tooltip, Tree } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
+import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 
 interface CrateNode {
   id: string
@@ -23,6 +25,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
   @inject(AppStateService)
   protected readonly appStateService: AppStateService
+  @inject(WidgetManager)
+  protected readonly widgetManager: WidgetManager
+  @inject(ApplicationShell)
+  protected readonly shell: ApplicationShell
 
   protected crateSubscription?: Disposable
 
@@ -166,7 +172,38 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     visited.add(idStr)
     const children =
       node.children?.map((c) => this.crateNodeToTreeData(c, key, visited)) || []
-    return { key, title: node.name || node.id, children } as TreeDataNode
+    return {
+      key,
+      title: node.name || node.id,
+      entityId: node.id,
+      children,
+    } as TreeDataNode & { entityId: string }
+  }
+
+  protected handleTreeSelect = (_keys: React.Key[], info: any): void => {
+    const entityId = info.node?.entityId
+    if (!entityId) {
+      return
+    }
+
+    this.appStateService.selectedEntityId = entityId
+    void this.openRoCrateEditor(entityId)
+  }
+
+  protected async openRoCrateEditor(entityId: string): Promise<void> {
+    const existingWidgetId = this.appStateService.getEntityEditorWidgetId(entityId)
+    if (existingWidgetId) {
+      const existing = this.widgetManager.tryGetWidget(existingWidgetId)
+      if (existing) {
+        await this.shell.activateWidget(existing.id)
+        return
+      }
+    }
+    const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
+      instance: entityId,
+    })
+    this.shell.addWidget(widget, { area: 'main' })
+    this.shell.activateWidget(widget.id)
   }
 
   render(): React.ReactNode {
@@ -185,6 +222,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           height={500}
           showIcon
           defaultExpandedKeys={['./']}
+          onSelect={this.handleTreeSelect}
           // expandedKeys={this.expandedKeys}
           // onExpand={(keys) => { this.expandedKeys = keys as string[]; this.update(); }}
           titleRender={(item) => {
