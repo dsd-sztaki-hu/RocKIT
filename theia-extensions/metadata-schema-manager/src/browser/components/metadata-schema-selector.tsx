@@ -2,7 +2,7 @@ import { injectable, inject } from 'inversify';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { FrontendApplicationContribution } from '@theia/core/lib/browser';
-import { Modal, Button, Input } from 'antd';
+import { Modal, Button, Input, message } from 'antd';
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
@@ -32,10 +32,13 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
         document.body.appendChild(this.container);
         this.reactRoot = ReactDOM.createRoot(this.container);
 
-        const update = () => this.render();
-        this.schemaManagerService.onDidChangeSchemas(update);
-        this.appStateService.onDidChangeSelector(state => state.openSchemaSelectorWindow)(update);
-        update();
+        // We only listen to state changes to Toggle Visibility here.
+        // The Data Refresh logic is moved inside the React Component for better lifecycle management.
+        this.appStateService.onDidChangeSelector(state => state.openSchemaSelectorWindow)(
+            () => this.render()
+        );
+        
+        this.render();
     }
 
     protected render(): void {
@@ -81,12 +84,25 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
             .finally(() => setIsLoading(false));
     }, [service]);
 
+    // 1. Initial Load & Selection Reset
     React.useEffect(() => {
         if (isOpen) {
             setSelectedSchema(null);
             loadData();
         }
     }, [isOpen, loadData]);
+
+    // 2. AUTO-REFRESH LISTENER (Fixes the table not updating)
+    React.useEffect(() => {
+        // Subscribe to the Service's event
+        const listener = service.onDidChangeSchemas(() => {
+            if (isOpen) {
+                console.log('Schema changes detected, refreshing selector table...');
+                loadData();
+            }
+        });
+        return () => listener.dispose();
+    }, [service, loadData, isOpen]);
 
     const handleImportFile = async () => {
         const uris = await utils.fileDialog.showOpenDialog({ 
@@ -96,9 +112,23 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         const fileUris = Array.isArray(uris) ? uris : [uris];
 
         utils.msg.showProgress({ text: 'Importing...' }).then(async p => {
-            const res = await service.importFiles(fileUris, p);
-            if (res.success) utils.msg.info(`Imported ${res.success}`, { timeout: MSG_TIMEOUT });
-            if (res.fail) utils.msg.warn(`Failed ${res.fail}`, { timeout: MSG_TIMEOUT });
+            try {
+                const res = await service.importFiles(fileUris, p);
+                
+                // Fix: Improved Message Text
+                if (res.success > 0) {
+                    utils.msg.info(`Successfully imported ${res.success} schema(s).`, { timeout: MSG_TIMEOUT });
+                }
+                if (res.fail > 0) {
+                    utils.msg.warn(`Failed to import ${res.fail} schema(s).`, { timeout: MSG_TIMEOUT });
+                }
+            } catch (e) {
+                console.error(e);
+                utils.msg.error('Unexpected error during import.', { timeout: MSG_TIMEOUT });
+            } finally {
+                // Fix: Force progress bar to close
+                p.cancel(); 
+            }
         });
     };
 
@@ -113,7 +143,6 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
                 title: 'Import from URL',
                 content: (
                     <div style={{ marginTop: 10 }}>
-                        {/* FIX: Added explicit type annotation here */}
                         <Input 
                             placeholder="URL" 
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => input = e.target.value} 
@@ -133,10 +162,13 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         utils.msg.showProgress({ text: 'Downloading...' }).then(async p => {
             try {
                 const name = await service.importFromUrl(url, apiKey, p);
-                utils.msg.info(`Imported: ${name}`, { timeout: MSG_TIMEOUT });
+                utils.msg.info(`Successfully imported: ${name}`, { timeout: MSG_TIMEOUT });
             } catch (e) {
                 utils.msg.error(`Error: ${e instanceof Error ? e.message : e}`, { timeout: MSG_TIMEOUT });
-            } finally { p.cancel(); }
+            } finally { 
+                // Fix: Force progress bar to close
+                p.cancel(); 
+            }
         });
     };
 
@@ -147,7 +179,7 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
             const content = await service.getConvertedProfileContent(selectedSchema.path);
             appState.updateState({ profile: content, openSchemaSelectorWindow: false });
         } catch (e) {
-            utils.msg.error('Failed to load profile.');
+            utils.msg.error('Failed to load profile content.', { timeout: MSG_TIMEOUT });
         } finally {
             setIsLoading(false);
         }
