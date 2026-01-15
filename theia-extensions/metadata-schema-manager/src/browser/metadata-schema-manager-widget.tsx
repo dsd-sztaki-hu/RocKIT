@@ -10,10 +10,12 @@ import { inject, injectable } from 'inversify';
 import * as React from 'react';
 import type { Root } from 'react-dom/client';
 
-import { SchemaManagerService } from './metadata-schema-manager-service';
-import { SchemaTable } from './schema-table';
+import { SchemaManagerService } from './services/metadata-schema-manager-service';
+import { MetadataSchemaTable } from './components/metadata-schema-table';
+import { MetadataSchemaToolbar } from './components/metadata-schema-toolbar';
 import type { SchemaInfo } from './types';
-import '../../src/browser/style/index.css';
+
+import './style/index.css';
 
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
 export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';
@@ -223,19 +225,15 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
         this.reactRoot?.render(
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                <div style={{ display: 'flex', gap: '8px', padding: '8px' }}>
-                    <Button type="primary" onClick={() => this.importSchemaFromFile()}>Import from File</Button>
-                    <Button type="primary" onClick={() => this.importSchemaFromUrl()}>Import from URL</Button>
-                    <Button type="primary" onClick={() => this.refreshSchemas()}>Refresh</Button>
-                    
-                    {this.selectedSchemaKeys.length > 0 && (
-                        <Button type="primary" danger onClick={() => this.deleteSchemas(selectedSchemaPaths)}>
-                            Delete {this.selectedSchemaKeys.length}
-                        </Button>
-                    )}
-                </div>
+                <MetadataSchemaToolbar 
+                    onImportFile={() => this.importSchemaFromFile()}
+                    onImportUrl={() => this.importSchemaFromUrl()}
+                    onRefresh={() => this.refreshSchemas()}
+                    onDelete={() => this.deleteSchemas(selectedSchemaPaths)}
+                    selectedCount={this.selectedSchemaKeys.length}
+                />
                 <div style={{ flexGrow: 1 }}>
-                    <SchemaTable 
+                    <MetadataSchemaTable 
                         schemas={this.schemas} 
                         isLoading={this.isLoading}
                         onSelectionChange={this.onSelectionChange}
