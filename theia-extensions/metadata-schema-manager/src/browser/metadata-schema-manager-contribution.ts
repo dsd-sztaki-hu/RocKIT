@@ -1,7 +1,7 @@
 // src/browser/metadata-schema-manager-contribution.ts
 import { injectable, inject } from 'inversify';
 import { Command, CommandContribution, CommandRegistry, MenuContribution, MenuModelRegistry } from '@theia/core/lib/common';
-import { FrontendApplicationContribution, WidgetManager, CommonMenus, ApplicationShell } from '@theia/core/lib/browser'; // Import ApplicationShell
+import { FrontendApplicationContribution, WidgetManager, CommonMenus, ApplicationShell } from '@theia/core/lib/browser';
 import { METADATA_SCHEMA_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
 
 export namespace MetadataSchemaManagerCommands {
