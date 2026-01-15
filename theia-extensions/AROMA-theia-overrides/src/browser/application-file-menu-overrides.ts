@@ -1,11 +1,24 @@
 import { environment } from '@theia/core'
-import { CommonMenus, FrontendApplicationContribution } from '@theia/core/lib/browser'
+import {
+  CommonCommands,
+  CommonMenus,
+  FrontendApplicationContribution,
+} from '@theia/core/lib/browser'
 import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding'
-import { CommandRegistry, MenuModelRegistry } from '@theia/core/lib/common'
+import { SaveReason } from '@theia/core/lib/browser/saveable'
+import { SaveableService } from '@theia/core/lib/browser/saveable-service'
+import {
+  CommandRegistry,
+  CommandService,
+  MenuModelRegistry,
+} from '@theia/core/lib/common'
 import { isOSX } from '@theia/core/lib/common/os'
 import { inject, injectable } from '@theia/core/shared/inversify'
-import { WorkspaceCommands } from '@theia/workspace/lib/browser'
+import { FileService } from '@theia/filesystem/lib/browser/file-service'
+import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import { FILE_WORKSPACE } from '@theia/workspace/lib/browser/workspace-frontend-contribution'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateHtmlGenerator } from 'save-ro-crate/lib/browser/ro-crate-html-generator'
 
 @injectable()
 export class ApplicationFileMenuOverrides implements FrontendApplicationContribution {
@@ -18,11 +31,57 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
   @inject(KeybindingRegistry)
   protected readonly keybindingRegistry: KeybindingRegistry
 
+  @inject(CommandService)
+  protected readonly commandService: CommandService
+
+  @inject(AppStateService)
+  protected readonly appStateService: AppStateService
+
+  @inject(FileService)
+  protected readonly fileService: FileService
+
+  @inject(WorkspaceService)
+  protected readonly workspaceService: WorkspaceService
+
+  @inject(RoCrateHtmlGenerator)
+  protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator
+
+  @inject(SaveableService)
+  protected readonly saveableService: SaveableService
+
+  protected persistPromise?: Promise<void>
+
   onStart(): void {
     this.updateWorkspaceLabels()
     this.removeWorkspaceMenuItems()
     this.removeWorkspaceCommands()
     this.removeWorkspaceKeybindings()
+
+    this.commandService.onDidExecuteCommand((event) => {
+      if (event.commandId === CommonCommands.SAVE_ALL.id) {
+        void this.persistRoCrateToDisk()
+      }
+    })
+
+    function hasSaveReason(o: unknown): o is { saveReason?: SaveReason } {
+      return typeof o === 'object' && o !== null && 'saveReason' in o
+    }
+
+    const originalSave = this.saveableService.save.bind(this.saveableService)
+
+    this.saveableService.save = (async (...args: Parameters<typeof originalSave>) => {
+      const result = await originalSave(...args)
+
+      const [, options] = args
+      if (hasSaveReason(options)) {
+        const reason = options.saveReason
+        if (reason === SaveReason.AfterDelay || reason === SaveReason.FocusChange) {
+          void this.persistRoCrateToDisk()
+        }
+      }
+
+      return result
+    }) as typeof originalSave
   }
 
   protected updateWorkspaceLabels(): void {
@@ -86,5 +145,40 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     this.keybindingRegistry.unregisterKeybinding(WorkspaceCommands.OPEN_WORKSPACE.id)
     this.keybindingRegistry.unregisterKeybinding(WorkspaceCommands.ADD_FOLDER.id)
     this.keybindingRegistry.unregisterKeybinding(WorkspaceCommands.SAVE_WORKSPACE_AS.id)
+  }
+
+  protected async persistRoCrateToDisk(): Promise<void> {
+    if (!this.appStateService.roCrate) {
+      return
+    }
+    if (this.persistPromise) {
+      return this.persistPromise
+    }
+    this.persistPromise = this.writeRoCrateFiles()
+    try {
+      await this.persistPromise
+    } finally {
+      this.persistPromise = undefined
+    }
+  }
+
+  protected async writeRoCrateFiles(): Promise<void> {
+    const crateData = this.appStateService.roCrate
+    const roots = this.workspaceService.tryGetRoots()
+    const rootUri = roots?.[0]?.resource
+    if (!crateData || !rootUri) {
+      return
+    }
+    const metadataUri = rootUri.resolve('ro-crate-metadata.json')
+    const previewUri = rootUri.resolve('ro-crate-preview.html')
+    try {
+      await this.fileService.create(metadataUri, JSON.stringify(crateData, null, 2), {
+        overwrite: true,
+      })
+      const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
+      await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+    } catch (error) {
+      console.error('Failed to persist RO-Crate metadata:', error)
+    }
   }
 }
