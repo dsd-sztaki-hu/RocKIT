@@ -33,6 +33,7 @@ import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { DirNode, FileStatNode, FileStatNodeData } from '@theia/filesystem/lib/browser'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
 import { FileNavigatorModel } from './navigator-model'
@@ -48,6 +49,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   @inject(NavigatorContextKeyService)
   protected readonly contextKeyService: NavigatorContextKeyService
   @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService
+  @inject(AppStateService) protected readonly appStateService: AppStateService
 
   constructor(
     @inject(TreeProps) props: TreeProps,
@@ -79,6 +81,12 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
             this.model.expandNode(child)
           }
         }
+      }),
+      this.appStateService.onDidChangeSelector((state) => state.roCrate)((_) => {
+        void this.model.refresh()
+      }),
+      this.workspaceService.onWorkspaceChanged(() => {
+        void this.model.refresh()
       }),
     ])
   }
@@ -118,6 +126,25 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       return this.renderEmptyMultiRootWorkspace()
     }
     return super.renderTree(model)
+  }
+
+  protected override createContainerAttributes(): React.HTMLAttributes<HTMLElement> {
+    const attributes = super.createContainerAttributes()
+    const existingOnClick = attributes.onClick
+    return {
+      ...attributes,
+      onClick: (event) => {
+        if (typeof existingOnClick === 'function') {
+          existingOnClick(event)
+        }
+        const target = event.target as HTMLElement
+        if (target.closest('.theia-TreeNode')) {
+          return
+        }
+        this.model.clearSelection()
+        this.focusService.setFocus(undefined)
+      },
+    }
   }
 
   protected override shouldShowWelcomeView(): boolean {
@@ -256,36 +283,70 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   ): React.Attributes & React.HTMLAttributes<HTMLElement> {
     const attributes = super.createNodeAttributes(node, props)
 
-    if (FileStatNode.is(node) && node.fileStat.name.toLowerCase().endsWith('.jpg')) {
+    if (FileStatNode.is(node) && this.shouldHighlightFile(node)) {
       const existingClassName = attributes.className || ''
-      attributes.className = `${existingClassName} highlighted-jpg`.trim()
+      attributes.className = `${existingClassName} not-in-ro-crate`.trim()
     }
 
-    if (DirNode.is(node) && this.containsJpgFile(node)) {
+    if (DirNode.is(node) && this.containsNotInRoCrate(node)) {
       const existingClassName = attributes.className || ''
-      attributes.className = `${existingClassName} contains-jpg`.trim()
+      attributes.className = `${existingClassName} contains-not-in-ro-crate`.trim()
     }
 
     return attributes
   }
 
-  /**
-   * Recursively checks if a given TreeNode or any of its children is a .jpg file.
-   * @param node The node to start the search from.
-   * @returns True if a .jpg file is found in the subtree, otherwise false.
-   */
-  private containsJpgFile(node: TreeNode): boolean {
-    if (FileStatNode.is(node) && node.fileStat.name.toLowerCase().endsWith('.jpg')) {
+  private containsNotInRoCrate(node: TreeNode): boolean {
+    if (FileStatNode.is(node) && this.shouldHighlightFile(node)) {
       return true
     }
 
     if (CompositeTreeNode.is(node) && node.children) {
       for (const child of node.children) {
-        if (this.containsJpgFile(child)) {
+        if (this.containsNotInRoCrate(child)) {
           return true
         }
       }
     }
     return false
+  }
+
+  private shouldHighlightFile(node: FileStatNode): boolean {
+    const entityNames = this.getRoCrateEntityNames()
+    if (entityNames.size === 0) {
+      return false
+    }
+    const fileName = node.fileStat.name.trim().toLowerCase()
+    return !entityNames.has(fileName)
+  }
+
+  private getRoCrateEntityNames(): Set<string> {
+    const crate = this.appStateService.roCrate
+    if (!crate) {
+      return new Set()
+    }
+    const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
+    const names = new Set<string>()
+    for (const entry of graph) {
+      if (!entry || typeof entry !== 'object') {
+        continue
+      }
+      const candidate =
+        typeof entry.name === 'string'
+          ? entry.name
+          : typeof entry.title === 'string'
+            ? entry.title
+            : typeof entry['@id'] === 'string'
+              ? entry['@id']
+              : undefined
+      if (!candidate) {
+        continue
+      }
+      const normalized = candidate.trim().toLowerCase()
+      if (normalized) {
+        names.add(normalized)
+      }
+    }
+    return names
   }
 }

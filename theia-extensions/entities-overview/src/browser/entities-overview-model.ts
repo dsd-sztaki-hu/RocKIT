@@ -1,141 +1,102 @@
-import { CompositeTreeNode, ExpandableTreeNode, SelectableTreeNode, TreeModelImpl, TreeNode } from '@theia/core/lib/browser';
-import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
-import { Item, EntitiesOverviewTreeItemFactory } from './entities-overview-tree-item-factory';
+import {
+  CompositeTreeNode,
+  ExpandableTreeNode,
+  SelectableTreeNode,
+  TreeModelImpl,
+  TreeNode,
+} from '@theia/core/lib/browser'
+import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import {
+  EntitiesOverviewTreeItemFactory,
+  Item,
+} from './entities-overview-tree-item-factory'
 
-// Entity interface with type and valid properties
-export interface Entity {
-    id: string;
-    technicalName: string;
-    description: string;
-    type: string;
-    valid: boolean;
+function formatTypeLabel(rawType: string): string {
+  const trimmed = rawType.trim()
+  if (!trimmed) {
+    return 'Unknown'
+  }
+  const tail = trimmed.includes('/') ? trimmed.split('/').pop() || trimmed : trimmed
+  return tail.charAt(0).toUpperCase() + tail.slice(1)
 }
 
-// Mocked entities with type and valid properties
-export const MOCKED_ENTITIES: Entity[] = [
-    // --- Authors ---
-    {
-        id: 'auth-1',
-        technicalName: 'Tóth, Zoltán',
-        description: 'Author - (SZTAKI staff)',
-        type: 'author',
-        valid: true
-    },
-    {
-        id: 'auth-2',
-        technicalName: 'Nagy, Eszter',
-        description: 'Author - (External Contributor)',
-        type: 'author',
-        valid: true
-    },
+function getEntityTypes(entity: Record<string, any>): string[] {
+  const rawTypes = entity?.['@type']
+  if (!rawTypes) {
+    return ['Unknown']
+  }
+  const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
+  return typeList.map((type) => formatTypeLabel(String(type)))
+}
 
-    // --- Files (From your image) ---
-    {
-        id: 'file-1',
-        technicalName: 'jargon.html',
-        description: 'File - Documentation Glossary',
-        type: 'file',
-        valid: true
-    },
-    {
-        id: 'file-2',
-        technicalName: 'keyboard-interface.html',
-        description: 'File - Accessibility Settings',
-        type: 'file',
-        valid: false
-    },
-    {
-        id: 'file-3',
-        technicalName: 'label.html',
-        description: 'File - UI Label definitions',
-        type: 'file',
-        valid: true
-    },
-    {
-        id: 'file-4',
-        technicalName: 'large-scale.html',
-        description: 'File - Scalability Tests',
-        type: 'file',
-        valid: false
-    },
+function hasType(entity: Record<string, any>, target: string): boolean {
+  const rawTypes = entity?.['@type']
+  if (!rawTypes) {
+    return false
+  }
+  const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
+  return typeList.some((type) => {
+    const value = String(type)
+    return value === target || value.endsWith(`/${target}`)
+  })
+}
 
-    // --- Datasets (Implicit from image) ---
-    {
-        id: 'data-1',
-        technicalName: 'SZTAKI_Dataset_V1',
-        description: 'Dataset - Raw sensor logs',
-        type: 'dataset',
-        valid: true
-    },
-    {
-        id: 'data-2',
-        technicalName: 'Export_2023_Q4',
-        description: 'Dataset - Quarterly archive',
-        type: 'dataset',
-        valid: false
-    },
+function getEntityName(entity: Record<string, any>): string {
+  const name = entity?.name ?? entity?.title ?? entity?.['@id'] ?? ''
+  return String(name)
+}
 
-    // --- Point of Contact (Implicit from image) ---
-    {
-        id: 'poc-1',
-        technicalName: 'Tóth, Zoltán',
-        description: 'Point of Contact - System Administrator',
-        type: 'pointOfContact',
-        valid: false
-    },
+function createEntitiesData(crate: Record<string, any> | undefined): Item[] {
+  const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+  const byType = new Map<string, Item[]>()
 
-    {
-        id: 'poc-2',
-        technicalName: 'Nagy, Eszter',
-        description: 'Author - (External Contributor)',
-        type: 'pointOfContact',
-        valid: true
+  for (const entry of graph) {
+    if (!entry || typeof entry !== 'object') {
+      continue
     }
-];
+    if (hasType(entry, 'CreativeWork')) {
+      continue
+    }
+    const entityId = entry?.['@id'] ? String(entry['@id']) : ''
+    const name = getEntityName(entry).trim()
+    const description =
+      typeof entry?.description === 'string' ? String(entry.description) : undefined
+    const valid = Boolean(name)
+    const displayName = entityId === './' ? './' : name || entityId || '(unnamed)'
 
-// Function to extract unique entity types and capitalize the first letter
-function getUniqueEntityTypes(): string[] {
-    const types = new Set<string>();
-    MOCKED_ENTITIES.forEach(entity => types.add(entity.type));
-    return Array.from(types).map(type => type.charAt(0).toUpperCase() + type.slice(1));
+    for (const typeLabel of getEntityTypes(entry)) {
+      const list = byType.get(typeLabel) ?? []
+      list.push({
+        name: displayName,
+        entityId,
+        description,
+        valid,
+      })
+      byType.set(typeLabel, list)
+    }
+  }
+
+  return Array.from(byType.entries()).map(([typeName, children]) => ({
+    name: typeName,
+    children: children.sort((a, b) => a.name.localeCompare(b.name)),
+  }))
 }
-
-// Function to create entities data dynamically based on unique types
-function createEntitiesData(): Item[] {
-    const uniqueTypes = getUniqueEntityTypes();
-
-    return uniqueTypes.map(typeName => {
-        const typeKey = typeName.charAt(0).toLowerCase() + typeName.slice(1);
-
-        return {
-            name: typeName,
-            children: MOCKED_ENTITIES
-                .filter(e => e.type === typeKey)
-                .map(entity => ({
-                    name: entity.technicalName,
-                    id: entity.id,
-                    description: entity.description,
-                    valid: entity.valid
-                }))
-        };
-    });
-}
-
-// Group entities by type dynamically
-const ENTITIES_DATA: Item[] = createEntitiesData();
 
 /** well-known ID for the root node in our tree */
-export const ROOT_NODE_ID = 'entities-overview-root';
+export const ROOT_NODE_ID = 'entities-overview-root'
 
 /** Interface for an container node (having children), along with a type-checking function */
 export interface ExampleTreeNode extends ExpandableTreeNode, SelectableTreeNode {
-    data: Item;
-    type: 'node';
+  data: Item
+  type: 'node'
 }
 export namespace ExampleTreeNode {
-    export function is(candidate: object): candidate is ExampleTreeNode {
-        return ExpandableTreeNode.is(candidate) && 'type' in candidate && candidate.type === 'node';
-    }
+  export function is(candidate: object): candidate is ExampleTreeNode {
+    return (
+      ExpandableTreeNode.is(candidate) && 'type' in candidate && candidate.type === 'node'
+    )
+  }
 }
 
 /**
@@ -145,14 +106,14 @@ export namespace ExampleTreeNode {
  *  It was originally used in the label-provider file's getName() function, still there commented out.
  */
 export interface ExampleTreeLeaf extends TreeNode {
-    data: Item;
-    // quantityLabel?: string;
-    type: 'leaf';
+  data: Item
+  // quantityLabel?: string;
+  type: 'leaf'
 }
 export namespace ExampleTreeLeaf {
-    export function is(candidate: object): candidate is ExampleTreeLeaf {
-        return TreeNode.is(candidate) && 'type' in candidate && candidate.type === 'leaf';
-    }
+  export function is(candidate: object): candidate is ExampleTreeLeaf {
+    return TreeNode.is(candidate) && 'type' in candidate && candidate.type === 'leaf'
+  }
 }
 
 /**
@@ -162,77 +123,90 @@ export namespace ExampleTreeLeaf {
  */
 @injectable()
 export class EntitiesOverviewModel extends TreeModelImpl {
-    @inject(EntitiesOverviewTreeItemFactory) private readonly itemFactory: EntitiesOverviewTreeItemFactory;
+  @inject(EntitiesOverviewTreeItemFactory)
+  private readonly itemFactory: EntitiesOverviewTreeItemFactory
+  @inject(AppStateService)
+  private readonly appStateService: AppStateService
 
-    /**
-     * Initialize the tree model from the business model
-     */
-    @postConstruct()
-    protected override init(): void {
-        super.init();
+  /**
+   * Initialize the tree model from the business model
+   */
+  @postConstruct()
+  protected override init(): void {
+    super.init()
 
-        // create the root node
-        const root: CompositeTreeNode = {
-            id: ROOT_NODE_ID,
-            parent: undefined,
-            children: [],
-            visible: false // do not show the root node in the UI
-        };
+    this.updateEntitiesFromCrate(this.appStateService.roCrate)
+    this.toDispose.push(
+      this.appStateService.onDidChangeSelector((state) => state.roCrate)((crate) => {
+        this.updateEntitiesFromCrate(crate)
+      }),
+    )
+  }
 
-        // populate the direct children
-        ENTITIES_DATA.map(item => this.itemFactory.toTreeNode(item))
-            .forEach(node => CompositeTreeNode.addChild(root, node));
-
-        // set the root node as root of the tree
-        // This will also initialize the ID-node-map in the tree, so this should be called
-        // after populating the children.
-        this.tree.root = root;
+  protected updateEntitiesFromCrate(crate: Record<string, any> | undefined): void {
+    // create the root node
+    const root: CompositeTreeNode = {
+      id: ROOT_NODE_ID,
+      parent: undefined,
+      children: [],
+      visible: false, // do not show the root node in the UI
     }
 
-    /**
-     * This is executed when a tree item's checkbox is checked/unchecked.
-     *
-     * For this example, the check state is applied to the business model (backOrdered property).
-     *
-     * @param node the affected node
-     * @param checked the new state of the checkbox
-     */
-    override markAsChecked(node: TreeNode, checked: boolean): void {
+    // populate the direct children
+    createEntitiesData(crate)
+      .map((item) => this.itemFactory.toTreeNode(item))
+      .forEach((node) => CompositeTreeNode.addChild(root, node))
+
+    // set the root node as root of the tree
+    // This will also initialize the ID-node-map in the tree, so this should be called
+    // after populating the children.
+    this.tree.root = root
+  }
+
+  /**
+   * This is executed when a tree item's checkbox is checked/unchecked.
+   *
+   * For this example, the check state is applied to the business model (backOrdered property).
+   *
+   * @param node the affected node
+   * @param checked the new state of the checkbox
+   */
+  /*override markAsChecked(node: TreeNode, checked: boolean): void {
         if (ExampleTreeLeaf.is(node)) {
             node.data.backOrdered = checked;
         }
         super.markAsChecked(node, checked);
-    }
+    }*/
 
-    /**
-     * Logic to add a new child item to the given parent.
-     *
-     * For simplicity, we use a static/constant child, so we don't have to implement UI to ask the user for the name etc.
-     * Note that because of the TreeNode.id initialization to Item.name, this method should only be called once. Otherwise
-     * we end up with multiple tree items with the same ID, which is not desirable.
-     *
-     * So in practice, the id should be calculated in a better way...
-     *
-     * @param parent the parent of the new item
-     */
-    public addItem(parent: TreeNode): void {
+  /**
+   * Logic to add a new child item to the given parent.
+   *
+   * For simplicity, we use a static/constant child, so we don't have to implement UI to ask the user for the name etc.
+   * Note that because of the TreeNode.id initialization to Item.name, this method should only be called once. Otherwise
+   * we end up with multiple tree items with the same ID, which is not desirable.
+   *
+   * So in practice, the id should be calculated in a better way...
+   *
+   * @param parent the parent of the new item
+   */
+  /*public addItem(parent: TreeNode): void {
         if (ExampleTreeNode.is(parent)) {
             const newItem: Item = { name: 'New Entity', valid: true };
             parent.data.children?.push(newItem);
             // since we have modified the tree structure, we need to refresh the parent node
             this.tree.refresh(parent);
         }
-    }
+    }*/
 
-    /**
-     * Logic to move an leaf node to a new container node.
-     *
-     * This is used in the Drag & Drop demonstration code to move a dragged item.
-     *
-     * @param nodeIdToReparent the node ID of the leaf node to move
-     * @param targetNode the new parent of the leaf node
-     */
-    public reparent(nodeIdToReparent: string, targetNode: ExampleTreeNode): void {
+  /**
+   * Logic to move an leaf node to a new container node.
+   *
+   * This is used in the Drag & Drop demonstration code to move a dragged item.
+   *
+   * @param nodeIdToReparent the node ID of the leaf node to move
+   * @param targetNode the new parent of the leaf node
+   */
+  /*public reparent(nodeIdToReparent: string, targetNode: ExampleTreeNode): void {
         // resolve the ID to the actual node (using the ID-to-node map of the tree)
         const nodeToReparent = this.tree.getNode(nodeIdToReparent);
 
@@ -252,5 +226,5 @@ export class EntitiesOverviewModel extends TreeModelImpl {
                 this.tree.refresh(targetNode);
             }
         }
-    }
+    }*/
 }

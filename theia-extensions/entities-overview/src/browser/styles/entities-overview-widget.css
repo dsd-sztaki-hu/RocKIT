@@ -1,3 +1,8 @@
 .theia-example-tree-node .a {
     padding-right: 4px
 }
+
+.lm-Menu:has(.lm-Menu-content:empty) {
+    opacity: 0 !important;
+    pointer-events: none;
+}
