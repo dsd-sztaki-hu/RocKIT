@@ -57,6 +57,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
     // this.toDispose.push(this.toCancelNodeExpansion)
   }
 
+  protected readonly openingEntities = new Set<string>()
+
   /**
    * Enable icon rendering.
    *
@@ -170,21 +172,29 @@ export class EntitiesOverviewWidget extends TreeWidget {
   }
 
   protected async openRoCrateEditorForEntity(entityId: string): Promise<void> {
-    const existingWidgetId = this.findWidgetIdForEntity(entityId)
-    if (existingWidgetId) {
-      const existing = this.shell.getWidgetById(existingWidgetId)
-      if (existing) {
-        await this.shell.activateWidget(existingWidgetId)
-        return
-      }
+    if (this.openingEntities.has(entityId)) {
+      return
     }
+    this.openingEntities.add(entityId)
+    try {
+      const existingWidgetId = this.findWidgetIdForEntity(entityId)
+      if (existingWidgetId) {
+        const existing = this.shell.getWidgetById(existingWidgetId)
+        if (existing) {
+          await this.shell.activateWidget(existingWidgetId)
+          return
+        }
+      }
 
-    const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
-      instance: Math.random().toString(),
-      entityId,
-    })
-    await this.shell.addWidget(widget, { area: 'main' })
-    await this.shell.activateWidget(widget.id)
+      const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
+        instance: Math.random().toString(),
+        entityId,
+      })
+      await this.shell.addWidget(widget, { area: 'main' })
+      await this.shell.activateWidget(widget.id)
+    } finally {
+      this.openingEntities.delete(entityId)
+    }
   }
 
   protected findWidgetIdForEntity(entityId: string): string | undefined {
