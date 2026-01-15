@@ -32,8 +32,6 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
         document.body.appendChild(this.container);
         this.reactRoot = ReactDOM.createRoot(this.container);
 
-        // We only listen to state changes to Toggle Visibility here.
-        // The Data Refresh logic is moved inside the React Component for better lifecycle management.
         this.appStateService.onDidChangeSelector(state => state.openSchemaSelectorWindow)(
             () => this.render()
         );
@@ -92,9 +90,8 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         }
     }, [isOpen, loadData]);
 
-    // 2. AUTO-REFRESH LISTENER (Fixes the table not updating)
+    // 2. AUTO-REFRESH LISTENER
     React.useEffect(() => {
-        // Subscribe to the Service's event
         const listener = service.onDidChangeSchemas(() => {
             if (isOpen) {
                 console.log('Schema changes detected, refreshing selector table...');
@@ -115,7 +112,6 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
             try {
                 const res = await service.importFiles(fileUris, p);
                 
-                // Fix: Improved Message Text
                 if (res.success > 0) {
                     utils.msg.info(`Successfully imported ${res.success} schema(s).`, { timeout: MSG_TIMEOUT });
                 }
@@ -126,7 +122,6 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
                 console.error(e);
                 utils.msg.error('Unexpected error during import.', { timeout: MSG_TIMEOUT });
             } finally {
-                // Fix: Force progress bar to close
                 p.cancel(); 
             }
         });
@@ -166,7 +161,6 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
             } catch (e) {
                 utils.msg.error(`Error: ${e instanceof Error ? e.message : e}`, { timeout: MSG_TIMEOUT });
             } finally { 
-                // Fix: Force progress bar to close
                 p.cancel(); 
             }
         });

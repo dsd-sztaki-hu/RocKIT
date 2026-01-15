@@ -4,8 +4,8 @@ import { WidgetFactory, FrontendApplicationContribution } from '@theia/core/lib/
 
 import { MetadataSchemaManagerWidget, METADATA_SCHEMA_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
 import { MetadataSchemaManagerContribution } from './metadata-schema-manager-contribution';
-import { SchemaManagerService } from './services/metadata-schema-manager-service'; // New Path
-import { MetadataSchemaSelectorContribution } from './components/metadata-schema-selector'; // New Path & Name
+import { SchemaManagerService } from './services/metadata-schema-manager-service';
+import { MetadataSchemaSelectorContribution } from './components/metadata-schema-selector';
 
 import './style/index.css';
 

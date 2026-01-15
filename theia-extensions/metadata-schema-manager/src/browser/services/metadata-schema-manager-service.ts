@@ -15,7 +15,6 @@ export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
 export const SCHEMA_FIELD_ID = '@id';
 
-// 5 Seconds Timeout
 const MSG_TIMEOUT = 5000;
 
 const REPO_DOMAINS = {
@@ -120,7 +119,6 @@ export class SchemaManagerService implements FrontendApplicationContribution {
     public async getConvertedProfileContent(sourcePath: string): Promise<any> {
         try {
             // 1. Calculate path to the converted file
-            // Replaces '/metadata-schemas/cedar/' with '/metadata-schemas/ro-crate/'
             const roCratePathStr = sourcePath.replace('/metadata-schemas/cedar/', '/metadata-schemas/ro-crate/');
             const roCrateUri = new URI(roCratePathStr);
 
@@ -204,7 +202,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                         }
                     }));
                 } finally {
-                    progress.cancel(); // GUARANTEE CLOSE
+                    progress.cancel();
                 }
             });
 
@@ -297,7 +295,6 @@ export class SchemaManagerService implements FrontendApplicationContribution {
             progress.report({ work: { done: i + 1, total } });
         }
         
-        // No explicit done report needed, let progress.cancel handle closure in caller
         if (success > 0) this.onDidChangeSchemasEmitter.fire();
         return { success, fail };
     }
@@ -311,7 +308,6 @@ export class SchemaManagerService implements FrontendApplicationContribution {
         
         const schemaName = await this.processAndSaveSchema(rawString, 'remote');
         
-        // Final update before auto-close
         progress.report({ work: { done: 100, total: 100 } });
         this.onDidChangeSchemasEmitter.fire();
         return schemaName;

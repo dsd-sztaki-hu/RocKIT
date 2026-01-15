@@ -10,13 +10,12 @@ import { inject, injectable } from 'inversify';
 import * as React from 'react';
 import type { Root } from 'react-dom/client';
 
-// --- UPDATED IMPORTS (Matching new structure) ---
 import { SchemaManagerService } from './services/metadata-schema-manager-service';
 import { MetadataSchemaTable } from './components/metadata-schema-table';
 import { MetadataSchemaToolbar } from './components/metadata-schema-toolbar';
 import type { SchemaInfo } from './types';
 
-import './style/index.css'; // Simplified path if index.css is in src/browser/style/
+import './style/index.css';
 
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
 export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';
@@ -226,8 +225,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
         this.reactRoot?.render(
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                
-                {/* REUSABLE TOOLBAR (Renamed Component) */}
                 <MetadataSchemaToolbar 
                     onImportFile={() => this.importSchemaFromFile()}
                     onImportUrl={() => this.importSchemaFromUrl()}
@@ -235,9 +232,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     onDelete={() => this.deleteSchemas(selectedSchemaPaths)}
                     selectedCount={this.selectedSchemaKeys.length}
                 />
-
                 <div style={{ flexGrow: 1 }}>
-                    {/* REUSABLE TABLE (Renamed Component) */}
                     <MetadataSchemaTable 
                         schemas={this.schemas} 
                         isLoading={this.isLoading}

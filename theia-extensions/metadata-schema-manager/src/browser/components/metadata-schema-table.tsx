@@ -23,7 +23,6 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                     ref={searchInput}
                     placeholder={`Search ${dataIndex}`}
                     value={selectedKeys[0]}
-                    // FIX: Added explicit type annotation here
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
                     onPressEnter={() => handleSearch(confirm)}
                     style={{ marginBottom: 8, display: 'block' }}
