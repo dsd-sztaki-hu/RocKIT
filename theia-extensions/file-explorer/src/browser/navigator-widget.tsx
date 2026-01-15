@@ -128,6 +128,25 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     return super.renderTree(model)
   }
 
+  protected override createContainerAttributes(): React.HTMLAttributes<HTMLElement> {
+    const attributes = super.createContainerAttributes()
+    const existingOnClick = attributes.onClick
+    return {
+      ...attributes,
+      onClick: (event) => {
+        if (typeof existingOnClick === 'function') {
+          existingOnClick(event)
+        }
+        const target = event.target as HTMLElement
+        if (target.closest('.theia-TreeNode')) {
+          return
+        }
+        this.model.clearSelection()
+        this.focusService.setFocus(undefined)
+      },
+    }
+  }
+
   protected override shouldShowWelcomeView(): boolean {
     return this.model.root === undefined
   }
