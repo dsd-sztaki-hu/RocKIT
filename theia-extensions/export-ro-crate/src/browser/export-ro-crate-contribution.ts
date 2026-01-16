@@ -48,25 +48,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
         if (!mode) return
 
         if (mode === ExportRoCrateMode.Normal) {
-          const roots = this.workspaceService.tryGetRoots()
-          if (!roots.length) {
-            return
-          }
-
-          // Download children of each workspace root
-          const uris: URI[] = []
-          for (const root of roots) {
-            const stat = await this.fileService.resolve(root.resource)
-            for (const child of stat.children ?? []) {
-              uris.push(child.resource)
-            }
-          }
-
-          if (!uris.length) {
-            return
-          }
-
-          await this.fileDownloadService.download(uris)
+          await this.handleNormalExport()
           return
         }
 
@@ -74,6 +56,97 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
         await this.handleCleanExport()
       },
     })
+  }
+
+  protected async handleNormalExport(): Promise<void> {
+    const roots = this.workspaceService.tryGetRoots()
+    if (!roots.length) {
+      this.messageService.warn('No workspace is open.')
+      return
+    }
+
+    const target = await this.fileDialogService.showSaveDialog({
+      title: 'Save Normal export',
+      filters: { 'Zip Archive': ['zip'] },
+      saveLabel: 'Save',
+      inputValue: 'workspace-export.zip',
+    })
+    if (!target) {
+      return
+    }
+
+    this.messageService.info('Normal export started (creating ZIP)…')
+
+    const zip = new JSZip()
+    const multiRoot = roots.length > 1
+
+    for (const root of roots) {
+      const rootUri = root.resource
+      // If multiple roots, keep them separated in the zip:
+      const prefix = multiRoot ? `${rootUri.path.base}/` : ''
+      await this.addDirectoryToZip(zip, rootUri, rootUri, prefix)
+    }
+
+    try {
+      const data = await zip.generateAsync({ type: 'uint8array' })
+      await this.fileService.writeFile(target, BinaryBuffer.wrap(data))
+      this.messageService.info(`Normal export saved to ${target.path.base}`)
+    } catch (error) {
+      console.error(error)
+      this.messageService.error(`Failed to create normal export: ${error}`)
+    }
+  }
+
+  protected async addDirectoryToZip(
+    zip: JSZip,
+    dirUri: URI,
+    rootUri: URI,
+    prefix: string,
+  ): Promise<void> {
+    // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
+    let stat
+    try {
+      stat = await this.fileService.resolve(dirUri)
+    } catch (error) {
+      console.warn('Skipping unreadable directory', dirUri.toString(), error)
+      return
+    }
+
+    // If this resolves to a file, just add it (defensive)
+    if (!stat.isDirectory) {
+      await this.addFileToZip(zip, dirUri, rootUri, prefix)
+      return
+    }
+
+    const children = stat.children ?? []
+    for (const child of children) {
+      if (child.isDirectory) {
+        await this.addDirectoryToZip(zip, child.resource, rootUri, prefix)
+      } else {
+        await this.addFileToZip(zip, child.resource, rootUri, prefix)
+      }
+    }
+  }
+
+  protected async addFileToZip(
+    zip: JSZip,
+    fileUri: URI,
+    rootUri: URI,
+    prefix: string,
+  ): Promise<void> {
+    const relative = rootUri.relative(fileUri)
+    if (!relative) {
+      return
+    }
+
+    try {
+      const content = await this.fileService.readFile(fileUri)
+      // Use POSIX separators in zip entries
+      const entryPath = `${prefix}${relative.toString().replace(/\\/g, '/')}`
+      zip.file(entryPath, content.value.buffer)
+    } catch (error) {
+      console.warn('Skipping unreadable file', fileUri.toString(), error)
+    }
   }
 
   protected getWorkspaceRoot(): URI | undefined {
