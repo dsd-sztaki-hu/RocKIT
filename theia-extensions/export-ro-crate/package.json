@@ -9,11 +9,13 @@
     "src"
   ],
   "dependencies": {
-    "@theia/core": "1.65.2"
+    "@theia/core": "1.65.2",
+    "jszip": "^3.4.1"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
-    "typescript": "~5.4.5"
+    "typescript": "~5.4.5",
+    "@types/jszip": "^3.4.1"
   },
   "scripts": {
     "prepare": "npm run clean && npm run build",

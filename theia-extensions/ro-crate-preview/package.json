@@ -11,7 +11,8 @@
   "dependencies": {
     "@theia/core": "1.65.2",
     "react-json-view": "^1.21.3",
-    "app-state": "0.0.1"
+    "app-state": "0.0.1",
+    "jszip": "3.4.1"
   },
   "devDependencies": {
     "@testing-library/react": "^14.0.0",
