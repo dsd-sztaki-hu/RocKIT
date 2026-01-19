@@ -3,6 +3,7 @@ import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shel
 import { injectable, inject } from '@theia/core/shared/inversify'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { DisposableCollection } from '@theia/core/lib/common'
+import { CommandRegistry } from '@theia/core/lib/common/command'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateEditorWidget } from './ro-crate-editor-widget'
 
@@ -14,10 +15,17 @@ export class RoCrateEditorAppStateSyncContribution implements FrontendApplicatio
     @inject(ApplicationShell) protected readonly shell: ApplicationShell,
     @inject(AppStateService) protected readonly appStateService: AppStateService,
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
+    @inject(CommandRegistry) protected readonly commandRegistry: CommandRegistry,
   ) {}
 
   async onStart(app: FrontendApplication): Promise<void> {
     await this.appStateService.ready
+    if (window.location.hash === '#open-rocrate-editor') {
+      history.replaceState(null, document.title, window.location.pathname + window.location.search)
+      if (this.appStateService.roCrate && !this.appStateService.isROCrateInvalid) {
+        await this.commandRegistry.executeCommand('rocrate.openEditor')
+      }
+    }
     this.reconcile()
 
     this.toDispose.push(
