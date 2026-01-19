@@ -1,0 +1,103 @@
+{
+    "classes": {
+        "Dataset": {
+            "inputs": [
+                {
+                    "id": "https://schema.org/hasPart",
+                    "name": "hasPart",
+                    "label": "Has Part",
+                    "help": "Part of a Dataset",
+                    "multiple": "true",
+                    "type": [
+                        "Dataset",
+                        "File"
+                    ]
+                },
+                {
+                    "id": "https://schema.org/license",
+                    "name": "license",
+                    "label": "License",
+                    "help": "A license document that applies to this content, typically indicated by URL",
+                    "readonly": "true",
+                    "type": "URL"
+                },
+                {
+                    "id": "https://schema.org/datePublished",
+                    "name": "datePublished",
+                    "label": "Date published",
+                    "help": "Date of publication.",
+                    "readonly": "true",
+                    "type": "Date"
+                }
+            ]
+        },
+        "File": {
+            "label": "File",
+            "definition": "override",
+            "subClassOf": [],
+            "inputs": [
+                {
+                    "id": "https://schema.org/contentSize",
+                    "name": "contentSize",
+                    "label": "Content size",
+                    "help": "File size in bytes",
+                    "type": [
+                        "Text"
+                    ],
+                    "required": true,
+                    "multiple": false
+                },
+                {
+                    "id": "https://schema.org/encodingFormat",
+                    "name": "encodingFormat",
+                    "label": "Encoding type",
+                    "help": "MIME type of file",
+                    "type": [
+                        "Text"
+                    ],
+                    "required": false,
+                    "multiple": false
+                },
+                {
+                    "id": "https://schema.org/description",
+                    "name": "description",
+                    "label": "Description",
+                    "help": "Description of the file's content",
+                    "type": [
+                        "Text"
+                    ],
+                    "required": false,
+                    "multiple": false
+                },
+                {
+                    "id": "https://dataverse.org/schema/file/hash",
+                    "name": "hash",
+                    "label": "Hash",
+                    "help": "Hash of the file",
+                    "type": [
+                        "Text"
+                    ],
+                    "required": false,
+                    "multiple": false,
+                    "readonly": true
+                },
+                {
+                    "id": "https://dataverse.org/schema/file/arpPid",
+                    "name": "@arpPid",
+                    "label": "ARP PID",
+                    "help": "ARP specific persistent identifier of the file",
+                    "type": [
+                        "Text"
+                    ],
+                    "required": false,
+                    "multiple": false,
+                    "readonly": true
+                }
+            ]
+        }
+    },
+    "enabledClasses": [
+        "Dataset",
+        "File"
+    ]
+}

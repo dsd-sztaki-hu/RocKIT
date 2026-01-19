@@ -97,6 +97,7 @@ export const DescriboCrateBuilderWrapper = ({
     }, [onOpenSchemaManager]);
 
 
+    console.log("DescriboCrateBuilderWrapper", { crate, profile, entityId });
     return (
         <div ref={containerRef}>
             {loading && <div style={{ padding: '0.5rem', color: '#888' }}>Loading entity...</div>}

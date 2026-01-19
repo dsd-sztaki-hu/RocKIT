@@ -46,7 +46,16 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
   // }
 
   async onStart(app: FrontendApplication): Promise<void> {
+    await this.appStateService.ready
     await this.syncRoCrateFromWorkspace()
+
+    try {
+      const profileModule = await import('../../../data/init_profile.json')
+      this.appStateService.profile = profileModule.default
+    } catch (error) {
+      console.error('Failed to load initial profile data:', error)
+      this.appStateService.profile = undefined
+    }
 
     this.workspaceService.onWorkspaceChanged(async (roots) => {
       await this.syncRoCrateFromWorkspace()
