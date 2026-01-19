@@ -207,6 +207,8 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     const zip = new JSZip()
     zip.file('ro-crate-metadata.json', metadataContent.value.buffer)
 
+    await this.addOptionalFileToZip(zip, rootUri, 'ro-crate-preview.html')
+
     // Collect all workspace files referenced by @graph entity name
     const files = await this.collectWorkspaceFilesFromGraphByName(
       crate['@graph'],
@@ -237,6 +239,26 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
       this.messageService.error(`Failed to create clean export: ${error}`, {
         timeout: 3000,
       })
+    }
+  }
+
+  protected async addOptionalFileToZip(
+    zip: JSZip,
+    rootUri: URI,
+    relativePath: string,
+  ): Promise<void> {
+    const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '')
+    const uri = rootUri.resolve(normalized)
+
+    try {
+      const stat = await this.fileService.resolve(uri)
+      if (stat.isDirectory) {
+        return
+      }
+      const content = await this.fileService.readFile(uri)
+      zip.file(normalized, content.value.buffer)
+    } catch {
+      // File not present -> silently ignore
     }
   }
 
