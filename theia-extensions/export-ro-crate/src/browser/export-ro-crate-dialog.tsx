@@ -26,9 +26,7 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateMode> {
   }
 
   constructor() {
-    super({
-      title: 'Export RO-Crate',
-    })
+    super({ title: 'Export RO-Crate' })
 
     this.appendCloseButton()
     this.appendAcceptButton('Export')
@@ -41,6 +39,7 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateMode> {
 
     for (const mode of [ExportRoCrateMode.Normal, ExportRoCrateMode.Clean]) {
       const details = MODE_DETAILS[mode]
+
       const section = document.createElement('div')
       section.classList.add('export-mode-section')
       section.style.border = '1px solid var(--theia-border-color)'
@@ -48,12 +47,16 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateMode> {
       section.style.padding = '0.75rem'
       section.style.backgroundColor = 'var(--theia-input-background)'
 
+      // Make the entire section clickable by using one label that wraps everything.
       const label = document.createElement('label')
       label.classList.add('export-mode-label')
-      label.style.display = 'flex'
-      label.style.alignItems = 'center'
-      label.style.gap = '0.4rem'
+      label.style.display = 'block'
       label.style.cursor = 'pointer'
+
+      const header = document.createElement('div')
+      header.style.display = 'flex'
+      header.style.alignItems = 'center'
+      header.style.gap = '0.4rem'
 
       const radio = this.radios[mode]
       radio.type = 'radio'
@@ -73,11 +76,13 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateMode> {
       description.style.marginLeft = '1.9rem'
       description.style.color = 'var(--theia-text-muted)'
 
-      label.appendChild(radio)
-      label.appendChild(title)
+      header.appendChild(radio)
+      header.appendChild(title)
+
+      label.appendChild(header)
+      label.appendChild(description)
 
       section.appendChild(label)
-      section.appendChild(description)
       container.appendChild(section)
     }
 

@@ -1,0 +1,4 @@
+.export-ro-crate-dialog input[type="radio"]:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
