@@ -177,6 +177,8 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
       })
       const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
       await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+      this.appStateService.setRoCrateSnapshot(crateData)
+      this.appStateService.dirty = false
     } catch (error) {
       console.error('Failed to persist RO-Crate metadata:', error)
     }
