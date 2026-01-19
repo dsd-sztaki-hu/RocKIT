@@ -63,12 +63,13 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
       this.messageService.warn('No workspace is open.', { timeout: 3000 })
       return
     }
+    const rootName = roots[0]?.resource?.path?.base || 'workspace'
 
     const target = await this.fileDialogService.showSaveDialog({
       title: 'Save Normal export',
       filters: { 'Zip Archive': ['zip'] },
       saveLabel: 'Save',
-      inputValue: 'workspace-export.zip',
+      inputValue: `${rootName}.zip`,
     })
     if (!target) {
       return
@@ -177,6 +178,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
       })
       return
     }
+    const rootName = rootUri.path.base || 'workspace'
 
     const metadataUri = rootUri.resolve('ro-crate-metadata.json')
     if (!(await this.fileService.exists(metadataUri))) {
@@ -198,7 +200,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
       title: 'Save Clean RO-Crate export',
       filters: { 'Zip Archive': ['zip'] },
       saveLabel: 'Save',
-      inputValue: 'clean-ro-crate.zip',
+      inputValue: `${rootName}-clean.zip`,
     })
     if (!target) {
       return
