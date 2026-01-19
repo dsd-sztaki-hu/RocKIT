@@ -9,7 +9,8 @@
     "src"
   ],
   "dependencies": {
-    "@theia/core": "1.65.2"
+    "@theia/core": "1.65.2",
+    "save-ro-crate": "0.0.0"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",

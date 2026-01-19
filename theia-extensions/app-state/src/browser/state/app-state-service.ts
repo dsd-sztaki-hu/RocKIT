@@ -19,6 +19,7 @@ export function cloneDefaultAppState(): AppState {
 export class AppStateService {
   // Default state values
   private readonly store = new SimpleStateStore<AppState>(cloneDefaultAppState())
+  private roCrateSnapshot?: string
 
   @inject(StorageService)
   protected readonly storageService!: StorageService
@@ -96,6 +97,32 @@ export class AppStateService {
   set roCrate(value: AppState['roCrate']) {
     console.log('AppStateService: Setting roCrate to:', value)
     this.updateState({ roCrate: value })
+  }
+
+  setRoCrateSnapshot(value: AppState['roCrate']): void {
+    if (!value) {
+      this.roCrateSnapshot = undefined
+      return
+    }
+    try {
+      this.roCrateSnapshot = JSON.stringify(value)
+    } catch (error) {
+      console.warn('Failed to snapshot RO-Crate:', error)
+      this.roCrateSnapshot = undefined
+    }
+  }
+
+  isRoCrateDirty(value: AppState['roCrate']): boolean {
+    if (!value) {
+      return false
+    }
+    try {
+      const current = JSON.stringify(value)
+      return this.roCrateSnapshot !== current
+    } catch (error) {
+      console.warn('Failed to compare RO-Crate snapshot:', error)
+      return true
+    }
   }
 
   get profile(): AppState['profile'] {
