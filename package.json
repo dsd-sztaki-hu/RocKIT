@@ -26,7 +26,8 @@
   },
   "devDependencies": {
     "lerna": "2.4.0",
-    "@biomejs/biome": "2.3.2"
+    "@biomejs/biome": "2.3.2",
+    "electron-builder": "26.4.0"
   },
   "workspaces": [
     "dev-packages/*",
