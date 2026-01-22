@@ -128,6 +128,8 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
       await this.messageService.info('RO-Crate and HTML preview file saved!', {
         timeout: 3000,
       })
+      this.appStateService.setRoCrateSnapshot(crateData)
+      this.appStateService.dirty = false
     } catch (error) {
       await this.messageService.error(`Save failed: ${error}`)
     }

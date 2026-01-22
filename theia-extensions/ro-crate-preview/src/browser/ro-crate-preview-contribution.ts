@@ -26,7 +26,7 @@ export class RoCratePreviewContribution implements CommandContribution, MenuCont
   }
 
   registerMenus(menus: MenuModelRegistry): void {
-    menus.registerMenuAction(CommonMenus.VIEW, {
+    menus.registerMenuAction(CommonMenus.FILE, {
       commandId: RoCratePreviewCommand.id,
       label: RoCratePreviewCommand.label,
     })

@@ -1,4 +1,11 @@
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
+import { Emitter } from '@theia/core/lib/common/event'
+import type { SaveOptions } from '@theia/core/lib/browser/saveable'
+import { SaveReason, setDirty } from '@theia/core/lib/browser/saveable'
+import { CommandService } from '@theia/core/lib/common'
+import { FileService } from '@theia/filesystem/lib/browser/file-service'
+import { WorkspaceService } from '@theia/workspace/lib/browser'
+import { RoCrateHtmlGenerator } from 'save-ro-crate/lib/browser/ro-crate-html-generator'
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 
@@ -28,9 +35,27 @@ export class RoCrateEditorWidget extends ReactWidget {
   @inject(AppStateService)
   protected readonly appStateService: AppStateService
 
+  @inject(CommandService)
+  protected readonly commandService: CommandService
+
+  @inject(FileService)
+  protected readonly fileService: FileService
+
+  @inject(WorkspaceService)
+  protected readonly workspaceService: WorkspaceService
+
+  @inject(RoCrateHtmlGenerator)
+  protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator
+
+  protected readonly onDirtyChangedEmitter = new Emitter<void>()
+  protected readonly onContentChangedEmitter = new Emitter<void>()
+  protected dirtyState = false
+  protected persistPromise?: Promise<void>
+
   protected crateSubscription?: Disposable
   protected profileSubscription?: Disposable
   protected selectedEntityIdSubscription?: Disposable
+  protected dirtySubscription?: Disposable
 
   protected localCrate: Record<string, any> | undefined
   protected localProfile: Record<string, any> | undefined
@@ -66,6 +91,7 @@ export class RoCrateEditorWidget extends ReactWidget {
     if (!this.localProfile) {
       this.localProfile = { classes: {}, layouts: [], localisation: {} };
     }
+    this.setDirtyState(this.appStateService.dirty)
 
     this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
       (crate) => {
@@ -80,6 +106,11 @@ export class RoCrateEditorWidget extends ReactWidget {
         this.localProfile = profile
         console.log('profile update')
         this.update()
+      },
+    )
+    this.dirtySubscription = this.appStateService.onDidChangeSelector((s) => s.dirty)(
+      (dirty) => {
+        this.setDirtyState(dirty)
       },
     )
     this.selectedEntityIdSubscription = this.appStateService.onDidChangeSelector(
@@ -108,6 +139,9 @@ export class RoCrateEditorWidget extends ReactWidget {
     const crate = saveData && (saveData as any).crate ? (saveData as any).crate : saveData
     this.appStateService.roCrate = crate
     this.localCrate = crate
+    const isDirty = this.appStateService.isRoCrateDirty(crate)
+    this.appStateService.dirty = isDirty
+    this.onContentChangedEmitter.fire()
   }
 
   protected handleNavigation = (entity: any) => {
@@ -153,6 +187,34 @@ export class RoCrateEditorWidget extends ReactWidget {
         />
       </div>
     )
+  }
+
+  get dirty(): boolean {
+    return this.dirtyState
+  }
+
+  get onDirtyChanged() {
+    return this.onDirtyChangedEmitter.event
+  }
+
+  get onContentChanged() {
+    return this.onContentChangedEmitter.event
+  }
+
+  async save(options?: SaveOptions): Promise<void> {
+    const reason = options?.saveReason
+    if (
+      reason === SaveReason.AfterDelay ||
+      reason === SaveReason.FocusChange
+    ) {
+      await this.persistRoCrateToDisk()
+      return
+    }
+    try {
+      await this.commandService.executeCommand('ro-crate.save')
+    } catch (error) {
+      console.error('Failed to save RO-Crate via command:', error)
+    }
   }
 
   protected assignEntity(entityId: string): void {
@@ -255,6 +317,15 @@ export class RoCrateEditorWidget extends ReactWidget {
     }
   }
 
+  protected setDirtyState(dirty: boolean): void {
+    if (this.dirtyState === dirty) {
+      return
+    }
+    this.dirtyState = dirty
+    setDirty(this, dirty)
+    this.onDirtyChangedEmitter.fire()
+  }
+
   protected unregisterFromAppState(): void {
     if (!this.id) {
       return
@@ -266,11 +337,51 @@ export class RoCrateEditorWidget extends ReactWidget {
     return this.assignedEntityId
   }
 
+  protected async persistRoCrateToDisk(): Promise<void> {
+    if (!this.appStateService.roCrate) {
+      return
+    }
+    if (this.persistPromise) {
+      return this.persistPromise
+    }
+    this.persistPromise = this.writeRoCrateFiles()
+    try {
+      await this.persistPromise
+    } finally {
+      this.persistPromise = undefined
+    }
+  }
+
+  protected async writeRoCrateFiles(): Promise<void> {
+    const crateData = this.appStateService.roCrate
+    const roots = this.workspaceService.tryGetRoots()
+    const rootUri = roots?.[0]?.resource
+    if (!crateData || !rootUri) {
+      return
+    }
+    const metadataUri = rootUri.resolve('ro-crate-metadata.json')
+    const previewUri = rootUri.resolve('ro-crate-preview.html')
+    try {
+      await this.fileService.create(metadataUri, JSON.stringify(crateData, null, 2), {
+        overwrite: true,
+      })
+      const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
+      await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+      this.appStateService.setRoCrateSnapshot(crateData)
+      this.appStateService.dirty = false
+    } catch (error) {
+      console.error('Failed to persist RO-Crate metadata:', error)
+    }
+  }
+
   dispose(): void {
     this.unregisterFromAppState()
     this.crateSubscription?.dispose()
     this.profileSubscription?.dispose()
     this.selectedEntityIdSubscription?.dispose()
+    this.dirtySubscription?.dispose()
+    this.onDirtyChangedEmitter.dispose()
+    this.onContentChangedEmitter.dispose()
     super.dispose()
   }
 }
