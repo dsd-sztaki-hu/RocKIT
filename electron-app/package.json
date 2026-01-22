@@ -28,7 +28,8 @@
     "ro-crate-structure-panel": "0.0.0",
     "save-ro-crate": "0.0.0",
     "AROMA-theia-overrides": "0.0.0",
-    "export-ro-crate": "0.0.0"
+    "export-ro-crate": "0.0.0",
+    "remote-ro-crate-conversion": "0.0.0"
   },
   "devDependencies": {
     "@arpproject/recrate": "0.1.7-test7",
