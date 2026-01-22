@@ -2,7 +2,7 @@ import { injectable, inject } from 'inversify';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { FrontendApplicationContribution } from '@theia/core/lib/browser';
-import { Modal, Button, Input, message } from 'antd';
+import { Modal, Button, Input } from 'antd';
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
@@ -32,11 +32,10 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
         document.body.appendChild(this.container);
         this.reactRoot = ReactDOM.createRoot(this.container);
 
-        this.appStateService.onDidChangeSelector(state => state.openSchemaSelectorWindow)(
-            () => this.render()
-        );
-        
-        this.render();
+        const update = () => this.render();
+        this.schemaManagerService.onDidChangeSchemas(update);
+        this.appStateService.onDidChangeSelector(state => state.openSchemaSelectorWindow)(update);
+        update();
     }
 
     protected render(): void {
@@ -82,7 +81,6 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
             .finally(() => setIsLoading(false));
     }, [service]);
 
-    // 1. Initial Load & Selection Reset
     React.useEffect(() => {
         if (isOpen) {
             setSelectedSchema(null);
@@ -90,13 +88,9 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         }
     }, [isOpen, loadData]);
 
-    // 2. AUTO-REFRESH LISTENER
     React.useEffect(() => {
         const listener = service.onDidChangeSchemas(() => {
-            if (isOpen) {
-                console.log('Schema changes detected, refreshing selector table...');
-                loadData();
-            }
+            if (isOpen) loadData();
         });
         return () => listener.dispose();
     }, [service, loadData, isOpen]);
@@ -111,19 +105,11 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         utils.msg.showProgress({ text: 'Importing...' }).then(async p => {
             try {
                 const res = await service.importFiles(fileUris, p);
-                
-                if (res.success > 0) {
-                    utils.msg.info(`Successfully imported ${res.success} schema(s).`, { timeout: MSG_TIMEOUT });
-                }
-                if (res.fail > 0) {
-                    utils.msg.warn(`Failed to import ${res.fail} schema(s).`, { timeout: MSG_TIMEOUT });
-                }
+                if (res.success > 0) utils.msg.info(`Successfully imported ${res.success} schema(s).`, { timeout: MSG_TIMEOUT });
+                if (res.fail > 0) utils.msg.warn(`Failed to import ${res.fail} schema(s).`, { timeout: MSG_TIMEOUT });
             } catch (e) {
-                console.error(e);
                 utils.msg.error('Unexpected error during import.', { timeout: MSG_TIMEOUT });
-            } finally {
-                p.cancel(); 
-            }
+            } finally { p.cancel(); }
         });
     };
 
@@ -160,10 +146,12 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
                 utils.msg.info(`Successfully imported: ${name}`, { timeout: MSG_TIMEOUT });
             } catch (e) {
                 utils.msg.error(`Error: ${e instanceof Error ? e.message : e}`, { timeout: MSG_TIMEOUT });
-            } finally { 
-                p.cancel(); 
-            }
+            } finally { p.cancel(); }
         });
+    };
+
+    const handleBrowseRemote = async () => {
+        await service.browseRemoteSchemas();
     };
 
     const handleAssociate = async () => {
@@ -195,6 +183,7 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
                 <MetadataSchemaToolbar 
                     onImportFile={handleImportFile} 
                     onImportUrl={handleImportUrl} 
+                    onBrowse={handleBrowseRemote}
                     onRefresh={loadData} 
                 />
                 <div style={{ flexGrow: 1, overflow: 'auto' }}>
