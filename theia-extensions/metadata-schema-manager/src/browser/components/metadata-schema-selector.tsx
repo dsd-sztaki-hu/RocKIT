@@ -174,6 +174,23 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         if (!selectedSchema) return;
         try {
             setIsLoading(true);
+            const crate = appState.roCrate;
+            if (crate && Array.isArray(crate['@graph'])) {
+                const entityId = appState.selectedEntityId ?? './';
+                const w3id = selectedSchema.reference ? service.convertCedarTemplateUrlToW3idUrl(selectedSchema.reference) : '';
+                if (w3id) {
+                    const updatedGraph = (crate['@graph'] as any[]).map(entry => {
+                        if (String(entry['@id']) !== entityId) return entry;
+                        const existing = entry.conformsTo;
+                        const base = existing ? (Array.isArray(existing) ? existing.slice() : [existing]) : [];
+                        const normalized = base.map(v => (typeof v === 'string' ? { '@id': v } : v)).filter(v => v && typeof v['@id'] === 'string');
+                        const already = normalized.some(v => v['@id'] === w3id);
+                        const next = already ? normalized : [...normalized, { '@id': w3id }];
+                        return { ...entry, conformsTo: next };
+                    });
+                    appState.roCrate = { ...crate, '@graph': updatedGraph } as any;
+                }
+            }
             const newProfileContent = await service.getConvertedProfileContent(selectedSchema.path);
             const mergedProfile = await service.getMergedProfile(appState.roCrate!, newProfileContent!, appState.profile!);
             appState.updateState({ profile: mergedProfile, openSchemaSelectorWindow: false });

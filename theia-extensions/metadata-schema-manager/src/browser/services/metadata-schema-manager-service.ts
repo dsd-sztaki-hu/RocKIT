@@ -21,7 +21,7 @@ const REPO_DOMAINS = {
     OPEN_DEV: 'open.cedardev.dsd.sztaki.hu',
     REPO_DEV: 'repo.cedardev.dsd.sztaki.hu',
     RESEARCH_DATA: 'repo.schema.researchdata.hu',
-    W3ID_BASE: 'https://w3id.org/arp/localdev'
+    W3ID_BASE: 'https://w3id.org/arp/dev'
 };
 
 @injectable()
@@ -562,7 +562,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
      *
      * @param w3idUrls
      */
-    protected convertW3idUrlsToCedarTemplateUrls(w3idUrls: string[]) {
+    public convertW3idUrlsToCedarTemplateUrls(w3idUrls: string[]) {
         // https://w3id.org/arp/localdev/schema/33677b82-7973-3e4c-b09d-b5189e095627
         // --> https://repo.arp.orgx/template/33677b82-7973-3e4c-b09d-b5189e095627
         return w3idUrls.map((url: string) => this.convertW3idUrlToCedarTemplateUrl(url))
@@ -581,8 +581,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
         return cedarUrls.map((url: string) => this.convertCedarTemplateUrlToW3idUrl(url))
     }
 
-    protected convertCedarTemplateUrlToW3idUrl(url: string) {
-        // If already a w3id, ignore conversion.
+    public convertCedarTemplateUrlToW3idUrl(url: string) {
         if (url.startsWith(REPO_DOMAINS.W3ID_BASE)) {
             return url
         }

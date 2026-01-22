@@ -6,6 +6,7 @@ import '@arpproject/recrate/style.css'
 import { Message } from '@lumino/messaging'
 import type { Disposable } from '@theia/core'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { SchemaManagerService } from 'metadata-schema-manager/lib/browser/services/metadata-schema-manager-service'
 
 import { DescriboCrateBuilderWrapper } from './recrate-wrapper'
 
@@ -17,6 +18,9 @@ interface RoCrateEditorWidgetOptions {
 @injectable()
 export class RoCrateEditorWidget extends ReactWidget {
   static readonly ID = 'rocrate-editor-widget'
+
+  @inject(SchemaManagerService)
+  protected readonly schemaManagerService: SchemaManagerService
 
   protected instanceId: string = ''
   protected assignedEntityId?: string
@@ -31,6 +35,8 @@ export class RoCrateEditorWidget extends ReactWidget {
   protected localCrate: Record<string, any> | undefined
   protected localProfile: Record<string, any> | undefined
   protected localSelectedEntityId: string | undefined
+  protected conformsToIds: string[] = []
+  protected isRefreshingProfile = false
 
   constructor() {
     super()
@@ -46,7 +52,7 @@ export class RoCrateEditorWidget extends ReactWidget {
     })
   }
 
-  initialize(options: RoCrateEditorWidgetOptions = {}): void {
+  async initialize(options: RoCrateEditorWidgetOptions = {}): Promise<void> {
     this.instanceId =
       options.instanceId ??
       `${RoCrateEditorWidget.ID}:${Math.random().toString(36).substring(2)}`
@@ -56,6 +62,10 @@ export class RoCrateEditorWidget extends ReactWidget {
     // Assign initial values from app-state on component load
     this.localCrate = this.appStateService.roCrate
     this.localProfile = this.appStateService.profile
+    // Ensure localProfile is initialized if it's undefined from app state
+    if (!this.localProfile) {
+      this.localProfile = { classes: {}, layouts: [], localisation: {} };
+    }
 
     this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
       (crate) => {
@@ -74,13 +84,14 @@ export class RoCrateEditorWidget extends ReactWidget {
     )
     this.selectedEntityIdSubscription = this.appStateService.onDidChangeSelector(
       (s) => s.selectedEntityId,
-    )((selectedEntityId) => {
+    )(async (selectedEntityId) => {
       if (selectedEntityId === this.assignedEntityId) {
         const prev = this.localSelectedEntityId
         this.localSelectedEntityId = selectedEntityId
         console.log('selectedEntityId update', { prev, next: selectedEntityId })
         this.updateTitleLabel()
         this.update()
+        await this.refreshProfileForSelectedEntity()
       }
     })
 
@@ -88,7 +99,8 @@ export class RoCrateEditorWidget extends ReactWidget {
     const initialEntity =
       persistedEntity ?? options.entityId ?? this.appStateService.selectedEntityId ?? './'
     this.assignEntity(initialEntity)
-    this.update()
+
+    await this.refreshProfileForSelectedEntity()
   }
 
   protected handleSaveCrate = (saveData: any) => {
@@ -125,6 +137,7 @@ export class RoCrateEditorWidget extends ReactWidget {
   }
 
   render(): React.ReactNode {
+    console.log("conformsToIds", this.conformsToIds)
     return (
       <div style={{ padding: '1rem' }}>
         <h3>Panel ID:</h3>
@@ -176,6 +189,70 @@ export class RoCrateEditorWidget extends ReactWidget {
       }
     }
     return entityId
+  }
+
+  protected computeConformsToIdsForSelectedEntity(): void {
+    const entityId = this.localSelectedEntityId ?? this.assignedEntityId ?? './'
+    this.conformsToIds = this.extractConformsToIds(entityId)
+  }
+
+  protected extractConformsToIds(entityId: string): string[] {
+    const rawGraph = this.localCrate?.['@graph']
+    const graph = Array.isArray(rawGraph) ? (rawGraph as Record<string, any>[]) : []
+    const entity = graph.find(
+      (entry) => entry && typeof entry === 'object' && String(entry['@id']) === entityId,
+    )
+    const value: any = entity?.conformsTo
+    const ids: string[] = []
+    const pushId = (val: any) => {
+      if (!val) return
+      if (typeof val === 'string') {
+        const t = val.trim()
+        if (t) ids.push(t)
+        return
+      }
+      if (typeof val === 'object') {
+        const idVal = (val as any)['@id'] ?? (val as any).id
+        if (typeof idVal === 'string') {
+          const t = idVal.trim()
+          if (t) ids.push(t)
+        }
+      }
+    }
+    if (Array.isArray(value)) {
+      for (const v of value) pushId(v)
+    } else {
+      pushId(value)
+    }
+    return Array.from(new Set(ids))
+  }
+
+  protected async refreshProfileForSelectedEntity(): Promise<void> {
+    if (this.isRefreshingProfile) {
+      return
+    }
+    this.isRefreshingProfile = true
+    try {
+      this.computeConformsToIdsForSelectedEntity()
+      const conformsToUrls = this.schemaManagerService.convertW3idUrlsToCedarTemplateUrls(this.conformsToIds)
+      const allSchemas = await this.schemaManagerService.loadAllSchemas()
+      for (const conformsToUrl of conformsToUrls) {
+        const matchingSchema = allSchemas.find(schema => schema.reference === conformsToUrl)
+        if (matchingSchema) {
+          const convertedContent = await this.schemaManagerService.getConvertedProfileContent(matchingSchema.path)
+          if (convertedContent) {
+            const currentCrate = this.localCrate || { '@graph': [] }
+            const baseProfile = this.appStateService.profile || this.localProfile || { classes: {}, layouts: [], localisation: {} }
+            const merged = await this.schemaManagerService.getMergedProfile(currentCrate, convertedContent, baseProfile)
+            this.localProfile = merged
+            this.appStateService.profile = merged
+          }
+        }
+      }
+      this.update()
+    } finally {
+      this.isRefreshingProfile = false
+    }
   }
 
   protected unregisterFromAppState(): void {

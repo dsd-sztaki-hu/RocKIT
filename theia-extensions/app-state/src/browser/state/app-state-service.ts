@@ -25,6 +25,7 @@ export class AppStateService {
 
   private readonly _ready: Promise<void>
   private _resolveReady!: () => void
+  private initialProfileTemplate?: Record<string, any>
 
   constructor() {
     this._ready = new Promise<void>((resolve) => {
@@ -89,6 +90,25 @@ export class AppStateService {
     this.store.setState(cloneDefaultAppState())
   }
 
+  protected deepClone<T>(obj: T | undefined): T | undefined {
+    try {
+      return obj === undefined ? undefined : JSON.parse(JSON.stringify(obj))
+    } catch {
+      return undefined
+    }
+  }
+
+  setInitialProfileTemplate(value: Record<string, any> | undefined): void {
+    this.initialProfileTemplate = this.deepClone(value) as Record<string, any> | undefined
+  }
+
+  resetProfileToInitial(): void {
+    const next = this.deepClone(this.initialProfileTemplate)
+    if (next !== undefined) {
+      this.updateState({ profile: next })
+    }
+  }
+
   get roCrate(): AppState['roCrate'] {
     console.log('Getting roCrate:', this.getState().roCrate)
     return this.getState().roCrate
@@ -112,6 +132,7 @@ export class AppStateService {
   }
   set selectedEntityId(value: AppState['selectedEntityId']) {
     console.log('Setting selectedEntityId:', value)
+    this.resetProfileToInitial()
     this.updateState({ selectedEntityId: value })
   }
 

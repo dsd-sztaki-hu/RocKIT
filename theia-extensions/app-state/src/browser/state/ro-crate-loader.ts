@@ -51,9 +51,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
     try {
       const profileModule = await import('../../../data/init_profile.json')
-      this.appStateService.profile = profileModule.default
+      this.appStateService.setInitialProfileTemplate(profileModule.default)
+      this.appStateService.profile = this.appStateService.profile ?? profileModule.default
     } catch (error) {
       console.error('Failed to load initial profile data:', error)
+      this.appStateService.setInitialProfileTemplate(undefined)
       this.appStateService.profile = undefined
     }
 
