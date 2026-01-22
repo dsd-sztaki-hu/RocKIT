@@ -24,7 +24,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
             <Button type="primary" onClick={onImportUrl}>Import from URL</Button>
             
             {onBrowse && (
-                <Button type="default" onClick={onBrowse}>Browse Remote</Button>
+                <Button type="default" onClick={onBrowse}>Browse</Button>
             )}
             
             <Button type="default" onClick={onRefresh}>Refresh</Button>

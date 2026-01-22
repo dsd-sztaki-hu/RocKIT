@@ -20,7 +20,6 @@ import './style/index.css';
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
 export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';
 
-// 5 Seconds Timeout for GUI Notifications
 const MSG_TIMEOUT = 5000;
 
 @injectable()
@@ -230,7 +229,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.reactRoot?.render(
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 
-                {/* REUSABLE TOOLBAR */}
                 <MetadataSchemaToolbar 
                     onImportFile={() => this.importSchemaFromFile()}
                     onImportUrl={() => this.importSchemaFromUrl()}
