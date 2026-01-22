@@ -193,6 +193,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         });
     }
 
+    protected async browseRemoteSchemas(): Promise<void> {
+        await this.schemaManagerService.browseRemoteSchemas();
+    }
+
     protected async refreshSchemas(): Promise<void> {
         await this.loadSchemas();
     }
@@ -225,13 +229,17 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
         this.reactRoot?.render(
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                
+                {/* REUSABLE TOOLBAR */}
                 <MetadataSchemaToolbar 
                     onImportFile={() => this.importSchemaFromFile()}
                     onImportUrl={() => this.importSchemaFromUrl()}
+                    onBrowse={() => this.browseRemoteSchemas()} 
                     onRefresh={() => this.refreshSchemas()}
                     onDelete={() => this.deleteSchemas(selectedSchemaPaths)}
                     selectedCount={this.selectedSchemaKeys.length}
                 />
+
                 <div style={{ flexGrow: 1 }}>
                     <MetadataSchemaTable 
                         schemas={this.schemas} 
