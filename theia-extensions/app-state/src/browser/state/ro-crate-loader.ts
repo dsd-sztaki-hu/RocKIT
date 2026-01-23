@@ -52,6 +52,13 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     this.workspaceService.onWorkspaceChanged(() => {
       void this.syncRoCrateFromWorkspace()
     })
+    this.workspaceService.onWorkspaceLocationChanged(() => {
+      void this.syncRoCrateFromWorkspace()
+    })
+  }
+
+  public async refresh(): Promise<void> {
+    await this.syncRoCrateFromWorkspace()
   }
 
   protected async syncRoCrateFromWorkspace(): Promise<void> {
