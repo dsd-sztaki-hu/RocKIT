@@ -194,7 +194,6 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
             const newProfileContent = await service.getConvertedProfileContent(selectedSchema.path);
             const mergedProfile = await service.getMergedProfile(appState.roCrate!, newProfileContent!, appState.profile!);
             appState.updateState({ profile: mergedProfile, openSchemaSelectorWindow: false });
-            await utils.cmd.executeCommand('rocrate.openEditor');
         } catch (e) {
             utils.msg.error('Failed to load profile content.', { timeout: MSG_TIMEOUT });
         } finally {

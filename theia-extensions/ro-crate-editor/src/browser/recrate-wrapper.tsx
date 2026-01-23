@@ -5,6 +5,7 @@ export const DescriboCrateBuilderWrapper = ({
     crate,
     profile,
     entityId,
+    profileKey,
     onSaveCrate,
     onNavigation,
     onOpenSchemaManager
@@ -12,6 +13,7 @@ export const DescriboCrateBuilderWrapper = ({
     crate: Record<string, any> | undefined;
     profile: Record<string, any> | undefined;
     entityId: string | undefined;
+    profileKey: number;
     onSaveCrate: (data: any) => void;
     onNavigation: (entity: any) => void;
     onOpenSchemaManager: (requested: boolean) => void;
@@ -102,7 +104,7 @@ export const DescriboCrateBuilderWrapper = ({
         <div ref={containerRef}>
             {loading && <div style={{ padding: '0.5rem', color: '#888' }}>Loading entity...</div>}
             <DescriboCrateBuilder
-                key={currentEntityId}
+                key={`${currentEntityId ?? 'none'}:${profileKey}`}
                 crate={crate}
                 profile={profile}
                 onAddNewProfileRequest={handleAddNewProfileRequest}
