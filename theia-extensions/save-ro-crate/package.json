@@ -4,23 +4,23 @@
     "theia-extension"
   ],
   "version": "0.0.0",
+  "main": "lib/browser/index.js",
+  "types": "lib/browser/index.d.ts",
   "files": [
     "lib",
     "src"
   ],
   "dependencies": {
     "@theia/core": "1.65.2",
-    "app-state": "0.0.1",
-    "ro-crate-editor": "0.0.0"
+    "app-state": "0.0.1"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
     "typescript": "~5.4.5"
   },
   "scripts": {
-    "prepare": "npm run clean && npm run build",
     "clean": "rimraf lib",
-    "build": "tsc",
+    "build": "tsc -b",
     "watch": "tsc -w"
   },
   "theiaExtensions": [

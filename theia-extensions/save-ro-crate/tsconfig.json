@@ -1,6 +1,7 @@
 {
     "compilerOptions": {
         "skipLibCheck": true,
+        "composite": true,
         "declaration": true,
         "declarationMap": true,
         "noImplicitAny": true,
@@ -14,17 +15,23 @@
         "resolveJsonModule": true,
         "module": "commonjs",
         "moduleResolution": "node",
-        "target": "ES2017",
+        "target": "es6",
         "jsx": "react",
         "lib": [
-            "ES2017",
+            "es6",
             "dom"
         ],
+        "esModuleInterop": true,
         "sourceMap": true,
         "rootDir": "src",
-        "outDir": "lib"
+        "outDir": "lib",
+        "tsBuildInfoFile": "./lib/tsconfig.tsbuildinfo"
     },
     "include": [
         "src"
+    ],
+    "exclude": [
+        "node_modules",
+        "lib"
     ]
 }
