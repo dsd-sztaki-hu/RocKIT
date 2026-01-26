@@ -150,7 +150,7 @@ export class ROCrateDialog extends ReactDialog<string> {
     const rootDataset = {
       '@id': './',
       '@type': 'Dataset',
-      name: rootUri.path.base,
+      name: './',
       description: `RO-Crate for the workspace: ${rootUri.path.base}`,
       datePublished: new Date().toISOString(),
       hasPart: rootHasPart,

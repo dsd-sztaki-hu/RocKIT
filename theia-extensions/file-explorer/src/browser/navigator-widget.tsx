@@ -312,15 +312,29 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   }
 
   private shouldHighlightFile(node: FileStatNode): boolean {
-    const entityRelativePaths = this.getRoCrateEntityRelativePaths()
-    if (entityRelativePaths.size === 0) {
+    const { files, directories } = this.getRoCrateEntityPathIndex()
+    if (files.size === 0 && directories.length === 0) {
       return false
     }
     const relativePath = this.getNodeWorkspaceRelativePath(node)
     if (!relativePath) {
       return false
     }
-    return !entityRelativePaths.has(relativePath)
+    if (files.has(relativePath)) {
+      return false
+    }
+    for (const directory of directories) {
+      if (!directory) {
+        continue
+      }
+      if (
+        relativePath === directory ||
+        relativePath.startsWith(`${directory}/`)
+      ) {
+        return false
+      }
+    }
+    return true
   }
 
   private getNodeWorkspaceRelativePath(node: FileStatNode): string | undefined {
@@ -336,13 +350,17 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     return normalized ? normalized.toLowerCase() : undefined
   }
 
-  private getRoCrateEntityRelativePaths(): Set<string> {
+  private getRoCrateEntityPathIndex(): {
+    files: Set<string>
+    directories: string[]
+  } {
     const crate = this.appStateService.roCrate
     if (!crate) {
-      return new Set()
+      return { files: new Set(), directories: [] }
     }
     const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
-    const paths = new Set<string>()
+    const files = new Set<string>()
+    const directories = new Set<string>()
     for (const entry of graph) {
       if (!entry || typeof entry !== 'object') {
         continue
@@ -351,20 +369,28 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       if (!rawId) {
         continue
       }
-      const relativePath = this.deriveRelativePathFromEntityId(rawId)
-      if (!relativePath) {
+      const derived = this.deriveRelativePathFromEntityId(rawId)
+      if (!derived || derived.path === '') {
         continue
       }
-      paths.add(relativePath.toLowerCase())
+      if (derived.isDirectory) {
+        directories.add(derived.path.toLowerCase())
+      } else {
+        files.add(derived.path.toLowerCase())
+      }
     }
-    return paths
+    const directoryList = Array.from(directories)
+    return { files, directories: directoryList }
   }
 
-  private deriveRelativePathFromEntityId(id: string): string | undefined {
+  private deriveRelativePathFromEntityId(
+    id: string,
+  ): { path: string; isDirectory: boolean } | undefined {
     let candidate = id.trim()
     if (!candidate) {
       return undefined
     }
+    const isDirectory = candidate.endsWith('/')
     if (candidate.startsWith('file://./')) {
       candidate = candidate.slice('file://./'.length)
     } else if (candidate.startsWith('file://')) {
@@ -375,9 +401,19 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     }
     candidate = candidate.trim()
     if (!candidate) {
+      if (isDirectory) {
+        return { path: '', isDirectory }
+      }
       return undefined
     }
-    return this.normalizeRelativePath(candidate)
+    const normalized = this.normalizeRelativePath(candidate)
+    if (!normalized) {
+      if (isDirectory) {
+        return { path: '', isDirectory }
+      }
+      return undefined
+    }
+    return { path: normalized, isDirectory }
   }
 
   private normalizeRelativePath(path: string): string {
@@ -387,6 +423,9 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       normalized = normalized.slice(1)
     }
     normalized = normalized.replace(/\/{2,}/g, '/')
+    while (normalized.endsWith('/') && normalized.length > 1) {
+      normalized = normalized.slice(0, -1)
+    }
     return normalized
   }
 }
