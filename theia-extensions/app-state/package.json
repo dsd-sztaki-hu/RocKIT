@@ -7,7 +7,6 @@
     "src"
   ],
   "scripts": {
-    "prepare": "yarn clean && yarn build",
     "clean": "rimraf lib",
     "generate:accessors": "node ./scripts/generate-accessors.cjs",
     "build": "yarn generate:accessors && tsc",
