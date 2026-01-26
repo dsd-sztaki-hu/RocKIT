@@ -15,23 +15,17 @@
         "resolveJsonModule": true,
         "module": "commonjs",
         "moduleResolution": "node",
-        "target": "es6",
+        "target": "ES2017",
         "jsx": "react",
         "lib": [
-            "es6",
+            "ES2017",
             "dom"
         ],
-        "esModuleInterop": true,
         "sourceMap": true,
         "rootDir": "src",
-        "outDir": "lib",
-        "tsBuildInfoFile": "./lib/tsconfig.tsbuildinfo"
+        "outDir": "lib"
     },
     "include": [
         "src"
-    ],
-    "exclude": [
-        "node_modules",
-        "lib"
     ]
 }

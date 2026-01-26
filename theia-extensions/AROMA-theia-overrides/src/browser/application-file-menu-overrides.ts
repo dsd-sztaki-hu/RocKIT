@@ -18,7 +18,8 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import { FILE_WORKSPACE } from '@theia/workspace/lib/browser/workspace-frontend-contribution'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { RoCrateHtmlGenerator } from 'save-ro-crate/lib/browser/ro-crate-html-generator'
+import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-loader'
+import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser';
 
 @injectable()
 export class ApplicationFileMenuOverrides implements FrontendApplicationContribution {
@@ -43,6 +44,9 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
   @inject(WorkspaceService)
   protected readonly workspaceService: WorkspaceService
 
+  @inject(RoCrateLoaderContribution)
+  protected readonly roCrateLoader: RoCrateLoaderContribution
+
   @inject(RoCrateHtmlGenerator)
   protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator
 
@@ -60,6 +64,14 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     this.commandService.onDidExecuteCommand((event) => {
       if (event.commandId === CommonCommands.SAVE_ALL.id) {
         void this.persistRoCrateToDisk()
+      }
+      if (
+        event.commandId === WorkspaceCommands.OPEN_FOLDER.id ||
+        event.commandId === WorkspaceCommands.OPEN_RECENT_WORKSPACE.id
+      ) {
+        setTimeout(() => {
+          void this.roCrateLoader.refresh()
+        }, 0)
       }
     })
 
