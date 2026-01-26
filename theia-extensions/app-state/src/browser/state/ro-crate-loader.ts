@@ -2,9 +2,11 @@ import type {
   FrontendApplication,
   FrontendApplicationContribution,
 } from '@theia/core/lib/browser'
+import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
+import { RoCrateHtmlGenerator } from 'save-ro-crate/lib/browser/ro-crate-html-generator'
 import { AppStateService } from './app-state-service'
 import { ROCrateDialog } from './ro-crate-dialog'
 // import { loadInitialCrateAndProfile } from './initial-state-loader'
@@ -19,6 +21,9 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
   @inject(FileService)
   protected readonly fileService: FileService
+
+  @inject(RoCrateHtmlGenerator)
+  protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator
 
   // With this hack we can use the local crate.json and profile.json files for testing purposes
   // async onStart(app: FrontendApplication): Promise<void> {
@@ -48,9 +53,16 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
   async onStart(app: FrontendApplication): Promise<void> {
     await this.syncRoCrateFromWorkspace()
 
-    this.workspaceService.onWorkspaceChanged(async (roots) => {
-      await this.syncRoCrateFromWorkspace()
+    this.workspaceService.onWorkspaceChanged(() => {
+      void this.syncRoCrateFromWorkspace()
     })
+    this.workspaceService.onWorkspaceLocationChanged(() => {
+      void this.syncRoCrateFromWorkspace()
+    })
+  }
+
+  public async refresh(): Promise<void> {
+    await this.syncRoCrateFromWorkspace()
   }
 
   protected async syncRoCrateFromWorkspace(): Promise<void> {
@@ -75,29 +87,51 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
           this.updateState(jsonContent, false)
         } catch (parseError) {
           console.error('Parsing error: ', parseError)
-
           this.updateState(undefined, true)
-
-          const dialog = new ROCrateDialog(this.workspaceService, this.fileService)
-          await dialog.open()
-
-          const roCrateUri = rootUri.resolve('ro-crate-metadata.json')
-          const content = await this.fileService.read(roCrateUri)
-
-          const jsonContent = JSON.parse(content.value)
-          this.updateState(jsonContent, false)
+          void this.promptForCrateRecovery(rootUri, true)
         }
-      } else {
-        this.updateState(undefined, false)
-        const dialog = new ROCrateDialog(this.workspaceService, this.fileService, false)
-        await dialog.open()
-
-        const roCrateUri = rootUri.resolve('ro-crate-metadata.json')
-        const content = await this.fileService.read(roCrateUri)
-
-        const jsonContent = JSON.parse(content.value)
-        this.updateState(jsonContent, false)
+        return
       }
+
+      this.updateState(undefined, false)
+      void this.promptForCrateRecovery(rootUri, false)
+    } catch (error) {
+      this.updateState(undefined, true)
+    }
+  }
+
+  protected async promptForCrateRecovery(
+    rootUri: URI,
+    jsonExists: boolean,
+  ): Promise<void> {
+    const dialog = new ROCrateDialog(
+      this.workspaceService,
+      this.fileService,
+      this.roCrateHtmlGenerator,
+      jsonExists,
+    )
+    await dialog.open()
+
+    const roots = this.workspaceService.tryGetRoots()
+    if (!roots || roots.length === 0) {
+      return
+    }
+
+    const currentRoot = roots[0].resource
+    if (currentRoot.toString() !== rootUri.toString()) {
+      return
+    }
+
+    const roCrateUri = currentRoot.resolve('ro-crate-metadata.json')
+    const exists = await this.fileService.exists(roCrateUri)
+    if (!exists) {
+      return
+    }
+
+    try {
+      const content = await this.fileService.read(roCrateUri)
+      const jsonContent = JSON.parse(content.value)
+      this.updateState(jsonContent, false)
     } catch (error) {
       this.updateState(undefined, true)
     }

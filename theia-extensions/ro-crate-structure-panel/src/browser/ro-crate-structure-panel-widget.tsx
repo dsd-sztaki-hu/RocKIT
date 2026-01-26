@@ -36,6 +36,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     super()
     this.addClass('dataset-panel')
     this.title.closable = true
+    this.title.iconClass = 'fa fa-sitemap'
     this.node.style.width = '100%'
     this.node.style.height = '100%'
   }
