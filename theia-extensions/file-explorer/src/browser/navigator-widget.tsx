@@ -312,41 +312,81 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   }
 
   private shouldHighlightFile(node: FileStatNode): boolean {
-    const entityNames = this.getRoCrateEntityNames()
-    if (entityNames.size === 0) {
+    const entityRelativePaths = this.getRoCrateEntityRelativePaths()
+    if (entityRelativePaths.size === 0) {
       return false
     }
-    const fileName = node.fileStat.name.trim().toLowerCase()
-    return !entityNames.has(fileName)
+    const relativePath = this.getNodeWorkspaceRelativePath(node)
+    if (!relativePath) {
+      return false
+    }
+    return !entityRelativePaths.has(relativePath)
   }
 
-  private getRoCrateEntityNames(): Set<string> {
+  private getNodeWorkspaceRelativePath(node: FileStatNode): string | undefined {
+    const rootUri = this.workspaceService.getWorkspaceRootUri(node.uri)
+    if (!rootUri) {
+      return undefined
+    }
+    const relative = rootUri.relative(node.uri)
+    if (!relative) {
+      return undefined
+    }
+    const normalized = this.normalizeRelativePath(relative.toString())
+    return normalized ? normalized.toLowerCase() : undefined
+  }
+
+  private getRoCrateEntityRelativePaths(): Set<string> {
     const crate = this.appStateService.roCrate
     if (!crate) {
       return new Set()
     }
     const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
-    const names = new Set<string>()
+    const paths = new Set<string>()
     for (const entry of graph) {
       if (!entry || typeof entry !== 'object') {
         continue
       }
-      const candidate =
-        typeof entry.name === 'string'
-          ? entry.name
-          : typeof entry.title === 'string'
-            ? entry.title
-            : typeof entry['@id'] === 'string'
-              ? entry['@id']
-              : undefined
-      if (!candidate) {
+      const rawId = typeof entry['@id'] === 'string' ? entry['@id'].trim() : ''
+      if (!rawId) {
         continue
       }
-      const normalized = candidate.trim().toLowerCase()
-      if (normalized) {
-        names.add(normalized)
+      const relativePath = this.deriveRelativePathFromEntityId(rawId)
+      if (!relativePath) {
+        continue
       }
+      paths.add(relativePath.toLowerCase())
     }
-    return names
+    return paths
+  }
+
+  private deriveRelativePathFromEntityId(id: string): string | undefined {
+    let candidate = id.trim()
+    if (!candidate) {
+      return undefined
+    }
+    if (candidate.startsWith('file://./')) {
+      candidate = candidate.slice('file://./'.length)
+    } else if (candidate.startsWith('file://')) {
+      candidate = candidate.slice('file://'.length)
+    }
+    if (candidate.startsWith('./')) {
+      candidate = candidate.slice(2)
+    }
+    candidate = candidate.trim()
+    if (!candidate) {
+      return undefined
+    }
+    return this.normalizeRelativePath(candidate)
+  }
+
+  private normalizeRelativePath(path: string): string {
+    let normalized = path.replace(/\\/g, '/')
+    normalized = normalized.trim()
+    while (normalized.startsWith('/')) {
+      normalized = normalized.slice(1)
+    }
+    normalized = normalized.replace(/\/{2,}/g, '/')
+    return normalized
   }
 }
