@@ -1,8 +1,9 @@
-import { CommonMenus } from '@theia/core/lib/browser'
+import { CommonCommands, CommonMenus } from '@theia/core/lib/browser'
 import {
   Command,
   CommandContribution,
   CommandRegistry,
+  CommandService,
   MenuContribution,
   MenuModelRegistry,
   MessageService,
@@ -11,6 +12,7 @@ import { BinaryBuffer } from '@theia/core/lib/common/buffer'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 
 export const RemoteRoCrateConversionCommand: Command = {
   id: 'RemoteRoCrateConversion.command',
@@ -30,6 +32,12 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
   @inject(FileService)
   protected readonly fileService!: FileService
 
+  @inject(CommandService)
+  protected readonly commandService!: CommandService
+
+  @inject(AppStateService)
+  protected readonly appStateService!: AppStateService
+
   registerCommands(registry: CommandRegistry): void {
     registry.registerCommand(RemoteRoCrateConversionCommand, {
       execute: () => this.convertInWorkspaceRoot(),
@@ -37,6 +45,9 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
   }
 
   private async convertInWorkspaceRoot(): Promise<void> {
+    // Run the Save ALl command first, so that all files are saved to disk.
+    await this.commandService.executeCommand(CommonCommands.SAVE_ALL.id)
+
     const roots = await this.workspaceService.roots
     const root = roots?.[0]
     if (!root) {
@@ -160,7 +171,8 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
     try {
       const pretty = JSON.stringify(json, null, 2) + '\n'
       await this.fileService.writeFile(metadataUri, BinaryBuffer.fromString(pretty))
-      this.messageService.info(
+      this.appStateService.roCrate = json
+      await this.messageService.info(
         `Converted ${changedEntities} entities and updated references. (Datasets kept local @id out of url: ${datasetsSkippedUrlMove})`,
       )
     } catch (e) {
