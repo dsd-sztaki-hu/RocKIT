@@ -90,13 +90,23 @@ export class ROCrateDialog extends ReactDialog<string> {
     parentHasPart: { '@id': string }[],
   ): Promise<void> {
     const fileStat = await this.fileService.resolve(dirUri, { resolveMetadata: true })
+    const relativePath =
+      (await this.workspaceService.getWorkspaceRelativePath(dirUri)) ?? ''
+    const { directoryLabel, name } = this.splitDirectoryInfo(relativePath)
+    if (!name) {
+      return
+    }
 
     if (fileStat.isDirectory) {
-      const dirRelativePath = await this.workspaceService.getWorkspaceRelativePath(dirUri)
+      const entityId = this.buildEntityId(directoryLabel, name, true)
+      if (!entityId) {
+        return
+      }
       const dirEntity = {
-        '@id': dirRelativePath.endsWith('/') ? dirRelativePath : `${dirRelativePath}/`,
+        '@id': entityId,
         '@type': 'Dataset',
         name: fileStat.name,
+        directoryLabel,
         hasPart: [] as { '@id': string }[],
       }
       graph.push(dirEntity)
@@ -106,16 +116,17 @@ export class ROCrateDialog extends ReactDialog<string> {
         await this.scanAndBuildEntities(child.resource, rootUri, graph, dirEntity.hasPart)
       }
     } else {
-      const fileRelativePath =
-        await this.workspaceService.getWorkspaceRelativePath(dirUri)
       const content = await this.fileService.read(dirUri)
-
       const mimeType = mime.lookup(fileStat.name) || 'application/octet-stream'
-
+      const entityId = this.buildEntityId(directoryLabel, name, false)
+      if (!entityId) {
+        return
+      }
       const fileEntity = {
-        '@id': fileRelativePath,
+        '@id': entityId,
         '@type': 'File',
         name: fileStat.name,
+        directoryLabel,
         encodingFormat: mimeType,
         contentSize: fileStat.size ? `${fileStat.size}` : undefined,
         dateModified: fileStat.mtime ? new Date(fileStat.mtime).toISOString() : undefined,
@@ -147,17 +158,23 @@ export class ROCrateDialog extends ReactDialog<string> {
     graph.push(rootDataset)
 
     const metadataDescriptor = {
-      '@id': 'ro-crate-metadata.json',
+      '@id': this.buildEntityId('', 'ro-crate-metadata.json', false),
       '@type': 'CreativeWork',
       conformsTo: { '@id': 'https://w3id.org/ro/crate/1.1' },
       about: { '@id': './' },
+      directoryLabel: '',
+      name: 'ro-crate-metadata.json',
     }
     graph.push(metadataDescriptor)
 
     const rootStat = await this.fileService.resolve(rootUri, { resolveMetadata: true })
     if (rootStat.children) {
       for (const child of rootStat.children) {
-        if (child.name === 'ro-crate-metadata.json' || child.name.startsWith('.')) {
+        if (
+          child.name === 'ro-crate-metadata.json' ||
+          child.name === 'ro-crate-preview.html' ||
+          child.name.startsWith('.')
+        ) {
           continue
         }
         await this.scanAndBuildEntities(child.resource, rootUri, graph, rootHasPart)
@@ -173,5 +190,46 @@ export class ROCrateDialog extends ReactDialog<string> {
     await this.fileService.create(metadataUri, JSON.stringify(roCrate, null, 2), {
       overwrite: true,
     })
+  }
+
+  private splitDirectoryInfo(relativePath: string): { directoryLabel: string; name: string } {
+    const normalized = this.normalizeRelativePathForId(relativePath)
+    if (!normalized) {
+      return { directoryLabel: '', name: '' }
+    }
+    const lastSlashIndex = normalized.lastIndexOf('/')
+    if (lastSlashIndex === -1) {
+      return { directoryLabel: '', name: normalized }
+    }
+    return {
+      directoryLabel: normalized.slice(0, lastSlashIndex + 1),
+      name: normalized.slice(lastSlashIndex + 1),
+    }
+  }
+
+  private buildEntityId(directoryLabel: string, name: string, isDirectory: boolean): string | undefined {
+    if (!name) {
+      return undefined
+    }
+    let combined = `${directoryLabel}${name}`
+    combined = this.normalizeRelativePathForId(combined)
+    if (!combined) {
+      return undefined
+    }
+    if (isDirectory && !combined.endsWith('/')) {
+      combined = `${combined}/`
+    }
+    return `file://./${combined}`
+  }
+
+  private normalizeRelativePathForId(path: string): string {
+    let normalized = (path || '').replace(/\\/g, '/').trim()
+    normalized = normalized.replace(/^\.\//, '')
+    normalized = normalized.replace(/^\/+/, '')
+    normalized = normalized.replace(/\/{2,}/g, '/')
+    if (normalized.endsWith('/')) {
+      normalized = normalized.slice(0, -1)
+    }
+    return normalized
   }
 }
