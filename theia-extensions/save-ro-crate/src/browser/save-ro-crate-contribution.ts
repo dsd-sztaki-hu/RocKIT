@@ -11,7 +11,7 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { RoCrateHtmlGenerator } from './ro-crate-html-generator'
+import { RoCrateHtmlGenerator } from 'app-state/lib/browser/common'
 import { EditorWidget } from '@theia/editor/lib/browser'
 import { SaveableService } from '@theia/core/lib/browser/saveable-service'
 

@@ -5,7 +5,7 @@ import type { FileService } from '@theia/filesystem/lib/browser/file-service'
 import type { WorkspaceService } from '@theia/workspace/lib/browser'
 import * as mime from 'mime-types'
 import type * as React from 'react'
-import { RoCrateHtmlGenerator } from 'save-ro-crate/lib/browser/ro-crate-html-generator'
+import { RoCrateHtmlGenerator } from '../common/generator-protocol'
 import SparkMD5 from 'spark-md5'
 
 @injectable()
