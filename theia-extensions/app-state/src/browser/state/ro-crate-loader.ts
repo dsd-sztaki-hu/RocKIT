@@ -2,10 +2,11 @@ import type {
   FrontendApplication,
   FrontendApplicationContribution,
 } from '@theia/core/lib/browser'
+import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { URI } from '@theia/core/lib/common/uri'
+import { RoCrateHtmlGenerator } from 'save-ro-crate/lib/browser/ro-crate-html-generator'
 import { AppStateService } from './app-state-service'
 import { ROCrateDialog } from './ro-crate-dialog'
 // import { loadInitialCrateAndProfile } from './initial-state-loader'
@@ -20,6 +21,9 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
   @inject(FileService)
   protected readonly fileService: FileService
+
+  @inject(RoCrateHtmlGenerator)
+  protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator
 
   // With this hack we can use the local crate.json and profile.json files for testing purposes
   // async onStart(app: FrontendApplication): Promise<void> {
@@ -100,7 +104,12 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     rootUri: URI,
     jsonExists: boolean,
   ): Promise<void> {
-    const dialog = new ROCrateDialog(this.workspaceService, this.fileService, jsonExists)
+    const dialog = new ROCrateDialog(
+      this.workspaceService,
+      this.fileService,
+      this.roCrateHtmlGenerator,
+      jsonExists,
+    )
     await dialog.open()
 
     const roots = this.workspaceService.tryGetRoots()
