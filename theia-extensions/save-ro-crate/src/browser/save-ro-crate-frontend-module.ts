@@ -1,6 +1,6 @@
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common'
 import { ContainerModule } from '@theia/core/shared/inversify'
-import { RoCrateHtmlGenerator } from 'app-state/lib/browser/common'
+import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 import { RoCrateHtmlGeneratorImpl } from './ro-crate-html-generator'
 import { SaveRoCrateContribution } from './save-ro-crate-contribution'
 

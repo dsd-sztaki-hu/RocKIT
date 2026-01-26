@@ -13,7 +13,8 @@
     "save-ro-crate": "0.0.0",
     "entities-overview": "0.0.0",
     "ro-crate-editor": "0.0.0",
-    "ro-crate-structure-panel": "0.0.0"
+    "ro-crate-structure-panel": "0.0.0",
+    "aroma2-common": "0.0.0"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",

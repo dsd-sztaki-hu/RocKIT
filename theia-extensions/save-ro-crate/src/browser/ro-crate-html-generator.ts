@@ -1,6 +1,6 @@
 import { injectable } from '@theia/core/shared/inversify'
 
-import { RoCrateHtmlGenerator } from 'app-state/lib/browser/common/generator-protocol';
+import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser';
 
 @injectable()
 export class RoCrateHtmlGeneratorImpl implements RoCrateHtmlGenerator {
