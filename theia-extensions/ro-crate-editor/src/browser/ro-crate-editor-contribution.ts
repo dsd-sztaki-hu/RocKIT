@@ -11,7 +11,6 @@ import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { ROCrateDialog } from 'app-state/lib/browser/state/ro-crate-dialog'
 import { inject, injectable } from 'inversify'
-import { RoCrateHtmlGenerator } from 'save-ro-crate/lib/browser/ro-crate-html-generator'
 import { RoCrateEditorWidget } from './ro-crate-editor-widget'
 
 export const OpenRoCrateEditorCommand: Command = {
@@ -31,8 +30,6 @@ export class RoCrateEditorContribution extends AbstractViewContribution<RoCrateE
   @inject(AppStateService) protected readonly appStateService!: AppStateService
   @inject(WorkspaceService) protected readonly workspaceService!: WorkspaceService
   @inject(FileService) protected readonly fileService!: FileService
-  @inject(RoCrateHtmlGenerator)
-  protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator
 
   constructor(
     @inject(WidgetManager) protected readonly widgetManager: WidgetManager,
@@ -60,6 +57,7 @@ export class RoCrateEditorContribution extends AbstractViewContribution<RoCrateE
           },
         )
         await this.shell.addWidget(widget, { area: 'main' })
+        this.appStateService.registerEntityEditor(widget.id, ROOT_ENTITY_ID)
         await this.shell.activateWidget(widget.id)
       },
     })
@@ -73,7 +71,6 @@ export class RoCrateEditorContribution extends AbstractViewContribution<RoCrateE
         const dialog = new ROCrateDialog(
           this.workspaceService,
           this.fileService,
-          this.roCrateHtmlGenerator,
           !!this.appStateService.roCrate,
         )
         await dialog.open()

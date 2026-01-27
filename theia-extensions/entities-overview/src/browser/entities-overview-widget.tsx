@@ -179,18 +179,17 @@ export class EntitiesOverviewWidget extends TreeWidget {
     try {
       const existingWidgetId = this.findWidgetIdForEntity(entityId)
       if (existingWidgetId) {
-        const existing = this.shell.getWidgetById(existingWidgetId)
-        if (existing) {
-          this.appStateService.registerEntityEditor(existingWidgetId, entityId)
-          await this.shell.activateWidget(existingWidgetId)
-          return
-        }
+        await this.shell.activateWidget(existingWidgetId)
+        return
       }
 
+      const instanceId = `${RoCrateEditorWidget.ID}:${Math.random().toString(36).slice(2)}`
+
       const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
-        instance: entityId,
+        instanceId,
         entityId,
       })
+
       await this.shell.addWidget(widget, { area: 'main' })
       this.appStateService.registerEntityEditor(widget.id, entityId)
       await this.shell.activateWidget(widget.id)
