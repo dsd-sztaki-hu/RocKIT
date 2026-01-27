@@ -5,7 +5,7 @@ export type EIRCEIA = Record<string, string>
 export const defaultAppState = {
   roCrate: undefined as Record<string, any> | undefined,
   profile: undefined as Record<string, any> | undefined,
-  selectedEntityId: './' as string | undefined,
+  selectedEntityId: undefined as string | undefined,
   EIRCEIA: undefined as EIRCEIA | undefined,
   isROCrateInvalid: false,
   dirty: false,
