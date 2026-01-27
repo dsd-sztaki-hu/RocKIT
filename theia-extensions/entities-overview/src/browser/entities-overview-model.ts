@@ -137,8 +137,8 @@ export class EntitiesOverviewModel extends TreeModelImpl {
 
     this.updateEntitiesFromCrate(this.appStateService.roCrate)
     this.toDispose.push(
-      this.appStateService.onDidChangeState(({ current }) => {
-        this.updateEntitiesFromCrate(current.roCrate)
+      this.appStateService.onDidChangeSelector((state) => state.roCrate)((crate) => {
+        this.updateEntitiesFromCrate(crate)
       }),
     )
   }

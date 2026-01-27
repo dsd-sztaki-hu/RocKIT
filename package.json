@@ -5,7 +5,7 @@
     "npm": ">=8"
   },
   "scripts": {
-    "build:extensions": "node scripts/build-extensions.js",
+    "build:extensions": "lerna run build --stream --sort --skip-nx-cache",
     "build:browser": "yarn run build:extensions && yarn workspace browser-app run bundle",
     "build:electron": "yarn run build:extensions && yarn workspace electron-app run bundle",
     "prepare": "lerna run prepare",

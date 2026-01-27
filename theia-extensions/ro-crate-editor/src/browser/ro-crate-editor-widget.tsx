@@ -5,6 +5,7 @@ import { CommandService } from '@theia/core/lib/common'
 import { Emitter } from '@theia/core/lib/common/event'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
+import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser';
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 import { RoCrateHtmlGenerator } from 'save-ro-crate/lib/browser/ro-crate-html-generator'

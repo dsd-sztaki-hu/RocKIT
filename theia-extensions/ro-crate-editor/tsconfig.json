@@ -25,6 +25,9 @@
         "rootDir": "src",
         "outDir": "lib"
     },
+    "references": [
+        {"path": "../save-ro-crate"}
+    ],
     "include": [
         "src"
     ]

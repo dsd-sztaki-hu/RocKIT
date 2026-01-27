@@ -16,10 +16,21 @@
     "@theia/core": "1.65.2",
     "@theia/filesystem": "1.65.2",
     "cedar-template-converter": "1.0.0",
-    "app-state": "0.0.1"
+    "app-state": "0.0.1",
+    "axios": "^1.6.0",
+    "await-to-js": "^3.0.0",
+    "jsonpath": "^1.1.1",
+    "loglevel": "^1.8.1",
+    "@mui/material": "^5.15.0",
+    "@mui/lab": "^5.0.0-alpha.160",
+    "@mui/icons-material": "^5.15.0",
+    "@mui/x-tree-view": "^6.17.0", 
+    "@emotion/react": "^11.11.0",
+    "@emotion/styled": "^11.11.0"
   },
   "devDependencies": {
     "@types/node": "^13.13.46",
+    "@types/jsonpath": "^0.2.0",
     "typescript": "^4.0.3",
     "shx": "^0.3.3"
   },

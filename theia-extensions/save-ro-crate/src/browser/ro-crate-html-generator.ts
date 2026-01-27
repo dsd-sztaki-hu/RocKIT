@@ -1,7 +1,9 @@
 import { injectable } from '@theia/core/shared/inversify'
 
+import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser';
+
 @injectable()
-export class RoCrateHtmlGenerator {
+export class RoCrateHtmlGeneratorImpl implements RoCrateHtmlGenerator {
   public generate(crate: any): string {
     const entities = crate['@graph'] || []
     const mainEntity = entities.find(

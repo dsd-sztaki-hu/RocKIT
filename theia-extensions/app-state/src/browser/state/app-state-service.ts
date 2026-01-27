@@ -172,12 +172,9 @@ export class AppStateService {
 
   registerEntityEditor(widgetId: string, entityId: string): void {
     const mapping = { ...(this.getState().EIRCEIA ?? {}) }
-    for (const key of Object.keys(mapping)) {
-      if (key === widgetId || mapping[key] === entityId) {
-        delete mapping[key]
-      }
-    }
+
     mapping[widgetId] = entityId
+
     this.updateState({ EIRCEIA: mapping })
   }
 

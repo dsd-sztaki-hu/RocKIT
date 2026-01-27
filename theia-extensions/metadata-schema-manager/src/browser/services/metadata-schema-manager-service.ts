@@ -10,19 +10,20 @@ import { Modal } from 'antd';
 
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
 import type { SchemaInfo } from '../types';
+import { SchemaApi } from './schema-api';
 
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
 export const SCHEMA_FIELD_ID = '@id';
 
 const MSG_TIMEOUT = 5000;
-
 const REPO_DOMAINS = {
     OPEN_DEV: 'open.cedardev.dsd.sztaki.hu',
     REPO_DEV: 'repo.cedardev.dsd.sztaki.hu',
     RESEARCH_DATA: 'repo.schema.researchdata.hu',
     W3ID_BASE: 'https://w3id.org/arp/dev'
 };
+const LEGACY_DOMAIN_BASE = 'schema.researchdata.hu';
 
 @injectable()
 export class SchemaManagerService implements FrontendApplicationContribution {
@@ -38,214 +39,192 @@ export class SchemaManagerService implements FrontendApplicationContribution {
     private readonly onDidChangeSchemasEmitter = new Emitter<void>();
     readonly onDidChangeSchemas: Event<void> = this.onDidChangeSchemasEmitter.event;
 
+    // Event to Trigger Remote Browser Window
+    private readonly onOpenRemoteBrowserEmitter = new Emitter<void>();
+    readonly onOpenRemoteBrowser: Event<void> = this.onOpenRemoteBrowserEmitter.event;
+
     @postConstruct()
     init() {
         this.appStateService.onDidChangeSelector(state => state.roCrate)(
             (newCrate) => {
-                if (newCrate) {
-                    this.checkAndDownloadSchemas(newCrate);
-                }
+                if (newCrate) this.checkAndDownloadSchemas(newCrate);
             }
         );
     }
 
     onStart(): void {
         const currentCrate = this.appStateService.roCrate;
-        if (currentCrate) {
-            this.checkAndDownloadSchemas(currentCrate);
+        if (currentCrate) this.checkAndDownloadSchemas(currentCrate);
+    }
+
+    /* ------------------------------------------------------------------
+       BROWSE & DOWNLOAD LOGIC
+       ------------------------------------------------------------------ */
+
+    /**
+     * Triggers the UI to open the "Browse Remote" dialog.
+     */
+    public async browseRemoteSchemas(): Promise<void> {
+        this.onOpenRemoteBrowserEmitter.fire();
+    }
+
+    /**
+     * Called by the Remote Browser Dialog when "ADD" is clicked.
+     */
+    public async downloadRemoteSchema(templateId: string): Promise<void> {
+        try {
+            const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
+            const apiKey = apiKeyVar?.value;
+
+            if (!apiKey) {
+                this.messageService.warn('Downloading requires an API Key.', { timeout: MSG_TIMEOUT });
+                throw new Error('Missing API Key');
+            }
+
+            // Use SchemaApi to download JSON
+            const api = new SchemaApi({
+                domainBase: LEGACY_DOMAIN_BASE,
+                apiKey: apiKey
+            });
+
+            this.messageService.info('Downloading schema...', { timeout: MSG_TIMEOUT });
+            
+            const schemaContent = await api.downloadSchema(templateId);
+            
+            // Convert object to string if axios parsed it
+            const rawString = typeof schemaContent === 'string' 
+                ? schemaContent 
+                : JSON.stringify(schemaContent, null, 2);
+
+            // Save and convert
+            const name = await this.processAndSaveSchema(rawString, 'remote');
+            
+            this.onDidChangeSchemasEmitter.fire();
+            this.messageService.info(`Successfully added schema: ${name}`, { timeout: MSG_TIMEOUT });
+
+        } catch (error) {
+            console.error('Download failed:', error);
+            this.messageService.error(`Download failed: ${error instanceof Error ? error.message : error}`, { timeout: MSG_TIMEOUT });
+            throw error;
         }
     }
 
     /* ------------------------------------------------------------------
        SMART FETCHING LOGIC
        ------------------------------------------------------------------ */
-
     private async smartFetchSchema(url: string, apiKey?: string): Promise<string> {
-        
-        // CASE 3: Open/Public Link
         if (url.includes(REPO_DOMAINS.OPEN_DEV)) {
-            console.log('[SchemaManager] Detected Open Link. Fetching directly...');
             const response = await fetch(url, { method: 'GET' });
             if (!response.ok) throw new Error(`Open Link fetch failed (HTTP ${response.status}).`);
             return await response.text();
         }
-
-        // CASE 2: Dev Repo Link (Transform to Open)
         if (url.includes(REPO_DOMAINS.REPO_DEV)) {
-            console.log('[SchemaManager] Detected Dev Repo Link. Transforming...');
             const encodedOriginal = encodeURIComponent(url);
             const openUrl = `https://${REPO_DOMAINS.OPEN_DEV}/templates/${encodedOriginal}`;
-            
             const response = await fetch(openUrl, { method: 'GET' });
             if (!response.ok) throw new Error(`Transformed fetch failed (HTTP ${response.status}).`);
             return await response.text();
         }
-
-        // CASE 1: Research Data Repo (Strict Auth)
         if (url.includes(REPO_DOMAINS.RESEARCH_DATA)) {
-            console.log('[SchemaManager] Detected Research Data Repo.');
-            if (!apiKey) {
-                throw new Error('Access Denied: Missing CEDAR_API_KEY for this repository.');
-            }
-
+            if (!apiKey) throw new Error('Access Denied: Missing CEDAR_API_KEY.');
             const response = await fetch(url, { 
                 method: 'GET',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `apiKey ${apiKey}`
-                }
+                headers: { 'Content-Type': 'application/json', 'Authorization': `apiKey ${apiKey}` }
             });
-
-            if (response.status === 401 || response.status === 403) {
-                throw new Error('Access Denied: API Key rejected.');
-            }
+            if (response.status === 401 || response.status === 403) throw new Error('Access Denied: API Key rejected.');
             if (!response.ok) throw new Error(`Authenticated fetch failed (HTTP ${response.status}).`);
             return await response.text();
         }
-
-        // FALLBACK: Generic Fetch
-        console.log('[SchemaManager] Unknown domain. Attempting generic fetch...');
         const headers: any = { 'Content-Type': 'application/json' };
         if (apiKey) headers['Authorization'] = `apiKey ${apiKey}`;
-        
         const response = await fetch(url, { method: 'GET', headers });
         if (!response.ok) throw new Error(`Download failed (HTTP ${response.status}).`);
         return await response.text();
     }
 
-    /**
-     * Retrieves the Converted RO-Crate Profile JSON for a given Source (CEDAR) path.
-     * Used by the Selector to load the profile into App State.
-     */
-    public async getConvertedProfileContent(sourcePath: string): Promise<any> {
-        try {
-            // 1. Calculate path to the converted file
-            const roCratePathStr = sourcePath.replace('/metadata-schemas/cedar/', '/metadata-schemas/ro-crate/');
-            const roCrateUri = new URI(roCratePathStr);
-
-            // 2. Check if it exists
-            if (!await this.fileService.exists(roCrateUri)) {
-                throw new Error('Converted profile file not found. Please re-import this schema.');
-            }
-
-            // 3. Read and Parse
-            const content = await this.fileService.read(roCrateUri);
-            return JSON.parse(content.value);
-        } catch (error) {
-            console.error('Failed to load converted profile:', error);
-            throw error;
-        }
-    }
-
-    /* ------------------------------------------------------------------
-       AUTO-DOWNLOAD LOGIC
-       ------------------------------------------------------------------ */
-
     protected async checkAndDownloadSchemas(roCrate: any): Promise<void> {
         if (this.isChecking || !roCrate || !roCrate['@graph']) return;
         this.isChecking = true;
-
         try {
-            if (!navigator.onLine) {
-                console.warn('[SchemaManager] Offline. Skipping schema check.');
-                return;
-            }
-
-            const requiredUUIDs = new Set<string>();
-            const graph = Array.isArray(roCrate['@graph']) ? roCrate['@graph'] : [roCrate];
-
-            for (const entity of graph) {
-                if (entity.conformsTo) {
-                    const conformsArray = Array.isArray(entity.conformsTo) ? entity.conformsTo : [entity.conformsTo];
-                    for (const item of conformsArray) {
-                        const id = item['@id'];
-                        if (id && typeof id === 'string' && id.includes('/schema/')) {
-                            const parts = id.split('/');
-                            const uuid = parts[parts.length - 1];
-                            if (uuid) requiredUUIDs.add(uuid);
-                        }
-                    }
-                }
-            }
-
+            if (!navigator.onLine) return;
+            const requiredUUIDs = this.extractSchemaUUIDs(roCrate);
             if (requiredUUIDs.size === 0) return;
-
             const missingUUIDs = await this.filterMissingSchemas(Array.from(requiredUUIDs));
-
             if (missingUUIDs.length === 0) return;
 
             await new Promise<void>((resolve) => {
                 Modal.info({
-                    title: 'Missing Metadata Schemas Detected',
-                    content: `The opened RO-Crate references ${missingUUIDs.length} schema(s) that are missing from your local repository. The application will now download and convert them automatically.`,
-                    okText: 'OK',
-                    onOk: () => resolve(),
-                    maskClosable: false
+                    title: 'Missing Metadata Schemas',
+                    content: `The RO-Crate references ${missingUUIDs.length} missing schema(s). Downloading now.`,
+                    okText: 'OK', onOk: () => resolve(), maskClosable: false
                 });
             });
 
-            await this.messageService.showProgress({
-                text: 'Resolving Missing Schemas...'
-            }).then(async progress => {
-                try {
-                    const total = missingUUIDs.length;
-                    let completed = 0;
-                    progress.report({ message: 'Starting...', work: { done: 0, total } });
-
-                    await Promise.all(missingUUIDs.map(async (uuid) => {
-                        try {
-                            await this.downloadSchemaByUUID(uuid);
-                        } catch (e) {
-                            console.error(`Failed to auto-download ${uuid}`, e);
-                        } finally {
-                            completed++;
-                            progress.report({ message: `Downloading (${completed}/${total})...`, work: { done: completed, total } });
-                        }
-                    }));
-                } finally {
-                    progress.cancel();
-                }
-            });
-
+            await this.messageService.showProgress({ text: 'Resolving Missing Schemas...' })
+                .then(async progress => {
+                    try {
+                        const total = missingUUIDs.length;
+                        let completed = 0;
+                        progress.report({ message: 'Starting...', work: { done: 0, total } });
+                        await Promise.all(missingUUIDs.map(async (uuid) => {
+                            try { await this.downloadSchemaByUUID(uuid); }
+                            catch (e) { console.error(`Failed to auto-download ${uuid}`, e); }
+                            finally {
+                                completed++;
+                                progress.report({ message: `Downloading (${completed}/${total})...`, work: { done: completed, total } });
+                            }
+                        }));
+                    } finally { progress.cancel(); }
+                });
             this.onDidChangeSchemasEmitter.fire();
-            this.messageService.info('Missing schemas successfully synchronized.', { timeout: MSG_TIMEOUT });
-
+            this.messageService.info('Schemas synchronized.', { timeout: MSG_TIMEOUT });
         } catch (error) {
             console.error('[SchemaManager] Error verifying schemas:', error);
-            this.messageService.error(`Schema Synchronization Error: ${error instanceof Error ? error.message : error}`, { timeout: MSG_TIMEOUT });
+            this.messageService.error(`Schema Sync Error: ${error instanceof Error ? error.message : error}`, { timeout: MSG_TIMEOUT });
         } finally {
             this.isChecking = false;
         }
     }
 
+    private extractSchemaUUIDs(roCrate: any): Set<string> {
+        const requiredUUIDs = new Set<string>();
+        const graph = Array.isArray(roCrate['@graph']) ? roCrate['@graph'] : [roCrate];
+        for (const entity of graph) {
+            if (!entity.conformsTo) continue;
+            const conformsArray = Array.isArray(entity.conformsTo) ? entity.conformsTo : [entity.conformsTo];
+            for (const item of conformsArray) {
+                const id = item['@id'];
+                if (id && typeof id === 'string' && id.includes('/schema/')) {
+                    const parts = id.split('/');
+                    const uuid = parts[parts.length - 1];
+                    if (uuid) requiredUUIDs.add(uuid);
+                }
+            }
+        }
+        return requiredUUIDs;
+    }
+
     protected async downloadSchemaByUUID(uuid: string): Promise<void> {
         const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
         const apiKey = apiKeyVar?.value;
-
         let url: string;
-        if (apiKey) {
-            url = `https://${REPO_DOMAINS.RESEARCH_DATA}/templates/${uuid}`;
-        } else {
+        if (apiKey) url = `https://${REPO_DOMAINS.RESEARCH_DATA}/templates/${uuid}`;
+        else {
             const encodedUrl = encodeURIComponent(`https://${REPO_DOMAINS.REPO_DEV}/templates/${uuid}`);
             url = `https://${REPO_DOMAINS.OPEN_DEV}/templates/${encodedUrl}`;
         }
-
         const rawString = await this.smartFetchSchema(url, apiKey);
         await this.processAndSaveSchema(rawString, 'remote');
-        console.log(`[SchemaManager] Successfully downloaded UUID: ${uuid}`);
     }
 
     protected async filterMissingSchemas(uuids: string[]): Promise<string[]> {
         const root = await this.getAromaRootUri();
         if (!root) return uuids;
-
         const checkFolder = async (type: 'local' | 'remote'): Promise<string[]> => {
             const dir = root.resolve(`metadata-schemas/cedar/${type}`);
             if (!await this.fileService.exists(dir)) return [];
-            
             const stat = await this.fileService.resolve(dir);
             if (!stat || !stat.children) return [];
-
             const found: string[] = [];
             for (const file of stat.children) {
                 if (!file.name.endsWith('.json')) continue;
@@ -254,37 +233,26 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                     const parsed = JSON.parse(content.value);
                     const refId = parsed[SCHEMA_FIELD_ID];
                     if (refId && typeof refId === 'string') {
-                         for (const uuid of uuids) {
-                             if (refId.includes(uuid)) found.push(uuid);
-                         }
+                         uuids.forEach(uuid => { if (refId.includes(uuid)) found.push(uuid); });
                     }
-                } catch (e) { /* ignore */ }
+                } catch { /* ignore */ }
             }
             return found;
         };
-
         const foundLocal = await checkFolder('local');
         const foundRemote = await checkFolder('remote');
         const allFound = new Set([...foundLocal, ...foundRemote]);
-
         return uuids.filter(uuid => !allFound.has(uuid));
     }
-
-    /* ------------------------------------------------------------------
-       WIDGET PUBLIC API
-       ------------------------------------------------------------------ */
 
     public async importFiles(fileUris: URI[], progress: any): Promise<{ success: number; fail: number }> {
         let success = 0;
         let fail = 0;
         const total = fileUris.length;
-
         progress.report({ message: 'Reading Files...', work: { done: 0, total } });
-
         for (let i = 0; i < total; i++) {
             const fileUri = fileUris[i];
             const fileName = fileUri.path.base;
-
             try {
                 const content = await this.fileService.read(fileUri);
                 await this.processAndSaveSchema(content.value, 'local', fileName);
@@ -295,67 +263,53 @@ export class SchemaManagerService implements FrontendApplicationContribution {
             }
             progress.report({ work: { done: i + 1, total } });
         }
-        
         if (success > 0) this.onDidChangeSchemasEmitter.fire();
         return { success, fail };
     }
 
     public async importFromUrl(url: string, apiKey: string | undefined, progress: any): Promise<string> {
         progress.report({ message: 'Downloading...', work: { done: 20, total: 100 } });
-        
         const rawString = await this.smartFetchSchema(url, apiKey);
-        
         progress.report({ message: 'Processing...', work: { done: 50, total: 100 } });
-        
         const schemaName = await this.processAndSaveSchema(rawString, 'remote');
-        
         progress.report({ work: { done: 100, total: 100 } });
         this.onDidChangeSchemasEmitter.fire();
         return schemaName;
     }
 
-    private async processAndSaveSchema(
-        rawContent: string, 
-        type: 'local' | 'remote', 
-        originalFileName?: string
-    ): Promise<string> {
-        let parsedRaw: any;
+    public async getConvertedProfileContent(sourcePath: string): Promise<any> {
         try {
-            parsedRaw = JSON.parse(rawContent);
-        } catch (e) {
-            throw new Error('Invalid JSON format');
+            const roCratePathStr = sourcePath.replace('/metadata-schemas/cedar/', '/metadata-schemas/ro-crate/');
+            const roCrateUri = new URI(roCratePathStr);
+            if (!await this.fileService.exists(roCrateUri)) throw new Error('Converted profile file not found.');
+            const content = await this.fileService.read(roCrateUri);
+            return JSON.parse(content.value);
+        } catch (error) {
+            console.error('Failed to load converted profile:', error);
+            throw error;
         }
+    }
 
+    private async processAndSaveSchema(rawContent: string, type: 'local' | 'remote', originalFileName?: string): Promise<string> {
+        let parsedRaw: any;
+        try { parsedRaw = JSON.parse(rawContent); } catch (e) { throw new Error('Invalid JSON format'); }
         const schemaName = parsedRaw[SCHEMA_FIELD_NAME];
         const schemaVersion = parsedRaw[SCHEMA_FIELD_VERSION];
-
-        if (!schemaName || !schemaVersion) {
-            throw new Error(`Missing required fields: ${SCHEMA_FIELD_NAME} or ${SCHEMA_FIELD_VERSION}`);
-        }
-
+        if (!schemaName || !schemaVersion) throw new Error(`Missing required fields: ${SCHEMA_FIELD_NAME} or ${SCHEMA_FIELD_VERSION}`);
         let fileName = originalFileName;
         if (!fileName || type === 'remote') {
             fileName = `remote_${schemaName.toLowerCase().replace(/\s+/g, '_')}_v${schemaVersion}.json`;
         }
-
         let convertedContent: string;
-        try {
-            convertedContent = this.converter.processCedarTemplate(rawContent);
-        } catch (convErr) {
-            throw new Error(`Conversion logic failed: ${convErr}`);
-        }
-
+        try { convertedContent = this.converter.processCedarTemplate(rawContent); } catch (convErr) { throw new Error(`Conversion logic failed: ${convErr}`); }
         const root = await this.getAromaRootUri();
         if (!root) throw new Error('Root directory configuration missing');
-
         const cedarUri = root.resolve(`metadata-schemas/cedar/${type}/${fileName}`);
         const roCrateUri = root.resolve(`metadata-schemas/ro-crate/${type}/${fileName}`);
-
         await Promise.all([
             this.fileService.write(cedarUri, rawContent),
             this.fileService.write(roCrateUri, convertedContent)
         ]);
-
         return schemaName;
     }
 
@@ -364,10 +318,8 @@ export class SchemaManagerService implements FrontendApplicationContribution {
         for (const source of ['local', 'remote'] as const) {
             const cedarDir = await this.getCedarDir(source);
             if (!cedarDir || !await this.fileService.exists(cedarDir)) continue;
-
             const stat = await this.fileService.resolve(cedarDir);
             if (!stat?.children) continue;
-
             for (const file of stat.children) {
                 if (!file.name.endsWith('.json')) continue;
                 try {
@@ -376,15 +328,8 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                     const schemaName = parsed[SCHEMA_FIELD_NAME];
                     const schemaVersion = parsed[SCHEMA_FIELD_VERSION];
                     const schemaId = parsed[SCHEMA_FIELD_ID];
-
                     if (schemaName && schemaVersion) {
-                        schemas.push({
-                            name: schemaName,
-                            version: schemaVersion,
-                            reference: schemaId || '', 
-                            source,
-                            path: file.resource.toString()
-                        });
+                        schemas.push({ name: schemaName, version: schemaVersion, reference: schemaId || '', source, path: file.resource.toString() });
                     }
                 } catch { /* ignore */ }
             }
@@ -400,13 +345,9 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                 await this.fileService.delete(cedarUri);
                 const roCratePathStr = pathStr.replace('/metadata-schemas/cedar/', '/metadata-schemas/ro-crate/');
                 const roCrateUri = new URI(roCratePathStr);
-                if (await this.fileService.exists(roCrateUri)) {
-                    await this.fileService.delete(roCrateUri);
-                }
+                if (await this.fileService.exists(roCrateUri)) await this.fileService.delete(roCrateUri);
                 count++;
-            } catch (err) {
-                console.error(`Failed to delete ${pathStr}`, err);
-            }
+            } catch (err) { console.error(`Failed to delete ${pathStr}`, err); }
         }
         if (count > 0) this.onDidChangeSchemasEmitter.fire();
         return count;

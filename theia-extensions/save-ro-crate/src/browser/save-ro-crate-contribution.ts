@@ -11,10 +11,12 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
-import { RoCrateHtmlGenerator } from './ro-crate-html-generator'
+import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 import { EditorWidget } from '@theia/editor/lib/browser'
 import { SaveableService } from '@theia/core/lib/browser/saveable-service'
+
+// Make sure this string matches exactly what is defined in your EditorWidget
+const RO_CRATE_EDITOR_ID = 'rocrate-editor-widget'; 
 
 export const SaveRoCrateCommand: Command = {
   id: 'ro-crate.save',
@@ -45,12 +47,10 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
   protected readonly saveableService!: SaveableService
 
   registerCommands(registry: CommandRegistry): void {
-    // Register the custom button command
     registry.registerCommand(SaveRoCrateCommand, {
       execute: () => this.doSave(),
     })
 
-    // Override the global Save command to enforce our enablement rules
     registry.unregisterCommand(CommonCommands.SAVE.id)
     registry.registerCommand(CommonCommands.SAVE, {
       execute: () => this.handleSaveKeybinding(),
@@ -76,22 +76,15 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
       return false
     }
 
-    return (
-      activeWidget instanceof RoCrateEditorWidget ||
-      activeWidget.id.startsWith(RoCrateEditorWidget.ID)
-    )
+    return activeWidget.id.startsWith(RO_CRATE_EDITOR_ID);
   }
 
-  /**
-   * Checks if the active widget is a file editor
-   */
   private isFileEditorFocused(): boolean {
     const activeWidget = this.shell.activeWidget || this.shell.currentWidget
 
     if (!activeWidget) {
       return false
     }
-
     return activeWidget instanceof EditorWidget
   }
 
@@ -103,9 +96,6 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
     await this.saveableService.save(widget)
   }
 
-  /**
-   * Shared saving logic
-   */
   private async doSave(): Promise<void> {
     const roots = this.workspaceService.tryGetRoots()
     if (!roots || roots.length === 0) return
