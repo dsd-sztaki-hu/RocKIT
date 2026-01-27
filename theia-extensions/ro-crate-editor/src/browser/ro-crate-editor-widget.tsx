@@ -8,7 +8,6 @@ import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser';
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
-import { RoCrateHtmlGenerator } from 'save-ro-crate/lib/browser/ro-crate-html-generator'
 
 import '@arpproject/recrate/style.css'
 import { Message } from '@lumino/messaging'
