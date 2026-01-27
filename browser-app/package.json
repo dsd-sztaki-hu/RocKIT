@@ -20,7 +20,8 @@
     "react-grab-helper": "0.0.0",
     "app-state": "0.0.1",
     "property-selector": "0.0.0",
-    "entities-overview": "0.0.0"
+    "entities-overview": "0.0.0",
+    "aroma2-common": "0.0.0"
   },
   "devDependencies": {
     "@theia/cli": "1.65.2",
