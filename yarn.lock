@@ -124,10 +124,10 @@
     json2mq "^0.2.0"
     throttle-debounce "^5.0.0"
 
-"@arpproject/recrate@0.1.10":
-  version "0.1.10"
-  resolved "https://registry.npmjs.org/@arpproject/recrate/-/recrate-0.1.10.tgz"
-  integrity sha512-cXCHRPOpwRqnrMMpVjSN+z0gnnFLCYwUJ0aG0phpTJBM894ushLFWY4lvrJWSEbKJoID+y9mNXN+PWmS/89utA==
+"@arpproject/recrate@0.1.11":
+  version "0.1.11"
+  resolved "https://registry.yarnpkg.com/@arpproject/recrate/-/recrate-0.1.11.tgz#b8db7b98da81ed3ed42d048abefad26c703d7fa3"
+  integrity sha512-BQVK5wfCeqKeK6YdQbpraqI0chM9T2/NSYPvDQr67aOhLyaiPABpctQ+39IfcVmGHhHubw1JL5LO2steJLCnyA==
   dependencies:
     "@codemirror/lang-javascript" "^6.2.3"
     "@codemirror/state" "^6.5.2"
