@@ -6,3 +6,59 @@
     opacity: 0 !important;
     pointer-events: none;
 }
+
+.entities-overview-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.entities-overview-panel-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.entities-overview-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--theia-ui-border);
+}
+
+.entities-overview-filter-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.entities-overview-filter-label {
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--theia-ui-font-color2);
+}
+
+.entities-overview-filter-input {
+    width: 100%;
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--theia-ui-border);
+    background: var(--theia-input-background);
+    color: var(--theia-ui-font-color1);
+}
+
+.entities-overview-filter-input:focus {
+    outline: 1px solid var(--theia-accent-color);
+    outline-offset: 1px;
+}
+
+.entities-overview-filter-input::placeholder {
+    color: var(--theia-ui-font-color2);
+}
+
+.entities-overview-panel-content .theia-TreeContainer {
+    flex: 1 1 auto;
+    min-height: 0;
+}

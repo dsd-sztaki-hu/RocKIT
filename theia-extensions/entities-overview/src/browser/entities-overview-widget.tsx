@@ -55,9 +55,12 @@ export class EntitiesOverviewWidget extends TreeWidget {
     this.title.iconClass = 'fa fa-list-ul'
 
     // this.toDispose.push(this.toCancelNodeExpansion)
+    this.addClass('entities-overview-panel')
   }
 
   protected readonly openingEntities = new Set<string>()
+  protected entityNameFilter = ''
+  protected entityTypeFilter = ''
 
   /**
    * Enable icon rendering.
@@ -75,6 +78,38 @@ export class EntitiesOverviewWidget extends TreeWidget {
       return <div className={`${icon}`}></div>
     }
     return super.renderIcon(node, props)
+  }
+
+  protected override render(): React.ReactNode {
+    return (
+      <div className="entities-overview-panel-content">
+        <div className="entities-overview-filters">
+          <label className="entities-overview-filter-row">
+            <span className="entities-overview-filter-label">Entity name</span>
+            <input
+              className="entities-overview-filter-input"
+              type="text"
+              placeholder="Search entity name"
+              value={this.entityNameFilter}
+              onChange={(event) => this.onEntityNameFilterChange(event)}
+              onKeyDown={(event) => event.stopPropagation()}
+            />
+          </label>
+          <label className="entities-overview-filter-row">
+            <span className="entities-overview-filter-label">Entity type</span>
+            <input
+              className="entities-overview-filter-input"
+              type="text"
+              placeholder="Search entity type"
+              value={this.entityTypeFilter}
+              onChange={(event) => this.onEntityTypeFilterChange(event)}
+              onKeyDown={(event) => event.stopPropagation()}
+            />
+          </label>
+        </div>
+        <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
+      </div>
+    )
   }
 
   /**
@@ -200,5 +235,24 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
   protected findWidgetIdForEntity(entityId: string): string | undefined {
     return this.appStateService.getEntityEditorWidgetId(entityId)
+  }
+
+  protected onEntityNameFilterChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ): void {
+    this.entityNameFilter = event.target.value
+    this.applyFilters()
+  }
+
+  protected onEntityTypeFilterChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ): void {
+    this.entityTypeFilter = event.target.value
+    this.applyFilters()
+  }
+
+  protected applyFilters(): void {
+    this.model.setFilters(this.entityNameFilter, this.entityTypeFilter)
+    this.update()
   }
 }

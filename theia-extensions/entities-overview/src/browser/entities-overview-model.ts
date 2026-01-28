@@ -47,9 +47,19 @@ function getEntityName(entity: Record<string, any>): string {
   return String(name)
 }
 
-function createEntitiesData(crate: Record<string, any> | undefined): Item[] {
+function normalizeFilter(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function createEntitiesData(
+  crate: Record<string, any> | undefined,
+  nameFilter: string,
+  typeFilter: string,
+): Item[] {
   const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
   const byType = new Map<string, Item[]>()
+  const normalizedNameFilter = normalizeFilter(nameFilter)
+  const normalizedTypeFilter = normalizeFilter(typeFilter)
 
   for (const entry of graph) {
     if (!entry || typeof entry !== 'object') {
@@ -65,7 +75,17 @@ function createEntitiesData(crate: Record<string, any> | undefined): Item[] {
     const valid = Boolean(name)
     const displayName = entityId === './' ? './' : name || entityId || '(unnamed)'
 
+    const matchesName =
+      !normalizedNameFilter ||
+      displayName.toLowerCase().includes(normalizedNameFilter)
+
     for (const typeLabel of getEntityTypes(entry)) {
+      if (normalizedTypeFilter && !typeLabel.toLowerCase().includes(normalizedTypeFilter)) {
+        continue
+      }
+      if (!matchesName) {
+        continue
+      }
       const list = byType.get(typeLabel) ?? []
       list.push({
         name: displayName,
@@ -127,6 +147,9 @@ export class EntitiesOverviewModel extends TreeModelImpl {
   private readonly itemFactory: EntitiesOverviewTreeItemFactory
   @inject(AppStateService)
   private readonly appStateService: AppStateService
+  private currentCrate: Record<string, any> | undefined
+  private entityNameFilter = ''
+  private entityTypeFilter = ''
 
   /**
    * Initialize the tree model from the business model
@@ -144,6 +167,23 @@ export class EntitiesOverviewModel extends TreeModelImpl {
   }
 
   protected updateEntitiesFromCrate(crate: Record<string, any> | undefined): void {
+    this.currentCrate = crate
+    this.refreshFilteredTree()
+  }
+
+  setFilters(entityNameFilter: string, entityTypeFilter: string): void {
+    if (
+      entityNameFilter === this.entityNameFilter &&
+      entityTypeFilter === this.entityTypeFilter
+    ) {
+      return
+    }
+    this.entityNameFilter = entityNameFilter
+    this.entityTypeFilter = entityTypeFilter
+    this.refreshFilteredTree()
+  }
+
+  private refreshFilteredTree(): void {
     // create the root node
     const root: CompositeTreeNode = {
       id: ROOT_NODE_ID,
@@ -153,8 +193,17 @@ export class EntitiesOverviewModel extends TreeModelImpl {
     }
 
     // populate the direct children
-    createEntitiesData(crate)
-      .map((item) => this.itemFactory.toTreeNode(item))
+    const shouldExpand = Boolean(
+      this.entityNameFilter.trim() || this.entityTypeFilter.trim(),
+    )
+    createEntitiesData(this.currentCrate, this.entityNameFilter, this.entityTypeFilter)
+      .map((item) => {
+        const node = this.itemFactory.toTreeNode(item)
+        if (shouldExpand && ExampleTreeNode.is(node)) {
+          node.expanded = true
+        }
+        return node
+      })
       .forEach((node) => CompositeTreeNode.addChild(root, node))
 
     // set the root node as root of the tree
