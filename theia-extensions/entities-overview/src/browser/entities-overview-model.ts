@@ -72,6 +72,7 @@ function createEntitiesData(
   crate: Record<string, any> | undefined,
   nameFilter: string,
   typeFilters: string[],
+  validityFilter: ValidityFilter,
 ): Item[] {
   const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
   const byType = new Map<string, Item[]>()
@@ -95,6 +96,10 @@ function createEntitiesData(
     const matchesName =
       !normalizedNameFilter ||
       displayName.toLowerCase().includes(normalizedNameFilter)
+    const matchesValidity =
+      validityFilter === 'all' ||
+      (validityFilter === 'valid' && valid) ||
+      (validityFilter === 'invalid' && !valid)
 
     for (const typeLabel of getEntityTypes(entry)) {
       const normalizedTypeLabel = typeLabel.toLowerCase()
@@ -105,6 +110,9 @@ function createEntitiesData(
         continue
       }
       if (!matchesName) {
+        continue
+      }
+      if (!matchesValidity) {
         continue
       }
       const list = byType.get(typeLabel) ?? []
@@ -171,6 +179,7 @@ export class EntitiesOverviewModel extends TreeModelImpl {
   private currentCrate: Record<string, any> | undefined
   private entityNameFilter = ''
   private entityTypeFilters: string[] = []
+  private validityFilter: ValidityFilter = 'all'
 
   /**
    * Initialize the tree model from the business model
@@ -192,16 +201,22 @@ export class EntitiesOverviewModel extends TreeModelImpl {
     this.refreshFilteredTree()
   }
 
-  setFilters(entityNameFilter: string, entityTypeFilters: string[]): void {
+  setFilters(
+    entityNameFilter: string,
+    entityTypeFilters: string[],
+    validityFilter: ValidityFilter,
+  ): void {
     if (
       entityNameFilter === this.entityNameFilter &&
       entityTypeFilters.length === this.entityTypeFilters.length &&
-      entityTypeFilters.every((value, index) => value === this.entityTypeFilters[index])
+      entityTypeFilters.every((value, index) => value === this.entityTypeFilters[index]) &&
+      validityFilter === this.validityFilter
     ) {
       return
     }
     this.entityNameFilter = entityNameFilter
     this.entityTypeFilters = [...entityTypeFilters]
+    this.validityFilter = validityFilter
     this.refreshFilteredTree()
   }
 
@@ -220,9 +235,16 @@ export class EntitiesOverviewModel extends TreeModelImpl {
 
     // populate the direct children
     const shouldExpand = Boolean(
-      this.entityNameFilter.trim() || this.entityTypeFilters.length > 0,
+      this.entityNameFilter.trim() ||
+        this.entityTypeFilters.length > 0 ||
+        this.validityFilter !== 'all',
     )
-    createEntitiesData(this.currentCrate, this.entityNameFilter, this.entityTypeFilters)
+    createEntitiesData(
+      this.currentCrate,
+      this.entityNameFilter,
+      this.entityTypeFilters,
+      this.validityFilter,
+    )
       .map((item) => {
         const node = this.itemFactory.toTreeNode(item)
         if (shouldExpand && ExampleTreeNode.is(node)) {
@@ -303,3 +325,5 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         }
     }*/
 }
+
+export type ValidityFilter = 'all' | 'valid' | 'invalid'

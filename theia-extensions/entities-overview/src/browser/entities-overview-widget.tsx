@@ -20,6 +20,7 @@ import {
   EntitiesOverviewModel,
   ExampleTreeLeaf,
   ExampleTreeNode,
+  ValidityFilter,
 } from './entities-overview-model'
 
 /** Well-known constant for the context menu path */
@@ -62,6 +63,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
   protected readonly openingEntities = new Set<string>()
   protected entityNameFilter = ''
   protected selectedTypeFilters: string[] = []
+  protected validityFilter: ValidityFilter = 'all'
 
   /**
    * Enable icon rendering.
@@ -109,6 +111,22 @@ export class EntitiesOverviewWidget extends TreeWidget {
               onChange={(event) => this.onEntityNameFilterChange(event)}
               onKeyDown={(event) => event.stopPropagation()}
             />
+          </label>
+          <label className="entities-overview-filter-row">
+            <span className="entities-overview-filter-label">Validity</span>
+            <div onKeyDown={(event) => event.stopPropagation()}>
+              <Select
+                className="entities-overview-validity-select"
+                value={this.validityFilter}
+                options={[
+                  { value: 'all', label: 'All entities' },
+                  { value: 'valid', label: 'Only valid' },
+                  { value: 'invalid', label: 'Only invalid' },
+                ]}
+                onChange={(value) => this.onValidityFilterChange(value as ValidityFilter)}
+                size="small"
+              />
+            </div>
           </label>
           <div className="entities-overview-filter-row">
             <span className="entities-overview-filter-label">Entity type</span>
@@ -257,9 +275,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
     return this.appStateService.getEntityEditorWidgetId(entityId)
   }
 
-  protected onEntityNameFilterChange(
-    event: React.ChangeEvent<HTMLInputElement>,
-  ): void {
+  protected onEntityNameFilterChange(event: React.ChangeEvent<HTMLInputElement>): void {
     this.entityNameFilter = event.target.value
     this.applyFilters()
   }
@@ -267,7 +283,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
   protected applyFilters(): void {
     const availableTypes = this.model.getAvailableTypes()
     const selectedTypes = this.getSelectedTypes(availableTypes)
-    this.model.setFilters(this.entityNameFilter, selectedTypes)
+    this.model.setFilters(this.entityNameFilter, selectedTypes, this.validityFilter)
     this.update()
   }
 
@@ -290,9 +306,15 @@ export class EntitiesOverviewWidget extends TreeWidget {
     this.applyFilters()
   }
 
+  protected onValidityFilterChange(value: ValidityFilter): void {
+    this.validityFilter = value
+    this.applyFilters()
+  }
+
   protected clearFilters(): void {
     this.entityNameFilter = ''
     this.selectedTypeFilters = []
+    this.validityFilter = 'all'
     this.applyFilters()
   }
 }
