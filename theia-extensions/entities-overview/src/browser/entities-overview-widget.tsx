@@ -12,6 +12,7 @@ import {
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
+import { Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
@@ -60,7 +61,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
   protected readonly openingEntities = new Set<string>()
   protected entityNameFilter = ''
-  protected selectedTypeFilters = new Set<string>()
+  protected selectedTypeFilters: string[] = []
 
   /**
    * Enable icon rendering.
@@ -83,8 +84,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
   protected override render(): React.ReactNode {
     const availableTypes = this.model.getAvailableTypes()
     const selectedTypes = this.getSelectedTypes(availableTypes)
-    const selectedCountLabel =
-      selectedTypes.length === 0 ? 'All types' : `${selectedTypes.length} selected`
     return (
       <div className="entities-overview-panel-content">
         <div className="entities-overview-filters">
@@ -113,35 +112,19 @@ export class EntitiesOverviewWidget extends TreeWidget {
           </label>
           <div className="entities-overview-filter-row">
             <span className="entities-overview-filter-label">Entity type</span>
-            <details
-              className="entities-overview-type-dropdown"
-              onKeyDown={(event) => event.stopPropagation()}
-            >
-              <summary className="entities-overview-type-summary">
-                {selectedCountLabel}
-              </summary>
-              <div className="entities-overview-type-options">
-                {availableTypes.length === 0 ? (
-                  <div className="entities-overview-type-empty">No types available</div>
-                ) : (
-                  availableTypes.map((type) => {
-                    const checked = this.selectedTypeFilters.has(type)
-                    return (
-                      <label key={type} className="entities-overview-type-option">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => this.toggleTypeFilter(type)}
-                          onClick={(event) => event.stopPropagation()}
-                          onKeyDown={(event) => event.stopPropagation()}
-                        />
-                        <span>{type}</span>
-                      </label>
-                    )
-                  })
-                )}
-              </div>
-            </details>
+            <div onKeyDown={(event) => event.stopPropagation()}>
+              <Select
+                className="entities-overview-type-select"
+                mode="multiple"
+                placeholder="All types"
+                value={selectedTypes}
+                options={availableTypes.map((type) => ({ value: type, label: type }))}
+                onChange={(values) => this.onTypeFiltersChange(values)}
+                maxTagCount="responsive"
+                size="small"
+                disabled={availableTypes.length === 0}
+              />
+            </div>
           </div>
         </div>
         <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
@@ -293,27 +276,23 @@ export class EntitiesOverviewWidget extends TreeWidget {
       return []
     }
     const availableSet = new Set(availableTypes)
-    const filteredSelections = Array.from(this.selectedTypeFilters).filter((type) =>
+    const filteredSelections = this.selectedTypeFilters.filter((type) =>
       availableSet.has(type),
     )
-    if (filteredSelections.length !== this.selectedTypeFilters.size) {
-      this.selectedTypeFilters = new Set(filteredSelections)
+    if (filteredSelections.length !== this.selectedTypeFilters.length) {
+      this.selectedTypeFilters = [...filteredSelections]
     }
-    return availableTypes.filter((type) => this.selectedTypeFilters.has(type))
+    return availableTypes.filter((type) => this.selectedTypeFilters.includes(type))
   }
 
-  protected toggleTypeFilter(type: string): void {
-    if (this.selectedTypeFilters.has(type)) {
-      this.selectedTypeFilters.delete(type)
-    } else {
-      this.selectedTypeFilters.add(type)
-    }
+  protected onTypeFiltersChange(values: string[]): void {
+    this.selectedTypeFilters = [...values]
     this.applyFilters()
   }
 
   protected clearFilters(): void {
     this.entityNameFilter = ''
-    this.selectedTypeFilters.clear()
+    this.selectedTypeFilters = []
     this.applyFilters()
   }
 }

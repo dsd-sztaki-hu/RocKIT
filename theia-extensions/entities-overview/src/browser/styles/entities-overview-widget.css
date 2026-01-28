@@ -88,51 +88,32 @@
     color: var(--theia-ui-font-color2);
 }
 
-.entities-overview-type-dropdown {
-    border: 1px solid var(--theia-ui-border);
-    border-radius: 4px;
-    background: var(--theia-input-background);
+.entities-overview-type-select {
+    width: 100%;
 }
 
-.entities-overview-type-summary {
-    list-style: none;
-    cursor: pointer;
-    padding: 4px 6px;
-    color: var(--theia-ui-font-color1);
+.entities-overview-type-select .ant-select-selector {
+    background: var(--theia-input-background) !important;
+    border-color: var(--theia-ui-border) !important;
+    min-height: 30px !important;
 }
 
-.entities-overview-type-summary::-webkit-details-marker {
-    display: none;
+.entities-overview-type-select .ant-select-selection-item {
+    background: var(--theia-selection-background) !important;
+    border: 1px solid var(--theia-ui-border) !important;
+    color: var(--theia-ui-font-color1) !important;
 }
 
-.entities-overview-type-dropdown[open] .entities-overview-type-summary {
-    border-bottom: 1px solid var(--theia-ui-border);
+.entities-overview-type-select .ant-select-selection-placeholder {
+    color: var(--theia-ui-font-color2) !important;
 }
 
-.entities-overview-type-options {
-    max-height: 180px;
-    overflow: auto;
-    display: grid;
-    gap: 4px;
-    padding: 6px;
-}
-
-.entities-overview-type-option {
-    display: grid;
-    grid-template-columns: 16px 1fr;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--theia-ui-font-color1);
-}
-
-.entities-overview-type-empty {
-    font-size: 12px;
+.entities-overview-type-select .ant-select-arrow {
     color: var(--theia-ui-font-color2);
 }
 
 .entities-overview-panel-content .theia-TreeContainer {
     flex: 1 1 auto;
     min-height: 0;
-    padding-top: 6px;
+    padding-top: 10px;
 }
