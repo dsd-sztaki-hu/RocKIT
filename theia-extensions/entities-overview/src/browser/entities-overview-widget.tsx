@@ -60,7 +60,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
   protected readonly openingEntities = new Set<string>()
   protected entityNameFilter = ''
-  protected entityTypeFilter = ''
+  protected selectedTypeFilters = new Set<string>()
 
   /**
    * Enable icon rendering.
@@ -81,9 +81,25 @@ export class EntitiesOverviewWidget extends TreeWidget {
   }
 
   protected override render(): React.ReactNode {
+    const availableTypes = this.model.getAvailableTypes()
+    const selectedTypes = this.getSelectedTypes(availableTypes)
+    const selectedCountLabel =
+      selectedTypes.length === 0 ? 'All types' : `${selectedTypes.length} selected`
     return (
       <div className="entities-overview-panel-content">
         <div className="entities-overview-filters">
+          <div className="entities-overview-filter-header">
+            <span className="entities-overview-filter-title">Filters</span>
+            <button
+              className="entities-overview-filter-clear"
+              type="button"
+              disabled={this.entityNameFilter.trim() === '' && selectedTypes.length === 0}
+              onClick={() => this.clearFilters()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              Clear
+            </button>
+          </div>
           <label className="entities-overview-filter-row">
             <span className="entities-overview-filter-label">Entity name</span>
             <input
@@ -95,17 +111,38 @@ export class EntitiesOverviewWidget extends TreeWidget {
               onKeyDown={(event) => event.stopPropagation()}
             />
           </label>
-          <label className="entities-overview-filter-row">
+          <div className="entities-overview-filter-row">
             <span className="entities-overview-filter-label">Entity type</span>
-            <input
-              className="entities-overview-filter-input"
-              type="text"
-              placeholder="Search entity type"
-              value={this.entityTypeFilter}
-              onChange={(event) => this.onEntityTypeFilterChange(event)}
+            <details
+              className="entities-overview-type-dropdown"
               onKeyDown={(event) => event.stopPropagation()}
-            />
-          </label>
+            >
+              <summary className="entities-overview-type-summary">
+                {selectedCountLabel}
+              </summary>
+              <div className="entities-overview-type-options">
+                {availableTypes.length === 0 ? (
+                  <div className="entities-overview-type-empty">No types available</div>
+                ) : (
+                  availableTypes.map((type) => {
+                    const checked = this.selectedTypeFilters.has(type)
+                    return (
+                      <label key={type} className="entities-overview-type-option">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => this.toggleTypeFilter(type)}
+                          onClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => event.stopPropagation()}
+                        />
+                        <span>{type}</span>
+                      </label>
+                    )
+                  })
+                )}
+              </div>
+            </details>
+          </div>
         </div>
         <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
       </div>
@@ -244,15 +281,39 @@ export class EntitiesOverviewWidget extends TreeWidget {
     this.applyFilters()
   }
 
-  protected onEntityTypeFilterChange(
-    event: React.ChangeEvent<HTMLInputElement>,
-  ): void {
-    this.entityTypeFilter = event.target.value
+  protected applyFilters(): void {
+    const availableTypes = this.model.getAvailableTypes()
+    const selectedTypes = this.getSelectedTypes(availableTypes)
+    this.model.setFilters(this.entityNameFilter, selectedTypes)
+    this.update()
+  }
+
+  protected getSelectedTypes(availableTypes: string[]): string[] {
+    if (availableTypes.length === 0) {
+      return []
+    }
+    const availableSet = new Set(availableTypes)
+    const filteredSelections = Array.from(this.selectedTypeFilters).filter((type) =>
+      availableSet.has(type),
+    )
+    if (filteredSelections.length !== this.selectedTypeFilters.size) {
+      this.selectedTypeFilters = new Set(filteredSelections)
+    }
+    return availableTypes.filter((type) => this.selectedTypeFilters.has(type))
+  }
+
+  protected toggleTypeFilter(type: string): void {
+    if (this.selectedTypeFilters.has(type)) {
+      this.selectedTypeFilters.delete(type)
+    } else {
+      this.selectedTypeFilters.add(type)
+    }
     this.applyFilters()
   }
 
-  protected applyFilters(): void {
-    this.model.setFilters(this.entityNameFilter, this.entityTypeFilter)
-    this.update()
+  protected clearFilters(): void {
+    this.entityNameFilter = ''
+    this.selectedTypeFilters.clear()
+    this.applyFilters()
   }
 }

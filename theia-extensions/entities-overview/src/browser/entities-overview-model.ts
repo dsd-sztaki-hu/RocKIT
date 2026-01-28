@@ -51,15 +51,32 @@ function normalizeFilter(value: string): string {
   return value.trim().toLowerCase()
 }
 
+function getAvailableTypes(crate: Record<string, any> | undefined): string[] {
+  const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+  const types = new Set<string>()
+  for (const entry of graph) {
+    if (!entry || typeof entry !== 'object') {
+      continue
+    }
+    if (hasType(entry, 'CreativeWork')) {
+      continue
+    }
+    for (const typeLabel of getEntityTypes(entry)) {
+      types.add(typeLabel)
+    }
+  }
+  return Array.from(types.values()).sort((a, b) => a.localeCompare(b))
+}
+
 function createEntitiesData(
   crate: Record<string, any> | undefined,
   nameFilter: string,
-  typeFilter: string,
+  typeFilters: string[],
 ): Item[] {
   const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
   const byType = new Map<string, Item[]>()
   const normalizedNameFilter = normalizeFilter(nameFilter)
-  const normalizedTypeFilter = normalizeFilter(typeFilter)
+  const normalizedTypeFilters = typeFilters.map((type) => normalizeFilter(type))
 
   for (const entry of graph) {
     if (!entry || typeof entry !== 'object') {
@@ -80,7 +97,11 @@ function createEntitiesData(
       displayName.toLowerCase().includes(normalizedNameFilter)
 
     for (const typeLabel of getEntityTypes(entry)) {
-      if (normalizedTypeFilter && !typeLabel.toLowerCase().includes(normalizedTypeFilter)) {
+      const normalizedTypeLabel = typeLabel.toLowerCase()
+      if (
+        normalizedTypeFilters.length > 0 &&
+        !normalizedTypeFilters.some((type) => type === normalizedTypeLabel)
+      ) {
         continue
       }
       if (!matchesName) {
@@ -149,7 +170,7 @@ export class EntitiesOverviewModel extends TreeModelImpl {
   private readonly appStateService: AppStateService
   private currentCrate: Record<string, any> | undefined
   private entityNameFilter = ''
-  private entityTypeFilter = ''
+  private entityTypeFilters: string[] = []
 
   /**
    * Initialize the tree model from the business model
@@ -171,16 +192,21 @@ export class EntitiesOverviewModel extends TreeModelImpl {
     this.refreshFilteredTree()
   }
 
-  setFilters(entityNameFilter: string, entityTypeFilter: string): void {
+  setFilters(entityNameFilter: string, entityTypeFilters: string[]): void {
     if (
       entityNameFilter === this.entityNameFilter &&
-      entityTypeFilter === this.entityTypeFilter
+      entityTypeFilters.length === this.entityTypeFilters.length &&
+      entityTypeFilters.every((value, index) => value === this.entityTypeFilters[index])
     ) {
       return
     }
     this.entityNameFilter = entityNameFilter
-    this.entityTypeFilter = entityTypeFilter
+    this.entityTypeFilters = [...entityTypeFilters]
     this.refreshFilteredTree()
+  }
+
+  getAvailableTypes(): string[] {
+    return getAvailableTypes(this.currentCrate)
   }
 
   private refreshFilteredTree(): void {
@@ -194,9 +220,9 @@ export class EntitiesOverviewModel extends TreeModelImpl {
 
     // populate the direct children
     const shouldExpand = Boolean(
-      this.entityNameFilter.trim() || this.entityTypeFilter.trim(),
+      this.entityNameFilter.trim() || this.entityTypeFilters.length > 0,
     )
-    createEntitiesData(this.currentCrate, this.entityNameFilter, this.entityTypeFilter)
+    createEntitiesData(this.currentCrate, this.entityNameFilter, this.entityTypeFilters)
       .map((item) => {
         const node = this.itemFactory.toTreeNode(item)
         if (shouldExpand && ExampleTreeNode.is(node)) {
