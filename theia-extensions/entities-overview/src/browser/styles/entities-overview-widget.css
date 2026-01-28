@@ -95,13 +95,17 @@
 .entities-overview-type-select .ant-select-selector {
     background: var(--theia-input-background) !important;
     border-color: var(--theia-ui-border) !important;
-    min-height: 30px !important;
+    min-height: 36px !important;
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
 }
 
 .entities-overview-type-select .ant-select-selection-item {
     background: var(--theia-selection-background) !important;
     border: 1px solid var(--theia-ui-border) !important;
     color: var(--theia-ui-font-color1) !important;
+    padding: 2px 6px !important;
+    line-height: 18px !important;
 }
 
 .entities-overview-type-select .ant-select-selection-placeholder {
