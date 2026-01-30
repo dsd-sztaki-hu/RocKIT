@@ -12,10 +12,6 @@ import {
     Item,
 } from './entities-overview-tree-item-factory'
 
-function isObject(value: unknown): value is Record<string, any> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function formatTypeLabel(rawType: string): string {
     const trimmed = rawType.trim()
     if (!trimmed) {
