@@ -5,7 +5,7 @@ import { CommandService } from '@theia/core/lib/common'
 import { Emitter } from '@theia/core/lib/common/event'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser';
+import { RoCrateHtmlGenerator, MetadataSchemaManager } from 'aroma2-common/lib/browser';
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 
@@ -13,7 +13,6 @@ import '@arpproject/recrate/style.css'
 import { Message } from '@lumino/messaging'
 import type { Disposable } from '@theia/core'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { SchemaManagerService } from 'metadata-schema-manager/lib/browser/services/metadata-schema-manager-service'
 
 import { DescriboCrateBuilderWrapper } from './recrate-wrapper'
 
@@ -26,8 +25,8 @@ interface RoCrateEditorWidgetOptions {
 export class RoCrateEditorWidget extends ReactWidget {
   static readonly ID = 'rocrate-editor-widget'
 
-  @inject(SchemaManagerService)
-  protected readonly schemaManagerService: SchemaManagerService
+  @inject(MetadataSchemaManager)
+  protected readonly schemaManagerService: MetadataSchemaManager
 
   protected instanceId: string = ''
   protected assignedEntityId?: string

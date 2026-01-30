@@ -11,7 +11,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "allowJs": true,
-    "emitDeclarationOnly": true,
+    "emitDeclarationOnly": false,
     "downlevelIteration": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
@@ -22,8 +22,7 @@
     "lib": ["ES2017", "dom"],
     "sourceMap": true,
     "rootDir": "src",
-    "outDir": "./lib"
+    "outDir": "lib"
   },
-  "include": ["src"],
-  "exclude": ["./lib/**/*"]
+  "include": ["src"]
 }

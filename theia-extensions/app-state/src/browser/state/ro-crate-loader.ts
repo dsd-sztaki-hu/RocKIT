@@ -6,8 +6,7 @@ import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
-import { SchemaManagerService } from 'metadata-schema-manager/lib/browser/services/metadata-schema-manager-service'
+import { RoCrateHtmlGenerator, MetadataSchemaManager } from 'aroma2-common/lib/browser'
 import { AppStateService } from './app-state-service'
 import { ROCrateDialog } from './ro-crate-dialog'
 // import { loadInitialCrateAndProfile } from './initial-state-loader'
@@ -26,8 +25,8 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
   @inject(RoCrateHtmlGenerator)
   protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator
 
-  @inject(SchemaManagerService)
-  protected readonly schemaManagerService: SchemaManagerService
+  @inject(MetadataSchemaManager)
+  protected readonly schemaManagerService: MetadataSchemaManager
 
   protected initialProfileTemplate?: Record<string, any>
 
