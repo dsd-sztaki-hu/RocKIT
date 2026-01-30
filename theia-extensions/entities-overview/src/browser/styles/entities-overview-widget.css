@@ -36,25 +36,145 @@
   margin-bottom: 2px;
 }
 
+.entities-overview-filter-toggle .ant-btn-group > .ant-btn {
+  border-radius: 0;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.entities-overview-filter-toggle .ant-btn-group > .ant-btn:first-child {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.entities-overview-filter-toggle .ant-btn-group > .ant-btn:last-child {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
 .entities-overview-filter-title {
-  font-size: 12px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--theia-ui-font-color1);
 }
 
 .entities-overview-filter-clear {
-  padding: 2px 8px;
-  border-radius: 10px;
-  border: 1px solid var(--theia-ui-border);
-  background: transparent;
-  color: var(--theia-ui-font-color2);
-  font-size: 11px;
-  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
 }
 
-.entities-overview-filter-clear:disabled {
-  opacity: 0.5;
-  cursor: default;
+.entities-overview-filter-clear.ant-btn {
+  background: transparent;
+}
+
+.entities-overview-filter-clear.ant-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.entities-overview-filter-clear.ant-btn:not(:disabled):hover {
+  border-color: #ff4d4f;
+  color: #ff4d4f;
+}
+
+.entities-overview-filter-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  overflow: hidden;
+  max-height: 400px;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    max-height 1000ms ease,
+    opacity 1000ms ease,
+    transform 1000ms ease,
+    margin-top 1000ms ease;
+  transition-delay: 0ms;
+}
+
+.entities-overview-filter-fields.is-hidden {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+  margin-top: 0;
+  pointer-events: none;
+}
+
+.entities-overview-filter-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  margin-top: 6px;
+  align-items: stretch;
+}
+
+.entities-overview-filter-actions.is-advanced {
+  align-items: stretch;
+}
+
+.entities-overview-filter-actions:not(.is-advanced) {
+  gap: 0;
+}
+
+.entities-overview-filter-actions .ant-btn {
+  width: 100%;
+}
+
+.entities-overview-filter-actions.is-advanced .ant-btn {
+  width: 100%;
+  height: 100%;
+}
+
+.entities-overview-advanced-button-wrap {
+  flex: 1 1 0;
+  max-width: 0;
+  max-height: 0;
+  height: 0;
+  opacity: 0;
+  transform: translateY(6px);
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    max-width 1000ms ease,
+    max-height 1000ms ease,
+    opacity 1000ms ease,
+    transform 1000ms ease;
+  transition-delay: 0ms;
+}
+
+.entities-overview-advanced-button-wrap.is-visible {
+  max-width: 50%;
+  max-height: 30px;
+  height: auto;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.entities-overview-filter-actions.is-advanced .entities-overview-filter-clear {
+  max-width: 50%;
+}
+
+.entities-overview-filter-actions.is-advanced .entities-overview-advanced-button {
+  width: 100%;
+}
+
+.entities-overview-filter-clear {
+  flex: 1 1 0;
+  max-width: 100%;
+  transition: max-width 1000ms ease;
+}
+
+.entities-overview-filter-actions .ant-btn {
+  height: 30px;
+  line-height: 28px;
+}
+
+.entities-overview-advanced-button {
+  width: 100%;
 }
 
 .entities-overview-filter-row {

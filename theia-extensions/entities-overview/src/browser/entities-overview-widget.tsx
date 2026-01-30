@@ -10,9 +10,10 @@ import {
   WidgetManager,
 } from '@theia/core/lib/browser'
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
+import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
-import { Select } from 'antd'
+import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
@@ -27,6 +28,26 @@ import {
 export const TREEVIEW_EXAMPLE_CONTEXT_MENU: MenuPath = [
   'theia-examples:treeview-example-context-menu',
 ]
+
+class AdvancedFiltersDialog extends ReactDialog<'apply'> {
+  constructor() {
+    super({ title: 'Advanced filters' })
+    this.appendCloseButton('Close')
+    this.appendAcceptButton('Filter')
+  }
+
+  protected render(): React.ReactNode {
+    return (
+      <div className="entities-overview-advanced-modal-body">
+        <p>Advanced filtering options will live here.</p>
+      </div>
+    )
+  }
+
+  get value(): 'apply' {
+    return 'apply'
+  }
+}
 
 /** Implementation of the Tree Widget */
 @injectable()
@@ -61,9 +82,25 @@ export class EntitiesOverviewWidget extends TreeWidget {
   }
 
   protected readonly openingEntities = new Set<string>()
-  protected entityNameFilter = ''
-  protected selectedTypeFilters: string[] = []
-  protected validityFilter: ValidityFilter = 'all'
+  protected readonly simpleFilters: {
+    entityNameFilter: string
+    selectedTypeFilters: string[]
+    validityFilter: ValidityFilter
+  } = {
+    entityNameFilter: '',
+    selectedTypeFilters: [],
+    validityFilter: 'all',
+  }
+  protected readonly advancedFilters: {
+    entityNameFilter: string
+    selectedTypeFilters: string[]
+    validityFilter: ValidityFilter
+  } = {
+    entityNameFilter: '',
+    selectedTypeFilters: [],
+    validityFilter: 'all',
+  }
+  protected filterMode: 'simple' | 'advanced' = 'simple'
 
   /**
    * Enable icon rendering.
@@ -85,64 +122,115 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
   protected override render(): React.ReactNode {
     const availableTypes = this.model.getAvailableTypes()
-    const selectedTypes = this.getSelectedTypes(availableTypes)
+    const activeFilters = this.getActiveFilters()
+    const selectedTypes = this.normalizeSelectedTypes(availableTypes, activeFilters)
+    const isAdvanced = this.filterMode === 'advanced'
     return (
       <div className="entities-overview-panel-content">
         <div className="entities-overview-filters">
           <div className="entities-overview-filter-header">
             <span className="entities-overview-filter-title">Filters</span>
-            <button
-              className="entities-overview-filter-clear"
-              type="button"
-              disabled={this.entityNameFilter.trim() === '' && selectedTypes.length === 0}
-              onClick={() => this.clearFilters()}
-              onKeyDown={(event) => event.stopPropagation()}
-            >
-              Clear
-            </button>
+            <div className="entities-overview-filter-toggle">
+              <Button.Group size="small">
+                <Button
+                  type={this.filterMode === 'simple' ? 'primary' : 'default'}
+                  onClick={() => this.setFilterMode('simple')}
+                >
+                  Simple
+                </Button>
+                <Button
+                  type={this.filterMode === 'advanced' ? 'primary' : 'default'}
+                  onClick={() => this.setFilterMode('advanced')}
+                >
+                  Advanced
+                </Button>
+              </Button.Group>
+            </div>
           </div>
-          <label className="entities-overview-filter-row">
-            <span className="entities-overview-filter-label">Entity name</span>
-            <input
-              className="entities-overview-filter-input"
-              type="text"
-              placeholder="Search entity name"
-              value={this.entityNameFilter}
-              onChange={(event) => this.onEntityNameFilterChange(event)}
-              onKeyDown={(event) => event.stopPropagation()}
-            />
-          </label>
-          <label className="entities-overview-filter-row">
-            <span className="entities-overview-filter-label">Validity</span>
-            <div onKeyDown={(event) => event.stopPropagation()}>
-              <Select
-                className="entities-overview-validity-select"
-                value={this.validityFilter}
-                options={[
-                  { value: 'all', label: 'All entities' },
-                  { value: 'valid', label: 'Only valid' },
-                  { value: 'invalid', label: 'Only invalid' },
-                ]}
-                onChange={(value) => this.onValidityFilterChange(value as ValidityFilter)}
-                size="small"
+          <div
+            className={`entities-overview-filter-fields${isAdvanced ? ' is-hidden' : ''}`}
+            aria-hidden={isAdvanced}
+          >
+            <label className="entities-overview-filter-row">
+              <span className="entities-overview-filter-label">Entity name</span>
+              <input
+                className="entities-overview-filter-input"
+                type="text"
+                placeholder="Search entity name"
+                value={activeFilters.entityNameFilter}
+                onChange={(event) => this.onEntityNameFilterChange(event)}
+                onKeyDown={(event) => event.stopPropagation()}
               />
+            </label>
+            <label className="entities-overview-filter-row">
+              <span className="entities-overview-filter-label">Validity</span>
+              <div onKeyDown={(event) => event.stopPropagation()}>
+                <Select
+                  className="entities-overview-validity-select"
+                  value={activeFilters.validityFilter}
+                  options={[
+                    { value: 'all', label: 'All entities' },
+                    { value: 'valid', label: 'Only valid' },
+                    { value: 'invalid', label: 'Only invalid' },
+                  ]}
+                  onChange={(value) =>
+                    this.onValidityFilterChange(value as ValidityFilter)
+                  }
+                  size="small"
+                />
+              </div>
+            </label>
+            <div className="entities-overview-filter-row">
+              <span className="entities-overview-filter-label">Entity type</span>
+              <div onKeyDown={(event) => event.stopPropagation()}>
+                <Select
+                  className="entities-overview-type-select"
+                  mode="multiple"
+                  placeholder="All types"
+                  value={selectedTypes}
+                  options={availableTypes.map((type) => ({ value: type, label: type }))}
+                  onChange={(values) => this.onTypeFiltersChange(values)}
+                  maxTagCount="responsive"
+                  size="small"
+                  disabled={availableTypes.length === 0}
+                />
+              </div>
             </div>
-          </label>
-          <div className="entities-overview-filter-row">
-            <span className="entities-overview-filter-label">Entity type</span>
-            <div onKeyDown={(event) => event.stopPropagation()}>
-              <Select
-                className="entities-overview-type-select"
-                mode="multiple"
-                placeholder="All types"
-                value={selectedTypes}
-                options={availableTypes.map((type) => ({ value: type, label: type }))}
-                onChange={(values) => this.onTypeFiltersChange(values)}
-                maxTagCount="responsive"
-                size="small"
-                disabled={availableTypes.length === 0}
-              />
+          </div>
+          <div
+            className={`entities-overview-filter-actions${isAdvanced ? ' is-advanced' : ''}`}
+          >
+            <div
+              className={`entities-overview-advanced-button-wrap${
+                isAdvanced ? ' is-visible' : ''
+              }`}
+            >
+              <Button
+                className="entities-overview-advanced-button"
+                type="default"
+                onClick={() => this.openAdvancedDialog()}
+                onKeyDown={(event: React.KeyboardEvent) => event.stopPropagation()}
+              >
+                Advanced filters
+              </Button>
             </div>
+            <Button
+              className="entities-overview-filter-clear"
+              danger
+              ghost
+              block={!isAdvanced}
+              disabled={
+                activeFilters.entityNameFilter.trim() === '' &&
+                selectedTypes.length === 0 &&
+                activeFilters.validityFilter === 'all'
+              }
+              onClick={() => this.clearFilters()}
+              onKeyDown={(event: React.KeyboardEvent<HTMLButtonElement>) =>
+                event.stopPropagation()
+              }
+            >
+              Clear filters
+            </Button>
           </div>
         </div>
         <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
@@ -276,45 +364,84 @@ export class EntitiesOverviewWidget extends TreeWidget {
   }
 
   protected onEntityNameFilterChange(event: React.ChangeEvent<HTMLInputElement>): void {
-    this.entityNameFilter = event.target.value
+    this.getActiveFilters().entityNameFilter = event.target.value
     this.applyFilters()
   }
 
   protected applyFilters(): void {
     const availableTypes = this.model.getAvailableTypes()
-    const selectedTypes = this.getSelectedTypes(availableTypes)
-    this.model.setFilters(this.entityNameFilter, selectedTypes, this.validityFilter)
+    const activeFilters = this.getActiveFilters()
+    const selectedTypes = this.normalizeSelectedTypes(availableTypes, activeFilters)
+    this.model.setFilters(
+      activeFilters.entityNameFilter,
+      selectedTypes,
+      activeFilters.validityFilter,
+    )
     this.update()
   }
 
-  protected getSelectedTypes(availableTypes: string[]): string[] {
+  protected normalizeSelectedTypes(
+    availableTypes: string[],
+    filters: {
+      selectedTypeFilters: string[]
+    },
+  ): string[] {
     if (availableTypes.length === 0) {
       return []
     }
     const availableSet = new Set(availableTypes)
-    const filteredSelections = this.selectedTypeFilters.filter((type) =>
+    const filteredSelections = filters.selectedTypeFilters.filter((type) =>
       availableSet.has(type),
     )
-    if (filteredSelections.length !== this.selectedTypeFilters.length) {
-      this.selectedTypeFilters = [...filteredSelections]
+    if (filteredSelections.length !== filters.selectedTypeFilters.length) {
+      filters.selectedTypeFilters = [...filteredSelections]
     }
-    return availableTypes.filter((type) => this.selectedTypeFilters.includes(type))
+    return availableTypes.filter((type) => filters.selectedTypeFilters.includes(type))
   }
 
   protected onTypeFiltersChange(values: string[]): void {
-    this.selectedTypeFilters = [...values]
+    this.getActiveFilters().selectedTypeFilters = [...values]
     this.applyFilters()
   }
 
   protected onValidityFilterChange(value: ValidityFilter): void {
-    this.validityFilter = value
+    this.getActiveFilters().validityFilter = value
     this.applyFilters()
   }
 
   protected clearFilters(): void {
-    this.entityNameFilter = ''
-    this.selectedTypeFilters = []
-    this.validityFilter = 'all'
+    const activeFilters = this.getActiveFilters()
+    activeFilters.entityNameFilter = ''
+    activeFilters.selectedTypeFilters = []
+    activeFilters.validityFilter = 'all'
     this.applyFilters()
+  }
+
+  protected setFilterMode(mode: 'simple' | 'advanced'): void {
+    if (this.filterMode === mode) {
+      return
+    }
+    this.filterMode = mode
+    this.applyFilters()
+  }
+
+  protected async openAdvancedDialog(): Promise<void> {
+    const dialog = new AdvancedFiltersDialog()
+    const result = await dialog.open()
+    if (result === 'apply') {
+      this.applyAdvancedFilters()
+    }
+  }
+
+  protected applyAdvancedFilters(): void {
+    this.applyFilters()
+  }
+
+  protected getActiveFilters(): {
+    entityNameFilter: string
+    selectedTypeFilters: string[]
+    validityFilter: ValidityFilter
+  } {
+    return this.filterMode === 'simple' ? this.simpleFilters : this.advancedFilters
   }
 }
