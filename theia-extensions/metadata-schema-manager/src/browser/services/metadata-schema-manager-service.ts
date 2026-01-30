@@ -11,6 +11,7 @@ import { Modal } from 'antd';
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
 import type { SchemaInfo } from '../types';
 import { SchemaApi } from './schema-api';
+import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'aroma2-common/lib/browser';
 
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
@@ -20,12 +21,13 @@ const MSG_TIMEOUT = 5000;
 const REPO_DOMAINS = {
     OPEN_DEV: 'open.cedardev.dsd.sztaki.hu',
     REPO_DEV: 'repo.cedardev.dsd.sztaki.hu',
-    RESEARCH_DATA: 'repo.schema.researchdata.hu'
+    RESEARCH_DATA: 'repo.schema.researchdata.hu',
+    W3ID_BASE: 'https://w3id.org/arp/dev'
 };
 const LEGACY_DOMAIN_BASE = 'schema.researchdata.hu';
 
 @injectable()
-export class SchemaManagerService implements FrontendApplicationContribution {
+export class SchemaManagerService implements FrontendApplicationContribution, MetadataSchemaManagerContract {
     
     @inject(AppStateService) protected readonly appStateService!: AppStateService;
     @inject(FileService) protected readonly fileService!: FileService;
@@ -364,4 +366,170 @@ export class SchemaManagerService implements FrontendApplicationContribution {
         if (!root) return null;
         return root.resolve(`metadata-schemas/cedar/${type}`);
     }
+
+    /**
+     * Merges CEDAR templates into one profile
+     * @param crate
+     * @param baseProfile
+     * @returns Merged profile
+     */
+    public async getMergedProfile(crate: Record<string, any>, newProfile: Record<string, any>, profile: Record<string, any>) {
+
+    const entities: any = Object.values(crate["@graph"]).filter((entity: any) => entity["@type"] != "CreativeWork")
+
+    for (const entity of entities) {
+        const entityType = Array.isArray(entity["@type"]) ? entity["@type"][0] : entity["@type"]
+        const conformsTos = entity['conformsTo'] ? (Array.isArray(entity['conformsTo']) ? entity['conformsTo'] : [entity['conformsTo']]) : undefined;
+
+        if (!conformsTos) {
+            continue
+        }
+
+        // const conformsToUrls: string[] = this.convertW3idUrlsToCedarTemplateUrls(conformsTos.map(c => c["@id"]))
+
+        try {
+        //     const templateMap = await this.getCedarTemplates(conformsToUrls)
+
+        //     const actualTemplates: Record<string, any>[] = []
+        //     templateMap.forEach((value: Record<string, any>, key: string) => {
+        //         if (typeof value != "string") {
+        //         actualTemplates.push(value)
+        //         }
+        //     })
+
+        //     const profilesForCedar = await getProfilesForCedarTemplates(actualTemplates).catch(err => { throw err })
+
+        //     // Add each profile to the File class
+        //     profilesForCedar.forEach((p: Record<string, any>) => {
+                this.addProfileToClass(newProfile, entityType, profile)
+            // })
+        } catch (error) {
+        console.error(error)
+        throw error
+        }
+    }
+
+    console.debug("MERGED PROFILE", profile)
+    return profile
+    }
+
+    protected addProfileToClass(profileToAdd: Record<string, any>, className: string, rootProfile: Record<string, any>) {
+        if (!profileToAdd || !profileToAdd.classes || !profileToAdd.classes.Dataset) {
+            console.warn('Invalid profileToAdd structure:', profileToAdd);
+            return;
+        }
+    const inputs = profileToAdd.classes.Dataset.inputs
+    let theClass = rootProfile.classes[className]
+    if (!theClass) {
+        theClass = {
+            inputs: []
+        }
+        rootProfile.classes[className] = theClass
+    }
+    // Disable the "Add property" button
+    theClass.definition = "override"
+
+    let name = this.nameWithoutMetadataSuffix(profileToAdd.metadata.name)
+    let desc: string | null = profileToAdd.metadata.description
+    // let desc = nameWithoutMetadataSuffix(profileToAdd.metadata.description)
+
+    // If the description is the same as the name, ignore that
+    if (name == this.nameWithoutMetadataSuffix(desc)) {
+        desc = null
+    }
+
+    // Assign each field to the layout group
+    profileToAdd.classes["Dataset"].inputs.forEach((input: Record<string, any>) => input.group = name)
+
+    // Merge them with input profile
+    theClass.inputs = [...theClass.inputs, ...inputs]
+
+    let layouts = rootProfile.layouts
+    if (!layouts) {
+        layouts = rootProfile.layouts = []
+    }
+    let selectedLayout = layouts.find((layout: any) => layout.appliesTo.includes(className))
+    let language = rootProfile.localisation?.language || "en"
+    if (!selectedLayout) {
+        selectedLayout = {
+        appliesTo: [className],
+        "about": {
+            label: language == "hu" ? "Alap" : "About",
+        },
+        "overflow": {
+            label: language == "hu" ? "Egyéb" : "Other",
+        }
+        }
+        layouts.push(selectedLayout)
+    }
+
+    selectedLayout[name!] = {
+        label: name!,
+        description: desc
+    }
+
+    // The "overflow" builtin tab should always be the last one.
+    const overflow = selectedLayout["overflow"];
+    delete selectedLayout["overflow"]
+    selectedLayout["overflow"] = overflow
+
+
+    // Add missing classes
+    for (let className in profileToAdd.classes) {
+        if (className != "Dataset" && !rootProfile.classes[className]) {
+        rootProfile.classes[className] = profileToAdd.classes[className]
+        }
+    }
+
+    if (!rootProfile.localisation) {
+        rootProfile.localisation = {}
+    }
+
+    rootProfile.localisation = {
+        ...rootProfile.localisation,
+        ...profileToAdd.localisation
+    }
+    }
+
+    protected nameWithoutMetadataSuffix(name: string | null) {
+        if (!name || name == "") {
+            return null;
+        }
+        return name.replace(/ (metadata|metaadatok|metaadatai|metaadat)$/i, '');
+    }
+
+    /**
+     * Convert w3id based conformsTo URL-s to actual cedar template URL-s. We always want to work with template URL-s once
+     * we downloaded the crate json.
+     *
+     * @param w3idUrls
+     */
+    public convertW3idUrlsToCedarTemplateUrls(w3idUrls: string[]) {
+        // https://w3id.org/arp/localdev/schema/33677b82-7973-3e4c-b09d-b5189e095627
+        // --> https://repo.arp.orgx/template/33677b82-7973-3e4c-b09d-b5189e095627
+        return w3idUrls.map((url: string) => this.convertW3idUrlToCedarTemplateUrl(url))
+    }
+
+    protected convertW3idUrlToCedarTemplateUrl(url: string) {
+        // If already a CEDAR template URL, ignore.
+        if (url.startsWith("https://repo.")) {
+            return url
+        }
+        const uuid = url.split("schema/").pop();
+        return "https://" + REPO_DOMAINS.REPO_DEV + "/templates/" + uuid
+    }
+
+    protected convertCedarTemplateUrlsToW3idUrls(cedarUrls: string[]) {
+        return cedarUrls.map((url: string) => this.convertCedarTemplateUrlToW3idUrl(url))
+    }
+
+    public convertCedarTemplateUrlToW3idUrl(url: string) {
+        if (url.startsWith(REPO_DOMAINS.W3ID_BASE)) {
+            return url
+        }
+        const uuid = url.split("templates/").pop()
+        return REPO_DOMAINS.W3ID_BASE + "/schema/" + uuid
+    }
+
 }
+

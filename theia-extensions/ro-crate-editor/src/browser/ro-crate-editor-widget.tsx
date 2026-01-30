@@ -1,11 +1,11 @@
-import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
-import { Emitter } from '@theia/core/lib/common/event'
 import type { SaveOptions } from '@theia/core/lib/browser/saveable'
 import { SaveReason, setDirty } from '@theia/core/lib/browser/saveable'
+import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { CommandService } from '@theia/core/lib/common'
+import { Emitter } from '@theia/core/lib/common/event'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser';
+import { RoCrateHtmlGenerator, MetadataSchemaManager } from 'aroma2-common/lib/browser';
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 
@@ -24,6 +24,9 @@ interface RoCrateEditorWidgetOptions {
 @injectable()
 export class RoCrateEditorWidget extends ReactWidget {
   static readonly ID = 'rocrate-editor-widget'
+
+  @inject(MetadataSchemaManager)
+  protected readonly schemaManagerService: MetadataSchemaManager
 
   protected instanceId: string = ''
   protected assignedEntityId?: string
@@ -56,6 +59,9 @@ export class RoCrateEditorWidget extends ReactWidget {
   protected localCrate: Record<string, any> | undefined
   protected localProfile: Record<string, any> | undefined
   protected localSelectedEntityId: string | undefined
+  protected conformsToIds: string[] = []
+  protected isRefreshingProfile = false
+  protected profileRevision = 0
 
   constructor() {
     super()
@@ -71,7 +77,7 @@ export class RoCrateEditorWidget extends ReactWidget {
     })
   }
 
-  initialize(options: RoCrateEditorWidgetOptions = {}): void {
+  async initialize(options: RoCrateEditorWidgetOptions = {}): Promise<void> {
     this.instanceId =
       options.instanceId ??
       `${RoCrateEditorWidget.ID}:${Math.random().toString(36).substring(2)}`
@@ -81,6 +87,10 @@ export class RoCrateEditorWidget extends ReactWidget {
     // Assign initial values from app-state on component load
     this.localCrate = this.appStateService.roCrate
     this.localProfile = this.appStateService.profile
+    // Ensure localProfile is initialized if it's undefined from app state
+    if (!this.localProfile) {
+      this.localProfile = { classes: {}, layouts: [], localisation: {} }
+    }
     this.setDirtyState(this.appStateService.dirty)
 
     this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
@@ -89,12 +99,19 @@ export class RoCrateEditorWidget extends ReactWidget {
         console.log('crate update')
         this.updateTitleLabel()
         this.update()
+        const entityId = this.localSelectedEntityId ?? this.assignedEntityId ?? './'
+        const nextConformsToIds = this.extractConformsToIds(entityId)
+        if (!this.isSameStringSet(this.conformsToIds, nextConformsToIds)) {
+          this.conformsToIds = nextConformsToIds
+          void this.refreshProfileForSelectedEntity()
+        }
       },
     )
     this.profileSubscription = this.appStateService.onDidChangeSelector((s) => s.profile)(
       (profile) => {
         this.localProfile = profile
         console.log('profile update')
+        this.profileRevision += 1
         this.update()
       },
     )
@@ -105,13 +122,14 @@ export class RoCrateEditorWidget extends ReactWidget {
     )
     this.selectedEntityIdSubscription = this.appStateService.onDidChangeSelector(
       (s) => s.selectedEntityId,
-    )((selectedEntityId) => {
+    )(async (selectedEntityId) => {
       if (selectedEntityId === this.assignedEntityId) {
         const prev = this.localSelectedEntityId
         this.localSelectedEntityId = selectedEntityId
         console.log('selectedEntityId update', { prev, next: selectedEntityId })
         this.updateTitleLabel()
         this.update()
+        await this.refreshProfileForSelectedEntity()
       }
     })
 
@@ -119,7 +137,8 @@ export class RoCrateEditorWidget extends ReactWidget {
     const initialEntity =
       persistedEntity ?? options.entityId ?? this.appStateService.selectedEntityId ?? './'
     this.assignEntity(initialEntity)
-    this.update()
+
+    await this.refreshProfileForSelectedEntity()
   }
 
   protected handleSaveCrate = (saveData: any) => {
@@ -159,6 +178,7 @@ export class RoCrateEditorWidget extends ReactWidget {
   }
 
   render(): React.ReactNode {
+    console.log('conformsToIds', this.conformsToIds)
     return (
       <div style={{ padding: '1rem' }}>
         <h3>Panel ID:</h3>
@@ -167,6 +187,7 @@ export class RoCrateEditorWidget extends ReactWidget {
           crate={this.localCrate}
           profile={this.localProfile}
           entityId={this.localSelectedEntityId}
+          profileKey={this.profileRevision}
           onSaveCrate={this.handleSaveCrate}
           onNavigation={this.handleNavigation}
           //onSetProfile={this.handleSetProfile}
@@ -190,10 +211,7 @@ export class RoCrateEditorWidget extends ReactWidget {
 
   async save(options?: SaveOptions): Promise<void> {
     const reason = options?.saveReason
-    if (
-      reason === SaveReason.AfterDelay ||
-      reason === SaveReason.FocusChange
-    ) {
+    if (reason === SaveReason.AfterDelay || reason === SaveReason.FocusChange) {
       await this.persistRoCrateToDisk()
       return
     }
@@ -238,6 +256,99 @@ export class RoCrateEditorWidget extends ReactWidget {
       }
     }
     return entityId
+  }
+
+  protected computeConformsToIdsForSelectedEntity(): void {
+    const entityId = this.localSelectedEntityId ?? this.assignedEntityId ?? './'
+    this.conformsToIds = this.extractConformsToIds(entityId)
+  }
+
+  protected extractConformsToIds(entityId: string): string[] {
+    const rawGraph = this.localCrate?.['@graph']
+    const graph = Array.isArray(rawGraph) ? (rawGraph as Record<string, any>[]) : []
+    const entity = graph.find(
+      (entry) => entry && typeof entry === 'object' && String(entry['@id']) === entityId,
+    )
+    const value: any = entity?.conformsTo
+    const ids: string[] = []
+    const pushId = (val: any) => {
+      if (!val) return
+      if (typeof val === 'string') {
+        const t = val.trim()
+        if (t) ids.push(t)
+        return
+      }
+      if (typeof val === 'object') {
+        const idVal = (val as any)['@id'] ?? (val as any).id
+        if (typeof idVal === 'string') {
+          const t = idVal.trim()
+          if (t) ids.push(t)
+        }
+      }
+    }
+    if (Array.isArray(value)) {
+      for (const v of value) pushId(v)
+    } else {
+      pushId(value)
+    }
+    return Array.from(new Set(ids))
+  }
+
+  protected isSameStringSet(a: string[], b: string[]): boolean {
+    if (a.length !== b.length) {
+      return false
+    }
+    const setA = new Set(a)
+    if (setA.size !== b.length) {
+      return false
+    }
+    for (const value of b) {
+      if (!setA.has(value)) {
+        return false
+      }
+    }
+    return true
+  }
+
+  protected async refreshProfileForSelectedEntity(): Promise<void> {
+    if (this.isRefreshingProfile) {
+      return
+    }
+    this.isRefreshingProfile = true
+    try {
+      this.computeConformsToIdsForSelectedEntity()
+      const conformsToUrls = this.schemaManagerService.convertW3idUrlsToCedarTemplateUrls(
+        this.conformsToIds,
+      )
+      const allSchemas = await this.schemaManagerService.loadAllSchemas()
+      for (const conformsToUrl of conformsToUrls) {
+        const matchingSchema = allSchemas.find(
+          (schema) => schema.reference === conformsToUrl,
+        )
+        if (matchingSchema) {
+          const convertedContent =
+            await this.schemaManagerService.getConvertedProfileContent(
+              matchingSchema.path,
+            )
+          if (convertedContent) {
+            const currentCrate = this.localCrate || { '@graph': [] }
+            const baseProfile = this.appStateService.profile ||
+              this.localProfile || { classes: {}, layouts: [], localisation: {} }
+            const merged = await this.schemaManagerService.getMergedProfile(
+              currentCrate,
+              convertedContent,
+              baseProfile,
+            )
+            this.localProfile = merged
+            this.appStateService.profile = merged
+            this.profileRevision += 1
+          }
+        }
+      }
+      this.update()
+    } finally {
+      this.isRefreshingProfile = false
+    }
   }
 
   protected setDirtyState(dirty: boolean): void {

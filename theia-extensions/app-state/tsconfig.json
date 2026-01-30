@@ -10,6 +10,8 @@
     "strictNullChecks": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
+    "allowJs": true,
+    "emitDeclarationOnly": false,
     "downlevelIteration": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,

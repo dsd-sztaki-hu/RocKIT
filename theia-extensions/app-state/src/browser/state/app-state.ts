@@ -16,6 +16,7 @@ export const defaultAppState = {
     fontSize: 14,
   },
   openSchemaSelectorWindow: false,
+  completeProfile: undefined as Record<string, any> | undefined,
 }
 
 export type AppState = typeof defaultAppState
