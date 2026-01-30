@@ -21,13 +21,25 @@ function formatTypeLabel(rawType: string): string {
   return tail.charAt(0).toUpperCase() + tail.slice(1)
 }
 
-function getEntityTypes(entity: Record<string, any>): string[] {
+function getEntityTypes(
+  entity: Record<string, any>,
+  profile?: Record<string, any>,
+): string[] {
   const rawTypes = entity?.['@type']
   if (!rawTypes) {
     return ['Unknown']
   }
+
   const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
-  return typeList.map((type) => formatTypeLabel(String(type)))
+
+  return typeList.map((type) => {
+    const raw = String(type).trim()
+    const tail = raw.includes('/') ? raw.split('/').pop()! : raw
+
+    const localized = profile?.localisation?.[tail] ?? profile?.classes?.[tail]?.label
+
+    return localized?.trim() || formatTypeLabel(tail)
+  })
 }
 
 function hasType(entity: Record<string, any>, target: string): boolean {
@@ -47,7 +59,10 @@ function getEntityName(entity: Record<string, any>): string {
   return String(name)
 }
 
-function createEntitiesData(crate: Record<string, any> | undefined): Item[] {
+function createEntitiesData(
+  crate: Record<string, any> | undefined,
+  profile?: Record<string, any>,
+): Item[] {
   const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
   const byType = new Map<string, Item[]>()
 
@@ -65,7 +80,7 @@ function createEntitiesData(crate: Record<string, any> | undefined): Item[] {
     const valid = Boolean(name)
     const displayName = entityId === './' ? './' : name || entityId || '(unnamed)'
 
-    for (const typeLabel of getEntityTypes(entry)) {
+    for (const typeLabel of getEntityTypes(entry, profile)) {
       const list = byType.get(typeLabel) ?? []
       list.push({
         name: displayName,
@@ -153,7 +168,7 @@ export class EntitiesOverviewModel extends TreeModelImpl {
     }
 
     // populate the direct children
-    createEntitiesData(crate)
+    createEntitiesData(crate, this.appStateService.completeProfile)
       .map((item) => this.itemFactory.toTreeNode(item))
       .forEach((node) => CompositeTreeNode.addChild(root, node))
 
