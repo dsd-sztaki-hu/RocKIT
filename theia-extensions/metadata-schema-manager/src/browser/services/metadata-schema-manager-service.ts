@@ -85,6 +85,8 @@ export class SchemaManagerService implements FrontendApplicationContribution {
                 ? schemaContent 
                 : JSON.stringify(schemaContent, null, 2);
 
+            // Note: For legacy browser download, we might trust the ID as the conformsTo, 
+            // or let the logic below handle it. Passing templateId here to be safe.
             const name = await this.processAndSaveSchema(rawString, 'remote', undefined, {
                 downloadUrl: 'Legacy Browser',
                 conformsTo: templateId
@@ -155,6 +157,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
 
             progress.report({ message: 'Processing...', work: { done: 50, total: 100 } });
             
+            // Pass empty conformsTo so processAndSaveSchema derives it from @id
             const schemaName = await this.processAndSaveSchema(content, 'remote', undefined, {
                 downloadUrl: finalUrl,
                 conformsTo: '' 
@@ -320,6 +323,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
             const fileName = fileUri.path.base;
             try {
                 const content = await this.fileService.read(fileUri);
+                // Pass empty conformsTo to trigger automatic derivation
                 await this.processAndSaveSchema(content.value, 'local', fileName, {
                     downloadUrl: '',
                     conformsTo: ''
@@ -348,18 +352,38 @@ export class SchemaManagerService implements FrontendApplicationContribution {
         }
     }
 
-    /**
-     * Helper to generate a short, consistent hash from a string.
-     * Replaces the old method of just taking the last URL segment.
-     */
     private simpleHash(str: string): string {
         let hash = 0;
         for (let i = 0; i < str.length; i++) {
             const char = str.charCodeAt(i);
             hash = (hash << 5) - hash + char;
-            hash = hash & hash; // Convert to 32bit integer
+            hash = hash & hash;
         }
         return Math.abs(hash).toString(16);
+    }
+
+    /**
+     * Logic to determine the correct conformsTo URL based on the schema's @id.
+     */
+    private deriveConformsToFromId(schemaId: string): string {
+        const PROD_PREFIX = 'https://repo.schema.researchdata.hu/templates/';
+        const DEV_PREFIX = 'https://repo.cedardev.dsd.sztaki.hu/templates/';
+        
+        const W3ID_PROD = 'https://w3id.org/arp/schema/';
+        const W3ID_DEV = 'https://w3id.org/arp/dev/schema/';
+
+        if (schemaId.startsWith(PROD_PREFIX)) {
+            const uuid = schemaId.substring(PROD_PREFIX.length);
+            return W3ID_PROD + uuid;
+        }
+        
+        if (schemaId.startsWith(DEV_PREFIX)) {
+            const uuid = schemaId.substring(DEV_PREFIX.length);
+            return W3ID_DEV + uuid;
+        }
+
+        // Fallback: If it doesn't match known patterns, use the @id itself
+        return schemaId;
     }
 
     private async processAndSaveSchema(
@@ -384,16 +408,17 @@ export class SchemaManagerService implements FrontendApplicationContribution {
         }
 
         if (metadata) {
+            // FIX: If conformsTo is missing/empty, derive it from @id
+            if (!metadata.conformsTo) {
+                metadata.conformsTo = this.deriveConformsToFromId(schemaId);
+            }
             parsedRaw[AROMA_METADATA_FIELD] = metadata;
             rawContent = JSON.stringify(parsedRaw, null, 2);
         }
 
         let fileName = originalFileName;
         if (!fileName || type === 'remote') {
-            // FIX: Hash the ENTIRE ID to ensure uniqueness across domains
-            // 'https://repo.prod.../123' vs 'https://repo.dev.../123' will now have different hashes
             const uniqueHash = this.simpleHash(schemaId);
-            
             const safeName = schemaName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
             fileName = `remote_${safeName}_v${schemaVersion}_${uniqueHash}.json`;
         }
