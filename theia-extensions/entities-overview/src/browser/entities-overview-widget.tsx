@@ -12,6 +12,7 @@ import {
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
+import { Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
@@ -19,6 +20,7 @@ import {
   EntitiesOverviewModel,
   ExampleTreeLeaf,
   ExampleTreeNode,
+  ValidityFilter,
 } from './entities-overview-model'
 
 /** Well-known constant for the context menu path */
@@ -55,9 +57,13 @@ export class EntitiesOverviewWidget extends TreeWidget {
     this.title.iconClass = 'fa fa-list-ul'
 
     // this.toDispose.push(this.toCancelNodeExpansion)
+    this.addClass('entities-overview-panel')
   }
 
   protected readonly openingEntities = new Set<string>()
+  protected entityNameFilter = ''
+  protected selectedTypeFilters: string[] = []
+  protected validityFilter: ValidityFilter = 'all'
 
   /**
    * Enable icon rendering.
@@ -75,6 +81,73 @@ export class EntitiesOverviewWidget extends TreeWidget {
       return <div className={`${icon}`}></div>
     }
     return super.renderIcon(node, props)
+  }
+
+  protected override render(): React.ReactNode {
+    const availableTypes = this.model.getAvailableTypes()
+    const selectedTypes = this.getSelectedTypes(availableTypes)
+    return (
+      <div className="entities-overview-panel-content">
+        <div className="entities-overview-filters">
+          <div className="entities-overview-filter-header">
+            <span className="entities-overview-filter-title">Filters</span>
+            <button
+              className="entities-overview-filter-clear"
+              type="button"
+              disabled={this.entityNameFilter.trim() === '' && selectedTypes.length === 0}
+              onClick={() => this.clearFilters()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              Clear
+            </button>
+          </div>
+          <label className="entities-overview-filter-row">
+            <span className="entities-overview-filter-label">Entity name</span>
+            <input
+              className="entities-overview-filter-input"
+              type="text"
+              placeholder="Search entity name"
+              value={this.entityNameFilter}
+              onChange={(event) => this.onEntityNameFilterChange(event)}
+              onKeyDown={(event) => event.stopPropagation()}
+            />
+          </label>
+          <label className="entities-overview-filter-row">
+            <span className="entities-overview-filter-label">Validity</span>
+            <div onKeyDown={(event) => event.stopPropagation()}>
+              <Select
+                className="entities-overview-validity-select"
+                value={this.validityFilter}
+                options={[
+                  { value: 'all', label: 'All entities' },
+                  { value: 'valid', label: 'Only valid' },
+                  { value: 'invalid', label: 'Only invalid' },
+                ]}
+                onChange={(value) => this.onValidityFilterChange(value as ValidityFilter)}
+                size="small"
+              />
+            </div>
+          </label>
+          <div className="entities-overview-filter-row">
+            <span className="entities-overview-filter-label">Entity type</span>
+            <div onKeyDown={(event) => event.stopPropagation()}>
+              <Select
+                className="entities-overview-type-select"
+                mode="multiple"
+                placeholder="All types"
+                value={selectedTypes}
+                options={availableTypes.map((type) => ({ value: type, label: type }))}
+                onChange={(values) => this.onTypeFiltersChange(values)}
+                maxTagCount="responsive"
+                size="small"
+                disabled={availableTypes.length === 0}
+              />
+            </div>
+          </div>
+        </div>
+        <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
+      </div>
+    )
   }
 
   /**
@@ -200,5 +273,48 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
   protected findWidgetIdForEntity(entityId: string): string | undefined {
     return this.appStateService.getEntityEditorWidgetId(entityId)
+  }
+
+  protected onEntityNameFilterChange(event: React.ChangeEvent<HTMLInputElement>): void {
+    this.entityNameFilter = event.target.value
+    this.applyFilters()
+  }
+
+  protected applyFilters(): void {
+    const availableTypes = this.model.getAvailableTypes()
+    const selectedTypes = this.getSelectedTypes(availableTypes)
+    this.model.setFilters(this.entityNameFilter, selectedTypes, this.validityFilter)
+    this.update()
+  }
+
+  protected getSelectedTypes(availableTypes: string[]): string[] {
+    if (availableTypes.length === 0) {
+      return []
+    }
+    const availableSet = new Set(availableTypes)
+    const filteredSelections = this.selectedTypeFilters.filter((type) =>
+      availableSet.has(type),
+    )
+    if (filteredSelections.length !== this.selectedTypeFilters.length) {
+      this.selectedTypeFilters = [...filteredSelections]
+    }
+    return availableTypes.filter((type) => this.selectedTypeFilters.includes(type))
+  }
+
+  protected onTypeFiltersChange(values: string[]): void {
+    this.selectedTypeFilters = [...values]
+    this.applyFilters()
+  }
+
+  protected onValidityFilterChange(value: ValidityFilter): void {
+    this.validityFilter = value
+    this.applyFilters()
+  }
+
+  protected clearFilters(): void {
+    this.entityNameFilter = ''
+    this.selectedTypeFilters = []
+    this.validityFilter = 'all'
+    this.applyFilters()
   }
 }
