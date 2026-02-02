@@ -31,6 +31,7 @@ import {
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import debounce = require('@theia/core/shared/lodash.debounce');
 import { DisposableCollection, nls } from '@theia/core/lib/common';
+import URI from '@theia/core/lib/common/uri';
 import { FileStat } from '@theia/filesystem/lib/common/files';
 
 export interface OpenEditorNode extends FileStatNode {
@@ -199,7 +200,7 @@ export class OpenEditorsModel extends FileTreeModel {
             for (const widget of widgetsInArea) {
                 const uri = widget.getResourceUri();
                 if (uri) {
-                    let fileStat: FileStat;
+                    let fileStat: FileStat | undefined;
                     try {
                         fileStat = await this.fileService.resolve(uri);
                         this.cachedFileStats.set(widget.id, fileStat);
@@ -207,9 +208,15 @@ export class OpenEditorsModel extends FileTreeModel {
                         const cachedStat = this.cachedFileStats.get(widget.id);
                         if (cachedStat) {
                             fileStat = cachedStat;
+                        } else if (this.isVirtualOpenEditorUri(uri)) {
+                            fileStat = FileStat.file(uri);
+                            this.cachedFileStats.set(widget.id, fileStat);
                         } else {
                             continue;
                         }
+                    }
+                    if (!fileStat) {
+                        continue;
                     }
 
                     const openEditorNode: OpenEditorNode = {
@@ -244,6 +251,11 @@ export class OpenEditorsModel extends FileTreeModel {
         }
         return rootNode;
     }
+
+    protected isVirtualOpenEditorUri(uri: URI): boolean {
+        return uri.scheme === 'rocrate';
+    }
+
 
     protected override doOpenNode(node: TreeNode): void {
         if (node.visible === false) {

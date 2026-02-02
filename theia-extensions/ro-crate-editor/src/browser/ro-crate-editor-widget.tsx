@@ -2,6 +2,8 @@ import type { SaveOptions } from '@theia/core/lib/browser/saveable'
 import { SaveReason, setDirty } from '@theia/core/lib/browser/saveable'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { CommandService } from '@theia/core/lib/common'
+import URI from '@theia/core/lib/common/uri'
+import type { Navigatable } from '@theia/core/lib/browser'
 import { Emitter } from '@theia/core/lib/common/event'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
@@ -22,7 +24,7 @@ interface RoCrateEditorWidgetOptions {
 }
 
 @injectable()
-export class RoCrateEditorWidget extends ReactWidget {
+export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   static readonly ID = 'rocrate-editor-widget'
 
   @inject(MetadataSchemaManager)
@@ -195,6 +197,23 @@ export class RoCrateEditorWidget extends ReactWidget {
         />
       </div>
     )
+  }
+
+  getResourceUri(): URI | undefined {
+    if (!this.id) {
+      return undefined
+    }
+    const entityId = this.assignedEntityId ?? './'
+    const encodedWidgetId = encodeURIComponent(this.id)
+    const encodedEntityId = encodeURIComponent(entityId)
+    return new URI(`rocrate:/editor/${encodedWidgetId}/${encodedEntityId}`)
+  }
+
+  createMoveToUri(resourceUri: URI): URI | undefined {
+    if (resourceUri.scheme === 'rocrate') {
+      return resourceUri
+    }
+    return undefined
   }
 
   get dirty(): boolean {
