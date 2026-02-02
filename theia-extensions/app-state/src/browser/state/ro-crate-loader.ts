@@ -191,12 +191,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       return
     }
 
-    const conformsToUrls =
-      this.schemaManagerService.convertW3idUrlsToCedarTemplateUrls(conformsToIds)
     const allSchemas = await this.schemaManagerService.loadAllSchemas()
     let mergedProfile = baseProfile
 
-    for (const conformsToUrl of conformsToUrls) {
+    for (const conformsToUrl of conformsToIds) {
       const matchingSchema = allSchemas.find(
         (schema) => schema.reference === conformsToUrl,
       )
@@ -211,6 +209,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
           crate,
           convertedContent,
           mergedProfile,
+          conformsToUrl,
         )
       }
     }

@@ -76,9 +76,13 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
   protected onAfterAttach(msg: Message): void {
     super.onAfterAttach(msg)
-    this.node.addEventListener('mousedown', () => {
-      this.activate()
-    })
+  }
+
+  protected onActivateRequest(msg: Message): void {
+    super.onActivateRequest(msg)
+    this.appStateService.resetProfileToInitial()
+    void this.refreshProfileForSelectedEntity()
+    this.update()
   }
 
   async initialize(options: RoCrateEditorWidgetOptions = {}): Promise<void> {
@@ -188,6 +192,55 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
   }
 
+  protected handleRemoveProfile = (payload: any) => {
+    console.log('handleRemoveProfile', payload)
+    const entityId = payload?.entityId ?? this.localSelectedEntityId
+    const profileUrl = payload?.tab?.profileUrl
+
+    if (!entityId || !profileUrl) {
+      return
+    }
+
+    const targetUrl = typeof profileUrl === 'string' ? profileUrl.trim() : ''
+    const crate = this.appStateService.roCrate ?? this.localCrate
+    if (!crate || !targetUrl) {
+      return
+    }
+    const graph = Array.isArray(crate['@graph']) ? (crate['@graph'] as any[]) : []
+    const index = graph.findIndex((e) => e && typeof e === 'object' && String(e['@id']) === entityId)
+    if (index < 0) {
+      return
+    }
+    const entity = { ...graph[index] }
+    const value: any = entity.conformsTo
+    const matches = (v: any) => {
+      if (!v) return false
+      if (typeof v === 'string') return v.trim() === targetUrl
+      const idVal = (v as any)['@id'] ?? (v as any).id
+      return typeof idVal === 'string' && idVal.trim() === targetUrl
+    }
+    let updatedConformsTo: any
+    if (Array.isArray(value)) {
+      updatedConformsTo = value.filter((v) => !matches(v))
+    } else {
+      updatedConformsTo = matches(value) ? undefined : value
+    }
+    if (!updatedConformsTo || (Array.isArray(updatedConformsTo) && updatedConformsTo.length === 0)) {
+      delete (entity as any).conformsTo
+    } else {
+      ;(entity as any).conformsTo = updatedConformsTo
+    }
+    const updatedGraph = [...graph]
+    updatedGraph[index] = entity
+    const updatedCrate = { ...crate, '@graph': updatedGraph }
+    const schemaName = this.schemaManagerService.nameWithoutMetadataSuffix(payload?.tab?.name)
+    const profile = this.appStateService.profile ?? this.localProfile
+    this.removeSchemaMetadata(updatedCrate, entityId, schemaName!, profile!)
+    this.handleSaveCrate(updatedCrate)
+    this.update()
+    void this.refreshProfileForSelectedEntity()
+  }
+
   render(): React.ReactNode {
     console.log('conformsToIds', this.conformsToIds)
     return (
@@ -203,6 +256,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
           onNavigation={this.handleNavigation}
           //onSetProfile={this.handleSetProfile}
           onOpenSchemaManager={this.handleOpenSchemaManager}
+          onRemoveProfile={this.handleRemoveProfile}
         />
       </div>
     )
@@ -406,13 +460,13 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     this.isRefreshingProfile = true
     try {
       this.computeConformsToIdsForSelectedEntity()
-      const conformsToUrls = this.schemaManagerService.convertW3idUrlsToCedarTemplateUrls(
-        this.conformsToIds,
-      )
+      // const conformsToUrls = this.schemaManagerService.convertW3idUrlsToCedarTemplateUrls(
+      //   this.conformsToIds,
+      // )
       const allSchemas = await this.schemaManagerService.loadAllSchemas()
-      for (const conformsToUrl of conformsToUrls) {
+      for (const conformsToUrl of this.conformsToIds) {
         const matchingSchema = allSchemas.find(
-          (schema) => schema.reference === conformsToUrl,
+          (schema) => schema.conformsTo === conformsToUrl
         )
         if (matchingSchema) {
           const convertedContent =
@@ -427,16 +481,82 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
               currentCrate,
               convertedContent,
               baseProfile,
+              conformsToUrl,
             )
             this.localProfile = merged
             this.appStateService.profile = merged
             this.profileRevision += 1
           }
+        } else {
+          console.warn(`No schema found for conformsTo URL: ${conformsToUrl}`)
         }
-      }
+      }  
       this.update()
     } finally {
       this.isRefreshingProfile = false
+    }
+  }
+
+  protected findEntity(crate: Record<string, any>, id: string) {
+    return (crate["@graph"] as Record<string, any>[]).find(entity => entity["@id"] == id)
+  }
+
+  protected removeSchemaMetadata(crate: Record<string, any>, entityId: string, layout: string, profile: Record<string, any>, keepOrphans = false) {
+    const entity = this.findEntity(crate, entityId);
+    if (!entity || !entity["@type"]) return;
+
+    const entityType = entity["@type"];
+    const classProfile = profile.classes[entityType];
+    if (!classProfile) return;
+
+    for (let input of classProfile.inputs) {
+      // log.debug("Checking", input.group, layout)
+      // If the input has the desired layout group, remove it from the entity
+      if (input.group === layout) {
+        // If the input property refers to another entity, remove that entity as well
+        if (entity[input.name] && entity[input.name]["@id"]) {
+          this.removeEntityFromGraph(crate, entity[input.name]["@id"], keepOrphans);
+        }
+        // log.debug("Removing", input.name)
+        delete entity[input.name];
+      }
+    }
+    this.refreshProfileForSelectedEntity()
+    this.update()
+  }
+
+  protected removeEntityFromGraph(crate: Record<string, any>, entityId: string, keepOrphans: boolean = false) {
+    let entityToRemove = this.findEntity(crate, entityId);
+
+    if (entityToRemove) {
+      // Check if child entities exist and try to remove them
+      for (let key in entityToRemove) {
+        if (entityToRemove[key]["@id"]) {
+          this.removeEntityFromGraph(crate, entityToRemove[key]["@id"], keepOrphans);
+        }
+      }
+
+      const graph = crate["@graph"] as Record<string, any>[];
+
+      // If keepOrphans is true, we don't check for references and move on.
+      if (!keepOrphans) {
+        let referenceCount = 0;
+
+        for (let entity of graph) {
+          for (let key in entity) {
+            if (entity[key]["@id"] && entity[key]["@id"] === entityId && entity["@id"] !== entityId) {
+              referenceCount++;
+            }
+          }
+        }
+
+        if (referenceCount <= 1) {
+          const entityIndex = graph.indexOf(entityToRemove);
+          if (entityIndex !== -1) {
+            graph.splice(entityIndex, 1);
+          }
+        }
+      }
     }
   }
 

@@ -8,7 +8,8 @@ export const DescriboCrateBuilderWrapper = ({
     profileKey,
     onSaveCrate,
     onNavigation,
-    onOpenSchemaManager
+    onOpenSchemaManager,
+    onRemoveProfile
 }: {
     crate: Record<string, any> | undefined;
     profile: Record<string, any> | undefined;
@@ -17,6 +18,7 @@ export const DescriboCrateBuilderWrapper = ({
     onSaveCrate: (data: any) => void;
     onNavigation: (entity: any) => void;
     onOpenSchemaManager: (requested: boolean) => void;
+    onRemoveProfile: (tabData: any) => void;
 }) => {
   const [currentEntityId, setCurrentEntityId] = React.useState<string | undefined>(
     entityId,
@@ -123,6 +125,7 @@ export const DescriboCrateBuilderWrapper = ({
                 crate={crate}
                 profile={profile}
                 onAddNewProfileRequest={handleAddNewProfileRequest}
+                onRemoveProfile={onRemoveProfile}
                 entityId={currentEntityId}
                 onSaveCrate={onSaveCrate}
                 onNavigation={handleNavigationWrapper}
