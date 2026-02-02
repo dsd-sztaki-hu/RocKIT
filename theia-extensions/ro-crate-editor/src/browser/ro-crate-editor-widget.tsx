@@ -318,13 +318,13 @@ export class RoCrateEditorWidget extends ReactWidget {
     this.isRefreshingProfile = true
     try {
       this.computeConformsToIdsForSelectedEntity()
-      const conformsToUrls = this.schemaManagerService.convertW3idUrlsToCedarTemplateUrls(
-        this.conformsToIds,
-      )
+      // const conformsToUrls = this.schemaManagerService.convertW3idUrlsToCedarTemplateUrls(
+      //   this.conformsToIds,
+      // )
       const allSchemas = await this.schemaManagerService.loadAllSchemas()
-      for (const conformsToUrl of conformsToUrls) {
+      for (const conformsToUrl of this.conformsToIds) {
         const matchingSchema = allSchemas.find(
-          (schema) => schema.reference === conformsToUrl,
+          (schema) => schema.conformsTo === conformsToUrl,
         )
         if (matchingSchema) {
           const convertedContent =
