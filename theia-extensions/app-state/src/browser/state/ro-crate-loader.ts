@@ -196,7 +196,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
     for (const conformsToUrl of conformsToIds) {
       const matchingSchema = allSchemas.find(
-        (schema) => schema.reference === conformsToUrl,
+        (schema) => schema.conformsTo === conformsToUrl,
       )
       if (!matchingSchema) {
         continue
@@ -204,6 +204,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
         matchingSchema.path,
       )
+      console.log('COMPLETE PROFLILE convertedContent', convertedContent)
       if (convertedContent) {
         mergedProfile = await this.schemaManagerService.getMergedProfile(
           crate,
