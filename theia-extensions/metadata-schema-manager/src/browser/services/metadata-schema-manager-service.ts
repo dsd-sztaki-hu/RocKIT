@@ -17,7 +17,10 @@ export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
 export const SCHEMA_FIELD_ID = '@id';
 
+const AROMA_METADATA_FIELD = '_aromaMetadata'; 
 const MSG_TIMEOUT = 5000;
+
+// --- CONFIGURATION CONSTANTS ---
 const REPO_DOMAINS = {
     OPEN_DEV: 'open.cedardev.dsd.sztaki.hu',
     REPO_DEV: 'repo.cedardev.dsd.sztaki.hu',
@@ -40,7 +43,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     private readonly onDidChangeSchemasEmitter = new Emitter<void>();
     readonly onDidChangeSchemas: Event<void> = this.onDidChangeSchemasEmitter.event;
 
-    // Event to Trigger Remote Browser Window
     private readonly onOpenRemoteBrowserEmitter = new Emitter<void>();
     readonly onOpenRemoteBrowser: Event<void> = this.onOpenRemoteBrowserEmitter.event;
 
@@ -58,31 +60,20 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         if (currentCrate) this.checkAndDownloadSchemas(currentCrate);
     }
 
-    /* ------------------------------------------------------------------
-       BROWSE & DOWNLOAD LOGIC
-       ------------------------------------------------------------------ */
-
-    /**
-     * Triggers the UI to open the "Browse Remote" dialog.
-     */
     public async browseRemoteSchemas(): Promise<void> {
         this.onOpenRemoteBrowserEmitter.fire();
     }
 
-    /**
-     * Called by the Remote Browser Dialog when "ADD" is clicked.
-     */
     public async downloadRemoteSchema(templateId: string): Promise<void> {
         try {
             const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
             const apiKey = apiKeyVar?.value;
 
             if (!apiKey) {
-                this.messageService.warn('Downloading requires an API Key.', { timeout: MSG_TIMEOUT });
+                this.messageService.warn('Legacy Browser requires an API Key.', { timeout: MSG_TIMEOUT });
                 throw new Error('Missing API Key');
             }
 
-            // Use SchemaApi to download JSON
             const api = new SchemaApi({
                 domainBase: LEGACY_DOMAIN_BASE,
                 apiKey: apiKey
@@ -91,14 +82,16 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             this.messageService.info('Downloading schema...', { timeout: MSG_TIMEOUT });
             
             const schemaContent = await api.downloadSchema(templateId);
-            
-            // Convert object to string if axios parsed it
             const rawString = typeof schemaContent === 'string' 
                 ? schemaContent 
                 : JSON.stringify(schemaContent, null, 2);
 
-            // Save and convert
-            const name = await this.processAndSaveSchema(rawString, 'remote');
+            // Note: For legacy browser download, we might trust the ID as the conformsTo, 
+            // or let the logic below handle it. Passing templateId here to be safe.
+            const name = await this.processAndSaveSchema(rawString, 'remote', undefined, {
+                downloadUrl: 'Legacy Browser',
+                conformsTo: templateId
+            });
             
             this.onDidChangeSchemasEmitter.fire();
             this.messageService.info(`Successfully added schema: ${name}`, { timeout: MSG_TIMEOUT });
@@ -110,140 +103,214 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         }
     }
 
-    /* ------------------------------------------------------------------
-       SMART FETCHING LOGIC
-       ------------------------------------------------------------------ */
-    private async smartFetchSchema(url: string, apiKey?: string): Promise<string> {
-        if (url.includes(REPO_DOMAINS.OPEN_DEV)) {
-            const response = await fetch(url, { method: 'GET' });
-            if (!response.ok) throw new Error(`Open Link fetch failed (HTTP ${response.status}).`);
-            return await response.text();
+    private async fetchWithAuthFallback(url: string, apiKey?: string): Promise<{ content: string, finalUrl: string }> {
+        const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json' 
+        };
+
+        const fetchAttempt = async (useKey: boolean): Promise<Response> => {
+            const currentHeaders = { ...headers };
+            if (useKey && apiKey) {
+                currentHeaders['Authorization'] = `apiKey ${apiKey}`;
+            }
+            return fetch(url, { method: 'GET', headers: currentHeaders });
+        };
+
+        let response: Response;
+
+        if (apiKey) {
+            response = await fetchAttempt(true);
+            if (response.status === 401 || response.status === 403) {
+                console.warn(`[SchemaManager] Auth failed for ${url}, retrying without key...`);
+                response = await fetchAttempt(false);
+            }
+        } else {
+            response = await fetchAttempt(false);
         }
-        if (url.includes(REPO_DOMAINS.REPO_DEV)) {
-            const encodedOriginal = encodeURIComponent(url);
-            const openUrl = `https://${REPO_DOMAINS.OPEN_DEV}/templates/${encodedOriginal}`;
-            const response = await fetch(openUrl, { method: 'GET' });
-            if (!response.ok) throw new Error(`Transformed fetch failed (HTTP ${response.status}).`);
-            return await response.text();
+
+        if (!response.ok) {
+            const msg = `Fetch failed: ${response.status} ${response.statusText}`;
+            if (response.status === 401 || response.status === 403) {
+                throw new Error(`Unauthorized access to ${url}. Please check your API Key configuration.`);
+            }
+            if (response.status === 404) {
+                throw new Error(`Resource not found at ${url}. Please check the link.`);
+            }
+            throw new Error(msg);
         }
-        if (url.includes(REPO_DOMAINS.RESEARCH_DATA)) {
-            if (!apiKey) throw new Error('Access Denied: Missing CEDAR_API_KEY.');
-            const response = await fetch(url, { 
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `apiKey ${apiKey}` }
+
+        const content = await response.text();
+        return { content, finalUrl: response.url };
+    }
+
+    public async importFromUrl(url: string, apiKey: string | undefined, progress: any): Promise<string> {
+        progress.report({ message: 'Downloading...', work: { done: 20, total: 100 } });
+        
+        try {
+            const { content, finalUrl } = await this.fetchWithAuthFallback(url, apiKey);
+
+            try {
+                JSON.parse(content);
+            } catch (e) {
+                throw new Error('The URL returned invalid content (likely HTML instead of JSON). Please check the link.');
+            }
+
+            progress.report({ message: 'Processing...', work: { done: 50, total: 100 } });
+            
+            // Pass empty conformsTo so processAndSaveSchema derives it from @id
+            const schemaName = await this.processAndSaveSchema(content, 'remote', undefined, {
+                downloadUrl: finalUrl,
+                conformsTo: '' 
             });
-            if (response.status === 401 || response.status === 403) throw new Error('Access Denied: API Key rejected.');
-            if (!response.ok) throw new Error(`Authenticated fetch failed (HTTP ${response.status}).`);
-            return await response.text();
+            
+            progress.report({ work: { done: 100, total: 100 } });
+            this.onDidChangeSchemasEmitter.fire();
+            return schemaName;
+
+        } catch (error) {
+            console.error(error);
+            throw error;
         }
-        const headers: any = { 'Content-Type': 'application/json' };
-        if (apiKey) headers['Authorization'] = `apiKey ${apiKey}`;
-        const response = await fetch(url, { method: 'GET', headers });
-        if (!response.ok) throw new Error(`Download failed (HTTP ${response.status}).`);
-        return await response.text();
+    }
+
+    private async resolveConformanceUrl(url: string, apiKey?: string): Promise<{ content: string, finalUrl: string }> {
+        const { content, finalUrl } = await this.fetchWithAuthFallback(url, apiKey);
+
+        try {
+            JSON.parse(content);
+            return { content, finalUrl };
+        } catch (e) {
+            console.log(`[SchemaManager] URL ${url} returned HTML. Attempting heuristic fix.`);
+        }
+
+        let fixedUrl = finalUrl;
+        
+        if (finalUrl.includes('openview.')) {
+            fixedUrl = finalUrl.replace('openview.', 'open.');
+        } else if (finalUrl.includes('/artifacts/')) {
+             fixedUrl = finalUrl.replace('/artifacts/', '/templates/');
+        }
+
+        if (fixedUrl !== finalUrl) {
+            console.log(`[SchemaManager] Retrying with fixed URL: ${fixedUrl}`);
+            const retry = await this.fetchWithAuthFallback(fixedUrl, apiKey);
+            try {
+                JSON.parse(retry.content);
+                return retry; 
+            } catch (e) {
+                throw new Error(`Could not resolve JSON from ${url}. Both the original and heuristic URLs returned HTML.`);
+            }
+        }
+
+        throw new Error(`The URL ${url} returned HTML, and no JSON endpoint could be automatically determined.`);
     }
 
     protected async checkAndDownloadSchemas(roCrate: any): Promise<void> {
         if (this.isChecking || !roCrate || !roCrate['@graph']) return;
         this.isChecking = true;
+        
         try {
             if (!navigator.onLine) return;
-            const requiredUUIDs = this.extractSchemaUUIDs(roCrate);
-            if (requiredUUIDs.size === 0) return;
-            const missingUUIDs = await this.filterMissingSchemas(Array.from(requiredUUIDs));
-            if (missingUUIDs.length === 0) return;
+            const requiredIds = this.extractSchemaIds(roCrate);
+            
+            if (requiredIds.size === 0) return;
+            
+            const missingIds = await this.filterMissingSchemas(Array.from(requiredIds));
+            if (missingIds.length === 0) return;
 
             await new Promise<void>((resolve) => {
                 Modal.info({
                     title: 'Missing Metadata Schemas',
-                    content: `The RO-Crate references ${missingUUIDs.length} missing schema(s). Downloading now.`,
+                    content: `The RO-Crate references ${missingIds.length} missing schema(s). Downloading now.`,
                     okText: 'OK', onOk: () => resolve(), maskClosable: false
                 });
             });
 
+            const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
+            const apiKey = apiKeyVar?.value;
+
             await this.messageService.showProgress({ text: 'Resolving Missing Schemas...' })
                 .then(async progress => {
                     try {
-                        const total = missingUUIDs.length;
+                        const total = missingIds.length;
                         let completed = 0;
                         progress.report({ message: 'Starting...', work: { done: 0, total } });
-                        await Promise.all(missingUUIDs.map(async (uuid) => {
-                            try { await this.downloadSchemaByUUID(uuid); }
-                            catch (e) { console.error(`Failed to auto-download ${uuid}`, e); }
+
+                        await Promise.all(missingIds.map(async (conformsToUrl) => {
+                            try { 
+                                const { content, finalUrl } = await this.resolveConformanceUrl(conformsToUrl, apiKey);
+                                await this.processAndSaveSchema(content, 'remote', undefined, {
+                                    conformsTo: conformsToUrl,
+                                    downloadUrl: finalUrl
+                                });
+                            }
+                            catch (e) { 
+                                console.error(`Failed to resolve schema ${conformsToUrl}`, e); 
+                                this.messageService.warn(`Could not download schema: ${conformsToUrl}`);
+                            }
                             finally {
                                 completed++;
-                                progress.report({ message: `Downloading (${completed}/${total})...`, work: { done: completed, total } });
+                                progress.report({ message: `Processed (${completed}/${total})...`, work: { done: completed, total } });
                             }
                         }));
                     } finally { progress.cancel(); }
                 });
+            
             this.onDidChangeSchemasEmitter.fire();
-            this.messageService.info('Schemas synchronized.', { timeout: MSG_TIMEOUT });
+            this.messageService.info('Schema synchronization finished.', { timeout: MSG_TIMEOUT });
+
         } catch (error) {
             console.error('[SchemaManager] Error verifying schemas:', error);
-            this.messageService.error(`Schema Sync Error: ${error instanceof Error ? error.message : error}`, { timeout: MSG_TIMEOUT });
+            this.messageService.error('Unexpected error during schema sync. See console.', { timeout: MSG_TIMEOUT });
         } finally {
             this.isChecking = false;
         }
     }
 
-    private extractSchemaUUIDs(roCrate: any): Set<string> {
-        const requiredUUIDs = new Set<string>();
+    private extractSchemaIds(roCrate: any): Set<string> {
+        const requiredIds = new Set<string>();
         const graph = Array.isArray(roCrate['@graph']) ? roCrate['@graph'] : [roCrate];
+        
         for (const entity of graph) {
             if (!entity.conformsTo) continue;
             const conformsArray = Array.isArray(entity.conformsTo) ? entity.conformsTo : [entity.conformsTo];
+            
             for (const item of conformsArray) {
                 const id = item['@id'];
                 if (id && typeof id === 'string' && id.includes('/schema/')) {
-                    const parts = id.split('/');
-                    const uuid = parts[parts.length - 1];
-                    if (uuid) requiredUUIDs.add(uuid);
+                    requiredIds.add(id);
                 }
             }
         }
-        return requiredUUIDs;
+        return requiredIds;
     }
 
     protected async downloadSchemaByUUID(uuid: string): Promise<void> {
+        const url = `https://${REPO_DOMAINS.RESEARCH_DATA}/templates/${uuid}`;
         const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
-        const apiKey = apiKeyVar?.value;
-        let url: string;
-        if (apiKey) url = `https://${REPO_DOMAINS.RESEARCH_DATA}/templates/${uuid}`;
-        else {
-            const encodedUrl = encodeURIComponent(`https://${REPO_DOMAINS.REPO_DEV}/templates/${uuid}`);
-            url = `https://${REPO_DOMAINS.OPEN_DEV}/templates/${encodedUrl}`;
-        }
-        const rawString = await this.smartFetchSchema(url, apiKey);
-        await this.processAndSaveSchema(rawString, 'remote');
+        const { content, finalUrl } = await this.fetchWithAuthFallback(url, apiKeyVar?.value);
+        await this.processAndSaveSchema(content, 'remote', undefined, {
+            conformsTo: uuid,
+            downloadUrl: finalUrl
+        });
     }
 
-    protected async filterMissingSchemas(uuids: string[]): Promise<string[]> {
-        const root = await this.getAromaRootUri();
-        if (!root) return uuids;
-        const checkFolder = async (type: 'local' | 'remote'): Promise<string[]> => {
-            const dir = root.resolve(`metadata-schemas/cedar/${type}`);
-            if (!await this.fileService.exists(dir)) return [];
-            const stat = await this.fileService.resolve(dir);
-            if (!stat || !stat.children) return [];
-            const found: string[] = [];
-            for (const file of stat.children) {
-                if (!file.name.endsWith('.json')) continue;
-                try {
-                    const content = await this.fileService.read(file.resource);
-                    const parsed = JSON.parse(content.value);
-                    const refId = parsed[SCHEMA_FIELD_ID];
-                    if (refId && typeof refId === 'string') {
-                         uuids.forEach(uuid => { if (refId.includes(uuid)) found.push(uuid); });
-                    }
-                } catch { /* ignore */ }
-            }
-            return found;
-        };
-        const foundLocal = await checkFolder('local');
-        const foundRemote = await checkFolder('remote');
-        const allFound = new Set([...foundLocal, ...foundRemote]);
-        return uuids.filter(uuid => !allFound.has(uuid));
+    public async getSchemaByConformsTo(conformsToUrl: string): Promise<SchemaInfo | undefined> {
+        const all = await this.loadAllSchemas();
+        return all.find(s => s.conformsTo === conformsToUrl || s.reference === conformsToUrl);
+    }
+
+    protected async filterMissingSchemas(ids: string[]): Promise<string[]> {
+        const localSchemas = await this.loadAllSchemas();
+        
+        return ids.filter(reqId => {
+            const exists = localSchemas.some(local => 
+                local.reference === reqId || 
+                local.conformsTo === reqId
+            );
+            return !exists;
+        });
     }
 
     public async importFiles(fileUris: URI[], progress: any): Promise<{ success: number; fail: number }> {
@@ -251,12 +318,17 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         let fail = 0;
         const total = fileUris.length;
         progress.report({ message: 'Reading Files...', work: { done: 0, total } });
+        
         for (let i = 0; i < total; i++) {
             const fileUri = fileUris[i];
             const fileName = fileUri.path.base;
             try {
                 const content = await this.fileService.read(fileUri);
-                await this.processAndSaveSchema(content.value, 'local', fileName);
+                // Pass empty conformsTo to trigger automatic derivation
+                await this.processAndSaveSchema(content.value, 'local', fileName, {
+                    downloadUrl: '',
+                    conformsTo: ''
+                });
                 success++;
             } catch (error) {
                 fail++;
@@ -266,16 +338,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         }
         if (success > 0) this.onDidChangeSchemasEmitter.fire();
         return { success, fail };
-    }
-
-    public async importFromUrl(url: string, apiKey: string | undefined, progress: any): Promise<string> {
-        progress.report({ message: 'Downloading...', work: { done: 20, total: 100 } });
-        const rawString = await this.smartFetchSchema(url, apiKey);
-        progress.report({ message: 'Processing...', work: { done: 50, total: 100 } });
-        const schemaName = await this.processAndSaveSchema(rawString, 'remote');
-        progress.report({ work: { done: 100, total: 100 } });
-        this.onDidChangeSchemasEmitter.fire();
-        return schemaName;
     }
 
     public async getConvertedProfileContent(sourcePath: string): Promise<any> {
@@ -291,26 +353,95 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         }
     }
 
-    private async processAndSaveSchema(rawContent: string, type: 'local' | 'remote', originalFileName?: string): Promise<string> {
+    private simpleHash(str: string): string {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = (hash << 5) - hash + char;
+            hash = hash & hash;
+        }
+        return Math.abs(hash).toString(16);
+    }
+
+    /**
+     * Logic to determine the correct conformsTo URL based on the schema's @id.
+     */
+    public deriveConformsToFromId(schemaId: string): string {
+        const PROD_PREFIX = 'https://repo.schema.researchdata.hu/templates/';
+        const DEV_PREFIX = 'https://repo.cedardev.dsd.sztaki.hu/templates/';
+        
+        const W3ID_PROD = 'https://w3id.org/arp/schema/';
+        const W3ID_DEV = 'https://w3id.org/arp/dev/schema/';
+
+        if (schemaId.startsWith(PROD_PREFIX)) {
+            const uuid = schemaId.substring(PROD_PREFIX.length);
+            return W3ID_PROD + uuid;
+        }
+        
+        if (schemaId.startsWith(DEV_PREFIX)) {
+            const uuid = schemaId.substring(DEV_PREFIX.length);
+            return W3ID_DEV + uuid;
+        }
+
+        // Fallback: If it doesn't match known patterns, use the @id itself
+        return schemaId;
+    }
+
+    private async processAndSaveSchema(
+        rawContent: string, 
+        type: 'local' | 'remote', 
+        originalFileName?: string,
+        metadata?: { conformsTo: string, downloadUrl: string }
+    ): Promise<string> {
         let parsedRaw: any;
-        try { parsedRaw = JSON.parse(rawContent); } catch (e) { throw new Error('Invalid JSON format'); }
+        try { 
+            parsedRaw = JSON.parse(rawContent); 
+        } catch (e) { 
+            throw new Error('Invalid JSON format'); 
+        }
+
         const schemaName = parsedRaw[SCHEMA_FIELD_NAME];
         const schemaVersion = parsedRaw[SCHEMA_FIELD_VERSION];
-        if (!schemaName || !schemaVersion) throw new Error(`Missing required fields: ${SCHEMA_FIELD_NAME} or ${SCHEMA_FIELD_VERSION}`);
+        const schemaId = parsedRaw[SCHEMA_FIELD_ID] || ''; 
+        
+        if (!schemaName || !schemaVersion) {
+            throw new Error(`Missing required fields: ${SCHEMA_FIELD_NAME} or ${SCHEMA_FIELD_VERSION}`);
+        }
+
+        if (metadata) {
+            // FIX: If conformsTo is missing/empty, derive it from @id
+            if (!metadata.conformsTo) {
+                metadata.conformsTo = this.deriveConformsToFromId(schemaId);
+            }
+            parsedRaw[AROMA_METADATA_FIELD] = metadata;
+            rawContent = JSON.stringify(parsedRaw, null, 2);
+        }
+
         let fileName = originalFileName;
         if (!fileName || type === 'remote') {
-            fileName = `remote_${schemaName.toLowerCase().replace(/\s+/g, '_')}_v${schemaVersion}.json`;
+            const uniqueHash = this.simpleHash(schemaId);
+            const safeName = schemaName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+            fileName = `remote_${safeName}_v${schemaVersion}_${uniqueHash}.json`;
         }
+
         let convertedContent: string;
-        try { convertedContent = this.converter.processCedarTemplate(rawContent); } catch (convErr) { throw new Error(`Conversion logic failed: ${convErr}`); }
+        try { 
+            convertedContent = this.converter.processCedarTemplate(rawContent); 
+        } catch (convErr) { 
+            throw new Error(`Conversion logic failed: ${convErr}`); 
+        }
+
         const root = await this.getAromaRootUri();
         if (!root) throw new Error('Root directory configuration missing');
+
         const cedarUri = root.resolve(`metadata-schemas/cedar/${type}/${fileName}`);
         const roCrateUri = root.resolve(`metadata-schemas/ro-crate/${type}/${fileName}`);
+
         await Promise.all([
             this.fileService.write(cedarUri, rawContent),
             this.fileService.write(roCrateUri, convertedContent)
         ]);
+
         return schemaName;
     }
 
@@ -319,18 +450,31 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         for (const source of ['local', 'remote'] as const) {
             const cedarDir = await this.getCedarDir(source);
             if (!cedarDir || !await this.fileService.exists(cedarDir)) continue;
+            
             const stat = await this.fileService.resolve(cedarDir);
             if (!stat?.children) continue;
+
             for (const file of stat.children) {
                 if (!file.name.endsWith('.json')) continue;
                 try {
                     const content = await this.fileService.read(file.resource);
                     const parsed = JSON.parse(content.value);
+                    
                     const schemaName = parsed[SCHEMA_FIELD_NAME];
                     const schemaVersion = parsed[SCHEMA_FIELD_VERSION];
                     const schemaId = parsed[SCHEMA_FIELD_ID];
+                    const extraMeta = parsed[AROMA_METADATA_FIELD] || {};
+
                     if (schemaName && schemaVersion) {
-                        schemas.push({ name: schemaName, version: schemaVersion, reference: schemaId || '', source, path: file.resource.toString() });
+                        schemas.push({ 
+                            name: schemaName, 
+                            version: schemaVersion, 
+                            reference: schemaId || '', 
+                            source, 
+                            path: file.resource.toString(),
+                            conformsTo: extraMeta.conformsTo || '',
+                            downloadUrl: extraMeta.downloadUrl || ''
+                        });
                     }
                 } catch { /* ignore */ }
             }
@@ -367,34 +511,23 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return root.resolve(`metadata-schemas/cedar/${type}`);
     }
 
-    /**
-     * Merges CEDAR templates into one profile
-     * @param crate
-     * @param baseProfile
-     * @returns Merged profile
-     */
+    // --- LEGACY MERGING LOGIC ---
     public async getMergedProfile(crate: Record<string, any>, newProfile: Record<string, any>, profile: Record<string, any>, profileUrl?: string) {
-
-    const entities: any = Object.values(crate["@graph"]).filter((entity: any) => entity["@type"] != "CreativeWork")
-
-    for (const entity of entities) {
-        const entityType = Array.isArray(entity["@type"]) ? entity["@type"][0] : entity["@type"]
-        const conformsTos = entity['conformsTo'] ? (Array.isArray(entity['conformsTo']) ? entity['conformsTo'] : [entity['conformsTo']]) : undefined;
-
-        if (!conformsTos) {
-            continue
+        const entities: any = Object.values(crate["@graph"]).filter((entity: any) => entity["@type"] != "CreativeWork")
+        for (const entity of entities) {
+            const entityType = Array.isArray(entity["@type"]) ? entity["@type"][0] : entity["@type"]
+            const conformsTos = entity['conformsTo'] ? (Array.isArray(entity['conformsTo']) ? entity['conformsTo'] : [entity['conformsTo']]) : undefined;
+            if (!conformsTos) { continue }
+            try {
+                console.log("ADDING PROFILE", profileUrl)
+                this.addProfileToClass(newProfile, entityType, profile, profileUrl)
+            } catch (error) {
+                console.error(error)
+                throw error
+            }
         }
-
-        try {
-            this.addProfileToClass(newProfile, entityType, profile, profileUrl)
-        } catch (error) {
-            console.error(error)
-            throw error
-        }
-    }
-
-    console.debug("MERGED PROFILE", profile)
-    return profile
+        console.debug("MERGED PROFILE", profile)
+        return profile
     }
 
     protected addProfileToClass(profileToAdd: Record<string, any>, className: string, rootProfile: Record<string, any>, profileUrl?: string) {
@@ -402,78 +535,41 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             console.warn('Invalid profileToAdd structure:', profileToAdd);
             return;
         }
-    const inputs = profileToAdd.classes.Dataset.inputs
-    let theClass = rootProfile.classes[className]
-    if (!theClass) {
-        theClass = {
-            inputs: []
+        const inputs = profileToAdd.classes.Dataset.inputs
+        let theClass = rootProfile.classes[className]
+        if (!theClass) {
+            theClass = { inputs: [] }
+            rootProfile.classes[className] = theClass
         }
-        rootProfile.classes[className] = theClass
-    }
-    // Disable the "Add property" button
-    theClass.definition = "override"
-
-    let name = this.nameWithoutMetadataSuffix(profileToAdd.metadata.name)
-    let desc: string | null = profileToAdd.metadata.description
-    // let desc = nameWithoutMetadataSuffix(profileToAdd.metadata.description)
-
-    // If the description is the same as the name, ignore that
-    if (name == this.nameWithoutMetadataSuffix(desc)) {
-        desc = null
-    }
-
-    // Assign each field to the layout group
-    profileToAdd.classes["Dataset"].inputs.forEach((input: Record<string, any>) => input.group = name)
-
-    // Merge them with input profile
-    theClass.inputs = [...theClass.inputs, ...inputs]
-
-    let layouts = rootProfile.layouts
-    if (!layouts) {
-        layouts = rootProfile.layouts = []
-    }
-    let selectedLayout = layouts.find((layout: any) => layout.appliesTo.includes(className))
-    let language = rootProfile.localisation?.language || "en"
-    if (!selectedLayout) {
-        selectedLayout = {
-        appliesTo: [className],
-        "about": {
-            label: language == "hu" ? "Alap" : "About",
-        },
-        "overflow": {
-            label: language == "hu" ? "Egyéb" : "Other",
+        theClass.definition = "override"
+        let name = this.nameWithoutMetadataSuffix(profileToAdd.metadata.name)
+        let desc: string | null = profileToAdd.metadata.description
+        if (name == this.nameWithoutMetadataSuffix(desc)) { desc = null }
+        profileToAdd.classes["Dataset"].inputs.forEach((input: Record<string, any>) => input.group = name)
+        theClass.inputs = [...theClass.inputs, ...inputs]
+        let layouts = rootProfile.layouts
+        if (!layouts) { layouts = rootProfile.layouts = [] }
+        let selectedLayout = layouts.find((layout: any) => layout.appliesTo.includes(className))
+        let language = rootProfile.localisation?.language || "en"
+        if (!selectedLayout) {
+            selectedLayout = {
+                appliesTo: [className],
+                "about": { label: language == "hu" ? "Alap" : "About", },
+                "overflow": { label: language == "hu" ? "Egyéb" : "Other", }
+            }
+            layouts.push(selectedLayout)
         }
+        selectedLayout[name!] = { label: name!, description: desc, url: profileUrl || undefined }
+        const overflow = selectedLayout["overflow"];
+        delete selectedLayout["overflow"]
+        selectedLayout["overflow"] = overflow
+        for (let className in profileToAdd.classes) {
+            if (className != "Dataset" && !rootProfile.classes[className]) {
+                rootProfile.classes[className] = profileToAdd.classes[className]
+            }
         }
-        layouts.push(selectedLayout)
-    }
-
-    selectedLayout[name!] = {
-        label: name!,
-        description: desc,
-        url: profileUrl || undefined
-    }
-
-    // The "overflow" builtin tab should always be the last one.
-    const overflow = selectedLayout["overflow"];
-    delete selectedLayout["overflow"]
-    selectedLayout["overflow"] = overflow
-
-
-    // Add missing classes
-    for (let className in profileToAdd.classes) {
-        if (className != "Dataset" && !rootProfile.classes[className]) {
-        rootProfile.classes[className] = profileToAdd.classes[className]
-        }
-    }
-
-    if (!rootProfile.localisation) {
-        rootProfile.localisation = {}
-    }
-
-    rootProfile.localisation = {
-        ...rootProfile.localisation,
-        ...profileToAdd.localisation
-    }
+        if (!rootProfile.localisation) { rootProfile.localisation = {} }
+        rootProfile.localisation = { ...rootProfile.localisation, ...profileToAdd.localisation }
     }
 
     public nameWithoutMetadataSuffix(name: string | null) {
@@ -483,38 +579,23 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return name.replace(/ (metadata|metaadatok|metaadatai|metaadat)$/i, '');
     }
 
-    /**
-     * Convert w3id based conformsTo URL-s to actual cedar template URL-s. We always want to work with template URL-s once
-     * we downloaded the crate json.
-     *
-     * @param w3idUrls
-     */
-    public convertW3idUrlsToCedarTemplateUrls(w3idUrls: string[]) {
-        // https://w3id.org/arp/localdev/schema/33677b82-7973-3e4c-b09d-b5189e095627
-        // --> https://repo.arp.orgx/template/33677b82-7973-3e4c-b09d-b5189e095627
-        return w3idUrls.map((url: string) => this.convertW3idUrlToCedarTemplateUrl(url))
-    }
+    // public convertW3idUrlsToCedarTemplateUrls(w3idUrls: string[]) {
+    //     return w3idUrls.map((url: string) => this.convertW3idUrlToCedarTemplateUrl(url))
+    // }
 
-    protected convertW3idUrlToCedarTemplateUrl(url: string) {
-        // If already a CEDAR template URL, ignore.
-        if (url.startsWith("https://repo.")) {
-            return url
-        }
-        const uuid = url.split("schema/").pop();
-        return "https://" + REPO_DOMAINS.RESEARCH_DATA + "/templates/" + uuid
-    }
+    // protected convertW3idUrlToCedarTemplateUrl(url: string) {
+    //     if (url.startsWith("https://repo.")) { return url }
+    //     const uuid = url.split("schema/").pop();
+    //     return "https://" + REPO_DOMAINS.REPO_DEV + "/templates/" + uuid
+    // }
 
-    protected convertCedarTemplateUrlsToW3idUrls(cedarUrls: string[]) {
-        return cedarUrls.map((url: string) => this.convertCedarTemplateUrlToW3idUrl(url))
-    }
+    // protected convertCedarTemplateUrlsToW3idUrls(cedarUrls: string[]) {
+    //     return cedarUrls.map((url: string) => this.convertCedarTemplateUrlToW3idUrl(url))
+    // }
 
-    public convertCedarTemplateUrlToW3idUrl(url: string) {
-        if (url.startsWith(REPO_DOMAINS.W3ID_BASE)) {
-            return url
-        }
-        const uuid = url.split("templates/").pop()
-        return REPO_DOMAINS.W3ID_BASE + "/schema/" + uuid
-    }
-
+    // public convertCedarTemplateUrlToW3idUrl(url: string) {
+    //     if (url.startsWith(REPO_DOMAINS.W3ID_BASE)) { return url }
+    //     const uuid = url.split("templates/").pop()
+    //     return REPO_DOMAINS.W3ID_BASE + "/schema/" + uuid
+    // }
 }
-

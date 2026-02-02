@@ -41,7 +41,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
             <span style={{ color: filtered ? '#1890ff' : undefined }}>🔍</span>
         ),
         onFilter: (value: boolean | Key, record: SchemaInfo) =>
-            record[dataIndex].toString().toLowerCase().includes(value.toString().toLowerCase()),
+            (record[dataIndex] || '').toString().toLowerCase().includes(value.toString().toLowerCase()),
         onFilterDropdownOpenChange: (visible: boolean) => {
             if (visible) setTimeout(() => searchInput.current?.select(), 100);
         },
@@ -57,29 +57,45 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
         {
             title: 'Version',
             dataIndex: 'version',
-            width: 100,
+            width: 90,
             sorter: (a, b) => a.version.localeCompare(b.version),
         },
         {
             title: 'Source',
             dataIndex: 'source',
-            width: 100,
+            width: 90,
             filters: [{ text: 'Local', value: 'local' }, { text: 'Remote', value: 'remote' }],
             onFilter: (value, record) => record.source === value,
         },
+        // FIX: Added Render for Hyperlink
         {
-            title: 'Reference (@id)',
+            title: 'Ref (@id)',
             dataIndex: 'reference',
             ellipsis: true,
             ...getColumnSearchProps('reference'),
+            render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>{text}</a> : ''
         },
+        {
+            title: 'Conforms To',
+            dataIndex: 'conformsTo',
+            ellipsis: true,
+            ...getColumnSearchProps('conformsTo'),
+            render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>{text}</a> : ''
+        },
+        {
+            title: 'Download URL',
+            dataIndex: 'downloadUrl',
+            ellipsis: true,
+            ...getColumnSearchProps('downloadUrl'),
+            render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>{text}</a> : ''
+        }
     ];
 
     if (onDelete) {
         columns.push({
             title: 'Action',
             key: 'action',
-            width: 90,
+            width: 80,
             render: (_, record) => (
                 <Button 
                     type="link" danger size="small" 

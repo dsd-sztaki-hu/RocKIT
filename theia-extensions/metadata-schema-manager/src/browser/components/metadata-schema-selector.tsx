@@ -165,7 +165,7 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
             const crate = appState.roCrate;
             if (crate && Array.isArray(crate['@graph'])) {
                 const entityId = appState.selectedEntityId ?? './';
-                const w3id = selectedSchema.reference ? service.convertCedarTemplateUrlToW3idUrl(selectedSchema.reference) : '';
+                const w3id = selectedSchema.conformsTo ? service.deriveConformsToFromId(selectedSchema.reference) : '';
                 if (w3id) {
                     const updatedGraph = (crate['@graph'] as any[]).map(entry => {
                         if (String(entry['@id']) !== entityId) return entry;

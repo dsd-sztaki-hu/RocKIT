@@ -190,9 +190,9 @@ export class RoCrateEditorWidget extends ReactWidget {
       return
     }
 
-    const w3idUrl = this.schemaManagerService.convertCedarTemplateUrlToW3idUrl(profileUrl)
+    const targetUrl = typeof profileUrl === 'string' ? profileUrl.trim() : ''
     const crate = this.appStateService.roCrate ?? this.localCrate
-    if (!crate) {
+    if (!crate || !targetUrl) {
       return
     }
     const graph = Array.isArray(crate['@graph']) ? (crate['@graph'] as any[]) : []
@@ -204,9 +204,9 @@ export class RoCrateEditorWidget extends ReactWidget {
     const value: any = entity.conformsTo
     const matches = (v: any) => {
       if (!v) return false
-      if (typeof v === 'string') return v === w3idUrl
+      if (typeof v === 'string') return v.trim() === targetUrl
       const idVal = (v as any)['@id'] ?? (v as any).id
-      return typeof idVal === 'string' && idVal === w3idUrl
+      return typeof idVal === 'string' && idVal.trim() === targetUrl
     }
     let updatedConformsTo: any
     if (Array.isArray(value)) {
@@ -371,13 +371,13 @@ export class RoCrateEditorWidget extends ReactWidget {
     this.isRefreshingProfile = true
     try {
       this.computeConformsToIdsForSelectedEntity()
-      const conformsToUrls = this.schemaManagerService.convertW3idUrlsToCedarTemplateUrls(
-        this.conformsToIds,
-      )
+      // const conformsToUrls = this.schemaManagerService.convertW3idUrlsToCedarTemplateUrls(
+      //   this.conformsToIds,
+      // )
       const allSchemas = await this.schemaManagerService.loadAllSchemas()
-      for (const conformsToUrl of conformsToUrls) {
+      for (const conformsToUrl of this.conformsToIds) {
         const matchingSchema = allSchemas.find(
-          (schema) => schema.reference === conformsToUrl,
+          (schema) => schema.conformsTo === conformsToUrl
         )
         if (matchingSchema) {
           const convertedContent =
@@ -432,6 +432,8 @@ export class RoCrateEditorWidget extends ReactWidget {
         delete entity[input.name];
       }
     }
+    this.refreshProfileForSelectedEntity()
+    this.update()
   }
 
   protected removeEntityFromGraph(crate: Record<string, any>, entityId: string, keepOrphans: boolean = false) {
