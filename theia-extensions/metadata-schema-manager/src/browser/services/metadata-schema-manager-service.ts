@@ -21,7 +21,7 @@ const REPO_DOMAINS = {
     OPEN_DEV: 'open.cedardev.dsd.sztaki.hu',
     REPO_DEV: 'repo.cedardev.dsd.sztaki.hu',
     RESEARCH_DATA: 'repo.schema.researchdata.hu',
-    W3ID_BASE: 'https://w3id.org/arp/dev'
+    W3ID_BASE: 'https://w3id.org/arp'
 };
 const LEGACY_DOMAIN_BASE = 'schema.researchdata.hu';
 
@@ -372,7 +372,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
      * @param baseProfile
      * @returns Merged profile
      */
-    public async getMergedProfile(crate: Record<string, any>, newProfile: Record<string, any>, profile: Record<string, any>) {
+    public async getMergedProfile(crate: Record<string, any>, newProfile: Record<string, any>, profile: Record<string, any>, profileUrl?: string) {
 
     const entities: any = Object.values(crate["@graph"]).filter((entity: any) => entity["@type"] != "CreativeWork")
 
@@ -384,27 +384,11 @@ export class SchemaManagerService implements FrontendApplicationContribution {
             continue
         }
 
-        // const conformsToUrls: string[] = this.convertW3idUrlsToCedarTemplateUrls(conformsTos.map(c => c["@id"]))
-
         try {
-        //     const templateMap = await this.getCedarTemplates(conformsToUrls)
-
-        //     const actualTemplates: Record<string, any>[] = []
-        //     templateMap.forEach((value: Record<string, any>, key: string) => {
-        //         if (typeof value != "string") {
-        //         actualTemplates.push(value)
-        //         }
-        //     })
-
-        //     const profilesForCedar = await getProfilesForCedarTemplates(actualTemplates).catch(err => { throw err })
-
-        //     // Add each profile to the File class
-        //     profilesForCedar.forEach((p: Record<string, any>) => {
-                this.addProfileToClass(newProfile, entityType, profile)
-            // })
+            this.addProfileToClass(newProfile, entityType, profile, profileUrl)
         } catch (error) {
-        console.error(error)
-        throw error
+            console.error(error)
+            throw error
         }
     }
 
@@ -412,7 +396,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
     return profile
     }
 
-    protected addProfileToClass(profileToAdd: Record<string, any>, className: string, rootProfile: Record<string, any>) {
+    protected addProfileToClass(profileToAdd: Record<string, any>, className: string, rootProfile: Record<string, any>, profileUrl?: string) {
         if (!profileToAdd || !profileToAdd.classes || !profileToAdd.classes.Dataset) {
             console.warn('Invalid profileToAdd structure:', profileToAdd);
             return;
@@ -464,7 +448,8 @@ export class SchemaManagerService implements FrontendApplicationContribution {
 
     selectedLayout[name!] = {
         label: name!,
-        description: desc
+        description: desc,
+        url: profileUrl || undefined
     }
 
     // The "overflow" builtin tab should always be the last one.
@@ -490,7 +475,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
     }
     }
 
-    protected nameWithoutMetadataSuffix(name: string | null) {
+    public nameWithoutMetadataSuffix(name: string | null) {
         if (!name || name == "") {
             return null;
         }
@@ -515,7 +500,7 @@ export class SchemaManagerService implements FrontendApplicationContribution {
             return url
         }
         const uuid = url.split("schema/").pop();
-        return "https://" + REPO_DOMAINS.REPO_DEV + "/templates/" + uuid
+        return "https://" + REPO_DOMAINS.RESEARCH_DATA + "/templates/" + uuid
     }
 
     protected convertCedarTemplateUrlsToW3idUrls(cedarUrls: string[]) {

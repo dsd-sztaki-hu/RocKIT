@@ -180,7 +180,7 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
                 }
             }
             const newProfileContent = await service.getConvertedProfileContent(selectedSchema.path);
-            const mergedProfile = await service.getMergedProfile(appState.roCrate!, newProfileContent!, appState.profile!);
+            const mergedProfile = await service.getMergedProfile(appState.roCrate!, newProfileContent!, appState.profile!, selectedSchema.reference);
             appState.updateState({ profile: mergedProfile, openSchemaSelectorWindow: false });
         } catch (e) {
             utils.msg.error('Failed to load profile content.', { timeout: MSG_TIMEOUT });
