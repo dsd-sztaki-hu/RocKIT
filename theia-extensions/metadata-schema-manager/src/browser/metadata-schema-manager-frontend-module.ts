@@ -7,6 +7,7 @@ import { MetadataSchemaManagerContribution } from './metadata-schema-manager-con
 import { SchemaManagerService } from './services/metadata-schema-manager-service';
 import { MetadataSchemaSelectorContribution } from './components/metadata-schema-selector'; 
 import { RemoteSchemaBrowserContribution } from './components/remote-schema-browser-dialog';
+import { MetadataSchemaManager as MetadataSchemaManagerToken } from 'aroma2-common/lib/browser';
 
 import './style/index.css';
 
@@ -21,6 +22,7 @@ export default new ContainerModule(bind => {
     // 2. Service
     bind(SchemaManagerService).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(SchemaManagerService);
+    bind(MetadataSchemaManagerToken).toService(SchemaManagerService);
 
     // 3. Manager Contribution
     bind(MetadataSchemaManagerContribution).toSelf().inSingletonScope();

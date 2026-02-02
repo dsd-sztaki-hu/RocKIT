@@ -249,4 +249,12 @@ export class AppStateService {
   set openSchemaSelectorWindow(value: AppState['openSchemaSelectorWindow']) {
     this.updateState({ openSchemaSelectorWindow: value })
   }
+
+  get completeProfile(): AppState['completeProfile'] {
+    return this.getState().completeProfile
+  }
+  set completeProfile(value: AppState['completeProfile']) {
+    console.log('AppStateService: Setting completeProfile to:', value)
+    this.updateState({ completeProfile: value })
+  }
 }

@@ -11,6 +11,7 @@ import { Modal } from 'antd';
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
 import type { SchemaInfo } from '../types';
 import { SchemaApi } from './schema-api';
+import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'aroma2-common/lib/browser';
 
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
@@ -26,7 +27,7 @@ const REPO_DOMAINS = {
 const LEGACY_DOMAIN_BASE = 'schema.researchdata.hu';
 
 @injectable()
-export class SchemaManagerService implements FrontendApplicationContribution {
+export class SchemaManagerService implements FrontendApplicationContribution, MetadataSchemaManagerContract {
     
     @inject(AppStateService) protected readonly appStateService!: AppStateService;
     @inject(FileService) protected readonly fileService!: FileService;
