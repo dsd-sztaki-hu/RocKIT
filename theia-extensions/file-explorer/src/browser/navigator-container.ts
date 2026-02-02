@@ -27,7 +27,7 @@ export const FILE_NAVIGATOR_PROPS = <TreeProps>{
     ...defaultTreeProps,
     contextMenuPath: NAVIGATOR_CONTEXT_MENU,
     multiSelect: true,
-    search: true,
+    search: false,
     globalSelection: true
 };
 

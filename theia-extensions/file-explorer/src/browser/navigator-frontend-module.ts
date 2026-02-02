@@ -15,6 +15,7 @@
 // *****************************************************************************
 
 import './style/index.css'
+import './style/navigator-filter.css'
 import './open-editors-widget/open-editors.css'
 
 import {

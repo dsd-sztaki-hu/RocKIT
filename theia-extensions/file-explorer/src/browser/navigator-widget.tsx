@@ -31,11 +31,13 @@ import URI from '@theia/core/lib/common/uri'
 import { Message } from '@theia/core/shared/@lumino/messaging'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
+import { Button, Select } from 'antd'
 import { DirNode, FileStatNode, FileStatNodeData } from '@theia/filesystem/lib/browser'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
+import { FileNavigatorFilter } from './navigator-filter'
 import { FileNavigatorModel } from './navigator-model'
 import { WorkspaceNode, WorkspaceRootNode } from './navigator-tree'
 
@@ -50,6 +52,15 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   protected readonly contextKeyService: NavigatorContextKeyService
   @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService
   @inject(AppStateService) protected readonly appStateService: AppStateService
+  @inject(FileNavigatorFilter) protected readonly fileNavigatorFilter: FileNavigatorFilter
+
+  protected readonly filters: {
+    fileNameFilter: string
+    roCrateFilter: FileNavigatorFilter.RoCrateFilter
+  } = {
+    fileNameFilter: '',
+    roCrateFilter: 'all',
+  }
 
   constructor(
     @inject(TreeProps) props: TreeProps,
@@ -126,6 +137,67 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       return this.renderEmptyMultiRootWorkspace()
     }
     return super.renderTree(model)
+  }
+
+  protected override render(): React.ReactNode {
+    const hasActiveFilters =
+      this.filters.fileNameFilter.trim() !== '' || this.filters.roCrateFilter !== 'all'
+    return (
+      <div className="navigator-filter-panel">
+        <div className="navigator-filters">
+          <div className="navigator-filter-header">
+            <span className="navigator-filter-title">Filters</span>
+          </div>
+          <div className="navigator-filter-fields">
+            <label className="navigator-filter-row">
+              <span className="navigator-filter-label">File name</span>
+              <input
+                className="navigator-filter-input"
+                type="text"
+                placeholder="Search file name"
+                value={this.filters.fileNameFilter}
+                onChange={(event) => this.onFileNameFilterChange(event)}
+                onKeyDown={(event) => event.stopPropagation()}
+              />
+            </label>
+            <label className="navigator-filter-row">
+              <span className="navigator-filter-label">RO-Crate descriptions</span>
+              <div onKeyDown={(event) => event.stopPropagation()}>
+                <Select
+                  className="navigator-rocrate-select"
+                  value={this.filters.roCrateFilter}
+                  options={[
+                    { value: 'all', label: 'All files' },
+                    { value: 'with-description', label: 'With RO-Crate description' },
+                    { value: 'without-description', label: 'Missing RO-Crate description' },
+                  ]}
+                  onChange={(value) =>
+                    this.onRoCrateFilterChange(value as FileNavigatorFilter.RoCrateFilter)
+                  }
+                  size="small"
+                />
+              </div>
+            </label>
+          </div>
+          <div className="navigator-filter-actions">
+            <Button
+              className="navigator-filter-clear"
+              danger
+              ghost
+              block
+              disabled={!hasActiveFilters}
+              onClick={() => this.clearFilters()}
+              onKeyDown={(event: React.KeyboardEvent<HTMLButtonElement>) =>
+                event.stopPropagation()
+              }
+            >
+              Clear filters
+            </Button>
+          </div>
+        </div>
+        <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
+      </div>
+    )
   }
 
   protected override createContainerAttributes(): React.HTMLAttributes<HTMLElement> {
@@ -312,41 +384,34 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   }
 
   private shouldHighlightFile(node: FileStatNode): boolean {
-    const entityNames = this.getRoCrateEntityNames()
-    if (entityNames.size === 0) {
+    if (!this.fileNavigatorFilter.hasRoCrateData()) {
       return false
     }
     const fileName = node.fileStat.name.trim().toLowerCase()
-    return !entityNames.has(fileName)
+    return !this.fileNavigatorFilter.hasRoCrateDescription(fileName)
   }
 
-  private getRoCrateEntityNames(): Set<string> {
-    const crate = this.appStateService.roCrate
-    if (!crate) {
-      return new Set()
-    }
-    const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
-    const names = new Set<string>()
-    for (const entry of graph) {
-      if (!entry || typeof entry !== 'object') {
-        continue
-      }
-      const candidate =
-        typeof entry.name === 'string'
-          ? entry.name
-          : typeof entry.title === 'string'
-            ? entry.title
-            : typeof entry['@id'] === 'string'
-              ? entry['@id']
-              : undefined
-      if (!candidate) {
-        continue
-      }
-      const normalized = candidate.trim().toLowerCase()
-      if (normalized) {
-        names.add(normalized)
-      }
-    }
-    return names
+  protected onFileNameFilterChange(event: React.ChangeEvent<HTMLInputElement>): void {
+    this.filters.fileNameFilter = event.target.value
+    this.applyFilters()
+  }
+
+  protected onRoCrateFilterChange(value: FileNavigatorFilter.RoCrateFilter): void {
+    this.filters.roCrateFilter = value
+    this.applyFilters()
+  }
+
+  protected applyFilters(): void {
+    this.fileNavigatorFilter.setFilters(
+      this.filters.fileNameFilter,
+      this.filters.roCrateFilter,
+    )
+    this.update()
+  }
+
+  protected clearFilters(): void {
+    this.filters.fileNameFilter = ''
+    this.filters.roCrateFilter = 'all'
+    this.applyFilters()
   }
 }

@@ -21,6 +21,8 @@ import { Event, Emitter } from '@theia/core/lib/common/event';
 import { FileSystemPreferences, FileSystemConfiguration } from '@theia/filesystem/lib/common/filesystem-preferences';
 import { FileNavigatorPreferences, FileNavigatorConfiguration } from '../common/navigator-preferences';
 import { PreferenceChangeEvent } from '@theia/core';
+import { DirNode, FileStatNode } from '@theia/filesystem/lib/browser';
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 
 /**
  * Filter for omitting elements from the navigator. For more details on the exclusion patterns,
@@ -32,9 +34,15 @@ export class FileNavigatorFilter {
 
     protected filterPredicate: FileNavigatorFilter.Predicate;
     protected showHiddenFiles: boolean;
+    protected nameFilter = '';
+    protected normalizedNameFilter = '';
+    protected roCrateFilter: FileNavigatorFilter.RoCrateFilter = 'all';
+    protected roCrateEntityNames = new Set<string>();
 
     @inject(FileSystemPreferences)
     protected readonly filesPreferences: FileSystemPreferences;
+    @inject(AppStateService)
+    protected readonly appStateService: AppStateService;
 
     constructor(
         @inject(FileNavigatorPreferences) protected readonly preferences: FileNavigatorPreferences
@@ -49,6 +57,11 @@ export class FileNavigatorFilter {
         this.filterPredicate = this.createFilterPredicate(this.filesPreferences['files.exclude']);
         this.filesPreferences.onPreferenceChanged(event => this.onFilesPreferenceChanged(event));
         this.preferences.onPreferenceChanged(event => this.onPreferenceChanged(event));
+        this.updateRoCrateEntityNames(this.appStateService.roCrate);
+        this.appStateService.onDidChangeSelector(state => state.roCrate)(crate => {
+            this.updateRoCrateEntityNames(crate);
+            this.fireFilterChanged();
+        });
     }
 
     async filter<T extends { id: string }>(items: MaybePromise<T[]>): Promise<T[]> {
@@ -60,7 +73,22 @@ export class FileNavigatorFilter {
     }
 
     protected filterItem(item: { id: string }): boolean {
-        return this.filterPredicate.filter(item);
+        if (!this.filterPredicate.filter(item)) {
+            return false;
+        }
+        if (DirNode.is(item)) {
+            return true;
+        }
+        if (!FileStatNode.is(item)) {
+            return true;
+        }
+        if (!this.matchesNameFilter(item)) {
+            return false;
+        }
+        if (!this.matchesRoCrateFilter(item)) {
+            return false;
+        }
+        return true;
     }
 
     protected fireFilterChanged(): void {
@@ -90,11 +118,85 @@ export class FileNavigatorFilter {
         this.fireFilterChanged();
     }
 
+    setFilters(nameFilter: string, roCrateFilter: FileNavigatorFilter.RoCrateFilter): void {
+        const normalizedNameFilter = nameFilter.trim().toLowerCase();
+        if (this.nameFilter === nameFilter && this.roCrateFilter === roCrateFilter) {
+            return;
+        }
+        this.nameFilter = nameFilter;
+        this.normalizedNameFilter = normalizedNameFilter;
+        this.roCrateFilter = roCrateFilter;
+        this.fireFilterChanged();
+    }
+
+    clearFilters(): void {
+        this.setFilters('', 'all');
+    }
+
+    hasRoCrateData(): boolean {
+        return this.roCrateEntityNames.size > 0;
+    }
+
+    hasRoCrateDescription(fileName: string): boolean {
+        if (!this.hasRoCrateData()) {
+            return false;
+        }
+        const normalized = fileName.trim().toLowerCase();
+        return Boolean(normalized) && this.roCrateEntityNames.has(normalized);
+    }
+
     protected interceptExclusions(exclusions: FileNavigatorFilter.Exclusions): FileNavigatorFilter.Exclusions {
         return {
             ...exclusions,
             '**/.*': this.showHiddenFiles
         };
+    }
+
+    protected matchesNameFilter(node: FileStatNode): boolean {
+        if (!this.normalizedNameFilter) {
+            return true;
+        }
+        return node.fileStat.name.toLowerCase().includes(this.normalizedNameFilter);
+    }
+
+    protected matchesRoCrateFilter(node: FileStatNode): boolean {
+        if (this.roCrateFilter === 'all') {
+            return true;
+        }
+        if (!this.hasRoCrateData()) {
+            return true;
+        }
+        const hasDescription = this.hasRoCrateDescription(node.fileStat.name);
+        if (this.roCrateFilter === 'with-description') {
+            return hasDescription;
+        }
+        return !hasDescription;
+    }
+
+    protected updateRoCrateEntityNames(crate: Record<string, any> | undefined): void {
+        const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : [];
+        const names = new Set<string>();
+        for (const entry of graph) {
+            if (!entry || typeof entry !== 'object') {
+                continue;
+            }
+            const candidate =
+                typeof entry.name === 'string'
+                    ? entry.name
+                    : typeof entry.title === 'string'
+                        ? entry.title
+                        : typeof entry['@id'] === 'string'
+                            ? entry['@id']
+                            : undefined;
+            if (!candidate) {
+                continue;
+            }
+            const normalized = candidate.trim().toLowerCase();
+            if (normalized) {
+                names.add(normalized);
+            }
+        }
+        this.roCrateEntityNames = names;
     }
 
 }
@@ -135,6 +237,8 @@ export namespace FileNavigatorFilter {
     export interface Exclusions {
         [key: string]: boolean;
     }
+
+    export type RoCrateFilter = 'all' | 'with-description' | 'without-description';
 
 }
 
