@@ -71,6 +71,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       this.appStateService.profile = undefined
     }
     await this.refreshCompleteProfile(this.appStateService.roCrate)
+    this.watchSchemaChanges()
 
     this.workspaceService.onWorkspaceChanged(() => {
       void this.syncRoCrateFromWorkspace()
@@ -216,6 +217,12 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     }
 
     this.appStateService.completeProfile = mergedProfile
+  }
+
+  protected watchSchemaChanges(): void {
+    this.schemaManagerService.onDidChangeSchemas(() => {
+      void this.refreshCompleteProfile(this.appStateService.roCrate)
+    })
   }
 
   protected extractAllConformsToIds(crate: Record<string, any>): string[] {
