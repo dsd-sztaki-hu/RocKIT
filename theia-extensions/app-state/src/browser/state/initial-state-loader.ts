@@ -14,7 +14,7 @@ export async function loadInitialCrateAndProfile(): Promise<
     // Webpack (used by Theia) will handle these imports and include them in the bundle.
     const [crateData, profileData] = await Promise.all([
       import('../../../data/crate.json'),
-      import('../../../data/profile.json'),
+      import('../../../data/init_profile.json'),
     ]);
 
     return {

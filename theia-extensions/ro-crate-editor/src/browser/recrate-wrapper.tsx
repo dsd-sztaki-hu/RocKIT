@@ -2,19 +2,21 @@ import { DescriboCrateBuilder } from '@arpproject/recrate'
 import * as React from 'react'
 
 export const DescriboCrateBuilderWrapper = ({
-  crate,
-  profile,
-  entityId,
-  onSaveCrate,
-  onNavigation,
-  onOpenSchemaManager,
+    crate,
+    profile,
+    entityId,
+    profileKey,
+    onSaveCrate,
+    onNavigation,
+    onOpenSchemaManager
 }: {
-  crate: Record<string, any> | undefined
-  profile: Record<string, any> | undefined
-  entityId: string | undefined
-  onSaveCrate: (data: any) => void
-  onNavigation: (entity: any) => void
-  onOpenSchemaManager: (requested: boolean) => void
+    crate: Record<string, any> | undefined;
+    profile: Record<string, any> | undefined;
+    entityId: string | undefined;
+    profileKey: number;
+    onSaveCrate: (data: any) => void;
+    onNavigation: (entity: any) => void;
+    onOpenSchemaManager: (requested: boolean) => void;
 }) => {
   const [currentEntityId, setCurrentEntityId] = React.useState<string | undefined>(
     entityId,
@@ -112,32 +114,31 @@ export const DescriboCrateBuilderWrapper = ({
     [onOpenSchemaManager],
   )
 
-  return (
-    <div ref={containerRef}>
-      {loading && (
-        <div style={{ padding: '0.5rem', color: '#888' }}>Loading entity...</div>
-      )}
-      <DescriboCrateBuilder
-        key={currentEntityId}
-        crate={crate}
-        profile={profile}
-        onAddNewProfileRequest={handleAddNewProfileRequest}
-        entityId={currentEntityId}
-        onSaveCrate={onSaveCrate}
-        onNavigation={handleNavigationWrapper}
-        onWarning={(w: any) => console.log('warning', w)}
-        onError={(e: any) => console.log('error', e)}
-        enableReverseLinkBrowser={true}
-        enableBrowseEntities={false}
-        enableCratePreview={false}
-        enableUrlMarkup={false}
-        language={'en'}
-        readonly={loading ? true : false}
-        tabLocation={'left'}
-        showControls={true}
-        resetTabOnEntityChange={false}
-        resetTabOnProfileChange={false}
-      />
-    </div>
-  )
-}
+    console.log("DescriboCrateBuilderWrapper", { crate, profile, entityId });
+    return (
+        <div ref={containerRef}>
+            {loading && <div style={{ padding: '0.5rem', color: '#888' }}>Loading entity...</div>}
+            <DescriboCrateBuilder
+                key={`${currentEntityId ?? 'none'}:${profileKey}`}
+                crate={crate}
+                profile={profile}
+                onAddNewProfileRequest={handleAddNewProfileRequest}
+                entityId={currentEntityId}
+                onSaveCrate={onSaveCrate}
+                onNavigation={handleNavigationWrapper}
+                onWarning={(w: any) => console.log("warning", w)}
+                onError={(e: any) => console.log("error", e)}
+                enableReverseLinkBrowser={true}
+                enableBrowseEntities={false}
+                enableCratePreview={false}
+                enableUrlMarkup={false}
+                language={"en"}
+                readonly={loading ? true : false}
+                tabLocation={"left"}
+                showControls={true}
+                resetTabOnEntityChange={false}
+                resetTabOnProfileChange={false}
+            />
+        </div>
+    );
+};

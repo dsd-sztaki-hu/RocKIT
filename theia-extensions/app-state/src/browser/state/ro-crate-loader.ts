@@ -6,7 +6,7 @@ import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { RoCrateHtmlGenerator, MetadataSchemaManager } from 'aroma2-common/lib/browser'
 import { AppStateService } from './app-state-service'
 import { ROCrateDialog } from './ro-crate-dialog'
 // import { loadInitialCrateAndProfile } from './initial-state-loader'
@@ -24,6 +24,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
   @inject(RoCrateHtmlGenerator)
   protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator
+
+  @inject(MetadataSchemaManager)
+  protected readonly schemaManagerService: MetadataSchemaManager
+
+  protected initialProfileTemplate?: Record<string, any>
 
   // With this hack we can use the local crate.json and profile.json files for testing purposes
   // async onStart(app: FrontendApplication): Promise<void> {
@@ -51,7 +56,21 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
   // }
 
   async onStart(app: FrontendApplication): Promise<void> {
+    await this.appStateService.ready
     await this.syncRoCrateFromWorkspace()
+
+    try {
+      const profileModule = await import('../../../data/init_profile.json')
+      this.initialProfileTemplate = profileModule.default
+      this.appStateService.setInitialProfileTemplate(profileModule.default)
+      this.appStateService.profile = this.appStateService.profile ?? profileModule.default
+    } catch (error) {
+      console.error('Failed to load initial profile data:', error)
+      this.initialProfileTemplate = undefined
+      this.appStateService.setInitialProfileTemplate(undefined)
+      this.appStateService.profile = undefined
+    }
+    await this.refreshCompleteProfile(this.appStateService.roCrate)
 
     this.workspaceService.onWorkspaceChanged(() => {
       void this.syncRoCrateFromWorkspace()
@@ -70,6 +89,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
     if (!roots || roots.length === 0) {
       this.updateState(undefined, false)
+      await this.refreshCompleteProfile(undefined)
       return
     }
 
@@ -85,18 +105,22 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         try {
           const jsonContent = JSON.parse(content.value)
           this.updateState(jsonContent, false)
+          await this.refreshCompleteProfile(jsonContent)
         } catch (parseError) {
           console.error('Parsing error: ', parseError)
           this.updateState(undefined, true)
+          await this.refreshCompleteProfile(undefined)
           void this.promptForCrateRecovery(rootUri, true)
         }
         return
       }
 
       this.updateState(undefined, false)
+      await this.refreshCompleteProfile(undefined)
       void this.promptForCrateRecovery(rootUri, false)
     } catch (error) {
       this.updateState(undefined, true)
+      await this.refreshCompleteProfile(undefined)
     }
   }
 
@@ -132,8 +156,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       const content = await this.fileService.read(roCrateUri)
       const jsonContent = JSON.parse(content.value)
       this.updateState(jsonContent, false)
+      await this.refreshCompleteProfile(jsonContent)
     } catch (error) {
       this.updateState(undefined, true)
+      await this.refreshCompleteProfile(undefined)
     }
   }
 
@@ -145,5 +171,102 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     this.appStateService.isROCrateInvalid = isInvalid
     this.appStateService.setRoCrateSnapshot(content)
     this.appStateService.dirty = false
+  }
+
+  protected async refreshCompleteProfile(
+    crate: Record<string, any> | undefined,
+  ): Promise<void> {
+    if (!crate) {
+      this.appStateService.completeProfile = this.cloneProfile(
+        this.initialProfileTemplate,
+      )
+      return
+    }
+
+    const baseProfile =
+      this.cloneProfile(this.initialProfileTemplate) ?? this.createEmptyProfile()
+    const conformsToIds = this.extractAllConformsToIds(crate)
+    if (conformsToIds.length === 0) {
+      this.appStateService.completeProfile = baseProfile
+      return
+    }
+
+    const conformsToUrls =
+      this.schemaManagerService.convertW3idUrlsToCedarTemplateUrls(conformsToIds)
+    const allSchemas = await this.schemaManagerService.loadAllSchemas()
+    let mergedProfile = baseProfile
+
+    for (const conformsToUrl of conformsToUrls) {
+      const matchingSchema = allSchemas.find(
+        (schema) => schema.reference === conformsToUrl,
+      )
+      if (!matchingSchema) {
+        continue
+      }
+      const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
+        matchingSchema.path,
+      )
+      if (convertedContent) {
+        mergedProfile = await this.schemaManagerService.getMergedProfile(
+          crate,
+          convertedContent,
+          mergedProfile,
+        )
+      }
+    }
+
+    this.appStateService.completeProfile = mergedProfile
+  }
+
+  protected extractAllConformsToIds(crate: Record<string, any>): string[] {
+    const rawGraph = crate?.['@graph']
+    const graph = Array.isArray(rawGraph) ? rawGraph : []
+    const ids = new Set<string>()
+    const pushId = (val: any) => {
+      if (!val) return
+      if (typeof val === 'string') {
+        const t = val.trim()
+        if (t) ids.add(t)
+        return
+      }
+      if (typeof val === 'object') {
+        const idVal = (val as any)['@id'] ?? (val as any).id
+        if (typeof idVal === 'string') {
+          const t = idVal.trim()
+          if (t) ids.add(t)
+        }
+      }
+    }
+
+    for (const entry of graph) {
+      if (!entry || typeof entry !== 'object') {
+        continue
+      }
+      const value: any = (entry as any).conformsTo
+      if (Array.isArray(value)) {
+        for (const v of value) pushId(v)
+      } else {
+        pushId(value)
+      }
+    }
+
+    return Array.from(ids)
+  }
+
+  protected cloneProfile(
+    profile: Record<string, any> | undefined,
+  ): Record<string, any> | undefined {
+    if (!profile) {
+      return undefined
+    }
+    try {
+      return JSON.parse(JSON.stringify(profile))
+    } catch {
+      return undefined
+    }
+  }
+
+  protected createEmptyProfile(): Record<string, any> {
+    return { classes: {}, layouts: [], localisation: {} }
   }
 }

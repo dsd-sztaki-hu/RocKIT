@@ -6,6 +6,7 @@ import { Modal, Button, Input } from 'antd';
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
+import { CommandRegistry } from '@theia/core/lib/common/command';
 
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { SchemaManagerService } from '../services/metadata-schema-manager-service';
@@ -22,6 +23,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
     @inject(FileDialogService) protected readonly fileDialogService!: FileDialogService;
     @inject(MessageService) protected readonly messageService!: MessageService;
     @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
+    @inject(CommandRegistry) protected readonly commandRegistry!: CommandRegistry;
 
     private container: HTMLDivElement | null = null;
     private reactRoot: ReactDOM.Root | null = null;
@@ -50,7 +52,8 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
                 utils={{
                     fileDialog: this.fileDialogService,
                     msg: this.messageService,
-                    env: this.envVariablesServer
+                    env: this.envVariablesServer,
+                    cmd: this.commandRegistry
                 }}
             />
         );
@@ -65,6 +68,7 @@ interface SelectorProps {
         fileDialog: FileDialogService;
         msg: MessageService;
         env: EnvVariablesServer;
+        cmd: CommandRegistry;
     }
 }
 
@@ -158,8 +162,26 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         if (!selectedSchema) return;
         try {
             setIsLoading(true);
-            const content = await service.getConvertedProfileContent(selectedSchema.path);
-            appState.updateState({ profile: content, openSchemaSelectorWindow: false });
+            const crate = appState.roCrate;
+            if (crate && Array.isArray(crate['@graph'])) {
+                const entityId = appState.selectedEntityId ?? './';
+                const w3id = selectedSchema.reference ? service.convertCedarTemplateUrlToW3idUrl(selectedSchema.reference) : '';
+                if (w3id) {
+                    const updatedGraph = (crate['@graph'] as any[]).map(entry => {
+                        if (String(entry['@id']) !== entityId) return entry;
+                        const existing = entry.conformsTo;
+                        const base = existing ? (Array.isArray(existing) ? existing.slice() : [existing]) : [];
+                        const normalized = base.map(v => (typeof v === 'string' ? { '@id': v } : v)).filter(v => v && typeof v['@id'] === 'string');
+                        const already = normalized.some(v => v['@id'] === w3id);
+                        const next = already ? normalized : [...normalized, { '@id': w3id }];
+                        return { ...entry, conformsTo: next };
+                    });
+                    appState.roCrate = { ...crate, '@graph': updatedGraph } as any;
+                }
+            }
+            const newProfileContent = await service.getConvertedProfileContent(selectedSchema.path);
+            const mergedProfile = await service.getMergedProfile(appState.roCrate!, newProfileContent!, appState.profile!);
+            appState.updateState({ profile: mergedProfile, openSchemaSelectorWindow: false });
         } catch (e) {
             utils.msg.error('Failed to load profile content.', { timeout: MSG_TIMEOUT });
         } finally {
