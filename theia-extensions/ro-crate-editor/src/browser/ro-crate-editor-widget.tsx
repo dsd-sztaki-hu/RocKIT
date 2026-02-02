@@ -2,6 +2,8 @@ import type { SaveOptions } from '@theia/core/lib/browser/saveable'
 import { SaveReason, setDirty } from '@theia/core/lib/browser/saveable'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { CommandService } from '@theia/core/lib/common'
+import URI from '@theia/core/lib/common/uri'
+import type { Navigatable } from '@theia/core/lib/browser'
 import { Emitter } from '@theia/core/lib/common/event'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
@@ -22,7 +24,7 @@ interface RoCrateEditorWidgetOptions {
 }
 
 @injectable()
-export class RoCrateEditorWidget extends ReactWidget {
+export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   static readonly ID = 'rocrate-editor-widget'
 
   @inject(MetadataSchemaManager)
@@ -53,11 +55,13 @@ export class RoCrateEditorWidget extends ReactWidget {
 
   protected crateSubscription?: Disposable
   protected profileSubscription?: Disposable
+  protected completeProfileSubscription?: Disposable
   protected selectedEntityIdSubscription?: Disposable
   protected dirtySubscription?: Disposable
 
   protected localCrate: Record<string, any> | undefined
   protected localProfile: Record<string, any> | undefined
+  protected localCompleteProfile: Record<string, any> | undefined
   protected localSelectedEntityId: string | undefined
   protected conformsToIds: string[] = []
   protected isRefreshingProfile = false
@@ -91,6 +95,7 @@ export class RoCrateEditorWidget extends ReactWidget {
     // Assign initial values from app-state on component load
     this.localCrate = this.appStateService.roCrate
     this.localProfile = this.appStateService.profile
+    this.localCompleteProfile = this.appStateService.completeProfile
     // Ensure localProfile is initialized if it's undefined from app state
     if (!this.localProfile) {
       this.localProfile = { classes: {}, layouts: [], localisation: {} }
@@ -119,6 +124,12 @@ export class RoCrateEditorWidget extends ReactWidget {
         this.update()
       },
     )
+    this.completeProfileSubscription = this.appStateService.onDidChangeSelector(
+      (s) => s.completeProfile,
+    )((profile) => {
+      this.localCompleteProfile = profile
+      this.updateTitleLabel()
+    })
     this.dirtySubscription = this.appStateService.onDidChangeSelector((s) => s.dirty)(
       (dirty) => {
         this.setDirtyState(dirty)
@@ -251,6 +262,23 @@ export class RoCrateEditorWidget extends ReactWidget {
     )
   }
 
+  getResourceUri(): URI | undefined {
+    if (!this.id) {
+      return undefined
+    }
+    const entityId = this.assignedEntityId ?? './'
+    const encodedWidgetId = encodeURIComponent(this.id)
+    const encodedEntityId = encodeURIComponent(entityId)
+    return new URI(`rocrate:/editor/${encodedWidgetId}/${encodedEntityId}`)
+  }
+
+  createMoveToUri(resourceUri: URI): URI | undefined {
+    if (resourceUri.scheme === 'rocrate') {
+      return resourceUri
+    }
+    return undefined
+  }
+
   get dirty(): boolean {
     return this.dirtyState
   }
@@ -292,6 +320,7 @@ export class RoCrateEditorWidget extends ReactWidget {
     const entityId = this.assignedEntityId ?? './'
     const entityDisplay = this.getEntityDisplayName(entityId)
     this.title.label = `ROC-edit:${entityDisplay}`
+    this.updateOpenEditorsLabel()
   }
 
   protected getEntityDisplayName(entityId: string): string {
@@ -310,6 +339,66 @@ export class RoCrateEditorWidget extends ReactWidget {
       }
     }
     return entityId
+  }
+
+  protected updateOpenEditorsLabel(): void {
+    const entityId = this.assignedEntityId ?? './'
+    const entityType = this.getEntityDisplayType(entityId)
+    const entityDisplay = this.getEntityDisplayName(entityId)
+    this.title.caption = `${entityType} - ${entityDisplay}`
+  }
+
+  protected getEntityDisplayType(entityId: string): string {
+    const rawGraph = this.localCrate?.['@graph']
+    const graph = Array.isArray(rawGraph) ? (rawGraph as Record<string, any>[]) : []
+    const entity = graph.find(
+      (entry) => entry && typeof entry === 'object' && String(entry['@id']) === entityId,
+    )
+    if (!entity) {
+      return 'Unknown'
+    }
+    const typeLabels = this.getEntityTypeLabels(entity, this.localCompleteProfile)
+    if (!typeLabels.length) {
+      return 'Unknown'
+    }
+    return typeLabels[0]
+  }
+
+  protected getEntityTypeLabels(
+    entity: Record<string, any>,
+    profile?: Record<string, any>,
+  ): string[] {
+    const rawTypes = entity?.['@type']
+    if (!rawTypes) {
+      return ['Unknown']
+    }
+    const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
+    const filtered = this.stripCreativeWork(typeList.map((type) => String(type).trim()))
+    return filtered.map((raw) => {
+      const tail = raw.includes('/') ? raw.split('/').pop() || raw : raw
+      const localized = profile?.localisation?.[tail] ?? profile?.classes?.[tail]?.label
+      return localized?.trim() || this.formatTypeLabel(tail)
+    })
+  }
+
+  protected stripCreativeWork(types: string[]): string[] {
+    if (types.length <= 1) {
+      return types
+    }
+    const filtered = types.filter((type) => {
+      const value = String(type)
+      return value !== 'CreativeWork' && !value.endsWith('/CreativeWork')
+    })
+    return filtered.length ? filtered : types
+  }
+
+  protected formatTypeLabel(rawType: string): string {
+    const trimmed = rawType.trim()
+    if (!trimmed) {
+      return 'Unknown'
+    }
+    const tail = trimmed.includes('/') ? trimmed.split('/').pop() || trimmed : trimmed
+    return tail.charAt(0).toUpperCase() + tail.slice(1)
   }
 
   protected computeConformsToIdsForSelectedEntity(): void {
@@ -532,6 +621,7 @@ export class RoCrateEditorWidget extends ReactWidget {
     this.unregisterFromAppState()
     this.crateSubscription?.dispose()
     this.profileSubscription?.dispose()
+    this.completeProfileSubscription?.dispose()
     this.selectedEntityIdSubscription?.dispose()
     this.dirtySubscription?.dispose()
     this.onDirtyChangedEmitter.dispose()

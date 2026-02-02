@@ -30,7 +30,9 @@
         "useButtonType": "off",
         "noStaticElementInteractions": "off",
         "useKeyWithClickEvents": "off",
-        "noLabelWithoutControl": "off"
+        "noLabelWithoutControl": "off",
+        "useAnchorContent": "off",
+        "useValidAnchor": "off"
       },
       "style": {
         "useTemplate": "off",
