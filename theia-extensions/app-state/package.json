@@ -7,7 +7,6 @@
     "src"
   ],
   "scripts": {
-    "prepare": "yarn clean && yarn build",
     "clean": "rimraf lib",
     "generate:accessors": "node ./scripts/generate-accessors.cjs",
     "build": "yarn generate:accessors && tsc",
@@ -29,6 +28,7 @@
   ],
   "dependencies": {
     "mime-types": "^3.0.2",
-    "spark-md5": "^3.0.2"
+    "spark-md5": "^3.0.2",
+    "aroma2-common": "0.0.0"
   }
 }

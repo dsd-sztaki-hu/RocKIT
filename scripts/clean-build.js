@@ -48,6 +48,7 @@ if (fs.existsSync(extensionDir)) {
             removePath(path.join(extPath, 'node_modules'));
             removePath(path.join(extPath, 'lib'));
             removePath(path.join(extPath, 'dist'));
+            removePath(path.join(extPath, 'tsconfig.tsbuildinfo'));
         }
     });
 }

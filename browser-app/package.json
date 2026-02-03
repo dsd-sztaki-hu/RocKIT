@@ -20,12 +20,13 @@
     "react-grab-helper": "0.0.0",
     "app-state": "0.0.1",
     "property-selector": "0.0.0",
-    "entities-overview": "0.0.0"
+    "entities-overview": "0.0.0",
+    "aroma2-common": "0.0.0"
   },
   "devDependencies": {
     "@theia/cli": "1.65.2",
     "react-grab": "^0.0.53",
-    "@arpproject/recrate": "0.1.11"
+    "@arpproject/recrate": "0.1.12"
   },
   "scripts": {
     "bundle": "yarn run rebuild && theia build --mode development",

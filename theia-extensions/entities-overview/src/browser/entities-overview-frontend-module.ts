@@ -43,7 +43,7 @@ function createTreeViewExampleViewContainer(parent: interfaces.Container): Conta
         props: {
             contextMenuPath: TREEVIEW_EXAMPLE_CONTEXT_MENU,
             multiSelect: false,
-            search: true,
+            search: false,
             expandOnlyOnExpansionToggleClick: false
         },
         decoratorService: EntitiesOverviewDecorationService,

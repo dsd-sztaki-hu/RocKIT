@@ -15,6 +15,7 @@
 // *****************************************************************************
 
 import './style/index.css'
+import './style/navigator-filter.css'
 import './open-editors-widget/open-editors.css'
 
 import {
@@ -26,6 +27,7 @@ import { TabBarDecorator } from '@theia/core/lib/browser/shell/tab-bar-decorator
 import { TabBarToolbarContribution } from '@theia/core/lib/browser/shell/tab-bar-toolbar'
 import { WidgetFactory } from '@theia/core/lib/browser/widget-manager'
 import { bindContributionProvider } from '@theia/core/lib/common'
+import { LabelProviderContribution } from '@theia/core/lib/browser/label-provider'
 import { ContainerModule } from '@theia/core/shared/inversify'
 import { FileTreeDecoratorAdapter } from '@theia/filesystem/lib/browser'
 import { bindFileNavigatorPreferences } from '../common/navigator-preferences'
@@ -44,6 +46,7 @@ import { NavigatorTabBarDecorator } from './navigator-tab-bar-decorator'
 import { FILE_NAVIGATOR_ID, FileNavigatorWidget } from './navigator-widget'
 import { NavigatorWidgetFactory } from './navigator-widget-factory'
 import { NavigatorDeletedEditorDecorator } from './open-editors-widget/navigator-deleted-editor-decorator'
+import { OpenEditorsLabelProvider } from './open-editors-widget/open-editors-label-provider'
 import { OpenEditorsTreeDecorator } from './open-editors-widget/navigator-open-editors-decorator-service'
 import { OpenEditorsWidget } from './open-editors-widget/navigator-open-editors-widget'
 
@@ -72,6 +75,8 @@ export default new ContainerModule((bind) => {
   bind(OpenEditorsTreeDecorator).toService(FileTreeDecoratorAdapter)
   bind(NavigatorDeletedEditorDecorator).toSelf().inSingletonScope()
   bind(OpenEditorsTreeDecorator).toService(NavigatorDeletedEditorDecorator)
+  bind(OpenEditorsLabelProvider).toSelf().inSingletonScope()
+  bind(LabelProviderContribution).toService(OpenEditorsLabelProvider)
 
   bind(WidgetFactory)
     .toDynamicValue(({ container }) => ({

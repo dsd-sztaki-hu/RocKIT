@@ -5,6 +5,7 @@ import type { FileService } from '@theia/filesystem/lib/browser/file-service'
 import type { WorkspaceService } from '@theia/workspace/lib/browser'
 import * as mime from 'mime-types'
 import type * as React from 'react'
+import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 import SparkMD5 from 'spark-md5'
 
 @injectable()
@@ -12,6 +13,7 @@ export class ROCrateDialog extends ReactDialog<string> {
   constructor(
     protected readonly workspaceService: WorkspaceService,
     protected readonly fileService: FileService,
+    protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator,
     protected readonly jsonExists: boolean = true,
   ) {
     super({
@@ -187,9 +189,14 @@ export class ROCrateDialog extends ReactDialog<string> {
     }
 
     const metadataUri = rootUri.resolve('ro-crate-metadata.json')
+    const previewUri = rootUri.resolve('ro-crate-preview.html')
+
     await this.fileService.create(metadataUri, JSON.stringify(roCrate, null, 2), {
       overwrite: true,
     })
+
+    const htmlContent = this.roCrateHtmlGenerator.generate(roCrate)
+    await this.fileService.create(previewUri, htmlContent, { overwrite: true })
   }
 
   private splitDirectoryInfo(relativePath: string): { directoryLabel: string; name: string } {

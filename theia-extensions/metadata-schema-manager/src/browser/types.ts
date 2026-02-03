@@ -4,8 +4,11 @@ export interface SchemaInfo {
     name: string;
     version: string;
     source: 'local' | 'remote';
-    reference: string;
+    reference: string; // This is the @id
     path: string;
+    // New Fields for Metadata Tracking
+    conformsTo?: string; 
+    downloadUrl?: string;
 }
 
 export interface SchemaTableProps {

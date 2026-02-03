@@ -29,7 +29,10 @@
       "a11y": {
         "useButtonType": "off",
         "noStaticElementInteractions": "off",
-        "useKeyWithClickEvents": "off"
+        "useKeyWithClickEvents": "off",
+        "noLabelWithoutControl": "off",
+        "useAnchorContent": "off",
+        "useValidAnchor": "off"
       },
       "style": {
         "useTemplate": "off",

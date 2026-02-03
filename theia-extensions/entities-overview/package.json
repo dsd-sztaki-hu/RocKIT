@@ -10,6 +10,7 @@
   ],
   "dependencies": {
     "@theia/core": "1.65.2",
+    "antd": "^6.1.4",
     "app-state": "0.0.1",
     "ro-crate-editor": "0.0.0"
   },
@@ -18,7 +19,6 @@
     "typescript": "~5.4.5"
   },
   "scripts": {
-    "prepare": "yarn run clean && yarn run build",
     "clean": "rimraf lib",
     "build": "tsc",
     "watch": "tsc -w"

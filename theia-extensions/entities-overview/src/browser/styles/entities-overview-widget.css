@@ -1,8 +1,268 @@
 .theia-example-tree-node .a {
-    padding-right: 4px
+  padding-right: 4px;
 }
 
 .lm-Menu:has(.lm-Menu-content:empty) {
-    opacity: 0 !important;
-    pointer-events: none;
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+.entities-overview-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.entities-overview-panel-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.entities-overview-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--theia-ui-border);
+  background: var(--theia-sideBar-background);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+}
+
+.entities-overview-filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.entities-overview-filter-toggle .ant-btn-group > .ant-btn {
+  border-radius: 0;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.entities-overview-filter-toggle .ant-btn-group > .ant-btn:first-child {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.entities-overview-filter-toggle .ant-btn-group > .ant-btn:last-child {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+.entities-overview-filter-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--theia-ui-font-color1);
+}
+
+.entities-overview-filter-clear {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.entities-overview-filter-clear.ant-btn {
+  background: transparent;
+}
+
+.entities-overview-filter-clear.ant-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.entities-overview-filter-clear.ant-btn:not(:disabled):hover {
+  border-color: #ff4d4f;
+  color: #ff4d4f;
+}
+
+.entities-overview-filter-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  overflow: hidden;
+  max-height: 400px;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    max-height 1000ms ease,
+    opacity 1000ms ease,
+    transform 1000ms ease,
+    margin-top 1000ms ease;
+  transition-delay: 0ms;
+}
+
+.entities-overview-filter-fields.is-hidden {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+  margin-top: 0;
+  pointer-events: none;
+}
+
+.entities-overview-filter-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  margin-top: 6px;
+  align-items: stretch;
+}
+
+.entities-overview-filter-actions.is-advanced {
+  align-items: stretch;
+}
+
+.entities-overview-filter-actions:not(.is-advanced) {
+  gap: 0;
+}
+
+.entities-overview-filter-actions .ant-btn {
+  width: 100%;
+}
+
+.entities-overview-filter-actions.is-advanced .ant-btn {
+  width: 100%;
+  height: 100%;
+}
+
+.entities-overview-advanced-button-wrap {
+  flex: 1 1 0;
+  max-width: 0;
+  max-height: 0;
+  height: 0;
+  opacity: 0;
+  transform: translateY(6px);
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    max-width 1000ms ease,
+    max-height 1000ms ease,
+    opacity 1000ms ease,
+    transform 1000ms ease;
+  transition-delay: 0ms;
+}
+
+.entities-overview-advanced-button-wrap.is-visible {
+  max-width: 50%;
+  max-height: 30px;
+  height: auto;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.entities-overview-filter-actions.is-advanced .entities-overview-filter-clear {
+  max-width: 50%;
+}
+
+.entities-overview-filter-actions.is-advanced .entities-overview-advanced-button {
+  width: 100%;
+}
+
+.entities-overview-filter-clear {
+  flex: 1 1 0;
+  max-width: 100%;
+  transition: max-width 1000ms ease;
+}
+
+.entities-overview-filter-actions .ant-btn {
+  height: 30px;
+  line-height: 28px;
+}
+
+.entities-overview-advanced-button {
+  width: 100%;
+}
+
+.entities-overview-filter-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entities-overview-filter-label {
+  font-weight: bold;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--theia-ui-font-color2);
+}
+
+.entities-overview-filter-input {
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--theia-ui-border);
+  background: var(--theia-input-background);
+  color: var(--theia-ui-font-color1);
+}
+
+.entities-overview-filter-input:focus {
+  outline: 1px solid var(--theia-accent-color);
+  outline-offset: 1px;
+}
+
+.entities-overview-filter-input::placeholder {
+  color: var(--theia-ui-font-color2);
+}
+
+.entities-overview-type-select {
+  width: 100%;
+}
+
+.entities-overview-validity-select {
+  width: 100%;
+}
+
+.entities-overview-type-select .ant-select-selector {
+  background: var(--theia-input-background) !important;
+  border-color: var(--theia-ui-border) !important;
+  min-height: 36px !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+.entities-overview-validity-select .ant-select-selector {
+  background: var(--theia-input-background) !important;
+  border-color: var(--theia-ui-border) !important;
+  min-height: 36px !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+.entities-overview-type-select .ant-select-selection-item {
+  background: var(--theia-selection-background) !important;
+  border: 1px solid var(--theia-ui-border) !important;
+  color: var(--theia-ui-font-color1) !important;
+  padding: 2px 6px !important;
+  line-height: 18px !important;
+}
+
+.entities-overview-validity-select .ant-select-selection-item {
+  color: var(--theia-ui-font-color1) !important;
+}
+
+.entities-overview-type-select .ant-select-selection-placeholder {
+  color: var(--theia-ui-font-color2) !important;
+}
+
+.entities-overview-type-select .ant-select-arrow {
+  color: var(--theia-ui-font-color2);
+}
+
+.entities-overview-validity-select .ant-select-selection-placeholder {
+  color: var(--theia-ui-font-color2) !important;
+}
+
+.entities-overview-validity-select .ant-select-arrow {
+  color: var(--theia-ui-font-color2);
+}
+
+.entities-overview-panel-content .theia-TreeContainer {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-top: 10px;
 }

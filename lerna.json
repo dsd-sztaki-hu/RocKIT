@@ -2,7 +2,8 @@
   "lerna": "2.4.0",
   "version": "0.0.0",
   "useWorkspaces": true,
-  "npmClient": "npm",
+  "npmClient": "yarn",
+  "packages": ["theia-extensions/*"],
   "command": {
     "run": {
       "stream": true
