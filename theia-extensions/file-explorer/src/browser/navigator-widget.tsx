@@ -31,9 +31,9 @@ import URI from '@theia/core/lib/common/uri'
 import { Message } from '@theia/core/shared/@lumino/messaging'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
-import { Button, Select } from 'antd'
 import { DirNode, FileStatNode, FileStatNodeData } from '@theia/filesystem/lib/browser'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
+import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
@@ -61,6 +61,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     fileNameFilter: '',
     roCrateFilter: 'all',
   }
+  protected readonly fileNameInputRef = React.createRef<HTMLInputElement>()
+  protected fileNameSelection: { start: number | null; end: number | null } | undefined
 
   constructor(
     @inject(TreeProps) props: TreeProps,
@@ -155,21 +157,25 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
                 className="navigator-filter-input"
                 type="text"
                 placeholder="Search file name"
+                ref={this.fileNameInputRef}
                 value={this.filters.fileNameFilter}
                 onChange={(event) => this.onFileNameFilterChange(event)}
-                onKeyDown={(event) => event.stopPropagation()}
+                onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}
               />
             </label>
             <label className="navigator-filter-row">
               <span className="navigator-filter-label">RO-Crate descriptions</span>
-              <div onKeyDown={(event) => event.stopPropagation()}>
+              <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
                 <Select
                   className="navigator-rocrate-select"
                   value={this.filters.roCrateFilter}
                   options={[
                     { value: 'all', label: 'All files' },
                     { value: 'with-description', label: 'With RO-Crate description' },
-                    { value: 'without-description', label: 'Missing RO-Crate description' },
+                    {
+                      value: 'without-description',
+                      label: 'Missing RO-Crate description',
+                    },
                   ]}
                   onChange={(value) =>
                     this.onRoCrateFilterChange(value as FileNavigatorFilter.RoCrateFilter)
@@ -187,8 +193,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
               block
               disabled={!hasActiveFilters}
               onClick={() => this.clearFilters()}
-              onKeyDown={(event: React.KeyboardEvent<HTMLButtonElement>) =>
-                event.stopPropagation()
+              onKeyDownCapture={(event: React.KeyboardEvent) =>
+                this.stopFilterKeyEvents(event)
               }
             >
               Clear filters
@@ -392,8 +398,13 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   }
 
   protected onFileNameFilterChange(event: React.ChangeEvent<HTMLInputElement>): void {
+    this.fileNameSelection = {
+      start: event.target.selectionStart,
+      end: event.target.selectionEnd,
+    }
     this.filters.fileNameFilter = event.target.value
     this.applyFilters()
+    this.restoreInputSelection(this.fileNameInputRef, this.fileNameSelection)
   }
 
   protected onRoCrateFilterChange(value: FileNavigatorFilter.RoCrateFilter): void {
@@ -413,5 +424,32 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     this.filters.fileNameFilter = ''
     this.filters.roCrateFilter = 'all'
     this.applyFilters()
+  }
+
+  protected stopFilterKeyEvents(event: React.KeyboardEvent): void {
+    event.stopPropagation()
+    if (typeof event.nativeEvent.stopImmediatePropagation === 'function') {
+      event.nativeEvent.stopImmediatePropagation()
+    }
+  }
+
+  protected restoreInputSelection(
+    inputRef: React.RefObject<HTMLInputElement>,
+    selection?: { start: number | null; end: number | null },
+  ): void {
+    if (!selection) {
+      return
+    }
+    requestAnimationFrame(() => {
+      const input = inputRef.current
+      if (!input) {
+        return
+      }
+      const { start, end } = selection
+      if (start === null || end === null) {
+        return
+      }
+      input.setSelectionRange(start, end)
+    })
   }
 }
