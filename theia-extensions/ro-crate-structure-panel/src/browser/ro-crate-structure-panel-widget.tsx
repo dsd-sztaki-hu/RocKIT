@@ -2,9 +2,11 @@ import { FileOutlined, FolderOpenOutlined, FolderOutlined } from '@ant-design/ic
 import type { Disposable } from '@theia/core'
 import { ApplicationShell, WidgetManager } from '@theia/core/lib/browser'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
+import URI from '@theia/core/lib/common/uri'
 import type { TreeDataNode } from 'antd'
 import { Tooltip, Tree } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
@@ -29,6 +31,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected readonly widgetManager: WidgetManager
   @inject(ApplicationShell)
   protected readonly shell: ApplicationShell
+  @inject(WorkspaceService)
+  protected readonly workspaceService: WorkspaceService
 
   protected crateSubscription?: Disposable
 
@@ -248,7 +252,19 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       this.expandedKeys = [rootKey]
     }
     return (
-      <div ref={this.containerRef} style={{ padding: '1rem', width: '100%', height: '100%', boxSizing: 'border-box', overflowX: 'auto', overflowY: 'hidden' }}>
+      <div
+        ref={this.containerRef}
+        style={{
+          padding: '1rem',
+          width: '100%',
+          height: '100%',
+          boxSizing: 'border-box',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+        }}
+        onDragOver={(event) => this.handleDragOver(event)}
+        onDrop={(event) => this.handleDrop(event)}
+      >
         <Tree
           style={{ minWidth: '100%' }}
           treeData={treeData}
@@ -273,7 +289,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             )
             return (
               <this.MemoTooltip title={title}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <span
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  data-entity-id={(item as any).entityId}
+                >
                   {icon}
                   {title}
                 </span>
@@ -283,6 +302,215 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         />
       </div>
     )
+  }
+
+  protected handleDragOver(event: React.DragEvent): void {
+    console.log('RO-Crate Structure: dragover', {
+      types: Array.from(event.dataTransfer?.types ?? []),
+    })
+    if (!event.dataTransfer) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = 'link'
+  }
+
+  protected handleDrop(event: React.DragEvent): void {
+    console.log('RO-Crate Structure: drop', {
+      types: Array.from(event.dataTransfer?.types ?? []),
+    })
+    event.preventDefault()
+    event.stopPropagation()
+    void this.handleDropAsync(event)
+  }
+
+  protected async handleDropAsync(event: React.DragEvent): Promise<void> {
+    const dataTransfer = event.dataTransfer
+    if (!dataTransfer) {
+      console.warn('RO-Crate Structure: drop ignored, no dataTransfer')
+      return
+    }
+    const uris = this.extractUrisFromDataTransfer(dataTransfer)
+    console.log('RO-Crate Structure: extracted URIs', uris)
+    if (!uris.length) {
+      console.warn('RO-Crate Structure: drop ignored, no URIs found')
+      return
+    }
+
+    const targetEntityId =
+      this.resolveDropTargetEntityId(event) ??
+      this.appStateService.selectedEntityId ??
+      './'
+    console.log('RO-Crate Structure: target entity', targetEntityId)
+
+    const relativePaths: string[] = []
+    for (const uriString of uris) {
+      try {
+        const uri = this.parseDroppedUri(uriString)
+        if (!uri) {
+          console.warn('RO-Crate Structure: failed to parse URI', uriString)
+          continue
+        }
+        const rel = await this.workspaceService.getWorkspaceRelativePath(uri)
+        if (rel) {
+          relativePaths.push(rel)
+        } else {
+          console.warn('RO-Crate Structure: no workspace-relative path', uriString)
+        }
+      } catch (error) {
+        console.warn('Failed to parse dropped URI', uriString, error)
+      }
+    }
+
+    console.log('RO-Crate Structure: relative paths', relativePaths)
+    if (!relativePaths.length) {
+      console.warn('RO-Crate Structure: drop ignored, no relative paths')
+      return
+    }
+
+    const crate = this.appStateService.roCrate
+    if (!crate || !Array.isArray(crate['@graph'])) {
+      console.warn('No RO-Crate graph available for drop')
+      return
+    }
+
+    const updatedCrate = this.applyDroppedFilesToCrate(
+      crate,
+      targetEntityId,
+      relativePaths,
+    )
+
+    console.log('RO-Crate Structure: crate updated', {
+      targetEntityId,
+      added: relativePaths,
+      graphSize: Array.isArray(updatedCrate['@graph']) ? updatedCrate['@graph'].length : 0,
+    })
+    this.appStateService.roCrate = updatedCrate
+    this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
+    this.update()
+  }
+
+  protected extractUrisFromDataTransfer(dataTransfer: DataTransfer): string[] {
+    const uriList =
+      dataTransfer.getData('text/uri-list') ||
+      dataTransfer.getData('application/vnd.code.uri-list') ||
+      ''
+    const text = dataTransfer.getData('text/plain') || ''
+    const raw = uriList || text
+    if (!raw) {
+      return []
+    }
+    return raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'))
+  }
+
+  protected parseDroppedUri(raw: string): URI | undefined {
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      return undefined
+    }
+    if (trimmed.includes('://')) {
+      return new URI(trimmed)
+    }
+    const normalized = trimmed.replace(/\\/g, '/')
+    if (/^[a-zA-Z]:\//.test(normalized)) {
+      return new URI(`file:///${normalized}`)
+    }
+    if (normalized.startsWith('/')) {
+      return new URI(`file://${normalized}`)
+    }
+    return undefined
+  }
+
+  protected resolveDropTargetEntityId(event: React.DragEvent): string | undefined {
+    const target = event.target as HTMLElement | null
+    if (!target) {
+      console.warn('RO-Crate Structure: drop target missing')
+      return undefined
+    }
+    const el = target.closest('[data-entity-id]') as HTMLElement | null
+    const id = el?.getAttribute('data-entity-id')
+    if (!id) {
+      console.warn('RO-Crate Structure: no data-entity-id on drop target')
+    }
+    return id ? id : undefined
+  }
+
+  protected applyDroppedFilesToCrate(
+    crate: Record<string, any>,
+    targetEntityId: string,
+    relativePaths: string[],
+  ): Record<string, any> {
+    const graph = Array.isArray(crate['@graph']) ? [...crate['@graph']] : []
+    const indexById = new Map<string, number>()
+    for (let i = 0; i < graph.length; i += 1) {
+      const entity = graph[i]
+      if (entity && typeof entity === 'object' && entity['@id']) {
+        indexById.set(String(entity['@id']), i)
+      }
+    }
+
+    const targetIndex =
+      indexById.get(targetEntityId) ?? indexById.get('./') ?? undefined
+    if (targetIndex === undefined) {
+      console.warn('No target entity found for drop', targetEntityId)
+      return crate
+    }
+
+    const targetEntity = { ...graph[targetIndex] }
+    const existingHasPart = this.normalizeHasPart(targetEntity.hasPart)
+    const existingHasPartIds = new Set(existingHasPart.map((part) => part['@id']))
+
+    for (const relPath of relativePaths) {
+      if (!relPath) {
+        continue
+      }
+      const id = relPath
+      if (!indexById.has(id)) {
+        graph.push({
+          '@id': id,
+          '@type': 'File',
+          name: id.split('/').pop() || id,
+        })
+        indexById.set(id, graph.length - 1)
+      }
+      if (!existingHasPartIds.has(id)) {
+        existingHasPart.push({ '@id': id })
+        existingHasPartIds.add(id)
+      }
+    }
+
+    if (existingHasPart.length) {
+      targetEntity.hasPart = existingHasPart
+    }
+    graph[targetIndex] = targetEntity
+
+    return { ...crate, '@graph': graph }
+  }
+
+  protected normalizeHasPart(value: any): { '@id': string }[] {
+    if (!value) {
+      return []
+    }
+    const raw = Array.isArray(value) ? value : [value]
+    const normalized: { '@id': string }[] = []
+    for (const entry of raw) {
+      if (!entry) {
+        continue
+      }
+      if (typeof entry === 'string') {
+        normalized.push({ '@id': entry })
+      } else if (typeof entry === 'object') {
+        const id = (entry as any)['@id'] ?? (entry as any).id
+        if (typeof id === 'string') {
+          normalized.push({ '@id': id })
+        }
+      }
+    }
+    return normalized
   }
 
   dispose(): void {

@@ -365,6 +365,12 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       attributes.className = `${existingClassName} contains-not-in-ro-crate`.trim()
     }
 
+    if (FileStatNode.is(node)) {
+      attributes.draggable = true
+      attributes.onDragStart = (event: React.DragEvent) =>
+        this.handleNodeDragStart(node, event)
+    }
+
     return attributes
   }
 
@@ -389,6 +395,30 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     }
     const fileName = node.fileStat.name.trim().toLowerCase()
     return !this.fileNavigatorFilter.hasRoCrateDescription(fileName)
+  }
+
+  protected handleNodeDragStart(
+    node: FileStatNode,
+    event: React.DragEvent,
+  ): void {
+    if (!event.dataTransfer) {
+      return
+    }
+    const selectedNodes = this.model.selectedFileStatNodes
+    const selectionIncludesNode = selectedNodes.some((n) => n.id === node.id)
+    const nodesToTransfer =
+      selectionIncludesNode && selectedNodes.length > 1 ? selectedNodes : [node]
+    const uriList = nodesToTransfer.map((n) => n.uri.toString())
+    console.log('File Explorer: dragstart', {
+      node: node.uri.toString(),
+      selected: selectedNodes.map((n) => n.uri.toString()),
+      payload: uriList,
+    })
+    const payload = uriList.join('\n')
+    event.dataTransfer.setData('text/uri-list', payload)
+    event.dataTransfer.setData('application/vnd.code.uri-list', payload)
+    event.dataTransfer.setData('text/plain', payload)
+    event.dataTransfer.effectAllowed = 'link'
   }
 
   protected onFileNameFilterChange(event: React.ChangeEvent<HTMLInputElement>): void {

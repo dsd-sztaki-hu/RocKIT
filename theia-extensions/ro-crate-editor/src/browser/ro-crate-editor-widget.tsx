@@ -1,13 +1,13 @@
+import type { Navigatable } from '@theia/core/lib/browser'
 import type { SaveOptions } from '@theia/core/lib/browser/saveable'
 import { SaveReason, setDirty } from '@theia/core/lib/browser/saveable'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { CommandService } from '@theia/core/lib/common'
-import URI from '@theia/core/lib/common/uri'
-import type { Navigatable } from '@theia/core/lib/browser'
 import { Emitter } from '@theia/core/lib/common/event'
+import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { RoCrateHtmlGenerator, MetadataSchemaManager } from 'aroma2-common/lib/browser';
+import { MetadataSchemaManager, RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 
@@ -207,7 +207,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       return
     }
     const graph = Array.isArray(crate['@graph']) ? (crate['@graph'] as any[]) : []
-    const index = graph.findIndex((e) => e && typeof e === 'object' && String(e['@id']) === entityId)
+    const index = graph.findIndex(
+      (e) => e && typeof e === 'object' && String(e['@id']) === entityId,
+    )
     if (index < 0) {
       return
     }
@@ -225,7 +227,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     } else {
       updatedConformsTo = matches(value) ? undefined : value
     }
-    if (!updatedConformsTo || (Array.isArray(updatedConformsTo) && updatedConformsTo.length === 0)) {
+    if (
+      !updatedConformsTo ||
+      (Array.isArray(updatedConformsTo) && updatedConformsTo.length === 0)
+    ) {
       delete (entity as any).conformsTo
     } else {
       ;(entity as any).conformsTo = updatedConformsTo
@@ -233,7 +238,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     const updatedGraph = [...graph]
     updatedGraph[index] = entity
     const updatedCrate = { ...crate, '@graph': updatedGraph }
-    const schemaName = this.schemaManagerService.nameWithoutMetadataSuffix(payload?.tab?.name)
+    const schemaName = this.schemaManagerService.nameWithoutMetadataSuffix(
+      payload?.tab?.name,
+    )
     const profile = this.appStateService.profile ?? this.localProfile
     this.removeSchemaMetadata(updatedCrate, entityId, schemaName!, profile!)
     this.handleSaveCrate(updatedCrate)
@@ -466,7 +473,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       const allSchemas = await this.schemaManagerService.loadAllSchemas()
       for (const conformsToUrl of this.conformsToIds) {
         const matchingSchema = allSchemas.find(
-          (schema) => schema.conformsTo === conformsToUrl
+          (schema) => schema.conformsTo === conformsToUrl,
         )
         if (matchingSchema) {
           const convertedContent =
@@ -490,7 +497,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         } else {
           console.warn(`No schema found for conformsTo URL: ${conformsToUrl}`)
         }
-      }  
+      }
       this.update()
     } finally {
       this.isRefreshingProfile = false
@@ -498,62 +505,78 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   }
 
   protected findEntity(crate: Record<string, any>, id: string) {
-    return (crate["@graph"] as Record<string, any>[]).find(entity => entity["@id"] == id)
+    return (crate['@graph'] as Record<string, any>[]).find(
+      (entity) => entity['@id'] === id,
+    )
   }
 
-  protected removeSchemaMetadata(crate: Record<string, any>, entityId: string, layout: string, profile: Record<string, any>, keepOrphans = false) {
-    const entity = this.findEntity(crate, entityId);
-    if (!entity || !entity["@type"]) return;
+  protected removeSchemaMetadata(
+    crate: Record<string, any>,
+    entityId: string,
+    layout: string,
+    profile: Record<string, any>,
+    keepOrphans = false,
+  ) {
+    const entity = this.findEntity(crate, entityId)
+    if (!entity || !entity['@type']) return
 
-    const entityType = entity["@type"];
-    const classProfile = profile.classes[entityType];
-    if (!classProfile) return;
+    const entityType = entity['@type']
+    const classProfile = profile.classes[entityType]
+    if (!classProfile) return
 
-    for (let input of classProfile.inputs) {
+    for (const input of classProfile.inputs) {
       // log.debug("Checking", input.group, layout)
       // If the input has the desired layout group, remove it from the entity
       if (input.group === layout) {
         // If the input property refers to another entity, remove that entity as well
-        if (entity[input.name] && entity[input.name]["@id"]) {
-          this.removeEntityFromGraph(crate, entity[input.name]["@id"], keepOrphans);
+        if (entity[input.name] && entity[input.name]['@id']) {
+          this.removeEntityFromGraph(crate, entity[input.name]['@id'], keepOrphans)
         }
         // log.debug("Removing", input.name)
-        delete entity[input.name];
+        delete entity[input.name]
       }
     }
     this.refreshProfileForSelectedEntity()
     this.update()
   }
 
-  protected removeEntityFromGraph(crate: Record<string, any>, entityId: string, keepOrphans: boolean = false) {
-    let entityToRemove = this.findEntity(crate, entityId);
+  protected removeEntityFromGraph(
+    crate: Record<string, any>,
+    entityId: string,
+    keepOrphans: boolean = false,
+  ) {
+    const entityToRemove = this.findEntity(crate, entityId)
 
     if (entityToRemove) {
       // Check if child entities exist and try to remove them
-      for (let key in entityToRemove) {
-        if (entityToRemove[key]["@id"]) {
-          this.removeEntityFromGraph(crate, entityToRemove[key]["@id"], keepOrphans);
+      for (const key in entityToRemove) {
+        if (entityToRemove[key]['@id']) {
+          this.removeEntityFromGraph(crate, entityToRemove[key]['@id'], keepOrphans)
         }
       }
 
-      const graph = crate["@graph"] as Record<string, any>[];
+      const graph = crate['@graph'] as Record<string, any>[]
 
       // If keepOrphans is true, we don't check for references and move on.
       if (!keepOrphans) {
-        let referenceCount = 0;
+        let referenceCount = 0
 
-        for (let entity of graph) {
-          for (let key in entity) {
-            if (entity[key]["@id"] && entity[key]["@id"] === entityId && entity["@id"] !== entityId) {
-              referenceCount++;
+        for (const entity of graph) {
+          for (const key in entity) {
+            if (
+              entity[key]['@id'] &&
+              entity[key]['@id'] === entityId &&
+              entity['@id'] !== entityId
+            ) {
+              referenceCount++
             }
           }
         }
 
         if (referenceCount <= 1) {
-          const entityIndex = graph.indexOf(entityToRemove);
+          const entityIndex = graph.indexOf(entityToRemove)
           if (entityIndex !== -1) {
-            graph.splice(entityIndex, 1);
+            graph.splice(entityIndex, 1)
           }
         }
       }
