@@ -9,8 +9,8 @@ import {
   TreeWidget,
   WidgetManager,
 } from '@theia/core/lib/browser'
-import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
+import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { Button, Select } from 'antd'
@@ -101,6 +101,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
     validityFilter: 'all',
   }
   protected filterMode: 'simple' | 'advanced' = 'simple'
+  protected readonly entityNameInputRef = React.createRef<HTMLInputElement>()
+  protected entityNameSelection: { start: number | null; end: number | null } | undefined
 
   /**
    * Enable icon rendering.
@@ -157,14 +159,15 @@ export class EntitiesOverviewWidget extends TreeWidget {
                 className="entities-overview-filter-input"
                 type="text"
                 placeholder="Search entity name"
+                ref={this.entityNameInputRef}
                 value={activeFilters.entityNameFilter}
                 onChange={(event) => this.onEntityNameFilterChange(event)}
-                onKeyDown={(event) => event.stopPropagation()}
+                onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}
               />
             </label>
             <label className="entities-overview-filter-row">
               <span className="entities-overview-filter-label">Validity</span>
-              <div onKeyDown={(event) => event.stopPropagation()}>
+              <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
                 <Select
                   className="entities-overview-validity-select"
                   value={activeFilters.validityFilter}
@@ -182,7 +185,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
             </label>
             <div className="entities-overview-filter-row">
               <span className="entities-overview-filter-label">Entity type</span>
-              <div onKeyDown={(event) => event.stopPropagation()}>
+              <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
                 <Select
                   className="entities-overview-type-select"
                   mode="multiple"
@@ -209,7 +212,9 @@ export class EntitiesOverviewWidget extends TreeWidget {
                 className="entities-overview-advanced-button"
                 type="default"
                 onClick={() => this.openAdvancedDialog()}
-                onKeyDown={(event: React.KeyboardEvent) => event.stopPropagation()}
+                onKeyDownCapture={(event: React.KeyboardEvent) =>
+                  this.stopFilterKeyEvents(event)
+                }
               >
                 Advanced filters
               </Button>
@@ -225,8 +230,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
                 activeFilters.validityFilter === 'all'
               }
               onClick={() => this.clearFilters()}
-              onKeyDown={(event: React.KeyboardEvent<HTMLButtonElement>) =>
-                event.stopPropagation()
+              onKeyDownCapture={(event: React.KeyboardEvent) =>
+                this.stopFilterKeyEvents(event)
               }
             >
               Clear filters
@@ -364,8 +369,13 @@ export class EntitiesOverviewWidget extends TreeWidget {
   }
 
   protected onEntityNameFilterChange(event: React.ChangeEvent<HTMLInputElement>): void {
+    this.entityNameSelection = {
+      start: event.target.selectionStart,
+      end: event.target.selectionEnd,
+    }
     this.getActiveFilters().entityNameFilter = event.target.value
     this.applyFilters()
+    this.restoreInputSelection(this.entityNameInputRef, this.entityNameSelection)
   }
 
   protected applyFilters(): void {
@@ -443,5 +453,32 @@ export class EntitiesOverviewWidget extends TreeWidget {
     validityFilter: ValidityFilter
   } {
     return this.filterMode === 'simple' ? this.simpleFilters : this.advancedFilters
+  }
+
+  protected stopFilterKeyEvents(event: React.KeyboardEvent): void {
+    event.stopPropagation()
+    if (typeof event.nativeEvent.stopImmediatePropagation === 'function') {
+      event.nativeEvent.stopImmediatePropagation()
+    }
+  }
+
+  protected restoreInputSelection(
+    inputRef: React.RefObject<HTMLInputElement>,
+    selection?: { start: number | null; end: number | null },
+  ): void {
+    if (!selection) {
+      return
+    }
+    requestAnimationFrame(() => {
+      const input = inputRef.current
+      if (!input) {
+        return
+      }
+      const { start, end } = selection
+      if (start === null || end === null) {
+        return
+      }
+      input.setSelectionRange(start, end)
+    })
   }
 }

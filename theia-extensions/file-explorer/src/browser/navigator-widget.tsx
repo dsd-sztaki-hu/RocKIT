@@ -1,19 +1,3 @@
-// *****************************************************************************
-// Copyright (C) 2017 TypeFox and others.
-//
-// This program and the accompanying materials are made available under the
-// terms of the Eclipse Public License v. 2.0 which is available at
-// http://www.eclipse.org/legal/epl-2.0.
-//
-// This Source Code may also be made available under the following Secondary
-// Licenses when the conditions for such availability set forth in the Eclipse
-// Public License v. 2.0 are satisfied: GNU General Public License, version 2
-// with the GNU Classpath Exception which is available at
-// https://www.gnu.org/software/classpath/license.html.
-//
-// SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
-// *****************************************************************************
-
 import { environment, isOSX } from '@theia/core'
 import {
   CompositeTreeNode,
@@ -31,9 +15,9 @@ import URI from '@theia/core/lib/common/uri'
 import { Message } from '@theia/core/shared/@lumino/messaging'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
-import { Button, Select } from 'antd'
 import { DirNode, FileStatNode, FileStatNodeData } from '@theia/filesystem/lib/browser'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
+import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
@@ -61,6 +45,9 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     fileNameFilter: '',
     roCrateFilter: 'all',
   }
+  protected filtersExpanded: boolean = true
+  protected readonly fileNameInputRef = React.createRef<HTMLInputElement>()
+  protected fileNameSelection: { start: number | null; end: number | null } | undefined
 
   constructor(
     @inject(TreeProps) props: TreeProps,
@@ -75,6 +62,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   @postConstruct()
   protected override init(): void {
     super.init()
+
     // This ensures that the context menu command to hide this widget receives the label 'Folders'
     // regardless of the name of workspace. See ViewContainer.updateToolbarItems.
     const dataset = {
@@ -82,7 +70,9 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       visibilityCommandLabel: nls.localizeByDefault('Folders'),
     }
     this.title.dataset = dataset
+
     this.updateSelectionContextKeys()
+
     this.toDispose.pushAll([
       this.model.onSelectionChanged(() => this.updateSelectionContextKeys()),
       this.model.onExpansionChanged((node) => {
@@ -93,8 +83,10 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
           }
         }
       }),
+      // refresh when crate changes (highlighting depends on it)
       this.appStateService.onDidChangeSelector((state) => state.roCrate)((_) => {
         void this.model.refresh()
+        this.update()
       }),
       this.workspaceService.onWorkspaceChanged(() => {
         void this.model.refresh()
@@ -142,34 +134,70 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   protected override render(): React.ReactNode {
     const hasActiveFilters =
       this.filters.fileNameFilter.trim() !== '' || this.filters.roCrateFilter !== 'all'
+
+    if (!this.workspaceService.opened) {
+      return (
+        <div className="navigator-filter-panel">
+          <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
+        </div>
+      )
+    }
+
     return (
       <div className="navigator-filter-panel">
-        <div className="navigator-filters">
-          <div className="navigator-filter-header">
+        <div
+          className={`navigator-filters ${
+            this.filtersExpanded ? 'expanded' : 'collapsed'
+          }`}
+        >
+          <div
+            className="navigator-filter-header"
+            role="button"
+            tabIndex={0}
+            onClick={() => this.toggleFiltersExpanded()}
+            onKeyDown={(event) => this.handleFilterHeaderKeyDown(event)}
+          >
+            <span
+              className={`navigator-filter-toggle codicon codicon-chevron-right ${
+                this.filtersExpanded ? 'expanded' : 'collapsed'
+              }`}
+              aria-hidden="true"
+            />
             <span className="navigator-filter-title">Filters</span>
           </div>
-          <div className="navigator-filter-fields">
+
+          <div
+            className={`navigator-filter-content ${
+              this.filtersExpanded ? 'expanded' : 'collapsed'
+            }`}
+          >
+            <div className="navigator-filter-fields">
             <label className="navigator-filter-row">
               <span className="navigator-filter-label">File name</span>
               <input
                 className="navigator-filter-input"
                 type="text"
                 placeholder="Search file name"
+                ref={this.fileNameInputRef}
                 value={this.filters.fileNameFilter}
                 onChange={(event) => this.onFileNameFilterChange(event)}
-                onKeyDown={(event) => event.stopPropagation()}
+                onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}
               />
             </label>
+
             <label className="navigator-filter-row">
               <span className="navigator-filter-label">RO-Crate descriptions</span>
-              <div onKeyDown={(event) => event.stopPropagation()}>
+              <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
                 <Select
                   className="navigator-rocrate-select"
                   value={this.filters.roCrateFilter}
                   options={[
                     { value: 'all', label: 'All files' },
                     { value: 'with-description', label: 'With RO-Crate description' },
-                    { value: 'without-description', label: 'Missing RO-Crate description' },
+                    {
+                      value: 'without-description',
+                      label: 'Missing RO-Crate description',
+                    },
                   ]}
                   onChange={(value) =>
                     this.onRoCrateFilterChange(value as FileNavigatorFilter.RoCrateFilter)
@@ -178,23 +206,26 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
                 />
               </div>
             </label>
-          </div>
-          <div className="navigator-filter-actions">
-            <Button
-              className="navigator-filter-clear"
-              danger
-              ghost
-              block
-              disabled={!hasActiveFilters}
-              onClick={() => this.clearFilters()}
-              onKeyDown={(event: React.KeyboardEvent<HTMLButtonElement>) =>
-                event.stopPropagation()
-              }
-            >
-              Clear filters
-            </Button>
+            </div>
+
+            <div className="navigator-filter-actions">
+              <Button
+                className="navigator-filter-clear"
+                danger
+                ghost
+                block
+                disabled={!hasActiveFilters}
+                onClick={() => this.clearFilters()}
+                onKeyDownCapture={(event: React.KeyboardEvent) =>
+                  this.stopFilterKeyEvents(event)
+                }
+              >
+                Clear filters
+              </Button>
+            </div>
           </div>
         </div>
+
         <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
       </div>
     )
@@ -312,15 +343,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   protected override tapNode(node?: TreeNode): void {
     if (FileStatNode.is(node)) {
       this.model.selectNode(node)
-
-      // 2. FUTURE HOOK: This is where you will put your metadata editor logic
-      // console.log('Single click detected on file:', node.uri.toString());
-      // this.commandService.executeCommand('metadata-editor:open', node.uri);
     }
-
     // DO NOT call this.model.previewNode(node) here.
-    // That is what was causing the file to open on single-click.
-
     super.tapNode(node)
   }
 
@@ -338,9 +362,6 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     this.contextKeyService.explorerResourceIsFolder.set(
       DirNode.is(this.model.selectedNodes[0]),
     )
-    // As `FileStatNode` only created if `FileService.resolve` was successful, we can safely assume that
-    // a valid `FileSystemProvider` is available for the selected node. So we skip an additional check
-    // for provider availability here and check the node type.
     this.contextKeyService.isFileSystemResource.set(
       FileStatNodeData.is(this.model.selectedNodes[0]),
     )
@@ -383,17 +404,150 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     return false
   }
 
+  /**
+   * 26606 behavior: highlight files NOT present in RO-Crate by PATH (derived from @id).
+   * (No dropdown gating. No description logic.)
+   */
   private shouldHighlightFile(node: FileStatNode): boolean {
-    if (!this.fileNavigatorFilter.hasRoCrateData()) {
+    const { files, directories } = this.getRoCrateEntityPathIndex()
+    if (files.size === 0 && directories.length === 0) {
       return false
     }
-    const fileName = node.fileStat.name.trim().toLowerCase()
-    return !this.fileNavigatorFilter.hasRoCrateDescription(fileName)
+
+    const relativePath = this.getNodeWorkspaceRelativePath(node)
+    if (!relativePath) {
+      return false
+    }
+
+    // file entity exists
+    if (files.has(relativePath)) {
+      return false
+    }
+
+    // file is under a directory entity
+    for (const directory of directories) {
+      if (!directory) {
+        continue
+      }
+      if (relativePath === directory || relativePath.startsWith(`${directory}/`)) {
+        return false
+      }
+    }
+
+    return true
   }
 
+  private getNodeWorkspaceRelativePath(node: FileStatNode): string | undefined {
+    const rootUri = this.workspaceService.getWorkspaceRootUri(node.uri)
+    if (!rootUri) {
+      return undefined
+    }
+    const relative = rootUri.relative(node.uri)
+    if (!relative) {
+      return undefined
+    }
+    const normalized = this.normalizeRelativePath(relative.toString())
+    return normalized ? normalized.toLowerCase() : undefined
+  }
+
+  private getRoCrateEntityPathIndex(): { files: Set<string>; directories: string[] } {
+    const crate = this.appStateService.roCrate
+    if (!crate) {
+      return { files: new Set(), directories: [] }
+    }
+
+    const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
+    const files = new Set<string>()
+    const directories = new Set<string>()
+
+    for (const entry of graph) {
+      if (!entry || typeof entry !== 'object') {
+        continue
+      }
+
+      const rawId =
+        typeof (entry as any)['@id'] === 'string' ? (entry as any)['@id'].trim() : ''
+      if (!rawId) {
+        continue
+      }
+
+      const derived = this.deriveRelativePathFromEntityId(rawId)
+      if (!derived || derived.path === '') {
+        continue
+      }
+
+      if (derived.isDirectory) {
+        directories.add(derived.path.toLowerCase())
+      } else {
+        files.add(derived.path.toLowerCase())
+      }
+    }
+
+    return { files, directories: Array.from(directories) }
+  }
+
+  private deriveRelativePathFromEntityId(
+    id: string,
+  ): { path: string; isDirectory: boolean } | undefined {
+    let candidate = id.trim()
+    if (!candidate) {
+      return undefined
+    }
+
+    const isDirectory = candidate.endsWith('/')
+
+    if (candidate.startsWith('file://./')) {
+      candidate = candidate.slice('file://./'.length)
+    } else if (candidate.startsWith('file://')) {
+      candidate = candidate.slice('file://'.length)
+    }
+
+    if (candidate.startsWith('./')) {
+      candidate = candidate.slice(2)
+    }
+
+    candidate = candidate.trim()
+    if (!candidate) {
+      if (isDirectory) {
+        return { path: '', isDirectory }
+      }
+      return undefined
+    }
+
+    const normalized = this.normalizeRelativePath(candidate)
+    if (!normalized) {
+      if (isDirectory) {
+        return { path: '', isDirectory }
+      }
+      return undefined
+    }
+
+    return { path: normalized, isDirectory }
+  }
+
+  private normalizeRelativePath(path: string): string {
+    let normalized = path.replace(/\\/g, '/')
+    normalized = normalized.trim()
+    while (normalized.startsWith('/')) {
+      normalized = normalized.slice(1)
+    }
+    normalized = normalized.replace(/\/{2,}/g, '/')
+    while (normalized.endsWith('/') && normalized.length > 1) {
+      normalized = normalized.slice(0, -1)
+    }
+    return normalized
+  }
+
+  // --- filter wiring (main) ---
+
   protected onFileNameFilterChange(event: React.ChangeEvent<HTMLInputElement>): void {
+    this.fileNameSelection = {
+      start: event.target.selectionStart,
+      end: event.target.selectionEnd,
+    }
     this.filters.fileNameFilter = event.target.value
     this.applyFilters()
+    this.restoreInputSelection(this.fileNameInputRef, this.fileNameSelection)
   }
 
   protected onRoCrateFilterChange(value: FileNavigatorFilter.RoCrateFilter): void {
@@ -413,5 +567,44 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     this.filters.fileNameFilter = ''
     this.filters.roCrateFilter = 'all'
     this.applyFilters()
+  }
+
+  protected stopFilterKeyEvents(event: React.KeyboardEvent): void {
+    event.stopPropagation()
+    if (typeof event.nativeEvent.stopImmediatePropagation === 'function') {
+      event.nativeEvent.stopImmediatePropagation()
+    }
+  }
+
+  protected toggleFiltersExpanded(): void {
+    this.filtersExpanded = !this.filtersExpanded
+    this.update()
+  }
+
+  protected handleFilterHeaderKeyDown(event: React.KeyboardEvent): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      this.toggleFiltersExpanded()
+    }
+  }
+
+  protected restoreInputSelection(
+    inputRef: React.RefObject<HTMLInputElement>,
+    selection?: { start: number | null; end: number | null },
+  ): void {
+    if (!selection) {
+      return
+    }
+    requestAnimationFrame(() => {
+      const input = inputRef.current
+      if (!input) {
+        return
+      }
+      const { start, end } = selection
+      if (start === null || end === null) {
+        return
+      }
+      input.setSelectionRange(start, end)
+    })
   }
 }
