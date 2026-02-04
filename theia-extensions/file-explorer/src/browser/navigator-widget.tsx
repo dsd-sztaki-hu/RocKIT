@@ -45,6 +45,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     fileNameFilter: '',
     roCrateFilter: 'all',
   }
+  protected filtersExpanded: boolean = true
   protected readonly fileNameInputRef = React.createRef<HTMLInputElement>()
   protected fileNameSelection: { start: number | null; end: number | null } | undefined
 
@@ -134,14 +135,43 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     const hasActiveFilters =
       this.filters.fileNameFilter.trim() !== '' || this.filters.roCrateFilter !== 'all'
 
+    if (!this.workspaceService.opened) {
+      return (
+        <div className="navigator-filter-panel">
+          <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
+        </div>
+      )
+    }
+
     return (
       <div className="navigator-filter-panel">
-        <div className="navigator-filters">
-          <div className="navigator-filter-header">
+        <div
+          className={`navigator-filters ${
+            this.filtersExpanded ? 'expanded' : 'collapsed'
+          }`}
+        >
+          <div
+            className="navigator-filter-header"
+            role="button"
+            tabIndex={0}
+            onClick={() => this.toggleFiltersExpanded()}
+            onKeyDown={(event) => this.handleFilterHeaderKeyDown(event)}
+          >
+            <span
+              className={`navigator-filter-toggle codicon codicon-chevron-right ${
+                this.filtersExpanded ? 'expanded' : 'collapsed'
+              }`}
+              aria-hidden="true"
+            />
             <span className="navigator-filter-title">Filters</span>
           </div>
 
-          <div className="navigator-filter-fields">
+          <div
+            className={`navigator-filter-content ${
+              this.filtersExpanded ? 'expanded' : 'collapsed'
+            }`}
+          >
+            <div className="navigator-filter-fields">
             <label className="navigator-filter-row">
               <span className="navigator-filter-label">File name</span>
               <input
@@ -176,22 +206,23 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
                 />
               </div>
             </label>
-          </div>
+            </div>
 
-          <div className="navigator-filter-actions">
-            <Button
-              className="navigator-filter-clear"
-              danger
-              ghost
-              block
-              disabled={!hasActiveFilters}
-              onClick={() => this.clearFilters()}
-              onKeyDownCapture={(event: React.KeyboardEvent) =>
-                this.stopFilterKeyEvents(event)
-              }
-            >
-              Clear filters
-            </Button>
+            <div className="navigator-filter-actions">
+              <Button
+                className="navigator-filter-clear"
+                danger
+                ghost
+                block
+                disabled={!hasActiveFilters}
+                onClick={() => this.clearFilters()}
+                onKeyDownCapture={(event: React.KeyboardEvent) =>
+                  this.stopFilterKeyEvents(event)
+                }
+              >
+                Clear filters
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -542,6 +573,18 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     event.stopPropagation()
     if (typeof event.nativeEvent.stopImmediatePropagation === 'function') {
       event.nativeEvent.stopImmediatePropagation()
+    }
+  }
+
+  protected toggleFiltersExpanded(): void {
+    this.filtersExpanded = !this.filtersExpanded
+    this.update()
+  }
+
+  protected handleFilterHeaderKeyDown(event: React.KeyboardEvent): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      this.toggleFiltersExpanded()
     }
   }
 
