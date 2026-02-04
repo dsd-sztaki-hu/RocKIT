@@ -1,24 +1,24 @@
 import {
-    CompositeTreeNode,
-    ExpandableTreeNode,
-    SelectableTreeNode,
-    TreeModelImpl,
-    TreeNode,
+  CompositeTreeNode,
+  ExpandableTreeNode,
+  SelectableTreeNode,
+  TreeModelImpl,
+  TreeNode,
 } from '@theia/core/lib/browser'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import {
-    EntitiesOverviewTreeItemFactory,
-    Item,
+  EntitiesOverviewTreeItemFactory,
+  Item,
 } from './entities-overview-tree-item-factory'
 
 function formatTypeLabel(rawType: string): string {
-    const trimmed = rawType.trim()
-    if (!trimmed) {
-        return 'Unknown'
-    }
-    const tail = trimmed.includes('/') ? trimmed.split('/').pop() || trimmed : trimmed
-    return tail.charAt(0).toUpperCase() + tail.slice(1)
+  const trimmed = rawType.trim()
+  if (!trimmed) {
+    return 'Unknown'
+  }
+  const tail = trimmed.includes('/') ? trimmed.split('/').pop() || trimmed : trimmed
+  return tail.charAt(0).toUpperCase() + tail.slice(1)
 }
 
 /**
@@ -31,136 +31,135 @@ function formatTypeLabel(rawType: string): string {
  * so we must lookup using the raw tail before formatting.
  */
 function getEntityTypes(
-    entity: Record<string, any>,
-    profile?: Record<string, any>,
+  entity: Record<string, any>,
+  profile?: Record<string, any>,
 ): string[] {
-    const rawTypes = entity?.['@type']
-    if (!rawTypes) {
-        return ['Unknown']
-    }
+  const rawTypes = entity?.['@type']
+  if (!rawTypes) {
+    return ['Unknown']
+  }
 
-    const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
+  const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
 
-    return typeList.map((type) => {
-        const raw = String(type).trim()
-        const tail = raw.includes('/') ? raw.split('/').pop()! : raw
+  return typeList.map((type) => {
+    const raw = String(type).trim()
+    const tail = raw.includes('/') ? raw.split('/').pop()! : raw
 
-        const localized =
-            profile?.localisation?.[tail] ?? profile?.classes?.[tail]?.label
+    const localized = profile?.localisation?.[tail] ?? profile?.classes?.[tail]?.label
 
-        return localized?.trim() || formatTypeLabel(tail)
-    })
+    return localized?.trim() || formatTypeLabel(tail)
+  })
 }
 
 function hasType(entity: Record<string, any>, target: string): boolean {
-    const rawTypes = entity?.['@type']
-    if (!rawTypes) {
-        return false
-    }
-    const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
-    return typeList.some((type) => {
-        const value = String(type)
-        return value === target || value.endsWith(`/${target}`)
-    })
+  const rawTypes = entity?.['@type']
+  if (!rawTypes) {
+    return false
+  }
+  const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
+  return typeList.some((type) => {
+    const value = String(type)
+    return value === target || value.endsWith(`/${target}`)
+  })
 }
 
 function getEntityName(entity: Record<string, any>): string {
-    const name = entity?.name ?? entity?.title ?? entity?.['@id'] ?? ''
-    return String(name)
+  const name = entity?.name ?? entity?.title ?? entity?.['@id'] ?? ''
+  return String(name)
 }
 
 function normalizeFilter(value: string): string {
-    return value.trim().toLowerCase()
+  return value.trim().toLowerCase()
 }
 
 function getAvailableTypes(
-    crate: Record<string, any> | undefined,
-    profile?: Record<string, any>,
+  crate: Record<string, any> | undefined,
+  profile?: Record<string, any>,
 ): string[] {
-    const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
-    const types = new Set<string>()
-    for (const entry of graph) {
-        if (!entry || typeof entry !== 'object') {
-            continue
-        }
-        if (hasType(entry, 'CreativeWork')) {
-            continue
-        }
-        for (const typeLabel of getEntityTypes(entry, profile)) {
-            types.add(typeLabel)
-        }
+  const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+  const types = new Set<string>()
+  for (const entry of graph) {
+    if (!entry || typeof entry !== 'object') {
+      continue
     }
-    return Array.from(types.values()).sort((a, b) => a.localeCompare(b))
+    if (hasType(entry, 'CreativeWork')) {
+      continue
+    }
+    for (const typeLabel of getEntityTypes(entry, profile)) {
+      types.add(typeLabel)
+    }
+  }
+  return Array.from(types.values()).sort((a, b) => a.localeCompare(b))
 }
 
 function createEntitiesData(
-    crate: Record<string, any> | undefined,
-    profile: Record<string, any> | undefined,
-    nameFilter: string,
-    typeFilters: string[],
-    validityFilter: ValidityFilter,
+  crate: Record<string, any> | undefined,
+  profile: Record<string, any> | undefined,
+  nameFilter: string,
+  typeFilters: string[],
+  validityFilter: ValidityFilter,
 ): Item[] {
-    const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
-    const byType = new Map<string, Item[]>()
+  const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+  const byType = new Map<string, Item[]>()
 
-    const normalizedNameFilter = normalizeFilter(nameFilter)
-    const normalizedTypeFilters = typeFilters.map((type) => normalizeFilter(type))
+  const normalizedNameFilter = normalizeFilter(nameFilter)
+  const normalizedTypeFilters = typeFilters.map((type) => normalizeFilter(type))
 
-    for (const entry of graph) {
-        if (!entry || typeof entry !== 'object') {
-            continue
-        }
-        if (hasType(entry, 'CreativeWork')) {
-            continue
-        }
-
-        const entityId = entry?.['@id'] ? String(entry['@id']) : ''
-        const name = getEntityName(entry).trim()
-        const description =
-            typeof entry?.description === 'string' ? String(entry.description) : undefined
-        const valid = Boolean(name)
-        const displayName = entityId === './' ? './' : name || entityId || '(unnamed)'
-
-        const matchesName =
-            !normalizedNameFilter || displayName.toLowerCase().includes(normalizedNameFilter)
-
-        const matchesValidity =
-            validityFilter === 'all' ||
-            (validityFilter === 'valid' && valid) ||
-            (validityFilter === 'invalid' && !valid)
-
-        // NOTE: type labels here must match what getAvailableTypes returns
-        for (const typeLabel of getEntityTypes(entry, profile)) {
-            const normalizedTypeLabel = typeLabel.toLowerCase()
-
-            if (
-                normalizedTypeFilters.length > 0 &&
-                !normalizedTypeFilters.some((type) => type === normalizedTypeLabel)
-            ) {
-                continue
-            }
-            if (!matchesName) {
-                continue
-            }
-            if (!matchesValidity) {
-                continue
-            }
-
-            const list = byType.get(typeLabel) ?? []
-            list.push({
-                name: displayName,
-                entityId,
-                description,
-                valid,
-            })
-            byType.set(typeLabel, list)
-        }
+  for (const entry of graph) {
+    if (!entry || typeof entry !== 'object') {
+      continue
+    }
+    if (hasType(entry, 'CreativeWork')) {
+      continue
     }
 
-    return Array.from(byType.entries()).map(([typeName, children]) => ({
-        name: typeName,
-        children: children.sort((a, b) => a.name.localeCompare(b.name)),
-    }))
+    const entityId = entry?.['@id'] ? String(entry['@id']) : ''
+    const name = getEntityName(entry).trim()
+    const description =
+      typeof entry?.description === 'string' ? String(entry.description) : undefined
+    const valid = Boolean(name)
+    const displayName = entityId === './' ? './' : name || entityId || '(unnamed)'
+
+    const matchesName =
+      !normalizedNameFilter || displayName.toLowerCase().includes(normalizedNameFilter)
+
+    const matchesValidity =
+      validityFilter === 'all' ||
+      (validityFilter === 'valid' && valid) ||
+      (validityFilter === 'invalid' && !valid)
+
+    // NOTE: type labels here must match what getAvailableTypes returns
+    for (const typeLabel of getEntityTypes(entry, profile)) {
+      const normalizedTypeLabel = typeLabel.toLowerCase()
+
+      if (
+        normalizedTypeFilters.length > 0 &&
+        !normalizedTypeFilters.some((type) => type === normalizedTypeLabel)
+      ) {
+        continue
+      }
+      if (!matchesName) {
+        continue
+      }
+      if (!matchesValidity) {
+        continue
+      }
+
+      const list = byType.get(typeLabel) ?? []
+      list.push({
+        name: displayName,
+        entityId,
+        description,
+        valid,
+      })
+      byType.set(typeLabel, list)
+    }
+  }
+
+  return Array.from(byType.entries()).map(([typeName, children]) => ({
+    name: typeName,
+    children: children.sort((a, b) => a.name.localeCompare(b.name)),
+  }))
 }
 
 /** well-known ID for the root node in our tree */
@@ -168,119 +167,124 @@ export const ROOT_NODE_ID = 'entities-overview-root'
 
 /** Interface for an container node (having children), along with a type-checking function */
 export interface ExampleTreeNode extends ExpandableTreeNode, SelectableTreeNode {
-    data: Item
-    type: 'node'
+  data: Item
+  type: 'node'
 }
 export namespace ExampleTreeNode {
-    export function is(candidate: object): candidate is ExampleTreeNode {
-        return (
-            ExpandableTreeNode.is(candidate) &&
-            'type' in candidate &&
-            candidate.type === 'node'
-        )
-    }
+  export function is(candidate: object): candidate is ExampleTreeNode {
+    return (
+      ExpandableTreeNode.is(candidate) && 'type' in candidate && candidate.type === 'node'
+    )
+  }
 }
 
 /**
  *  Interface for a leaf node, along with a type-checking function
  */
 export interface ExampleTreeLeaf extends TreeNode {
-    data: Item
-    type: 'leaf'
+  data: Item
+  type: 'leaf'
 }
 export namespace ExampleTreeLeaf {
-    export function is(candidate: object): candidate is ExampleTreeLeaf {
-        return TreeNode.is(candidate) && 'type' in candidate && candidate.type === 'leaf'
-    }
+  export function is(candidate: object): candidate is ExampleTreeLeaf {
+    return TreeNode.is(candidate) && 'type' in candidate && candidate.type === 'leaf'
+  }
 }
 
 export type ValidityFilter = 'all' | 'valid' | 'invalid'
 
 @injectable()
 export class EntitiesOverviewModel extends TreeModelImpl {
-    @inject(EntitiesOverviewTreeItemFactory)
-    private readonly itemFactory: EntitiesOverviewTreeItemFactory
+  @inject(EntitiesOverviewTreeItemFactory)
+  private readonly itemFactory: EntitiesOverviewTreeItemFactory
 
-    @inject(AppStateService)
-    private readonly appStateService: AppStateService
+  @inject(AppStateService)
+  private readonly appStateService: AppStateService
 
-    private currentCrate: Record<string, any> | undefined
-    private entityNameFilter = ''
-    private entityTypeFilters: string[] = []
-    private validityFilter: ValidityFilter = 'all'
+  private currentCrate: Record<string, any> | undefined
+  private entityNameFilter = ''
+  private entityTypeFilters: string[] = []
+  private validityFilter: ValidityFilter = 'all'
 
-    @postConstruct()
-    protected override init(): void {
-        super.init()
+  @postConstruct()
+  protected override init(): void {
+    super.init()
 
-        this.updateEntitiesFromCrate(this.appStateService.roCrate)
-        this.toDispose.push(
-            this.appStateService.onDidChangeSelector((state) => state.roCrate)((crate) => {
-                this.updateEntitiesFromCrate(crate)
-            }),
-        )
-    }
-
-    protected updateEntitiesFromCrate(crate: Record<string, any> | undefined): void {
-        this.currentCrate = crate
+    this.updateEntitiesFromCrate(this.appStateService.roCrate)
+    this.toDispose.push(
+      this.appStateService.onDidChangeSelector((state) => state.roCrate)((crate) => {
+        this.updateEntitiesFromCrate(crate)
+      }),
+    )
+    this.toDispose.push(
+      this.appStateService.onDidChangeSelector((state) => state.completeProfile)(() => {
         this.refreshFilteredTree()
+      }),
+    )
+  }
+
+  protected updateEntitiesFromCrate(crate: Record<string, any> | undefined): void {
+    this.currentCrate = crate
+    this.refreshFilteredTree()
+  }
+
+  setFilters(
+    entityNameFilter: string,
+    entityTypeFilters: string[],
+    validityFilter: ValidityFilter,
+  ): void {
+    if (
+      entityNameFilter === this.entityNameFilter &&
+      entityTypeFilters.length === this.entityTypeFilters.length &&
+      entityTypeFilters.every(
+        (value, index) => value === this.entityTypeFilters[index],
+      ) &&
+      validityFilter === this.validityFilter
+    ) {
+      return
+    }
+    this.entityNameFilter = entityNameFilter
+    this.entityTypeFilters = [...entityTypeFilters]
+    this.validityFilter = validityFilter
+    this.refreshFilteredTree()
+  }
+
+  getAvailableTypes(): string[] {
+    // IMPORTANT: use the same profile-based type labels as the tree itself,
+    // otherwise filtering by type won't match what the user sees.
+    return getAvailableTypes(this.currentCrate, this.appStateService.completeProfile)
+  }
+
+  private refreshFilteredTree(): void {
+    const root: CompositeTreeNode = {
+      id: ROOT_NODE_ID,
+      parent: undefined,
+      children: [],
+      visible: false,
     }
 
-    setFilters(
-        entityNameFilter: string,
-        entityTypeFilters: string[],
-        validityFilter: ValidityFilter,
-    ): void {
-        if (
-            entityNameFilter === this.entityNameFilter &&
-            entityTypeFilters.length === this.entityTypeFilters.length &&
-            entityTypeFilters.every((value, index) => value === this.entityTypeFilters[index]) &&
-            validityFilter === this.validityFilter
-        ) {
-            return
+    const shouldExpand = Boolean(
+      this.entityNameFilter.trim() ||
+        this.entityTypeFilters.length > 0 ||
+        this.validityFilter !== 'all',
+    )
+
+    createEntitiesData(
+      this.currentCrate,
+      this.appStateService.completeProfile,
+      this.entityNameFilter,
+      this.entityTypeFilters,
+      this.validityFilter,
+    )
+      .map((item) => {
+        const node = this.itemFactory.toTreeNode(item)
+        if (shouldExpand && ExampleTreeNode.is(node)) {
+          node.expanded = true
         }
-        this.entityNameFilter = entityNameFilter
-        this.entityTypeFilters = [...entityTypeFilters]
-        this.validityFilter = validityFilter
-        this.refreshFilteredTree()
-    }
+        return node
+      })
+      .forEach((node) => CompositeTreeNode.addChild(root, node))
 
-    getAvailableTypes(): string[] {
-        // IMPORTANT: use the same profile-based type labels as the tree itself,
-        // otherwise filtering by type won't match what the user sees.
-        return getAvailableTypes(this.currentCrate, this.appStateService.completeProfile)
-    }
-
-    private refreshFilteredTree(): void {
-        const root: CompositeTreeNode = {
-            id: ROOT_NODE_ID,
-            parent: undefined,
-            children: [],
-            visible: false,
-        }
-
-        const shouldExpand = Boolean(
-            this.entityNameFilter.trim() ||
-            this.entityTypeFilters.length > 0 ||
-            this.validityFilter !== 'all',
-        )
-
-        createEntitiesData(
-            this.currentCrate,
-            this.appStateService.completeProfile,
-            this.entityNameFilter,
-            this.entityTypeFilters,
-            this.validityFilter,
-        )
-            .map((item) => {
-                const node = this.itemFactory.toTreeNode(item)
-                if (shouldExpand && ExampleTreeNode.is(node)) {
-                    node.expanded = true
-                }
-                return node
-            })
-            .forEach((node) => CompositeTreeNode.addChild(root, node))
-
-        this.tree.root = root
-    }
+    this.tree.root = root
+  }
 }
