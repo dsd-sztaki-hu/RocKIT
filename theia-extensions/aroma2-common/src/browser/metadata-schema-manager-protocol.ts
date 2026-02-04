@@ -1,3 +1,5 @@
+import type { Event } from '@theia/core/lib/common/event'
+
 export const MetadataSchemaManager = Symbol('MetadataSchemaManager')
 
 export interface SchemaInfo {
@@ -23,4 +25,5 @@ export interface MetadataSchemaManager {
     profile: Record<string, any>,
     profileUrl?: string
   ): Promise<Record<string, any>>
+  readonly onDidChangeSchemas: Event<void>
 }
