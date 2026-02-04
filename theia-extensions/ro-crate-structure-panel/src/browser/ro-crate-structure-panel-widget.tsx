@@ -338,12 +338,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       return
     }
 
-    const targetEntityId =
-      this.resolveDropTargetEntityId(event) ??
-      this.appStateService.selectedEntityId ??
-      './'
-    console.log('RO-Crate Structure: target entity', targetEntityId)
-
     const relativePaths: string[] = []
     for (const uriString of uris) {
       try {
@@ -375,14 +369,27 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       return
     }
 
-    const updatedCrate = this.applyDroppedFilesToCrate(
+    const targetEntityId =
+      this.resolveDropTargetEntityId(event) ??
+      this.appStateService.selectedEntityId ??
+      './'
+    const datasetTargetEntityId = this.resolveDatasetTargetEntityId(
       crate,
       targetEntityId,
+    )
+    console.log('RO-Crate Structure: target entity', {
+      original: targetEntityId,
+      resolvedDataset: datasetTargetEntityId,
+    })
+
+    const updatedCrate = this.applyDroppedFilesToCrate(
+      crate,
+      datasetTargetEntityId,
       relativePaths,
     )
 
     console.log('RO-Crate Structure: crate updated', {
-      targetEntityId,
+      targetEntityId: datasetTargetEntityId,
       added: relativePaths,
       graphSize: Array.isArray(updatedCrate['@graph']) ? updatedCrate['@graph'].length : 0,
     })
@@ -437,6 +444,56 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       console.warn('RO-Crate Structure: no data-entity-id on drop target')
     }
     return id ? id : undefined
+  }
+
+  protected resolveDatasetTargetEntityId(
+    crate: Record<string, any>,
+    targetEntityId: string,
+  ): string {
+    const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
+    const entityById = new Map<string, any>()
+    for (const entity of graph) {
+      if (entity && typeof entity === 'object' && entity['@id']) {
+        entityById.set(String(entity['@id']), entity)
+      }
+    }
+
+    const targetEntity = entityById.get(targetEntityId)
+    if (!targetEntity) {
+      return './'
+    }
+    if (this.entityHasType(targetEntity, 'Dataset')) {
+      return targetEntityId
+    }
+    if (!this.entityHasType(targetEntity, 'File')) {
+      return './'
+    }
+
+    for (const entity of graph) {
+      if (!entity || typeof entity !== 'object' || !entity['@id']) {
+        continue
+      }
+      if (!this.entityHasType(entity, 'Dataset')) {
+        continue
+      }
+      const parts = this.normalizeHasPart(entity.hasPart)
+      if (parts.some((part) => part['@id'] === targetEntityId)) {
+        return String(entity['@id'])
+      }
+    }
+
+    return './'
+  }
+
+  protected entityHasType(entity: Record<string, any>, type: string): boolean {
+    const rawType = entity['@type']
+    if (!rawType) {
+      return false
+    }
+    if (Array.isArray(rawType)) {
+      return rawType.includes(type)
+    }
+    return rawType === type
   }
 
   protected applyDroppedFilesToCrate(
