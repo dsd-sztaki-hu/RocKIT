@@ -83,6 +83,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected expandedKeys: string[] = []
   protected containerRef: React.RefObject<HTMLDivElement> = React.createRef()
   protected treeHeight: number = 400
+  protected dropTargetDatasetId?: string
 
   protected MemoTooltip: React.ComponentType<any> = React.memo(Tooltip as any)
 
@@ -263,6 +264,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           overflowY: 'hidden',
         }}
         onDragOver={(event) => this.handleDragOver(event)}
+        onDragLeave={(event) => this.handleDragLeave(event)}
         onDrop={(event) => this.handleDrop(event)}
       >
         <Tree
@@ -290,7 +292,21 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             return (
               <this.MemoTooltip title={title}>
                 <span
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '2px 4px',
+                    borderRadius: 4,
+                    background:
+                      (item as any).entityId === this.dropTargetDatasetId
+                        ? 'rgba(24, 144, 255, 0.15)'
+                        : 'transparent',
+                    outline:
+                      (item as any).entityId === this.dropTargetDatasetId
+                        ? '1px solid rgba(24, 144, 255, 0.6)'
+                        : 'none',
+                  }}
                   data-entity-id={(item as any).entityId}
                 >
                   {icon}
@@ -314,6 +330,27 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     event.preventDefault()
     event.stopPropagation()
     event.dataTransfer.dropEffect = 'link'
+
+    const crate = this.appStateService.roCrate
+    if (!crate || !Array.isArray(crate['@graph'])) {
+      this.setDropTargetDatasetId(undefined)
+      return
+    }
+    const targetEntityId = this.resolveDropTargetEntityIdWithFallback(event)
+    const datasetTargetEntityId = this.resolveDatasetTargetEntityId(
+      crate,
+      targetEntityId ?? './',
+    )
+    this.setDropTargetDatasetId(datasetTargetEntityId)
+  }
+
+  protected handleDragLeave(event: React.DragEvent): void {
+    const currentTarget = event.currentTarget as Node | null
+    const relatedTarget = event.relatedTarget as Node | null
+    if (!currentTarget || (relatedTarget && currentTarget.contains(relatedTarget))) {
+      return
+    }
+    this.setDropTargetDatasetId(undefined)
   }
 
   protected handleDrop(event: React.DragEvent): void {
@@ -322,6 +359,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     })
     event.preventDefault()
     event.stopPropagation()
+    this.setDropTargetDatasetId(undefined)
     void this.handleDropAsync(event)
   }
 
@@ -370,7 +408,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
 
     const targetEntityId =
-      this.resolveDropTargetEntityId(event) ??
+      this.resolveDropTargetEntityIdWithFallback(event) ??
       this.appStateService.selectedEntityId ??
       './'
     const datasetTargetEntityId = this.resolveDatasetTargetEntityId(
@@ -444,6 +482,59 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       console.warn('RO-Crate Structure: no data-entity-id on drop target')
     }
     return id ? id : undefined
+  }
+
+  protected resolveDropTargetEntityIdWithFallback(
+    event: React.DragEvent,
+  ): string | undefined {
+    const direct = this.resolveDropTargetEntityId(event)
+    if (direct) {
+      return direct
+    }
+    const pointTarget = document.elementFromPoint(
+      event.clientX,
+      event.clientY,
+    ) as HTMLElement | null
+    const pointEntityId = pointTarget
+      ?.closest?.('[data-entity-id]')
+      ?.getAttribute('data-entity-id')
+    if (pointEntityId) {
+      return pointEntityId
+    }
+    return this.findNearestEntityIdInTree(event)
+  }
+
+  protected findNearestEntityIdInTree(event: React.DragEvent): string | undefined {
+    const container = this.containerRef?.current
+    if (!container) {
+      return undefined
+    }
+    const nodes = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-entity-id]'),
+    )
+    if (!nodes.length) {
+      return undefined
+    }
+    let bestId: string | undefined
+    let bestDistance = Number.POSITIVE_INFINITY
+    for (const node of nodes) {
+      const rect = node.getBoundingClientRect()
+      const centerY = rect.top + rect.height / 2
+      const distance = Math.abs(event.clientY - centerY)
+      if (distance < bestDistance) {
+        bestDistance = distance
+        bestId = node.getAttribute('data-entity-id') || undefined
+      }
+    }
+    return bestId
+  }
+
+  protected setDropTargetDatasetId(id?: string): void {
+    if (this.dropTargetDatasetId === id) {
+      return
+    }
+    this.dropTargetDatasetId = id
+    this.update()
   }
 
   protected resolveDatasetTargetEntityId(
