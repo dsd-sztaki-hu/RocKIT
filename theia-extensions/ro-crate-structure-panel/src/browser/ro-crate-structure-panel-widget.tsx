@@ -277,6 +277,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           treeData={treeData}
           height={this.treeHeight}
           showIcon
+          selectedKeys={[]}
           defaultExpandedKeys={['./']}
           onSelect={this.handleTreeSelect}
           // expandedKeys={this.expandedKeys}
