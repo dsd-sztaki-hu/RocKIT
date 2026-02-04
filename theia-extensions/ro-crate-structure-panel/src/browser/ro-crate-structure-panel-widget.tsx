@@ -619,7 +619,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       if (!relPath) {
         continue
       }
-      const id = relPath
+      const normalizedRelPath = this.normalizeWorkspaceRelativePath(relPath)
+      const newId = this.toFileEntityId(normalizedRelPath)
+      const legacyId = relPath
+      const id = indexById.has(newId) ? newId : indexById.has(legacyId) ? legacyId : newId
       if (!indexById.has(id)) {
         const fileEntity = await this.buildFileEntityFromPath(relPath)
         graph.push(fileEntity)
@@ -642,7 +645,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected async buildFileEntityFromPath(relPath: string): Promise<Record<string, any>> {
     const name = relPath.split('/').pop() || relPath
     const fileEntity: Record<string, any> = {
-      '@id': relPath,
+      '@id': this.toFileEntityId(this.normalizeWorkspaceRelativePath(relPath)),
       '@type': 'File',
       name,
     }
@@ -676,6 +679,14 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
     const rootUri = roots[0].resource
     return rootUri.resolve(relPath)
+  }
+
+  protected normalizeWorkspaceRelativePath(relPath: string): string {
+    return relPath.replace(/\\/g, '/').replace(/^\.?\//, '')
+  }
+
+  protected toFileEntityId(relPath: string): string {
+    return `file://./${relPath}`
   }
 
   protected normalizeHasPart(value: any): { '@id': string }[] {
