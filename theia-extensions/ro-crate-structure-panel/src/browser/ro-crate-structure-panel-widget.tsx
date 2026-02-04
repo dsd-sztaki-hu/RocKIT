@@ -3,13 +3,16 @@ import type { Disposable } from '@theia/core'
 import { ApplicationShell, WidgetManager } from '@theia/core/lib/browser'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import URI from '@theia/core/lib/common/uri'
+import { FileService } from '@theia/filesystem/lib/browser/file-service'
+import { WorkspaceService } from '@theia/workspace/lib/browser'
 import type { TreeDataNode } from 'antd'
 import { Tooltip, Tree } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { inject, injectable } from 'inversify'
+import * as mime from 'mime-types'
 import * as React from 'react'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
+import * as SparkMD5 from 'spark-md5'
 
 interface CrateNode {
   id: string
@@ -33,6 +36,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected readonly shell: ApplicationShell
   @inject(WorkspaceService)
   protected readonly workspaceService: WorkspaceService
+  @inject(FileService)
+  protected readonly fileService: FileService
 
   protected crateSubscription?: Disposable
 
@@ -412,16 +417,13 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       this.resolveDropTargetEntityIdWithFallback(event) ??
       this.appStateService.selectedEntityId ??
       './'
-    const datasetTargetEntityId = this.resolveDatasetTargetEntityId(
-      crate,
-      targetEntityId,
-    )
+    const datasetTargetEntityId = this.resolveDatasetTargetEntityId(crate, targetEntityId)
     console.log('RO-Crate Structure: target entity', {
       original: targetEntityId,
       resolvedDataset: datasetTargetEntityId,
     })
 
-    const updatedCrate = this.applyDroppedFilesToCrate(
+    const updatedCrate = await this.applyDroppedFilesToCrate(
       crate,
       datasetTargetEntityId,
       relativePaths,
@@ -430,7 +432,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     console.log('RO-Crate Structure: crate updated', {
       targetEntityId: datasetTargetEntityId,
       added: relativePaths,
-      graphSize: Array.isArray(updatedCrate['@graph']) ? updatedCrate['@graph'].length : 0,
+      graphSize: Array.isArray(updatedCrate['@graph'])
+        ? updatedCrate['@graph'].length
+        : 0,
     })
     this.appStateService.roCrate = updatedCrate
     this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
@@ -510,9 +514,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     if (!container) {
       return undefined
     }
-    const nodes = Array.from(
-      container.querySelectorAll<HTMLElement>('[data-entity-id]'),
-    )
+    const nodes = Array.from(container.querySelectorAll<HTMLElement>('[data-entity-id]'))
     if (!nodes.length) {
       return undefined
     }
@@ -588,11 +590,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     return rawType === type
   }
 
-  protected applyDroppedFilesToCrate(
+  protected async applyDroppedFilesToCrate(
     crate: Record<string, any>,
     targetEntityId: string,
     relativePaths: string[],
-  ): Record<string, any> {
+  ): Promise<Record<string, any>> {
     const graph = Array.isArray(crate['@graph']) ? [...crate['@graph']] : []
     const indexById = new Map<string, number>()
     for (let i = 0; i < graph.length; i += 1) {
@@ -602,8 +604,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       }
     }
 
-    const targetIndex =
-      indexById.get(targetEntityId) ?? indexById.get('./') ?? undefined
+    const targetIndex = indexById.get(targetEntityId) ?? indexById.get('./') ?? undefined
     if (targetIndex === undefined) {
       console.warn('No target entity found for drop', targetEntityId)
       return crate
@@ -619,11 +620,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       }
       const id = relPath
       if (!indexById.has(id)) {
-        graph.push({
-          '@id': id,
-          '@type': 'File',
-          name: id.split('/').pop() || id,
-        })
+        const fileEntity = await this.buildFileEntityFromPath(relPath)
+        graph.push(fileEntity)
         indexById.set(id, graph.length - 1)
       }
       if (!existingHasPartIds.has(id)) {
@@ -638,6 +636,45 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     graph[targetIndex] = targetEntity
 
     return { ...crate, '@graph': graph }
+  }
+
+  protected async buildFileEntityFromPath(relPath: string): Promise<Record<string, any>> {
+    const name = relPath.split('/').pop() || relPath
+    const fileEntity: Record<string, any> = {
+      '@id': relPath,
+      '@type': 'File',
+      name,
+    }
+    const fileUri = this.resolveWorkspaceRelativeUri(relPath)
+    if (!fileUri) {
+      return fileEntity
+    }
+    try {
+      const fileStat = await this.fileService.resolve(fileUri, {
+        resolveMetadata: true,
+      })
+      const mimeType = mime.lookup(name) || 'application/octet-stream'
+      fileEntity.encodingFormat = mimeType
+      fileEntity.contentSize = fileStat.size ? `${fileStat.size}` : undefined
+      try {
+        const content = await this.fileService.read(fileUri)
+        fileEntity.hash = SparkMD5.hash(content.value)
+      } catch (error) {
+        console.warn('Failed to read dropped file for hash', relPath, error)
+      }
+    } catch (error) {
+      console.warn('Failed to resolve dropped file metadata', relPath, error)
+    }
+    return fileEntity
+  }
+
+  protected resolveWorkspaceRelativeUri(relPath: string): URI | undefined {
+    const roots = this.workspaceService.tryGetRoots()
+    if (!roots || roots.length === 0) {
+      return undefined
+    }
+    const rootUri = roots[0].resource
+    return rootUri.resolve(relPath)
   }
 
   protected normalizeHasPart(value: any): { '@id': string }[] {
