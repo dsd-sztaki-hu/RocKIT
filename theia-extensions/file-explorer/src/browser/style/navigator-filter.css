@@ -7,8 +7,8 @@
 .navigator-filters {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
+  gap: 4px;
+  padding: 4px;
   border-bottom: 1px solid var(--theia-ui-border);
   background: var(--theia-sideBar-background);
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.06);
@@ -17,13 +17,68 @@
 .navigator-filter-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  cursor: pointer;
+  user-select: none;
+  gap: 6px;
+  margin-left: 0;
+}
+
+.navigator-filter-header:focus,
+.navigator-filter-header:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .navigator-filter-title {
   font-size: 20px;
   font-weight: 600;
   color: var(--theia-ui-font-color1);
+}
+
+.navigator-filter-toggle {
+  width: 14px;
+  height: 14px;
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--theia-ui-font-color2);
+  font-size: 12px;
+  line-height: 1;
+  transition:
+    transform 0.2s ease,
+    color 0.2s ease;
+}
+
+.navigator-filter-toggle.expanded {
+  transform: rotate(90deg);
+}
+
+.navigator-filter-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+  max-height: 280px;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    max-height 0.25s ease,
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.navigator-filter-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+}
+
+.theia-view-container-part-header .theia-view-container-part-title {
+  display: flex;
 }
 
 .navigator-filter-fields {

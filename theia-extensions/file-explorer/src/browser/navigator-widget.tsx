@@ -31,13 +31,9 @@ import URI from '@theia/core/lib/common/uri'
 import { Message } from '@theia/core/shared/@lumino/messaging'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
-import { Button, Select } from 'antd'
-import {
-    DirNode,
-    FileStatNode,
-    FileStatNodeData,
-} from '@theia/filesystem/lib/browser'
+import { DirNode, FileStatNode, FileStatNodeData } from '@theia/filesystem/lib/browser'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
+import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
@@ -65,6 +61,11 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         fileNameFilter: '',
         roCrateFilter: 'all',
     }
+
+    // collapsible filters (from main)
+    protected filtersExpanded: boolean = true
+    protected readonly fileNameInputRef = React.createRef<HTMLInputElement>()
+    protected fileNameSelection: { start: number | null; end: number | null } | undefined
 
     constructor(
         @inject(TreeProps) props: TreeProps,
@@ -150,60 +151,92 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         const hasActiveFilters =
             this.filters.fileNameFilter.trim() !== '' || this.filters.roCrateFilter !== 'all'
 
+        // keep behavior: if workspace isn't opened, show just tree container (from main)
+        if (!this.workspaceService.opened) {
+            return (
+                <div className="navigator-filter-panel">
+                    <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
+                </div>
+            )
+        }
+
         return (
             <div className="navigator-filter-panel">
-                <div className="navigator-filters">
-                    <div className="navigator-filter-header">
+                <div
+                    className={`navigator-filters ${
+                        this.filtersExpanded ? 'expanded' : 'collapsed'
+                    }`}
+                >
+                    <div
+                        className="navigator-filter-header"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => this.toggleFiltersExpanded()}
+                        onKeyDown={(event) => this.handleFilterHeaderKeyDown(event)}
+                    >
+            <span
+                className={`navigator-filter-toggle codicon codicon-chevron-right ${
+                    this.filtersExpanded ? 'expanded' : 'collapsed'
+                }`}
+                aria-hidden="true"
+            />
                         <span className="navigator-filter-title">Filters</span>
                     </div>
 
-                    <div className="navigator-filter-fields">
-                        <label className="navigator-filter-row">
-                            <span className="navigator-filter-label">File name</span>
-                            <input
-                                className="navigator-filter-input"
-                                type="text"
-                                placeholder="Search file name"
-                                value={this.filters.fileNameFilter}
-                                onChange={(event) => this.onFileNameFilterChange(event)}
-                                onKeyDown={(event) => event.stopPropagation()}
-                            />
-                        </label>
-
-                        <label className="navigator-filter-row">
-                            <span className="navigator-filter-label">RO-Crate descriptions</span>
-                            <div onKeyDown={(event) => event.stopPropagation()}>
-                                <Select
-                                    className="navigator-rocrate-select"
-                                    value={this.filters.roCrateFilter}
-                                    options={[
-                                        { value: 'all', label: 'All files' },
-                                        { value: 'with-description', label: 'With RO-Crate description' },
-                                        { value: 'without-description', label: 'Missing RO-Crate description' },
-                                    ]}
-                                    onChange={(value) =>
-                                        this.onRoCrateFilterChange(value as FileNavigatorFilter.RoCrateFilter)
-                                    }
-                                    size="small"
+                    <div
+                        className={`navigator-filter-content ${
+                            this.filtersExpanded ? 'expanded' : 'collapsed'
+                        }`}
+                    >
+                        <div className="navigator-filter-fields">
+                            <label className="navigator-filter-row">
+                                <span className="navigator-filter-label">File name</span>
+                                <input
+                                    className="navigator-filter-input"
+                                    type="text"
+                                    placeholder="Search file name"
+                                    ref={this.fileNameInputRef}
+                                    value={this.filters.fileNameFilter}
+                                    onChange={(event) => this.onFileNameFilterChange(event)}
+                                    onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}
                                 />
-                            </div>
-                        </label>
-                    </div>
+                            </label>
 
-                    <div className="navigator-filter-actions">
-                        <Button
-                            className="navigator-filter-clear"
-                            danger
-                            ghost
-                            block
-                            disabled={!hasActiveFilters}
-                            onClick={() => this.clearFilters()}
-                            onKeyDown={(event: React.KeyboardEvent<HTMLButtonElement>) =>
-                                event.stopPropagation()
-                            }
-                        >
-                            Clear filters
-                        </Button>
+                            <label className="navigator-filter-row">
+                                <span className="navigator-filter-label">RO-Crate descriptions</span>
+                                <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
+                                    <Select
+                                        className="navigator-rocrate-select"
+                                        value={this.filters.roCrateFilter}
+                                        options={[
+                                            { value: 'all', label: 'All files' },
+                                            { value: 'with-description', label: 'With RO-Crate description' },
+                                            { value: 'without-description', label: 'Missing RO-Crate description' },
+                                        ]}
+                                        onChange={(value) =>
+                                            this.onRoCrateFilterChange(value as FileNavigatorFilter.RoCrateFilter)
+                                        }
+                                        size="small"
+                                    />
+                                </div>
+                            </label>
+                        </div>
+
+                        <div className="navigator-filter-actions">
+                            <Button
+                                className="navigator-filter-clear"
+                                danger
+                                ghost
+                                block
+                                disabled={!hasActiveFilters}
+                                onClick={() => this.clearFilters()}
+                                onKeyDownCapture={(event: React.KeyboardEvent) =>
+                                    this.stopFilterKeyEvents(event)
+                                }
+                            >
+                                Clear filters
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
@@ -344,7 +377,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     }
 
     /**
-     * Overrides the method from FileTreeWidget to add custom CSS classes.
+     * Overrides the method from FileTreeWidget to add custom CSS classes + drag support.
      */
     protected override createNodeAttributes(
         node: TreeNode,
@@ -362,7 +395,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
             attributes.className = `${existingClassName} contains-not-in-ro-crate`.trim()
         }
 
-        // keep drag support from 26662
+        // drag support (from 26662)
         if (FileStatNode.is(node)) {
             attributes.draggable = true
             attributes.onDragStart = (event: React.DragEvent) =>
@@ -388,9 +421,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     }
 
     /**
-     * SIMPLE + WORKING:
      * Highlight files NOT present in RO-Crate by workspace-relative path.
-     * (This is the 26606 behavior you originally wanted.)
      */
     private shouldHighlightFile(node: FileStatNode): boolean {
         const { files, directories } = this.getRoCrateEntityPathIndex()
@@ -403,12 +434,10 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
             return false
         }
 
-        // exact file entity exists
         if (files.has(relativePath)) {
             return false
         }
 
-        // file is within a directory entity
         for (const directory of directories) {
             if (!directory) continue
             if (relativePath === directory || relativePath.startsWith(`${directory}/`)) {
@@ -446,7 +475,9 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
             if (!entry || typeof entry !== 'object') {
                 continue
             }
-            const rawId = typeof (entry as any)['@id'] === 'string' ? (entry as any)['@id'].trim() : ''
+
+            const rawId =
+                typeof (entry as any)['@id'] === 'string' ? (entry as any)['@id'].trim() : ''
             if (!rawId) {
                 continue
             }
@@ -518,10 +549,16 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         return normalized
     }
 
-    // Filters (kept as-is)
+    // --- filter wiring (kept simple, but with selection restore + event stop) ---
+
     protected onFileNameFilterChange(event: React.ChangeEvent<HTMLInputElement>): void {
+        this.fileNameSelection = {
+            start: event.target.selectionStart,
+            end: event.target.selectionEnd,
+        }
         this.filters.fileNameFilter = event.target.value
         this.applyFilters()
+        this.restoreInputSelection(this.fileNameInputRef, this.fileNameSelection)
     }
 
     protected onRoCrateFilterChange(value: FileNavigatorFilter.RoCrateFilter): void {
@@ -543,7 +580,47 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         this.applyFilters()
     }
 
-    // Drag support (from 26662)
+    protected stopFilterKeyEvents(event: React.KeyboardEvent): void {
+        event.stopPropagation()
+        if (typeof event.nativeEvent.stopImmediatePropagation === 'function') {
+            event.nativeEvent.stopImmediatePropagation()
+        }
+    }
+
+    protected toggleFiltersExpanded(): void {
+        this.filtersExpanded = !this.filtersExpanded
+        this.update()
+    }
+
+    protected handleFilterHeaderKeyDown(event: React.KeyboardEvent): void {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            this.toggleFiltersExpanded()
+        }
+    }
+
+    protected restoreInputSelection(
+        inputRef: React.RefObject<HTMLInputElement>,
+        selection?: { start: number | null; end: number | null },
+    ): void {
+        if (!selection) {
+            return
+        }
+        requestAnimationFrame(() => {
+            const input = inputRef.current
+            if (!input) {
+                return
+            }
+            const { start, end } = selection
+            if (start === null || end === null) {
+                return
+            }
+            input.setSelectionRange(start, end)
+        })
+    }
+
+    // --- drag support (from 26662) ---
+
     protected handleNodeDragStart(node: FileStatNode, event: React.DragEvent): void {
         if (!event.dataTransfer) {
             return
