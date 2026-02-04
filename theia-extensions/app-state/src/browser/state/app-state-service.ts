@@ -257,4 +257,12 @@ export class AppStateService {
     console.log('AppStateService: Setting completeProfile to:', value)
     this.updateState({ completeProfile: value })
   }
+
+  get validationErrors(): AppState['validationErrors'] {
+      return this.getState().validationErrors;
+  }
+  set validationErrors(value: AppState['validationErrors']) {
+      this.updateState({ validationErrors: value });
+  }
+
 }
