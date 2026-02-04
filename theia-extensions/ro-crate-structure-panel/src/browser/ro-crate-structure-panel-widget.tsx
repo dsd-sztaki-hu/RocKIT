@@ -89,6 +89,15 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected containerRef: React.RefObject<HTMLDivElement> = React.createRef()
   protected treeHeight: number = 400
   protected dropTargetDatasetId?: string
+  protected globalDragListenersAttached = false
+
+  protected readonly handleGlobalDragEnd = (_event: DragEvent): void => {
+    this.setDropTargetDatasetId(undefined)
+  }
+
+  protected readonly handleGlobalDrop = (_event: DragEvent): void => {
+    this.setDropTargetDatasetId(undefined)
+  }
 
   protected MemoTooltip: React.ComponentType<any> = React.memo(Tooltip as any)
 
@@ -191,8 +200,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       key,
       title: node.name || node.id,
       entityId: node.id,
+      entityType: node.type,
       children,
-    } as TreeDataNode & { entityId: string }
+    } as TreeDataNode & { entityId: string; entityType: string }
   }
 
   protected handleTreeSelect = (_keys: React.Key[], info: any): void => {
@@ -227,6 +237,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   onAfterAttach(msg: any): void {
     super.onAfterAttach(msg)
     this.computeHeightAndUpdate()
+    this.attachGlobalDragListeners()
   }
 
   onResize(msg: any): void {
@@ -246,6 +257,24 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       this.treeHeight = h
       this.update()
     }
+  }
+
+  protected attachGlobalDragListeners(): void {
+    if (this.globalDragListenersAttached) {
+      return
+    }
+    document.addEventListener('dragend', this.handleGlobalDragEnd, true)
+    document.addEventListener('drop', this.handleGlobalDrop, true)
+    this.globalDragListenersAttached = true
+  }
+
+  protected detachGlobalDragListeners(): void {
+    if (!this.globalDragListenersAttached) {
+      return
+    }
+    document.removeEventListener('dragend', this.handleGlobalDragEnd, true)
+    document.removeEventListener('drop', this.handleGlobalDrop, true)
+    this.globalDragListenersAttached = false
   }
 
   render(): React.ReactNode {
@@ -270,6 +299,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         }}
         onDragOver={(event) => this.handleDragOver(event)}
         onDragLeave={(event) => this.handleDragLeave(event)}
+        onDropCapture={(event) => this.handleDropCapture(event)}
         onDrop={(event) => this.handleDrop(event)}
       >
         <Tree
@@ -295,6 +325,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             ) : (
               <FileOutlined />
             )
+            const isDatasetNode = (item as any).entityType === 'Dataset'
             return (
               <this.MemoTooltip title={title}>
                 <span
@@ -305,12 +336,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                     padding: '2px 4px',
                     borderRadius: 4,
                     background:
-                      (item as any).entityId === this.dropTargetDatasetId
+                      isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
                         ? 'rgba(24, 144, 255, 0.14)'
                         : 'transparent',
                     outline: 'none',
                     boxShadow:
-                      (item as any).entityId === this.dropTargetDatasetId
+                      isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
                         ? '0 0 8px rgba(24, 144, 255, 0.35)'
                         : 'none',
                   }}
@@ -357,6 +388,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     if (!currentTarget || (relatedTarget && currentTarget.contains(relatedTarget))) {
       return
     }
+    this.setDropTargetDatasetId(undefined)
+  }
+
+  protected handleDropCapture(_event: React.DragEvent): void {
+    // Clear highlight even if a child stops drop propagation.
     this.setDropTargetDatasetId(undefined)
   }
 
@@ -712,6 +748,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   }
 
   dispose(): void {
+    this.detachGlobalDragListeners()
     super.dispose()
     this.crateSubscription?.dispose()
   }
