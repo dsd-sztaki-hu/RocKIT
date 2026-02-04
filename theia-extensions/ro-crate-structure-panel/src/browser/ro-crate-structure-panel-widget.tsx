@@ -300,11 +300,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                     borderRadius: 4,
                     background:
                       (item as any).entityId === this.dropTargetDatasetId
-                        ? 'rgba(24, 144, 255, 0.15)'
+                        ? 'rgba(24, 144, 255, 0.14)'
                         : 'transparent',
-                    outline:
+                    outline: 'none',
+                    boxShadow:
                       (item as any).entityId === this.dropTargetDatasetId
-                        ? '1px solid rgba(24, 144, 255, 0.6)'
+                        ? '0 0 8px rgba(24, 144, 255, 0.35)'
                         : 'none',
                   }}
                   data-entity-id={(item as any).entityId}
