@@ -18,3 +18,11 @@ export interface SchemaTableProps {
     onSelectionChange: (selectedRowKeys: Key[]) => void;
     onDelete?: (schemaPaths: string[]) => void;
 }
+
+export interface RemoteSchemaProviderConfig {
+    id: string;
+    title: string;
+    baseUrl: string;
+    type: 'CEDAR'; // Currently only CEDAR is supported
+    apiKey?: string;
+}

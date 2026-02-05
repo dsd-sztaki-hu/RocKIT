@@ -12,6 +12,7 @@ import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converte
 import type { SchemaInfo } from '../types';
 import { SchemaApi } from './schema-api';
 import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'aroma2-common/lib/browser';
+import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service'; // Import Provider Store
 
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
@@ -36,6 +37,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     @inject(FileService) protected readonly fileService!: FileService;
     @inject(MessageService) protected readonly messageService!: MessageService;
     @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
+    @inject(RemoteSchemaProviderStoreService) public readonly providerStoreService!: RemoteSchemaProviderStoreService; // Inject Provider Store
 
     private readonly converter = new CedarTemplateToDescriboProfileConverter();
     private isChecking = false;
@@ -578,24 +580,4 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         }
         return name.replace(/ (metadata|metaadatok|metaadatai|metaadat)$/i, '');
     }
-
-    // public convertW3idUrlsToCedarTemplateUrls(w3idUrls: string[]) {
-    //     return w3idUrls.map((url: string) => this.convertW3idUrlToCedarTemplateUrl(url))
-    // }
-
-    // protected convertW3idUrlToCedarTemplateUrl(url: string) {
-    //     if (url.startsWith("https://repo.")) { return url }
-    //     const uuid = url.split("schema/").pop();
-    //     return "https://" + REPO_DOMAINS.REPO_DEV + "/templates/" + uuid
-    // }
-
-    // protected convertCedarTemplateUrlsToW3idUrls(cedarUrls: string[]) {
-    //     return cedarUrls.map((url: string) => this.convertCedarTemplateUrlToW3idUrl(url))
-    // }
-
-    // public convertCedarTemplateUrlToW3idUrl(url: string) {
-    //     if (url.startsWith(REPO_DOMAINS.W3ID_BASE)) { return url }
-    //     const uuid = url.split("templates/").pop()
-    //     return REPO_DOMAINS.W3ID_BASE + "/schema/" + uuid
-    // }
 }

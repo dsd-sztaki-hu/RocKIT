@@ -13,6 +13,7 @@ import type { Root } from 'react-dom/client';
 import { SchemaManagerService } from './services/metadata-schema-manager-service';
 import { MetadataSchemaTable } from './components/metadata-schema-table';
 import { MetadataSchemaToolbar } from './components/metadata-schema-toolbar';
+import { RemoteSchemaProviderListDialog } from './components/remote-schema-provider-list-dialog'; // Import Renamed Dialog
 import type { SchemaInfo } from './types';
 
 import './style/index.css';
@@ -35,6 +36,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected schemas: SchemaInfo[] = [];
     protected isLoading = true;
     protected selectedSchemaKeys: Key[] = [];
+    protected isProviderConfigOpen = false; 
     
     private reactRoot: Root | undefined;
 
@@ -200,6 +202,16 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         await this.loadSchemas();
     }
 
+    protected openProviderConfiguration(): void {
+        this.isProviderConfigOpen = true;
+        this.update();
+    }
+
+    protected closeProviderConfiguration(): void {
+        this.isProviderConfigOpen = false;
+        this.update();
+    }
+
     protected onAfterAttach(msg: Message): void {
         super.onAfterAttach(msg);
         this.node.innerHTML = '';
@@ -235,6 +247,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     onBrowse={() => this.browseRemoteSchemas()} 
                     onRefresh={() => this.refreshSchemas()}
                     onDelete={() => this.deleteSchemas(selectedSchemaPaths)}
+                    onConfigureProviders={() => this.openProviderConfiguration()}
                     selectedCount={this.selectedSchemaKeys.length}
                 />
 
@@ -246,6 +259,14 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                         onDelete={(paths) => this.deleteSchemas(paths)}
                     />
                 </div>
+
+                {this.isProviderConfigOpen && (
+                    <RemoteSchemaProviderListDialog 
+                        open={this.isProviderConfigOpen}
+                        onClose={() => this.closeProviderConfiguration()}
+                        providerStore={this.schemaManagerService.providerStoreService}
+                    />
+                )}
             </div>
         );
     }
