@@ -12,7 +12,9 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { SchemaManagerService } from '../services/metadata-schema-manager-service';
 import { MetadataSchemaTable } from './metadata-schema-table';
 import { MetadataSchemaToolbar } from './metadata-schema-toolbar';
-import type { SchemaInfo } from '../types';
+import { RemoteSchemaProviderListDialog } from './remote-schema-provider-list-dialog';
+import { RemoteSchemaProviderConfigDialog } from './remote-schema-provider-config-dialog';
+import type { SchemaInfo, RemoteSchemaProviderConfig } from '../types';
 
 const MSG_TIMEOUT = 5000;
 
@@ -77,6 +79,13 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
     const [isLoading, setIsLoading] = React.useState(false);
     const [selectedSchema, setSelectedSchema] = React.useState<SchemaInfo | null>(null);
 
+    // --- Provider Configuration State (Swap Strategy) ---
+    const [isProviderListOpen, setIsProviderListOpen] = React.useState(false);
+    const [isProviderConfigOpen, setIsProviderConfigOpen] = React.useState(false);
+    const [selectedProviderToEdit, setSelectedProviderToEdit] = React.useState<RemoteSchemaProviderConfig | undefined>(undefined);
+    const [providersLastUpdated, setProvidersLastUpdated] = React.useState(0);
+    const [configDialogKey, setConfigDialogKey] = React.useState(0);
+
     const loadData = React.useCallback(() => {
         setIsLoading(true);
         service.loadAllSchemas()
@@ -98,6 +107,54 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         });
         return () => listener.dispose();
     }, [service, loadData, isOpen]);
+
+    // --- Provider Handlers ---
+
+    const handleOpenProviderList = () => {
+        setIsProviderListOpen(true);
+        setIsProviderConfigOpen(false);
+    };
+
+    const handleCloseProviderList = () => {
+        setIsProviderListOpen(false);
+        setIsProviderConfigOpen(false);
+    };
+
+    const handleOpenProviderConfig = (provider?: RemoteSchemaProviderConfig) => {
+        setSelectedProviderToEdit(provider);
+        // Swap: Close list, Open config
+        setIsProviderListOpen(false);
+        setIsProviderConfigOpen(true);
+        // Force fresh mount
+        setConfigDialogKey(prev => prev + 1);
+    };
+
+    const handleCloseProviderConfig = () => {
+        setIsProviderConfigOpen(false);
+        setSelectedProviderToEdit(undefined);
+        // Swap: Re-open list
+        setIsProviderListOpen(true);
+    };
+
+    const handleProviderSave = async (newConfig: RemoteSchemaProviderConfig) => {
+        const store = service.providerStoreService;
+        const currentProviders = await store.loadProviders();
+        
+        let newList = [...currentProviders];
+        const existingIndex = newList.findIndex(p => p.id === newConfig.id);
+        
+        if (existingIndex !== -1) {
+            newList[existingIndex] = newConfig;
+        } else {
+            newList.push(newConfig);
+        }
+
+        await store.saveProviders(newList);
+        setProvidersLastUpdated(Date.now());
+        // UI update is handled by handleCloseProviderConfig re-opening the list
+    };
+
+    // --- Existing Handlers ---
 
     const handleImportFile = async () => {
         const uris = await utils.fileDialog.showOpenDialog({ 
@@ -201,12 +258,14 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
                 <Button key="ok" type="primary" onClick={handleAssociate} disabled={!selectedSchema || isLoading}>Associate</Button>
             ]}
         >
-            <div style={{ display: 'flex', flexDirection: 'column', height: '600px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '600px', position: 'relative' }}>
                 <MetadataSchemaToolbar 
                     onImportFile={handleImportFile} 
                     onImportUrl={handleImportUrl} 
                     onBrowse={handleBrowseRemote}
-                    onRefresh={loadData} 
+                    onRefresh={loadData}
+                    // FIX: Added the handler here
+                    onConfigureProviders={handleOpenProviderList}
                 />
                 <div style={{ flexGrow: 1, overflow: 'auto' }}>
                     <MetadataSchemaTable
@@ -219,6 +278,30 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
                         }}
                     />
                 </div>
+
+                {/* Sibling Rendering Strategy for Dialogs */}
+                
+                {isProviderListOpen && (
+                    <RemoteSchemaProviderListDialog 
+                        open={isProviderListOpen}
+                        onClose={handleCloseProviderList}
+                        onAddProvider={() => handleOpenProviderConfig(undefined)}
+                        onEditProvider={(p) => handleOpenProviderConfig(p)}
+                        providerStore={service.providerStoreService}
+                        lastUpdated={providersLastUpdated}
+                    />
+                )}
+
+                {isProviderConfigOpen && (
+                    <RemoteSchemaProviderConfigDialog 
+                        key={configDialogKey}
+                        open={isProviderConfigOpen}
+                        providerToEdit={selectedProviderToEdit}
+                        onClose={handleCloseProviderConfig}
+                        onSave={handleProviderSave}
+                        providerStore={service.providerStoreService}
+                    />
+                )}
             </div>
         </Modal>
     );
