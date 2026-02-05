@@ -14,6 +14,7 @@ export interface Item {
     children?: Item[]; // the directly contained items; only defined for categories/containers
     valid?: boolean; // whether the item is valid (to demonstrate decoration, ...); only defined for items
     backOrdered?: boolean; // whether this item was backordered (to demonstrate checkboxes); only defined for items
+    treeId?: string; // stable id for the tree node
 }
 
 /**
@@ -71,6 +72,9 @@ export class EntitiesOverviewTreeItemFactory {
      * @returns the unique id for the given item in the form "{name}-{counter}"
      */
     private toTreeNodeId(item: Item): string {
+        if (item.treeId) {
+            return item.treeId;
+        }
         const key = item.name;
 
         // get the next counter for this item's name (or use 0 if this is the first occurrence)

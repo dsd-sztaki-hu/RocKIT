@@ -1,5 +1,6 @@
 import {
   CompositeTreeNode,
+  DepthFirstTreeIterator,
   ExpandableTreeNode,
   SelectableTreeNode,
   TreeModelImpl,
@@ -30,13 +31,15 @@ function formatTypeLabel(rawType: string): string {
  * IMPORTANT: localisation keys can be case-sensitive (e.g. dsDescription),
  * so we must lookup using the raw tail before formatting.
  */
-function getEntityTypes(
+type EntityTypeEntry = { key: string; label: string }
+
+function getEntityTypeEntries(
   entity: Record<string, any>,
   profile?: Record<string, any>,
-): string[] {
+): EntityTypeEntry[] {
   const rawTypes = entity?.['@type']
   if (!rawTypes) {
-    return ['Unknown']
+    return [{ key: 'Unknown', label: 'Unknown' }]
   }
 
   const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
@@ -47,7 +50,10 @@ function getEntityTypes(
 
     const localized = profile?.localisation?.[tail] ?? profile?.classes?.[tail]?.label
 
-    return localized?.trim() || formatTypeLabel(tail)
+    return {
+      key: raw,
+      label: localized?.trim() || formatTypeLabel(tail),
+    }
   })
 }
 
@@ -85,8 +91,8 @@ function getAvailableTypes(
     if (hasType(entry, 'CreativeWork')) {
       continue
     }
-    for (const typeLabel of getEntityTypes(entry, profile)) {
-      types.add(typeLabel)
+    for (const typeEntry of getEntityTypeEntries(entry, profile)) {
+      types.add(typeEntry.label)
     }
   }
   return Array.from(types.values()).sort((a, b) => a.localeCompare(b))
@@ -101,7 +107,7 @@ function createEntitiesData(
   invalidEntityIds: Set<string>,
 ): Item[] {
   const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
-  const byType = new Map<string, Item[]>()
+  const byType = new Map<string, { label: string; items: Item[] }>()
 
   const normalizedNameFilter = normalizeFilter(nameFilter)
   const normalizedTypeFilters = typeFilters.map((type) => normalizeFilter(type))
@@ -130,8 +136,8 @@ function createEntitiesData(
       (validityFilter === 'invalid' && !valid)
 
     // NOTE: type labels here must match what getAvailableTypes returns
-    for (const typeLabel of getEntityTypes(entry, profile)) {
-      const normalizedTypeLabel = typeLabel.toLowerCase()
+    for (const typeEntry of getEntityTypeEntries(entry, profile)) {
+      const normalizedTypeLabel = typeEntry.label.toLowerCase()
 
       if (
         normalizedTypeFilters.length > 0 &&
@@ -146,21 +152,25 @@ function createEntitiesData(
         continue
       }
 
-      const list = byType.get(typeLabel) ?? []
-      list.push({
+      const group = byType.get(typeEntry.key) ?? { label: typeEntry.label, items: [] }
+      group.items.push({
         name: displayName,
         entityId,
         description,
         valid,
+        treeId: `leaf:${typeEntry.key}:${entityId || displayName}`,
       })
-      byType.set(typeLabel, list)
+      byType.set(typeEntry.key, group)
     }
   }
 
-  return Array.from(byType.entries()).map(([typeName, children]) => ({
-    name: typeName,
-    children: children.sort((a, b) => a.name.localeCompare(b.name)),
-  }))
+  return Array.from(byType.entries())
+    .sort(([, a], [, b]) => a.label.localeCompare(b.label))
+    .map(([typeKey, group]) => ({
+      name: group.label,
+      treeId: `type:${typeKey}`,
+      children: group.items.sort((a, b) => a.name.localeCompare(b.name)),
+    }))
 }
 
 /** well-known ID for the root node in our tree */
@@ -262,6 +272,15 @@ export class EntitiesOverviewModel extends TreeModelImpl {
   }
 
   private refreshFilteredTree(): void {
+    const expandedNodeIds = new Set<string>()
+    if (this.tree.root) {
+      for (const treeNode of new DepthFirstTreeIterator(this.tree.root)) {
+        if (ExampleTreeNode.is(treeNode) && treeNode.expanded) {
+          expandedNodeIds.add(treeNode.id)
+        }
+      }
+    }
+
     const root: CompositeTreeNode = {
       id: ROOT_NODE_ID,
       parent: undefined,
@@ -291,8 +310,12 @@ export class EntitiesOverviewModel extends TreeModelImpl {
     )
       .map((item) => {
         const node = this.itemFactory.toTreeNode(item)
-        if (shouldExpand && ExampleTreeNode.is(node)) {
-          node.expanded = true
+        if (ExampleTreeNode.is(node)) {
+          if (expandedNodeIds.has(node.id)) {
+            node.expanded = true
+          } else if (shouldExpand) {
+            node.expanded = true
+          }
         }
         return node
       })
