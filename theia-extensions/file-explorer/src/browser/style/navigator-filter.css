@@ -194,7 +194,37 @@
 }
 
 .navigator-filter-panel .theia-TreeNode.navigator-group-node .theia-TreeNodeContent {
-  padding-top: 8px;
-  padding-bottom: 4px;
-  border-top: 1px solid var(--theia-ui-border);
+  position: relative;
+  padding-top: 10px;
+  padding-bottom: 6px;
+  padding-left: 10px;
+}
+
+.navigator-filter-panel
+  .theia-TreeNode.navigator-group-node
+  .theia-ExpansionToggle {
+  display: none;
+}
+
+.navigator-filter-panel
+  .theia-TreeNode.navigator-group-node
+  .theia-TreeNodeContent::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--theia-ui-border);
+  transform: translateY(-50%);
+  opacity: 0.9;
+}
+
+.navigator-filter-panel
+  .theia-TreeNode.navigator-group-node
+  .theia-TreeNodeLabel {
+  position: relative;
+  z-index: 1;
+  padding: 0 8px;
+  background: var(--theia-sideBar-background);
 }
