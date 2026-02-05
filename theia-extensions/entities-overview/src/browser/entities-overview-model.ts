@@ -98,6 +98,7 @@ function createEntitiesData(
   nameFilter: string,
   typeFilters: string[],
   validityFilter: ValidityFilter,
+  invalidEntityIds: Set<string>,
 ): Item[] {
   const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
   const byType = new Map<string, Item[]>()
@@ -117,7 +118,7 @@ function createEntitiesData(
     const name = getEntityName(entry).trim()
     const description =
       typeof entry?.description === 'string' ? String(entry.description) : undefined
-    const valid = Boolean(name)
+    const valid = Boolean(name) && !invalidEntityIds.has(entityId)
     const displayName = entityId === './' ? './' : name || entityId || '(unnamed)'
 
     const matchesName =
@@ -221,6 +222,11 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         this.refreshFilteredTree()
       }),
     )
+    this.toDispose.push(
+      this.appStateService.onDidChangeSelector((state) => state.validationErrors)(() => {
+        this.refreshFilteredTree()
+      }),
+    )
   }
 
   protected updateEntitiesFromCrate(crate: Record<string, any> | undefined): void {
@@ -269,12 +275,19 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         this.validityFilter !== 'all',
     )
 
+    const invalidEntityIds = new Set(
+      (this.appStateService.validationErrors ?? [])
+        .map((error) => error?.entityId)
+        .filter((entityId): entityId is string => Boolean(entityId)),
+    )
+
     createEntitiesData(
       this.currentCrate,
       this.appStateService.completeProfile,
       this.entityNameFilter,
       this.entityTypeFilters,
       this.validityFilter,
+      invalidEntityIds,
     )
       .map((item) => {
         const node = this.itemFactory.toTreeNode(item)
