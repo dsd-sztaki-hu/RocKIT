@@ -272,12 +272,10 @@ export class EntitiesOverviewModel extends TreeModelImpl {
   }
 
   private refreshFilteredTree(): void {
-    const expandedNodeIds = new Set<string>()
+    const existingNodes = new Map<string, TreeNode>()
     if (this.tree.root) {
       for (const treeNode of new DepthFirstTreeIterator(this.tree.root)) {
-        if (ExampleTreeNode.is(treeNode) && treeNode.expanded) {
-          expandedNodeIds.add(treeNode.id)
-        }
+        existingNodes.set(treeNode.id, treeNode)
       }
     }
 
@@ -308,19 +306,46 @@ export class EntitiesOverviewModel extends TreeModelImpl {
       this.validityFilter,
       invalidEntityIds,
     )
-      .map((item) => {
-        const node = this.itemFactory.toTreeNode(item)
-        if (ExampleTreeNode.is(node)) {
-          if (expandedNodeIds.has(node.id)) {
-            node.expanded = true
-          } else if (shouldExpand) {
-            node.expanded = true
-          }
-        }
-        return node
-      })
+      .map((item) => this.buildTreeNode(item, root, existingNodes, shouldExpand))
       .forEach((node) => CompositeTreeNode.addChild(root, node))
 
     this.tree.root = root
+  }
+
+  private buildTreeNode(
+    item: Item,
+    parent: CompositeTreeNode,
+    existingNodes: Map<string, TreeNode>,
+    shouldExpand: boolean,
+  ): TreeNode {
+    const freshNode = this.itemFactory.toTreeNode(item)
+    const existing = existingNodes.get(freshNode.id)
+    const node =
+      existing && this.isSameNodeType(existing, freshNode) ? existing : freshNode
+    this.setParent(node, parent)
+    ;(node as ExampleTreeNode | ExampleTreeLeaf).data = item
+
+    if (ExampleTreeNode.is(node)) {
+      const children = (item.children ?? []).map((child) =>
+        this.buildTreeNode(child, node, existingNodes, shouldExpand),
+      )
+      node.children = children
+      if (!existing || !ExampleTreeNode.is(existing)) {
+        node.expanded = shouldExpand
+      }
+    }
+
+    return node
+  }
+
+  private isSameNodeType(a: TreeNode, b: TreeNode): boolean {
+    return (
+      (ExampleTreeNode.is(a) && ExampleTreeNode.is(b)) ||
+      (ExampleTreeLeaf.is(a) && ExampleTreeLeaf.is(b))
+    )
+  }
+
+  private setParent(node: TreeNode, parent: CompositeTreeNode): void {
+    ;(node as { parent: CompositeTreeNode | undefined }).parent = parent
   }
 }
