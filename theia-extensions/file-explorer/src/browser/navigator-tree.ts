@@ -18,7 +18,7 @@ import { injectable, inject, postConstruct } from '@theia/core/shared/inversify'
 import { FileTree, DirNode } from '@theia/filesystem/lib/browser';
 import { FileStat } from '@theia/filesystem/lib/common/files';
 import URI from '@theia/core/lib/common/uri';
-import { TreeNode, CompositeTreeNode, SelectableTreeNode, CompressionToggle } from '@theia/core/lib/browser';
+import { TreeNode, CompositeTreeNode, SelectableTreeNode, ExpandableTreeNode, CompressionToggle } from '@theia/core/lib/browser';
 import { FileNavigatorFilter } from './navigator-filter';
 import { EXPLORER_COMPACT_FOLDERS, FileNavigatorPreferences } from '../common/navigator-preferences';
 
@@ -48,20 +48,20 @@ export class FileNavigatorTree extends FileTree {
     }
 
     override async resolveChildren(parent: CompositeTreeNode): Promise<TreeNode[]> {
-        if (WorkspaceNode.is(parent)) {
-            return parent.children;
+        if (WorkspaceNode.is(parent) || NavigatorGroupNode.is(parent)) {
+            return [...parent.children];
         }
         return this.filter.filter(super.resolveChildren(parent));
     }
 
     protected override toNodeId(uri: URI, parent: CompositeTreeNode): string {
-        const workspaceRootNode = WorkspaceRootNode.find(parent);
-        if (workspaceRootNode) {
-            return this.createId(workspaceRootNode, uri);
+        const rootNode = NavigatorRootNode.find(parent);
+        if (rootNode) {
+            return this.createId(rootNode, uri);
         }
         return super.toNodeId(uri, parent);
     }
-    createId(root: WorkspaceRootNode, uri: URI): string {
+    createId(root: NavigatorRootNode, uri: URI): string {
         const id = super.toNodeId(uri, root);
         return id === root.id ? id : `${root.id}:${id}`;
     }
@@ -69,7 +69,17 @@ export class FileNavigatorTree extends FileTree {
     async createWorkspaceRoot(rootFolder: FileStat, workspaceNode: WorkspaceNode): Promise<WorkspaceRootNode> {
         const node = this.toNode(rootFolder, workspaceNode) as WorkspaceRootNode;
         Object.assign(node, {
+            rootType: 'workspace',
             visible: workspaceNode.name !== WorkspaceNode.name,
+        });
+        return node;
+    }
+
+    async createDataSourceRoot(rootFolder: FileStat, workspaceNode: WorkspaceNode): Promise<DataSourceRootNode> {
+        const node = this.toNode(rootFolder, workspaceNode) as DataSourceRootNode;
+        Object.assign(node, {
+            rootType: 'data-source',
+            visible: true,
         });
         return node;
     }
@@ -79,7 +89,7 @@ export class FileNavigatorTree extends FileTree {
  * File tree root node for multi-root workspaces.
  */
 export interface WorkspaceNode extends CompositeTreeNode, SelectableTreeNode {
-    children: WorkspaceRootNode[];
+    children: (NavigatorGroupNode | NavigatorRootNode)[];
 }
 export namespace WorkspaceNode {
 
@@ -105,19 +115,85 @@ export namespace WorkspaceNode {
     }
 }
 
+export interface NavigatorGroupNode extends CompositeTreeNode, SelectableTreeNode, ExpandableTreeNode {
+    parent: WorkspaceNode;
+    groupType: 'workspace' | 'data-source';
+}
+export namespace NavigatorGroupNode {
+    export function is(node: unknown): node is NavigatorGroupNode {
+        return (
+            CompositeTreeNode.is(node) &&
+            WorkspaceNode.is(node.parent) &&
+            (node as { groupType?: string }).groupType !== undefined
+        );
+    }
+
+    export function create(
+        groupType: 'workspace' | 'data-source',
+        name: string,
+        parent: WorkspaceNode,
+    ): NavigatorGroupNode {
+        return {
+            id: `navigator-group:${groupType}`,
+            name,
+            parent,
+            children: [],
+            visible: true,
+            selected: false,
+            expanded: true,
+            groupType,
+        };
+    }
+}
+
 /**
  * A node representing a folder from a multi-root workspace.
  */
 export interface WorkspaceRootNode extends DirNode {
     parent: WorkspaceNode;
+    rootType: 'workspace';
 }
 export namespace WorkspaceRootNode {
 
     export function is(node: unknown): node is WorkspaceRootNode {
-        return DirNode.is(node) && WorkspaceNode.is(node.parent);
+        return (
+            DirNode.is(node) &&
+            WorkspaceNode.is(node.parent) &&
+            (node as { rootType?: string }).rootType === 'workspace'
+        );
     }
 
     export function find(node: TreeNode | undefined): WorkspaceRootNode | undefined {
+        if (node) {
+            if (is(node)) {
+                return node;
+            }
+            return find(node.parent);
+        }
+    }
+}
+
+export interface DataSourceRootNode extends DirNode {
+    parent: WorkspaceNode;
+    rootType: 'data-source';
+}
+export namespace DataSourceRootNode {
+    export function is(node: unknown): node is DataSourceRootNode {
+        return (
+            DirNode.is(node) &&
+            WorkspaceNode.is(node.parent) &&
+            (node as { rootType?: string }).rootType === 'data-source'
+        );
+    }
+}
+
+export type NavigatorRootNode = WorkspaceRootNode | DataSourceRootNode;
+export namespace NavigatorRootNode {
+    export function is(node: unknown): node is NavigatorRootNode {
+        return WorkspaceRootNode.is(node) || DataSourceRootNode.is(node);
+    }
+
+    export function find(node: TreeNode | undefined): NavigatorRootNode | undefined {
         if (node) {
             if (is(node)) {
                 return node;

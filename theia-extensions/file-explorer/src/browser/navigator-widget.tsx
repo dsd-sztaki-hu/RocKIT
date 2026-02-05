@@ -39,7 +39,7 @@ import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
 import { FileNavigatorFilter } from './navigator-filter'
 import { FileNavigatorModel } from './navigator-model'
-import { WorkspaceNode, WorkspaceRootNode } from './navigator-tree'
+import { NavigatorGroupNode, WorkspaceNode, WorkspaceRootNode } from './navigator-tree'
 
 export const FILE_NAVIGATOR_ID = 'files'
 export const LABEL = nls.localizeByDefault('No Folder Opened')
@@ -393,6 +393,11 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         if (DirNode.is(node) && this.containsNotInRoCrate(node)) {
             const existingClassName = attributes.className || ''
             attributes.className = `${existingClassName} contains-not-in-ro-crate`.trim()
+        }
+
+        if (NavigatorGroupNode.is(node)) {
+            const existingClassName = attributes.className || ''
+            attributes.className = `${existingClassName} navigator-group-node`.trim()
         }
 
         // drag support (from 26662)

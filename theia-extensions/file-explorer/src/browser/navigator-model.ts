@@ -18,12 +18,13 @@ import { injectable, inject, postConstruct } from '@theia/core/shared/inversify'
 import URI from '@theia/core/lib/common/uri';
 import { FileNode, FileTreeModel } from '@theia/filesystem/lib/browser';
 import { OpenerService, open, TreeNode, ExpandableTreeNode, CompositeTreeNode, SelectableTreeNode } from '@theia/core/lib/browser';
-import { FileNavigatorTree, WorkspaceRootNode, WorkspaceNode } from './navigator-tree';
+import { FileNavigatorTree, NavigatorGroupNode, NavigatorRootNode, WorkspaceNode } from './navigator-tree';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { FrontendApplicationStateService } from '@theia/core/lib/browser/frontend-application-state';
 import { ProgressService } from '@theia/core/lib/common/progress-service';
 import { Deferred } from '@theia/core/lib/common/promise-util';
 import { Disposable } from '@theia/core/lib/common/disposable';
+import { DataSourceService } from 'data-sources/lib/browser/data-source-service';
 
 @injectable()
 export class FileNavigatorModel extends FileTreeModel {
@@ -32,6 +33,7 @@ export class FileNavigatorModel extends FileTreeModel {
     @inject(FileNavigatorTree) protected override readonly tree: FileNavigatorTree;
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService;
     @inject(FrontendApplicationStateService) protected readonly applicationState: FrontendApplicationStateService;
+    @inject(DataSourceService) protected readonly dataSourceService: DataSourceService;
 
     @inject(ProgressService)
     protected readonly progressService: ProgressService;
@@ -71,7 +73,8 @@ export class FileNavigatorModel extends FileTreeModel {
     protected async initializeRoot(): Promise<void> {
         await Promise.all([
             this.applicationState.reachedState('initialized_layout'),
-            this.workspaceService.roots
+            this.workspaceService.roots,
+            this.dataSourceService.ready
         ]);
         await this.updateRoot();
         if (this.toDispose.disposed) {
@@ -79,6 +82,7 @@ export class FileNavigatorModel extends FileTreeModel {
         }
         this.toDispose.push(this.workspaceService.onWorkspaceChanged(() => this.updateRoot()));
         this.toDispose.push(this.workspaceService.onWorkspaceLocationChanged(() => this.updateRoot()));
+        this.toDispose.push(this.dataSourceService.onDidChange(() => this.updateRoot()));
         if (this.selectedNodes.length) {
             return;
         }
@@ -109,11 +113,17 @@ export class FileNavigatorModel extends FileTreeModel {
     override *getNodesByUri(uri: URI): IterableIterator<TreeNode> {
         const workspace = this.root;
         if (WorkspaceNode.is(workspace)) {
-            for (const root of workspace.children) {
-                const id = this.tree.createId(root, uri);
-                const node = this.getNode(id);
-                if (node) {
-                    yield node;
+            for (const child of workspace.children) {
+                const roots = NavigatorGroupNode.is(child) ? child.children : [child];
+                for (const root of roots) {
+                    if (!NavigatorRootNode.is(root)) {
+                        continue;
+                    }
+                    const id = this.tree.createId(root, uri);
+                    const node = this.getNode(id);
+                    if (node) {
+                        yield node;
+                    }
                 }
             }
         }
@@ -124,20 +134,73 @@ export class FileNavigatorModel extends FileTreeModel {
     }
 
     protected async createRoot(): Promise<TreeNode | undefined> {
+        const roots: TreeNode[] = [];
+        const workspaceRoots = await this.workspaceService.roots;
+        const dataSourceUris = this.dataSourceService.getAll();
+
+        let workspaceNode: WorkspaceNode | undefined;
         if (this.workspaceService.opened) {
             const stat = this.workspaceService.workspace;
             const isMulti = (stat) ? !stat.isDirectory : false;
-            const workspaceNode = isMulti
-                ? this.createMultipleRootNode()
-                : WorkspaceNode.createRoot();
-            const roots = await this.workspaceService.roots;
-            for (const root of roots) {
-                workspaceNode.children.push(
-                    await this.tree.createWorkspaceRoot(root, workspaceNode)
-                );
-            }
-            return workspaceNode;
+            workspaceNode = isMulti ? this.createMultipleRootNode() : WorkspaceNode.createRoot();
         }
+
+        if (!workspaceNode) {
+            workspaceNode = WorkspaceNode.createRoot('Data Sources');
+        }
+
+        const useGrouping = dataSourceUris.length > 0;
+        const workspaceGroup = useGrouping
+            ? NavigatorGroupNode.create('workspace', 'Workspace', workspaceNode)
+            : undefined;
+        const dataSourceGroup = useGrouping
+            ? NavigatorGroupNode.create('data-source', 'Data Sources', workspaceNode)
+            : undefined;
+
+        if (this.workspaceService.opened) {
+            for (const root of workspaceRoots) {
+                const node = await this.tree.createWorkspaceRoot(root, workspaceNode);
+                if (workspaceGroup) {
+                    (workspaceGroup.children as TreeNode[]).push(node);
+                } else {
+                    roots.push(node);
+                }
+            }
+        }
+
+        for (const uri of dataSourceUris) {
+            if (workspaceRoots.some((root) => root.resource.toString() === uri.toString())) {
+                continue;
+            }
+            try {
+                const stat = await this.fileService.resolve(uri);
+                if (!stat || !stat.isDirectory) {
+                    continue;
+                }
+                const node = await this.tree.createDataSourceRoot(stat, workspaceNode);
+                if (dataSourceGroup) {
+                    (dataSourceGroup.children as TreeNode[]).push(node);
+                } else {
+                    roots.push(node);
+                }
+            } catch {
+                // ignore missing data sources
+            }
+        }
+
+        if (workspaceGroup && workspaceGroup.children.length > 0) {
+            roots.push(workspaceGroup);
+        }
+        if (dataSourceGroup && dataSourceGroup.children.length > 0) {
+            roots.push(dataSourceGroup);
+        }
+
+        if (roots.length === 0) {
+            return undefined;
+        }
+
+        (workspaceNode.children as TreeNode[]).push(...roots);
+        return workspaceNode;
     }
 
     /**
@@ -159,7 +222,7 @@ export class FileNavigatorModel extends FileTreeModel {
      * Move the given source file or directory to the given target directory.
      */
     override async move(source: TreeNode, target: TreeNode): Promise<URI | undefined> {
-        if (source.parent && WorkspaceRootNode.is(source)) {
+        if (source.parent && NavigatorRootNode.is(source)) {
             // do not support moving a root folder
             return undefined;
         }
@@ -180,7 +243,7 @@ export class FileNavigatorModel extends FileTreeModel {
 
         // success stop condition
         // we have to reach workspace root because expanded node could be inside collapsed one
-        if (WorkspaceRootNode.is(node)) {
+        if (NavigatorRootNode.is(node)) {
             if (ExpandableTreeNode.is(node)) {
                 if (!node.expanded) {
                     node = await this.expandNode(node);
