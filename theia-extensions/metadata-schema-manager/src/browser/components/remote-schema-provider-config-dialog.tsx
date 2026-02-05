@@ -21,6 +21,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import { RemoteSchemaProviderConfig } from '../types';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
+import { ConnectionSuccessDialog } from './connection-success-dialog';
 
 interface Props {
     open: boolean;
@@ -31,38 +32,57 @@ interface Props {
 }
 
 export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, providerToEdit, onClose, onSave, providerStore }) => {
+    // Form State
     const [baseUrl, setBaseUrl] = React.useState('');
     const [title, setTitle] = React.useState('');
     const [type, setType] = React.useState<'CEDAR'>('CEDAR');
     const [apiKey, setApiKey] = React.useState('');
     
+    // UI Logic State
     const [showApiKey, setShowApiKey] = React.useState(false);
     const [isEditingKey, setIsEditingKey] = React.useState(true); 
-    
     const [isTesting, setIsTesting] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
 
-    React.useEffect(() => {
-        if (open) {
-            setError(null);
-            setIsTesting(false);
-            if (providerToEdit) {
-                setBaseUrl(providerToEdit.baseUrl);
-                setTitle(providerToEdit.title);
-                setType(providerToEdit.type);
-                setApiKey(providerToEdit.apiKey || '');
-                setIsEditingKey(false); 
-            } else {
-                setBaseUrl('');
-                setTitle('');
-                setType('CEDAR');
-                setApiKey('');
-                setIsEditingKey(true);
-            }
-        }
-    }, [open, providerToEdit]);
+    // Success Flow State
+    const [foundSchemas, setFoundSchemas] = React.useState<string[]>([]);
+    const [showSuccessDialog, setShowSuccessDialog] = React.useState(false);
+    const [pendingConfig, setPendingConfig] = React.useState<RemoteSchemaProviderConfig | null>(null);
 
-    const handleSave = async () => {
+    // Ref for manual focus enforcement
+    const titleInputRef = React.useRef<HTMLInputElement>(null);
+
+    React.useEffect(() => {
+        // Reset state
+        setError(null);
+        setIsTesting(false);
+        setShowSuccessDialog(false);
+        setFoundSchemas([]);
+        setPendingConfig(null);
+
+        if (providerToEdit) {
+            setBaseUrl(providerToEdit.baseUrl);
+            setTitle(providerToEdit.title);
+            setType(providerToEdit.type);
+            setApiKey(providerToEdit.apiKey || '');
+            setIsEditingKey(false); 
+        } else {
+            setBaseUrl('');
+            setTitle('');
+            setType('CEDAR');
+            setApiKey('');
+            setIsEditingKey(true);
+            
+            // Focus Enforcement
+            setTimeout(() => {
+                if (titleInputRef.current) {
+                    titleInputRef.current.focus();
+                }
+            }, 300);
+        }
+    }, [providerToEdit]);
+
+    const handleTestAndProceed = async () => {
         if (!baseUrl || !title || !type) {
             setError('Please fill in all required fields (Base URL, Title, Type).');
             return;
@@ -80,13 +100,21 @@ export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, provid
         };
 
         try {
-            await providerStore.testConnection(configToTest);
-            await onSave(configToTest);
-            onClose();
+            const schemaNames = await providerStore.testConnection(configToTest);
+            setFoundSchemas(schemaNames);
+            setPendingConfig(configToTest);
+            setShowSuccessDialog(true);
         } catch (err: any) {
             setError(`Connection failed: ${err.message || 'Unknown error'}. Please check your configuration.`);
         } finally {
             setIsTesting(false);
+        }
+    };
+
+    const handleConfirmSave = async () => {
+        if (pendingConfig) {
+            await onSave(pendingConfig);
+            onClose();
         }
     };
 
@@ -95,8 +123,30 @@ export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, provid
         setIsEditingKey(true);
     };
 
+    if (showSuccessDialog) {
+        return (
+            <ConnectionSuccessDialog 
+                open={showSuccessDialog}
+                providerName={title}
+                schemaNames={foundSchemas}
+                onConfirm={handleConfirmSave}
+                onCancel={() => setShowSuccessDialog(false)}
+            />
+        );
+    }
+
     return (
-        <Dialog open={open} onClose={isTesting ? undefined : onClose} maxWidth="sm" fullWidth>
+        <Dialog 
+            open={open} 
+            onClose={isTesting ? undefined : onClose} 
+            maxWidth="sm" 
+            fullWidth
+            disablePortal={false} 
+            disableScrollLock={true}
+            // FIX: Don't restore focus to the ListDialog (which might be re-rendering)
+            disableRestoreFocus={true} 
+            style={{ zIndex: 1301 }} 
+        >
             <DialogTitle>
                 {providerToEdit ? 'Edit Remote Schema Provider' : 'New Remote Schema Provider'}
             </DialogTitle>
@@ -105,12 +155,14 @@ export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, provid
                     {error && <Alert severity="error">{error}</Alert>}
                     
                     <TextField
+                        inputRef={titleInputRef}
                         label="Title (Display Name)"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         required
                         helperText="The name displayed in the remote schema provider list."
                         disabled={isTesting}
+                        autoFocus
                     />
 
                     <TextField
@@ -128,6 +180,7 @@ export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, provid
                             value={type}
                             label="Type"
                             onChange={(e) => setType(e.target.value as 'CEDAR')}
+                            MenuProps={{ disablePortal: false }} 
                         >
                             <MenuItem value="CEDAR">CEDAR</MenuItem>
                         </Select>
@@ -172,8 +225,8 @@ export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, provid
             </DialogContent>
             <DialogActions>
                 <Button onClick={onClose} disabled={isTesting}>Cancel</Button>
-                <Button onClick={handleSave} variant="contained" disabled={isTesting}>
-                    {isTesting ? <CircularProgress size={24} /> : 'Test & Save'}
+                <Button onClick={handleTestAndProceed} variant="contained" disabled={isTesting}>
+                    {isTesting ? <CircularProgress size={24} /> : 'Save'}
                 </Button>
             </DialogActions>
         </Dialog>

@@ -11,26 +11,38 @@ import {
     ListItemSecondaryAction,
     IconButton,
     Typography,
-    Divider
+    Divider,
+    DialogContentText
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import WarningIcon from '@mui/icons-material/Warning';
 import { RemoteSchemaProviderConfig } from '../types';
-import { RemoteSchemaProviderConfigDialog } from './remote-schema-provider-config-dialog';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
 
 interface Props {
     open: boolean;
     onClose: () => void;
+    onAddProvider: () => void;
+    onEditProvider: (provider: RemoteSchemaProviderConfig) => void;
     providerStore: RemoteSchemaProviderStoreService;
+    lastUpdated: number; 
 }
 
-export const RemoteSchemaProviderListDialog: React.FC<Props> = ({ open, onClose, providerStore }) => {
+export const RemoteSchemaProviderListDialog: React.FC<Props> = ({ 
+    open, 
+    onClose, 
+    onAddProvider, 
+    onEditProvider, 
+    providerStore,
+    lastUpdated 
+}) => {
     const [providers, setProviders] = React.useState<RemoteSchemaProviderConfig[]>([]);
-    const [isConfigOpen, setIsConfigOpen] = React.useState(false);
-    const [selectedProvider, setSelectedProvider] = React.useState<RemoteSchemaProviderConfig | undefined>(undefined);
     const [isLoading, setIsLoading] = React.useState(false);
+    
+    // State for the Delete Confirmation Dialog
+    const [deleteCandidateId, setDeleteCandidateId] = React.useState<string | null>(null);
 
     const loadProviders = React.useCallback(async () => {
         setIsLoading(true);
@@ -43,49 +55,43 @@ export const RemoteSchemaProviderListDialog: React.FC<Props> = ({ open, onClose,
         if (open) {
             loadProviders();
         }
-    }, [open, loadProviders]);
+    }, [open, loadProviders, lastUpdated]);
 
-    const handleAdd = () => {
-        setSelectedProvider(undefined);
-        setIsConfigOpen(true);
+    // 1. Request Deletion (Opens Dialog)
+    const requestDelete = (id: string) => {
+        setDeleteCandidateId(id);
     };
 
-    const handleEdit = (provider: RemoteSchemaProviderConfig) => {
-        setSelectedProvider(provider);
-        setIsConfigOpen(true);
-    };
-
-    const handleDelete = async (id: string) => {
-        const confirm = window.confirm("Are you sure you want to delete this remote schema provider configuration?");
-        if (confirm) {
-            const newList = providers.filter(p => p.id !== id);
+    // 2. Confirm Deletion (Performs Action)
+    const confirmDelete = async () => {
+        if (deleteCandidateId) {
+            const newList = providers.filter(p => p.id !== deleteCandidateId);
             await providerStore.saveProviders(newList);
-            loadProviders();
+            setDeleteCandidateId(null); // Close confirm dialog
+            loadProviders(); // Refresh list
         }
     };
 
-    const handleSaveConfig = async (newConfig: RemoteSchemaProviderConfig) => {
-        let newList = [...providers];
-        if (selectedProvider) {
-            // Edit mode
-            const index = newList.findIndex(p => p.id === selectedProvider.id);
-            if (index !== -1) {
-                newList[index] = newConfig;
-            }
-        } else {
-            // Add mode
-            newList.push(newConfig);
-        }
-        await providerStore.saveProviders(newList);
-        loadProviders();
+    // 3. Cancel Deletion
+    const cancelDelete = () => {
+        setDeleteCandidateId(null);
     };
 
     return (
         <>
-            <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+            {/* MAIN LIST DIALOG */}
+            <Dialog 
+                open={open} 
+                onClose={onClose} 
+                maxWidth="md" 
+                fullWidth
+                disablePortal={false} // Use standard Portal
+                disableScrollLock={true} // Protect Theia layout
+                style={{ zIndex: 1200 }} 
+            >
                 <DialogTitle style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     Remote Schema Providers
-                    <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>
+                    <Button variant="contained" startIcon={<AddIcon />} onClick={onAddProvider}>
                         Add Provider
                     </Button>
                 </DialogTitle>
@@ -106,10 +112,10 @@ export const RemoteSchemaProviderListDialog: React.FC<Props> = ({ open, onClose,
                                             secondary={`${provider.type} - ${provider.baseUrl}`}
                                         />
                                         <ListItemSecondaryAction>
-                                            <IconButton edge="end" aria-label="edit" onClick={() => handleEdit(provider)} style={{ marginRight: 8 }}>
+                                            <IconButton edge="end" aria-label="edit" onClick={() => onEditProvider(provider)} style={{ marginRight: 8 }}>
                                                 <EditIcon />
                                             </IconButton>
-                                            <IconButton edge="end" aria-label="delete" onClick={() => handleDelete(provider.id)}>
+                                            <IconButton edge="end" aria-label="delete" onClick={() => requestDelete(provider.id)}>
                                                 <DeleteIcon />
                                             </IconButton>
                                         </ListItemSecondaryAction>
@@ -125,13 +131,27 @@ export const RemoteSchemaProviderListDialog: React.FC<Props> = ({ open, onClose,
                 </DialogActions>
             </Dialog>
 
-            <RemoteSchemaProviderConfigDialog 
-                open={isConfigOpen}
-                providerToEdit={selectedProvider}
-                onClose={() => setIsConfigOpen(false)}
-                onSave={handleSaveConfig}
-                providerStore={providerStore}
-            />
+            {/* DELETE CONFIRMATION DIALOG (Replaces window.confirm) */}
+            <Dialog
+                open={!!deleteCandidateId}
+                onClose={cancelDelete}
+                maxWidth="xs"
+                disableScrollLock={true}
+                style={{ zIndex: 1300 }} // Sit on top of list
+            >
+                <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#d32f2f' }}>
+                    <WarningIcon color="error" /> Confirm Deletion
+                </DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to delete this remote schema provider configuration?
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={cancelDelete} color="inherit">Cancel</Button>
+                    <Button onClick={confirmDelete} color="error" variant="contained">Delete</Button>
+                </DialogActions>
+            </Dialog>
         </>
     );
 };

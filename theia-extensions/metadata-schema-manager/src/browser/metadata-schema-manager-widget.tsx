@@ -13,8 +13,9 @@ import type { Root } from 'react-dom/client';
 import { SchemaManagerService } from './services/metadata-schema-manager-service';
 import { MetadataSchemaTable } from './components/metadata-schema-table';
 import { MetadataSchemaToolbar } from './components/metadata-schema-toolbar';
-import { RemoteSchemaProviderListDialog } from './components/remote-schema-provider-list-dialog'; // Import Renamed Dialog
-import type { SchemaInfo } from './types';
+import { RemoteSchemaProviderListDialog } from './components/remote-schema-provider-list-dialog';
+import { RemoteSchemaProviderConfigDialog } from './components/remote-schema-provider-config-dialog';
+import type { SchemaInfo, RemoteSchemaProviderConfig } from './types';
 
 import './style/index.css';
 
@@ -36,7 +37,15 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected schemas: SchemaInfo[] = [];
     protected isLoading = true;
     protected selectedSchemaKeys: Key[] = [];
-    protected isProviderConfigOpen = false; 
+    
+    // --- State for Dialogs ---
+    protected isProviderListOpen = false;
+    protected isProviderConfigOpen = false;
+    protected selectedProviderToEdit: RemoteSchemaProviderConfig | undefined = undefined;
+    protected providersLastUpdated = 0; 
+    
+    // Unique key to force fresh dialog mounting
+    protected configDialogKey = 0;
     
     private reactRoot: Root | undefined;
 
@@ -202,14 +211,58 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         await this.loadSchemas();
     }
 
-    protected openProviderConfiguration(): void {
-        this.isProviderConfigOpen = true;
+    // --- Provider Dialog Handlers ---
+
+    protected openProviderList(): void {
+        this.isProviderListOpen = true;
+        this.isProviderConfigOpen = false; 
         this.update();
     }
 
-    protected closeProviderConfiguration(): void {
+    protected closeProviderList(): void {
+        this.isProviderListOpen = false;
         this.isProviderConfigOpen = false;
         this.update();
+    }
+
+    protected openProviderConfig(providerToEdit?: RemoteSchemaProviderConfig): void {
+        this.selectedProviderToEdit = providerToEdit;
+        
+        // Swap: Close list, Open config
+        this.isProviderListOpen = false;
+        this.isProviderConfigOpen = true;
+        
+        // Increment key to guarantee fresh mount
+        this.configDialogKey++;
+        this.update();
+    }
+
+    protected closeProviderConfig(): void {
+        this.isProviderConfigOpen = false;
+        this.selectedProviderToEdit = undefined;
+        
+        // Swap: Open list again
+        this.isProviderListOpen = true;
+        this.update();
+    }
+
+    protected async handleProviderSave(newConfig: RemoteSchemaProviderConfig): Promise<void> {
+        const store = this.schemaManagerService.providerStoreService;
+        const currentProviders = await store.loadProviders();
+        
+        let newList = [...currentProviders];
+        
+        const existingIndex = newList.findIndex(p => p.id === newConfig.id);
+        if (existingIndex !== -1) {
+            newList[existingIndex] = newConfig;
+        } else {
+            newList.push(newConfig);
+        }
+
+        await store.saveProviders(newList);
+        
+        this.providersLastUpdated = Date.now();
+        // UI Update handled by closeProviderConfig which re-opens list
     }
 
     protected onAfterAttach(msg: Message): void {
@@ -239,7 +292,8 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             .map(schema => schema.path);
 
         this.reactRoot?.render(
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            // FIX: Added position: relative to act as an anchor for disabledPortal dialogs
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
                 
                 <MetadataSchemaToolbar 
                     onImportFile={() => this.importSchemaFromFile()}
@@ -247,7 +301,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     onBrowse={() => this.browseRemoteSchemas()} 
                     onRefresh={() => this.refreshSchemas()}
                     onDelete={() => this.deleteSchemas(selectedSchemaPaths)}
-                    onConfigureProviders={() => this.openProviderConfiguration()}
+                    onConfigureProviders={() => this.openProviderList()}
                     selectedCount={this.selectedSchemaKeys.length}
                 />
 
@@ -259,11 +313,25 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                         onDelete={(paths) => this.deleteSchemas(paths)}
                     />
                 </div>
+                
+                {this.isProviderListOpen && (
+                    <RemoteSchemaProviderListDialog 
+                        open={this.isProviderListOpen}
+                        onClose={() => this.closeProviderList()}
+                        onAddProvider={() => this.openProviderConfig(undefined)}
+                        onEditProvider={(p) => this.openProviderConfig(p)}
+                        providerStore={this.schemaManagerService.providerStoreService}
+                        lastUpdated={this.providersLastUpdated}
+                    />
+                )}
 
                 {this.isProviderConfigOpen && (
-                    <RemoteSchemaProviderListDialog 
+                    <RemoteSchemaProviderConfigDialog 
+                        key={this.configDialogKey} 
                         open={this.isProviderConfigOpen}
-                        onClose={() => this.closeProviderConfiguration()}
+                        providerToEdit={this.selectedProviderToEdit}
+                        onClose={() => this.closeProviderConfig()}
+                        onSave={async (config) => await this.handleProviderSave(config)}
                         providerStore={this.schemaManagerService.providerStoreService}
                     />
                 )}

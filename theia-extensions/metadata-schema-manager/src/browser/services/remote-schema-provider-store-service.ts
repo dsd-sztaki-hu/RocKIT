@@ -54,8 +54,14 @@ export class RemoteSchemaProviderStoreService {
         }
     }
 
-    public async testConnection(config: RemoteSchemaProviderConfig): Promise<boolean> {
-        if (config.type !== 'CEDAR') return false;
+    /**
+     * Tests the connection and returns a list of available schema names if successful.
+     * Throws an error if the connection fails.
+     */
+    public async testConnection(config: RemoteSchemaProviderConfig): Promise<string[]> {
+        if (config.type !== 'CEDAR') {
+            throw new Error('Unsupported provider type');
+        }
 
         let domainBase = config.baseUrl;
         try {
@@ -73,7 +79,14 @@ export class RemoteSchemaProviderStoreService {
 
         try {
             const result = await api.listAllSchema();
-            return Array.isArray(result);
+            
+            if (Array.isArray(result)) {
+                // Map the results to human-readable names
+                // CEDAR templates usually have "schema:name" or "name"
+                return result.map((r: any) => r['schema:name'] || r['name'] || r['@id'] || 'Unnamed Template');
+            }
+            
+            throw new Error('Invalid response format from provider');
         } catch (error) {
             console.error('Connection test failed:', error);
             throw error; 
