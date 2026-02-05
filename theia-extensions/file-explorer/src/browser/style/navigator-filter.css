@@ -182,7 +182,7 @@
   padding-top: 10px;
 }
 
-.navigator-filter-panel .theia-TreeNode.navigator-group-node {
+.navigator-filter-panel .theia-TreeNode.navigator-header-node {
   background: transparent;
   cursor: default;
   pointer-events: none;
@@ -193,7 +193,7 @@
   color: var(--theia-ui-font-color2);
 }
 
-.navigator-filter-panel .theia-TreeNode.navigator-group-node .theia-TreeNodeContent {
+.navigator-filter-panel .theia-TreeNode.navigator-header-node .theia-TreeNodeContent {
   position: relative;
   padding-top: 10px;
   padding-bottom: 6px;
@@ -201,13 +201,13 @@
 }
 
 .navigator-filter-panel
-  .theia-TreeNode.navigator-group-node
+  .theia-TreeNode.navigator-header-node
   .theia-ExpansionToggle {
   display: none;
 }
 
 .navigator-filter-panel
-  .theia-TreeNode.navigator-group-node
+  .theia-TreeNode.navigator-header-node
   .theia-TreeNodeContent::before {
   content: '';
   position: absolute;
@@ -220,11 +220,56 @@
   opacity: 0.9;
 }
 
+
+
 .navigator-filter-panel
-  .theia-TreeNode.navigator-group-node
+  .theia-TreeNode.navigator-header-node
   .theia-TreeNodeLabel {
   position: relative;
   z-index: 1;
   padding: 0 8px;
   background: var(--theia-sideBar-background);
+}
+
+.navigator-filter-panel .theia-TreeNode.navigator-data-source-root {
+  margin-top: 6px;
+}
+
+.navigator-filter-panel
+  .theia-TreeNode.navigator-data-source-root
+  .theia-TreeNodeContent {
+  padding-top: 6px;
+  border-top: 1px solid var(--theia-ui-border);
+}
+
+.navigator-filter-panel .theia-TreeNode.navigator-data-source-root.theia-mod-selected,
+.navigator-filter-panel
+  .theia-TreeNode.navigator-data-source-root.theia-mod-selected:hover,
+.navigator-filter-panel
+  .theia-Tree:focus-within
+  .theia-TreeNode.navigator-data-source-root.theia-mod-selected {
+  background: transparent;
+  color: inherit;
+  outline: none;
+}
+
+.navigator-filter-panel
+  .theia-TreeNode.navigator-data-source-root.theia-mod-selected
+  .theia-TreeNodeContent,
+.navigator-filter-panel
+  .theia-TreeNode.navigator-data-source-root.theia-mod-selected
+  .theia-TreeNodeTail,
+.navigator-filter-panel
+  .theia-TreeNode.navigator-data-source-root.theia-mod-selected
+  .theia-TreeNodeInfo,
+.navigator-filter-panel
+  .theia-TreeNode.navigator-data-source-root.theia-mod-selected
+  .theia-TreeNodeSegment {
+  color: inherit !important;
+}
+
+.navigator-filter-panel
+  .theia-TreeNode.navigator-data-source-root
+  .theia-TreeNodeContent {
+  padding-right: 0;
 }

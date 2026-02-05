@@ -18,7 +18,7 @@ import { injectable, inject, postConstruct } from '@theia/core/shared/inversify'
 import { FileTree, DirNode } from '@theia/filesystem/lib/browser';
 import { FileStat } from '@theia/filesystem/lib/common/files';
 import URI from '@theia/core/lib/common/uri';
-import { TreeNode, CompositeTreeNode, SelectableTreeNode, ExpandableTreeNode, CompressionToggle } from '@theia/core/lib/browser';
+import { TreeNode, CompositeTreeNode, SelectableTreeNode, CompressionToggle } from '@theia/core/lib/browser';
 import { FileNavigatorFilter } from './navigator-filter';
 import { EXPLORER_COMPACT_FOLDERS, FileNavigatorPreferences } from '../common/navigator-preferences';
 
@@ -48,7 +48,7 @@ export class FileNavigatorTree extends FileTree {
     }
 
     override async resolveChildren(parent: CompositeTreeNode): Promise<TreeNode[]> {
-        if (WorkspaceNode.is(parent) || NavigatorGroupNode.is(parent)) {
+        if (WorkspaceNode.is(parent)) {
             return [...parent.children];
         }
         return this.filter.filter(super.resolveChildren(parent));
@@ -89,7 +89,7 @@ export class FileNavigatorTree extends FileTree {
  * File tree root node for multi-root workspaces.
  */
 export interface WorkspaceNode extends CompositeTreeNode, SelectableTreeNode {
-    children: (NavigatorGroupNode | NavigatorRootNode)[];
+    children: (NavigatorHeaderNode | NavigatorRootNode)[];
 }
 export namespace WorkspaceNode {
 
@@ -115,33 +115,30 @@ export namespace WorkspaceNode {
     }
 }
 
-export interface NavigatorGroupNode extends CompositeTreeNode, SelectableTreeNode, ExpandableTreeNode {
+export interface NavigatorHeaderNode extends TreeNode {
     parent: WorkspaceNode;
-    groupType: 'workspace' | 'data-source';
+    headerType: 'workspace' | 'data-source';
 }
-export namespace NavigatorGroupNode {
-    export function is(node: unknown): node is NavigatorGroupNode {
+export namespace NavigatorHeaderNode {
+    export function is(node: unknown): node is NavigatorHeaderNode {
         return (
-            CompositeTreeNode.is(node) &&
+            TreeNode.is(node) &&
             WorkspaceNode.is(node.parent) &&
-            (node as { groupType?: string }).groupType !== undefined
+            (node as { headerType?: string }).headerType !== undefined
         );
     }
 
     export function create(
-        groupType: 'workspace' | 'data-source',
+        headerType: 'workspace' | 'data-source',
         name: string,
         parent: WorkspaceNode,
-    ): NavigatorGroupNode {
+    ): NavigatorHeaderNode {
         return {
-            id: `navigator-group:${groupType}`,
+            id: `navigator-header:${headerType}`,
             name,
             parent,
-            children: [],
             visible: true,
-            selected: false,
-            expanded: true,
-            groupType,
+            headerType,
         };
     }
 }

@@ -18,7 +18,7 @@ import { injectable, inject, postConstruct } from '@theia/core/shared/inversify'
 import URI from '@theia/core/lib/common/uri';
 import { FileNode, FileTreeModel } from '@theia/filesystem/lib/browser';
 import { OpenerService, open, TreeNode, ExpandableTreeNode, CompositeTreeNode, SelectableTreeNode } from '@theia/core/lib/browser';
-import { FileNavigatorTree, NavigatorGroupNode, NavigatorRootNode, WorkspaceNode } from './navigator-tree';
+import { FileNavigatorTree, NavigatorHeaderNode, NavigatorRootNode, WorkspaceNode } from './navigator-tree';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { FrontendApplicationStateService } from '@theia/core/lib/browser/frontend-application-state';
 import { ProgressService } from '@theia/core/lib/common/progress-service';
@@ -114,7 +114,7 @@ export class FileNavigatorModel extends FileTreeModel {
         const workspace = this.root;
         if (WorkspaceNode.is(workspace)) {
             for (const child of workspace.children) {
-                const roots = NavigatorGroupNode.is(child) ? child.children : [child];
+                const roots = NavigatorHeaderNode.is(child) ? [] : [child];
                 for (const root of roots) {
                     if (!NavigatorRootNode.is(root)) {
                         continue;
@@ -150,21 +150,17 @@ export class FileNavigatorModel extends FileTreeModel {
         }
 
         const useGrouping = dataSourceUris.length > 0;
-        const workspaceGroup = useGrouping
-            ? NavigatorGroupNode.create('workspace', 'Workspace', workspaceNode)
+        const workspaceHeader = useGrouping
+            ? NavigatorHeaderNode.create('workspace', 'Workspace', workspaceNode)
             : undefined;
-        const dataSourceGroup = useGrouping
-            ? NavigatorGroupNode.create('data-source', 'Data Sources', workspaceNode)
+        const dataSourceHeader = useGrouping
+            ? NavigatorHeaderNode.create('data-source', 'Data Sources', workspaceNode)
             : undefined;
 
+        const workspaceNodes: TreeNode[] = [];
         if (this.workspaceService.opened) {
             for (const root of workspaceRoots) {
-                const node = await this.tree.createWorkspaceRoot(root, workspaceNode);
-                if (workspaceGroup) {
-                    (workspaceGroup.children as TreeNode[]).push(node);
-                } else {
-                    roots.push(node);
-                }
+                workspaceNodes.push(await this.tree.createWorkspaceRoot(root, workspaceNode));
             }
         }
 
@@ -178,21 +174,22 @@ export class FileNavigatorModel extends FileTreeModel {
                     continue;
                 }
                 const node = await this.tree.createDataSourceRoot(stat, workspaceNode);
-                if (dataSourceGroup) {
-                    (dataSourceGroup.children as TreeNode[]).push(node);
-                } else {
-                    roots.push(node);
-                }
+                roots.push(node);
             } catch {
                 // ignore missing data sources
             }
         }
 
-        if (workspaceGroup && workspaceGroup.children.length > 0) {
-            roots.push(workspaceGroup);
+        const dataSourceNodes = roots.splice(0, roots.length);
+        if (workspaceHeader && workspaceNodes.length > 0) {
+            roots.push(workspaceHeader, ...workspaceNodes);
+        } else {
+            roots.push(...workspaceNodes);
         }
-        if (dataSourceGroup && dataSourceGroup.children.length > 0) {
-            roots.push(dataSourceGroup);
+        if (dataSourceHeader && dataSourceNodes.length > 0) {
+            roots.push(dataSourceHeader, ...dataSourceNodes);
+        } else {
+            roots.push(...dataSourceNodes);
         }
 
         if (roots.length === 0) {
