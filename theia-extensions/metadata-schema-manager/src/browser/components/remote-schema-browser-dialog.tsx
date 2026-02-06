@@ -9,8 +9,7 @@ import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { SchemaManagerService } from '../services/metadata-schema-manager-service';
 import { SchemaApi } from '../services/schema-api';
 import CedarTree from './cedar-tree';
-
-const LEGACY_DOMAIN_BASE = 'schema.researchdata.hu';
+import { RemoteSchemaProviderConfig } from '../types';
 
 @injectable()
 export class RemoteSchemaBrowserContribution implements FrontendApplicationContribution {
@@ -27,19 +26,21 @@ export class RemoteSchemaBrowserContribution implements FrontendApplicationContr
         document.body.appendChild(this.container);
         this.reactRoot = ReactDOM.createRoot(this.container);
 
-        this.schemaManagerService.onOpenRemoteBrowser(() => this.render(true));
+        // FIX: Receive the provider configuration from the event
+        this.schemaManagerService.onOpenRemoteBrowser((provider) => this.render(true, provider));
     }
 
-    protected render(visible: boolean): void {
+    protected render(visible: boolean, provider?: RemoteSchemaProviderConfig): void {
         if (!this.reactRoot) return;
 
         this.reactRoot.render(
             <RemoteBrowser
                 isOpen={visible}
-                onClose={() => this.render(false)}
+                onClose={() => this.render(false, undefined)}
                 schemaManagerService={this.schemaManagerService}
                 envVariablesServer={this.envVariablesServer}
                 messageService={this.messageService}
+                provider={provider}
             />
         );
     }
@@ -51,10 +52,11 @@ interface BrowserProps {
     schemaManagerService: SchemaManagerService;
     envVariablesServer: EnvVariablesServer;
     messageService: MessageService;
+    provider?: RemoteSchemaProviderConfig;
 }
 
 const RemoteBrowser: React.FC<BrowserProps> = ({ 
-    isOpen, onClose, schemaManagerService, envVariablesServer, messageService 
+    isOpen, onClose, schemaManagerService, envVariablesServer, messageService, provider 
 }) => {
     const [selectedTemplateId, setSelectedTemplateId] = React.useState<string | null>(null);
     const [selectedTemplateName, setSelectedTemplateName] = React.useState<string | null>(null);
@@ -63,34 +65,32 @@ const RemoteBrowser: React.FC<BrowserProps> = ({
     const [existingIds, setExistingIds] = React.useState<string[]>([]);
 
     React.useEffect(() => {
-        if (isOpen) {
+        if (isOpen && provider) {
             setSelectedTemplateId(null);
             setSelectedTemplateName(null);
             
-            envVariablesServer.getValue('CEDAR_API_KEY').then(v => {
-                const apiKey = v?.value;
-                if (!apiKey) {
-                    messageService.warn('No API Key found. Public browsing only.');
-                }
-                setSchemaApi(new SchemaApi({
-                    domainBase: LEGACY_DOMAIN_BASE,
-                    apiKey: apiKey
-                }));
-            });
+            // Clean URL for SchemaApi (remove protocol)
+            let domain = provider.baseUrl.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
+            
+            // Initializing API with selected provider details
+            setSchemaApi(new SchemaApi({
+                domainBase: domain,
+                apiKey: provider.apiKey
+            }));
 
             schemaManagerService.loadAllSchemas().then(schemas => {
                 const ids = schemas.map(s => s.reference);
                 setExistingIds(ids);
             });
         }
-    }, [isOpen, envVariablesServer, messageService, schemaManagerService]);
+    }, [isOpen, provider, schemaManagerService]);
 
     const handleAdd = async () => {
         if (!selectedTemplateId) return;
 
         try {
             setIsDownloading(true);
-            await schemaManagerService.downloadRemoteSchema(selectedTemplateId);
+            await schemaManagerService.downloadRemoteSchema(selectedTemplateId, provider);
             onClose(); 
         } catch (error) {
             console.error(error);
@@ -101,7 +101,7 @@ const RemoteBrowser: React.FC<BrowserProps> = ({
 
     return (
         <Modal
-            title="Add Schema"
+            title={`Browse ${provider?.title || 'Remote Provider'}`}
             open={isOpen}
             onCancel={onClose}
             width={600}

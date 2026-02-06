@@ -9,10 +9,10 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { Modal } from 'antd';
 
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
-import type { SchemaInfo } from '../types';
+import type { SchemaInfo, RemoteSchemaProviderConfig } from '../types'; // Added Type import
 import { SchemaApi } from './schema-api';
 import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'aroma2-common/lib/browser';
-import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service'; // Import Provider Store
+import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service'; 
 
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
@@ -21,15 +21,6 @@ export const SCHEMA_FIELD_ID = '@id';
 const AROMA_METADATA_FIELD = '_aromaMetadata'; 
 const MSG_TIMEOUT = 5000;
 
-// --- CONFIGURATION CONSTANTS ---
-const REPO_DOMAINS = {
-    OPEN_DEV: 'open.cedardev.dsd.sztaki.hu',
-    REPO_DEV: 'repo.cedardev.dsd.sztaki.hu',
-    RESEARCH_DATA: 'repo.schema.researchdata.hu',
-    W3ID_BASE: 'https://w3id.org/arp'
-};
-const LEGACY_DOMAIN_BASE = 'schema.researchdata.hu';
-
 @injectable()
 export class SchemaManagerService implements FrontendApplicationContribution, MetadataSchemaManagerContract {
     
@@ -37,7 +28,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     @inject(FileService) protected readonly fileService!: FileService;
     @inject(MessageService) protected readonly messageService!: MessageService;
     @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
-    @inject(RemoteSchemaProviderStoreService) public readonly providerStoreService!: RemoteSchemaProviderStoreService; // Inject Provider Store
+    @inject(RemoteSchemaProviderStoreService) public readonly providerStoreService!: RemoteSchemaProviderStoreService; 
 
     private readonly converter = new CedarTemplateToDescriboProfileConverter();
     private isChecking = false;
@@ -45,8 +36,9 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     private readonly onDidChangeSchemasEmitter = new Emitter<void>();
     readonly onDidChangeSchemas: Event<void> = this.onDidChangeSchemasEmitter.event;
 
-    private readonly onOpenRemoteBrowserEmitter = new Emitter<void>();
-    readonly onOpenRemoteBrowser: Event<void> = this.onOpenRemoteBrowserEmitter.event;
+    // FIX: Emit the config along with the event
+    private readonly onOpenRemoteBrowserEmitter = new Emitter<RemoteSchemaProviderConfig>();
+    readonly onOpenRemoteBrowser: Event<RemoteSchemaProviderConfig> = this.onOpenRemoteBrowserEmitter.event;
 
     @postConstruct()
     init() {
@@ -62,36 +54,44 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         if (currentCrate) this.checkAndDownloadSchemas(currentCrate);
     }
 
-    public async browseRemoteSchemas(): Promise<void> {
-        this.onOpenRemoteBrowserEmitter.fire();
+    // FIX: Accept the provider config
+    public async browseRemoteSchemas(provider: RemoteSchemaProviderConfig): Promise<void> {
+        this.onOpenRemoteBrowserEmitter.fire(provider);
     }
 
-    public async downloadRemoteSchema(templateId: string): Promise<void> {
+    public async downloadRemoteSchema(templateId: string, provider?: RemoteSchemaProviderConfig): Promise<void> {
         try {
-            const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
-            const apiKey = apiKeyVar?.value;
+            // FIX: Use provider details if available, otherwise fallback to legacy environment var
+            let apiKey = provider?.apiKey;
+            let domainBase = provider?.baseUrl;
 
-            if (!apiKey) {
-                this.messageService.warn('Legacy Browser requires an API Key.', { timeout: MSG_TIMEOUT });
-                throw new Error('Missing API Key');
+            if (!provider) {
+                const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
+                apiKey = apiKeyVar?.value;
+                domainBase = 'schema.researchdata.hu'; // Legacy default
+                if (!apiKey) {
+                    this.messageService.warn('Legacy Browser requires an API Key.', { timeout: MSG_TIMEOUT });
+                    throw new Error('Missing API Key');
+                }
+            } else {
+                 // Clean up domain base for SchemaApi
+                 domainBase = domainBase!.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
             }
 
             const api = new SchemaApi({
-                domainBase: LEGACY_DOMAIN_BASE,
+                domainBase: domainBase,
                 apiKey: apiKey
             });
 
-            this.messageService.info('Downloading schema...', { timeout: MSG_TIMEOUT });
+            this.messageService.info(`Downloading schema from ${provider?.title || 'Legacy'}...`, { timeout: MSG_TIMEOUT });
             
             const schemaContent = await api.downloadSchema(templateId);
             const rawString = typeof schemaContent === 'string' 
                 ? schemaContent 
                 : JSON.stringify(schemaContent, null, 2);
 
-            // Note: For legacy browser download, we might trust the ID as the conformsTo, 
-            // or let the logic below handle it. Passing templateId here to be safe.
             const name = await this.processAndSaveSchema(rawString, 'remote', undefined, {
-                downloadUrl: 'Legacy Browser',
+                downloadUrl: provider?.baseUrl || 'Legacy Browser',
                 conformsTo: templateId
             });
             
@@ -160,7 +160,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
             progress.report({ message: 'Processing...', work: { done: 50, total: 100 } });
             
-            // Pass empty conformsTo so processAndSaveSchema derives it from @id
             const schemaName = await this.processAndSaveSchema(content, 'remote', undefined, {
                 downloadUrl: finalUrl,
                 conformsTo: '' 
@@ -288,16 +287,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return requiredIds;
     }
 
-    protected async downloadSchemaByUUID(uuid: string): Promise<void> {
-        const url = `https://${REPO_DOMAINS.RESEARCH_DATA}/templates/${uuid}`;
-        const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
-        const { content, finalUrl } = await this.fetchWithAuthFallback(url, apiKeyVar?.value);
-        await this.processAndSaveSchema(content, 'remote', undefined, {
-            conformsTo: uuid,
-            downloadUrl: finalUrl
-        });
-    }
-
     public async getSchemaByConformsTo(conformsToUrl: string): Promise<SchemaInfo | undefined> {
         const all = await this.loadAllSchemas();
         return all.find(s => s.conformsTo === conformsToUrl || s.reference === conformsToUrl);
@@ -365,9 +354,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return Math.abs(hash).toString(16);
     }
 
-    /**
-     * Logic to determine the correct conformsTo URL based on the schema's @id.
-     */
     public deriveConformsToFromId(schemaId: string): string {
         const PROD_PREFIX = 'https://repo.schema.researchdata.hu/templates/';
         const DEV_PREFIX = 'https://repo.cedardev.dsd.sztaki.hu/templates/';
@@ -385,7 +371,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             return W3ID_DEV + uuid;
         }
 
-        // Fallback: If it doesn't match known patterns, use the @id itself
         return schemaId;
     }
 
@@ -411,7 +396,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         }
 
         if (metadata) {
-            // FIX: If conformsTo is missing/empty, derive it from @id
             if (!metadata.conformsTo) {
                 metadata.conformsTo = this.deriveConformsToFromId(schemaId);
             }
