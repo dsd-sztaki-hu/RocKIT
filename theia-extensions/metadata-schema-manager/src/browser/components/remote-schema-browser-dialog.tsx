@@ -26,7 +26,6 @@ export class RemoteSchemaBrowserContribution implements FrontendApplicationContr
         document.body.appendChild(this.container);
         this.reactRoot = ReactDOM.createRoot(this.container);
 
-        // FIX: Receive the provider configuration from the event
         this.schemaManagerService.onOpenRemoteBrowser((provider) => this.render(true, provider));
     }
 
@@ -56,7 +55,7 @@ interface BrowserProps {
 }
 
 const RemoteBrowser: React.FC<BrowserProps> = ({ 
-    isOpen, onClose, schemaManagerService, envVariablesServer, messageService, provider 
+    isOpen, onClose, schemaManagerService, provider 
 }) => {
     const [selectedTemplateId, setSelectedTemplateId] = React.useState<string | null>(null);
     const [selectedTemplateName, setSelectedTemplateName] = React.useState<string | null>(null);
@@ -90,6 +89,7 @@ const RemoteBrowser: React.FC<BrowserProps> = ({
 
         try {
             setIsDownloading(true);
+            // Pass the specific provider context so we know which key to use for download
             await schemaManagerService.downloadRemoteSchema(selectedTemplateId, provider);
             onClose(); 
         } catch (error) {

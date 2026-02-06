@@ -15,7 +15,8 @@ import { MetadataSchemaTable } from './components/metadata-schema-table';
 import { MetadataSchemaToolbar } from './components/metadata-schema-toolbar';
 import { RemoteSchemaProviderListDialog } from './components/remote-schema-provider-list-dialog';
 import { RemoteSchemaProviderConfigDialog } from './components/remote-schema-provider-config-dialog';
-import { RemoteSchemaProviderSelectorDialog } from './components/remote-schema-provider-selector-dialog'; // NEW IMPORT
+import { RemoteSchemaProviderSelectorDialog } from './components/remote-schema-provider-selector-dialog';
+import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-import-from-url-dialog';
 import type { SchemaInfo, RemoteSchemaProviderConfig } from './types';
 
 import './style/index.css';
@@ -42,8 +43,9 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     // --- State for Dialogs ---
     protected isProviderListOpen = false;
     protected isProviderConfigOpen = false;
-    protected isProviderSelectorOpen = false; // New state
-    
+    protected isProviderSelectorOpen = false;
+    protected isImportUrlOpen = false; 
+
     protected selectedProviderToEdit: RemoteSchemaProviderConfig | undefined = undefined;
     protected providersLastUpdated = 0; 
     protected configDialogKey = 0;
@@ -156,38 +158,17 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         });
     }
 
-    protected async importSchemaFromUrl(): Promise<void> {
-        const envVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
-        const apiKey = envVar?.value;
+    protected openImportUrlDialog(): void {
+        this.isImportUrlOpen = true;
+        this.update();
+    }
 
-        let url = '';
-        await new Promise((resolve) => {
-            let inputUrl = '';
-            Modal.confirm({
-                title: 'Import Schema from URL',
-                content: (
-                    <div style={{ marginTop: 10 }}>
-                        <Input 
-                            placeholder="Enter CEDAR URL" 
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => inputUrl = e.target.value} 
-                        />
-                        <div style={{ fontSize: 12, color: '#888', marginTop: 5 }}>
-                            {apiKey ? 'Using configured API Key' : 'No API Key configured - attempting open access'}
-                        </div>
-                    </div>
-                ),
-                onOk: () => { resolve(inputUrl); },
-                onCancel: () => { resolve(null); }
-            });
-        }).then(res => url = res as string);
-
-        if (!url) return;
-
+    protected async handleImportUrl(url: string): Promise<void> {
         this.messageService.showProgress({
             text: 'Importing from URL...'
         }).then(async progress => {
             try {
-                const schemaName = await this.schemaManagerService.importFromUrl(url, apiKey, progress);
+                const schemaName = await this.schemaManagerService.importFromUrl(url, progress);
                 
                 this.messageService.info(
                     `Successfully imported: ${schemaName}`, 
@@ -204,7 +185,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         });
     }
 
-    // FIX: Updated workflow to open selector first
+    protected async importSchemaFromUrl(): Promise<void> {
+        this.openImportUrlDialog();
+    }
+
     protected browseRemoteSchemas(): void {
         this.isProviderSelectorOpen = true;
         this.update();
@@ -213,7 +197,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected handleProviderSelected(provider: RemoteSchemaProviderConfig): void {
         this.isProviderSelectorOpen = false;
         this.update();
-        // Now trigger the actual browser
         this.schemaManagerService.browseRemoteSchemas(provider);
     }
 
@@ -226,7 +209,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected openProviderList(): void {
         this.isProviderListOpen = true;
         this.isProviderConfigOpen = false; 
-        this.isProviderSelectorOpen = false; // Close selector if user jumps to configure
+        this.isProviderSelectorOpen = false; 
         this.update();
     }
 
@@ -300,7 +283,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                 
                 <MetadataSchemaToolbar 
                     onImportFile={() => this.importSchemaFromFile()}
-                    onImportUrl={() => this.importSchemaFromUrl()}
+                    onImportUrl={() => this.openImportUrlDialog()}
                     onBrowse={() => this.browseRemoteSchemas()} 
                     onRefresh={() => this.refreshSchemas()}
                     onDelete={() => this.deleteSchemas(selectedSchemaPaths)}
@@ -316,6 +299,14 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                         onDelete={(paths) => this.deleteSchemas(paths)}
                     />
                 </div>
+                
+                {this.isImportUrlOpen && (
+                    <MetadataSchemaImportFromUrlDialog 
+                        open={this.isImportUrlOpen}
+                        onClose={() => { this.isImportUrlOpen = false; this.update(); }}
+                        onImport={(url) => this.handleImportUrl(url)}
+                    />
+                )}
                 
                 {this.isProviderSelectorOpen && (
                     <RemoteSchemaProviderSelectorDialog

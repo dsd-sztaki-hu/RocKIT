@@ -9,7 +9,7 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { Modal } from 'antd';
 
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
-import type { SchemaInfo, RemoteSchemaProviderConfig } from '../types'; // Added Type import
+import type { SchemaInfo, RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
 import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'aroma2-common/lib/browser';
 import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service'; 
@@ -21,12 +21,19 @@ export const SCHEMA_FIELD_ID = '@id';
 const AROMA_METADATA_FIELD = '_aromaMetadata'; 
 const MSG_TIMEOUT = 5000;
 
+// Used only for resolving conformsTo @id patterns
+const REPO_DOMAINS = {
+    RESEARCH_DATA: 'repo.schema.researchdata.hu',
+    W3ID_BASE: 'https://w3id.org/arp'
+};
+
 @injectable()
 export class SchemaManagerService implements FrontendApplicationContribution, MetadataSchemaManagerContract {
     
     @inject(AppStateService) protected readonly appStateService!: AppStateService;
     @inject(FileService) protected readonly fileService!: FileService;
     @inject(MessageService) protected readonly messageService!: MessageService;
+    // EnvVariablesServer still needed for AROMA_ROOT_PATH (system env), but NOT for API keys
     @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
     @inject(RemoteSchemaProviderStoreService) public readonly providerStoreService!: RemoteSchemaProviderStoreService; 
 
@@ -36,7 +43,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     private readonly onDidChangeSchemasEmitter = new Emitter<void>();
     readonly onDidChangeSchemas: Event<void> = this.onDidChangeSchemasEmitter.event;
 
-    // FIX: Emit the config along with the event
     private readonly onOpenRemoteBrowserEmitter = new Emitter<RemoteSchemaProviderConfig>();
     readonly onOpenRemoteBrowser: Event<RemoteSchemaProviderConfig> = this.onOpenRemoteBrowserEmitter.event;
 
@@ -54,25 +60,20 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         if (currentCrate) this.checkAndDownloadSchemas(currentCrate);
     }
 
-    // FIX: Accept the provider config
     public async browseRemoteSchemas(provider: RemoteSchemaProviderConfig): Promise<void> {
         this.onOpenRemoteBrowserEmitter.fire(provider);
     }
 
     public async downloadRemoteSchema(templateId: string, provider?: RemoteSchemaProviderConfig): Promise<void> {
         try {
-            // FIX: Use provider details if available, otherwise fallback to legacy environment var
             let apiKey = provider?.apiKey;
             let domainBase = provider?.baseUrl;
 
             if (!provider) {
-                const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
-                apiKey = apiKeyVar?.value;
-                domainBase = 'schema.researchdata.hu'; // Legacy default
-                if (!apiKey) {
-                    this.messageService.warn('Legacy Browser requires an API Key.', { timeout: MSG_TIMEOUT });
-                    throw new Error('Missing API Key');
-                }
+                // If no provider context is given, we cannot authenticate.
+                // We will try to guess the domain from the ID if possible, or fail.
+                // For legacy browse support, we rely on the provider passed in browseRemoteSchemas.
+                throw new Error('No Remote Provider context available for download.');
             } else {
                  // Clean up domain base for SchemaApi
                  domainBase = domainBase!.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
@@ -83,7 +84,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                 apiKey: apiKey
             });
 
-            this.messageService.info(`Downloading schema from ${provider?.title || 'Legacy'}...`, { timeout: MSG_TIMEOUT });
+            this.messageService.info(`Downloading schema from ${provider.title}...`, { timeout: MSG_TIMEOUT });
             
             const schemaContent = await api.downloadSchema(templateId);
             const rawString = typeof schemaContent === 'string' 
@@ -91,7 +92,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                 : JSON.stringify(schemaContent, null, 2);
 
             const name = await this.processAndSaveSchema(rawString, 'remote', undefined, {
-                downloadUrl: provider?.baseUrl || 'Legacy Browser',
+                downloadUrl: provider.baseUrl,
                 conformsTo: templateId
             });
             
@@ -101,6 +102,73 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         } catch (error) {
             console.error('Download failed:', error);
             this.messageService.error(`Download failed: ${error instanceof Error ? error.message : error}`, { timeout: MSG_TIMEOUT });
+            throw error;
+        }
+    }
+
+    /**
+     * Determines the API Key dynamically based exclusively on configured providers.
+     */
+    private async determineApiKeyForUrl(url: string): Promise<string | undefined> {
+        try {
+            // 1. Load all configured providers
+            const providers = await this.providerStoreService.loadProviders();
+            
+            // 2. Normalize the target URL's host (e.g. repo.schema.researchdata.hu)
+            const targetHost = new URL(url).hostname.toLowerCase();
+
+            // 3. Find a provider whose domain matches the target
+            const matchedProvider = providers.find(p => {
+                try {
+                    let providerHost = new URL(p.baseUrl).hostname.toLowerCase();
+                    // Simple check: if the provider host is part of the URL host or vice versa
+                    return targetHost.includes(providerHost) || providerHost.includes(targetHost);
+                } catch { return false; }
+            });
+
+            if (matchedProvider && matchedProvider.apiKey) {
+                console.log(`[SchemaManager] URL matched provider: ${matchedProvider.title}`);
+                return matchedProvider.apiKey;
+            }
+        } catch (e) {
+            console.error("Error determining API key for URL", e);
+        }
+
+        // No fallback to .env file anymore. 
+        // If no provider matches, we proceed with undefined (Open Access).
+        return undefined;
+    }
+
+    public async importFromUrl(url: string, progress: any): Promise<string> {
+        progress.report({ message: 'Resolving access...', work: { done: 10, total: 100 } });
+        
+        try {
+            // Dynamic API Key Resolution (No .env fallback)
+            const apiKey = await this.determineApiKeyForUrl(url);
+
+            progress.report({ message: 'Downloading...', work: { done: 30, total: 100 } });
+
+            const { content, finalUrl } = await this.fetchWithAuthFallback(url, apiKey);
+
+            try {
+                JSON.parse(content);
+            } catch (e) {
+                throw new Error('The URL returned invalid content (likely HTML instead of JSON). Please check the link.');
+            }
+
+            progress.report({ message: 'Processing...', work: { done: 60, total: 100 } });
+            
+            const schemaName = await this.processAndSaveSchema(content, 'remote', undefined, {
+                downloadUrl: finalUrl,
+                conformsTo: '' 
+            });
+            
+            progress.report({ work: { done: 100, total: 100 } });
+            this.onDidChangeSchemasEmitter.fire();
+            return schemaName;
+
+        } catch (error) {
+            console.error(error);
             throw error;
         }
     }
@@ -119,22 +187,23 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             return fetch(url, { method: 'GET', headers: currentHeaders });
         };
 
+        // Try with key first (if matched via config)
         let response: Response;
-
         if (apiKey) {
             response = await fetchAttempt(true);
             if (response.status === 401 || response.status === 403) {
-                console.warn(`[SchemaManager] Auth failed for ${url}, retrying without key...`);
+                console.warn(`[SchemaManager] Auth failed for ${url} with provided key, retrying open access...`);
                 response = await fetchAttempt(false);
             }
         } else {
+            // No matching provider/key found, try open access
             response = await fetchAttempt(false);
         }
 
         if (!response.ok) {
             const msg = `Fetch failed: ${response.status} ${response.statusText}`;
             if (response.status === 401 || response.status === 403) {
-                throw new Error(`Unauthorized access to ${url}. Please check your API Key configuration.`);
+                throw new Error(`Unauthorized access to ${url}. Please configure a Remote Provider with a valid API Key for this domain.`);
             }
             if (response.status === 404) {
                 throw new Error(`Resource not found at ${url}. Please check the link.`);
@@ -146,37 +215,11 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return { content, finalUrl: response.url };
     }
 
-    public async importFromUrl(url: string, apiKey: string | undefined, progress: any): Promise<string> {
-        progress.report({ message: 'Downloading...', work: { done: 20, total: 100 } });
-        
-        try {
-            const { content, finalUrl } = await this.fetchWithAuthFallback(url, apiKey);
-
-            try {
-                JSON.parse(content);
-            } catch (e) {
-                throw new Error('The URL returned invalid content (likely HTML instead of JSON). Please check the link.');
-            }
-
-            progress.report({ message: 'Processing...', work: { done: 50, total: 100 } });
-            
-            const schemaName = await this.processAndSaveSchema(content, 'remote', undefined, {
-                downloadUrl: finalUrl,
-                conformsTo: '' 
-            });
-            
-            progress.report({ work: { done: 100, total: 100 } });
-            this.onDidChangeSchemasEmitter.fire();
-            return schemaName;
-
-        } catch (error) {
-            console.error(error);
-            throw error;
-        }
-    }
-
     private async resolveConformanceUrl(url: string, apiKey?: string): Promise<{ content: string, finalUrl: string }> {
-        const { content, finalUrl } = await this.fetchWithAuthFallback(url, apiKey);
+        // Automatically determine key if not provided
+        const effectiveKey = apiKey || await this.determineApiKeyForUrl(url);
+        
+        const { content, finalUrl } = await this.fetchWithAuthFallback(url, effectiveKey);
 
         try {
             JSON.parse(content);
@@ -186,7 +229,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         }
 
         let fixedUrl = finalUrl;
-        
         if (finalUrl.includes('openview.')) {
             fixedUrl = finalUrl.replace('openview.', 'open.');
         } else if (finalUrl.includes('/artifacts/')) {
@@ -195,7 +237,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
         if (fixedUrl !== finalUrl) {
             console.log(`[SchemaManager] Retrying with fixed URL: ${fixedUrl}`);
-            const retry = await this.fetchWithAuthFallback(fixedUrl, apiKey);
+            const retry = await this.fetchWithAuthFallback(fixedUrl, effectiveKey);
             try {
                 JSON.parse(retry.content);
                 return retry; 
@@ -228,9 +270,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                 });
             });
 
-            const apiKeyVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
-            const apiKey = apiKeyVar?.value;
-
             await this.messageService.showProgress({ text: 'Resolving Missing Schemas...' })
                 .then(async progress => {
                     try {
@@ -240,7 +279,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
                         await Promise.all(missingIds.map(async (conformsToUrl) => {
                             try { 
-                                const { content, finalUrl } = await this.resolveConformanceUrl(conformsToUrl, apiKey);
+                                // Internal lookup for API keys happens in resolveConformanceUrl
+                                const { content, finalUrl } = await this.resolveConformanceUrl(conformsToUrl);
                                 await this.processAndSaveSchema(content, 'remote', undefined, {
                                     conformsTo: conformsToUrl,
                                     downloadUrl: finalUrl
@@ -287,6 +327,21 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return requiredIds;
     }
 
+    protected async downloadSchemaByUUID(uuid: string): Promise<void> {
+        // NOTE: This legacy method might be fragile without a provider. 
+        // We attempt to resolve using the known Research Data domain.
+        const url = `https://${REPO_DOMAINS.RESEARCH_DATA}/templates/${uuid}`;
+        
+        // Dynamic Key Lookup
+        const apiKey = await this.determineApiKeyForUrl(url);
+        
+        const { content, finalUrl } = await this.fetchWithAuthFallback(url, apiKey);
+        await this.processAndSaveSchema(content, 'remote', undefined, {
+            conformsTo: uuid,
+            downloadUrl: finalUrl
+        });
+    }
+
     public async getSchemaByConformsTo(conformsToUrl: string): Promise<SchemaInfo | undefined> {
         const all = await this.loadAllSchemas();
         return all.find(s => s.conformsTo === conformsToUrl || s.reference === conformsToUrl);
@@ -294,7 +349,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     protected async filterMissingSchemas(ids: string[]): Promise<string[]> {
         const localSchemas = await this.loadAllSchemas();
-        
         return ids.filter(reqId => {
             const exists = localSchemas.some(local => 
                 local.reference === reqId || 
@@ -315,7 +369,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             const fileName = fileUri.path.base;
             try {
                 const content = await this.fileService.read(fileUri);
-                // Pass empty conformsTo to trigger automatic derivation
                 await this.processAndSaveSchema(content.value, 'local', fileName, {
                     downloadUrl: '',
                     conformsTo: ''
@@ -365,12 +418,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             const uuid = schemaId.substring(PROD_PREFIX.length);
             return W3ID_PROD + uuid;
         }
-        
         if (schemaId.startsWith(DEV_PREFIX)) {
             const uuid = schemaId.substring(DEV_PREFIX.length);
             return W3ID_DEV + uuid;
         }
-
         return schemaId;
     }
 
@@ -497,7 +548,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return root.resolve(`metadata-schemas/cedar/${type}`);
     }
 
-    // --- LEGACY MERGING LOGIC ---
     public async getMergedProfile(crate: Record<string, any>, newProfile: Record<string, any>, profile: Record<string, any>, profileUrl?: string) {
         const entities: any = Object.values(crate["@graph"]).filter((entity: any) => entity["@type"] != "CreativeWork")
         for (const entity of entities) {
@@ -505,14 +555,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             const conformsTos = entity['conformsTo'] ? (Array.isArray(entity['conformsTo']) ? entity['conformsTo'] : [entity['conformsTo']]) : undefined;
             if (!conformsTos) { continue }
             try {
-                console.log("ADDING PROFILE", profileUrl)
                 this.addProfileToClass(newProfile, entityType, profile, profileUrl)
             } catch (error) {
                 console.error(error)
                 throw error
             }
         }
-        console.debug("MERGED PROFILE", profile)
         return profile
     }
 

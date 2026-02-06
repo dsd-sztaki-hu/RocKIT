@@ -14,7 +14,8 @@ import { MetadataSchemaTable } from './metadata-schema-table';
 import { MetadataSchemaToolbar } from './metadata-schema-toolbar';
 import { RemoteSchemaProviderListDialog } from './remote-schema-provider-list-dialog';
 import { RemoteSchemaProviderConfigDialog } from './remote-schema-provider-config-dialog';
-import { RemoteSchemaProviderSelectorDialog } from './remote-schema-provider-selector-dialog'; // NEW IMPORT
+import { RemoteSchemaProviderSelectorDialog } from './remote-schema-provider-selector-dialog';
+import { MetadataSchemaImportFromUrlDialog } from './metadata-schema-import-from-url-dialog';
 import type { SchemaInfo, RemoteSchemaProviderConfig } from '../types';
 
 const MSG_TIMEOUT = 5000;
@@ -83,7 +84,8 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
     // --- Provider Configuration State ---
     const [isProviderListOpen, setIsProviderListOpen] = React.useState(false);
     const [isProviderConfigOpen, setIsProviderConfigOpen] = React.useState(false);
-    const [isProviderSelectorOpen, setIsProviderSelectorOpen] = React.useState(false); // New state
+    const [isProviderSelectorOpen, setIsProviderSelectorOpen] = React.useState(false); 
+    const [isImportUrlOpen, setIsImportUrlOpen] = React.useState(false);
 
     const [selectedProviderToEdit, setSelectedProviderToEdit] = React.useState<RemoteSchemaProviderConfig | undefined>(undefined);
     const [providersLastUpdated, setProvidersLastUpdated] = React.useState(0);
@@ -151,7 +153,6 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         setProvidersLastUpdated(Date.now());
     };
 
-    // FIX: New handlers for Browse workflow
     const handleBrowseRemote = () => {
         setIsProviderSelectorOpen(true);
     };
@@ -161,7 +162,7 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         service.browseRemoteSchemas(provider);
     };
 
-    // --- Existing Handlers ---
+    // --- Import Handlers ---
 
     const handleImportFile = async () => {
         const uris = await utils.fileDialog.showOpenDialog({ 
@@ -181,36 +182,14 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         });
     };
 
-    const handleImportUrl = async () => {
-        const apiKeyVar = await utils.env.getValue('CEDAR_API_KEY');
-        const apiKey = apiKeyVar?.value;
-        let url = '';
+    const handleOpenImportUrl = () => {
+        setIsImportUrlOpen(true);
+    };
 
-        await new Promise(resolve => {
-            let input = '';
-            Modal.confirm({
-                title: 'Import from URL',
-                content: (
-                    <div style={{ marginTop: 10 }}>
-                        <Input 
-                            placeholder="URL" 
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => input = e.target.value} 
-                        />
-                        <div style={{ fontSize: 12, color: '#888', marginTop: 5 }}>
-                            {apiKey ? 'API Key Configured' : 'No API Key - Open Access'}
-                        </div>
-                    </div>
-                ),
-                onOk: () => resolve(input),
-                onCancel: () => resolve('')
-            });
-        }).then(res => url = res as string);
-
-        if (!url) return;
-
+    const handleImportUrl = async (url: string) => {
         utils.msg.showProgress({ text: 'Downloading...' }).then(async p => {
             try {
-                const name = await service.importFromUrl(url, apiKey, p);
+                const name = await service.importFromUrl(url, p);
                 utils.msg.info(`Successfully imported: ${name}`, { timeout: MSG_TIMEOUT });
             } catch (e) {
                 utils.msg.error(`Error: ${e instanceof Error ? e.message : e}`, { timeout: MSG_TIMEOUT });
@@ -264,7 +243,7 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
             <div style={{ display: 'flex', flexDirection: 'column', height: '600px', position: 'relative' }}>
                 <MetadataSchemaToolbar 
                     onImportFile={handleImportFile} 
-                    onImportUrl={handleImportUrl} 
+                    onImportUrl={handleOpenImportUrl} 
                     onBrowse={handleBrowseRemote}
                     onRefresh={loadData}
                     onConfigureProviders={handleOpenProviderList}
@@ -280,6 +259,14 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
                         }}
                     />
                 </div>
+
+                {isImportUrlOpen && (
+                    <MetadataSchemaImportFromUrlDialog 
+                        open={isImportUrlOpen}
+                        onClose={() => setIsImportUrlOpen(false)}
+                        onImport={(url) => handleImportUrl(url)}
+                    />
+                )}
 
                 {isProviderSelectorOpen && (
                     <RemoteSchemaProviderSelectorDialog
