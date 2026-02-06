@@ -273,3 +273,49 @@
   .theia-TreeNodeContent {
   padding-right: 0;
 }
+
+.navigator-filter-panel
+  .theia-TreeNode.navigator-data-source-root
+  .navigator-data-source-caption {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.navigator-filter-panel
+  .theia-TreeNode.navigator-data-source-root
+  .navigator-data-source-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navigator-filter-panel
+  .theia-TreeNode.navigator-data-source-root
+  .navigator-data-source-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 0 4px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: #ff4d4f;
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.navigator-filter-panel
+  .theia-TreeNode.navigator-data-source-root
+  .navigator-data-source-remove:hover {
+  opacity: 1;
+}
+
+.navigator-filter-panel
+  .theia-TreeNode.navigator-data-source-root
+  .navigator-data-source-remove:focus-visible {
+  outline: 1px solid #ff4d4f;
+  outline-offset: 1px;
+}

@@ -35,6 +35,7 @@ import { DirNode, FileStatNode, FileStatNodeData } from '@theia/filesystem/lib/b
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { DataSourceService } from 'data-sources/lib/browser/data-source-service'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
 import { FileNavigatorFilter } from './navigator-filter'
@@ -58,6 +59,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService
   @inject(AppStateService) protected readonly appStateService: AppStateService
   @inject(FileNavigatorFilter) protected readonly fileNavigatorFilter: FileNavigatorFilter
+  @inject(DataSourceService) protected readonly dataSourceService: DataSourceService
 
   protected readonly filters: {
     fileNameFilter: string
@@ -145,7 +147,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     return undefined
   }
 
-    protected override renderTree(model: TreeModel): React.ReactNode {
+  protected override renderTree(model: TreeModel): React.ReactNode {
         if (this.model.root && this.isEmptyMultiRootWorkspace(model)) {
             return this.renderEmptyMultiRootWorkspace()
         }
@@ -252,6 +254,35 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         </div>
 
         <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
+      </div>
+    )
+  }
+
+  protected override renderCaption(node: TreeNode, props: NodeProps): React.ReactNode {
+    if (!DataSourceRootNode.is(node)) {
+      return super.renderCaption(node, props)
+    }
+
+    const attrs = this.getCaptionAttributes(node, props)
+    const children = this.getCaptionChildren(node, props)
+    const className = `${attrs.className ?? ''} navigator-data-source-caption`.trim()
+
+    return (
+      <div {...attrs} className={className}>
+        <span className="navigator-data-source-title">{children}</span>
+        <button
+          className="navigator-data-source-remove"
+          type="button"
+          title="Remove data source"
+          aria-label="Remove data source"
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            void this.dataSourceService.remove(node.uri)
+          }}
+        >
+          <span className="codicon codicon-trash" aria-hidden="true" />
+        </button>
       </div>
     )
   }
