@@ -419,7 +419,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       return
     }
 
-    const relativePaths: string[] = []
+    const droppedFiles: { relPath: string; sourceUri?: URI }[] = []
     for (const uriString of uris) {
       try {
         const uri = this.parseDroppedUri(uriString)
@@ -429,7 +429,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         }
         const rel = await this.workspaceService.getWorkspaceRelativePath(uri)
         if (rel) {
-          relativePaths.push(rel)
+          droppedFiles.push({ relPath: rel, sourceUri: uri })
         } else {
           console.warn('RO-Crate Structure: no workspace-relative path', uriString)
         }
@@ -438,8 +438,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       }
     }
 
+    const relativePaths = droppedFiles.map((file) => file.relPath)
     console.log('RO-Crate Structure: relative paths', relativePaths)
-    if (!relativePaths.length) {
+    if (!droppedFiles.length) {
       console.warn('RO-Crate Structure: drop ignored, no relative paths')
       return
     }
@@ -463,7 +464,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     const updatedCrate = await this.applyDroppedFilesToCrate(
       crate,
       datasetTargetEntityId,
-      relativePaths,
+      droppedFiles,
     )
 
     console.log('RO-Crate Structure: crate updated', {
@@ -630,7 +631,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected async applyDroppedFilesToCrate(
     crate: Record<string, any>,
     targetEntityId: string,
-    relativePaths: string[],
+    droppedFiles: { relPath: string; sourceUri?: URI }[],
   ): Promise<Record<string, any>> {
     const graph = Array.isArray(crate['@graph']) ? [...crate['@graph']] : []
     const indexById = new Map<string, number>()
@@ -651,7 +652,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     const existingHasPart = this.normalizeHasPart(targetEntity.hasPart)
     const existingHasPartIds = new Set(existingHasPart.map((part) => part['@id']))
 
-    for (const relPath of relativePaths) {
+    for (const { relPath, sourceUri } of droppedFiles) {
       if (!relPath) {
         continue
       }
@@ -660,7 +661,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       const legacyId = relPath
       const id = indexById.has(newId) ? newId : indexById.has(legacyId) ? legacyId : newId
       if (!indexById.has(id)) {
-        const fileEntity = await this.buildFileEntityFromPath(relPath)
+        const fileEntity = await this.buildFileEntityFromPath(relPath, sourceUri)
         graph.push(fileEntity)
         indexById.set(id, graph.length - 1)
       }
@@ -678,14 +679,23 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     return { ...crate, '@graph': graph }
   }
 
-  protected async buildFileEntityFromPath(relPath: string): Promise<Record<string, any>> {
-    const name = relPath.split('/').pop() || relPath
+  protected async buildFileEntityFromPath(
+    relPath: string,
+    sourceUri?: URI,
+  ): Promise<Record<string, any>> {
+    const name =
+      sourceUri?.path?.base ||
+      sourceUri?.path?.name ||
+      relPath.split('/').pop() ||
+      relPath
+    const mimeType = mime.lookup(name) || 'application/octet-stream'
     const fileEntity: Record<string, any> = {
       '@id': this.toFileEntityId(this.normalizeWorkspaceRelativePath(relPath)),
       '@type': 'File',
       name,
+      encodingFormat: mimeType,
     }
-    const fileUri = this.resolveWorkspaceRelativeUri(relPath)
+    const fileUri = sourceUri ?? this.resolveWorkspaceRelativeUri(relPath)
     if (!fileUri) {
       return fileEntity
     }
@@ -693,8 +703,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       const fileStat = await this.fileService.resolve(fileUri, {
         resolveMetadata: true,
       })
-      const mimeType = mime.lookup(name) || 'application/octet-stream'
-      fileEntity.encodingFormat = mimeType
       fileEntity.contentSize = fileStat.size ? `${fileStat.size}` : undefined
       try {
         const content = await this.fileService.read(fileUri)
