@@ -657,9 +657,18 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         continue
       }
       const normalizedRelPath = this.normalizeWorkspaceRelativePath(relPath)
-      const newId = this.toFileEntityId(normalizedRelPath)
+      const newId = this.toFileEntityId(normalizedRelPath, sourceUri)
+      const workspaceId = this.toFileEntityId(normalizedRelPath, undefined)
       const legacyId = relPath
-      const id = indexById.has(newId) ? newId : indexById.has(legacyId) ? legacyId : newId
+      const candidateIds = [
+        newId,
+        legacyId,
+        sourceUri?.toString(),
+        sourceUri ? this.formatAbsoluteFileUri(sourceUri) : undefined,
+        workspaceId,
+      ].filter((value): value is string => Boolean(value))
+      const existingId = candidateIds.find((candidate) => indexById.has(candidate))
+      const id = existingId ?? newId
       if (!indexById.has(id)) {
         const fileEntity = await this.buildFileEntityFromPath(relPath, sourceUri)
         graph.push(fileEntity)
@@ -690,7 +699,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       relPath
     const mimeType = mime.lookup(name) || 'application/octet-stream'
     const fileEntity: Record<string, any> = {
-      '@id': this.toFileEntityId(this.normalizeWorkspaceRelativePath(relPath)),
+      '@id': this.toFileEntityId(
+        this.normalizeWorkspaceRelativePath(relPath),
+        sourceUri,
+      ),
       '@type': 'File',
       name,
       encodingFormat: mimeType,
@@ -729,8 +741,36 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     return relPath.replace(/\\/g, '/').replace(/^\.?\//, '')
   }
 
-  protected toFileEntityId(relPath: string): string {
+  protected toFileEntityId(relPath: string, sourceUri?: URI): string {
+    if (sourceUri && !this.isWorkspaceUri(sourceUri)) {
+      return this.formatAbsoluteFileUri(sourceUri)
+    }
     return `file://./${relPath}`
+  }
+
+  protected formatAbsoluteFileUri(uri: URI): string {
+    if (uri.scheme !== 'file') {
+      return uri.toString()
+    }
+    const rawPath = uri.path.toString()
+    const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
+    return `file://${encodeURI(normalizedPath)}`
+  }
+
+  protected isWorkspaceUri(uri: URI): boolean {
+    const roots = this.workspaceService.tryGetRoots()
+    if (!roots || roots.length === 0) {
+      return false
+    }
+    const uriPath = uri.path.toString().toLowerCase()
+    for (const root of roots) {
+      const rootPath = root.resource.path.toString().toLowerCase()
+      const rootPrefix = rootPath.endsWith('/') ? rootPath : `${rootPath}/`
+      if (uriPath === rootPath || uriPath.startsWith(rootPrefix)) {
+        return true
+      }
+    }
+    return false
   }
 
   protected normalizeHasPart(value: any): { '@id': string }[] {
