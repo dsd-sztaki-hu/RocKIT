@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { TreeView } from '@mui/x-tree-view/TreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -120,6 +120,10 @@ export type CedarTreeProps = {
 const CedarTree: React.FC<CedarTreeProps> = (props) => {
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
   const [expandedNodes, setExpandedNodes] = useState<string[]>([]);
+  
+  // FIX: New state to snapshot the tree expansion before searching
+  const [preSearchExpandedNodes, setPreSearchExpandedNodes] = useState<string[]>([]);
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadingNodeId, setLoadingNodeId] = useState<string | null>(null);
   
@@ -138,6 +142,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
     let ignore = false;
     setIsLoading(true);
     setExpandedNodes([]); 
+    setPreSearchExpandedNodes([]);
     setIsTreeFullyLoaded(false);
     
     props.schemaApi.getPublicFolderId()
@@ -266,7 +271,15 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
   // --- Search Auto-Crawl Logic ---
   useEffect(() => {
       const delaySearch = setTimeout(async () => {
-          if (rawSearchInput.trim()) {
+          const trimmedInput = rawSearchInput.trim();
+          
+          if (trimmedInput) {
+              // STARTING SEARCH
+              if (!isSearching && !searchQuery) {
+                  // Save current state before we mess it up with search results
+                  setPreSearchExpandedNodes(expandedNodes);
+              }
+
               setIsSearching(true);
               
               if (!isTreeFullyLoaded && treeData.length > 0) {
@@ -279,16 +292,21 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                   }
               }
               
-              setSearchQuery(rawSearchInput);
+              setSearchQuery(trimmedInput);
               setIsSearching(false);
           } else {
-              setSearchQuery('');
+              // CLEARING SEARCH
+              if (searchQuery) {
+                  setSearchQuery('');
+                  // FIX: Restore the expansion state from before the search began
+                  setExpandedNodes(preSearchExpandedNodes);
+              }
               setIsSearching(false);
           }
       }, 300);
 
       return () => clearTimeout(delaySearch);
-  }, [rawSearchInput]);
+  }, [rawSearchInput, treeData, isTreeFullyLoaded]);
 
 
   const onNodeClick = (node: TreeNode, e: React.MouseEvent) => {
@@ -404,7 +422,6 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                         value={rawSearchInput}
                         onChange={(e) => setRawSearchInput(e.target.value)}
                         autoFocus
-                        // FIX: Removed disabled={isSearching} to prevent focus loss
                         InputProps={{
                             disableUnderline: true,
                             style: { fontSize: '14px', paddingLeft: '4px' },
@@ -413,7 +430,13 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                                     {isSearching ? (
                                         <CircularProgress size={16} style={{ marginRight: 8 }} />
                                     ) : (
-                                        <IconButton size="small" onClick={() => { setRawSearchInput(''); setSearchQuery(''); setIsSearchExpanded(false); }}>
+                                        <IconButton size="small" onClick={() => { 
+                                            setRawSearchInput(''); 
+                                            // Trigger clearing logic immediately via effect
+                                            setSearchQuery(''); 
+                                            setExpandedNodes(preSearchExpandedNodes); // Immediate visual feedback
+                                            setIsSearchExpanded(false); 
+                                        }}>
                                             <CloseIcon fontSize="small" />
                                         </IconButton>
                                     )}
