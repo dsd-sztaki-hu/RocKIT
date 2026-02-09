@@ -72,7 +72,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             if (!provider) {
                 // If no provider context is given, we cannot authenticate.
                 // We will try to guess the domain from the ID if possible, or fail.
-                // For legacy browse support, we rely on the provider passed in browseRemoteSchemas.
                 throw new Error('No Remote Provider context available for download.');
             } else {
                  // Clean up domain base for SchemaApi
@@ -91,9 +90,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                 ? schemaContent 
                 : JSON.stringify(schemaContent, null, 2);
 
+            // FIX: Pass empty string for conformsTo.
+            // This triggers processAndSaveSchema to call deriveConformsToFromId,
+            // ensuring W3ID mapping happens correctly for configured domains.
             const name = await this.processAndSaveSchema(rawString, 'remote', undefined, {
                 downloadUrl: provider.baseUrl,
-                conformsTo: templateId
+                conformsTo: '' 
             });
             
             this.onDidChangeSchemasEmitter.fire();
@@ -327,21 +329,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return requiredIds;
     }
 
-    protected async downloadSchemaByUUID(uuid: string): Promise<void> {
-        // NOTE: This legacy method might be fragile without a provider. 
-        // We attempt to resolve using the known Research Data domain.
-        const url = `https://${REPO_DOMAINS.RESEARCH_DATA}/templates/${uuid}`;
-        
-        // Dynamic Key Lookup
-        const apiKey = await this.determineApiKeyForUrl(url);
-        
-        const { content, finalUrl } = await this.fetchWithAuthFallback(url, apiKey);
-        await this.processAndSaveSchema(content, 'remote', undefined, {
-            conformsTo: uuid,
-            downloadUrl: finalUrl
-        });
-    }
-
     public async getSchemaByConformsTo(conformsToUrl: string): Promise<SchemaInfo | undefined> {
         const all = await this.loadAllSchemas();
         return all.find(s => s.conformsTo === conformsToUrl || s.reference === conformsToUrl);
@@ -548,6 +535,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return root.resolve(`metadata-schemas/cedar/${type}`);
     }
 
+    // --- LEGACY MERGING LOGIC ---
     public async getMergedProfile(crate: Record<string, any>, newProfile: Record<string, any>, profile: Record<string, any>, profileUrl?: string) {
         const entities: any = Object.values(crate["@graph"]).filter((entity: any) => entity["@type"] != "CreativeWork")
         for (const entity of entities) {
