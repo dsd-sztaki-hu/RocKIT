@@ -312,7 +312,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
   ): React.Attributes & React.HTMLAttributes<HTMLElement> {
     return {
       ...super.createNodeAttributes(node, props),
-      onClick: () => this.handleNodeClick(node),
+      onClick: (event) => this.handleNodeClick(node, event),
     }
   }
 
@@ -322,17 +322,21 @@ export class EntitiesOverviewWidget extends TreeWidget {
    *
    * @param node the clicked node
    */
-  protected handleNodeClick(node: TreeNode): void {
+  protected handleNodeClick(node: TreeNode, event: React.MouseEvent<HTMLElement>): void {
     if (ExampleTreeNode.is(node)) {
       void this.model.toggleNodeExpansion(node)
       return
     }
     if (ExampleTreeLeaf.is(node)) {
-      const entityId = node.data.entityId
-      if (!entityId) {
+      if (event.ctrlKey || event.metaKey) {
+        event.stopPropagation()
+        event.preventDefault()
+        console.log('Entities overview ctrl+click:', node)
         return
       }
-      this.appStateService.selectedEntityId = entityId
+
+      const entityId = node.data.entityId
+      if (!entityId) return
       void this.openRoCrateEditorForEntity(entityId)
     }
   }

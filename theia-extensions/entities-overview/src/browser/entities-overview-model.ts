@@ -98,6 +98,7 @@ function createEntitiesData(
   nameFilter: string,
   typeFilters: string[],
   validityFilter: ValidityFilter,
+  selectedEntityIds: Set<string>,
 ): Item[] {
   const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
   const byType = new Map<string, Item[]>()
@@ -151,6 +152,7 @@ function createEntitiesData(
         entityId,
         description,
         valid,
+        selected: entityId ? selectedEntityIds.has(entityId) : false,
       })
       byType.set(typeLabel, list)
     }
@@ -205,6 +207,37 @@ export class EntitiesOverviewModel extends TreeModelImpl {
   private entityNameFilter = ''
   private entityTypeFilters: string[] = []
   private validityFilter: ValidityFilter = 'all'
+
+  private readonly selectedEntityIds = new Set<string>()
+
+  getSelectedEntityIds(): string[] {
+    return Array.from(this.selectedEntityIds)
+  }
+
+  clearSelection(): void {
+    if (this.selectedEntityIds.size === 0) return
+    this.selectedEntityIds.clear()
+    this.refreshFilteredTree()
+  }
+
+  selectSingle(entityId: string): void {
+    const changed =
+      this.selectedEntityIds.size !== 1 || !this.selectedEntityIds.has(entityId)
+    if (!changed) return
+
+    this.selectedEntityIds.clear()
+    this.selectedEntityIds.add(entityId)
+    this.refreshFilteredTree()
+  }
+
+  toggleSelection(entityId: string): void {
+    if (this.selectedEntityIds.has(entityId)) {
+      this.selectedEntityIds.delete(entityId)
+    } else {
+      this.selectedEntityIds.add(entityId)
+    }
+    this.refreshFilteredTree()
+  }
 
   @postConstruct()
   protected override init(): void {
@@ -269,12 +302,15 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         this.validityFilter !== 'all',
     )
 
+    const selected = new Set(this.selectedEntityIds)
+
     createEntitiesData(
       this.currentCrate,
       this.appStateService.completeProfile,
       this.entityNameFilter,
       this.entityTypeFilters,
       this.validityFilter,
+      selected,
     )
       .map((item) => {
         const node = this.itemFactory.toTreeNode(item)
