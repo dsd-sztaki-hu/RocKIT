@@ -266,3 +266,20 @@
   min-height: 0;
   padding-top: 10px;
 }
+
+.entities-overview-invalid-caption {
+  display: inline-flex;
+  align-items: center;
+}
+
+.entities-overview-invalid-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  color: #d32f2f;
+  line-height: 18px;
+  font-size: 16px;
+}

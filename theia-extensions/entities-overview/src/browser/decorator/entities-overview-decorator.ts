@@ -41,13 +41,8 @@ export class EntitiesOverviewDecorator implements TreeDecorator {
                 // we distinguish valid and invalid elements based on the valid property
                 const isValid = treeNode.data.valid;
                 if (!isValid) {
-                    // for invalid nodes, we use a red background color
                     result.set(treeNode.id, <WidgetDecoration.Data>{
-                        iconOverlay: {
-                            position: WidgetDecoration.IconOverlayPosition.BOTTOM_LEFT,
-                            iconClass: ['fa', 'fa-times'],
-                            color: '#ff4444',
-                        },
+                        tooltip: 'Invalid entity',
                         // We can also add a caption suffix, this would be displayed after the name of the node.
                         /*captionSuffixes: [{
                             data: ' - invalid',
