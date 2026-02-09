@@ -122,6 +122,28 @@ export class EntitiesOverviewWidget extends TreeWidget {
     return super.renderIcon(node, props)
   }
 
+  protected override renderCaption(node: TreeNode, props: NodeProps): React.ReactNode {
+    const attrs = this.getCaptionAttributes(node, props)
+    const children = this.getCaptionChildren(node, props)
+
+    if (ExampleTreeLeaf.is(node) && node.data.valid === false) {
+      const className = `${attrs.className ?? ''} entities-overview-invalid-caption`.trim()
+      return (
+        <div {...attrs} className={className}>
+          <span
+            className="entities-overview-invalid-icon fa fa-exclamation-triangle"
+            role="img"
+            aria-label="Invalid entity"
+            title="Invalid entity"
+          />
+          {children}
+        </div>
+      )
+    }
+
+    return React.createElement('div', attrs, children)
+  }
+
   protected override render(): React.ReactNode {
     const availableTypes = this.model.getAvailableTypes()
     const activeFilters = this.getActiveFilters()
