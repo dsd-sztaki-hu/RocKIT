@@ -243,6 +243,24 @@ export class EntitiesOverviewWidget extends TreeWidget {
     )
   }
 
+  protected override createContainerAttributes(): React.HTMLAttributes<HTMLElement> {
+    const attributes = super.createContainerAttributes()
+    const existingOnClick = attributes.onClick
+    return {
+      ...attributes,
+      onClick: (event) => {
+        if (typeof existingOnClick === 'function') {
+          existingOnClick(event)
+        }
+        const target = event.target as HTMLElement
+        if (target.closest('.theia-TreeNode')) {
+          return
+        }
+        this.model.clearSelection()
+      },
+    }
+  }
+
   /**
    * Provide CSS class names for a given tree node.
    *
@@ -336,8 +354,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
         event.stopPropagation()
         event.preventDefault()
         this.model.toggleSelection(entityId)
-        console.log('Entities overview ctrl+click:', node)
-        console.log('Selected entities: ', this.model.getSelectedEntityIds())
         return
       }
 
