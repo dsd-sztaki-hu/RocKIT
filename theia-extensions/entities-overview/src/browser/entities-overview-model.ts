@@ -1,5 +1,6 @@
 import {
   CompositeTreeNode,
+  DepthFirstTreeIterator,
   ExpandableTreeNode,
   SelectableTreeNode,
   TreeModelImpl,
@@ -11,6 +12,7 @@ import {
   EntitiesOverviewTreeItemFactory,
   Item,
 } from './entities-overview-tree-item-factory'
+import { EntitiesOverviewTree } from './entities-overview-tree'
 
 function formatTypeLabel(rawType: string): string {
   const trimmed = rawType.trim()
@@ -216,8 +218,9 @@ export class EntitiesOverviewModel extends TreeModelImpl {
 
   clearSelection(): void {
     if (this.selectedEntityIds.size === 0) return
+    const ids = Array.from(this.selectedEntityIds)
     this.selectedEntityIds.clear()
-    this.refreshFilteredTree()
+    this.updateLeafSelection(ids)
   }
 
   selectSingle(entityId: string): void {
@@ -225,9 +228,10 @@ export class EntitiesOverviewModel extends TreeModelImpl {
       this.selectedEntityIds.size !== 1 || !this.selectedEntityIds.has(entityId)
     if (!changed) return
 
+    const previous = Array.from(this.selectedEntityIds)
     this.selectedEntityIds.clear()
     this.selectedEntityIds.add(entityId)
-    this.refreshFilteredTree()
+    this.updateLeafSelection([...previous, entityId])
   }
 
   toggleSelection(entityId: string): void {
@@ -236,7 +240,7 @@ export class EntitiesOverviewModel extends TreeModelImpl {
     } else {
       this.selectedEntityIds.add(entityId)
     }
-    this.refreshFilteredTree()
+    this.updateLeafSelection([entityId])
   }
 
   @postConstruct()
@@ -322,5 +326,33 @@ export class EntitiesOverviewModel extends TreeModelImpl {
       .forEach((node) => CompositeTreeNode.addChild(root, node))
 
     this.tree.root = root
+  }
+
+  private updateLeafSelection(entityIds: string[]): void {
+    if (entityIds.length === 0) return
+    const tree = this.tree as EntitiesOverviewTree
+    const updated: TreeNode[] = []
+    for (const entityId of entityIds) {
+      const node = this.findLeafByEntityId(entityId)
+      if (!node) {
+        continue
+      }
+      node.data.selected = this.selectedEntityIds.has(entityId)
+      updated.push(node)
+    }
+    if (updated.length > 0) {
+      tree.notifyUpdated(updated)
+    }
+  }
+
+  private findLeafByEntityId(entityId: string): ExampleTreeLeaf | undefined {
+    const root = this.tree.root
+    if (!root) return undefined
+    for (const node of new DepthFirstTreeIterator(root)) {
+      if (ExampleTreeLeaf.is(node) && node.data.entityId === entityId) {
+        return node
+      }
+    }
+    return undefined
   }
 }

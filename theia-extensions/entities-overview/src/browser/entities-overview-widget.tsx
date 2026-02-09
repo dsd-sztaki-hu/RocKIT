@@ -328,14 +328,16 @@ export class EntitiesOverviewWidget extends TreeWidget {
       return
     }
     if (ExampleTreeLeaf.is(node)) {
-      if (event.ctrlKey || event.metaKey) {
+      const entityId = node.data.entityId
+      if (entityId && (event.ctrlKey || event.metaKey)) {
         event.stopPropagation()
         event.preventDefault()
+        this.model.toggleSelection(entityId)
         console.log('Entities overview ctrl+click:', node)
+        console.log('Selected entities: ', this.model.getSelectedEntityIds())
         return
       }
 
-      const entityId = node.data.entityId
       if (!entityId) return
       void this.openRoCrateEditorForEntity(entityId)
     }
