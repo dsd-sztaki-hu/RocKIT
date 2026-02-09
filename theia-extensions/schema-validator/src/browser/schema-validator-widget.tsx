@@ -6,6 +6,8 @@ import { MessageService } from '@theia/core';
 import type { Disposable } from '@theia/core';
 import { Message } from '@theia/core/lib/browser';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
+import { ApplicationShell, WidgetManager } from '@theia/core/lib/browser';
+import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget';
 
 @injectable()
 export class SchemaValidatorWidget extends ReactWidget {
@@ -18,6 +20,14 @@ export class SchemaValidatorWidget extends ReactWidget {
 
     @inject(AppStateService)
     protected readonly appStateService!: AppStateService;
+
+    @inject(WidgetManager)
+    protected readonly widgetManager!: WidgetManager;
+
+    @inject(ApplicationShell)
+    protected readonly shell!: ApplicationShell;
+
+    protected readonly openingEntities = new Set<string>();
 
     protected validationErrorsDisposable?: Disposable;
 
@@ -55,7 +65,7 @@ export class SchemaValidatorWidget extends ReactWidget {
                             </thead>
                             <tbody>
                                 {errors.map((e, i) => (
-                                    <tr key={i} style={{ borderTop: '1px solid var(--theia-editorWidget-border)' }}>
+                                    <tr key={i} style={{ borderTop: '1px solid var(--theia-editorWidget-border)', cursor: 'pointer' }} onClick={() => this.handleErrorRowClick(e.entityId)}>
                                         <td>{e.entityType} ({e.entityId})</td>
                                         <td>{e.fieldLabel || e.fieldName}</td>
                                         <td>{e.error}</td>
@@ -79,6 +89,42 @@ export class SchemaValidatorWidget extends ReactWidget {
         if (htmlElement) {
             htmlElement.focus();
         }
+    }
+
+    protected handleErrorRowClick(entityId?: string): void {
+        if (!entityId) {
+            return;
+        }
+        this.appStateService.selectedEntityId = entityId;
+        void this.openRoCrateEditorForEntity(entityId);
+    }
+
+    protected async openRoCrateEditorForEntity(entityId: string): Promise<void> {
+        if (this.openingEntities.has(entityId)) {
+            return;
+        }
+        this.openingEntities.add(entityId);
+        try {
+            const existingWidgetId = this.findWidgetIdForEntity(entityId);
+            if (existingWidgetId) {
+                await this.shell.activateWidget(existingWidgetId);
+                return;
+            }
+            const instanceId = `${RoCrateEditorWidget.ID}:${Math.random().toString(36).slice(2)}`;
+            const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
+                instanceId,
+                entityId,
+            });
+            await this.shell.addWidget(widget, { area: 'main' });
+            this.appStateService.registerEntityEditor(widget.id, entityId);
+            await this.shell.activateWidget(widget.id);
+        } finally {
+            this.openingEntities.delete(entityId);
+        }
+    }
+
+    protected findWidgetIdForEntity(entityId: string): string | undefined {
+        return this.appStateService.getEntityEditorWidgetId(entityId);
     }
 
     dispose(): void {

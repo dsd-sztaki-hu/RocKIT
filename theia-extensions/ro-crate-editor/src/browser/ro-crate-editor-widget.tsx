@@ -64,6 +64,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
   protected localCrate: Record<string, any> | undefined
   protected localProfile: Record<string, any> | undefined
+  protected baseProfile: Record<string, any> | undefined
   protected localCompleteProfile: Record<string, any> | undefined
   protected localSelectedEntityId: string | undefined
   protected conformsToIds: string[] = []
@@ -99,9 +100,18 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     this.localCrate = this.appStateService.roCrate
     this.localProfile = this.appStateService.profile
     this.localCompleteProfile = this.appStateService.completeProfile
+    this.baseProfile = this.appStateService.getInitialProfileTemplate()
+    console.log("baseProfile", this.baseProfile)
+    console.log("localCompleteProfile", this.localCompleteProfile)
+
+    this.appStateService.validationErrors = []
+    const baseProfileClone = this.baseProfile ? JSON.parse(JSON.stringify(this.baseProfile)) : undefined
+    const validationErrors = await this.schemaValidator.validateEntities(this.localCrate!, baseProfileClone!, this.localProfile!, this.localCompleteProfile!);
+    this.appStateService.validationErrors = validationErrors
+
     // Ensure localProfile is initialized if it's undefined from app state
     if (!this.localProfile) {
-      this.localProfile = { classes: {}, layouts: [], localisation: {} }
+      this.localProfile = this.baseProfile!
     }
     this.setDirtyState(this.appStateService.dirty)
 
@@ -166,7 +176,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     this.localCrate = crate
 
     this.appStateService.validationErrors = []
-    const validationErrors = await this.schemaValidator.validateEntities(this.localCrate!, this.localProfile!, this.localProfile!, this.localCompleteProfile!);
+    const baseProfileClone = this.baseProfile ? JSON.parse(JSON.stringify(this.baseProfile)) : undefined
+    const validationErrors = await this.schemaValidator.validateEntities(this.localCrate!, baseProfileClone!, this.localProfile!, this.localCompleteProfile!);
     this.appStateService.validationErrors = validationErrors
 
     const isDirty = this.appStateService.isRoCrateDirty(crate)
@@ -302,6 +313,12 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   async save(options?: SaveOptions): Promise<void> {
     const reason = options?.saveReason
     if (reason === SaveReason.AfterDelay || reason === SaveReason.FocusChange) {
+
+      this.appStateService.validationErrors = []
+      const baseProfileClone = this.baseProfile ? JSON.parse(JSON.stringify(this.baseProfile)) : undefined
+      const validationErrors = await this.schemaValidator.validateEntities(this.localCrate!, baseProfileClone!, this.localProfile!, this.localCompleteProfile!);
+      this.appStateService.validationErrors = validationErrors
+
       await this.persistRoCrateToDisk()
       return
     }
@@ -410,7 +427,12 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   }
 
   protected computeConformsToIdsForSelectedEntity(): void {
-    const entityId = this.localSelectedEntityId ?? this.assignedEntityId ?? './'
+    const entityId = this.localSelectedEntityId ?? this.appStateService.selectedEntityId
+    if (!entityId) {
+      console.log("computeConformsToIdsForSelectedEntity no entityId")
+      return
+    }
+    console.log("computeConformsToIdsForSelectedEntity entityId", entityId)
     this.conformsToIds = this.extractConformsToIds(entityId)
   }
 
@@ -471,7 +493,25 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       // const conformsToUrls = this.schemaManagerService.convertW3idUrlsToCedarTemplateUrls(
       //   this.conformsToIds,
       // )
+      let updatedProfile = JSON.parse(JSON.stringify(this.baseProfile!))
+      if (!this.conformsToIds.length) {
+        this.appStateService.profile = updatedProfile
+        this.localProfile = updatedProfile
+
+        this.appStateService.validationErrors = []
+        const baseProfileCloneForValidation = JSON.parse(JSON.stringify(this.baseProfile!))
+        const validationErrors = await this.schemaValidator.validateEntities(
+          this.localCrate!,
+          baseProfileCloneForValidation,
+          this.localProfile!,
+          this.localCompleteProfile!,
+        )
+        this.appStateService.validationErrors = validationErrors
+        return
+      }
       const allSchemas = await this.schemaManagerService.loadAllSchemas()
+      
+      console.log("EDITOR baseProfile snapshot", JSON.parse(JSON.stringify(updatedProfile)))
       for (const conformsToUrl of this.conformsToIds) {
         const matchingSchema = allSchemas.find(
           (schema) => schema.conformsTo === conformsToUrl
@@ -483,14 +523,14 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             )
           if (convertedContent) {
             const currentCrate = this.localCrate || { '@graph': [] }
-            const baseProfile = this.appStateService.profile ||
-              this.localProfile || { classes: {}, layouts: [], localisation: {} }
             const merged = await this.schemaManagerService.getMergedProfile(
               currentCrate,
               convertedContent,
-              baseProfile,
+              updatedProfile,
               conformsToUrl,
             )
+            // TODO
+            updatedProfile = merged
             this.localProfile = merged
             this.appStateService.profile = merged
             this.profileRevision += 1
@@ -499,9 +539,15 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
           console.warn(`No schema found for conformsTo URL: ${conformsToUrl}`)
         }
       }  
-
+      console.log("EDITOR merged updatedProfile snapshot", this.localSelectedEntityId, JSON.parse(JSON.stringify(updatedProfile)))
       this.appStateService.validationErrors = []
-      const validationErrors = await this.schemaValidator.validateEntities(this.localCrate!, this.localProfile!, this.localProfile!, this.localCompleteProfile!);
+      const baseProfileCloneForValidation = JSON.parse(JSON.stringify(this.baseProfile!))
+      const validationErrors = await this.schemaValidator.validateEntities(
+        this.localCrate!,
+        baseProfileCloneForValidation,
+        this.localProfile!,
+        this.localCompleteProfile!,
+      )
       this.appStateService.validationErrors = validationErrors
 
       this.update()
@@ -608,7 +654,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
     if (crate && profile && completeProfile) {
       this.appStateService.validationErrors = []
-      const validationErrors = await this.schemaValidator.validateEntities(crate, profile, profile, completeProfile);
+      const baseProfileClone = this.baseProfile ? JSON.parse(JSON.stringify(this.baseProfile)) : undefined
+      const validationErrors = await this.schemaValidator.validateEntities(crate, baseProfileClone!, profile, completeProfile);
       this.appStateService.validationErrors = validationErrors
     }
 

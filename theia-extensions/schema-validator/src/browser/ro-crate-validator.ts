@@ -1,3 +1,6 @@
+import { MetadataSchemaManager } from "aroma2-common/lib/browser";
+
+
 export type ValidationError = {
   path: string;
   entityId: string;
@@ -9,16 +12,67 @@ export type ValidationError = {
   errorCode: string;
 };
 
-export async function validateEntities(crate: Record<string, any>, baseProfile: Record<string, any>, profile: Record<string, any>, completeProfile: Record<string, any>) {
+  function extractConformsToIds(entity: Record<string, any>): string[] {
+    const value: any = entity?.conformsTo
+    const ids: string[] = []
+    const pushId = (val: any) => {
+      if (!val) return
+      if (typeof val === 'string') {
+        const t = val.trim()
+        if (t) ids.push(t)
+        return
+      }
+      if (typeof val === 'object') {
+        const idVal = (val as any)['@id'] ?? (val as any).id
+        if (typeof idVal === 'string') {
+          const t = idVal.trim()
+          if (t) ids.push(t)
+        }
+      }
+    }
+    if (Array.isArray(value)) {
+      for (const v of value) pushId(v)
+    } else {
+      pushId(value)
+    }
+    return Array.from(new Set(ids))
+  }
+
+export async function validateEntities(crate: Record<string, any>, baseProfile: Record<string, any>, profile: Record<string, any>, completeProfile: Record<string, any>, schemaManagerService: MetadataSchemaManager) {
   let validationErrors: any[] = []
 
   const entities: any = Object.values(crate["@graph"])
 
   for (const entity of entities) {
-    let updatedProfile = baseProfile
+    let updatedProfile = JSON.parse(JSON.stringify(baseProfile))
 
     if (entity["@type"] == "Dataset" || entity["@type"] == "File") {
-      updatedProfile = JSON.parse(JSON.stringify(profile))
+      // TODO get merged profile for entity
+      // Probably need a global get profile for entity fn that gets the entity id as a parameter and returns the profile
+      // To find this entity easier, we also need to make findEntity global
+      const conformsToIds = extractConformsToIds(entity)
+      
+      const allSchemas = await schemaManagerService.loadAllSchemas()
+      for (const conformsToUrl of conformsToIds) {
+        const matchingSchema = allSchemas.find(
+          (schema) => schema.conformsTo === conformsToUrl
+        )
+        if (matchingSchema) {
+          const convertedContent =
+            await schemaManagerService.getConvertedProfileContent(
+              matchingSchema.path,
+            )
+          if (convertedContent) {
+            const mergedProfile = await schemaManagerService.getMergedProfile(
+              crate,
+              convertedContent,
+              updatedProfile,
+              conformsToUrl,
+            )
+            updatedProfile = JSON.parse(JSON.stringify(mergedProfile))
+          }
+        }
+      }
     } else {
       updatedProfile = JSON.parse(JSON.stringify(completeProfile))
     }
