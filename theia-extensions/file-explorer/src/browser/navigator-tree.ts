@@ -70,7 +70,7 @@ export class FileNavigatorTree extends FileTree {
         const node = this.toNode(rootFolder, workspaceNode) as WorkspaceRootNode;
         Object.assign(node, {
             rootType: 'workspace',
-            visible: workspaceNode.name !== WorkspaceNode.name,
+            visible: true,
         });
         return node;
     }
