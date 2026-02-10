@@ -121,7 +121,6 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
   const [expandedNodes, setExpandedNodes] = useState<string[]>([]);
   
-  // FIX: New state to snapshot the tree expansion before searching
   const [preSearchExpandedNodes, setPreSearchExpandedNodes] = useState<string[]>([]);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -298,7 +297,6 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
               // CLEARING SEARCH
               if (searchQuery) {
                   setSearchQuery('');
-                  // FIX: Restore the expansion state from before the search began
                   setExpandedNodes(preSearchExpandedNodes);
               }
               setIsSearching(false);

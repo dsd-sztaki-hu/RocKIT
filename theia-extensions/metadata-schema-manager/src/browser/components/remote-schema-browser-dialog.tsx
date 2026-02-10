@@ -181,7 +181,6 @@ const RemoteBrowser: React.FC<BrowserProps> = ({
             centered
             zIndex={1050}
             destroyOnClose={true} 
-            // FIX: Changed layout to flex column so children handle scrolling
             bodyStyle={{ height: '500px', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}
             footer={footer}
         >

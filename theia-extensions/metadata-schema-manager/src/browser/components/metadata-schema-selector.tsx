@@ -204,10 +204,6 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
             const crate = appState.roCrate;
             if (crate && Array.isArray(crate['@graph'])) {
                 const entityId = appState.selectedEntityId ?? './';
-                
-                // FIX: Use the specific conformsTo from the selected schema if available.
-                // Otherwise fall back to deriving it (for legacy schemas).
-                // The previous logic forced derivation even if a specific URL was already set.
                 const w3id = selectedSchema.conformsTo || service.deriveConformsToFromId(selectedSchema.reference);
                 
                 if (w3id) {

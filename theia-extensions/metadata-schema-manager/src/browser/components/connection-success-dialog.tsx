@@ -58,11 +58,9 @@ export const ConnectionSuccessDialog: React.FC<Props> = ({ open, providerName, s
                 </Paper>
             </DialogContent>
             <DialogActions>
-                {/* FIX: Label changed to Cancel */}
                 <Button onClick={onCancel} color="inherit">
                     Cancel
                 </Button>
-                {/* FIX: Label changed to Save */}
                 <Button onClick={onConfirm} variant="contained" color="success">
                     Save
                 </Button>

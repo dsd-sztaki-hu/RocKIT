@@ -264,8 +264,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                         const total = missingIds.length;
                         progress.report({ message: 'Starting...', work: { done: 0, total } });
 
-                        // FIX: Use processInChunks instead of Promise.all to prevent UI Freeze
-                        // Download 5 schemas at a time max
                         await this.processInChunks(missingIds, 5, async (conformsToUrl) => {
                             try { 
                                 const { content, finalUrl } = await this.resolveConformanceUrl(conformsToUrl);
@@ -305,7 +303,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             const conformsArray = Array.isArray(entity.conformsTo) ? entity.conformsTo : [entity.conformsTo];
             
             for (const item of conformsArray) {
-                // FIX: Handle both string URLs and object format {"@id": "..."}
                 let id = typeof item === 'string' ? item : item['@id'];
                 
                 if (id && typeof id === 'string' && id.includes('/schema/')) {

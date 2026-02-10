@@ -6,7 +6,6 @@ export interface SchemaInfo {
     source: 'local' | 'remote';
     reference: string; // This is the @id
     path: string;
-    // New Fields for Metadata Tracking
     conformsTo?: string; 
     downloadUrl?: string;
 }

@@ -143,7 +143,6 @@ export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, provid
             fullWidth
             disablePortal={false} 
             disableScrollLock={true}
-            // FIX: Don't restore focus to the ListDialog (which might be re-rendering)
             disableRestoreFocus={true} 
             style={{ zIndex: 1301 }} 
         >
