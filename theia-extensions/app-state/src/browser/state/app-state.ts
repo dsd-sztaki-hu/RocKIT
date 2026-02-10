@@ -1,5 +1,15 @@
 //  EIRCEIA - editor id to RO-Crate entity id associations
 export type EIRCEIA = Record<string, string>
+export type ValidationError = {
+  path: string;
+  entityId: string;
+  entityType: string;
+  fieldName: string;
+  fieldLabel: string;
+  error: string;
+  error_hu: string;
+  errorCode: string;
+}
 
 // Define the default application state. This defines the shape of the state and initial values.
 export const defaultAppState = {
@@ -17,6 +27,7 @@ export const defaultAppState = {
   },
   openSchemaSelectorWindow: false,
   completeProfile: undefined as Record<string, any> | undefined,
+  validationErrors: undefined as ValidationError[] | undefined,
 }
 
 export type AppState = typeof defaultAppState

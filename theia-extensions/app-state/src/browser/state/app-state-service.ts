@@ -103,6 +103,10 @@ export class AppStateService {
     this.initialProfileTemplate = this.deepClone(value) as Record<string, any> | undefined
   }
 
+  getInitialProfileTemplate(): Record<string, any> | undefined {
+    return this.deepClone(this.initialProfileTemplate) as Record<string, any> | undefined
+  }
+
   resetProfileToInitial(): void {
     const next = this.deepClone(this.initialProfileTemplate)
     if (next !== undefined) {
@@ -257,4 +261,12 @@ export class AppStateService {
     console.log('AppStateService: Setting completeProfile to:', value)
     this.updateState({ completeProfile: value })
   }
+
+  get validationErrors(): AppState['validationErrors'] {
+      return this.getState().validationErrors;
+  }
+  set validationErrors(value: AppState['validationErrors']) {
+      this.updateState({ validationErrors: value });
+  }
+
 }
