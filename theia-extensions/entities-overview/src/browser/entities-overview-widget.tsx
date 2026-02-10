@@ -126,7 +126,11 @@ export class EntitiesOverviewWidget extends TreeWidget {
     const attrs = this.getCaptionAttributes(node, props)
     const children = this.getCaptionChildren(node, props)
 
-    if (ExampleTreeLeaf.is(node) && node.data.valid === false) {
+    const showInvalidIcon =
+      (ExampleTreeLeaf.is(node) && node.data.valid === false) ||
+      (ExampleTreeNode.is(node) && this.hasInvalidDescendant(node))
+
+    if (showInvalidIcon) {
       const className = `${attrs.className ?? ''} entities-overview-invalid-caption`.trim()
       return (
         <div {...attrs} className={className}>
@@ -142,6 +146,21 @@ export class EntitiesOverviewWidget extends TreeWidget {
     }
 
     return React.createElement('div', attrs, children)
+  }
+
+  protected hasInvalidDescendant(node: ExampleTreeNode): boolean {
+    for (const child of node.children) {
+      if (ExampleTreeLeaf.is(child)) {
+        if (child.data.valid === false) {
+          return true
+        }
+        continue
+      }
+      if (ExampleTreeNode.is(child) && this.hasInvalidDescendant(child)) {
+        return true
+      }
+    }
+    return false
   }
 
   protected override render(): React.ReactNode {
