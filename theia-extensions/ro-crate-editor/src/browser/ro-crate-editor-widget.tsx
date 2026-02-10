@@ -82,10 +82,11 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     super.onAfterAttach(msg)
   }
 
-  protected onActivateRequest(msg: Message): void {
+  protected async onActivateRequest(msg: Message): Promise<void> {
     super.onActivateRequest(msg)
     this.appStateService.resetProfileToInitial()
-    void this.refreshProfileForSelectedEntity()
+    // void this.refreshProfileForSelectedEntity()
+    await this.updateProfileWithEntitySchemas(this.baseProfile!, this.localSelectedEntityId!)
     this.update()
   }
 
@@ -111,17 +112,19 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     this.setDirtyState(this.appStateService.dirty)
 
     this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
-      (crate) => {
+      async (crate) => {
         this.localCrate = crate
         console.log('crate update')
         this.updateTitleLabel()
+        await this.updateProfileWithEntitySchemas(this.baseProfile!, this.appStateService.selectedEntityId!)
         this.update()
-        const entityId = this.localSelectedEntityId ?? this.assignedEntityId ?? './'
-        const nextConformsToIds = this.extractConformsToIds(entityId)
-        if (!this.isSameStringSet(this.conformsToIds, nextConformsToIds)) {
-          this.conformsToIds = nextConformsToIds
-          void this.refreshProfileForSelectedEntity()
-        }
+        // const entityId = this.localSelectedEntityId ?? this.assignedEntityId ?? './'
+        // const nextConformsToIds = this.extractConformsToIds(entityId)
+        // if (!this.isSameStringSet(this.conformsToIds, nextConformsToIds)) {
+        //   this.conformsToIds = nextConformsToIds
+        //   // void this.refreshProfileForSelectedEntity()
+        //   await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId)
+        // }
       },
     )
     this.profileSubscription = this.appStateService.onDidChangeSelector((s) => s.profile)(
@@ -152,7 +155,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         console.log('selectedEntityId update', { prev, next: selectedEntityId })
         this.updateTitleLabel()
         this.update()
-        await this.refreshProfileForSelectedEntity()
+        // await this.refreshProfileForSelectedEntity()
+        await this.updateProfileWithEntitySchemas(this.baseProfile!, this.appStateService.selectedEntityId!)
       }
     })
 
@@ -161,12 +165,13 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       persistedEntity ?? options.entityId ?? this.appStateService.selectedEntityId ?? './'
     this.assignEntity(initialEntity)
 
+    // await this.refreshProfileForSelectedEntity()
+    await this.updateProfileWithEntitySchemas(this.baseProfile!, this.appStateService.selectedEntityId!)
+
     this.appStateService.validationErrors = []
     const baseProfileClone = this.baseProfile ? JSON.parse(JSON.stringify(this.baseProfile)) : undefined
     const validationErrors = await this.schemaValidator.validateEntities(this.localCrate!, baseProfileClone!, this.localProfile!, this.localCompleteProfile!);
     this.appStateService.validationErrors = validationErrors
-
-    await this.refreshProfileForSelectedEntity()
   }
 
   protected handleSaveCrate = async (saveData: any) => {
@@ -211,7 +216,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
   }
 
-  protected handleRemoveProfile = (payload: any) => {
+  protected handleRemoveProfile = async (payload: any) => {
     console.log('handleRemoveProfile', payload)
     const entityId = payload?.entityId ?? this.localSelectedEntityId
     const profileUrl = payload?.tab?.profileUrl
@@ -264,7 +269,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     this.removeSchemaMetadata(updatedCrate, entityId, schemaName!, profile!)
     this.handleSaveCrate(updatedCrate)
     this.update()
-    void this.refreshProfileForSelectedEntity()
+    // await this.refreshProfileForSelectedEntity()
+    await this.updateProfileWithEntitySchemas(this.baseProfile!, this.localSelectedEntityId!)
   }
 
   render(): React.ReactNode {
@@ -280,7 +286,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
           profileKey={this.profileRevision}
           onSaveCrate={this.handleSaveCrate}
           onNavigation={this.handleNavigation}
-          //onSetProfile={this.handleSetProfile}
           onOpenSchemaManager={this.handleOpenSchemaManager}
           onRemoveProfile={this.handleRemoveProfile}
         />
@@ -433,14 +438,13 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     return tail.charAt(0).toUpperCase() + tail.slice(1)
   }
 
-  protected computeConformsToIdsForSelectedEntity(): void {
-    const entityId = this.localSelectedEntityId ?? this.appStateService.selectedEntityId
+  protected computeConformsToIdsForSelectedEntity(entityId: string): string[] {
     if (!entityId) {
       console.log("computeConformsToIdsForSelectedEntity no entityId")
-      return
+      return []
     }
     console.log("computeConformsToIdsForSelectedEntity entityId", entityId)
-    this.conformsToIds = this.extractConformsToIds(entityId)
+    return this.extractConformsToIds(entityId)
   }
 
   protected extractConformsToIds(entityId: string): string[] {
@@ -496,7 +500,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
     this.isRefreshingProfile = true
     try {
-      this.computeConformsToIdsForSelectedEntity()
+      // this.computeConformsToIdsForSelectedEntity()
       // const conformsToUrls = this.schemaManagerService.convertW3idUrlsToCedarTemplateUrls(
       //   this.conformsToIds,
       // )
@@ -538,13 +542,76 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
   }
 
+  protected async updateProfileWithEntitySchemas(baseProfile: Record<string, any>, entityId: string) {
+    if (this.isRefreshingProfile) {
+      return
+    }
+    this.isRefreshingProfile = true
+    try {
+      console.log("updateProfileWithEntitySchemas entityId", entityId, baseProfile)
+      const entity = this.findEntity(this.localCrate!, entityId)
+      if (!entity) {
+        console.log("updateProfileWithEntitySchemas entityId not found", entityId)
+        return
+      }
+      const conformsTos = this.computeConformsToIdsForSelectedEntity(entityId)
+      console.log("updateProfileWithEntitySchemas entityId", entityId, conformsTos)
+
+      if (!conformsTos) {
+        console.log("updateProfileWithEntitySchemas entityId no conformsTo", entityId)
+        this.appStateService.profile = JSON.parse(JSON.stringify(baseProfile))
+        this.localProfile = JSON.parse(JSON.stringify(baseProfile))
+        this.profileRevision += 1
+        this.update()
+        return
+      }
+
+      const allSchemas = await this.schemaManagerService.loadAllSchemas()
+      
+      let updateProfile = JSON.parse(JSON.stringify(baseProfile))
+      for (const conformsToUrl of conformsTos) {
+        const matchingSchema = allSchemas.find((schema) => schema.conformsTo === conformsToUrl)
+
+        if (matchingSchema) {
+          console.log("updateProfileWithEntitySchemas entityId schema", entityId, matchingSchema)
+          const convertedContent = await this.schemaManagerService.getConvertedProfileContent(matchingSchema.path)
+
+          if (convertedContent && this.localCrate) {
+            console.log("updateProfileWithEntitySchemas entityId schema merged", entityId, matchingSchema)
+            const merged = await this.schemaManagerService.getMergedProfile(
+              this.localCrate!,
+              convertedContent,
+              updateProfile,
+              conformsToUrl,
+            )
+            updateProfile = merged
+            console.log("updateProfileWithEntitySchemas entityId schema merged", entityId, matchingSchema, merged)
+            this.localProfile = merged
+            this.appStateService.profile = merged
+            this.profileRevision += 1
+          }
+        } else {
+          console.warn(`No schema found for conformsTo URL: ${conformsToUrl}`)
+        }
+      }
+      this.update()
+    } finally {
+      this.appStateService.validationErrors = []
+      const baseProfileClone = this.baseProfile ? JSON.parse(JSON.stringify(this.baseProfile)) : undefined
+      const validationErrors = await this.schemaValidator.validateEntities(this.localCrate!, baseProfileClone!, this.localProfile!, this.localCompleteProfile!);
+      this.appStateService.validationErrors = validationErrors
+      this.isRefreshingProfile = false
+    }
+  }
+
+
   protected findEntity(crate: Record<string, any>, id: string) {
     return (crate['@graph'] as Record<string, any>[]).find(
       (entity) => entity['@id'] === id,
     )
   }
 
-  protected removeSchemaMetadata(
+  protected async removeSchemaMetadata(
     crate: Record<string, any>,
     entityId: string,
     layout: string,
@@ -570,7 +637,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         delete entity[input.name]
       }
     }
-    this.refreshProfileForSelectedEntity()
+    // this.refreshProfileForSelectedEntity()
+    await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId)
     this.update()
   }
 
