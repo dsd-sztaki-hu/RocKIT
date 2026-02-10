@@ -281,6 +281,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
     }
     if (ExampleTreeLeaf.is(node) && node.data.selected) {
       classNames.push('entities-overview-leaf-selected')
+      classNames.push(SELECTED_CLASS)
     }
     return classNames
   }

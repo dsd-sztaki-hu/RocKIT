@@ -267,7 +267,3 @@
   padding-top: 10px;
 }
 
-.entities-overview-leaf-selected {
-  background: var(--theia-selection-background);
-  color: var(--theia-selection-foreground);
-}
