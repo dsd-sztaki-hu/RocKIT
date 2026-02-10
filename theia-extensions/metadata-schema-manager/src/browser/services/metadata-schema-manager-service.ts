@@ -21,19 +21,12 @@ export const SCHEMA_FIELD_ID = '@id';
 const AROMA_METADATA_FIELD = '_aromaMetadata'; 
 const MSG_TIMEOUT = 5000;
 
-// Used only for resolving conformsTo @id patterns
-const REPO_DOMAINS = {
-    RESEARCH_DATA: 'repo.schema.researchdata.hu',
-    W3ID_BASE: 'https://w3id.org/arp'
-};
-
 @injectable()
 export class SchemaManagerService implements FrontendApplicationContribution, MetadataSchemaManagerContract {
     
     @inject(AppStateService) protected readonly appStateService!: AppStateService;
     @inject(FileService) protected readonly fileService!: FileService;
     @inject(MessageService) protected readonly messageService!: MessageService;
-    // EnvVariablesServer still needed for AROMA_ROOT_PATH (system env), but NOT for API keys
     @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
     @inject(RemoteSchemaProviderStoreService) public readonly providerStoreService!: RemoteSchemaProviderStoreService; 
 
@@ -60,6 +53,27 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         if (currentCrate) this.checkAndDownloadSchemas(currentCrate);
     }
 
+    // --- HELPER: Concurrency Limiter ---
+    private async processInChunks<T>(items: T[], chunkSize: number, iteratorFn: (item: T) => Promise<void>, progressCb?: (completed: number) => void) {
+        let completed = 0;
+        for (let i = 0; i < items.length; i += chunkSize) {
+            const chunk = items.slice(i, i + chunkSize);
+            // Process chunk in parallel
+            await Promise.all(chunk.map(async (item) => {
+                try {
+                    await iteratorFn(item);
+                } catch (e) {
+                    console.error("Error processing item in chunk:", e);
+                } finally {
+                    completed++;
+                    if (progressCb) progressCb(completed);
+                }
+            }));
+            // Optional: Small yield to event loop to keep UI responsive between chunks
+            await new Promise(r => setTimeout(r, 0));
+        }
+    }
+
     public async browseRemoteSchemas(provider: RemoteSchemaProviderConfig): Promise<void> {
         this.onOpenRemoteBrowserEmitter.fire(provider);
     }
@@ -70,11 +84,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             let domainBase = provider?.baseUrl;
 
             if (!provider) {
-                // If no provider context is given, we cannot authenticate.
-                // We will try to guess the domain from the ID if possible, or fail.
                 throw new Error('No Remote Provider context available for download.');
             } else {
-                 // Clean up domain base for SchemaApi
                  domainBase = domainBase!.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
             }
 
@@ -90,9 +101,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                 ? schemaContent 
                 : JSON.stringify(schemaContent, null, 2);
 
-            // FIX: Pass empty string for conformsTo.
-            // This triggers processAndSaveSchema to call deriveConformsToFromId,
-            // ensuring W3ID mapping happens correctly for configured domains.
             const name = await this.processAndSaveSchema(rawString, 'remote', undefined, {
                 downloadUrl: provider.baseUrl,
                 conformsTo: '' 
@@ -108,36 +116,24 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         }
     }
 
-    /**
-     * Determines the API Key dynamically based exclusively on configured providers.
-     */
     private async determineApiKeyForUrl(url: string): Promise<string | undefined> {
         try {
-            // 1. Load all configured providers
             const providers = await this.providerStoreService.loadProviders();
-            
-            // 2. Normalize the target URL's host (e.g. repo.schema.researchdata.hu)
             const targetHost = new URL(url).hostname.toLowerCase();
 
-            // 3. Find a provider whose domain matches the target
             const matchedProvider = providers.find(p => {
                 try {
                     let providerHost = new URL(p.baseUrl).hostname.toLowerCase();
-                    // Simple check: if the provider host is part of the URL host or vice versa
                     return targetHost.includes(providerHost) || providerHost.includes(targetHost);
                 } catch { return false; }
             });
 
             if (matchedProvider && matchedProvider.apiKey) {
-                console.log(`[SchemaManager] URL matched provider: ${matchedProvider.title}`);
                 return matchedProvider.apiKey;
             }
         } catch (e) {
             console.error("Error determining API key for URL", e);
         }
-
-        // No fallback to .env file anymore. 
-        // If no provider matches, we proceed with undefined (Open Access).
         return undefined;
     }
 
@@ -145,9 +141,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         progress.report({ message: 'Resolving access...', work: { done: 10, total: 100 } });
         
         try {
-            // Dynamic API Key Resolution (No .env fallback)
             const apiKey = await this.determineApiKeyForUrl(url);
-
             progress.report({ message: 'Downloading...', work: { done: 30, total: 100 } });
 
             const { content, finalUrl } = await this.fetchWithAuthFallback(url, apiKey);
@@ -155,7 +149,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             try {
                 JSON.parse(content);
             } catch (e) {
-                throw new Error('The URL returned invalid content (likely HTML instead of JSON). Please check the link.');
+                throw new Error('The URL returned invalid content (likely HTML instead of JSON).');
             }
 
             progress.report({ message: 'Processing...', work: { done: 60, total: 100 } });
@@ -189,28 +183,24 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             return fetch(url, { method: 'GET', headers: currentHeaders });
         };
 
-        // Try with key first (if matched via config)
         let response: Response;
         if (apiKey) {
             response = await fetchAttempt(true);
             if (response.status === 401 || response.status === 403) {
-                console.warn(`[SchemaManager] Auth failed for ${url} with provided key, retrying open access...`);
                 response = await fetchAttempt(false);
             }
         } else {
-            // No matching provider/key found, try open access
             response = await fetchAttempt(false);
         }
 
         if (!response.ok) {
-            const msg = `Fetch failed: ${response.status} ${response.statusText}`;
             if (response.status === 401 || response.status === 403) {
-                throw new Error(`Unauthorized access to ${url}. Please configure a Remote Provider with a valid API Key for this domain.`);
+                throw new Error(`Unauthorized access to ${url}. Please configure a Remote Provider.`);
             }
             if (response.status === 404) {
-                throw new Error(`Resource not found at ${url}. Please check the link.`);
+                throw new Error(`Resource not found at ${url}.`);
             }
-            throw new Error(msg);
+            throw new Error(`Fetch failed: ${response.status} ${response.statusText}`);
         }
 
         const content = await response.text();
@@ -218,7 +208,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     }
 
     private async resolveConformanceUrl(url: string, apiKey?: string): Promise<{ content: string, finalUrl: string }> {
-        // Automatically determine key if not provided
         const effectiveKey = apiKey || await this.determineApiKeyForUrl(url);
         
         const { content, finalUrl } = await this.fetchWithAuthFallback(url, effectiveKey);
@@ -226,9 +215,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         try {
             JSON.parse(content);
             return { content, finalUrl };
-        } catch (e) {
-            console.log(`[SchemaManager] URL ${url} returned HTML. Attempting heuristic fix.`);
-        }
+        } catch (e) { /* ignore HTML here, proceed to fix */ }
 
         let fixedUrl = finalUrl;
         if (finalUrl.includes('openview.')) {
@@ -238,17 +225,16 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         }
 
         if (fixedUrl !== finalUrl) {
-            console.log(`[SchemaManager] Retrying with fixed URL: ${fixedUrl}`);
             const retry = await this.fetchWithAuthFallback(fixedUrl, effectiveKey);
             try {
                 JSON.parse(retry.content);
                 return retry; 
             } catch (e) {
-                throw new Error(`Could not resolve JSON from ${url}. Both the original and heuristic URLs returned HTML.`);
+                throw new Error(`Could not resolve JSON from ${url}.`);
             }
         }
 
-        throw new Error(`The URL ${url} returned HTML, and no JSON endpoint could be automatically determined.`);
+        throw new Error(`The URL ${url} returned HTML, and no JSON endpoint could be determined.`);
     }
 
     protected async checkAndDownloadSchemas(roCrate: any): Promise<void> {
@@ -267,7 +253,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             await new Promise<void>((resolve) => {
                 Modal.info({
                     title: 'Missing Metadata Schemas',
-                    content: `The RO-Crate references ${missingIds.length} missing schema(s). Downloading now.`,
+                    content: `The RO-Crate references ${missingIds.length} missing schema(s). Downloading now...`,
                     okText: 'OK', onOk: () => resolve(), maskClosable: false
                 });
             });
@@ -276,12 +262,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                 .then(async progress => {
                     try {
                         const total = missingIds.length;
-                        let completed = 0;
                         progress.report({ message: 'Starting...', work: { done: 0, total } });
 
-                        await Promise.all(missingIds.map(async (conformsToUrl) => {
+                        // FIX: Use processInChunks instead of Promise.all to prevent UI Freeze
+                        // Download 5 schemas at a time max
+                        await this.processInChunks(missingIds, 5, async (conformsToUrl) => {
                             try { 
-                                // Internal lookup for API keys happens in resolveConformanceUrl
                                 const { content, finalUrl } = await this.resolveConformanceUrl(conformsToUrl);
                                 await this.processAndSaveSchema(content, 'remote', undefined, {
                                     conformsTo: conformsToUrl,
@@ -292,11 +278,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                                 console.error(`Failed to resolve schema ${conformsToUrl}`, e); 
                                 this.messageService.warn(`Could not download schema: ${conformsToUrl}`);
                             }
-                            finally {
-                                completed++;
-                                progress.report({ message: `Processed (${completed}/${total})...`, work: { done: completed, total } });
-                            }
-                        }));
+                        }, (completed) => {
+                            progress.report({ message: `Processed (${completed}/${total})...`, work: { done: completed, total } });
+                        });
+
                     } finally { progress.cancel(); }
                 });
             
@@ -305,7 +290,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
         } catch (error) {
             console.error('[SchemaManager] Error verifying schemas:', error);
-            this.messageService.error('Unexpected error during schema sync. See console.', { timeout: MSG_TIMEOUT });
+            this.messageService.error('Error during schema sync. See console.', { timeout: MSG_TIMEOUT });
         } finally {
             this.isChecking = false;
         }
@@ -320,7 +305,9 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             const conformsArray = Array.isArray(entity.conformsTo) ? entity.conformsTo : [entity.conformsTo];
             
             for (const item of conformsArray) {
-                const id = item['@id'];
+                // FIX: Handle both string URLs and object format {"@id": "..."}
+                let id = typeof item === 'string' ? item : item['@id'];
+                
                 if (id && typeof id === 'string' && id.includes('/schema/')) {
                     requiredIds.add(id);
                 }
@@ -335,6 +322,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     }
 
     protected async filterMissingSchemas(ids: string[]): Promise<string[]> {
+        // Optimize: Load local schemas once
         const localSchemas = await this.loadAllSchemas();
         return ids.filter(reqId => {
             const exists = localSchemas.some(local => 
@@ -535,7 +523,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return root.resolve(`metadata-schemas/cedar/${type}`);
     }
 
-    // --- LEGACY MERGING LOGIC ---
     public async getMergedProfile(crate: Record<string, any>, newProfile: Record<string, any>, profile: Record<string, any>, profileUrl?: string) {
         const entities: any = Object.values(crate["@graph"]).filter((entity: any) => entity["@type"] != "CreativeWork")
         for (const entity of entities) {
