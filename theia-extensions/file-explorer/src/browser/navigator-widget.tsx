@@ -1,3 +1,19 @@
+// *****************************************************************************
+// Copyright (C) 2017 TypeFox and others.
+//
+// This program and the accompanying materials are made available under the
+// terms of the Eclipse Public License v. 2.0 which is available at
+// http://www.eclipse.org/legal/epl-2.0.
+//
+// This Source Code may also be made available under the following Secondary
+// Licenses when the conditions for such availability set forth in the Eclipse
+// Public License v. 2.0 are satisfied: GNU General Public License, version 2
+// with the GNU Classpath Exception which is available at
+// https://www.gnu.org/software/classpath/license.html.
+//
+// SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
+// *****************************************************************************
+
 import { environment, isOSX } from '@theia/core'
 import {
   CompositeTreeNode,
@@ -19,11 +35,17 @@ import { DirNode, FileStatNode, FileStatNodeData } from '@theia/filesystem/lib/b
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { DataSourceService } from 'data-sources/lib/browser/data-source-service'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
 import { FileNavigatorFilter } from './navigator-filter'
 import { FileNavigatorModel } from './navigator-model'
-import { WorkspaceNode, WorkspaceRootNode } from './navigator-tree'
+import {
+  DataSourceRootNode,
+  NavigatorHeaderNode,
+  WorkspaceNode,
+  WorkspaceRootNode,
+} from './navigator-tree'
 
 export const FILE_NAVIGATOR_ID = 'files'
 export const LABEL = nls.localizeByDefault('No Folder Opened')
@@ -37,6 +59,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService
   @inject(AppStateService) protected readonly appStateService: AppStateService
   @inject(FileNavigatorFilter) protected readonly fileNavigatorFilter: FileNavigatorFilter
+  @inject(DataSourceService) protected readonly dataSourceService: DataSourceService
 
   protected readonly filters: {
     fileNameFilter: string
@@ -45,6 +68,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     fileNameFilter: '',
     roCrateFilter: 'all',
   }
+
+  // collapsible filters (from main)
   protected filtersExpanded: boolean = true
   protected readonly fileNameInputRef = React.createRef<HTMLInputElement>()
   protected fileNameSelection: { start: number | null; end: number | null } | undefined
@@ -63,8 +88,6 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   protected override init(): void {
     super.init()
 
-    // This ensures that the context menu command to hide this widget receives the label 'Folders'
-    // regardless of the name of workspace. See ViewContainer.updateToolbarItems.
     const dataset = {
       ...this.title.dataset,
       visibilityCommandLabel: nls.localizeByDefault('Folders'),
@@ -125,16 +148,18 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   }
 
   protected override renderTree(model: TreeModel): React.ReactNode {
-    if (this.model.root && this.isEmptyMultiRootWorkspace(model)) {
-      return this.renderEmptyMultiRootWorkspace()
+        if (this.model.root && this.isEmptyMultiRootWorkspace(model)) {
+            return this.renderEmptyMultiRootWorkspace()
+        }
+        return super.renderTree(model)
     }
-    return super.renderTree(model)
-  }
+
 
   protected override render(): React.ReactNode {
     const hasActiveFilters =
       this.filters.fileNameFilter.trim() !== '' || this.filters.roCrateFilter !== 'all'
 
+    // keep behavior: if workspace isn't opened, show just tree container (from main)
     if (!this.workspaceService.opened) {
       return (
         <div className="navigator-filter-panel">
@@ -172,40 +197,42 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
             }`}
           >
             <div className="navigator-filter-fields">
-            <label className="navigator-filter-row">
-              <span className="navigator-filter-label">File name</span>
-              <input
-                className="navigator-filter-input"
-                type="text"
-                placeholder="Search file name"
-                ref={this.fileNameInputRef}
-                value={this.filters.fileNameFilter}
-                onChange={(event) => this.onFileNameFilterChange(event)}
-                onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}
-              />
-            </label>
-
-            <label className="navigator-filter-row">
-              <span className="navigator-filter-label">RO-Crate descriptions</span>
-              <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
-                <Select
-                  className="navigator-rocrate-select"
-                  value={this.filters.roCrateFilter}
-                  options={[
-                    { value: 'all', label: 'All files' },
-                    { value: 'with-description', label: 'With RO-Crate description' },
-                    {
-                      value: 'without-description',
-                      label: 'Missing RO-Crate description',
-                    },
-                  ]}
-                  onChange={(value) =>
-                    this.onRoCrateFilterChange(value as FileNavigatorFilter.RoCrateFilter)
-                  }
-                  size="small"
+              <label className="navigator-filter-row">
+                <span className="navigator-filter-label">File name</span>
+                <input
+                  className="navigator-filter-input"
+                  type="text"
+                  placeholder="Search file name"
+                  ref={this.fileNameInputRef}
+                  value={this.filters.fileNameFilter}
+                  onChange={(event) => this.onFileNameFilterChange(event)}
+                  onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}
                 />
-              </div>
-            </label>
+              </label>
+
+              <label className="navigator-filter-row">
+                <span className="navigator-filter-label">RO-Crate descriptions</span>
+                <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
+                  <Select
+                    className="navigator-rocrate-select"
+                    value={this.filters.roCrateFilter}
+                    options={[
+                      { value: 'all', label: 'All files' },
+                      { value: 'with-description', label: 'With RO-Crate description' },
+                      {
+                        value: 'without-description',
+                        label: 'Missing RO-Crate description',
+                      },
+                    ]}
+                    onChange={(value) =>
+                      this.onRoCrateFilterChange(
+                        value as FileNavigatorFilter.RoCrateFilter,
+                      )
+                    }
+                    size="small"
+                  />
+                </div>
+              </label>
             </div>
 
             <div className="navigator-filter-actions">
@@ -227,6 +254,35 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         </div>
 
         <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
+      </div>
+    )
+  }
+
+  protected override renderCaption(node: TreeNode, props: NodeProps): React.ReactNode {
+    if (!DataSourceRootNode.is(node)) {
+      return super.renderCaption(node, props)
+    }
+
+    const attrs = this.getCaptionAttributes(node, props)
+    const children = this.getCaptionChildren(node, props)
+    const className = `${attrs.className ?? ''} navigator-data-source-caption`.trim()
+
+    return (
+      <div {...attrs} className={className}>
+        <span className="navigator-data-source-title">{children}</span>
+        <button
+          className="navigator-data-source-remove"
+          type="button"
+          title="Remove data source"
+          aria-label="Remove data source"
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            void this.dataSourceService.remove(node.uri)
+          }}
+        >
+          <span className="codicon codicon-trash" aria-hidden="true" />
+        </button>
       </div>
     )
   }
@@ -309,10 +365,6 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     }
   }
 
-  /**
-   * When a multi-root workspace is opened, a user can remove all the folders from it.
-   * Instead of displaying an empty navigator tree, this will show a button to add more folders.
-   */
   protected renderEmptyMultiRootWorkspace(): React.ReactNode {
     return (
       <div className="theia-navigator-container">
@@ -344,7 +396,6 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     if (FileStatNode.is(node)) {
       this.model.selectNode(node)
     }
-    // DO NOT call this.model.previewNode(node) here.
     super.tapNode(node)
   }
 
@@ -368,7 +419,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   }
 
   /**
-   * Overrides the method from FileTreeWidget to add custom CSS classes.
+   * Overrides the method from FileTreeWidget to add custom CSS classes + drag support.
    */
   protected override createNodeAttributes(
     node: TreeNode,
@@ -384,6 +435,31 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     if (DirNode.is(node) && this.containsNotInRoCrate(node)) {
       const existingClassName = attributes.className || ''
       attributes.className = `${existingClassName} contains-not-in-ro-crate`.trim()
+    }
+
+    if (NavigatorHeaderNode.is(node)) {
+      const existingClassName = attributes.className || ''
+      attributes.className = `${existingClassName} navigator-header-node`.trim()
+    }
+    if (DataSourceRootNode.is(node)) {
+      const existingClassName = attributes.className || ''
+      const withoutState = existingClassName
+        .split(' ')
+        .filter(
+          (className) =>
+            className &&
+            className !== 'theia-mod-selected' &&
+            className !== 'theia-mod-focus',
+        )
+        .join(' ')
+      attributes.className = `${withoutState} navigator-data-source-root`.trim()
+    }
+
+    // drag support (from 26662)
+    if (FileStatNode.is(node)) {
+      attributes.draggable = true
+      attributes.onDragStart = (event: React.DragEvent) =>
+        this.handleNodeDragStart(node, event)
     }
 
     return attributes
@@ -405,8 +481,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   }
 
   /**
-   * 26606 behavior: highlight files NOT present in RO-Crate by PATH (derived from @id).
-   * (No dropdown gating. No description logic.)
+   * Highlight files NOT present in RO-Crate by workspace-relative path.
    */
   private shouldHighlightFile(node: FileStatNode): boolean {
     const { files, directories } = this.getRoCrateEntityPathIndex()
@@ -419,16 +494,12 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       return false
     }
 
-    // file entity exists
     if (files.has(relativePath)) {
       return false
     }
 
-    // file is under a directory entity
     for (const directory of directories) {
-      if (!directory) {
-        continue
-      }
+      if (!directory) continue
       if (relativePath === directory || relativePath.startsWith(`${directory}/`)) {
         return false
       }
@@ -538,7 +609,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     return normalized
   }
 
-  // --- filter wiring (main) ---
+  // --- filter wiring (kept simple, but with selection restore + event stop) ---
 
   protected onFileNameFilterChange(event: React.ChangeEvent<HTMLInputElement>): void {
     this.fileNameSelection = {
@@ -606,5 +677,24 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       }
       input.setSelectionRange(start, end)
     })
+  }
+
+  // --- drag support (from 26662) ---
+
+  protected handleNodeDragStart(node: FileStatNode, event: React.DragEvent): void {
+    if (!event.dataTransfer) {
+      return
+    }
+    const selectedNodes = this.model.selectedFileStatNodes
+    const selectionIncludesNode = selectedNodes.some((n) => n.id === node.id)
+    const nodesToTransfer =
+      selectionIncludesNode && selectedNodes.length > 1 ? selectedNodes : [node]
+    const uriList = nodesToTransfer.map((n) => n.uri.toString())
+
+    const payload = uriList.join('\n')
+    event.dataTransfer.setData('text/uri-list', payload)
+    event.dataTransfer.setData('application/vnd.code.uri-list', payload)
+    event.dataTransfer.setData('text/plain', payload)
+    event.dataTransfer.effectAllowed = 'link'
   }
 }

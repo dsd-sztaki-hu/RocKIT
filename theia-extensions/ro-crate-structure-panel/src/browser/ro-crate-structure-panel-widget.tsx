@@ -2,12 +2,17 @@ import { FileOutlined, FolderOpenOutlined, FolderOutlined } from '@ant-design/ic
 import type { Disposable } from '@theia/core'
 import { ApplicationShell, WidgetManager } from '@theia/core/lib/browser'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
+import URI from '@theia/core/lib/common/uri'
+import { FileService } from '@theia/filesystem/lib/browser/file-service'
+import { WorkspaceService } from '@theia/workspace/lib/browser'
 import type { TreeDataNode } from 'antd'
 import { Tooltip, Tree } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { inject, injectable } from 'inversify'
+import * as mime from 'mime-types'
 import * as React from 'react'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
+import * as SparkMD5 from 'spark-md5'
 
 interface CrateNode {
   id: string
@@ -29,6 +34,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected readonly widgetManager: WidgetManager
   @inject(ApplicationShell)
   protected readonly shell: ApplicationShell
+  @inject(WorkspaceService)
+  protected readonly workspaceService: WorkspaceService
+  @inject(FileService)
+  protected readonly fileService: FileService
 
   protected crateSubscription?: Disposable
 
@@ -79,6 +88,16 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected expandedKeys: string[] = []
   protected containerRef: React.RefObject<HTMLDivElement> = React.createRef()
   protected treeHeight: number = 400
+  protected dropTargetDatasetId?: string
+  protected globalDragListenersAttached = false
+
+  protected readonly handleGlobalDragEnd = (_event: DragEvent): void => {
+    this.setDropTargetDatasetId(undefined)
+  }
+
+  protected readonly handleGlobalDrop = (_event: DragEvent): void => {
+    this.setDropTargetDatasetId(undefined)
+  }
 
   protected MemoTooltip: React.ComponentType<any> = React.memo(Tooltip as any)
 
@@ -181,8 +200,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       key,
       title: node.name || node.id,
       entityId: node.id,
+      entityType: node.type,
       children,
-    } as TreeDataNode & { entityId: string }
+    } as TreeDataNode & { entityId: string; entityType: string }
   }
 
   protected handleTreeSelect = (_keys: React.Key[], info: any): void => {
@@ -217,6 +237,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   onAfterAttach(msg: any): void {
     super.onAfterAttach(msg)
     this.computeHeightAndUpdate()
+    this.attachGlobalDragListeners()
   }
 
   onResize(msg: any): void {
@@ -238,6 +259,24 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
   }
 
+  protected attachGlobalDragListeners(): void {
+    if (this.globalDragListenersAttached) {
+      return
+    }
+    document.addEventListener('dragend', this.handleGlobalDragEnd, true)
+    document.addEventListener('drop', this.handleGlobalDrop, true)
+    this.globalDragListenersAttached = true
+  }
+
+  protected detachGlobalDragListeners(): void {
+    if (!this.globalDragListenersAttached) {
+      return
+    }
+    document.removeEventListener('dragend', this.handleGlobalDragEnd, true)
+    document.removeEventListener('drop', this.handleGlobalDrop, true)
+    this.globalDragListenersAttached = false
+  }
+
   render(): React.ReactNode {
     const crateToUse = this.appStateService.roCrate
     const { root } = this.buildCrateTree(crateToUse)
@@ -248,12 +287,27 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       this.expandedKeys = [rootKey]
     }
     return (
-      <div ref={this.containerRef} style={{ padding: '1rem', width: '100%', height: '100%', boxSizing: 'border-box', overflowX: 'auto', overflowY: 'hidden' }}>
+      <div
+        ref={this.containerRef}
+        style={{
+          padding: '1rem',
+          width: '100%',
+          height: '100%',
+          boxSizing: 'border-box',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+        }}
+        onDragOver={(event) => this.handleDragOver(event)}
+        onDragLeave={(event) => this.handleDragLeave(event)}
+        onDropCapture={(event) => this.handleDropCapture(event)}
+        onDrop={(event) => this.handleDrop(event)}
+      >
         <Tree
           style={{ minWidth: '100%' }}
           treeData={treeData}
           height={this.treeHeight}
           showIcon
+          selectedKeys={[]}
           defaultExpandedKeys={['./']}
           onSelect={this.handleTreeSelect}
           // expandedKeys={this.expandedKeys}
@@ -271,9 +325,28 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             ) : (
               <FileOutlined />
             )
+            const isDatasetNode = (item as any).entityType === 'Dataset'
             return (
               <this.MemoTooltip title={title}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '2px 4px',
+                    borderRadius: 4,
+                    background:
+                      isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
+                        ? 'rgba(24, 144, 255, 0.14)'
+                        : 'transparent',
+                    outline: 'none',
+                    boxShadow:
+                      isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
+                        ? '0 0 8px rgba(24, 144, 255, 0.35)'
+                        : 'none',
+                  }}
+                  data-entity-id={(item as any).entityId}
+                >
                   {icon}
                   {title}
                 </span>
@@ -285,7 +358,445 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     )
   }
 
+  protected handleDragOver(event: React.DragEvent): void {
+    console.log('RO-Crate Structure: dragover', {
+      types: Array.from(event.dataTransfer?.types ?? []),
+    })
+    if (!event.dataTransfer) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = 'link'
+
+    const crate = this.appStateService.roCrate
+    if (!crate || !Array.isArray(crate['@graph'])) {
+      this.setDropTargetDatasetId(undefined)
+      return
+    }
+    const targetEntityId = this.resolveDropTargetEntityIdWithFallback(event)
+    const datasetTargetEntityId = this.resolveDatasetTargetEntityId(
+      crate,
+      targetEntityId ?? './',
+    )
+    this.setDropTargetDatasetId(datasetTargetEntityId)
+  }
+
+  protected handleDragLeave(event: React.DragEvent): void {
+    const currentTarget = event.currentTarget as Node | null
+    const relatedTarget = event.relatedTarget as Node | null
+    if (!currentTarget || (relatedTarget && currentTarget.contains(relatedTarget))) {
+      return
+    }
+    this.setDropTargetDatasetId(undefined)
+  }
+
+  protected handleDropCapture(_event: React.DragEvent): void {
+    // Clear highlight even if a child stops drop propagation.
+    this.setDropTargetDatasetId(undefined)
+  }
+
+  protected handleDrop(event: React.DragEvent): void {
+    console.log('RO-Crate Structure: drop', {
+      types: Array.from(event.dataTransfer?.types ?? []),
+    })
+    event.preventDefault()
+    event.stopPropagation()
+    this.setDropTargetDatasetId(undefined)
+    void this.handleDropAsync(event)
+  }
+
+  protected async handleDropAsync(event: React.DragEvent): Promise<void> {
+    const dataTransfer = event.dataTransfer
+    if (!dataTransfer) {
+      console.warn('RO-Crate Structure: drop ignored, no dataTransfer')
+      return
+    }
+    const uris = this.extractUrisFromDataTransfer(dataTransfer)
+    console.log('RO-Crate Structure: extracted URIs', uris)
+    if (!uris.length) {
+      console.warn('RO-Crate Structure: drop ignored, no URIs found')
+      return
+    }
+
+    const droppedFiles: { relPath: string; sourceUri?: URI }[] = []
+    for (const uriString of uris) {
+      try {
+        const uri = this.parseDroppedUri(uriString)
+        if (!uri) {
+          console.warn('RO-Crate Structure: failed to parse URI', uriString)
+          continue
+        }
+        const rel = await this.workspaceService.getWorkspaceRelativePath(uri)
+        if (rel) {
+          droppedFiles.push({ relPath: rel, sourceUri: uri })
+        } else {
+          console.warn('RO-Crate Structure: no workspace-relative path', uriString)
+        }
+      } catch (error) {
+        console.warn('Failed to parse dropped URI', uriString, error)
+      }
+    }
+
+    const relativePaths = droppedFiles.map((file) => file.relPath)
+    console.log('RO-Crate Structure: relative paths', relativePaths)
+    if (!droppedFiles.length) {
+      console.warn('RO-Crate Structure: drop ignored, no relative paths')
+      return
+    }
+
+    const crate = this.appStateService.roCrate
+    if (!crate || !Array.isArray(crate['@graph'])) {
+      console.warn('No RO-Crate graph available for drop')
+      return
+    }
+
+    const targetEntityId =
+      this.resolveDropTargetEntityIdWithFallback(event) ??
+      this.appStateService.selectedEntityId ??
+      './'
+    const datasetTargetEntityId = this.resolveDatasetTargetEntityId(crate, targetEntityId)
+    console.log('RO-Crate Structure: target entity', {
+      original: targetEntityId,
+      resolvedDataset: datasetTargetEntityId,
+    })
+
+    const updatedCrate = await this.applyDroppedFilesToCrate(
+      crate,
+      datasetTargetEntityId,
+      droppedFiles,
+    )
+
+    console.log('RO-Crate Structure: crate updated', {
+      targetEntityId: datasetTargetEntityId,
+      added: relativePaths,
+      graphSize: Array.isArray(updatedCrate['@graph'])
+        ? updatedCrate['@graph'].length
+        : 0,
+    })
+    this.appStateService.roCrate = updatedCrate
+    this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
+    this.update()
+  }
+
+  protected extractUrisFromDataTransfer(dataTransfer: DataTransfer): string[] {
+    const uriList =
+      dataTransfer.getData('text/uri-list') ||
+      dataTransfer.getData('application/vnd.code.uri-list') ||
+      ''
+    const text = dataTransfer.getData('text/plain') || ''
+    const raw = uriList || text
+    if (!raw) {
+      return []
+    }
+    return raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'))
+  }
+
+  protected parseDroppedUri(raw: string): URI | undefined {
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      return undefined
+    }
+    if (trimmed.includes('://')) {
+      return new URI(trimmed)
+    }
+    const normalized = trimmed.replace(/\\/g, '/')
+    if (/^[a-zA-Z]:\//.test(normalized)) {
+      return new URI(`file:///${normalized}`)
+    }
+    if (normalized.startsWith('/')) {
+      return new URI(`file://${normalized}`)
+    }
+    return undefined
+  }
+
+  protected resolveDropTargetEntityId(event: React.DragEvent): string | undefined {
+    const target = event.target as HTMLElement | null
+    if (!target) {
+      console.warn('RO-Crate Structure: drop target missing')
+      return undefined
+    }
+    const el = target.closest('[data-entity-id]') as HTMLElement | null
+    const id = el?.getAttribute('data-entity-id')
+    if (!id) {
+      console.warn('RO-Crate Structure: no data-entity-id on drop target')
+    }
+    return id ? id : undefined
+  }
+
+  protected resolveDropTargetEntityIdWithFallback(
+    event: React.DragEvent,
+  ): string | undefined {
+    const direct = this.resolveDropTargetEntityId(event)
+    if (direct) {
+      return direct
+    }
+    const pointTarget = document.elementFromPoint(
+      event.clientX,
+      event.clientY,
+    ) as HTMLElement | null
+    const pointEntityId = pointTarget
+      ?.closest?.('[data-entity-id]')
+      ?.getAttribute('data-entity-id')
+    if (pointEntityId) {
+      return pointEntityId
+    }
+    return this.findNearestEntityIdInTree(event)
+  }
+
+  protected findNearestEntityIdInTree(event: React.DragEvent): string | undefined {
+    const container = this.containerRef?.current
+    if (!container) {
+      return undefined
+    }
+    const nodes = Array.from(container.querySelectorAll<HTMLElement>('[data-entity-id]'))
+    if (!nodes.length) {
+      return undefined
+    }
+    let bestId: string | undefined
+    let bestDistance = Number.POSITIVE_INFINITY
+    for (const node of nodes) {
+      const rect = node.getBoundingClientRect()
+      const centerY = rect.top + rect.height / 2
+      const distance = Math.abs(event.clientY - centerY)
+      if (distance < bestDistance) {
+        bestDistance = distance
+        bestId = node.getAttribute('data-entity-id') || undefined
+      }
+    }
+    return bestId
+  }
+
+  protected setDropTargetDatasetId(id?: string): void {
+    if (this.dropTargetDatasetId === id) {
+      return
+    }
+    this.dropTargetDatasetId = id
+    this.update()
+  }
+
+  protected resolveDatasetTargetEntityId(
+    crate: Record<string, any>,
+    targetEntityId: string,
+  ): string {
+    const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
+    const entityById = new Map<string, any>()
+    for (const entity of graph) {
+      if (entity && typeof entity === 'object' && entity['@id']) {
+        entityById.set(String(entity['@id']), entity)
+      }
+    }
+
+    const targetEntity = entityById.get(targetEntityId)
+    if (!targetEntity) {
+      return './'
+    }
+    if (this.entityHasType(targetEntity, 'Dataset')) {
+      return targetEntityId
+    }
+    if (!this.entityHasType(targetEntity, 'File')) {
+      return './'
+    }
+
+    for (const entity of graph) {
+      if (!entity || typeof entity !== 'object' || !entity['@id']) {
+        continue
+      }
+      if (!this.entityHasType(entity, 'Dataset')) {
+        continue
+      }
+      const parts = this.normalizeHasPart(entity.hasPart)
+      if (parts.some((part) => part['@id'] === targetEntityId)) {
+        return String(entity['@id'])
+      }
+    }
+
+    return './'
+  }
+
+  protected entityHasType(entity: Record<string, any>, type: string): boolean {
+    const rawType = entity['@type']
+    if (!rawType) {
+      return false
+    }
+    if (Array.isArray(rawType)) {
+      return rawType.includes(type)
+    }
+    return rawType === type
+  }
+
+  protected async applyDroppedFilesToCrate(
+    crate: Record<string, any>,
+    targetEntityId: string,
+    droppedFiles: { relPath: string; sourceUri?: URI }[],
+  ): Promise<Record<string, any>> {
+    const graph = Array.isArray(crate['@graph']) ? [...crate['@graph']] : []
+    const indexById = new Map<string, number>()
+    for (let i = 0; i < graph.length; i += 1) {
+      const entity = graph[i]
+      if (entity && typeof entity === 'object' && entity['@id']) {
+        indexById.set(String(entity['@id']), i)
+      }
+    }
+
+    const targetIndex = indexById.get(targetEntityId) ?? indexById.get('./') ?? undefined
+    if (targetIndex === undefined) {
+      console.warn('No target entity found for drop', targetEntityId)
+      return crate
+    }
+
+    const targetEntity = { ...graph[targetIndex] }
+    const existingHasPart = this.normalizeHasPart(targetEntity.hasPart)
+    const existingHasPartIds = new Set(existingHasPart.map((part) => part['@id']))
+
+    for (const { relPath, sourceUri } of droppedFiles) {
+      if (!relPath) {
+        continue
+      }
+      const normalizedRelPath = this.normalizeWorkspaceRelativePath(relPath)
+      const newId = this.toFileEntityId(normalizedRelPath, sourceUri)
+      const workspaceId = this.toFileEntityId(normalizedRelPath, undefined)
+      const legacyId = relPath
+      const candidateIds = [
+        newId,
+        legacyId,
+        sourceUri?.toString(),
+        sourceUri ? this.formatAbsoluteFileUri(sourceUri) : undefined,
+        workspaceId,
+      ].filter((value): value is string => Boolean(value))
+      const existingId = candidateIds.find((candidate) => indexById.has(candidate))
+      const id = existingId ?? newId
+      if (!indexById.has(id)) {
+        const fileEntity = await this.buildFileEntityFromPath(relPath, sourceUri)
+        graph.push(fileEntity)
+        indexById.set(id, graph.length - 1)
+      }
+      if (!existingHasPartIds.has(id)) {
+        existingHasPart.push({ '@id': id })
+        existingHasPartIds.add(id)
+      }
+    }
+
+    if (existingHasPart.length) {
+      targetEntity.hasPart = existingHasPart
+    }
+    graph[targetIndex] = targetEntity
+
+    return { ...crate, '@graph': graph }
+  }
+
+  protected async buildFileEntityFromPath(
+    relPath: string,
+    sourceUri?: URI,
+  ): Promise<Record<string, any>> {
+    const name =
+      sourceUri?.path?.base ||
+      sourceUri?.path?.name ||
+      relPath.split('/').pop() ||
+      relPath
+    const mimeType = mime.lookup(name) || 'application/octet-stream'
+    const fileEntity: Record<string, any> = {
+      '@id': this.toFileEntityId(
+        this.normalizeWorkspaceRelativePath(relPath),
+        sourceUri,
+      ),
+      '@type': 'File',
+      name,
+      encodingFormat: mimeType,
+    }
+    const fileUri = sourceUri ?? this.resolveWorkspaceRelativeUri(relPath)
+    if (!fileUri) {
+      return fileEntity
+    }
+    try {
+      const fileStat = await this.fileService.resolve(fileUri, {
+        resolveMetadata: true,
+      })
+      fileEntity.contentSize = fileStat.size ? `${fileStat.size}` : undefined
+      try {
+        const content = await this.fileService.read(fileUri)
+        fileEntity.hash = SparkMD5.hash(content.value)
+      } catch (error) {
+        console.warn('Failed to read dropped file for hash', relPath, error)
+      }
+    } catch (error) {
+      console.warn('Failed to resolve dropped file metadata', relPath, error)
+    }
+    return fileEntity
+  }
+
+  protected resolveWorkspaceRelativeUri(relPath: string): URI | undefined {
+    const roots = this.workspaceService.tryGetRoots()
+    if (!roots || roots.length === 0) {
+      return undefined
+    }
+    const rootUri = roots[0].resource
+    return rootUri.resolve(relPath)
+  }
+
+  protected normalizeWorkspaceRelativePath(relPath: string): string {
+    return relPath.replace(/\\/g, '/').replace(/^\.?\//, '')
+  }
+
+  protected toFileEntityId(relPath: string, sourceUri?: URI): string {
+    if (sourceUri && !this.isWorkspaceUri(sourceUri)) {
+      return this.formatAbsoluteFileUri(sourceUri)
+    }
+    return `file://./${relPath}`
+  }
+
+  protected formatAbsoluteFileUri(uri: URI): string {
+    if (uri.scheme !== 'file') {
+      return uri.toString()
+    }
+    const rawPath = uri.path.toString()
+    const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
+    return `file://${encodeURI(normalizedPath)}`
+  }
+
+  protected isWorkspaceUri(uri: URI): boolean {
+    const roots = this.workspaceService.tryGetRoots()
+    if (!roots || roots.length === 0) {
+      return false
+    }
+    const uriPath = uri.path.toString().toLowerCase()
+    for (const root of roots) {
+      const rootPath = root.resource.path.toString().toLowerCase()
+      const rootPrefix = rootPath.endsWith('/') ? rootPath : `${rootPath}/`
+      if (uriPath === rootPath || uriPath.startsWith(rootPrefix)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  protected normalizeHasPart(value: any): { '@id': string }[] {
+    if (!value) {
+      return []
+    }
+    const raw = Array.isArray(value) ? value : [value]
+    const normalized: { '@id': string }[] = []
+    for (const entry of raw) {
+      if (!entry) {
+        continue
+      }
+      if (typeof entry === 'string') {
+        normalized.push({ '@id': entry })
+      } else if (typeof entry === 'object') {
+        const id = (entry as any)['@id'] ?? (entry as any).id
+        if (typeof id === 'string') {
+          normalized.push({ '@id': id })
+        }
+      }
+    }
+    return normalized
+  }
+
   dispose(): void {
+    this.detachGlobalDragListeners()
     super.dispose()
     this.crateSubscription?.dispose()
   }

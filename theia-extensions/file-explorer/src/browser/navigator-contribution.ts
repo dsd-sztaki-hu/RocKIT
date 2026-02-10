@@ -646,7 +646,10 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         // collapse all root nodes (multiple root workspace)
         let root = model.root as CompositeTreeNode;
         if (WorkspaceNode.is(root) && root.children.length === 1) {
-            root = root.children[0];
+            const onlyChild = root.children[0];
+            if (CompositeTreeNode.is(onlyChild)) {
+                root = onlyChild;
+            }
         }
         root.children.forEach(child => CompositeTreeNode.is(child) && model.collapseAll(child));
 
