@@ -126,19 +126,22 @@ export class EntitiesOverviewWidget extends TreeWidget {
     const attrs = this.getCaptionAttributes(node, props)
     const children = this.getCaptionChildren(node, props)
 
-    const showInvalidIcon =
-      (ExampleTreeLeaf.is(node) && node.data.valid === false) ||
-      (ExampleTreeNode.is(node) && this.hasInvalidDescendant(node))
+    const isLeafInvalid = ExampleTreeLeaf.is(node) && node.data.valid === false
+    const isNodeInvalid = ExampleTreeNode.is(node) && this.hasInvalidDescendant(node)
+    const showInvalidIcon = isLeafInvalid || isNodeInvalid
 
     if (showInvalidIcon) {
       const className = `${attrs.className ?? ''} entities-overview-invalid-caption`.trim()
+      const containerTitle = isLeafInvalid
+        ? 'Invalid entity'
+        : 'Contains invalid entity'
       return (
-        <div {...attrs} className={className}>
+        <div {...attrs} className={className} title={containerTitle}>
           <span
             className="entities-overview-invalid-icon fa fa-exclamation-triangle"
             role="img"
-            aria-label="Invalid entity"
-            title="Invalid entity"
+            aria-label={isLeafInvalid ? 'Invalid entity' : 'Contains invalid entity'}
+            title={isLeafInvalid ? 'Invalid entity' : 'Contains invalid entity'}
           />
           {children}
         </div>
