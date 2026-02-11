@@ -90,6 +90,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected treeHeight: number = 400
   protected dropTargetDatasetId?: string
   protected globalDragListenersAttached = false
+  protected selectedEntityIds = new Set<string>()
+  protected selectedKeys: React.Key[] = []
 
   protected readonly handleGlobalDragEnd = (_event: DragEvent): void => {
     this.setDropTargetDatasetId(undefined)
@@ -210,7 +212,29 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     if (!entityId) {
       return
     }
+    const event = info?.nativeEvent as MouseEvent | undefined
+    const isMultiSelect = Boolean(event?.ctrlKey || event?.metaKey)
+    const nodeKey = info.node?.key as React.Key | undefined
 
+    if (isMultiSelect) {
+      if (this.selectedEntityIds.has(entityId)) {
+        this.selectedEntityIds.delete(entityId)
+      } else {
+        this.selectedEntityIds.add(entityId)
+      }
+      if (nodeKey !== undefined) {
+        if (this.selectedKeys.includes(nodeKey)) {
+          this.selectedKeys = this.selectedKeys.filter((key) => key !== nodeKey)
+        } else {
+          this.selectedKeys = [...this.selectedKeys, nodeKey]
+        }
+      }
+      this.update()
+      return
+    }
+
+    this.selectedEntityIds = new Set([entityId])
+    this.selectedKeys = nodeKey !== undefined ? [nodeKey] : []
     this.appStateService.selectedEntityId = entityId
     void this.openRoCrateEditor(entityId)
   }
@@ -297,6 +321,18 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           overflowX: 'auto',
           overflowY: 'hidden',
         }}
+        onClick={(event) => {
+          const target = event.target as HTMLElement | null
+          if (target?.closest?.('[data-entity-id]')) {
+            return
+          }
+          if (this.selectedEntityIds.size === 0 && this.selectedKeys.length === 0) {
+            return
+          }
+          this.selectedEntityIds.clear()
+          this.selectedKeys = []
+          this.update()
+        }}
         onDragOver={(event) => this.handleDragOver(event)}
         onDragLeave={(event) => this.handleDragLeave(event)}
         onDropCapture={(event) => this.handleDropCapture(event)}
@@ -307,7 +343,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           treeData={treeData}
           height={this.treeHeight}
           showIcon
-          selectedKeys={[]}
+          multiple
+          selectedKeys={this.selectedKeys}
           defaultExpandedKeys={['./']}
           onSelect={this.handleTreeSelect}
           // expandedKeys={this.expandedKeys}
