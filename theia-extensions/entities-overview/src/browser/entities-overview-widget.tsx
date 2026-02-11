@@ -263,11 +263,21 @@ export class EntitiesOverviewWidget extends TreeWidget {
                 Advanced filters
               </Button>
             </div>
+            <div className="entities-overview-edit-button-wrap">
+              <Button
+                className="entities-overview-edit-button"
+                type="default"
+                onKeyDownCapture={(event: React.KeyboardEvent) =>
+                  this.stopFilterKeyEvents(event)
+                }
+              >
+                Edit
+              </Button>
+            </div>
             <Button
               className="entities-overview-filter-clear"
               danger
               ghost
-              block={!isAdvanced}
               disabled={
                 activeFilters.entityNameFilter.trim() === '' &&
                 selectedTypes.length === 0 &&
