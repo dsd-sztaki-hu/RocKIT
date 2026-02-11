@@ -53,12 +53,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         if (currentCrate) this.checkAndDownloadSchemas(currentCrate);
     }
 
-    // --- HELPER: Concurrency Limiter ---
     private async processInChunks<T>(items: T[], chunkSize: number, iteratorFn: (item: T) => Promise<void>, progressCb?: (completed: number) => void) {
         let completed = 0;
         for (let i = 0; i < items.length; i += chunkSize) {
             const chunk = items.slice(i, i + chunkSize);
-            // Process chunk in parallel
             await Promise.all(chunk.map(async (item) => {
                 try {
                     await iteratorFn(item);
@@ -69,7 +67,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                     if (progressCb) progressCb(completed);
                 }
             }));
-            // Optional: Small yield to event loop to keep UI responsive between chunks
             await new Promise(r => setTimeout(r, 0));
         }
     }
@@ -102,7 +99,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                 : JSON.stringify(schemaContent, null, 2);
 
             const name = await this.processAndSaveSchema(rawString, 'remote', undefined, {
-                downloadUrl: provider.baseUrl,
+                downloadUrl: templateId, 
                 conformsTo: '' 
             });
             
