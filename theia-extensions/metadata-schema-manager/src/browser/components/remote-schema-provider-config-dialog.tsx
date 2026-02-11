@@ -1,231 +1,153 @@
 import * as React from 'react';
-import {
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
-    TextField,
-    Select,
-    MenuItem,
-    FormControl,
-    InputLabel,
-    FormHelperText,
-    Alert,
-    CircularProgress,
-    InputAdornment,
-    IconButton
+import { 
+    Dialog, DialogTitle, DialogContent, DialogActions, 
+    Button, TextField, CircularProgress, Alert, Box 
 } from '@mui/material';
-import Visibility from '@mui/icons-material/Visibility';
-import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import { RemoteSchemaProviderConfig } from '../types';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
-import { ConnectionSuccessDialog } from './connection-success-dialog';
 
-interface Props {
+interface ConfigDialogProps {
     open: boolean;
     providerToEdit?: RemoteSchemaProviderConfig;
     onClose: () => void;
-    onSave: (config: RemoteSchemaProviderConfig) => Promise<void>;
+    onSave: (config: RemoteSchemaProviderConfig) => void;
     providerStore: RemoteSchemaProviderStoreService;
 }
 
-export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, providerToEdit, onClose, onSave, providerStore }) => {
+export const RemoteSchemaProviderConfigDialog: React.FC<ConfigDialogProps> = ({
+    open, providerToEdit, onClose, onSave, providerStore
+}) => {
     // Form State
-    const [baseUrl, setBaseUrl] = React.useState('');
     const [title, setTitle] = React.useState('');
-    const [type, setType] = React.useState<'CEDAR'>('CEDAR');
+    const [baseUrl, setBaseUrl] = React.useState('');
     const [apiKey, setApiKey] = React.useState('');
     
-    // UI Logic State
-    const [showApiKey, setShowApiKey] = React.useState(false);
-    const [isEditingKey, setIsEditingKey] = React.useState(true); 
+    // UI State
     const [isTesting, setIsTesting] = React.useState(false);
-    const [error, setError] = React.useState<string | null>(null);
+    const [testStatus, setTestStatus] = React.useState<{ type: 'success' | 'error', message: string } | null>(null);
 
-    // Success Flow State
-    const [foundSchemas, setFoundSchemas] = React.useState<string[]>([]);
-    const [showSuccessDialog, setShowSuccessDialog] = React.useState(false);
-    const [pendingConfig, setPendingConfig] = React.useState<RemoteSchemaProviderConfig | null>(null);
-
-    // Ref for manual focus enforcement
-    const titleInputRef = React.useRef<HTMLInputElement>(null);
-
+    // Reset or Populate form when dialog opens
     React.useEffect(() => {
-        // Reset state
-        setError(null);
-        setIsTesting(false);
-        setShowSuccessDialog(false);
-        setFoundSchemas([]);
-        setPendingConfig(null);
-
-        if (providerToEdit) {
-            setBaseUrl(providerToEdit.baseUrl);
-            setTitle(providerToEdit.title);
-            setType(providerToEdit.type);
-            setApiKey(providerToEdit.apiKey || '');
-            setIsEditingKey(false); 
-        } else {
-            setBaseUrl('');
-            setTitle('');
-            setType('CEDAR');
-            setApiKey('');
-            setIsEditingKey(true);
-            
-            // Focus Enforcement
-            setTimeout(() => {
-                if (titleInputRef.current) {
-                    titleInputRef.current.focus();
-                }
-            }, 300);
+        if (open) {
+            setTestStatus(null);
+            setIsTesting(false);
+            if (providerToEdit) {
+                setTitle(providerToEdit.title);
+                setBaseUrl(providerToEdit.baseUrl);
+                setApiKey(providerToEdit.apiKey || '');
+            } else {
+                setTitle('');
+                setBaseUrl('');
+                setApiKey('');
+            }
         }
-    }, [providerToEdit]);
+    }, [open, providerToEdit]);
 
-    const handleTestAndProceed = async () => {
-        if (!baseUrl || !title || !type) {
-            setError('Please fill in all required fields (Base URL, Title, Type).');
+    const handleTest = async () => {
+        // Basic Validation
+        if (!baseUrl) {
+            setTestStatus({ type: 'error', message: 'Please enter a Base URL.' });
             return;
         }
 
         setIsTesting(true);
-        setError(null);
-
-        const configToTest: RemoteSchemaProviderConfig = {
-            id: providerToEdit ? providerToEdit.id : Date.now().toString(),
-            title,
-            baseUrl,
-            type,
-            apiKey: apiKey 
-        };
-
+        setTestStatus(null);
+        
         try {
-            const schemaNames = await providerStore.testConnection(configToTest);
-            setFoundSchemas(schemaNames);
-            setPendingConfig(configToTest);
-            setShowSuccessDialog(true);
-        } catch (err: any) {
-            setError(`Connection failed: ${err.message || 'Unknown error'}. Please check your configuration.`);
+            await providerStore.testConnection(baseUrl, apiKey);
+            setTestStatus({ type: 'success', message: 'Connection successful!' });
+        } catch (e) {
+            setTestStatus({ type: 'error', message: `Connection failed: ${e instanceof Error ? e.message : String(e)}` });
         } finally {
             setIsTesting(false);
         }
     };
 
-    const handleConfirmSave = async () => {
-        if (pendingConfig) {
-            await onSave(pendingConfig);
-            onClose();
+    const handleSave = () => {
+        if (!title || !baseUrl) {
+            setTestStatus({ type: 'error', message: 'Title and Base URL are required.' });
+            return;
         }
-    };
 
-    const handleResetKey = () => {
-        setApiKey('');
-        setIsEditingKey(true);
+        const id = providerToEdit?.id || Date.now().toString();
+        
+        onSave({
+            id,
+            title,
+            baseUrl,
+            apiKey: apiKey || undefined,
+            // FIX: Use uppercase "CEDAR" to match the interface type definition
+            type: providerToEdit?.type || 'CEDAR' 
+        });
+        onClose();
     };
-
-    if (showSuccessDialog) {
-        return (
-            <ConnectionSuccessDialog 
-                open={showSuccessDialog}
-                providerName={title}
-                schemaNames={foundSchemas}
-                onConfirm={handleConfirmSave}
-                onCancel={() => setShowSuccessDialog(false)}
-            />
-        );
-    }
 
     return (
-        <Dialog 
-            open={open} 
-            onClose={isTesting ? undefined : onClose} 
-            maxWidth="sm" 
-            fullWidth
-            disablePortal={false} 
-            disableScrollLock={true}
-            disableRestoreFocus={true} 
-            style={{ zIndex: 1301 }} 
-        >
-            <DialogTitle>
-                {providerToEdit ? 'Edit Remote Schema Provider' : 'New Remote Schema Provider'}
-            </DialogTitle>
+        <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+            <DialogTitle>{providerToEdit ? "Edit Provider" : "Add Provider"}</DialogTitle>
+            
             <DialogContent>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
-                    {error && <Alert severity="error">{error}</Alert>}
-                    
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, paddingTop: 1 }}>
                     <TextField
-                        inputRef={titleInputRef}
-                        label="Title (Display Name)"
+                        autoFocus
+                        label="Title"
+                        placeholder="e.g. My Repository"
+                        fullWidth
+                        variant="outlined"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        required
-                        helperText="The name displayed in the remote schema provider list."
-                        disabled={isTesting}
-                        autoFocus
                     />
-
+                    
                     <TextField
                         label="Base URL"
+                        placeholder="https://repo.cedar.metadatacenter.org"
+                        fullWidth
+                        variant="outlined"
                         value={baseUrl}
                         onChange={(e) => setBaseUrl(e.target.value)}
-                        required
-                        helperText="e.g., https://schema.researchdata.hu"
-                        disabled={isTesting}
+                    />
+                    
+                    <TextField
+                        label="API Key"
+                        placeholder="Secret API Key"
+                        type="password"
+                        fullWidth
+                        variant="outlined"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        helperText="Leave empty for public access. Stored securely in OS keychain."
                     />
 
-                    <FormControl required disabled={isTesting}>
-                        <InputLabel>Type</InputLabel>
-                        <Select
-                            value={type}
-                            label="Type"
-                            onChange={(e) => setType(e.target.value as 'CEDAR')}
-                            MenuProps={{ disablePortal: false }} 
-                        >
-                            <MenuItem value="CEDAR">CEDAR</MenuItem>
-                        </Select>
-                        <FormHelperText>Currently only CEDAR systems are supported.</FormHelperText>
-                    </FormControl>
+                    {/* Feedback Area */}
+                    {isTesting && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <CircularProgress size={20} />
+                            <span>Testing connection...</span>
+                        </Box>
+                    )}
 
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                         <TextField
-                            label="API Key"
-                            value={isEditingKey ? apiKey : '********'}
-                            onChange={(e) => setApiKey(e.target.value)}
-                            type={showApiKey && isEditingKey ? 'text' : 'password'}
-                            fullWidth
-                            helperText="Optional. Required for private resources."
-                            disabled={!isEditingKey || isTesting}
-                            InputProps={{
-                                endAdornment: isEditingKey ? (
-                                    <InputAdornment position="end">
-                                        <IconButton
-                                            onClick={() => setShowApiKey(!showApiKey)}
-                                            edge="end"
-                                        >
-                                            {showApiKey ? <VisibilityOff /> : <Visibility />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                ) : undefined
-                            }}
-                        />
-                        {!isEditingKey && (
-                            <Button 
-                                variant="outlined" 
-                                color="warning" 
-                                onClick={handleResetKey}
-                                startIcon={<DeleteOutline />}
-                                sx={{ mt: 1, height: '40px' }}
-                            >
-                                Change
-                            </Button>
-                        )}
-                    </div>
-                </div>
+                    {testStatus && !isTesting && (
+                        <Alert severity={testStatus.type}>
+                            {testStatus.message}
+                        </Alert>
+                    )}
+                </Box>
             </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose} disabled={isTesting}>Cancel</Button>
-                <Button onClick={handleTestAndProceed} variant="contained" disabled={isTesting}>
-                    {isTesting ? <CircularProgress size={24} /> : 'Save'}
+            
+            <DialogActions style={{ padding: '16px 24px' }}>
+                <Button 
+                    onClick={handleTest} 
+                    disabled={isTesting || !baseUrl}
+                    style={{ marginRight: 'auto' }}
+                >
+                    Test Connection
+                </Button>
+
+                <Button onClick={onClose} color="primary">
+                    Cancel
+                </Button>
+                <Button onClick={handleSave} color="primary" variant="contained">
+                    Save
                 </Button>
             </DialogActions>
         </Dialog>

@@ -4,92 +4,123 @@ import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { URI } from '@theia/core/lib/common/uri';
 import { RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
+// Import the secure storage protocol from common
+import { SecureStorageService } from 'aroma2-common/lib/common/secure-storage-protocol';
+
+// Constants
+const CONFIG_FILE_PATH = '.aroma/remote-schema-providers.json';
+const KEYTAR_SERVICE_NAME = 'AROMA2.RemoteSchemaProvider';
 
 @injectable()
 export class RemoteSchemaProviderStoreService {
 
     @inject(FileService) protected readonly fileService!: FileService;
     @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
+    // Inject the secure storage service
+    @inject(SecureStorageService) protected readonly secureStorage!: SecureStorageService;
 
-    private readonly CONFIG_FILE_NAME = 'remote-schema-providers.json';
-
-    protected async getConfigFileUri(): Promise<URI | null> {
-        const result = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
-        if (!result?.value) return null;
-        
-        const normalized = result.value.replace(/\\/g, '/');
-        const rootUri = normalized.match(/^[a-zA-Z]:/) ? new URI('file:///' + normalized) : new URI('file://' + normalized);
-        
-        return rootUri.resolve(this.CONFIG_FILE_NAME);
+    protected async getConfigUri(): Promise<URI> {
+        const homeDir = await this.envVariablesServer.getHomeDirUri();
+        return new URI(homeDir).resolve(CONFIG_FILE_PATH);
     }
 
+    /**
+     * Loads providers and merges them with secure API keys.
+     */
     public async loadProviders(): Promise<RemoteSchemaProviderConfig[]> {
+        const uri = await this.getConfigUri();
+        let configs: RemoteSchemaProviderConfig[] = [];
+
+        // 1. Load the JSON configuration (Public Data)
         try {
-            const uri = await this.getConfigFileUri();
-            if (!uri) return [];
-
-            if (!await this.fileService.exists(uri)) {
-                return [];
+            if (await this.fileService.exists(uri)) {
+                const content = await this.fileService.read(uri);
+                configs = JSON.parse(content.value);
             }
-
-            const content = await this.fileService.read(uri);
-            const parsed = JSON.parse(content.value);
-            return Array.isArray(parsed) ? parsed : [];
         } catch (error) {
             console.error('Failed to load remote schema provider config:', error);
             return [];
         }
+
+        // 2. Re-hydrate with API Keys from Secure Storage
+        const storedCredentials = await this.secureStorage.findCredentials(KEYTAR_SERVICE_NAME);
+        
+        const credentialMap = new Map<string, string>();
+        storedCredentials.forEach(c => credentialMap.set(c.account, c.password));
+
+        const hydratedConfigs = configs.map(config => {
+            const secret = credentialMap.get(config.id);
+            return {
+                ...config,
+                apiKey: secret || undefined 
+            };
+        });
+
+        // 3. ORPHAN CLEANUP
+        const activeIds = new Set(configs.map(c => c.id));
+        for (const cred of storedCredentials) {
+            if (!activeIds.has(cred.account)) {
+                console.log(`[RemoteSchemaProvider] Cleaning up orphaned API key for ID: ${cred.account}`);
+                await this.secureStorage.deletePassword(KEYTAR_SERVICE_NAME, cred.account);
+            }
+        }
+
+        return hydratedConfigs;
     }
 
+    /**
+     * Saves providers. 
+     * Writes non-sensitive data to JSON.
+     * Writes sensitive data (API Key) to Secure Storage.
+     */
     public async saveProviders(providers: RemoteSchemaProviderConfig[]): Promise<void> {
-        try {
-            const uri = await this.getConfigFileUri();
-            if (!uri) throw new Error('Could not determine configuration path (AROMA_ROOT_PATH missing).');
+        const uri = await this.getConfigUri();
 
-            const content = JSON.stringify(providers, null, 2);
-            await this.fileService.write(uri, content);
-        } catch (error) {
-            console.error('Failed to save remote schema provider config:', error);
-            throw error;
+        // 1. Separate Sensitive vs Non-Sensitive Data
+        const cleanConfigs = providers.map(p => {
+            const { apiKey, ...safeConfig } = p;
+            return safeConfig;
+        });
+
+        // 2. Write JSON
+        const content = JSON.stringify(cleanConfigs, null, 4);
+        // Ensure the directory exists (simple check)
+        if (!await this.fileService.exists(uri.parent)) {
+            await this.fileService.createFolder(uri.parent);
+        }
+        await this.fileService.write(uri, content);
+
+        // 3. Update Secure Storage
+        for (const provider of providers) {
+            if (provider.apiKey) {
+                await this.secureStorage.setPassword(KEYTAR_SERVICE_NAME, provider.id, provider.apiKey);
+            } else {
+                await this.secureStorage.deletePassword(KEYTAR_SERVICE_NAME, provider.id);
+            }
         }
     }
 
     /**
-     * Tests the connection and returns a list of available schema names if successful.
-     * Throws an error if the connection fails.
+     * Verifies if a connection can be established with the given settings.
+     * Used by the configuration dialog to validate inputs before saving.
      */
-    public async testConnection(config: RemoteSchemaProviderConfig): Promise<string[]> {
-        if (config.type !== 'CEDAR') {
-            throw new Error('Unsupported provider type');
-        }
-
-        let domainBase = config.baseUrl;
+    public async testConnection(baseUrl: string, apiKey?: string): Promise<boolean> {
         try {
-            // Remove protocol and trailing slashes to get a domain base
-            domainBase = domainBase.replace(/(^\w+:|^)\/\//, '');
-            domainBase = domainBase.replace(/\/+$/, '');
+            // Clean URL for SchemaApi (remove protocol)
+            let domain = baseUrl.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
+            
+            const api = new SchemaApi({
+                domainBase: domain,
+                apiKey: apiKey
+            });
+            
+            // Try to fetch the public folder ID. 
+            // If this succeeds, the URL and Key (if required) are valid.
+            await api.getPublicFolderId();
+            return true;
         } catch (e) {
-            console.warn('URL parsing failed, using raw', e);
-        }
-
-        const api = new SchemaApi({
-            domainBase: domainBase,
-            apiKey: config.apiKey
-        });
-
-        try {
-            const result = await api.listAllSchema();
-            
-            if (Array.isArray(result)) {
-                // Map the results to human-readable names
-                // CEDAR templates usually have "schema:name" or "name"
-                return result.map((r: any) => r['schema:name'] || r['name'] || r['@id'] || 'Unnamed Template');
-            }
-            
-            throw new Error('Invalid response format from provider');
-        } catch (error) {
-            console.error('Connection test failed:', error);
-            throw error; 
+            console.error("Test connection failed", e);
+            throw e; 
         }
     }
 }
