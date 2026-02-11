@@ -43,4 +43,8 @@ export class EntitiesOverviewTree extends TreeImpl {
     // await wait(2000);
     return (parent.data.children ?? []).map((i) => this.itemFactory.toTreeNode(i))
   }
+
+  notifyUpdated(nodes: TreeNode[]): void {
+    this.onDidUpdateEmitter.fire(nodes)
+  }
 }

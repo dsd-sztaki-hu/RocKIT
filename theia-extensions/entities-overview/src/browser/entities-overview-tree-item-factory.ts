@@ -8,12 +8,13 @@ import { ExampleTreeLeaf, ExampleTreeNode } from './entities-overview-model';
  * we keep the model like this...)
  */
 export interface Item {
-    name: string; // name of the category/container or item
-    entityId?: string; // entity identifier from the RO-Crate graph
-    description?: string; // optional description for later actions
-    children?: Item[]; // the directly contained items; only defined for categories/containers
-    valid?: boolean; // whether the item is valid (to demonstrate decoration, ...); only defined for items
-    backOrdered?: boolean; // whether this item was backordered (to demonstrate checkboxes); only defined for items
+  name: string // name of the category/container or item
+  entityId?: string // entity identifier from the RO-Crate graph
+  description?: string // optional description for later actions
+  children?: Item[] // the directly contained items; only defined for categories/containers
+  valid?: boolean // whether the item is valid (to demonstrate decoration, ...); only defined for items
+  backOrdered?: boolean // whether this item was backordered (to demonstrate checkboxes); only defined for items
+  selected?: boolean // whether this item was selected; only defined for items
     treeId?: string; // stable id for the tree node
 }
 
