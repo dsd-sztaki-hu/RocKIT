@@ -374,3 +374,27 @@
   line-height: 18px;
   font-size: 16px;
 }
+
+.entities-overview-edit-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 50vh;
+}
+
+.entities-overview-edit-modal-title {
+  font-weight: 600;
+  margin: 0;
+}
+
+.entities-overview-edit-modal-empty {
+  margin: 0;
+  color: var(--theia-ui-font-color2);
+}
+
+.entities-overview-edit-modal-list {
+  margin: 0;
+  padding-left: 18px;
+  overflow: auto;
+  max-height: 40vh;
+}
