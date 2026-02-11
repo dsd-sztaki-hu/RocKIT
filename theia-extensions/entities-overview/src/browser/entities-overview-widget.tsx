@@ -17,6 +17,7 @@ import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
+import { MultiEditDialog } from './entities-overview-multi-edit-dialog'
 import {
   EntitiesOverviewModel,
   ExampleTreeLeaf,
@@ -46,36 +47,6 @@ class AdvancedFiltersDialog extends ReactDialog<'apply'> {
 
   get value(): 'apply' {
     return 'apply'
-  }
-}
-
-class MultiEditDialog extends ReactDialog<void> {
-  constructor(private readonly entityIds: string[]) {
-    super({ title: 'Multi Edit' })
-    this.appendCloseButton('Close')
-  }
-
-  protected render(): React.ReactNode {
-    return (
-      <div className="entities-overview-edit-modal-body">
-        <p className="entities-overview-edit-modal-title">
-          {this.entityIds.length} entities selected
-        </p>
-        {this.entityIds.length === 0 ? (
-          <p className="entities-overview-edit-modal-empty">No entities available.</p>
-        ) : (
-          <ul className="entities-overview-edit-modal-list">
-            {this.entityIds.map((entityId) => (
-              <li key={entityId}>{entityId}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-    )
-  }
-
-  get value(): void {
-    return undefined
   }
 }
 
