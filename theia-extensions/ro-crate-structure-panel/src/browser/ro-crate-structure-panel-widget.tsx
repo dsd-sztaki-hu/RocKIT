@@ -193,14 +193,19 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     const key = parentKey ? `${parentKey}::${idStr}` : idStr
     const visited = seen ?? new Set<string>()
     if (visited.has(idStr)) {
-      return { key, title: node.name || node.id } as TreeDataNode
+      return {
+        key,
+        title: '',
+        displayName: node.name || node.id,
+      } as TreeDataNode
     }
     visited.add(idStr)
     const children =
       node.children?.map((c) => this.crateNodeToTreeData(c, key, visited)) || []
     return {
       key,
-      title: node.name || node.id,
+      title: '',
+      displayName: node.name || node.id,
       entityId: node.id,
       entityType: node.type,
       children,
@@ -351,6 +356,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           // onExpand={(keys) => { this.expandedKeys = keys as string[]; this.update(); }}
           titleRender={(item) => {
             const title = item.title as React.ReactNode
+            const displayName =
+              (item as any).displayName ?? (typeof title === 'string' ? title : '')
+            const entityId = (item as any).entityId as string | undefined
             const isFolder = Array.isArray(item.children) && item.children.length > 0
             const isExpanded = this.expandedKeys.includes(item.key as string)
             const icon = isFolder ? (
@@ -364,7 +372,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             )
             const isDatasetNode = (item as any).entityType === 'Dataset'
             return (
-              <this.MemoTooltip title={title}>
+              <this.MemoTooltip title={entityId ?? displayName} placement="right">
                 <span
                   style={{
                     display: 'inline-flex',
@@ -382,10 +390,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                         ? '0 0 8px rgba(24, 144, 255, 0.35)'
                         : 'none',
                   }}
-                  data-entity-id={(item as any).entityId}
+                  data-entity-id={entityId}
+                  title=""
                 >
                   {icon}
-                  {title}
+                  {displayName}
                 </span>
               </this.MemoTooltip>
             )
