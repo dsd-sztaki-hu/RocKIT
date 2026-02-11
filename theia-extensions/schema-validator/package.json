@@ -11,7 +11,8 @@
   "dependencies": {
     "@theia/core": "1.65.2",
     "aroma2-common": "0.0.0",
-    "app-state": "0.0.1"
+    "app-state": "0.0.1",
+    "ro-crate-editor": "0.0.0"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
