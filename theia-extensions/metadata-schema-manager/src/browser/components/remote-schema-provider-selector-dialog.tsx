@@ -21,7 +21,7 @@ interface Props {
     open: boolean;
     onClose: () => void;
     onSelect: (provider: RemoteSchemaProviderConfig) => void;
-    onConfigure: () => void; // Shortcut to open configuration if list is empty
+    onConfigure: () => void;
     providerStore: RemoteSchemaProviderStoreService;
 }
 

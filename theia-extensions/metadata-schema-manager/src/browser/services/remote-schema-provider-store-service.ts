@@ -18,7 +18,6 @@ export class RemoteSchemaProviderStoreService {
      */
     protected async getEnvConfig() {
         const rootPathEnv = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
-        // Updated Variable Names to emphasize PROVIDER
         const configFileNameEnv = await this.envVariablesServer.getValue('AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE');
         const keytarServiceEnv = await this.envVariablesServer.getValue('AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE');
 

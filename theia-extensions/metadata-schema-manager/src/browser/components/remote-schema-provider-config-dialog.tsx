@@ -145,7 +145,6 @@ export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, provid
             disablePortal={false} 
             disableScrollLock={true}
             disableRestoreFocus={true}
-            // FIX: Helps with focus trapping issues in some Electron/Theia environments
             disableEnforceFocus={true} 
             style={{ zIndex: 1301 }} 
         >
@@ -182,7 +181,6 @@ export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, provid
                             value={type}
                             label="Type"
                             onChange={(e) => setType(e.target.value as 'CEDAR')}
-                            // FIX: disablePortal=true keeps the menu in the DOM tree, preventing z-index/focus issues
                             MenuProps={{ disablePortal: true }} 
                         >
                             <MenuItem value="CEDAR">CEDAR</MenuItem>

@@ -319,7 +319,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     }
 
     protected async filterMissingSchemas(ids: string[]): Promise<string[]> {
-        // Optimize: Load local schemas once
         const localSchemas = await this.loadAllSchemas();
         return ids.filter(reqId => {
             const exists = localSchemas.some(local => 

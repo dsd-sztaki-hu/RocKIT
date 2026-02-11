@@ -55,7 +55,6 @@ class AppSetup {
         try {
             const keytar = require('keytar');
             
-            // Use the centralized service name
             const credentials = await keytar.findCredentials(REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE);
             
             for (const cred of credentials) {
@@ -91,7 +90,6 @@ class AppSetup {
 
         // 2. Create Directories
         try {
-            // Ensure main folders exist
             if (!fs.existsSync(paths.root)) fs.mkdirSync(paths.root, { recursive: true });
             if (!fs.existsSync(paths.schemas)) fs.mkdirSync(paths.schemas, { recursive: true });
             if (!fs.existsSync(paths.cedarRoot)) fs.mkdirSync(paths.cedarRoot, { recursive: true });
@@ -107,7 +105,7 @@ class AppSetup {
         this._env.AROMA_ROOT_PATH = paths.root; 
         this._env.THEIA_CONFIG_DIR = paths.root;
         
-        // Pass the Configuration Filenames & Service IDs (Renamed)
+        // Pass the Configuration Filenames & Service IDs
         this._env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME;
         this._env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE;
 
