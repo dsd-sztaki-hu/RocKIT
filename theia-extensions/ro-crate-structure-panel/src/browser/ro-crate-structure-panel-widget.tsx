@@ -337,6 +337,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         className="ro-crate-structure-panel-body"
         style={{
           padding: '1rem',
+          paddingTop: '6px',
           width: '100%',
           height: '100%',
           boxSizing: 'border-box',
