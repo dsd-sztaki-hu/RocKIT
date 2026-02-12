@@ -10,11 +10,15 @@
     "src"
   ],
   "dependencies": {
-    "@theia/core": "1.65.2"
+    "@theia/core": "1.65.2",
+    "keytar": "^7.9.0",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
-    "typescript": "~5.4.5"
+    "typescript": "~5.4.5",
+    "@types/keytar": "^4.4.2",
+    "@types/uuid": "^9.0.7"
   },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -22,5 +26,11 @@
     "build": "tsc -b",
     "clean": "rimraf lib tsconfig.tsbuildinfo",
     "watch": "tsc -b -w"
-  }
+  },
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/aroma2-common-frontend-module",
+      "backend": "lib/node/aroma2-common-backend-module" 
+    }
+  ]
 }
