@@ -1,6 +1,7 @@
 export * from '../common/save-ro-crate-protocol'; 
 export * from '../common/metadata-schema-manager-protocol';
 export * from '../common/secure-storage-protocol';
+export * from '../common/schema-validator-protocol';
 
 // Future shared protocols will be exported below...
 // export * from '../common/validation-protocol';
