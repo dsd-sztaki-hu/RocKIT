@@ -372,7 +372,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         >
           <span className="ro-crate-structure-validation-icon fa fa-exclamation-triangle" />
           <span className="ro-crate-structure-validation-text">
-            {validationIssueCount} validation issues
+            {validationIssueCount} validation error(s)
           </span>
         </button>
         <Tree
@@ -786,10 +786,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       relPath
     const mimeType = mime.lookup(name) || 'application/octet-stream'
     const fileEntity: Record<string, any> = {
-      '@id': this.toFileEntityId(
-        this.normalizeWorkspaceRelativePath(relPath),
-        sourceUri,
-      ),
+      '@id': this.toFileEntityId(this.normalizeWorkspaceRelativePath(relPath), sourceUri),
       '@type': 'File',
       name,
       encodingFormat: mimeType,
