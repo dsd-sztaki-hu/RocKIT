@@ -40,6 +40,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected readonly fileService: FileService
 
   protected crateSubscription?: Disposable
+  protected validationSubscription?: Disposable
 
   constructor() {
     super()
@@ -61,6 +62,19 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
       (_) => this.update(),
     )
+    this.invalidEntityIds = this.buildInvalidEntityIdSet(
+      this.appStateService.validationErrors,
+    )
+    this.validationSubscription = this.appStateService.onDidChangeSelector(
+      (s) => s.validationErrors,
+    )((errors) => {
+      const next = this.buildInvalidEntityIdSet(errors)
+      if (this.sameEntityIdSet(this.invalidEntityIds, next)) {
+        return
+      }
+      this.invalidEntityIds = next
+      this.update()
+    })
 
     this.update()
   }
@@ -90,6 +104,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected treeHeight: number = 400
   protected dropTargetDatasetId?: string
   protected globalDragListenersAttached = false
+  protected invalidEntityIds = new Set<string>()
+  protected selectedEntityIds = new Set<string>()
+  protected selectedKeys: React.Key[] = []
 
   protected readonly handleGlobalDragEnd = (_event: DragEvent): void => {
     this.setDropTargetDatasetId(undefined)
@@ -191,14 +208,19 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     const key = parentKey ? `${parentKey}::${idStr}` : idStr
     const visited = seen ?? new Set<string>()
     if (visited.has(idStr)) {
-      return { key, title: node.name || node.id } as TreeDataNode
+      return {
+        key,
+        title: '',
+        displayName: node.name || node.id,
+      } as TreeDataNode
     }
     visited.add(idStr)
     const children =
       node.children?.map((c) => this.crateNodeToTreeData(c, key, visited)) || []
     return {
       key,
-      title: node.name || node.id,
+      title: '',
+      displayName: node.name || node.id,
       entityId: node.id,
       entityType: node.type,
       children,
@@ -210,7 +232,29 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     if (!entityId) {
       return
     }
+    const event = info?.nativeEvent as MouseEvent | undefined
+    const isMultiSelect = Boolean(event?.ctrlKey || event?.metaKey)
+    const nodeKey = info.node?.key as React.Key | undefined
 
+    if (isMultiSelect) {
+      if (this.selectedEntityIds.has(entityId)) {
+        this.selectedEntityIds.delete(entityId)
+      } else {
+        this.selectedEntityIds.add(entityId)
+      }
+      if (nodeKey !== undefined) {
+        if (this.selectedKeys.includes(nodeKey)) {
+          this.selectedKeys = this.selectedKeys.filter((key) => key !== nodeKey)
+        } else {
+          this.selectedKeys = [...this.selectedKeys, nodeKey]
+        }
+      }
+      this.update()
+      return
+    }
+
+    this.selectedEntityIds = new Set([entityId])
+    this.selectedKeys = nodeKey !== undefined ? [nodeKey] : []
     this.appStateService.selectedEntityId = entityId
     void this.openRoCrateEditor(entityId)
   }
@@ -297,6 +341,18 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           overflowX: 'auto',
           overflowY: 'hidden',
         }}
+        onClick={(event) => {
+          const target = event.target as HTMLElement | null
+          if (target?.closest?.('[data-entity-id]')) {
+            return
+          }
+          if (this.selectedEntityIds.size === 0 && this.selectedKeys.length === 0) {
+            return
+          }
+          this.selectedEntityIds.clear()
+          this.selectedKeys = []
+          this.update()
+        }}
         onDragOver={(event) => this.handleDragOver(event)}
         onDragLeave={(event) => this.handleDragLeave(event)}
         onDropCapture={(event) => this.handleDropCapture(event)}
@@ -307,13 +363,18 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           treeData={treeData}
           height={this.treeHeight}
           showIcon
-          selectedKeys={[]}
+          multiple
+          selectedKeys={this.selectedKeys}
           defaultExpandedKeys={['./']}
           onSelect={this.handleTreeSelect}
           // expandedKeys={this.expandedKeys}
           // onExpand={(keys) => { this.expandedKeys = keys as string[]; this.update(); }}
           titleRender={(item) => {
             const title = item.title as React.ReactNode
+            const displayName =
+              (item as any).displayName ?? (typeof title === 'string' ? title : '')
+            const entityId = (item as any).entityId as string | undefined
+            const isInvalid = Boolean(entityId && this.invalidEntityIds.has(entityId))
             const isFolder = Array.isArray(item.children) && item.children.length > 0
             const isExpanded = this.expandedKeys.includes(item.key as string)
             const icon = isFolder ? (
@@ -327,7 +388,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             )
             const isDatasetNode = (item as any).entityType === 'Dataset'
             return (
-              <this.MemoTooltip title={title}>
+              <this.MemoTooltip title={entityId ?? displayName} placement="right">
                 <span
                   style={{
                     display: 'inline-flex',
@@ -345,10 +406,19 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                         ? '0 0 8px rgba(24, 144, 255, 0.35)'
                         : 'none',
                   }}
-                  data-entity-id={(item as any).entityId}
+                  data-entity-id={entityId}
+                  title=""
                 >
                   {icon}
-                  {title}
+                  {isInvalid && (
+                    <span
+                      className="ro-crate-structure-invalid-icon fa fa-exclamation-triangle"
+                      role="img"
+                      aria-label="Invalid entity"
+                      title="Invalid entity"
+                    />
+                  )}
+                  {displayName}
                 </span>
               </this.MemoTooltip>
             )
@@ -795,9 +865,30 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     return normalized
   }
 
+  protected buildInvalidEntityIdSet(errors: any[] | undefined): Set<string> {
+    return new Set(
+      (errors ?? [])
+        .map((error) => error?.entityId)
+        .filter((entityId): entityId is string => Boolean(entityId)),
+    )
+  }
+
+  protected sameEntityIdSet(a: Set<string>, b: Set<string>): boolean {
+    if (a.size !== b.size) {
+      return false
+    }
+    for (const id of a) {
+      if (!b.has(id)) {
+        return false
+      }
+    }
+    return true
+  }
+
   dispose(): void {
     this.detachGlobalDragListeners()
     super.dispose()
     this.crateSubscription?.dispose()
+    this.validationSubscription?.dispose()
   }
 }
