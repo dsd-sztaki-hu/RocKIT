@@ -7,6 +7,7 @@ interface SchemaToolbarProps {
     onRefresh: () => void;
     onDelete?: () => void;
     onBrowse?: () => void;
+    onConfigureProviders?: () => void; // New prop
     selectedCount?: number;
 }
 
@@ -16,6 +17,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
     onRefresh,
     onDelete,
     onBrowse,
+    onConfigureProviders,
     selectedCount = 0
 }) => {
     return (
@@ -25,6 +27,10 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
             
             {onBrowse && (
                 <Button type="primary" onClick={onBrowse}>Browse</Button>
+            )}
+
+            {onConfigureProviders && (
+                <Button type="primary" onClick={onConfigureProviders}>Configure Remote Providers</Button>
             )}
             
             <Button type="default" onClick={onRefresh}>Refresh</Button>

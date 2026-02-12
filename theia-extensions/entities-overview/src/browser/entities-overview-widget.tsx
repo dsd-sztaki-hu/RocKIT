@@ -122,6 +122,50 @@ export class EntitiesOverviewWidget extends TreeWidget {
     return super.renderIcon(node, props)
   }
 
+  protected override renderCaption(node: TreeNode, props: NodeProps): React.ReactNode {
+    const attrs = this.getCaptionAttributes(node, props)
+    const children = this.getCaptionChildren(node, props)
+
+    const isLeafInvalid = ExampleTreeLeaf.is(node) && node.data.valid === false
+    const isNodeInvalid = ExampleTreeNode.is(node) && this.hasInvalidDescendant(node)
+    const showInvalidIcon = isLeafInvalid || isNodeInvalid
+
+    if (showInvalidIcon) {
+      const className = `${attrs.className ?? ''} entities-overview-invalid-caption`.trim()
+      const containerTitle = isLeafInvalid
+        ? 'Invalid entity'
+        : 'Contains invalid entity'
+      return (
+        <div {...attrs} className={className} title={containerTitle}>
+          <span
+            className="entities-overview-invalid-icon fa fa-exclamation-triangle"
+            role="img"
+            aria-label={isLeafInvalid ? 'Invalid entity' : 'Contains invalid entity'}
+            title={isLeafInvalid ? 'Invalid entity' : 'Contains invalid entity'}
+          />
+          {children}
+        </div>
+      )
+    }
+
+    return React.createElement('div', attrs, children)
+  }
+
+  protected hasInvalidDescendant(node: ExampleTreeNode): boolean {
+    for (const child of node.children) {
+      if (ExampleTreeLeaf.is(child)) {
+        if (child.data.valid === false) {
+          return true
+        }
+        continue
+      }
+      if (ExampleTreeNode.is(child) && this.hasInvalidDescendant(child)) {
+        return true
+      }
+    }
+    return false
+  }
+
   protected override render(): React.ReactNode {
     const availableTypes = this.model.getAvailableTypes()
     const activeFilters = this.getActiveFilters()
@@ -243,6 +287,24 @@ export class EntitiesOverviewWidget extends TreeWidget {
     )
   }
 
+  protected override createContainerAttributes(): React.HTMLAttributes<HTMLElement> {
+    const attributes = super.createContainerAttributes()
+    const existingOnClick = attributes.onClick
+    return {
+      ...attributes,
+      onClick: (event) => {
+        if (typeof existingOnClick === 'function') {
+          existingOnClick(event)
+        }
+        const target = event.target as HTMLElement
+        if (target.closest('.theia-TreeNode')) {
+          return
+        }
+        this.model.clearSelection()
+      },
+    }
+  }
+
   /**
    * Provide CSS class names for a given tree node.
    *
@@ -260,6 +322,10 @@ export class EntitiesOverviewWidget extends TreeWidget {
       return classNames.filter(
         (className) => className !== SELECTED_CLASS && className !== FOCUS_CLASS,
       )
+    }
+    if (ExampleTreeLeaf.is(node) && node.data.selected) {
+      classNames.push('entities-overview-leaf-selected')
+      classNames.push(SELECTED_CLASS)
     }
     return classNames
   }
@@ -312,7 +378,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
   ): React.Attributes & React.HTMLAttributes<HTMLElement> {
     return {
       ...super.createNodeAttributes(node, props),
-      onClick: () => this.handleNodeClick(node),
+      onClick: (event) => this.handleNodeClick(node, event),
     }
   }
 
@@ -322,17 +388,21 @@ export class EntitiesOverviewWidget extends TreeWidget {
    *
    * @param node the clicked node
    */
-  protected handleNodeClick(node: TreeNode): void {
+  protected handleNodeClick(node: TreeNode, event: React.MouseEvent<HTMLElement>): void {
     if (ExampleTreeNode.is(node)) {
       void this.model.toggleNodeExpansion(node)
       return
     }
     if (ExampleTreeLeaf.is(node)) {
       const entityId = node.data.entityId
-      if (!entityId) {
+      if (entityId && (event.ctrlKey || event.metaKey)) {
+        event.stopPropagation()
+        event.preventDefault()
+        this.model.toggleSelection(entityId)
         return
       }
-      this.appStateService.selectedEntityId = entityId
+
+      if (!entityId) return
       void this.openRoCrateEditorForEntity(entityId)
     }
   }
