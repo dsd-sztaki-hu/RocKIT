@@ -73,6 +73,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   protected filtersExpanded: boolean = true
   protected readonly fileNameInputRef = React.createRef<HTMLInputElement>()
   protected fileNameSelection: { start: number | null; end: number | null } | undefined
+  protected filterKeydownListenerAttached = false
 
   constructor(
     @inject(TreeProps) props: TreeProps,
@@ -115,6 +116,9 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         void this.model.refresh()
       }),
     ])
+    this.toDispose.push({
+      dispose: () => this.detachFilterKeydownInterceptor(),
+    })
   }
 
   protected override doUpdateRows(): void {
@@ -206,6 +210,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
                   ref={this.fileNameInputRef}
                   value={this.filters.fileNameFilter}
                   onChange={(event) => this.onFileNameFilterChange(event)}
+                  onFocus={() => this.attachFilterKeydownInterceptor()}
+                  onBlur={() => this.detachFilterKeydownInterceptor()}
                   onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}
                 />
               </label>
@@ -645,6 +651,63 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     if (typeof event.nativeEvent.stopImmediatePropagation === 'function') {
       event.nativeEvent.stopImmediatePropagation()
     }
+  }
+
+  protected readonly filterGlobalKeydownCapture = (event: KeyboardEvent): void => {
+    const input = this.fileNameInputRef.current
+    const active = document.activeElement as HTMLElement | null
+    if (!input || !active) {
+      return
+    }
+    if (active !== input) {
+      return
+    }
+    if (event.key !== 'Delete') {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    if (typeof (event as any).stopImmediatePropagation === 'function') {
+      ;(event as any).stopImmediatePropagation()
+    }
+    this.deleteOneCharInInput(input)
+  }
+
+  protected deleteOneCharInInput(input: HTMLInputElement): void {
+    if (input.readOnly || input.disabled) {
+      return
+    }
+    const value = input.value ?? ''
+    const start = input.selectionStart ?? value.length
+    const end = input.selectionEnd ?? value.length
+    let from = start
+    let to = end
+    if (start === end) {
+      if (start >= value.length) {
+        return
+      }
+      from = start
+      to = start + 1
+    }
+    input.setRangeText('', from, to, 'end')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+  }
+
+  protected attachFilterKeydownInterceptor(): void {
+    if (this.filterKeydownListenerAttached) {
+      return
+    }
+    window.addEventListener('keydown', this.filterGlobalKeydownCapture, true)
+    this.filterKeydownListenerAttached = true
+  }
+
+  protected detachFilterKeydownInterceptor(): void {
+    if (!this.filterKeydownListenerAttached) {
+      return
+    }
+    window.removeEventListener('keydown', this.filterGlobalKeydownCapture, true)
+    this.filterKeydownListenerAttached = false
   }
 
   protected toggleFiltersExpanded(): void {
