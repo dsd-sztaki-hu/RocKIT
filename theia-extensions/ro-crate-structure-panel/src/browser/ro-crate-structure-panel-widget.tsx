@@ -12,6 +12,7 @@ import { inject, injectable } from 'inversify'
 import * as mime from 'mime-types'
 import * as React from 'react'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
+import { SchemaValidatorWidget } from 'schema-validator/lib/browser/schema-validator-widget'
 import * as SparkMD5 from 'spark-md5'
 import { RoCrateValidationErrorsDialog } from './ro-crate-validation-errors-dialog'
 
@@ -927,10 +928,36 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
   protected async openValidationErrorsDialog(): Promise<void> {
     const errors = this.appStateService.validationErrors ?? []
-    const dialog = new RoCrateValidationErrorsDialog(errors, (entityId) => {
-      void this.openRoCrateEditor(entityId)
-    })
+    const dialog = new RoCrateValidationErrorsDialog(
+      errors,
+      (entityId) => {
+        void this.openRoCrateEditor(entityId)
+      },
+      () => {
+        void this.openSchemaValidatorWidget()
+      },
+    )
     await dialog.open()
+  }
+
+  protected async openSchemaValidatorWidget(): Promise<void> {
+    const existing = this.widgetManager.tryGetWidget(SchemaValidatorWidget.ID)
+    if (existing) {
+      this.ensureWidgetInSideArea(existing, 'left')
+      await this.shell.activateWidget(existing.id)
+      return
+    }
+    const widget = await this.widgetManager.getOrCreateWidget(SchemaValidatorWidget.ID)
+    this.ensureWidgetInSideArea(widget, 'left')
+    await this.shell.activateWidget(widget.id)
+  }
+
+  protected ensureWidgetInSideArea(widget: Widget, area: 'left' | 'right'): void {
+    const sideWidgets = this.shell.getWidgets(area)
+    if (sideWidgets.includes(widget)) {
+      return
+    }
+    this.shell.addWidget(widget, { area })
   }
 
   dispose(): void {
