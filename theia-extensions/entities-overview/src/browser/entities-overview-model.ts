@@ -232,6 +232,23 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         return Array.from(this.selectedEntityIds)
     }
 
+    getVisibleEntityIds(): string[] {
+        const root = this.tree.root
+        if (!root) {
+            return []
+        }
+        const unique = new Set<string>()
+        for (const node of new DepthFirstTreeIterator(root)) {
+            if (ExampleTreeLeaf.is(node)) {
+                const entityId = node.data.entityId
+                if (entityId) {
+                    unique.add(entityId)
+                }
+            }
+        }
+        return Array.from(unique)
+    }
+
     clearSelection(): void {
         if (this.selectedEntityIds.size === 0) return
         const ids = Array.from(this.selectedEntityIds)
