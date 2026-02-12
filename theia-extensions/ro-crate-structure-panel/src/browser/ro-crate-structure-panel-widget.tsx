@@ -1,6 +1,6 @@
 import { FileOutlined, FolderOpenOutlined, FolderOutlined } from '@ant-design/icons'
 import type { Disposable } from '@theia/core'
-import { ApplicationShell, WidgetManager } from '@theia/core/lib/browser'
+import { ApplicationShell, Widget, WidgetManager } from '@theia/core/lib/browser'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -13,6 +13,7 @@ import * as mime from 'mime-types'
 import * as React from 'react'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import * as SparkMD5 from 'spark-md5'
+import { RoCrateValidationErrorsDialog } from './ro-crate-validation-errors-dialog'
 
 interface CrateNode {
   id: string
@@ -265,6 +266,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       const existing = this.widgetManager.tryGetWidget(existingWidgetId)
       if (existing) {
         this.appStateService.registerEntityEditor(existingWidgetId, entityId)
+        this.ensureWidgetInMain(existing)
         await this.shell.activateWidget(existing.id)
         return
       }
@@ -273,9 +275,32 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       instance: entityId,
       entityId,
     })
-    await this.shell.addWidget(widget, { area: 'main' })
+    const mainRef = this.findMainEditorWidget()
+    await this.shell.addWidget(widget, {
+      area: 'main',
+      ref: mainRef,
+      mode: mainRef ? 'tab-after' : undefined,
+    })
     this.appStateService.registerEntityEditor(widget.id, entityId)
     await this.shell.activateWidget(widget.id)
+  }
+
+  protected ensureWidgetInMain(widget: unknown): void {
+    const mainWidgets = this.shell.getWidgets('main')
+    if (mainWidgets.includes(widget as any)) {
+      return
+    }
+    this.shell.addWidget(widget as any, { area: 'main' })
+  }
+
+  protected findMainEditorWidget(): Widget | undefined {
+    const mainWidgets = this.shell.getWidgets('main')
+    for (const widget of mainWidgets) {
+      if (widget.id?.startsWith(RoCrateEditorWidget.ID)) {
+        return widget
+      }
+    }
+    return undefined
   }
 
   onAfterAttach(msg: any): void {
@@ -369,6 +394,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           disabled={validationIssueCount === 0}
           aria-hidden={validationIssueCount === 0}
           tabIndex={validationIssueCount === 0 ? -1 : 0}
+          onClick={() => this.openValidationErrorsDialog()}
         >
           <span className="ro-crate-structure-validation-icon fa fa-exclamation-triangle" />
           <span className="ro-crate-structure-validation-text">
@@ -897,6 +923,14 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       }
     }
     return true
+  }
+
+  protected async openValidationErrorsDialog(): Promise<void> {
+    const errors = this.appStateService.validationErrors ?? []
+    const dialog = new RoCrateValidationErrorsDialog(errors, (entityId) => {
+      void this.openRoCrateEditor(entityId)
+    })
+    await dialog.open()
   }
 
   dispose(): void {

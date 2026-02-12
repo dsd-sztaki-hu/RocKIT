@@ -89,3 +89,56 @@
 .ro-crate-structure-validation-text {
     white-space: nowrap;
 }
+
+.ro-crate-validation-dialog-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 70vh;
+    min-width: 520px;
+    width: 60vw;
+    max-width: 760px;
+}
+
+.ro-crate-validation-dialog-empty {
+    margin: 0;
+    color: var(--theia-ui-font-color2);
+}
+
+.ro-crate-validation-dialog-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: auto;
+    padding-right: 4px;
+    max-height: 55vh;
+}
+
+.ro-crate-validation-dialog-item {
+    text-align: left;
+    border: none;
+    background: rgba(24, 144, 255, 0.12);
+    color: var(--theia-ui-font-color1);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+.ro-crate-validation-dialog-item:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.ro-crate-validation-dialog-item:hover {
+    background: rgba(24, 144, 255, 0.2);
+}
+
+.ro-crate-validation-dialog-item-type {
+    font-weight: 600;
+}
+
+.ro-crate-validation-dialog-item-id {
+    font-weight: 400;
+}
