@@ -2,34 +2,38 @@
 
 /**
  * start-electron.js
- * * 1. Runs AppSetup (env loading, filesystem creation)
+ * 1. Runs AppSetup (filesystem, cleanup)
  * 2. Delegates execution to "yarn workspace electron-app start"
  */
 
 const { spawn } = require('child_process');
 const AppSetup = require('./app-setup');
 
-// 1. Initialize Setup
-const appSetup = new AppSetup();
+(async () => {
+    try {
+        // 1. Initialize Setup
+        const appSetup = new AppSetup();
 
-// 2. Run Configuration & Initialization Steps
-appSetup.loadEnvironment();      
-appSetup.initializeFileSystem(); 
+        // 2. Run Pre-flight Checks & Cleanup
+        appSetup.initializeFileSystem();
+        await appSetup.cleanOrphanedApiKeys();
 
-console.log('Starting Theia Electron Backend via Yarn Workspace...');
+        console.log('Starting Theia Electron Backend via Yarn Workspace...');
 
-// 3. Launch via Yarn Workspace
-// This tells Yarn to go find the 'electron-app' package and run its 'start' script.
-// Yarn handles the directory switching automatically.
-const child = spawn(
-    'yarn',
-    ['workspace', 'electron-app', 'start'],
-    {
-        // We stay in the root folder, Yarn handles the rest
-        env: appSetup.getEnv(), 
-        shell: true,
-        stdio: 'inherit'
+        // 3. Launch via Yarn Workspace
+        const child = spawn(
+            'yarn',
+            ['workspace', 'electron-app', 'start'],
+            {
+                env: appSetup.getEnv(), 
+                shell: true,
+                stdio: 'inherit'
+            }
+        );
+
+        child.on('close', code => process.exit(code));
+    } catch (err) {
+        console.error('Failed to start application:', err);
+        process.exit(1);
     }
-);
-
-child.on('close', code => process.exit(code));
+})();

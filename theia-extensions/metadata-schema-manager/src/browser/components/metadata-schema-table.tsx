@@ -67,7 +67,6 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
             filters: [{ text: 'Local', value: 'local' }, { text: 'Remote', value: 'remote' }],
             onFilter: (value, record) => record.source === value,
         },
-        // FIX: Added Render for Hyperlink
         {
             title: 'Ref (@id)',
             dataIndex: 'reference',
