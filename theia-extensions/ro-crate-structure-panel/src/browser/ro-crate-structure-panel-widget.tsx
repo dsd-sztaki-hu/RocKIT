@@ -330,9 +330,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       const rootKey = treeData[0].key as string
       this.expandedKeys = [rootKey]
     }
+    const validationIssueCount = this.appStateService.validationErrors?.length ?? 0
     return (
       <div
         ref={this.containerRef}
+        className="ro-crate-structure-panel-body"
         style={{
           padding: '1rem',
           width: '100%',
@@ -358,6 +360,20 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         onDropCapture={(event) => this.handleDropCapture(event)}
         onDrop={(event) => this.handleDrop(event)}
       >
+        <button
+          className={`ro-crate-structure-validation-strip${
+            validationIssueCount > 0 ? ' is-visible' : ''
+          }`}
+          type="button"
+          disabled={validationIssueCount === 0}
+          aria-hidden={validationIssueCount === 0}
+          tabIndex={validationIssueCount === 0 ? -1 : 0}
+        >
+          <span className="ro-crate-structure-validation-icon fa fa-exclamation-triangle" />
+          <span className="ro-crate-structure-validation-text">
+            {validationIssueCount} validation issues
+          </span>
+        </button>
         <Tree
           style={{ minWidth: '100%' }}
           treeData={treeData}

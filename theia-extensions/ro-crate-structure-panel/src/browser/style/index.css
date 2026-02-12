@@ -30,3 +30,62 @@
     line-height: 18px;
     font-size: 16px;
 }
+
+.ro-crate-structure-panel-body {
+    position: relative;
+}
+
+.ro-crate-structure-validation-strip {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    margin: 0 0 8px;
+    border: 1px solid rgba(211, 47, 47, 0.35);
+    border-radius: 10px;
+    background: rgba(211, 47, 47, 0.08);
+    color: var(--theia-ui-font-color1);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-6px);
+    overflow: hidden;
+    pointer-events: none;
+    transition:
+        max-height 260ms ease,
+        opacity 260ms ease,
+        transform 260ms ease,
+        margin-bottom 260ms ease;
+    margin-bottom: 0;
+}
+
+.ro-crate-structure-validation-strip.is-visible {
+    max-height: 28px;
+    opacity: 1;
+    transform: translateY(0);
+    margin-bottom: 8px;
+    pointer-events: auto;
+}
+
+.ro-crate-structure-validation-strip:hover {
+    background: rgba(211, 47, 47, 0.14);
+    border-color: rgba(211, 47, 47, 0.55);
+}
+
+.ro-crate-structure-validation-strip:focus-visible {
+    outline: 2px solid rgba(211, 47, 47, 0.6);
+    outline-offset: 2px;
+}
+
+.ro-crate-structure-validation-icon {
+    font-size: 12px;
+}
+
+.ro-crate-structure-validation-text {
+    white-space: nowrap;
+}
