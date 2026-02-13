@@ -13,9 +13,6 @@ export class RemoteSchemaProviderStoreService {
     @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
     @inject(SecureStorageService) protected readonly secureStorage!: SecureStorageService;
 
-    /**
-     * Helper to retrieve centralized configuration from environment variables.
-     */
     protected async getEnvConfig() {
         const rootPathEnv = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
         const configFileNameEnv = await this.envVariablesServer.getValue('AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE');
@@ -34,8 +31,6 @@ export class RemoteSchemaProviderStoreService {
 
     protected async getConfigUri(): Promise<URI> {
         const { rootPath, configFileName } = await this.getEnvConfig();
-        
-        // Handle Windows/Unix path differences
         const normalizedRoot = rootPath.replace(/\\/g, '/');
         const baseUri = normalizedRoot.match(/^[a-zA-Z]:/) 
             ? new URI('file:///' + normalizedRoot) 
@@ -69,7 +64,6 @@ export class RemoteSchemaProviderStoreService {
             return [];
         }
 
-        // Re-hydrate with API Keys from Secure Storage
         const storedCredentials = await this.secureStorage.findCredentials(keytarService);
         const credentialMap = new Map<string, string>();
         storedCredentials.forEach(c => credentialMap.set(c.account, c.password));
@@ -79,7 +73,6 @@ export class RemoteSchemaProviderStoreService {
             return { ...config, apiKey: secret || undefined };
         });
 
-        // Runtime Orphan Cleanup (Safety Check)
         const activeIds = new Set(configs.map(c => c.id));
         for (const cred of storedCredentials) {
             if (!activeIds.has(cred.account)) {
@@ -116,9 +109,13 @@ export class RemoteSchemaProviderStoreService {
         }
     }
 
-    public async testConnection(baseUrl: string, apiKey?: string): Promise<string[]> {
+    /**
+     * Verifies connection using the calculated domainBase.
+     */
+    public async testConnection(domainBase: string, apiKey?: string): Promise<string[]> {
         try {
-            let domain = baseUrl.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
+            // Remove protocol to get the raw domain for SchemaApi (e.g. schema.researchdata.hu)
+            let domain = domainBase.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
             const api = new SchemaApi({ domainBase: domain, apiKey: apiKey });
             
             const templates = await api.listAllSchema();

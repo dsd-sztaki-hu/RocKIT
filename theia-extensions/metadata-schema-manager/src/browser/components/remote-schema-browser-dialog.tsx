@@ -69,7 +69,7 @@ const RemoteBrowser: React.FC<BrowserProps> = ({
             setSelectedTemplateId(null);
             setSelectedTemplateName(null);
             
-            let domain = provider.baseUrl.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
+            let domain = provider.domainBase.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
             
             setSchemaApi(new SchemaApi({
                 domainBase: domain,

@@ -23,6 +23,15 @@ import { RemoteSchemaProviderConfig } from '../types';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
 import { ConnectionSuccessDialog } from './connection-success-dialog';
 
+// Restricted list of CEDAR prefixes/modules as requested
+const CEDAR_MODULE_PREFIXES = [
+    'cedar', 
+    'repo', 
+    'resource', 
+    'open', 
+    'openview'
+];
+
 interface Props {
     open: boolean;
     providerToEdit?: RemoteSchemaProviderConfig;
@@ -82,6 +91,37 @@ export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, provid
         }
     }, [providerToEdit]);
 
+    /**
+     * Calculates the 'domainBase' by stripping specific CEDAR prefixes.
+     * Does NOT affect the user-visible 'baseUrl'.
+     */
+    const calculateDomainBase = (url: string): string => {
+        try {
+            const trimmed = url.trim();
+            if (!trimmed) return '';
+
+            // Ensure protocol for parsing
+            const hasProtocol = /^https?:\/\//i.test(trimmed);
+            const urlObj = new URL(hasProtocol ? trimmed : `https://${trimmed}`);
+            
+            const hostname = urlObj.hostname;
+            const parts = hostname.split('.');
+
+            // Check if the first subdomain matches a known CEDAR module exactly
+            // We ensure parts.length > 2 to avoid stripping if it's the root domain
+            if (parts.length > 1 && CEDAR_MODULE_PREFIXES.includes(parts[0].toLowerCase())) {
+                 // Remove the prefix (e.g., 'cedar')
+                 parts.shift();
+                 urlObj.hostname = parts.join('.');
+                 return urlObj.origin;
+            }
+            
+            return urlObj.origin;
+        } catch (e) {
+            return url;
+        }
+    };
+
     const handleTestAndProceed = async () => {
         if (!baseUrl || !title || !type) {
             setError('Please fill in all required fields (Base URL, Title, Type).');
@@ -91,16 +131,21 @@ export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, provid
         setIsTesting(true);
         setError(null);
 
+        // 1. Calculate the functional domainBase (hidden from UI, used for logic)
+        const domainBase = type === 'CEDAR' ? calculateDomainBase(baseUrl) : baseUrl;
+
         const configToTest: RemoteSchemaProviderConfig = {
             id: providerToEdit ? providerToEdit.id : Date.now().toString(),
             title,
-            baseUrl,
+            baseUrl: baseUrl, // User input
+            domainBase: domainBase, // Calculated field
             type,
             apiKey: apiKey || undefined
         };
 
         try {
-            const schemaNames = await providerStore.testConnection(baseUrl, apiKey);
+            // Pass the calculated domainBase for the test connection
+            const schemaNames = await providerStore.testConnection(domainBase, apiKey);
             
             setFoundSchemas(schemaNames);
             setPendingConfig(configToTest);
@@ -171,7 +216,7 @@ export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, provid
                         value={baseUrl}
                         onChange={(e) => setBaseUrl(e.target.value)}
                         required
-                        helperText="e.g., https://schema.researchdata.hu"
+                        helperText="e.g., https://cedar.schema.researchdata.hu"
                         disabled={isTesting}
                     />
 
