@@ -78,7 +78,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     public async downloadRemoteSchema(templateId: string, provider?: RemoteSchemaProviderConfig): Promise<void> {
         try {
             let apiKey = provider?.apiKey;
-            let domainBase = provider?.baseUrl;
+            let domainBase = provider?.domainBase || provider?.baseUrl;
 
             if (!provider) {
                 throw new Error('No Remote Provider context available for download.');
@@ -120,7 +120,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
             const matchedProvider = providers.find(p => {
                 try {
-                    let providerHost = new URL(p.baseUrl).hostname.toLowerCase();
+                    const sourceUrl = p.domainBase || p.baseUrl;
+                    let providerHost = new URL(sourceUrl).hostname.toLowerCase();
                     return targetHost.includes(providerHost) || providerHost.includes(targetHost);
                 } catch { return false; }
             });
@@ -206,13 +207,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     private async resolveConformanceUrl(url: string, apiKey?: string): Promise<{ content: string, finalUrl: string }> {
         const effectiveKey = apiKey || await this.determineApiKeyForUrl(url);
-        
         const { content, finalUrl } = await this.fetchWithAuthFallback(url, effectiveKey);
 
         try {
             JSON.parse(content);
             return { content, finalUrl };
-        } catch (e) { /* ignore HTML here, proceed to fix */ }
+        } catch (e) { /* HTML fallback logic */ }
 
         let fixedUrl = finalUrl;
         if (finalUrl.includes('openview.')) {
@@ -301,7 +301,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             
             for (const item of conformsArray) {
                 let id = typeof item === 'string' ? item : item['@id'];
-                
                 if (id && typeof id === 'string' && id.includes('/schema/')) {
                     requiredIds.add(id);
                 }

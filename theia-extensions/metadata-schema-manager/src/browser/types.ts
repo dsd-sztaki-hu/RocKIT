@@ -21,7 +21,8 @@ export interface SchemaTableProps {
 export interface RemoteSchemaProviderConfig {
     id: string;
     title: string;
-    baseUrl: string;
-    type: 'CEDAR'; // Currently only CEDAR is supported
+    baseUrl: string; // What the user entered (e.g. https://cedar.schema.researchdata.hu)
+    domainBase: string; // The functional base (e.g. https://schema.researchdata.hu)
+    type: 'CEDAR';
     apiKey?: string;
 }
