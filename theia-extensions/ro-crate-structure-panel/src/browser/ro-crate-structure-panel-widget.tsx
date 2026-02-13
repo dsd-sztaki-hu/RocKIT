@@ -1,6 +1,12 @@
 import { FileOutlined, FolderOpenOutlined, FolderOutlined } from '@ant-design/icons'
 import type { Disposable } from '@theia/core'
-import { ApplicationShell, Widget, WidgetManager } from '@theia/core/lib/browser'
+import type { MenuPath } from '@theia/core'
+import {
+    ApplicationShell,
+    ContextMenuRenderer,
+    Widget,
+    WidgetManager,
+} from '@theia/core/lib/browser'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -8,6 +14,7 @@ import { WorkspaceService } from '@theia/workspace/lib/browser'
 import type { TreeDataNode } from 'antd'
 import { Tooltip, Tree } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { MultiEditDialog } from 'entities-overview/lib/browser/entities-overview-multi-edit-dialog'
 import { inject, injectable } from 'inversify'
 import * as mime from 'mime-types'
 import * as React from 'react'
@@ -24,6 +31,10 @@ interface CrateNode {
     conformsToUrls?: string[]
 }
 
+export const RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU: MenuPath = [
+    'ro-crate-structure-panel:context-menu',
+]
+
 @injectable()
 export class RoCrateStructurePanelWidget extends ReactWidget {
     static readonly ID = 'dataset-panel:widget'
@@ -36,6 +47,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected readonly widgetManager: WidgetManager
     @inject(ApplicationShell)
     protected readonly shell: ApplicationShell
+    @inject(ContextMenuRenderer)
+    protected readonly contextMenuRenderer: ContextMenuRenderer
     @inject(WorkspaceService)
     protected readonly workspaceService: WorkspaceService
     @inject(FileService)
@@ -117,6 +130,66 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
 
     protected MemoTooltip: React.ComponentType<any> = React.memo(Tooltip as any)
+
+    public async openEditFromContextMenu(): Promise<void> {
+        const entityIds = this.getEntityIdsForMultiEdit()
+        const dialog = new MultiEditDialog(entityIds)
+        await dialog.open()
+    }
+
+    protected getEntityIdsForMultiEdit(): string[] {
+        const crate = this.appStateService.roCrate
+        const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+        const selectedIds =
+            this.selectedEntityIds.size > 0
+                ? Array.from(this.selectedEntityIds.values())
+                : []
+
+        const selectedEditableIds: string[] = []
+        const allFileIds: string[] = []
+        const allDatasetIds: string[] = []
+
+        for (const entity of graph) {
+            if (!entity || typeof entity !== 'object' || !entity['@id']) {
+                continue
+            }
+            const id = String(entity['@id'])
+            if (this.entityHasType(entity, 'File')) {
+                allFileIds.push(id)
+            }
+            if (this.entityHasType(entity, 'Dataset')) {
+                allDatasetIds.push(id)
+            }
+            if (selectedIds.includes(id)) {
+                if (
+                    this.entityHasType(entity, 'Dataset') ||
+                    this.entityHasType(entity, 'File')
+                ) {
+                    selectedEditableIds.push(id)
+                }
+            }
+        }
+
+        if (selectedEditableIds.length > 0) {
+            return selectedEditableIds
+        }
+
+        return [...allDatasetIds, ...allFileIds]
+    }
+
+    protected readonly handleContextMenu = (
+        event: React.MouseEvent<HTMLDivElement>,
+    ): void => {
+        event.preventDefault()
+        event.stopPropagation()
+        void this.shell.activateWidget(this.id)
+        const { x, y } = event.nativeEvent
+        this.contextMenuRenderer.render({
+            menuPath: RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU,
+            context: event.currentTarget,
+            anchor: { x, y },
+        })
+    }
 
     protected buildCrateTree(
         crate: any,
@@ -393,6 +466,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 onDragLeave={(event) => this.handleDragLeave(event)}
                 onDropCapture={(event) => this.handleDropCapture(event)}
                 onDrop={(event) => this.handleDrop(event)}
+                onContextMenu={this.handleContextMenu}
             >
                 <button
                     className={`ro-crate-structure-validation-strip${

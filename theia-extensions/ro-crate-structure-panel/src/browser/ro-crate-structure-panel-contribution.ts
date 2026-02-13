@@ -7,11 +7,19 @@ import {
 } from '@theia/core/lib/browser'
 import type { Command, CommandRegistry } from '@theia/core/lib/common/command'
 import { inject, injectable } from 'inversify'
-import { RoCrateStructurePanelWidget } from './ro-crate-structure-panel-widget'
+import {
+  RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU,
+  RoCrateStructurePanelWidget,
+} from './ro-crate-structure-panel-widget'
 
 export const DatasetPanelCommand: Command = {
   id: 'dataset-panel:command',
   label: 'Open New RO-Crate Structure Panel',
+}
+
+export const RoCrateStructurePanelEditCommand: Command = {
+  id: 'ro-crate-structure-panel:edit',
+  label: 'Edit',
 }
 
 @injectable()
@@ -40,6 +48,18 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
         this.shell.activateWidget(widget.id)
       },
     })
+
+    registry.registerCommand(RoCrateStructurePanelEditCommand, {
+      execute: async () => {
+        const widget = this.getActiveStructureWidget()
+        if (!widget) {
+          return
+        }
+        await widget.openEditFromContextMenu()
+      },
+      isEnabled: () => Boolean(this.getActiveStructureWidget()),
+      isVisible: () => Boolean(this.getActiveStructureWidget()),
+    })
   }
 
   registerMenus(menus: MenuModelRegistry): void {
@@ -47,5 +67,21 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
       commandId: DatasetPanelCommand.id,
       label: DatasetPanelCommand.label,
     })
+
+    menus.registerMenuAction(RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU, {
+      commandId: RoCrateStructurePanelEditCommand.id,
+      label: RoCrateStructurePanelEditCommand.label,
+    })
+  }
+
+  protected getActiveStructureWidget(): RoCrateStructurePanelWidget | undefined {
+    const current = this.shell.currentWidget
+    if (current instanceof RoCrateStructurePanelWidget) {
+      return current
+    }
+    const mainWidgets = this.shell.getWidgets('main')
+    return mainWidgets.find(
+      (widget) => widget instanceof RoCrateStructurePanelWidget,
+    ) as RoCrateStructurePanelWidget | undefined
   }
 }
