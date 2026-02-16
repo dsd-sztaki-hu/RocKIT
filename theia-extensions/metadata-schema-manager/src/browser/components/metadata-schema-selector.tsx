@@ -2,7 +2,7 @@ import { injectable, inject } from 'inversify';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { FrontendApplicationContribution } from '@theia/core/lib/browser';
-import { Modal, Button, Input } from 'antd';
+import { Modal, Button } from 'antd';
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
@@ -81,12 +81,11 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
     const [isLoading, setIsLoading] = React.useState(false);
     const [selectedSchema, setSelectedSchema] = React.useState<SchemaInfo | null>(null);
 
-    // --- Provider Configuration State ---
+    // Provider Configuration State
     const [isProviderListOpen, setIsProviderListOpen] = React.useState(false);
     const [isProviderConfigOpen, setIsProviderConfigOpen] = React.useState(false);
     const [isProviderSelectorOpen, setIsProviderSelectorOpen] = React.useState(false); 
-    const [isImportUrlOpen, setIsImportUrlOpen] = React.useState(false);
-
+    
     const [selectedProviderToEdit, setSelectedProviderToEdit] = React.useState<RemoteSchemaProviderConfig | undefined>(undefined);
     const [providersLastUpdated, setProvidersLastUpdated] = React.useState(0);
     const [configDialogKey, setConfigDialogKey] = React.useState(0);
@@ -113,7 +112,7 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         return () => listener.dispose();
     }, [service, loadData, isOpen]);
 
-    // --- Provider Handlers ---
+    // Provider Handlers
 
     const handleOpenProviderList = () => {
         setIsProviderListOpen(true);
@@ -162,7 +161,7 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         service.browseRemoteSchemas(provider);
     };
 
-    // --- Import Handlers ---
+    // Import Handlers
 
     const handleImportFile = async () => {
         const uris = await utils.fileDialog.showOpenDialog({ 
@@ -182,10 +181,6 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         });
     };
 
-    const handleOpenImportUrl = () => {
-        setIsImportUrlOpen(true);
-    };
-
     const handleImportUrl = async (url: string) => {
         utils.msg.showProgress({ text: 'Downloading...' }).then(async p => {
             try {
@@ -195,6 +190,15 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
                 utils.msg.error(`Error: ${e instanceof Error ? e.message : e}`, { timeout: MSG_TIMEOUT });
             } finally { p.cancel(); }
         });
+    };
+
+    const handleOpenImportUrl = async () => {
+        const dialog = new MetadataSchemaImportFromUrlDialog();
+        const url = await dialog.open();
+        
+        if (url) {
+            handleImportUrl(url);
+        }
     };
 
     const handleAssociate = async () => {
@@ -237,7 +241,8 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
             width={1000}
             centered
             footer={[
-                <Button key="cancel" onClick={() => appState.updateState({ openSchemaSelectorWindow: false })}>Cancel</Button>,
+                <Button key="cancel" onClick={() => appState.updateState({ openSchemaSelectorWindow: false })}>Cancel</Button>
+                ,
                 <Button key="ok" type="primary" onClick={handleAssociate} disabled={!selectedSchema || isLoading}>Associate</Button>
             ]}
         >
@@ -260,14 +265,6 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
                         }}
                     />
                 </div>
-
-                {isImportUrlOpen && (
-                    <MetadataSchemaImportFromUrlDialog 
-                        open={isImportUrlOpen}
-                        onClose={() => setIsImportUrlOpen(false)}
-                        onImport={(url) => handleImportUrl(url)}
-                    />
-                )}
 
                 {isProviderSelectorOpen && (
                     <RemoteSchemaProviderSelectorDialog

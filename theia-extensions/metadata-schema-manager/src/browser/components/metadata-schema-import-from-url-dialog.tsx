@@ -1,103 +1,93 @@
+import { AbstractDialog } from '@theia/core/lib/browser';
+import { Message } from '@lumino/messaging';
 import * as React from 'react';
-import {
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
-    TextField,
-    Typography,
-    Alert
-} from '@mui/material';
-import LinkIcon from '@mui/icons-material/Link';
+import * as ReactDOM from 'react-dom/client';
 
-interface Props {
-    open: boolean;
-    onClose: () => void;
-    onImport: (url: string) => void;
-}
+export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
 
-export const MetadataSchemaImportFromUrlDialog: React.FC<Props> = ({ open, onClose, onImport }) => {
-    const [url, setUrl] = React.useState('');
-    const [error, setError] = React.useState<string | null>(null);
-    const inputRef = React.useRef<HTMLInputElement>(null);
+    private readonly inputId = 'metadata-schema-url-input';
+    private inputValue: string = '';
+    private reactRoot: ReactDOM.Root | undefined;
 
-    React.useEffect(() => {
-        if (open) {
-            setUrl('');
-            setError(null);
-            // Manual focus enforcement for reliability
-            setTimeout(() => {
-                if (inputRef.current) {
-                    inputRef.current.focus();
-                }
-            }, 100);
+    constructor() {
+        super({
+            title: 'Import Schema from URL'
+        });
+
+        this.contentNode.style.width = '500px';
+
+        this.appendCloseButton('Cancel');
+        this.appendAcceptButton('Import');
+    }
+
+    get value(): string {
+        return this.inputValue;
+    }
+
+    protected render(): void {
+        if (!this.reactRoot) {
+            this.reactRoot = ReactDOM.createRoot(this.contentNode);
         }
-    }, [open]);
 
-    const handleImport = () => {
-        if (!url.trim()) {
-            setError('Please enter a valid URL.');
-            return;
-        }
-        try {
-            new URL(url); // Simple validation
-        } catch (_) {
-            setError('Invalid URL format.');
-            return;
-        }
-        onImport(url);
-        onClose();
-    };
-
-    return (
-        <Dialog
-            open={open}
-            onClose={onClose}
-            maxWidth="sm"
-            fullWidth
-            disablePortal={false}
-            disableScrollLock={true}
-            disableEnforceFocus={true} 
-            style={{ zIndex: 1300 }}
-        >
-            <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <LinkIcon color="primary" />
-                Import Schema from URL
-            </DialogTitle>
-            <DialogContent>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
-                    <Typography variant="body2" color="textSecondary">
-                        Enter the direct link to the metadata schema (JSON).
-                        <br />
-                        We will automatically check your configured providers for the necessary API keys.
-                    </Typography>
-
-                    {error && <Alert severity="error">{error}</Alert>}
-
-                    <TextField
-                        inputRef={inputRef}
-                        label="Schema URL"
-                        placeholder="https://repo.schema.researchdata.hu/templates/..."
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                        fullWidth
-                        autoFocus
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleImport();
-                            }
-                        }}
-                    />
+        this.reactRoot.render(
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ 
+                    color: 'var(--theia-foreground)',
+                    lineHeight: '1.5',
+                    fontSize: 'var(--theia-ui-font-size1)'
+                }}>
+                    Enter the direct link to the metadata schema (JSON).
                 </div>
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose}>Cancel</Button>
-                <Button onClick={handleImport} variant="contained" color="primary">
-                    Import
-                </Button>
-            </DialogActions>
-        </Dialog>
-    );
-};
+                
+                <div style={{ 
+                    color: 'var(--theia-descriptionForeground)',
+                    fontSize: 'var(--theia-ui-font-size0)',
+                    marginBottom: '5px'
+                }}>
+                    We will automatically check your configured providers for the necessary API keys.
+                </div>
+                
+                <input
+                    id={this.inputId}
+                    type="text"
+                    className="theia-input" 
+                    style={{ 
+                        width: '100%', 
+                        boxSizing: 'border-box',
+                        padding: '6px'
+                    }}
+                    placeholder="https://repo.schema.researchdata.hu/templates/..."
+                    defaultValue={this.inputValue}
+                    onChange={(e) => this.inputValue = e.target.value}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            e.stopPropagation(); 
+                            this.accept();
+                        }
+                    }}
+                    autoComplete="off"
+                    spellCheck={false}
+                />
+            </div>
+        );
+    }
+
+    protected onAfterAttach(msg: Message): void {
+        super.onAfterAttach(msg);
+        this.render();
+        
+        // Defer focus to ensure DOM is ready
+        requestAnimationFrame(() => {
+            const input = document.getElementById(this.inputId);
+            if (input) input.focus();
+        });
+    }
+
+    protected onBeforeDetach(msg: Message): void {
+        if (this.reactRoot) {
+            this.reactRoot.unmount();
+            this.reactRoot = undefined;
+        }
+        super.onBeforeDetach(msg);
+    }
+}

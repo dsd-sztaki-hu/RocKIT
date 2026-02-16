@@ -4,7 +4,7 @@ import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { URI } from '@theia/core/lib/common/uri';
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog';
-import { Button, Input, Modal } from 'antd';
+import { Modal } from 'antd';
 import type { Key } from 'antd/es/table/interface';
 import { inject, injectable } from 'inversify';
 import * as React from 'react';
@@ -40,11 +40,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected isLoading = true;
     protected selectedSchemaKeys: Key[] = [];
     
-    // --- State for Dialogs ---
+    // Dialog state
     protected isProviderListOpen = false;
     protected isProviderConfigOpen = false;
     protected isProviderSelectorOpen = false;
-    protected isImportUrlOpen = false; 
 
     protected selectedProviderToEdit: RemoteSchemaProviderConfig | undefined = undefined;
     protected providersLastUpdated = 0; 
@@ -158,9 +157,13 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         });
     }
 
-    protected openImportUrlDialog(): void {
-        this.isImportUrlOpen = true;
-        this.update();
+    protected async openImportUrlDialog(): Promise<void> {
+        const dialog = new MetadataSchemaImportFromUrlDialog();
+        const url = await dialog.open();
+        
+        if (url) {
+            this.handleImportUrl(url);
+        }
     }
 
     protected async handleImportUrl(url: string): Promise<void> {
@@ -186,7 +189,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     }
 
     protected async importSchemaFromUrl(): Promise<void> {
-        this.openImportUrlDialog();
+        await this.openImportUrlDialog();
     }
 
     protected browseRemoteSchemas(): void {
@@ -203,8 +206,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected async refreshSchemas(): Promise<void> {
         await this.loadSchemas();
     }
-
-    // --- Provider Dialog Handlers ---
 
     protected openProviderList(): void {
         this.isProviderListOpen = true;
@@ -299,14 +300,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                         onDelete={(paths) => this.deleteSchemas(paths)}
                     />
                 </div>
-                
-                {this.isImportUrlOpen && (
-                    <MetadataSchemaImportFromUrlDialog 
-                        open={this.isImportUrlOpen}
-                        onClose={() => { this.isImportUrlOpen = false; this.update(); }}
-                        onImport={(url) => this.handleImportUrl(url)}
-                    />
-                )}
                 
                 {this.isProviderSelectorOpen && (
                     <RemoteSchemaProviderSelectorDialog
