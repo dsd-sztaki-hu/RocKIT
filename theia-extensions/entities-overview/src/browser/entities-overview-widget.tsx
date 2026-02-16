@@ -529,7 +529,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
     const selectedEntityIds = this.model.getSelectedEntityIds()
     const entityIds =
       selectedEntityIds.length > 0 ? selectedEntityIds : this.model.getVisibleEntityIds()
-    const dialog = new MultiEditDialog(entityIds)
+    const dialog = new MultiEditDialog(entityIds, this.appStateService)
     await dialog.open()
   }
 
