@@ -1,12 +1,11 @@
 import { injectable, inject } from 'inversify';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
-import { FrontendApplicationContribution } from '@theia/core/lib/browser';
-import { Modal, Button } from 'antd';
+import { FrontendApplicationContribution, AbstractDialog } from '@theia/core/lib/browser';
+import { Message } from '@lumino/messaging';
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
-import { CommandRegistry } from '@theia/core/lib/common/command';
 
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { SchemaManagerService } from '../services/metadata-schema-manager-service';
@@ -27,61 +26,152 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
     @inject(FileDialogService) protected readonly fileDialogService!: FileDialogService;
     @inject(MessageService) protected readonly messageService!: MessageService;
     @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
-    @inject(CommandRegistry) protected readonly commandRegistry!: CommandRegistry;
-
-    private container: HTMLDivElement | null = null;
-    private reactRoot: ReactDOM.Root | null = null;
 
     onStart(): void {
-        this.container = document.createElement('div');
-        this.container.id = 'metadata-schema-selector-container';
-        document.body.appendChild(this.container);
-        this.reactRoot = ReactDOM.createRoot(this.container);
+        this.appStateService.onDidChangeSelector(state => state.openSchemaSelectorWindow)(
+            (isOpen) => {
+                if (isOpen) {
+                    this.openDialog();
+                }
+            }
+        );
+    }
 
-        const update = () => this.render();
-        this.schemaManagerService.onDidChangeSchemas(update);
-        this.appStateService.onDidChangeSelector(state => state.openSchemaSelectorWindow)(update);
-        update();
+    protected async openDialog(): Promise<void> {
+        const dialog = new MetadataSchemaSelectorDialog(
+            this.schemaManagerService,
+            this.fileDialogService,
+            this.messageService
+        );
+
+        const selectedSchema = await dialog.open();
+
+        this.appStateService.updateState({ openSchemaSelectorWindow: false });
+
+        if (selectedSchema) {
+            await this.handleAssociate(selectedSchema);
+        }
+    }
+
+    protected async handleAssociate(schema: SchemaInfo): Promise<void> {
+        try {
+            const crate = this.appStateService.roCrate;
+            if (crate && Array.isArray(crate['@graph'])) {
+                const entityId = this.appStateService.selectedEntityId ?? './';
+                const w3id = schema.conformsTo || this.schemaManagerService.deriveConformsToFromId(schema.reference);
+                
+                if (w3id) {
+                    const updatedGraph = (crate['@graph'] as any[]).map(entry => {
+                        if (String(entry['@id']) !== entityId) return entry;
+                        
+                        const existing = entry.conformsTo;
+                        const base = existing ? (Array.isArray(existing) ? existing.slice() : [existing]) : [];
+                        const normalized = base
+                            .map((v: any) => (typeof v === 'string' ? { '@id': v } : v))
+                            .filter((v: any) => v && typeof v['@id'] === 'string');
+                        
+                        const already = normalized.some((v: any) => v['@id'] === w3id);
+                        const next = already ? normalized : [...normalized, { '@id': w3id }];
+                        
+                        return { ...entry, conformsTo: next };
+                    });
+                    
+                    this.appStateService.roCrate = { ...crate, '@graph': updatedGraph } as any;
+                }
+            }
+
+            const newProfileContent = await this.schemaManagerService.getConvertedProfileContent(schema.path);
+            const mergedProfile = await this.schemaManagerService.getMergedProfile(
+                this.appStateService.roCrate!, 
+                newProfileContent!, 
+                this.appStateService.profile!, 
+                schema.reference
+            );
+            
+            this.appStateService.updateState({ profile: mergedProfile });
+            this.messageService.info(`Associated schema: ${schema.name}`, { timeout: MSG_TIMEOUT });
+
+        } catch (e) {
+            console.error(e);
+            this.messageService.error('Failed to load or merge profile content.', { timeout: MSG_TIMEOUT });
+        }
+    }
+}
+
+export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | undefined> {
+
+    protected selectedSchema: SchemaInfo | undefined;
+    private reactRoot: ReactDOM.Root | undefined;
+
+    constructor(
+        protected readonly schemaManager: SchemaManagerService,
+        protected readonly fileDialog: FileDialogService,
+        protected readonly msgService: MessageService
+    ) {
+        super({
+            title: 'Select Metadata Schema'
+        });
+        
+        // Dimensions
+        this.contentNode.style.width = '1000px';
+        this.contentNode.style.height = '600px'; 
+        this.contentNode.style.maxWidth = '95vw';
+        this.contentNode.style.maxHeight = '85vh';
+        
+        // Ensure flex layout for the dialog content node itself
+        this.contentNode.style.display = 'flex';
+        this.contentNode.style.flexDirection = 'column';
+        this.contentNode.style.overflow = 'hidden'; // Prevent double scrollbars
+
+        this.appendCloseButton('Cancel');
+        this.appendAcceptButton('Associate');
+    }
+
+    get value(): SchemaInfo | undefined {
+        return this.selectedSchema;
     }
 
     protected render(): void {
-        if (!this.reactRoot) return;
-        const isOpen = this.appStateService.getState().openSchemaSelectorWindow || false;
-        
+        if (!this.reactRoot) {
+            this.reactRoot = ReactDOM.createRoot(this.contentNode);
+        }
+
         this.reactRoot.render(
-            <SchemaSelector 
-                isOpen={isOpen}
-                appState={this.appStateService}
-                service={this.schemaManagerService}
-                utils={{
-                    fileDialog: this.fileDialogService,
-                    msg: this.messageService,
-                    env: this.envVariablesServer,
-                    cmd: this.commandRegistry
-                }}
+            <SelectorContent 
+                service={this.schemaManager}
+                fileDialog={this.fileDialog}
+                msg={this.msgService}
+                onSelectionChange={(s) => this.selectedSchema = s}
             />
         );
     }
-}
 
-interface SelectorProps {
-    isOpen: boolean;
-    appState: AppStateService;
-    service: SchemaManagerService;
-    utils: {
-        fileDialog: FileDialogService;
-        msg: MessageService;
-        env: EnvVariablesServer;
-        cmd: CommandRegistry;
+    protected onAfterAttach(msg: Message): void {
+        super.onAfterAttach(msg);
+        this.render();
+    }
+
+    protected onBeforeDetach(msg: Message): void {
+        if (this.reactRoot) {
+            this.reactRoot.unmount();
+            this.reactRoot = undefined;
+        }
+        super.onBeforeDetach(msg);
     }
 }
 
-const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, utils }) => {
+interface ContentProps {
+    service: SchemaManagerService;
+    fileDialog: FileDialogService;
+    msg: MessageService;
+    onSelectionChange: (schema: SchemaInfo | undefined) => void;
+}
+
+const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onSelectionChange }) => {
     const [schemas, setSchemas] = React.useState<SchemaInfo[]>([]);
     const [isLoading, setIsLoading] = React.useState(false);
-    const [selectedSchema, setSelectedSchema] = React.useState<SchemaInfo | null>(null);
-
-    // Provider Configuration State
+    
+    // Sub-dialog states
     const [isProviderListOpen, setIsProviderListOpen] = React.useState(false);
     const [isProviderConfigOpen, setIsProviderConfigOpen] = React.useState(false);
     const [isProviderSelectorOpen, setIsProviderSelectorOpen] = React.useState(false); 
@@ -99,20 +189,59 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
     }, [service]);
 
     React.useEffect(() => {
-        if (isOpen) {
-            setSelectedSchema(null);
-            loadData();
-        }
-    }, [isOpen, loadData]);
+        loadData();
+    }, [loadData]);
 
     React.useEffect(() => {
-        const listener = service.onDidChangeSchemas(() => {
-            if (isOpen) loadData();
-        });
+        const listener = service.onDidChangeSchemas(() => loadData());
         return () => listener.dispose();
-    }, [service, loadData, isOpen]);
+    }, [service, loadData]);
 
-    // Provider Handlers
+    const handleSelectionChange = (keys: React.Key[]) => {
+        const found = schemas.find(s => s.path === keys[0]);
+        onSelectionChange(found);
+    };
+
+    const handleImportFile = async () => {
+        const uris = await fileDialog.showOpenDialog({ 
+            title: 'Import', filters: { 'JSON': ['json'] }, canSelectFiles: true, canSelectMany: true 
+        });
+        if (!uris) return;
+        const fileUris = Array.isArray(uris) ? uris : [uris];
+
+        msg.showProgress({ text: 'Importing...' }).then(async p => {
+            try {
+                const res = await service.importFiles(fileUris, p);
+                if (res.success > 0) msg.info(`Successfully imported ${res.success} schema(s).`, { timeout: MSG_TIMEOUT });
+                if (res.fail > 0) msg.warn(`Failed to import ${res.fail} schema(s).`, { timeout: MSG_TIMEOUT });
+            } catch (e) {
+                msg.error('Unexpected error during import.', { timeout: MSG_TIMEOUT });
+            } finally { p.cancel(); }
+        });
+    };
+
+    const handleImportUrl = async (url: string) => {
+        msg.showProgress({ text: 'Downloading...' }).then(async p => {
+            try {
+                const name = await service.importFromUrl(url, p);
+                msg.info(`Successfully imported: ${name}`, { timeout: MSG_TIMEOUT });
+            } catch (e) {
+                msg.error(`Error: ${e instanceof Error ? e.message : e}`, { timeout: MSG_TIMEOUT });
+            } finally { p.cancel(); }
+        });
+    };
+
+    const handleOpenImportUrl = async () => {
+        const dialog = new MetadataSchemaImportFromUrlDialog();
+        const url = await dialog.open();
+        if (url) {
+            handleImportUrl(url);
+        }
+    };
+
+    const handleBrowseRemote = () => {
+        setIsProviderSelectorOpen(true);
+    };
 
     const handleOpenProviderList = () => {
         setIsProviderListOpen(true);
@@ -152,101 +281,23 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         setProvidersLastUpdated(Date.now());
     };
 
-    const handleBrowseRemote = () => {
-        setIsProviderSelectorOpen(true);
-    };
-
     const handleProviderSelected = (provider: RemoteSchemaProviderConfig) => {
         setIsProviderSelectorOpen(false);
         service.browseRemoteSchemas(provider);
     };
 
-    // Import Handlers
-
-    const handleImportFile = async () => {
-        const uris = await utils.fileDialog.showOpenDialog({ 
-            title: 'Import', filters: { 'JSON': ['json'] }, canSelectFiles: true, canSelectMany: true 
-        });
-        if (!uris) return;
-        const fileUris = Array.isArray(uris) ? uris : [uris];
-
-        utils.msg.showProgress({ text: 'Importing...' }).then(async p => {
-            try {
-                const res = await service.importFiles(fileUris, p);
-                if (res.success > 0) utils.msg.info(`Successfully imported ${res.success} schema(s).`, { timeout: MSG_TIMEOUT });
-                if (res.fail > 0) utils.msg.warn(`Failed to import ${res.fail} schema(s).`, { timeout: MSG_TIMEOUT });
-            } catch (e) {
-                utils.msg.error('Unexpected error during import.', { timeout: MSG_TIMEOUT });
-            } finally { p.cancel(); }
-        });
-    };
-
-    const handleImportUrl = async (url: string) => {
-        utils.msg.showProgress({ text: 'Downloading...' }).then(async p => {
-            try {
-                const name = await service.importFromUrl(url, p);
-                utils.msg.info(`Successfully imported: ${name}`, { timeout: MSG_TIMEOUT });
-            } catch (e) {
-                utils.msg.error(`Error: ${e instanceof Error ? e.message : e}`, { timeout: MSG_TIMEOUT });
-            } finally { p.cancel(); }
-        });
-    };
-
-    const handleOpenImportUrl = async () => {
-        const dialog = new MetadataSchemaImportFromUrlDialog();
-        const url = await dialog.open();
-        
-        if (url) {
-            handleImportUrl(url);
-        }
-    };
-
-    const handleAssociate = async () => {
-        if (!selectedSchema) return;
-        try {
-            setIsLoading(true);
-            const crate = appState.roCrate;
-            if (crate && Array.isArray(crate['@graph'])) {
-                const entityId = appState.selectedEntityId ?? './';
-                const w3id = selectedSchema.conformsTo || service.deriveConformsToFromId(selectedSchema.reference);
-                
-                if (w3id) {
-                    const updatedGraph = (crate['@graph'] as any[]).map(entry => {
-                        if (String(entry['@id']) !== entityId) return entry;
-                        const existing = entry.conformsTo;
-                        const base = existing ? (Array.isArray(existing) ? existing.slice() : [existing]) : [];
-                        const normalized = base.map(v => (typeof v === 'string' ? { '@id': v } : v)).filter(v => v && typeof v['@id'] === 'string');
-                        const already = normalized.some(v => v['@id'] === w3id);
-                        const next = already ? normalized : [...normalized, { '@id': w3id }];
-                        return { ...entry, conformsTo: next };
-                    });
-                    appState.roCrate = { ...crate, '@graph': updatedGraph } as any;
-                }
-            }
-            const newProfileContent = await service.getConvertedProfileContent(selectedSchema.path);
-            const mergedProfile = await service.getMergedProfile(appState.roCrate!, newProfileContent!, appState.profile!, selectedSchema.reference);
-            appState.updateState({ profile: mergedProfile, openSchemaSelectorWindow: false });
-        } catch (e) {
-            utils.msg.error('Failed to load profile content.', { timeout: MSG_TIMEOUT });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     return (
-        <Modal
-            title="Select Metadata Schema"
-            open={isOpen}
-            onCancel={() => appState.updateState({ openSchemaSelectorWindow: false })}
-            width={1000}
-            centered
-            footer={[
-                <Button key="cancel" onClick={() => appState.updateState({ openSchemaSelectorWindow: false })}>Cancel</Button>
-                ,
-                <Button key="ok" type="primary" onClick={handleAssociate} disabled={!selectedSchema || isLoading}>Associate</Button>
-            ]}
-        >
-            <div style={{ display: 'flex', flexDirection: 'column', height: '600px', position: 'relative' }}>
+        // Main container fills the available height provided by the Dialog
+        <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            height: '100%', 
+            width: '100%',
+            overflow: 'hidden' // Prevent container scroll
+        }}>
+            
+            {/* Toolbar area */}
+            <div style={{ paddingBottom: '10px' }}>
                 <MetadataSchemaToolbar 
                     onImportFile={handleImportFile} 
                     onImportUrl={handleOpenImportUrl} 
@@ -254,50 +305,59 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
                     onRefresh={loadData}
                     onConfigureProviders={handleOpenProviderList}
                 />
-                <div style={{ flexGrow: 1, overflow: 'auto' }}>
+            </div>
+            
+            {/* Table container takes all remaining space */}
+            <div style={{ 
+                flex: 1, 
+                overflow: 'hidden', 
+                display: 'flex', 
+                flexDirection: 'column',
+                border: '1px solid var(--theia-panel-border)', // Matches IDE borders
+                borderRadius: '2px' // Subtle rounding
+            }}>
+                <div style={{ flex: 1, overflow: 'auto' }}>
                     <MetadataSchemaTable
                         schemas={schemas}
                         isLoading={isLoading}
                         selectionType="radio"
-                        onSelectionChange={keys => {
-                            const found = schemas.find(s => s.path === keys[0]);
-                            setSelectedSchema(found || null);
-                        }}
+                        onSelectionChange={handleSelectionChange}
                     />
                 </div>
-
-                {isProviderSelectorOpen && (
-                    <RemoteSchemaProviderSelectorDialog
-                        open={isProviderSelectorOpen}
-                        onClose={() => setIsProviderSelectorOpen(false)}
-                        onSelect={handleProviderSelected}
-                        onConfigure={handleOpenProviderList}
-                        providerStore={service.providerStoreService}
-                    />
-                )}
-
-                {isProviderListOpen && (
-                    <RemoteSchemaProviderListDialog 
-                        open={isProviderListOpen}
-                        onClose={handleCloseProviderList}
-                        onAddProvider={() => handleOpenProviderConfig(undefined)}
-                        onEditProvider={(p) => handleOpenProviderConfig(p)}
-                        providerStore={service.providerStoreService}
-                        lastUpdated={providersLastUpdated}
-                    />
-                )}
-
-                {isProviderConfigOpen && (
-                    <RemoteSchemaProviderConfigDialog 
-                        key={configDialogKey}
-                        open={isProviderConfigOpen}
-                        providerToEdit={selectedProviderToEdit}
-                        onClose={handleCloseProviderConfig}
-                        onSave={handleProviderSave}
-                        providerStore={service.providerStoreService}
-                    />
-                )}
             </div>
-        </Modal>
+
+            {/* Provider Management Sub-Dialogs */}
+            {isProviderSelectorOpen && (
+                <RemoteSchemaProviderSelectorDialog
+                    open={isProviderSelectorOpen}
+                    onClose={() => setIsProviderSelectorOpen(false)}
+                    onSelect={handleProviderSelected}
+                    onConfigure={handleOpenProviderList}
+                    providerStore={service.providerStoreService}
+                />
+            )}
+
+            {isProviderListOpen && (
+                <RemoteSchemaProviderListDialog 
+                    open={isProviderListOpen}
+                    onClose={handleCloseProviderList}
+                    onAddProvider={() => handleOpenProviderConfig(undefined)}
+                    onEditProvider={(p) => handleOpenProviderConfig(p)}
+                    providerStore={service.providerStoreService}
+                    lastUpdated={providersLastUpdated}
+                />
+            )}
+
+            {isProviderConfigOpen && (
+                <RemoteSchemaProviderConfigDialog 
+                    key={configDialogKey}
+                    open={isProviderConfigOpen}
+                    providerToEdit={selectedProviderToEdit}
+                    onClose={handleCloseProviderConfig}
+                    onSave={handleProviderSave}
+                    providerStore={service.providerStoreService}
+                />
+            )}
+        </div>
     );
 };
