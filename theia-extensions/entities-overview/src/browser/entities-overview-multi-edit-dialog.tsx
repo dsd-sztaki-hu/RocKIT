@@ -393,12 +393,9 @@ export class MultiEditDialog extends ReactDialog<void> {
   }
 
   protected getVisibleFields(): FieldDefinition[] {
-    return Array.from(this.fieldsByKey.values()).filter((field) => {
-      if (field.schemaId === '__about__') {
-        return true
-      }
-      return this.selectedSchemaIds.has(field.schemaId)
-    })
+    return Array.from(this.fieldsByKey.values()).filter((field) =>
+      this.selectedSchemaIds.has(field.schemaId),
+    )
   }
 
   protected getAllowedOperators(field?: FieldDefinition): BulkOperator[] {
@@ -894,7 +891,7 @@ export class MultiEditDialog extends ReactDialog<void> {
                 optionFilterProp="label"
                 options={visibleFields.map((item) => ({
                   value: item.key,
-                  label: `[${item.classLabel}] ${item.label} - ${item.schemaLabel}`,
+                  label: `${item.label} - ${item.schemaLabel}`,
                   title: item.help ?? item.label,
                 }))}
               />
