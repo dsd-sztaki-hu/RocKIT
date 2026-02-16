@@ -61,7 +61,7 @@ const OPERATOR_LABELS: Record<BulkOperator, string> = {
   unset: 'Unset',
 }
 
-export class MultiEditDialog extends ReactDialog<void> {
+export class MultiEditDialog extends ReactDialog<string> {
   protected readonly fieldsByKey = new Map<string, FieldDefinition>()
   protected readonly operations: OperationRow[] = []
 
@@ -102,7 +102,8 @@ export class MultiEditDialog extends ReactDialog<void> {
 
     const entityTypes = this.collectEntityTypes(crate)
     if (entityTypes.length === 0) {
-      this.configurationError = 'No editable entities were found in the current selection.'
+      this.configurationError =
+        'No editable entities were found in the current selection.'
       return
     }
 
@@ -131,11 +132,14 @@ export class MultiEditDialog extends ReactDialog<void> {
     crate: Record<string, any>,
     profile: Record<string, any>,
   ): EntitySummary[] {
-    const graph = Array.isArray(crate['@graph']) ? (crate['@graph'] as Record<string, any>[]) : []
+    const graph = Array.isArray(crate['@graph'])
+      ? (crate['@graph'] as Record<string, any>[])
+      : []
     const result: EntitySummary[] = []
     for (const entityId of this.entityIds) {
       const entity = graph.find(
-        (entry) => entry && typeof entry === 'object' && String(entry['@id']) === entityId,
+        (entry) =>
+          entry && typeof entry === 'object' && String(entry['@id']) === entityId,
       )
       if (!entity) {
         result.push({ id: entityId, name: entityId, typeLabel: 'Unknown' })
@@ -155,7 +159,9 @@ export class MultiEditDialog extends ReactDialog<void> {
   }
 
   protected collectEntityTypes(crate: Record<string, any>): string[] {
-    const graph = Array.isArray(crate['@graph']) ? (crate['@graph'] as Record<string, any>[]) : []
+    const graph = Array.isArray(crate['@graph'])
+      ? (crate['@graph'] as Record<string, any>[])
+      : []
     const selected = new Set(this.entityIds)
     const types = new Set<string>()
 
@@ -178,10 +184,13 @@ export class MultiEditDialog extends ReactDialog<void> {
     entityTypes: string[],
   ): { fields: FieldDefinition[]; schemas: SchemaOption[] } {
     const classes = profile.classes as Record<string, any>
-    const layouts = Array.isArray(profile.layouts) ? (profile.layouts as Record<string, any>[]) : []
+    const layouts = Array.isArray(profile.layouts)
+      ? (profile.layouts as Record<string, any>[])
+      : []
     const localisation = (profile.localisation ?? {}) as Record<string, string>
 
     const fields: FieldDefinition[] = []
+    const fieldKeys = new Set<string>()
     const schemasById = new Map<string, SchemaOption>()
 
     for (const className of entityTypes) {
@@ -190,7 +199,9 @@ export class MultiEditDialog extends ReactDialog<void> {
         continue
       }
       const classLabel = String(localisation[className] ?? classDef.label ?? className)
-      const inputs = Array.isArray(classDef.inputs) ? (classDef.inputs as Record<string, any>[]) : []
+      const inputs = Array.isArray(classDef.inputs)
+        ? (classDef.inputs as Record<string, any>[])
+        : []
       const layout = this.findLayoutForClass(layouts, className)
 
       for (const input of inputs) {
@@ -227,20 +238,20 @@ export class MultiEditDialog extends ReactDialog<void> {
             : [],
         }
 
-        fields.push(field)
+        const dedupeKey = `${schemaMeta.id}::${propertyName}::${field.label}`
+        if (!fieldKeys.has(dedupeKey)) {
+          fieldKeys.add(dedupeKey)
+          fields.push(field)
+        }
       }
     }
 
     fields.sort((a, b) => {
-      const classCompare = a.classLabel.localeCompare(b.classLabel)
-      if (classCompare !== 0) {
-        return classCompare
+      const labelCompare = a.label.localeCompare(b.label)
+      if (labelCompare !== 0) {
+        return labelCompare
       }
-      const schemaCompare = a.schemaLabel.localeCompare(b.schemaLabel)
-      if (schemaCompare !== 0) {
-        return schemaCompare
-      }
-      return a.label.localeCompare(b.label)
+      return a.schemaLabel.localeCompare(b.schemaLabel)
     })
 
     const schemas = Array.from(schemasById.values()).sort((a, b) =>
@@ -541,13 +552,21 @@ export class MultiEditDialog extends ReactDialog<void> {
     return rawValue
   }
 
-  protected entitySupportsField(entity: Record<string, any>, field: FieldDefinition): boolean {
+  protected entitySupportsField(
+    entity: Record<string, any>,
+    field: FieldDefinition,
+  ): boolean {
     const rawType = entity?.['@type']
     const typeList = Array.isArray(rawType) ? rawType : rawType ? [rawType] : []
-    return typeList.some((typeValue) => this.toTypeTail(String(typeValue)) === field.className)
+    return typeList.some(
+      (typeValue) => this.toTypeTail(String(typeValue)) === field.className,
+    )
   }
 
-  protected ensureSchemaAssociation(entity: Record<string, any>, schemaUrl?: string): boolean {
+  protected ensureSchemaAssociation(
+    entity: Record<string, any>,
+    schemaUrl?: string,
+  ): boolean {
     if (!schemaUrl || schemaUrl.trim().length === 0) {
       return false
     }
@@ -570,7 +589,8 @@ export class MultiEditDialog extends ReactDialog<void> {
         continue
       }
       if (item && typeof item === 'object') {
-        const idValue = (item as Record<string, unknown>)['@id'] ?? (item as Record<string, unknown>).id
+        const idValue =
+          (item as Record<string, unknown>)['@id'] ?? (item as Record<string, unknown>).id
         if (typeof idValue === 'string' && idValue.trim().length > 0) {
           normalizedItems.push({ '@id': idValue.trim() })
         }
@@ -596,7 +616,7 @@ export class MultiEditDialog extends ReactDialog<void> {
     const propertyName = field.propertyName
 
     if (operator === 'unset') {
-      if (!Object.prototype.hasOwnProperty.call(entity, propertyName)) {
+      if (!Object.hasOwn(entity, propertyName)) {
         return false
       }
       delete entity[propertyName]
@@ -628,7 +648,9 @@ export class MultiEditDialog extends ReactDialog<void> {
     }
 
     if (operator === 'remove') {
-      const filtered = existingValues.filter((value) => !this.areValuesEqual(value, parsedValue))
+      const filtered = existingValues.filter(
+        (value) => !this.areValuesEqual(value, parsedValue),
+      )
       if (filtered.length === existingValues.length) {
         return false
       }
@@ -721,7 +743,10 @@ export class MultiEditDialog extends ReactDialog<void> {
     this.executionSummary = undefined
     this.update()
 
-    const graph = JSON.parse(JSON.stringify(currentCrate['@graph'])) as Record<string, any>[]
+    const graph = JSON.parse(JSON.stringify(currentCrate['@graph'])) as Record<
+      string,
+      any
+    >[]
     const selectedEntitySet = new Set(this.entityIds)
 
     let processedEntities = 0
@@ -818,7 +843,10 @@ export class MultiEditDialog extends ReactDialog<void> {
     this.update()
   }
 
-  protected renderValueEditor(row: OperationRow, field: FieldDefinition | undefined): React.ReactNode {
+  protected renderValueEditor(
+    row: OperationRow,
+    field: FieldDefinition | undefined,
+  ): React.ReactNode {
     if (row.operator === 'unset') {
       return <span className="entities-overview-edit-modal-no-value">No value</span>
     }
@@ -865,7 +893,13 @@ export class MultiEditDialog extends ReactDialog<void> {
           this.setOperationValue(row.id, event.target.value)
         }
         placeholder="Enter value"
-        type={field.valueKind === 'number' ? 'number' : field.valueKind === 'date' ? 'date' : 'text'}
+        type={
+          field.valueKind === 'number'
+            ? 'number'
+            : field.valueKind === 'date'
+              ? 'date'
+              : 'text'
+        }
       />
     )
   }
@@ -887,8 +921,7 @@ export class MultiEditDialog extends ReactDialog<void> {
                 placeholder="Select property"
                 getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
                 style={{ width: '48%' }}
-                showSearch
-                optionFilterProp="label"
+                showSearch={{ optionFilterProp: 'label' }}
                 options={visibleFields.map((item) => ({
                   value: item.key,
                   label: `${item.label} - ${item.schemaLabel}`,
@@ -948,16 +981,19 @@ export class MultiEditDialog extends ReactDialog<void> {
           description={
             <div>
               <div>
-                Processed entities: <strong>{this.executionSummary.processedEntities}</strong>
+                Processed entities:{' '}
+                <strong>{this.executionSummary.processedEntities}</strong>
               </div>
               <div>
                 Updated entities: <strong>{this.executionSummary.updatedEntities}</strong>
               </div>
               <div>
-                Applied operations: <strong>{this.executionSummary.appliedOperations}</strong>
+                Applied operations:{' '}
+                <strong>{this.executionSummary.appliedOperations}</strong>
               </div>
               <div>
-                Skipped operations: <strong>{this.executionSummary.skippedOperations}</strong>
+                Skipped operations:{' '}
+                <strong>{this.executionSummary.skippedOperations}</strong>
               </div>
             </div>
           }
@@ -1005,7 +1041,9 @@ export class MultiEditDialog extends ReactDialog<void> {
           <ul className="entities-overview-edit-modal-list">
             {this.entitySummaries.map((entity) => (
               <li key={entity.id}>
-                <span className="entities-overview-edit-modal-entity-name">{entity.name}</span>{' '}
+                <span className="entities-overview-edit-modal-entity-name">
+                  {entity.name}
+                </span>{' '}
                 <Tag>{entity.typeLabel}</Tag>
                 <code>{entity.id}</code>
               </li>
@@ -1033,7 +1071,11 @@ export class MultiEditDialog extends ReactDialog<void> {
         <div className="entities-overview-edit-modal-section">
           <div className="entities-overview-edit-modal-row-header">
             <span className="entities-overview-edit-modal-label">Edit operations</span>
-            <Button onClick={this.addOperation} type="dashed" disabled={visibleFields.length === 0}>
+            <Button
+              onClick={this.addOperation}
+              type="dashed"
+              disabled={visibleFields.length === 0}
+            >
               Add rule
             </Button>
           </div>
@@ -1064,7 +1106,11 @@ export class MultiEditDialog extends ReactDialog<void> {
         )}
 
         <div className="entities-overview-edit-modal-actions">
-          <Button type="primary" onClick={() => void this.runOperations()} disabled={!canExecute}>
+          <Button
+            type="primary"
+            onClick={() => void this.runOperations()}
+            disabled={!canExecute}
+          >
             {this.isExecuting ? 'Running...' : 'Start multi-edit'}
           </Button>
         </div>
@@ -1074,7 +1120,7 @@ export class MultiEditDialog extends ReactDialog<void> {
     )
   }
 
-  get value(): void {
-    return undefined
+  get value(): string {
+    return ''
   }
 }
