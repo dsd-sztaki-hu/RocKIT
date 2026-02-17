@@ -14,9 +14,10 @@ import { SchemaManagerService } from './services/metadata-schema-manager-service
 import { MetadataSchemaTable } from './components/metadata-schema-table';
 import { MetadataSchemaToolbar } from './components/metadata-schema-toolbar';
 import { RemoteSchemaProviderListDialog } from './components/remote-schema-provider-list-dialog';
+// Import the Class
 import { RemoteSchemaProviderSelectorDialog } from './components/remote-schema-provider-selector-dialog';
 import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-import-from-url-dialog';
-import type { SchemaInfo, RemoteSchemaProviderConfig } from './types';
+import type { SchemaInfo } from './types';
 
 import './style/index.css';
 
@@ -39,8 +40,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected isLoading = true;
     protected selectedSchemaKeys: Key[] = [];
     
-    // "Browse" dialog state (keeping this declarative for now)
-    protected isProviderSelectorOpen = false;
+    // REMOVED: isProviderSelectorOpen state
     
     private reactRoot: Root | undefined;
 
@@ -181,25 +181,19 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         });
     }
 
-    // --- Provider Management (Refactored to Imperative) ---
-
     protected async openProviderList(): Promise<void> {
         const dialog = new RemoteSchemaProviderListDialog(this.schemaManagerService.providerStoreService);
         await dialog.open(); 
-        // No need to handle return value; the dialog manages data internally.
     }
 
-    // --- Browse Remote Schemas ---
-
-    protected browseRemoteSchemas(): void {
-        this.isProviderSelectorOpen = true;
-        this.update();
-    }
-    
-    protected handleProviderSelected(provider: RemoteSchemaProviderConfig): void {
-        this.isProviderSelectorOpen = false;
-        this.update();
-        this.schemaManagerService.browseRemoteSchemas(provider);
+    // FIX: Use imperative dialog opening
+    protected async browseRemoteSchemas(): Promise<void> {
+        const dialog = new RemoteSchemaProviderSelectorDialog(this.schemaManagerService.providerStoreService);
+        const provider = await dialog.open();
+        
+        if (provider) {
+            this.schemaManagerService.browseRemoteSchemas(provider);
+        }
     }
 
     protected async refreshSchemas(): Promise<void> {
@@ -254,18 +248,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     />
                 </div>
                 
-                {/* Only the Browse Selector remains here. 
-                   The Config/List dialogs are now native Theia dialogs called imperatively.
-                */}
-                {this.isProviderSelectorOpen && (
-                    <RemoteSchemaProviderSelectorDialog
-                        open={this.isProviderSelectorOpen}
-                        onClose={() => { this.isProviderSelectorOpen = false; this.update(); }}
-                        onSelect={(p) => this.handleProviderSelected(p)}
-                        onConfigure={() => this.openProviderList()}
-                        providerStore={this.schemaManagerService.providerStoreService}
-                    />
-                )}
+                {/* FIX: Removed JSX <RemoteSchemaProviderSelectorDialog /> */}
             </div>
         );
     }

@@ -12,6 +12,7 @@ import { SchemaManagerService } from '../services/metadata-schema-manager-servic
 import { MetadataSchemaTable } from './metadata-schema-table';
 import { MetadataSchemaToolbar } from './metadata-schema-toolbar';
 import { RemoteSchemaProviderListDialog } from './remote-schema-provider-list-dialog';
+// Import the class, not a component
 import { RemoteSchemaProviderSelectorDialog } from './remote-schema-provider-selector-dialog';
 import { MetadataSchemaImportFromUrlDialog } from './metadata-schema-import-from-url-dialog';
 import type { SchemaInfo, RemoteSchemaProviderConfig } from '../types';
@@ -169,8 +170,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onS
     const [schemas, setSchemas] = React.useState<SchemaInfo[]>([]);
     const [isLoading, setIsLoading] = React.useState(false);
     
-    // Only keeping state for the "Browse" selector which hasn't been refactored yet
-    const [isProviderSelectorOpen, setIsProviderSelectorOpen] = React.useState(false); 
+    // REMOVED: isProviderSelectorOpen state
 
     const loadData = React.useCallback(() => {
         setIsLoading(true);
@@ -231,22 +231,19 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onS
         }
     };
 
-    // --- Provider Config Handlers (Refactored to Imperative) ---
-
     const handleOpenProviderList = async () => {
         const dialog = new RemoteSchemaProviderListDialog(service.providerStoreService);
         await dialog.open();
     };
 
-    // --- Provider Browse Handlers ---
-
-    const handleBrowseRemote = () => {
-        setIsProviderSelectorOpen(true);
-    };
-
-    const handleProviderSelected = (provider: RemoteSchemaProviderConfig) => {
-        setIsProviderSelectorOpen(false);
-        service.browseRemoteSchemas(provider);
+    // FIX: Use imperative dialog opening
+    const handleBrowseRemote = async () => {
+        const dialog = new RemoteSchemaProviderSelectorDialog(service.providerStoreService);
+        const provider = await dialog.open();
+        
+        if (provider) {
+            service.browseRemoteSchemas(provider);
+        }
     };
 
     return (
@@ -281,17 +278,8 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onS
                     onSelectionChange={handleSelectionChange}
                 />
             </div>
-
-            {/* Only the Browse Selector remains in JSX */}
-            {isProviderSelectorOpen && (
-                <RemoteSchemaProviderSelectorDialog
-                    open={isProviderSelectorOpen}
-                    onClose={() => setIsProviderSelectorOpen(false)}
-                    onSelect={handleProviderSelected}
-                    onConfigure={handleOpenProviderList}
-                    providerStore={service.providerStoreService}
-                />
-            )}
+            
+            {/* FIX: Removed the JSX Dialog Component from here */}
         </div>
     );
 };
