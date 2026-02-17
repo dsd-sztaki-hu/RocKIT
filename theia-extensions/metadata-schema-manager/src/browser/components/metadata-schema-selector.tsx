@@ -12,7 +12,6 @@ import { SchemaManagerService } from '../services/metadata-schema-manager-servic
 import { MetadataSchemaTable } from './metadata-schema-table';
 import { MetadataSchemaToolbar } from './metadata-schema-toolbar';
 import { RemoteSchemaProviderListDialog } from './remote-schema-provider-list-dialog';
-import { RemoteSchemaProviderConfigDialog } from './remote-schema-provider-config-dialog';
 import { RemoteSchemaProviderSelectorDialog } from './remote-schema-provider-selector-dialog';
 import { MetadataSchemaImportFromUrlDialog } from './metadata-schema-import-from-url-dialog';
 import type { SchemaInfo, RemoteSchemaProviderConfig } from '../types';
@@ -112,16 +111,15 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | un
             title: 'Select Metadata Schema'
         });
         
-        // Dimensions
         this.contentNode.style.width = '1000px';
-        this.contentNode.style.height = '600px'; 
-        this.contentNode.style.maxWidth = '95vw';
-        this.contentNode.style.maxHeight = '85vh';
+        this.contentNode.style.height = '600px';
+        this.contentNode.style.maxHeight = '80vh';
+        this.contentNode.style.maxWidth = '90vw';
         
-        // Ensure flex layout for the dialog content node itself
         this.contentNode.style.display = 'flex';
         this.contentNode.style.flexDirection = 'column';
-        this.contentNode.style.overflow = 'hidden'; // Prevent double scrollbars
+        this.contentNode.style.overflow = 'hidden'; 
+        this.contentNode.style.backgroundColor = 'transparent';
 
         this.appendCloseButton('Cancel');
         this.appendAcceptButton('Associate');
@@ -171,14 +169,8 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onS
     const [schemas, setSchemas] = React.useState<SchemaInfo[]>([]);
     const [isLoading, setIsLoading] = React.useState(false);
     
-    // Sub-dialog states
-    const [isProviderListOpen, setIsProviderListOpen] = React.useState(false);
-    const [isProviderConfigOpen, setIsProviderConfigOpen] = React.useState(false);
+    // Only keeping state for the "Browse" selector which hasn't been refactored yet
     const [isProviderSelectorOpen, setIsProviderSelectorOpen] = React.useState(false); 
-    
-    const [selectedProviderToEdit, setSelectedProviderToEdit] = React.useState<RemoteSchemaProviderConfig | undefined>(undefined);
-    const [providersLastUpdated, setProvidersLastUpdated] = React.useState(0);
-    const [configDialogKey, setConfigDialogKey] = React.useState(0);
 
     const loadData = React.useCallback(() => {
         setIsLoading(true);
@@ -239,46 +231,17 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onS
         }
     };
 
+    // --- Provider Config Handlers (Refactored to Imperative) ---
+
+    const handleOpenProviderList = async () => {
+        const dialog = new RemoteSchemaProviderListDialog(service.providerStoreService);
+        await dialog.open();
+    };
+
+    // --- Provider Browse Handlers ---
+
     const handleBrowseRemote = () => {
         setIsProviderSelectorOpen(true);
-    };
-
-    const handleOpenProviderList = () => {
-        setIsProviderListOpen(true);
-        setIsProviderConfigOpen(false);
-        setIsProviderSelectorOpen(false);
-    };
-
-    const handleCloseProviderList = () => {
-        setIsProviderListOpen(false);
-        setIsProviderConfigOpen(false);
-    };
-
-    const handleOpenProviderConfig = (provider?: RemoteSchemaProviderConfig) => {
-        setSelectedProviderToEdit(provider);
-        setIsProviderListOpen(false);
-        setIsProviderConfigOpen(true);
-        setConfigDialogKey(prev => prev + 1);
-    };
-
-    const handleCloseProviderConfig = () => {
-        setIsProviderConfigOpen(false);
-        setSelectedProviderToEdit(undefined);
-        setIsProviderListOpen(true);
-    };
-
-    const handleProviderSave = async (newConfig: RemoteSchemaProviderConfig) => {
-        const store = service.providerStoreService;
-        const currentProviders = await store.loadProviders();
-        let newList = [...currentProviders];
-        const existingIndex = newList.findIndex(p => p.id === newConfig.id);
-        if (existingIndex !== -1) {
-            newList[existingIndex] = newConfig;
-        } else {
-            newList.push(newConfig);
-        }
-        await store.saveProviders(newList);
-        setProvidersLastUpdated(Date.now());
     };
 
     const handleProviderSelected = (provider: RemoteSchemaProviderConfig) => {
@@ -287,74 +250,45 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onS
     };
 
     return (
-        // Main container fills the available height provided by the Dialog
         <div style={{ 
             display: 'flex', 
             flexDirection: 'column', 
             height: '100%', 
             width: '100%',
-            overflow: 'hidden' // Prevent container scroll
+            overflow: 'hidden',
+            backgroundColor: 'var(--theia-editor-background)'
         }}>
             
-            {/* Toolbar area */}
-            <div style={{ paddingBottom: '10px' }}>
-                <MetadataSchemaToolbar 
-                    onImportFile={handleImportFile} 
-                    onImportUrl={handleOpenImportUrl} 
-                    onBrowse={handleBrowseRemote}
-                    onRefresh={loadData}
-                    onConfigureProviders={handleOpenProviderList}
-                />
-            </div>
+            <MetadataSchemaToolbar 
+                onImportFile={handleImportFile} 
+                onImportUrl={handleOpenImportUrl} 
+                onBrowse={handleBrowseRemote}
+                onRefresh={loadData}
+                onConfigureProviders={handleOpenProviderList}
+            />
             
-            {/* Table container takes all remaining space */}
             <div style={{ 
                 flex: 1, 
-                overflow: 'hidden', 
                 display: 'flex', 
-                flexDirection: 'column',
-                border: '1px solid var(--theia-panel-border)', // Matches IDE borders
-                borderRadius: '2px' // Subtle rounding
+                flexDirection: 'column', 
+                minHeight: 0,
+                overflow: 'hidden'
             }}>
-                <div style={{ flex: 1, overflow: 'auto' }}>
-                    <MetadataSchemaTable
-                        schemas={schemas}
-                        isLoading={isLoading}
-                        selectionType="radio"
-                        onSelectionChange={handleSelectionChange}
-                    />
-                </div>
+                <MetadataSchemaTable
+                    schemas={schemas}
+                    isLoading={isLoading}
+                    selectionType="radio"
+                    onSelectionChange={handleSelectionChange}
+                />
             </div>
 
-            {/* Provider Management Sub-Dialogs */}
+            {/* Only the Browse Selector remains in JSX */}
             {isProviderSelectorOpen && (
                 <RemoteSchemaProviderSelectorDialog
                     open={isProviderSelectorOpen}
                     onClose={() => setIsProviderSelectorOpen(false)}
                     onSelect={handleProviderSelected}
                     onConfigure={handleOpenProviderList}
-                    providerStore={service.providerStoreService}
-                />
-            )}
-
-            {isProviderListOpen && (
-                <RemoteSchemaProviderListDialog 
-                    open={isProviderListOpen}
-                    onClose={handleCloseProviderList}
-                    onAddProvider={() => handleOpenProviderConfig(undefined)}
-                    onEditProvider={(p) => handleOpenProviderConfig(p)}
-                    providerStore={service.providerStoreService}
-                    lastUpdated={providersLastUpdated}
-                />
-            )}
-
-            {isProviderConfigOpen && (
-                <RemoteSchemaProviderConfigDialog 
-                    key={configDialogKey}
-                    open={isProviderConfigOpen}
-                    providerToEdit={selectedProviderToEdit}
-                    onClose={handleCloseProviderConfig}
-                    onSave={handleProviderSave}
                     providerStore={service.providerStoreService}
                 />
             )}

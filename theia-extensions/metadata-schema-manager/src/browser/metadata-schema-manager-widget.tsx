@@ -14,7 +14,6 @@ import { SchemaManagerService } from './services/metadata-schema-manager-service
 import { MetadataSchemaTable } from './components/metadata-schema-table';
 import { MetadataSchemaToolbar } from './components/metadata-schema-toolbar';
 import { RemoteSchemaProviderListDialog } from './components/remote-schema-provider-list-dialog';
-import { RemoteSchemaProviderConfigDialog } from './components/remote-schema-provider-config-dialog';
 import { RemoteSchemaProviderSelectorDialog } from './components/remote-schema-provider-selector-dialog';
 import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-import-from-url-dialog';
 import type { SchemaInfo, RemoteSchemaProviderConfig } from './types';
@@ -40,14 +39,8 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected isLoading = true;
     protected selectedSchemaKeys: Key[] = [];
     
-    // Dialog state
-    protected isProviderListOpen = false;
-    protected isProviderConfigOpen = false;
+    // "Browse" dialog state (keeping this declarative for now)
     protected isProviderSelectorOpen = false;
-
-    protected selectedProviderToEdit: RemoteSchemaProviderConfig | undefined = undefined;
-    protected providersLastUpdated = 0; 
-    protected configDialogKey = 0;
     
     private reactRoot: Root | undefined;
 
@@ -157,7 +150,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         });
     }
 
-    protected async openImportUrlDialog(): Promise<void> {
+    protected async importSchemaFromUrl(): Promise<void> {
         const dialog = new MetadataSchemaImportFromUrlDialog();
         const url = await dialog.open();
         
@@ -188,9 +181,15 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         });
     }
 
-    protected async importSchemaFromUrl(): Promise<void> {
-        await this.openImportUrlDialog();
+    // --- Provider Management (Refactored to Imperative) ---
+
+    protected async openProviderList(): Promise<void> {
+        const dialog = new RemoteSchemaProviderListDialog(this.schemaManagerService.providerStoreService);
+        await dialog.open(); 
+        // No need to handle return value; the dialog manages data internally.
     }
+
+    // --- Browse Remote Schemas ---
 
     protected browseRemoteSchemas(): void {
         this.isProviderSelectorOpen = true;
@@ -205,52 +204,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected async refreshSchemas(): Promise<void> {
         await this.loadSchemas();
-    }
-
-    protected openProviderList(): void {
-        this.isProviderListOpen = true;
-        this.isProviderConfigOpen = false; 
-        this.isProviderSelectorOpen = false; 
-        this.update();
-    }
-
-    protected closeProviderList(): void {
-        this.isProviderListOpen = false;
-        this.isProviderConfigOpen = false;
-        this.update();
-    }
-
-    protected openProviderConfig(providerToEdit?: RemoteSchemaProviderConfig): void {
-        this.selectedProviderToEdit = providerToEdit;
-        this.isProviderListOpen = false;
-        this.isProviderConfigOpen = true;
-        this.configDialogKey++;
-        this.update();
-    }
-
-    protected closeProviderConfig(): void {
-        this.isProviderConfigOpen = false;
-        this.selectedProviderToEdit = undefined;
-        this.isProviderListOpen = true;
-        this.update();
-    }
-
-    protected async handleProviderSave(newConfig: RemoteSchemaProviderConfig): Promise<void> {
-        const store = this.schemaManagerService.providerStoreService;
-        const currentProviders = await store.loadProviders();
-        
-        let newList = [...currentProviders];
-        
-        const existingIndex = newList.findIndex(p => p.id === newConfig.id);
-        if (existingIndex !== -1) {
-            newList[existingIndex] = newConfig;
-        } else {
-            newList.push(newConfig);
-        }
-
-        await store.saveProviders(newList);
-        
-        this.providersLastUpdated = Date.now();
     }
 
     protected onAfterAttach(msg: Message): void {
@@ -284,7 +237,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                 
                 <MetadataSchemaToolbar 
                     onImportFile={() => this.importSchemaFromFile()}
-                    onImportUrl={() => this.openImportUrlDialog()}
+                    onImportUrl={() => this.importSchemaFromUrl()}
                     onBrowse={() => this.browseRemoteSchemas()} 
                     onRefresh={() => this.refreshSchemas()}
                     onDelete={() => this.deleteSchemas(selectedSchemaPaths)}
@@ -301,34 +254,15 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     />
                 </div>
                 
+                {/* Only the Browse Selector remains here. 
+                   The Config/List dialogs are now native Theia dialogs called imperatively.
+                */}
                 {this.isProviderSelectorOpen && (
                     <RemoteSchemaProviderSelectorDialog
                         open={this.isProviderSelectorOpen}
                         onClose={() => { this.isProviderSelectorOpen = false; this.update(); }}
                         onSelect={(p) => this.handleProviderSelected(p)}
                         onConfigure={() => this.openProviderList()}
-                        providerStore={this.schemaManagerService.providerStoreService}
-                    />
-                )}
-
-                {this.isProviderListOpen && (
-                    <RemoteSchemaProviderListDialog 
-                        open={this.isProviderListOpen}
-                        onClose={() => this.closeProviderList()}
-                        onAddProvider={() => this.openProviderConfig(undefined)}
-                        onEditProvider={(p) => this.openProviderConfig(p)}
-                        providerStore={this.schemaManagerService.providerStoreService}
-                        lastUpdated={this.providersLastUpdated}
-                    />
-                )}
-
-                {this.isProviderConfigOpen && (
-                    <RemoteSchemaProviderConfigDialog 
-                        key={this.configDialogKey} 
-                        open={this.isProviderConfigOpen}
-                        providerToEdit={this.selectedProviderToEdit}
-                        onClose={() => this.closeProviderConfig()}
-                        onSave={async (config) => await this.handleProviderSave(config)}
                         providerStore={this.schemaManagerService.providerStoreService}
                     />
                 )}
