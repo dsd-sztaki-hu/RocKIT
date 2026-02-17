@@ -10,6 +10,7 @@ import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { IconButton, Tooltip } from '@mui/material'; 
 import CenterFocusWeakIcon from '@mui/icons-material/CenterFocusWeak'; 
 import CancelIcon from '@mui/icons-material/Cancel'; 
+import FolderIcon from '@mui/icons-material/Folder'; 
 
 import { SchemaManagerService } from '../services/metadata-schema-manager-service';
 import { SchemaApi } from '../services/schema-api';
@@ -52,8 +53,8 @@ export class RemoteSchemaBrowserContribution implements FrontendApplicationContr
 export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined> {
 
     private reactRoot: ReactDOM.Root | undefined;
-    private selectedIdRef = React.createRef<string | null>();
-    
+    private result: string | undefined; // Store the result here
+
     constructor(
         private readonly provider: RemoteSchemaProviderConfig,
         private readonly schemaManagerService: SchemaManagerService,
@@ -64,18 +65,24 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
         });
 
         this.contentNode.style.width = '600px';
-        this.contentNode.style.height = '500px';
+        this.contentNode.style.height = '550px';
         this.contentNode.style.padding = '0';
         this.contentNode.style.display = 'flex';
         this.contentNode.style.flexDirection = 'column';
-
-        this.appendCloseButton('Cancel');
-        const acceptBtn = this.appendAcceptButton('Add');
-        acceptBtn.disabled = true;
     }
 
+    // Return the stored result
     get value(): string | undefined {
-        return this.selectedIdRef.current || undefined;
+        return this.result;
+    }
+
+    protected handleAccept(value: string) {
+        this.result = value; // Set the value before accepting
+        this.accept();       // Call accept without arguments
+    }
+
+    protected handleClose() {
+        this.close();
     }
 
     protected render(): void {
@@ -88,12 +95,8 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
                 provider={this.provider}
                 schemaManagerService={this.schemaManagerService}
                 envVariablesServer={this.envVariablesServer}
-                selectionRef={this.selectedIdRef}
-                onSelectionChanged={(isValid) => {
-                    if (this.acceptButton) {
-                        this.acceptButton.disabled = !isValid;
-                    }
-                }}
+                onAccept={(id) => this.handleAccept(id)}
+                onCancel={() => this.handleClose()}
             />
         );
     }
@@ -116,20 +119,22 @@ interface BrowserContentProps {
     provider: RemoteSchemaProviderConfig;
     schemaManagerService: SchemaManagerService;
     envVariablesServer: EnvVariablesServer;
-    selectionRef: React.MutableRefObject<string | null | undefined>;
-    onSelectionChanged: (isValid: boolean) => void;
+    onAccept: (id: string) => void;
+    onCancel: () => void;
 }
 
 const BrowserContent: React.FC<BrowserContentProps> = ({ 
     provider, 
     schemaManagerService, 
-    selectionRef, 
-    onSelectionChanged 
+    onAccept, 
+    onCancel 
 }) => {
     const [schemaApi, setSchemaApi] = React.useState<SchemaApi | null>(null);
     const [existingIds, setExistingIds] = React.useState<string[]>([]);
+    
     const [selectedName, setSelectedName] = React.useState<string | null>(null);
     const [selectedId, setSelectedId] = React.useState<string | null>(null);
+    const [isFolder, setIsFolder] = React.useState(false);
 
     React.useEffect(() => {
         if (provider) {
@@ -148,17 +153,15 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
     }, [provider, schemaManagerService]);
 
     const handleTemplateSelected = (id: string, name: string) => {
-        selectionRef.current = id;
-        setSelectedName(name);
         setSelectedId(id);
-        onSelectionChanged(true);
+        setSelectedName(name);
+        setIsFolder(false);
     };
 
     const handleFolderSelected = (id: string, name: string) => {
-        selectionRef.current = null;
-        setSelectedName(null);
-        setSelectedId(null);
-        onSelectionChanged(false);
+        setSelectedId(id);
+        setSelectedName(name);
+        setIsFolder(true);
     };
 
     const handleGoTo = () => {
@@ -170,14 +173,23 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
     };
 
     const handleDeselect = () => {
-        selectionRef.current = null;
-        setSelectedName(null);
         setSelectedId(null);
-        onSelectionChanged(false);
+        setSelectedName(null);
+        setIsFolder(false);
     };
 
+    const canAdd = !!selectedId && !isFolder;
+
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            height: '100%', 
+            overflow: 'hidden',
+            backgroundColor: 'var(--theia-editor-background)',
+            color: 'var(--theia-foreground)'
+        }}>
+            
             <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
                 {schemaApi ? (
                     <CedarTree
@@ -194,39 +206,77 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
             </div>
 
             <div style={{ 
-                padding: '8px 12px', 
-                borderTop: '1px solid var(--theia-panel-border)',
-                backgroundColor: 'var(--theia-editor-background)',
-                fontSize: 'var(--theia-ui-font-size0)',
-                color: 'var(--theia-descriptionForeground)',
-                display: 'flex',
+                display: 'flex', 
+                justifyContent: 'space-between', 
                 alignItems: 'center',
-                minHeight: '24px'
+                padding: '15px 20px', 
+                backgroundColor: 'var(--theia-layout-color2)', 
+                borderTop: '1px solid var(--theia-panel-border)'
             }}>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', overflow: 'hidden', marginRight: '15px' }}>
                     {selectedName ? (
                         <>
-                            <div style={{ display: 'flex', marginRight: '8px' }}>
-                                {/* FIX: Added PopperProps with zIndex to force tooltip on top of Theia dialog */}
+                            <div style={{ display: 'flex', marginRight: '10px', flexShrink: 0 }}>
                                 <Tooltip title="Locate in Tree" PopperProps={{ style: { zIndex: 99999 } }}>
-                                    <IconButton size="small" onClick={handleGoTo} style={{ padding: 2 }}>
-                                        <CenterFocusWeakIcon fontSize="small" style={{ fontSize: '16px', color: 'var(--theia-icon-foreground)' }} />
+                                    <IconButton size="small" onClick={handleGoTo} style={{ padding: 2, color: 'var(--theia-icon-foreground)' }}>
+                                        <CenterFocusWeakIcon fontSize="small" />
                                     </IconButton>
                                 </Tooltip>
-                                {/* FIX: Added PopperProps with zIndex here as well */}
                                 <Tooltip title="Deselect" PopperProps={{ style: { zIndex: 99999 } }}>
-                                    <IconButton size="small" onClick={handleDeselect} style={{ padding: 2, marginLeft: 2 }}>
-                                        <CancelIcon fontSize="small" style={{ fontSize: '16px', color: 'var(--theia-errorForeground)' }} />
+                                    <IconButton size="small" onClick={handleDeselect} style={{ padding: 2, marginLeft: 4, color: 'var(--theia-errorForeground)' }}>
+                                        <CancelIcon fontSize="small" />
                                     </IconButton>
                                 </Tooltip>
                             </div>
-                            <span style={{ fontWeight: 600, color: 'var(--theia-foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                Selected: {selectedName}
-                            </span>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                <span style={{ 
+                                    fontWeight: 600, 
+                                    color: 'var(--theia-foreground)', 
+                                    whiteSpace: 'nowrap', 
+                                    overflow: 'hidden', 
+                                    textOverflow: 'ellipsis',
+                                    fontSize: 'var(--theia-ui-font-size1)'
+                                }}>
+                                    {selectedName}
+                                </span>
+                                {isFolder && (
+                                    <span style={{ fontSize: '0.85em', color: 'var(--theia-descriptionForeground)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <FolderIcon style={{ fontSize: '12px' }}/> Folder selected (cannot import)
+                                    </span>
+                                )}
+                            </div>
                         </>
                     ) : (
-                        <span>Please select a template to add.</span>
+                        <span style={{ color: 'var(--theia-descriptionForeground)', fontStyle: 'italic' }}>
+                            Select a template to import...
+                        </span>
                     )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button 
+                        className="theia-button secondary"
+                        onClick={onCancel}
+                        style={{ 
+                            minWidth: '80px',
+                            border: '1px solid var(--theia-button-border, #ccc)' 
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        className="theia-button main"
+                        onClick={() => selectedId && onAccept(selectedId)}
+                        disabled={!canAdd}
+                        style={{ 
+                            minWidth: '80px',
+                            color: 'var(--theia-button-foreground)'
+                        }}
+                    >
+                        Add
+                    </button>
                 </div>
             </div>
         </div>

@@ -1,7 +1,10 @@
+// src/browser/components/metadata-schema-import-from-url-dialog.tsx
+
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
+import LinkIcon from '@mui/icons-material/Link';
 
 export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
 
@@ -15,13 +18,23 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
         });
 
         this.contentNode.style.width = '500px';
+        this.contentNode.style.padding = '0';
 
-        this.appendCloseButton('Cancel');
-        this.appendAcceptButton('Import');
+        // Removed standard buttons to render custom styled ones in React
+        // this.appendCloseButton('Cancel');
+        // this.appendAcceptButton('Import');
     }
 
     get value(): string {
         return this.inputValue;
+    }
+
+    protected handleImport() {
+        this.accept();
+    }
+
+    protected handleCancel() {
+        this.close();
     }
 
     protected render(): void {
@@ -30,44 +43,114 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
         }
 
         this.reactRoot.render(
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ 
-                    color: 'var(--theia-foreground)',
-                    lineHeight: '1.5',
-                    fontSize: 'var(--theia-ui-font-size1)'
-                }}>
-                    Enter the direct link to the metadata schema (JSON).
+            <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                height: '100%',
+                backgroundColor: 'var(--theia-editor-background)',
+                color: 'var(--theia-foreground)'
+            }}>
+                {/* Content Area */}
+                <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    
+                    {/* Header Section */}
+                    <div style={{ display: 'flex', gap: '15px' }}>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '40px',
+                            height: '40px',
+                            backgroundColor: 'var(--theia-list-hoverBackground)',
+                            borderRadius: '50%',
+                            flexShrink: 0,
+                            border: '1px solid var(--theia-contrastBorder, transparent)'
+                        }}>
+                            <LinkIcon style={{ color: 'var(--theia-textLink-foreground)', fontSize: '24px' }} />
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ 
+                                fontWeight: 600, 
+                                fontSize: 'var(--theia-ui-font-size1)',
+                                lineHeight: '1.4'
+                            }}>
+                                Enter Metadata Schema URL
+                            </div>
+                            <div style={{ 
+                                fontSize: 'var(--theia-ui-font-size0)', 
+                                color: 'var(--theia-descriptionForeground)',
+                                lineHeight: '1.4'
+                            }}>
+                                Paste the direct link to the JSON schema file. We'll handle the authentication if a provider matches.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Input Section */}
+                    <div>
+                        <input
+                            id={this.inputId}
+                            type="text"
+                            className="theia-input" 
+                            style={{ 
+                                width: '100%', 
+                                boxSizing: 'border-box',
+                                padding: '8px 10px',
+                                height: '32px',
+                                fontSize: '13px',
+                                border: '1px solid var(--theia-input-border, #ccc)', 
+                                backgroundColor: 'var(--theia-input-background)',
+                                color: 'var(--theia-input-foreground)',
+                                borderRadius: '2px',
+                                outline: 'none'
+                            }}
+                            placeholder="https://repo.schema.researchdata.hu/templates/..."
+                            defaultValue={this.inputValue}
+                            onChange={(e) => this.inputValue = e.target.value}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.stopPropagation(); 
+                                    this.handleImport();
+                                }
+                            }}
+                            autoComplete="off"
+                            spellCheck={false}
+                        />
+                    </div>
                 </div>
-                
+
+                {/* Footer / Button Area */}
                 <div style={{ 
-                    color: 'var(--theia-descriptionForeground)',
-                    fontSize: 'var(--theia-ui-font-size0)',
-                    marginBottom: '5px'
+                    display: 'flex', 
+                    justifyContent: 'flex-end', 
+                    gap: '10px', 
+                    padding: '15px 20px',
+                    backgroundColor: 'var(--theia-layout-color2)', // Slightly darker/lighter background for contrast
+                    borderTop: '1px solid var(--theia-panel-border)'
                 }}>
-                    We will automatically check your configured providers for the necessary API keys.
+                    <button 
+                        className="theia-button secondary"
+                        onClick={() => this.handleCancel()}
+                        style={{ 
+                            minWidth: '80px',
+                            // Ensure border is visible in light themes
+                            border: '1px solid var(--theia-button-border, #ccc)' 
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        className="theia-button main"
+                        onClick={() => this.handleImport()}
+                        style={{ 
+                            minWidth: '80px',
+                            color: 'var(--theia-button-foreground)'
+                        }}
+                    >
+                        Import
+                    </button>
                 </div>
-                
-                <input
-                    id={this.inputId}
-                    type="text"
-                    className="theia-input" 
-                    style={{ 
-                        width: '100%', 
-                        boxSizing: 'border-box',
-                        padding: '6px'
-                    }}
-                    placeholder="https://repo.schema.researchdata.hu/templates/..."
-                    defaultValue={this.inputValue}
-                    onChange={(e) => this.inputValue = e.target.value}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                            e.stopPropagation(); 
-                            this.accept();
-                        }
-                    }}
-                    autoComplete="off"
-                    spellCheck={false}
-                />
             </div>
         );
     }
@@ -76,10 +159,11 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
         super.onAfterAttach(msg);
         this.render();
         
-        // Defer focus to ensure DOM is ready
         requestAnimationFrame(() => {
             const input = document.getElementById(this.inputId);
-            if (input) input.focus();
+            if (input) {
+                input.focus();
+            }
         });
     }
 
