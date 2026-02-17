@@ -1,11 +1,15 @@
+// src/browser/components/remote-schema-browser-dialog.tsx
+
 import { injectable, inject } from 'inversify';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
-import { FrontendApplicationContribution } from '@theia/core/lib/browser';
-import { Modal, Button, Tooltip } from 'antd';
-import { AimOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { FrontendApplicationContribution, AbstractDialog } from '@theia/core/lib/browser';
+import { Message } from '@lumino/messaging';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
+import { IconButton, Tooltip } from '@mui/material'; 
+import CenterFocusWeakIcon from '@mui/icons-material/CenterFocusWeak'; 
+import CancelIcon from '@mui/icons-material/Cancel'; 
 
 import { SchemaManagerService } from '../services/metadata-schema-manager-service';
 import { SchemaApi } from '../services/schema-api';
@@ -18,57 +22,117 @@ export class RemoteSchemaBrowserContribution implements FrontendApplicationContr
     @inject(MessageService) protected readonly messageService!: MessageService;
     @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
 
-    private container: HTMLDivElement | null = null;
-    private reactRoot: ReactDOM.Root | null = null;
-
     onStart(): void {
-        this.container = document.createElement('div');
-        this.container.id = 'remote-schema-browser-container';
-        document.body.appendChild(this.container);
-        this.reactRoot = ReactDOM.createRoot(this.container);
-
-        this.schemaManagerService.onOpenRemoteBrowser((provider) => this.render(true, provider));
+        this.schemaManagerService.onOpenRemoteBrowser((provider) => this.openDialog(provider));
     }
 
-    protected render(visible: boolean, provider?: RemoteSchemaProviderConfig): void {
-        if (!this.reactRoot) return;
+    protected async openDialog(provider: RemoteSchemaProviderConfig): Promise<void> {
+        const dialog = new RemoteSchemaBrowserDialog(
+            provider,
+            this.schemaManagerService,
+            this.envVariablesServer
+        );
+
+        const selectedTemplateId = await dialog.open();
+
+        if (selectedTemplateId) {
+            this.handleDownload(selectedTemplateId, provider);
+        }
+    }
+
+    protected async handleDownload(templateId: string, provider: RemoteSchemaProviderConfig): Promise<void> {
+        try {
+            await this.schemaManagerService.downloadRemoteSchema(templateId, provider);
+        } catch (error) {
+            console.error("Download failed", error);
+        }
+    }
+}
+
+export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined> {
+
+    private reactRoot: ReactDOM.Root | undefined;
+    private selectedIdRef = React.createRef<string | null>();
+    
+    constructor(
+        private readonly provider: RemoteSchemaProviderConfig,
+        private readonly schemaManagerService: SchemaManagerService,
+        private readonly envVariablesServer: EnvVariablesServer
+    ) {
+        super({
+            title: `Browse ${provider.title}`
+        });
+
+        this.contentNode.style.width = '600px';
+        this.contentNode.style.height = '500px';
+        this.contentNode.style.padding = '0';
+        this.contentNode.style.display = 'flex';
+        this.contentNode.style.flexDirection = 'column';
+
+        this.appendCloseButton('Cancel');
+        const acceptBtn = this.appendAcceptButton('Add');
+        acceptBtn.disabled = true;
+    }
+
+    get value(): string | undefined {
+        return this.selectedIdRef.current || undefined;
+    }
+
+    protected render(): void {
+        if (!this.reactRoot) {
+            this.reactRoot = ReactDOM.createRoot(this.contentNode);
+        }
 
         this.reactRoot.render(
-            <RemoteBrowser
-                isOpen={visible}
-                onClose={() => this.render(false, undefined)}
+            <BrowserContent
+                provider={this.provider}
                 schemaManagerService={this.schemaManagerService}
                 envVariablesServer={this.envVariablesServer}
-                messageService={this.messageService}
-                provider={provider}
+                selectionRef={this.selectedIdRef}
+                onSelectionChanged={(isValid) => {
+                    if (this.acceptButton) {
+                        this.acceptButton.disabled = !isValid;
+                    }
+                }}
             />
         );
     }
+
+    protected onAfterAttach(msg: Message): void {
+        super.onAfterAttach(msg);
+        this.render();
+    }
+
+    protected onBeforeDetach(msg: Message): void {
+        if (this.reactRoot) {
+            this.reactRoot.unmount();
+            this.reactRoot = undefined;
+        }
+        super.onBeforeDetach(msg);
+    }
 }
 
-interface BrowserProps {
-    isOpen: boolean;
-    onClose: () => void;
+interface BrowserContentProps {
+    provider: RemoteSchemaProviderConfig;
     schemaManagerService: SchemaManagerService;
     envVariablesServer: EnvVariablesServer;
-    messageService: MessageService;
-    provider?: RemoteSchemaProviderConfig;
+    selectionRef: React.MutableRefObject<string | null | undefined>;
+    onSelectionChanged: (isValid: boolean) => void;
 }
 
-const RemoteBrowser: React.FC<BrowserProps> = ({ 
-    isOpen, onClose, schemaManagerService, provider 
+const BrowserContent: React.FC<BrowserContentProps> = ({ 
+    provider, 
+    schemaManagerService, 
+    selectionRef, 
+    onSelectionChanged 
 }) => {
-    const [selectedTemplateId, setSelectedTemplateId] = React.useState<string | null>(null);
-    const [selectedTemplateName, setSelectedTemplateName] = React.useState<string | null>(null);
-    const [isDownloading, setIsDownloading] = React.useState(false);
     const [schemaApi, setSchemaApi] = React.useState<SchemaApi | null>(null);
     const [existingIds, setExistingIds] = React.useState<string[]>([]);
+    const [selectedName, setSelectedName] = React.useState<string | null>(null);
+    const [selectedId, setSelectedId] = React.useState<string | null>(null);
 
     React.useEffect(() => {
-        if (isOpen && provider) {
-            setSelectedTemplateId(null);
-            setSelectedTemplateName(null);
-            
+        if (provider) {
             let domain = provider.domainBase.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
             
             setSchemaApi(new SchemaApi({
@@ -81,124 +145,90 @@ const RemoteBrowser: React.FC<BrowserProps> = ({
                 setExistingIds(ids);
             });
         }
-    }, [isOpen, provider, schemaManagerService]);
+    }, [provider, schemaManagerService]);
 
-    const handleAdd = async () => {
-        if (!selectedTemplateId) return;
-
-        try {
-            setIsDownloading(true);
-            await schemaManagerService.downloadRemoteSchema(selectedTemplateId, provider);
-            onClose(); 
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setIsDownloading(false);
-        }
+    const handleTemplateSelected = (id: string, name: string) => {
+        selectionRef.current = id;
+        setSelectedName(name);
+        setSelectedId(id);
+        onSelectionChanged(true);
     };
 
-    const handleDeselect = () => {
-        setSelectedTemplateId(null);
-        setSelectedTemplateName(null);
+    const handleFolderSelected = (id: string, name: string) => {
+        selectionRef.current = null;
+        setSelectedName(null);
+        setSelectedId(null);
+        onSelectionChanged(false);
     };
 
     const handleGoTo = () => {
-        if (!selectedTemplateId) return;
-        const element = document.getElementById(`cedar-node-${selectedTemplateId}`);
+        if (!selectedId) return;
+        const element = document.getElementById(`cedar-node-${selectedId}`);
         if (element) {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     };
 
-    const footer = (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-            <div style={{ 
-                flex: 1, 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '8px', 
-                overflow: 'hidden',
-                marginRight: '16px' 
-            }}>
-                {selectedTemplateName ? (
-                    <>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                            <Tooltip title="Locate in tree">
-                                <Button 
-                                    type="text" 
-                                    size="small" 
-                                    icon={<AimOutlined />} 
-                                    onClick={handleGoTo} 
-                                />
-                            </Tooltip>
-                            <Tooltip title="Deselect">
-                                <Button 
-                                    type="text" 
-                                    size="small" 
-                                    danger
-                                    icon={<CloseCircleOutlined />} 
-                                    onClick={handleDeselect} 
-                                />
-                            </Tooltip>
-                        </div>
-                        <Tooltip title={selectedTemplateName} placement="topLeft">
-                            <span style={{ 
-                                whiteSpace: 'nowrap', 
-                                overflow: 'hidden', 
-                                textOverflow: 'ellipsis',
-                                fontWeight: 500
-                            }}>
-                                Selected: {selectedTemplateName}
-                            </span>
-                        </Tooltip>
-                    </>
+    const handleDeselect = () => {
+        selectionRef.current = null;
+        setSelectedName(null);
+        setSelectedId(null);
+        onSelectionChanged(false);
+    };
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                {schemaApi ? (
+                    <CedarTree
+                        schemaApi={schemaApi}
+                        alreadySelectedSchemaIds={existingIds}
+                        onTemplateSelected={handleTemplateSelected}
+                        onFolderSelected={handleFolderSelected}
+                    />
                 ) : (
-                    <span style={{ color: '#999', fontStyle: 'italic' }}>No template selected</span>
+                    <div style={{ padding: 20, color: 'var(--theia-descriptionForeground)' }}>
+                        Initializing connection...
+                    </div>
                 )}
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                <Button key="cancel" onClick={onClose}>CANCEL</Button>
-                <Button 
-                    key="add" 
-                    type="primary" 
-                    onClick={handleAdd} 
-                    disabled={!selectedTemplateId || isDownloading}
-                    loading={isDownloading}
-                >
-                    ADD
-                </Button>
+            <div style={{ 
+                padding: '8px 12px', 
+                borderTop: '1px solid var(--theia-panel-border)',
+                backgroundColor: 'var(--theia-editor-background)',
+                fontSize: 'var(--theia-ui-font-size0)',
+                color: 'var(--theia-descriptionForeground)',
+                display: 'flex',
+                alignItems: 'center',
+                minHeight: '24px'
+            }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                    {selectedName ? (
+                        <>
+                            <div style={{ display: 'flex', marginRight: '8px' }}>
+                                {/* FIX: Added PopperProps with zIndex to force tooltip on top of Theia dialog */}
+                                <Tooltip title="Locate in Tree" PopperProps={{ style: { zIndex: 99999 } }}>
+                                    <IconButton size="small" onClick={handleGoTo} style={{ padding: 2 }}>
+                                        <CenterFocusWeakIcon fontSize="small" style={{ fontSize: '16px', color: 'var(--theia-icon-foreground)' }} />
+                                    </IconButton>
+                                </Tooltip>
+                                {/* FIX: Added PopperProps with zIndex here as well */}
+                                <Tooltip title="Deselect" PopperProps={{ style: { zIndex: 99999 } }}>
+                                    <IconButton size="small" onClick={handleDeselect} style={{ padding: 2, marginLeft: 2 }}>
+                                        <CancelIcon fontSize="small" style={{ fontSize: '16px', color: 'var(--theia-errorForeground)' }} />
+                                    </IconButton>
+                                </Tooltip>
+                            </div>
+                            <span style={{ fontWeight: 600, color: 'var(--theia-foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                Selected: {selectedName}
+                            </span>
+                        </>
+                    ) : (
+                        <span>Please select a template to add.</span>
+                    )}
+                </div>
             </div>
         </div>
-    );
-
-    return (
-        <Modal
-            title={`Browse ${provider?.title || 'Remote Provider'}`}
-            open={isOpen}
-            onCancel={onClose}
-            width={600}
-            centered
-            zIndex={1050}
-            destroyOnClose={true} 
-            bodyStyle={{ height: '500px', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}
-            footer={footer}
-        >
-            {schemaApi ? (
-                <CedarTree
-                    schemaApi={schemaApi}
-                    alreadySelectedSchemaIds={existingIds}
-                    onTemplateSelected={(id, name) => {
-                        setSelectedTemplateId(id);
-                        setSelectedTemplateName(name);
-                    }}
-                    onFolderSelected={(id, name) => {
-                        console.log(`Folder selected: ${name}`);
-                    }}
-                />
-            ) : (
-                <div style={{ padding: 20 }}>Initializing API...</div>
-            )}
-        </Modal>
     );
 };
