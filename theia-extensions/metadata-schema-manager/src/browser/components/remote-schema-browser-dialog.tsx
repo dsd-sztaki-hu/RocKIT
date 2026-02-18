@@ -10,7 +10,6 @@ import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { IconButton, Tooltip } from '@mui/material'; 
 import CenterFocusWeakIcon from '@mui/icons-material/CenterFocusWeak'; 
 import CancelIcon from '@mui/icons-material/Cancel'; 
-import FolderIcon from '@mui/icons-material/Folder'; 
 
 import { SchemaManagerService } from '../services/metadata-schema-manager-service';
 import { SchemaApi } from '../services/schema-api';
@@ -53,7 +52,7 @@ export class RemoteSchemaBrowserContribution implements FrontendApplicationContr
 export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined> {
 
     private reactRoot: ReactDOM.Root | undefined;
-    private result: string | undefined; // Store the result here
+    private result: string | undefined;
 
     constructor(
         private readonly provider: RemoteSchemaProviderConfig,
@@ -71,14 +70,13 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
         this.contentNode.style.flexDirection = 'column';
     }
 
-    // Return the stored result
     get value(): string | undefined {
         return this.result;
     }
 
     protected handleAccept(value: string) {
-        this.result = value; // Set the value before accepting
-        this.accept();       // Call accept without arguments
+        this.result = value;
+        this.accept();
     }
 
     protected handleClose() {
@@ -134,7 +132,6 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
     
     const [selectedName, setSelectedName] = React.useState<string | null>(null);
     const [selectedId, setSelectedId] = React.useState<string | null>(null);
-    const [isFolder, setIsFolder] = React.useState(false);
 
     React.useEffect(() => {
         if (provider) {
@@ -155,13 +152,12 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
     const handleTemplateSelected = (id: string, name: string) => {
         setSelectedId(id);
         setSelectedName(name);
-        setIsFolder(false);
     };
 
     const handleFolderSelected = (id: string, name: string) => {
-        setSelectedId(id);
-        setSelectedName(name);
-        setIsFolder(true);
+        // Clicking a folder now clears the selection
+        setSelectedId(null);
+        setSelectedName(null);
     };
 
     const handleGoTo = () => {
@@ -175,10 +171,7 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
     const handleDeselect = () => {
         setSelectedId(null);
         setSelectedName(null);
-        setIsFolder(false);
     };
-
-    const canAdd = !!selectedId && !isFolder;
 
     return (
         <div style={{ 
@@ -230,23 +223,16 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                                 </Tooltip>
                             </div>
                             
-                            <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                                <span style={{ 
-                                    fontWeight: 600, 
-                                    color: 'var(--theia-foreground)', 
-                                    whiteSpace: 'nowrap', 
-                                    overflow: 'hidden', 
-                                    textOverflow: 'ellipsis',
-                                    fontSize: 'var(--theia-ui-font-size1)'
-                                }}>
-                                    {selectedName}
-                                </span>
-                                {isFolder && (
-                                    <span style={{ fontSize: '0.85em', color: 'var(--theia-descriptionForeground)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <FolderIcon style={{ fontSize: '12px' }}/> Folder selected (cannot import)
-                                    </span>
-                                )}
-                            </div>
+                            <span style={{ 
+                                fontWeight: 600, 
+                                color: 'var(--theia-foreground)', 
+                                whiteSpace: 'nowrap', 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis',
+                                fontSize: 'var(--theia-ui-font-size1)'
+                            }}>
+                                {selectedName}
+                            </span>
                         </>
                     ) : (
                         <span style={{ color: 'var(--theia-descriptionForeground)', fontStyle: 'italic' }}>
@@ -269,7 +255,7 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                     <button 
                         className="theia-button main"
                         onClick={() => selectedId && onAccept(selectedId)}
-                        disabled={!canAdd}
+                        disabled={!selectedId}
                         style={{ 
                             minWidth: '80px',
                             color: 'var(--theia-button-foreground)'
