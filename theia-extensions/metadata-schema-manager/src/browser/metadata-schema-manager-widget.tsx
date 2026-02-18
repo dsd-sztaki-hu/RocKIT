@@ -6,7 +6,6 @@ import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { URI } from '@theia/core/lib/common/uri';
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog';
-// Removed 'Modal' from antd import
 import type { Key } from 'antd/es/table/interface';
 import { inject, injectable } from 'inversify';
 import * as React from 'react';
@@ -18,7 +17,6 @@ import { MetadataSchemaToolbar } from './components/metadata-schema-toolbar';
 import { RemoteSchemaProviderListDialog } from './components/remote-schema-provider-list-dialog';
 import { RemoteSchemaProviderSelectorDialog } from './components/remote-schema-provider-selector-dialog';
 import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-import-from-url-dialog';
-// Import the new Dialog
 import { DeleteConfirmationDialog } from './components/delete-confirmation-dialog';
 import type { SchemaInfo } from './types';
 
@@ -91,11 +89,9 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.update();
     };
 
-    // --- UPDATED DELETE LOGIC ---
     protected async deleteSchemas(paths: string[]): Promise<void> {
         if (paths.length === 0) return;
 
-        // Open our new Theia-native dialog
         const dialog = new DeleteConfirmationDialog(paths.length);
         const confirmed = await dialog.open();
 
@@ -231,7 +227,8 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             .map(schema => schema.path);
 
         this.reactRoot?.render(
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+            // UPDATED: Used className instead of inline style
+            <div className="metadata-schema-layout-container">
                 
                 <MetadataSchemaToolbar 
                     onImportFile={() => this.importSchemaFromFile()}
@@ -243,7 +240,8 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     selectedCount={this.selectedSchemaKeys.length}
                 />
 
-                <div style={{ flexGrow: 1, minHeight: 0 }}>
+                {/* UPDATED: Used className instead of inline style */}
+                <div className="metadata-schema-table-wrapper">
                     <MetadataSchemaTable 
                         schemas={this.schemas} 
                         isLoading={this.isLoading}

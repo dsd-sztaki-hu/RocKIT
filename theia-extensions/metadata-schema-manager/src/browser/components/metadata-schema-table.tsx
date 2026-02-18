@@ -24,10 +24,8 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
     selectedKeys = [] 
 }) => {
     const searchInput = React.useRef<InputRef>(null);
-    // Reference to the wrapper div to attach popups to (Fixes Z-Index issues)
     const tableWrapperRef = React.useRef<HTMLDivElement>(null);
     
-    // Determine layout mode: 'row' (Selector) vs 'checkbox' (Manager)
     const isRowSelection = selectionType === 'row';
 
     const handleSearch = (confirm: () => void) => confirm();
@@ -50,21 +48,26 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                     className="schema-table__filter-input"
                 />
                 <div className="schema-table__filter-actions">
-                    <Button type="primary" onClick={() => handleSearch(confirm)} size="small" style={{ width: 90 }}>
+                    <Button 
+                        type="primary" 
+                        onClick={() => handleSearch(confirm)} 
+                        size="small" 
+                        className="schema-table__filter-btn"
+                    >
                         Search
                     </Button>
-                    <Button onClick={() => clearFilters && handleReset(clearFilters)} size="small" style={{ width: 90 }}>
+                    <Button 
+                        onClick={() => clearFilters && handleReset(clearFilters)} 
+                        size="small" 
+                        className="schema-table__filter-btn"
+                    >
                         Reset
                     </Button>
                 </div>
             </div>
         ),
         filterIcon: (filtered: boolean) => (
-            <SearchIcon style={{ 
-                color: filtered ? 'var(--theia-focusBorder)' : 'var(--theia-icon-foreground)',
-                fontSize: '16px',
-                opacity: filtered ? 1 : 0.7
-            }} />
+            <SearchIcon className={`schema-table__header-icon ${filtered ? 'schema-table__header-icon--active' : ''}`} />
         ),
         onFilter: (value: boolean | Key, record: SchemaInfo) =>
             (record[dataIndex] || '').toString().toLowerCase().includes(value.toString().toLowerCase()),
@@ -93,11 +96,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
             filters: [{ text: 'Local', value: 'local' }, { text: 'Remote', value: 'remote' }],
             onFilter: (value, record) => record.source === value,
             filterIcon: (filtered: boolean) => (
-                <FilterListIcon style={{ 
-                    color: filtered ? 'var(--theia-focusBorder)' : 'var(--theia-icon-foreground)',
-                    fontSize: '16px',
-                    opacity: filtered ? 1 : 0.7
-                }} />
+                <FilterListIcon className={`schema-table__header-icon ${filtered ? 'schema-table__header-icon--active' : ''}`} />
             ),
             render: (text: string) => (
                 <span className={`schema-table__badge ${text === 'remote' ? 'schema-table__badge--remote' : 'schema-table__badge--local'}`}>
@@ -135,7 +134,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
             width: 70,
             align: 'center',
             render: (_, record) => (
-                <Tooltip title="Delete Schema" PopperProps={{ style: { zIndex: 99999 } }}>
+                <Tooltip title="Delete Schema" classes={{ tooltip: 'schema-table__tooltip' }}>
                     <IconButton 
                         size="small" 
                         onClick={(e) => {
@@ -144,7 +143,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         }}
                         className="schema-table__action-btn"
                     >
-                        <DeleteOutlineIcon style={{ fontSize: '18px' }} />
+                        <DeleteOutlineIcon className="schema-table__delete-icon" />
                     </IconButton>
                 </Tooltip>
             ),
@@ -192,7 +191,6 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
         >
             <div 
                 ref={tableWrapperRef} 
-                // This class triggers the specific CSS rules for VS Code style or standard style
                 className={`schema-table-wrapper mode-${isRowSelection ? 'row' : 'checkbox'}`} 
             >
                 <div className="schema-table-container">
@@ -209,15 +207,12 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         
                         onRow={(record) => {
                             const isSelected = selectedKeys && selectedKeys.includes(record.path);
-                            
                             return {
                                 onClick: () => {
-                                    // Only allow row click selection in 'Selector' mode
                                     if (isRowSelection) {
                                         onSelectionChange([record.path]);
                                     }
                                 },
-                                // The styling for this class is defined in metadata-schema-table.css
                                 className: isSelected ? 'ant-table-row-selected' : '',
                             };
                         }}
@@ -228,10 +223,10 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                             showSizeChanger: true,
                             size: "small",
                             position: ['bottomRight'],
-                            style: { marginBottom: 8, marginRight: 8 }
+                            className: 'schema-table__pagination'
                         }}
                         loading={isLoading}
-                        scroll={{ y: '100%' }}
+                        scroll={{ y: '100%' }} // Relies on CSS strict height in .schema-table-container
                     />
                 </div>
             </div>
