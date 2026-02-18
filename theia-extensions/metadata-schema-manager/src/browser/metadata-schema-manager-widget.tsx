@@ -6,7 +6,7 @@ import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { URI } from '@theia/core/lib/common/uri';
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog';
-import { Modal } from 'antd';
+// Removed 'Modal' from antd import
 import type { Key } from 'antd/es/table/interface';
 import { inject, injectable } from 'inversify';
 import * as React from 'react';
@@ -18,6 +18,8 @@ import { MetadataSchemaToolbar } from './components/metadata-schema-toolbar';
 import { RemoteSchemaProviderListDialog } from './components/remote-schema-provider-list-dialog';
 import { RemoteSchemaProviderSelectorDialog } from './components/remote-schema-provider-selector-dialog';
 import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-import-from-url-dialog';
+// Import the new Dialog
+import { DeleteConfirmationDialog } from './components/delete-confirmation-dialog';
 import type { SchemaInfo } from './types';
 
 import './style/index.css';
@@ -39,7 +41,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected schemas: SchemaInfo[] = [];
     protected isLoading = true;
-    // Explicitly tracking selection keys for the table
     protected selectedSchemaKeys: Key[] = [];
     
     private reactRoot: Root | undefined;
@@ -69,7 +70,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected async loadSchemas(): Promise<void> {
         this.isLoading = true;
-        this.selectedSchemaKeys = []; // Reset selection on reload
+        this.selectedSchemaKeys = [];
         this.update();
 
         try {
@@ -90,17 +91,18 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.update();
     };
 
+    // --- UPDATED DELETE LOGIC ---
     protected async deleteSchemas(paths: string[]): Promise<void> {
         if (paths.length === 0) return;
 
-        Modal.confirm({
-            title: 'Confirm Deletion',
-            content: `Delete ${paths.length} schema(s)?`,
-            okText: 'Yes',
-            cancelText: 'Cancel',
-            onOk: async () => {
-                this.isLoading = true;
-                this.update();
+        // Open our new Theia-native dialog
+        const dialog = new DeleteConfirmationDialog(paths.length);
+        const confirmed = await dialog.open();
+
+        if (confirmed) {
+            this.isLoading = true;
+            this.update();
+            try {
                 const deletedCount = await this.schemaManagerService.deleteSchemas(paths);
                 if (deletedCount > 0) {
                     this.messageService.info(
@@ -108,8 +110,13 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                         { timeout: MSG_TIMEOUT }
                     );
                 }
+            } catch (err) {
+                console.error(err);
+                this.messageService.error("Failed to delete schemas.", { timeout: MSG_TIMEOUT });
+                this.isLoading = false;
+                this.update();
             }
-        });
+        }
     }
 
     protected async importSchemaFromFile(): Promise<void> {
@@ -128,7 +135,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         }).then(async progress => {
             try {
                 const results = await this.schemaManagerService.importFiles(fileUris, progress);
-                
                 if (results.success > 0) {
                     this.messageService.info(
                         `Successfully imported ${results.success} schema(s).`, 
@@ -165,7 +171,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         }).then(async progress => {
             try {
                 const schemaName = await this.schemaManagerService.importFromUrl(url, progress);
-                
                 this.messageService.info(
                     `Successfully imported: ${schemaName}`, 
                     { timeout: MSG_TIMEOUT }
@@ -242,9 +247,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     <MetadataSchemaTable 
                         schemas={this.schemas} 
                         isLoading={this.isLoading}
-                        // Default Checkbox behavior for main widget
                         selectionType="checkbox"
-                        // PASS CONTROLLED STATE
                         selectedKeys={this.selectedSchemaKeys} 
                         onSelectionChange={this.onSelectionChange}
                         onDelete={(paths) => this.deleteSchemas(paths)}
@@ -257,7 +260,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected onBeforeDetach(msg: Message): void {
         if (this.reactRoot) {
             this.reactRoot.unmount();
-            this.reactRoot = undefined;
         }
         super.onBeforeDetach(msg);
     }
