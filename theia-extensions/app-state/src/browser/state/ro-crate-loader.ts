@@ -3,12 +3,18 @@ import type {
   FrontendApplicationContribution,
 } from '@theia/core/lib/browser'
 import type { Disposable } from '@theia/core'
-import { CommandService, MessageService } from '@theia/core/lib/common'
+import { PreferenceScope } from '@theia/core'
+import { CommandService, MessageService, PreferenceService } from '@theia/core/lib/common'
 import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { MetadataSchemaManager, RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import {
+  AppStatePreferences,
+  ROCrateExternalChangeAction,
+  type ROCrateExternalChangeActionValue,
+} from '../../common/app-state-preferences'
 import { AppStateService } from './app-state-service'
 import { ROCrateDialog } from './ro-crate-dialog'
 import { RoCrateIdConversionDialog } from './ro-crate-id-conversion-dialog'
@@ -39,6 +45,12 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
   @inject(MessageService)
   protected readonly messageService: MessageService
+
+  @inject(AppStatePreferences)
+  protected readonly appStatePreferences: AppStatePreferences
+
+  @inject(PreferenceService)
+  protected readonly preferenceService: PreferenceService
 
   protected initialProfileTemplate?: Record<string, any>
   protected metadataWatchDisposable?: Disposable
@@ -401,6 +413,9 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     if (!normalized) {
       return
     }
+    const action =
+      this.appStatePreferences[ROCrateExternalChangeAction] ??
+      ('prompt' as ROCrateExternalChangeActionValue)
     if (normalized === this.lastKnownMetadataJson) {
       return
     }
@@ -415,15 +430,38 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     }
 
     this.lastKnownMetadataJson = normalized
-    const choice = await this.messageService.info(
-      'ro-crate-metadata.json changed outside the application. Reload changes?',
-      'Reload',
-      'Ignore',
-    )
-    if (choice !== 'Reload') {
+
+    if (action === 'off') {
       return
     }
 
+    if (action === 'auto') {
+      this.messageService.info(
+        'ro-crate-metadata.json changed outside the application. Reloading.',
+      )
+      await this.reloadExternalCrate(metadataUri)
+      return
+    }
+
+    const choice = await this.messageService.info(
+      'ro-crate-metadata.json changed outside the application. Reload changes?',
+      'Reload',
+      'Always Reload',
+      'Ignore',
+    )
+    if (choice === 'Always Reload') {
+      await this.preferenceService.set(
+        ROCrateExternalChangeAction,
+        'auto',
+        PreferenceScope.User,
+      )
+    }
+    if (choice === 'Reload' || choice === 'Always Reload') {
+      await this.reloadExternalCrate(metadataUri)
+    }
+  }
+
+  protected async reloadExternalCrate(metadataUri: URI): Promise<void> {
     try {
       const crate = await this.loadRoCrateWithNormalization(metadataUri)
       this.updateState(crate, false)
