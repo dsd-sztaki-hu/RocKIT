@@ -21,10 +21,14 @@ import { RemoteSchemaProviderSelectorDialog } from './remote-schema-provider-sel
 import { MetadataSchemaImportFromUrlDialog } from './metadata-schema-import-from-url-dialog';
 import type { SchemaInfo } from '../types';
 
+// Import CSS
+import '../styles/metadata-schema-selector.css';
+
 const MSG_TIMEOUT = 5000;
 
 @injectable()
 export class MetadataSchemaSelectorContribution implements FrontendApplicationContribution {
+    // ... (unchanged logic) ...
     @inject(AppStateService) protected readonly appStateService!: AppStateService;
     @inject(SchemaManagerService) protected readonly schemaManagerService!: SchemaManagerService;
     @inject(FileDialogService) protected readonly fileDialogService!: FileDialogService;
@@ -36,7 +40,6 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
     onStart(): void {
         this.appStateService.onDidChangeSelector(state => state.openSchemaSelectorWindow)(
             (isOpen) => {
-                // Ensure we only trigger if requested (true) AND it's not already physically open
                 if (isOpen && !this.isDialogVisible) {
                     this.openDialog();
                 }
@@ -61,14 +64,13 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
         } catch (err) {
             console.error("Failed to open selector dialog:", err);
         } finally {
-            // CRITICAL: Always reset the state variable to false when the dialog closes.
-            // This prevents the button from getting stuck in the 'true' state.
             this.isDialogVisible = false;
             this.appStateService.updateState({ openSchemaSelectorWindow: false });
         }
     }
 
     protected async handleAssociate(schema: SchemaInfo): Promise<void> {
+        // ... (unchanged) ...
         try {
             const crate = this.appStateService.roCrate;
             if (crate && Array.isArray(crate['@graph'])) {
@@ -127,6 +129,7 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | un
             title: 'Select Metadata Schema'
         });
         
+        // Initial fixed size, layout handled by flexbox CSS
         this.contentNode.style.width = '1000px';
         this.contentNode.style.height = '600px';
         this.contentNode.style.maxHeight = '80vh';
@@ -154,7 +157,6 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | un
     protected render(): void {
         if (!this.contentNode) return;
 
-        // Dynamic require to prevent strict import issues if React 18 is partially loaded
         const ReactDOM = require('react-dom/client');
 
         if (!this.reactRoot) {
@@ -174,7 +176,6 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | un
 
     protected onAfterAttach(msg: Message): void {
         super.onAfterAttach(msg);
-        // Defer rendering to ensure container is sized
         requestAnimationFrame(() => this.render());
     }
 
@@ -225,6 +226,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
         setSelectedSchema(found);
     };
 
+    // ... (Import Handlers - Unchanged Logic) ...
     const handleImportFile = async () => {
         const uris = await fileDialog.showOpenDialog({ 
             title: 'Import', filters: { 'JSON': ['json'] }, canSelectFiles: true, canSelectMany: true 
@@ -272,14 +274,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
     };
 
     return (
-        <div style={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            height: '100%', 
-            width: '100%',
-            overflow: 'hidden',
-            backgroundColor: 'var(--theia-editor-background)'
-        }}>
+        <div className="schema-selector">
             
             <MetadataSchemaToolbar 
                 onImportFile={handleImportFile} 
@@ -289,13 +284,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                 onConfigureProviders={handleOpenProviderList}
             />
             
-            <div style={{ 
-                flex: 1, 
-                display: 'flex', 
-                flexDirection: 'column', 
-                minHeight: 0,
-                overflow: 'hidden'
-            }}>
+            <div className="schema-selector__content">
                 <MetadataSchemaTable
                     schemas={schemas}
                     isLoading={isLoading}
@@ -305,68 +294,44 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                 />
             </div>
             
-            {/* Footer with "Associate" button AND "Selected" Info */}
-            <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                gap: '10px', 
-                padding: '15px 20px', 
-                backgroundColor: 'var(--theia-layout-color2)', 
-                borderTop: '1px solid var(--theia-panel-border)'
-            }}>
+            {/* Footer */}
+            <div className="schema-selector__footer">
                 {/* Left: Selection Info */}
-                <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', marginRight: '20px' }}>
+                <div className="schema-selector__info">
                     {selectedSchema ? (
                         <>
-                            <div style={{ display: 'flex', alignItems: 'center', marginRight: '8px' }}>
-                                <Tooltip title="Deselect" PopperProps={{ style: { zIndex: 99999 } }}>
-                                    <IconButton 
-                                        size="small" 
-                                        onClick={() => setSelectedSchema(undefined)} 
-                                        style={{ padding: 2, color: 'var(--theia-errorForeground)' }}
-                                    >
-                                        <CancelIcon fontSize="small" />
-                                    </IconButton>
-                                </Tooltip>
-                            </div>
-                            <span style={{ 
-                                fontWeight: 600, 
-                                color: 'var(--theia-foreground)', 
-                                whiteSpace: 'nowrap', 
-                                overflow: 'hidden', 
-                                textOverflow: 'ellipsis' 
-                            }}>
+                            <Tooltip title="Deselect" PopperProps={{ style: { zIndex: 99999 } }}>
+                                <IconButton 
+                                    size="small" 
+                                    onClick={() => setSelectedSchema(undefined)} 
+                                    className="schema-selector__deselect-btn"
+                                >
+                                    <CancelIcon fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                            <span className="schema-selector__selected-text">
                                 Selected: {selectedSchema.name}
                             </span>
                         </>
                     ) : (
-                        <span style={{ color: 'var(--theia-descriptionForeground)', fontStyle: 'italic' }}>
+                        <span className="schema-selector__placeholder">
                             Click a row to select a schema.
                         </span>
                     )}
                 </div>
 
                 {/* Right: Buttons */}
-                <div style={{ display: 'flex', gap: '10px' }}>
+                <div className="schema-selector__actions">
                     <button 
-                        className="theia-button secondary"
+                        className="theia-button secondary schema-selector__btn-cancel"
                         onClick={onCancel}
-                        style={{ 
-                            minWidth: '80px',
-                            border: '1px solid var(--theia-button-border, #ccc)'
-                        }}
                     >
                         Cancel
                     </button>
                     <button 
-                        className="theia-button main"
+                        className="theia-button main schema-selector__btn-associate"
                         onClick={() => selectedSchema && onAccept(selectedSchema)}
                         disabled={!selectedSchema}
-                        style={{ 
-                            minWidth: '80px',
-                            color: 'var(--theia-button-foreground)'
-                        }}
                     >
                         Associate
                     </button>

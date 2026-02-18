@@ -12,6 +12,9 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { IconButton, Tooltip } from '@mui/material';
 
+// Import CSS
+import '../styles/metadata-schema-table.css';
+
 export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({ 
     schemas, 
     isLoading, 
@@ -24,22 +27,8 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
     // Reference to the wrapper div to attach popups to (Fixes Z-Index issues)
     const tableWrapperRef = React.useRef<HTMLDivElement>(null);
     
+    // Determine layout mode: 'row' (Selector) vs 'checkbox' (Manager)
     const isRowSelection = selectionType === 'row';
-
-    // CSS RULES
-    const styles = `
-        .metadata-schema-table-wrapper .ant-table-tbody > tr:hover > td {
-            background-color: inherit !important;
-        }
-        
-        .metadata-schema-table-wrapper.mode-row .ant-table-tbody > tr {
-            cursor: pointer !important;
-        }
-
-        .metadata-schema-table-wrapper.mode-checkbox .ant-table-tbody > tr {
-            cursor: default !important;
-        }
-    `;
 
     const handleSearch = (confirm: () => void) => confirm();
     const handleReset = (clearFilters: () => void) => clearFilters();
@@ -47,7 +36,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
     const getColumnSearchProps = (dataIndex: keyof SchemaInfo) => ({
         filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: FilterDropdownProps) => (
             <div 
-                style={{ padding: 8 }} 
+                className="schema-table__filter-dropdown"
                 onKeyDown={(e: React.KeyboardEvent) => e.stopPropagation()}
             >
                 <Input
@@ -58,9 +47,9 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         setSelectedKeys(e.target.value ? [e.target.value] : [])
                     }
                     onPressEnter={() => handleSearch(confirm)}
-                    style={{ marginBottom: 8, display: 'block' }}
+                    className="schema-table__filter-input"
                 />
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div className="schema-table__filter-actions">
                     <Button type="primary" onClick={() => handleSearch(confirm)} size="small" style={{ width: 90 }}>
                         Search
                     </Button>
@@ -111,15 +100,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                 }} />
             ),
             render: (text: string) => (
-                <span style={{ 
-                    padding: '2px 6px', 
-                    borderRadius: '4px', 
-                    backgroundColor: text === 'remote' ? 'rgba(45, 122, 237, 0.15)' : 'rgba(76, 175, 80, 0.15)',
-                    color: text === 'remote' ? '#2d7aed' : '#4caf50',
-                    fontSize: '11px',
-                    fontWeight: 500,
-                    textTransform: 'uppercase'
-                }}>
+                <span className={`schema-table__badge ${text === 'remote' ? 'schema-table__badge--remote' : 'schema-table__badge--local'}`}>
                     {text}
                 </span>
             )
@@ -129,21 +110,21 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
             dataIndex: 'reference',
             ellipsis: true,
             ...getColumnSearchProps('reference'),
-            render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" style={{ color: 'var(--theia-textLink-foreground)' }} onClick={e => e.stopPropagation()}>{text}</a> : ''
+            render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" className="schema-table__link" onClick={e => e.stopPropagation()}>{text}</a> : ''
         },
         {
             title: 'Conforms To',
             dataIndex: 'conformsTo',
             ellipsis: true,
             ...getColumnSearchProps('conformsTo'),
-            render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" style={{ color: 'var(--theia-textLink-foreground)' }} onClick={e => e.stopPropagation()}>{text}</a> : ''
+            render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" className="schema-table__link" onClick={e => e.stopPropagation()}>{text}</a> : ''
         },
         {
             title: 'Download URL',
             dataIndex: 'downloadUrl',
             ellipsis: true,
             ...getColumnSearchProps('downloadUrl'),
-            render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" style={{ color: 'var(--theia-textLink-foreground)' }} onClick={e => e.stopPropagation()}>{text}</a> : ''
+            render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" className="schema-table__link" onClick={e => e.stopPropagation()}>{text}</a> : ''
         }
     ];
 
@@ -161,7 +142,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                             e.stopPropagation();
                             onDelete([record.path]);
                         }}
-                        style={{ color: 'var(--theia-errorForeground)', padding: 4 }}
+                        className="schema-table__action-btn"
                     >
                         <DeleteOutlineIcon style={{ fontSize: '18px' }} />
                     </IconButton>
@@ -209,14 +190,12 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                 }
             }}
         >
-            <style>{styles}</style>
-            
             <div 
                 ref={tableWrapperRef} 
-                className={`metadata-schema-table-wrapper mode-${isRowSelection ? 'row' : 'checkbox'}`} 
-                style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}
+                // This class triggers the specific CSS rules for VS Code style or standard style
+                className={`schema-table-wrapper mode-${isRowSelection ? 'row' : 'checkbox'}`} 
             >
-                <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div className="schema-table-container">
                     <Table
                         dataSource={schemas}
                         columns={columns}
@@ -230,25 +209,16 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         
                         onRow={(record) => {
                             const isSelected = selectedKeys && selectedKeys.includes(record.path);
-                            // Main Widget Mode
-                            if (!isRowSelection) {
-                                return {
-                                    className: isSelected ? 'ant-table-row-selected' : '',
-                                    style: isSelected ? {
-                                        backgroundColor: 'var(--theia-list-activeSelectionBackground)', 
-                                        color: 'var(--theia-list-activeSelectionForeground)'
-                                    } : undefined
-                                };
-                            }
-
-                            // Selector Mode
+                            
                             return {
-                                onClick: () => onSelectionChange([record.path]),
+                                onClick: () => {
+                                    // Only allow row click selection in 'Selector' mode
+                                    if (isRowSelection) {
+                                        onSelectionChange([record.path]);
+                                    }
+                                },
+                                // The styling for this class is defined in metadata-schema-table.css
                                 className: isSelected ? 'ant-table-row-selected' : '',
-                                style: {
-                                    backgroundColor: isSelected ? 'var(--theia-list-activeSelectionBackground)' : undefined,
-                                    color: isSelected ? 'var(--theia-list-activeSelectionForeground)' : undefined
-                                }
                             };
                         }}
                         
@@ -264,7 +234,6 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         scroll={{ y: '100%' }}
                     />
                 </div>
-                {/* REMOVED FOOTER FROM HERE. IT IS NOW RENDERED BY THE PARENT. */}
             </div>
         </ConfigProvider>
     );

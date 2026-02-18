@@ -3,13 +3,16 @@
 import * as React from 'react';
 
 // MUI Icons
-import NoteAddIcon from '@mui/icons-material/NoteAdd'; // Import File
-import LinkIcon from '@mui/icons-material/Link'; // Import URL
-import CloudDownloadIcon from '@mui/icons-material/CloudDownload'; // Browse Remote
-import SettingsInputComponentIcon from '@mui/icons-material/SettingsInputComponent'; // Config
+import NoteAddIcon from '@mui/icons-material/NoteAdd'; 
+import LinkIcon from '@mui/icons-material/Link'; 
+import CloudDownloadIcon from '@mui/icons-material/CloudDownload'; 
+import SettingsInputComponentIcon from '@mui/icons-material/SettingsInputComponent'; 
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { Tooltip, IconButton } from '@mui/material';
+
+// Import CSS
+import '../styles/metadata-schema-toolbar.css';
 
 interface SchemaToolbarProps {
     onImportFile: () => void;
@@ -31,7 +34,6 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
     selectedCount = 0
 }) => {
     
-    // Helper to render a standard toolbar button
     const renderActionButton = (
         label: string, 
         icon: React.ReactNode, 
@@ -40,71 +42,43 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
         primary = false
     ) => (
         <button 
-            className={`theia-button ${primary ? '' : 'secondary'}`}
+            className={`theia-button schema-toolbar__btn ${primary ? 'schema-toolbar__btn--primary' : 'schema-toolbar__btn--secondary'}`}
             onClick={onClick}
             title={title}
-            style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px',
-                height: '28px',
-                fontSize: '13px',
-                padding: '0 12px',
-                marginRight: '8px',
-                // Explicit border for secondary buttons to prevent "melting" in light themes
-                border: primary ? '1px solid transparent' : '1px solid var(--theia-button-border, #ccc)',
-                cursor: 'pointer'
-            }}
         >
             {icon}
             {label}
         </button>
     );
 
-    const separatorStyle: React.CSSProperties = {
-        width: '1px',
-        height: '20px',
-        backgroundColor: 'var(--theia-panel-border)',
-        margin: '0 10px'
-    };
-
     return (
-        <div style={{ 
-            display: 'flex', 
-            padding: '10px 15px', 
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            backgroundColor: 'var(--theia-editor-background)',
-            borderBottom: '1px solid var(--theia-panel-border)'
-        }}>
+        <div className="schema-toolbar">
             {/* Group 1: Local Imports */}
             {renderActionButton(
                 "Import File", 
                 <NoteAddIcon style={{ fontSize: '16px' }}/>, 
                 onImportFile, 
                 "Import a schema from a local JSON file",
-                true // Primary
+                true 
             )}
             
-            {/* FIX: Made Primary to ensure visibility in Light Theme */}
             {renderActionButton(
                 "Import URL", 
                 <LinkIcon style={{ fontSize: '16px' }}/>, 
                 onImportUrl, 
                 "Import a schema from a URL",
-                true // Primary
+                true 
             )}
 
-            <div style={separatorStyle} />
+            <div className="schema-toolbar__separator" />
 
             {/* Group 2: Remote / Cloud */}
-            {/* FIX: Made Primary to ensure visibility in Light Theme */}
             {onBrowse && renderActionButton(
                 "Browse Remote", 
                 <CloudDownloadIcon style={{ fontSize: '16px' }}/>, 
                 onBrowse, 
                 "Browse remote schemas via API",
-                true // Primary
+                true 
             )}
 
             {onConfigureProviders && (
@@ -112,55 +86,32 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                     <IconButton 
                         size="small" 
                         onClick={onConfigureProviders}
-                        style={{ 
-                            color: 'var(--theia-icon-foreground)',
-                            marginLeft: '4px',
-                            padding: '6px',
-                            borderRadius: '4px',
-                            border: '1px solid transparent' // Placeholder for hover
-                        }}
+                        className="schema-toolbar__icon-btn"
                     >
                         <SettingsInputComponentIcon style={{ fontSize: '20px' }} />
                     </IconButton>
                 </Tooltip>
             )}
             
-            <div style={{ flexGrow: 1 }} /> 
+            <div className="schema-toolbar__spacer" /> 
 
             {/* Group 3: Global Actions */}
             <Tooltip title="Refresh List" PopperProps={{ style: { zIndex: 99999 } }}>
                 <IconButton 
                     size="small"
                     onClick={onRefresh}
-                    style={{ 
-                        color: 'var(--theia-icon-foreground)', 
-                        padding: '6px',
-                        borderRadius: '4px'
-                    }}
+                    className="schema-toolbar__icon-btn"
                 >
                     <RefreshIcon style={{ fontSize: '20px' }} />
                 </IconButton>
             </Tooltip>
             
             {onDelete && selectedCount > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', marginLeft: '10px' }}>
-                    <div style={separatorStyle} />
+                <div className="schema-toolbar__delete-group">
+                    <div className="schema-toolbar__separator" />
                     <button 
-                        className="theia-button" 
+                        className="theia-button schema-toolbar__btn-delete" 
                         onClick={onDelete} 
-                        style={{ 
-                            marginLeft: '4px',
-                            backgroundColor: 'var(--theia-errorForeground)', 
-                            borderColor: 'var(--theia-errorForeground)',
-                            color: 'var(--theia-editor-background)', 
-                            display: 'flex', 
-                            alignItems: 'center',
-                            gap: '6px',
-                            height: '28px',
-                            fontSize: '12px',
-                            padding: '0 10px',
-                            cursor: 'pointer'
-                        }}
                         title="Delete selected schemas"
                     >
                         <DeleteOutlineIcon style={{ fontSize: '16px' }} />

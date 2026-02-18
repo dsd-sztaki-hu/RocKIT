@@ -1,0 +1,214 @@
+/* src/browser/styles/metadata-schema-table.css */
+
+/* --- Wrapper Scoping --- */
+.schema-table-wrapper {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    background-color: var(--theia-editor-background);
+    color: var(--theia-foreground);
+}
+
+.schema-table-container {
+    flex: 1;
+    overflow: hidden;
+}
+
+/* --- Ant Design Overrides (Scoped) --- */
+
+/* 1. Table Container & Background */
+.schema-table-wrapper .ant-table,
+.schema-table-wrapper .ant-table-container {
+    background-color: var(--theia-editor-background) !important;
+    color: var(--theia-foreground) !important;
+    border-color: var(--theia-panel-border) !important;
+}
+
+/* 2. Header Styling */
+.schema-table-wrapper .ant-table-thead > tr > th {
+    background-color: var(--theia-list-headerBackground) !important;
+    color: var(--theia-list-headerForeground) !important;
+    border-bottom: 1px solid var(--theia-panel-border) !important;
+    border-right: 1px solid var(--theia-panel-border) !important;
+    font-weight: 600;
+}
+
+.schema-table-wrapper .ant-table-thead th.ant-table-column-sort {
+    background-color: var(--theia-list-headerBackground) !important;
+}
+
+.schema-table-wrapper .ant-table-column-sorter {
+    color: var(--theia-foreground) !important;
+    opacity: 0.7;
+}
+
+/* 3. Row & Cell Styling - Uniform Background */
+.schema-table-wrapper .ant-table-tbody > tr > td {
+    background-color: var(--theia-editor-background) !important;
+    border-bottom: 1px solid var(--theia-panel-border) !important;
+    color: var(--theia-foreground) !important;
+    padding: 8px 8px !important;
+    transition: background-color 0.1s ease;
+}
+
+/* 4. Hover Effects */
+
+/* Selector Mode: Standard hover */
+.schema-table-wrapper.mode-row .ant-table-tbody > tr:hover > td {
+    background-color: var(--theia-list-hoverBackground) !important;
+}
+
+/* Main Widget Mode: DISABLE hover */
+.schema-table-wrapper.mode-checkbox .ant-table-tbody > tr:hover > td {
+    background-color: var(--theia-editor-background) !important;
+}
+
+/* 5. Selection Logic */
+
+/* Selector Mode: Grey-ish Background + 1px Border */
+.schema-table-wrapper.mode-row .ant-table-tbody > tr.ant-table-row-selected > td {
+    background-color: var(--theia-list-hoverBackground) !important;
+    border-top: 1px solid var(--theia-focusBorder) !important;
+    border-bottom: 1px solid var(--theia-focusBorder) !important;
+    color: inherit !important;
+}
+
+/* Cap borders for Selector Mode */
+.schema-table-wrapper.mode-row .ant-table-tbody > tr.ant-table-row-selected > td:first-child {
+    border-left: 1px solid var(--theia-focusBorder) !important;
+}
+.schema-table-wrapper.mode-row .ant-table-tbody > tr.ant-table-row-selected > td:last-child {
+    border-right: 1px solid var(--theia-focusBorder) !important;
+}
+
+/* Main Widget Mode: Minimal background, no borders */
+.schema-table-wrapper.mode-checkbox .ant-table-tbody > tr.ant-table-row-selected > td {
+    background-color: var(--theia-list-inactiveSelectionBackground, rgba(128, 128, 128, 0.05)) !important;
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+}
+
+/* 6. Empty State */
+.schema-table-wrapper .ant-empty-description {
+    color: var(--theia-descriptionForeground) !important;
+}
+
+/* 7. Pagination */
+.schema-table-wrapper .ant-table-pagination {
+    margin: 10px 10px !important;
+}
+
+.schema-table-wrapper .ant-pagination-item {
+    background-color: var(--theia-editor-background) !important;
+    border-color: var(--theia-panel-border) !important;
+}
+
+.schema-table-wrapper .ant-pagination-item a {
+    color: var(--theia-foreground) !important;
+}
+
+.schema-table-wrapper .ant-pagination-item-active {
+    background-color: var(--theia-button-background) !important;
+    border-color: transparent !important;
+}
+
+.schema-table-wrapper .ant-pagination-item-active a {
+    color: var(--theia-button-foreground) !important;
+}
+
+.schema-table-wrapper .ant-pagination-prev button,
+.schema-table-wrapper .ant-pagination-next button {
+    background-color: var(--theia-editor-background) !important;
+    color: var(--theia-foreground) !important;
+}
+
+/* 8. Filter Dropdown */
+.schema-table-wrapper .ant-table-filter-dropdown {
+    background-color: var(--theia-menu-background) !important;
+    border: 1px solid var(--theia-menu-border, var(--theia-contrastBorder)) !important;
+    box-shadow: var(--theia-widget-shadow) !important;
+}
+
+.schema-table-wrapper .ant-input {
+    background-color: var(--theia-input-background) !important;
+    color: var(--theia-input-foreground) !important;
+    border: 1px solid var(--theia-input-border) !important;
+}
+
+.schema-table-wrapper .ant-input:focus {
+    border-color: var(--theia-focusBorder) !important;
+}
+
+.schema-table-wrapper .ant-btn-primary {
+    background-color: var(--theia-button-background) !important;
+    color: var(--theia-button-foreground) !important;
+    border: none !important;
+}
+
+.schema-table-wrapper .ant-btn-primary:hover {
+    background-color: var(--theia-button-hoverBackground) !important;
+}
+
+.schema-table-wrapper .ant-btn-default { 
+    background-color: var(--theia-button-secondaryBackground) !important;
+    color: var(--theia-button-secondaryForeground) !important;
+    border: 1px solid var(--theia-button-border, transparent) !important;
+}
+
+.schema-table-wrapper .ant-btn-default:hover {
+    background-color: var(--theia-button-secondaryHoverBackground) !important;
+}
+
+/* 9. Checkboxes */
+.schema-table-wrapper .ant-checkbox-inner {
+    background-color: var(--theia-input-background) !important;
+    border-color: var(--theia-input-border) !important;
+}
+
+.schema-table-wrapper .ant-checkbox-checked .ant-checkbox-inner {
+    background-color: var(--theia-focusBorder) !important;
+    border-color: var(--theia-focusBorder) !important;
+}
+
+/* --- Badges & Links --- */
+.schema-table__badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.schema-table__badge--remote {
+    background-color: rgba(45, 122, 237, 0.15);
+    color: #4daafc; 
+}
+
+.schema-table__badge--local {
+    background-color: rgba(76, 175, 80, 0.15);
+    color: #4caf50;
+}
+
+.schema-table__link {
+    color: var(--theia-textLink-foreground);
+    text-decoration: none;
+}
+
+.schema-table__link:hover {
+    text-decoration: underline;
+}
+
+/* FIX: Force icon color to standard foreground so it's white in Dark Mode */
+.schema-table__action-btn {
+    color: var(--theia-icon-foreground) !important;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.schema-table__action-btn:hover {
+    color: var(--theia-errorForeground) !important;
+    background-color: var(--theia-list-hoverBackground);
+}

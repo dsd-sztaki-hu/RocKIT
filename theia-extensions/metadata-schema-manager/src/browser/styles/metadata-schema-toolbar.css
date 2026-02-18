@@ -1,0 +1,91 @@
+/* src/browser/styles/metadata-schema-toolbar.css */
+
+.schema-toolbar {
+    display: flex;
+    padding: 10px 15px;
+    flex-wrap: wrap;
+    align-items: center;
+    background-color: var(--theia-editor-background);
+    border-bottom: 1px solid var(--theia-panel-border);
+    gap: 8px;
+}
+
+.schema-toolbar__btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    font-size: 13px;
+    padding: 0 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    color: var(--theia-button-foreground);
+}
+
+.schema-toolbar__btn--primary {
+    background-color: var(--theia-button-background);
+    border: 1px solid transparent;
+}
+
+.schema-toolbar__btn--primary:hover {
+    background-color: var(--theia-button-hoverBackground);
+}
+
+.schema-toolbar__btn--secondary {
+    background-color: transparent;
+    color: var(--theia-foreground);
+    border: 1px solid var(--theia-button-border, #ccc);
+}
+
+.schema-toolbar__btn--secondary:hover {
+    background-color: var(--theia-list-hoverBackground);
+}
+
+.schema-toolbar__separator {
+    width: 1px;
+    height: 20px;
+    background-color: var(--theia-panel-border);
+    margin: 0 6px; 
+}
+
+.schema-toolbar__spacer {
+    flex-grow: 1;
+}
+
+.schema-toolbar__delete-group {
+    display: flex;
+    align-items: center;
+    margin-left: 10px;
+}
+
+/* FIX: Use a solid safe red for background to ensure white text is readable */
+.schema-toolbar__btn-delete {
+    margin-left: 4px;
+    background-color: #d32f2f !important; /* Solid material red */
+    border-color: #d32f2f !important;
+    color: #FFFFFF !important; /* Force white text */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    font-size: 12px;
+    padding: 0 10px;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.schema-toolbar__btn-delete:hover {
+    background-color: #b71c1c !important; /* Darker red on hover */
+}
+
+/* FIX: Force icon color to match theme foreground (White in Dark, Dark in Light) */
+.schema-toolbar__icon-btn {
+    color: var(--theia-icon-foreground) !important;
+    padding: 6px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+}
+
+.schema-toolbar__icon-btn:hover {
+    background-color: var(--theia-list-hoverBackground);
+}
