@@ -17,9 +17,29 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
     isLoading, 
     onSelectionChange, 
     onDelete,
-    selectionType = 'checkbox'
+    selectionType = 'checkbox',
+    selectedKeys = [] 
 }) => {
     const searchInput = React.useRef<InputRef>(null);
+    // Reference to the wrapper div to attach popups to (Fixes Z-Index issues)
+    const tableWrapperRef = React.useRef<HTMLDivElement>(null);
+    
+    const isRowSelection = selectionType === 'row';
+
+    // CSS RULES
+    const styles = `
+        .metadata-schema-table-wrapper .ant-table-tbody > tr:hover > td {
+            background-color: inherit !important;
+        }
+        
+        .metadata-schema-table-wrapper.mode-row .ant-table-tbody > tr {
+            cursor: pointer !important;
+        }
+
+        .metadata-schema-table-wrapper.mode-checkbox .ant-table-tbody > tr {
+            cursor: default !important;
+        }
+    `;
 
     const handleSearch = (confirm: () => void) => confirm();
     const handleReset = (clearFilters: () => void) => clearFilters();
@@ -50,7 +70,6 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                 </div>
             </div>
         ),
-        // FIX: Use visible MUI Icon instead of Emoji or AntD default
         filterIcon: (filtered: boolean) => (
             <SearchIcon style={{ 
                 color: filtered ? 'var(--theia-focusBorder)' : 'var(--theia-icon-foreground)',
@@ -84,7 +103,6 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
             width: 100,
             filters: [{ text: 'Local', value: 'local' }, { text: 'Remote', value: 'remote' }],
             onFilter: (value, record) => record.source === value,
-            // FIX: Explicit Filter Icon for Source column
             filterIcon: (filtered: boolean) => (
                 <FilterListIcon style={{ 
                     color: filtered ? 'var(--theia-focusBorder)' : 'var(--theia-icon-foreground)',
@@ -152,8 +170,11 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
         });
     }
 
+    const activeSelectionType = isRowSelection ? undefined : selectionType;
+
     return (
         <ConfigProvider
+            getPopupContainer={() => tableWrapperRef.current || document.body}
             theme={{
                 algorithm: theme.darkAlgorithm,
                 token: {
@@ -170,10 +191,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         headerBg: 'var(--theia-list-headerBackground)',
                         headerColor: 'var(--theia-list-headerForeground)',
                         borderColor: 'var(--theia-panel-border)',
-                        rowHoverBg: 'var(--theia-list-hoverBackground)',
                         headerBorderRadius: 0,
-                        headerSortActiveBg: 'var(--theia-list-hoverBackground)', // Better state visibility
-                        headerFilterHoverBg: 'var(--theia-list-hoverBackground)',
                     },
                     Button: {
                         colorBgContainer: 'var(--theia-button-background)',
@@ -191,28 +209,62 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                 }
             }}
         >
-            <div className="metadata-schema-table-wrapper" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <Table
-                    dataSource={schemas}
-                    columns={columns}
-                    rowKey="path"
-                    rowSelection={{ 
-                        type: selectionType, 
-                        onChange: onSelectionChange,
-                        columnWidth: 40
-                    }}
-                    size="small"
-                    pagination={{ 
-                        pageSize: 15, 
-                        showSizeChanger: true,
-                        size: "small",
-                        position: ['bottomRight'],
-                        style: { marginBottom: 8, marginRight: 8 }
-                    }}
-                    loading={isLoading}
-                    scroll={{ y: '100%' }}
-                    style={{ flex: 1, overflow: 'hidden' }}
-                />
+            <style>{styles}</style>
+            
+            <div 
+                ref={tableWrapperRef} 
+                className={`metadata-schema-table-wrapper mode-${isRowSelection ? 'row' : 'checkbox'}`} 
+                style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}
+            >
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                    <Table
+                        dataSource={schemas}
+                        columns={columns}
+                        rowKey="path"
+                        rowSelection={activeSelectionType ? { 
+                            type: activeSelectionType, 
+                            selectedRowKeys: selectedKeys,
+                            onChange: onSelectionChange,
+                            columnWidth: 40
+                        } : undefined}
+                        
+                        onRow={(record) => {
+                            const isSelected = selectedKeys && selectedKeys.includes(record.path);
+                            // Main Widget Mode
+                            if (!isRowSelection) {
+                                return {
+                                    className: isSelected ? 'ant-table-row-selected' : '',
+                                    style: isSelected ? {
+                                        backgroundColor: 'var(--theia-list-activeSelectionBackground)', 
+                                        color: 'var(--theia-list-activeSelectionForeground)'
+                                    } : undefined
+                                };
+                            }
+
+                            // Selector Mode
+                            return {
+                                onClick: () => onSelectionChange([record.path]),
+                                className: isSelected ? 'ant-table-row-selected' : '',
+                                style: {
+                                    backgroundColor: isSelected ? 'var(--theia-list-activeSelectionBackground)' : undefined,
+                                    color: isSelected ? 'var(--theia-list-activeSelectionForeground)' : undefined
+                                }
+                            };
+                        }}
+                        
+                        size="small"
+                        pagination={{ 
+                            pageSize: 15, 
+                            showSizeChanger: true,
+                            size: "small",
+                            position: ['bottomRight'],
+                            style: { marginBottom: 8, marginRight: 8 }
+                        }}
+                        loading={isLoading}
+                        scroll={{ y: '100%' }}
+                    />
+                </div>
+                {/* REMOVED FOOTER FROM HERE. IT IS NOW RENDERED BY THE PARENT. */}
             </div>
         </ConfigProvider>
     );

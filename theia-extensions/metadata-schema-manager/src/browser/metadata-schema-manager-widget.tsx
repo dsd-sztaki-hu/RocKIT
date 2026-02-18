@@ -1,3 +1,5 @@
+// src/browser/metadata-schema-manager-widget.tsx
+
 import { BaseWidget } from '@theia/core/lib/browser';
 import type { Message, StatefulWidget } from '@theia/core/lib/browser';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
@@ -14,7 +16,6 @@ import { SchemaManagerService } from './services/metadata-schema-manager-service
 import { MetadataSchemaTable } from './components/metadata-schema-table';
 import { MetadataSchemaToolbar } from './components/metadata-schema-toolbar';
 import { RemoteSchemaProviderListDialog } from './components/remote-schema-provider-list-dialog';
-// Import the Class
 import { RemoteSchemaProviderSelectorDialog } from './components/remote-schema-provider-selector-dialog';
 import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-import-from-url-dialog';
 import type { SchemaInfo } from './types';
@@ -38,9 +39,8 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected schemas: SchemaInfo[] = [];
     protected isLoading = true;
+    // Explicitly tracking selection keys for the table
     protected selectedSchemaKeys: Key[] = [];
-    
-    // REMOVED: isProviderSelectorOpen state
     
     private reactRoot: Root | undefined;
 
@@ -69,7 +69,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected async loadSchemas(): Promise<void> {
         this.isLoading = true;
-        this.selectedSchemaKeys = [];
+        this.selectedSchemaKeys = []; // Reset selection on reload
         this.update();
 
         try {
@@ -186,7 +186,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         await dialog.open(); 
     }
 
-    // FIX: Use imperative dialog opening
     protected async browseRemoteSchemas(): Promise<void> {
         const dialog = new RemoteSchemaProviderSelectorDialog(this.schemaManagerService.providerStoreService);
         const provider = await dialog.open();
@@ -239,16 +238,18 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     selectedCount={this.selectedSchemaKeys.length}
                 />
 
-                <div style={{ flexGrow: 1 }}>
+                <div style={{ flexGrow: 1, minHeight: 0 }}>
                     <MetadataSchemaTable 
                         schemas={this.schemas} 
                         isLoading={this.isLoading}
+                        // Default Checkbox behavior for main widget
+                        selectionType="checkbox"
+                        // PASS CONTROLLED STATE
+                        selectedKeys={this.selectedSchemaKeys} 
                         onSelectionChange={this.onSelectionChange}
                         onDelete={(paths) => this.deleteSchemas(paths)}
                     />
                 </div>
-                
-                {/* FIX: Removed JSX <RemoteSchemaProviderSelectorDialog /> */}
             </div>
         );
     }
@@ -256,6 +257,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected onBeforeDetach(msg: Message): void {
         if (this.reactRoot) {
             this.reactRoot.unmount();
+            this.reactRoot = undefined;
         }
         super.onBeforeDetach(msg);
     }

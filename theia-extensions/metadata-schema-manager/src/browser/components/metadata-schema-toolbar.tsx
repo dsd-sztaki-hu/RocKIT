@@ -47,11 +47,13 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                 display: 'flex', 
                 alignItems: 'center', 
                 gap: '6px',
-                height: '28px', // Standard toolbar height
+                height: '28px',
                 fontSize: '13px',
-                padding: '0 10px',
+                padding: '0 12px',
                 marginRight: '8px',
-                border: primary ? undefined : '1px solid var(--theia-button-border, transparent)'
+                // Explicit border for secondary buttons to prevent "melting" in light themes
+                border: primary ? '1px solid transparent' : '1px solid var(--theia-button-border, #ccc)',
+                cursor: 'pointer'
             }}
         >
             {icon}
@@ -81,24 +83,28 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                 <NoteAddIcon style={{ fontSize: '16px' }}/>, 
                 onImportFile, 
                 "Import a schema from a local JSON file",
-                true
+                true // Primary
             )}
             
+            {/* FIX: Made Primary to ensure visibility in Light Theme */}
             {renderActionButton(
                 "Import URL", 
                 <LinkIcon style={{ fontSize: '16px' }}/>, 
                 onImportUrl, 
-                "Import a schema from a URL"
+                "Import a schema from a URL",
+                true // Primary
             )}
 
             <div style={separatorStyle} />
 
             {/* Group 2: Remote / Cloud */}
+            {/* FIX: Made Primary to ensure visibility in Light Theme */}
             {onBrowse && renderActionButton(
                 "Browse Remote", 
                 <CloudDownloadIcon style={{ fontSize: '16px' }}/>, 
                 onBrowse, 
-                "Browse remote schemas via API"
+                "Browse remote schemas via API",
+                true // Primary
             )}
 
             {onConfigureProviders && (
@@ -108,17 +114,18 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                         onClick={onConfigureProviders}
                         style={{ 
                             color: 'var(--theia-icon-foreground)',
-                            marginRight: '4px',
+                            marginLeft: '4px',
                             padding: '6px',
-                            borderRadius: '4px'
+                            borderRadius: '4px',
+                            border: '1px solid transparent' // Placeholder for hover
                         }}
                     >
-                        <SettingsInputComponentIcon style={{ fontSize: '18px' }} />
+                        <SettingsInputComponentIcon style={{ fontSize: '20px' }} />
                     </IconButton>
                 </Tooltip>
             )}
             
-            <div style={{ flexGrow: 1 }} /> {/* Spacer */}
+            <div style={{ flexGrow: 1 }} /> 
 
             {/* Group 3: Global Actions */}
             <Tooltip title="Refresh List" PopperProps={{ style: { zIndex: 99999 } }}>
@@ -131,7 +138,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                         borderRadius: '4px'
                     }}
                 >
-                    <RefreshIcon style={{ fontSize: '18px' }} />
+                    <RefreshIcon style={{ fontSize: '20px' }} />
                 </IconButton>
             </Tooltip>
             
@@ -151,7 +158,8 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                             gap: '6px',
                             height: '28px',
                             fontSize: '12px',
-                            padding: '0 10px'
+                            padding: '0 10px',
+                            cursor: 'pointer'
                         }}
                         title="Delete selected schemas"
                     >

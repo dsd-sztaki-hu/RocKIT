@@ -1,3 +1,5 @@
+// src/browser/types.ts
+
 import type { Key } from 'antd/es/table/interface';
 
 export interface SchemaInfo {
@@ -13,7 +15,10 @@ export interface SchemaInfo {
 export interface SchemaTableProps {
     schemas: SchemaInfo[];
     isLoading: boolean;
-    selectionType?: 'checkbox' | 'radio';
+    // 'row' = click row to select (Selector), 'checkbox' = checkboxes (Main Widget)
+    selectionType?: 'checkbox' | 'radio' | 'row'; 
+    // Controlled state for selection
+    selectedKeys?: Key[]; 
     onSelectionChange: (selectedRowKeys: Key[]) => void;
     onDelete?: (schemaPaths: string[]) => void;
 }
@@ -21,8 +26,8 @@ export interface SchemaTableProps {
 export interface RemoteSchemaProviderConfig {
     id: string;
     title: string;
-    baseUrl: string; // What the user entered (e.g. https://cedar.schema.researchdata.hu)
-    domainBase: string; // The functional base (e.g. https://schema.researchdata.hu)
+    baseUrl: string;
+    domainBase: string;
     type: 'CEDAR';
     apiKey?: string;
 }

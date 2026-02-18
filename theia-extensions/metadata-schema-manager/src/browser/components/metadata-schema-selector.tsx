@@ -1,21 +1,25 @@
+// src/browser/components/metadata-schema-selector.tsx
+
 import { injectable, inject } from 'inversify';
 import * as React from 'react';
-import * as ReactDOM from 'react-dom/client';
 import { FrontendApplicationContribution, AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 
+// Icons for the footer
+import CancelIcon from '@mui/icons-material/Cancel'; 
+import { IconButton, Tooltip } from '@mui/material';
+
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { SchemaManagerService } from '../services/metadata-schema-manager-service';
 import { MetadataSchemaTable } from './metadata-schema-table';
 import { MetadataSchemaToolbar } from './metadata-schema-toolbar';
 import { RemoteSchemaProviderListDialog } from './remote-schema-provider-list-dialog';
-// Import the class, not a component
 import { RemoteSchemaProviderSelectorDialog } from './remote-schema-provider-selector-dialog';
 import { MetadataSchemaImportFromUrlDialog } from './metadata-schema-import-from-url-dialog';
-import type { SchemaInfo, RemoteSchemaProviderConfig } from '../types';
+import type { SchemaInfo } from '../types';
 
 const MSG_TIMEOUT = 5000;
 
@@ -27,10 +31,13 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
     @inject(MessageService) protected readonly messageService!: MessageService;
     @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
 
+    private isDialogVisible = false;
+
     onStart(): void {
         this.appStateService.onDidChangeSelector(state => state.openSchemaSelectorWindow)(
             (isOpen) => {
-                if (isOpen) {
+                // Ensure we only trigger if requested (true) AND it's not already physically open
+                if (isOpen && !this.isDialogVisible) {
                     this.openDialog();
                 }
             }
@@ -38,18 +45,26 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
     }
 
     protected async openDialog(): Promise<void> {
-        const dialog = new MetadataSchemaSelectorDialog(
-            this.schemaManagerService,
-            this.fileDialogService,
-            this.messageService
-        );
+        this.isDialogVisible = true;
+        try {
+            const dialog = new MetadataSchemaSelectorDialog(
+                this.schemaManagerService,
+                this.fileDialogService,
+                this.messageService
+            );
 
-        const selectedSchema = await dialog.open();
+            const selectedSchema = await dialog.open();
 
-        this.appStateService.updateState({ openSchemaSelectorWindow: false });
-
-        if (selectedSchema) {
-            await this.handleAssociate(selectedSchema);
+            if (selectedSchema) {
+                await this.handleAssociate(selectedSchema);
+            }
+        } catch (err) {
+            console.error("Failed to open selector dialog:", err);
+        } finally {
+            // CRITICAL: Always reset the state variable to false when the dialog closes.
+            // This prevents the button from getting stuck in the 'true' state.
+            this.isDialogVisible = false;
+            this.appStateService.updateState({ openSchemaSelectorWindow: false });
         }
     }
 
@@ -101,7 +116,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
 export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | undefined> {
 
     protected selectedSchema: SchemaInfo | undefined;
-    private reactRoot: ReactDOM.Root | undefined;
+    private reactRoot: any;
 
     constructor(
         protected readonly schemaManager: SchemaManagerService,
@@ -119,18 +134,29 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | un
         
         this.contentNode.style.display = 'flex';
         this.contentNode.style.flexDirection = 'column';
-        this.contentNode.style.overflow = 'hidden'; 
-        this.contentNode.style.backgroundColor = 'transparent';
-
-        this.appendCloseButton('Cancel');
-        this.appendAcceptButton('Associate');
+        this.contentNode.style.padding = '0';
     }
 
     get value(): SchemaInfo | undefined {
         return this.selectedSchema;
     }
 
+    protected handleAccept(schema: SchemaInfo) {
+        this.selectedSchema = schema;
+        this.accept();
+    }
+
+    protected handleClose() {
+        this.selectedSchema = undefined;
+        this.close();
+    }
+
     protected render(): void {
+        if (!this.contentNode) return;
+
+        // Dynamic require to prevent strict import issues if React 18 is partially loaded
+        const ReactDOM = require('react-dom/client');
+
         if (!this.reactRoot) {
             this.reactRoot = ReactDOM.createRoot(this.contentNode);
         }
@@ -140,14 +166,16 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | un
                 service={this.schemaManager}
                 fileDialog={this.fileDialog}
                 msg={this.msgService}
-                onSelectionChange={(s) => this.selectedSchema = s}
+                onAccept={(s) => this.handleAccept(s)}
+                onCancel={() => this.handleClose()}
             />
         );
     }
 
     protected onAfterAttach(msg: Message): void {
         super.onAfterAttach(msg);
-        this.render();
+        // Defer rendering to ensure container is sized
+        requestAnimationFrame(() => this.render());
     }
 
     protected onBeforeDetach(msg: Message): void {
@@ -163,19 +191,22 @@ interface ContentProps {
     service: SchemaManagerService;
     fileDialog: FileDialogService;
     msg: MessageService;
-    onSelectionChange: (schema: SchemaInfo | undefined) => void;
+    onAccept: (schema: SchemaInfo) => void;
+    onCancel: () => void;
 }
 
-const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onSelectionChange }) => {
+const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onAccept, onCancel }) => {
     const [schemas, setSchemas] = React.useState<SchemaInfo[]>([]);
     const [isLoading, setIsLoading] = React.useState(false);
-    
-    // REMOVED: isProviderSelectorOpen state
+    const [selectedSchema, setSelectedSchema] = React.useState<SchemaInfo | undefined>(undefined);
 
     const loadData = React.useCallback(() => {
         setIsLoading(true);
         service.loadAllSchemas()
-            .then(setSchemas)
+            .then(res => {
+                setSchemas(res);
+                setSelectedSchema(undefined);
+            })
             .catch(err => console.error(err))
             .finally(() => setIsLoading(false));
     }, [service]);
@@ -191,7 +222,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onS
 
     const handleSelectionChange = (keys: React.Key[]) => {
         const found = schemas.find(s => s.path === keys[0]);
-        onSelectionChange(found);
+        setSelectedSchema(found);
     };
 
     const handleImportFile = async () => {
@@ -226,9 +257,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onS
     const handleOpenImportUrl = async () => {
         const dialog = new MetadataSchemaImportFromUrlDialog();
         const url = await dialog.open();
-        if (url) {
-            handleImportUrl(url);
-        }
+        if (url) handleImportUrl(url);
     };
 
     const handleOpenProviderList = async () => {
@@ -236,14 +265,10 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onS
         await dialog.open();
     };
 
-    // FIX: Use imperative dialog opening
     const handleBrowseRemote = async () => {
         const dialog = new RemoteSchemaProviderSelectorDialog(service.providerStoreService);
         const provider = await dialog.open();
-        
-        if (provider) {
-            service.browseRemoteSchemas(provider);
-        }
+        if (provider) service.browseRemoteSchemas(provider);
     };
 
     return (
@@ -274,12 +299,79 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onS
                 <MetadataSchemaTable
                     schemas={schemas}
                     isLoading={isLoading}
-                    selectionType="radio"
+                    selectionType="row"
+                    selectedKeys={selectedSchema ? [selectedSchema.path] : []}
                     onSelectionChange={handleSelectionChange}
                 />
             </div>
             
-            {/* FIX: Removed the JSX Dialog Component from here */}
+            {/* Footer with "Associate" button AND "Selected" Info */}
+            <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                gap: '10px', 
+                padding: '15px 20px', 
+                backgroundColor: 'var(--theia-layout-color2)', 
+                borderTop: '1px solid var(--theia-panel-border)'
+            }}>
+                {/* Left: Selection Info */}
+                <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', marginRight: '20px' }}>
+                    {selectedSchema ? (
+                        <>
+                            <div style={{ display: 'flex', alignItems: 'center', marginRight: '8px' }}>
+                                <Tooltip title="Deselect" PopperProps={{ style: { zIndex: 99999 } }}>
+                                    <IconButton 
+                                        size="small" 
+                                        onClick={() => setSelectedSchema(undefined)} 
+                                        style={{ padding: 2, color: 'var(--theia-errorForeground)' }}
+                                    >
+                                        <CancelIcon fontSize="small" />
+                                    </IconButton>
+                                </Tooltip>
+                            </div>
+                            <span style={{ 
+                                fontWeight: 600, 
+                                color: 'var(--theia-foreground)', 
+                                whiteSpace: 'nowrap', 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis' 
+                            }}>
+                                Selected: {selectedSchema.name}
+                            </span>
+                        </>
+                    ) : (
+                        <span style={{ color: 'var(--theia-descriptionForeground)', fontStyle: 'italic' }}>
+                            Click a row to select a schema.
+                        </span>
+                    )}
+                </div>
+
+                {/* Right: Buttons */}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button 
+                        className="theia-button secondary"
+                        onClick={onCancel}
+                        style={{ 
+                            minWidth: '80px',
+                            border: '1px solid var(--theia-button-border, #ccc)'
+                        }}
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        className="theia-button main"
+                        onClick={() => selectedSchema && onAccept(selectedSchema)}
+                        disabled={!selectedSchema}
+                        style={{ 
+                            minWidth: '80px',
+                            color: 'var(--theia-button-foreground)'
+                        }}
+                    >
+                        Associate
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };
