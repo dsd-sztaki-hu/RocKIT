@@ -10,7 +10,7 @@ import { MetadataSchemaSelectorContribution } from './components/metadata-schema
 import { RemoteSchemaBrowserContribution } from './components/remote-schema-browser-dialog';
 import { MetadataSchemaManager as MetadataSchemaManagerToken } from 'aroma2-common/lib/browser';
 
-import './style/index.css';
+import './styles/index.css';
 
 export default new ContainerModule(bind => {
     // 1. Widget
