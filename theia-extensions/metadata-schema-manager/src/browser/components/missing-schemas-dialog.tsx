@@ -7,9 +7,12 @@ import { Message } from '@lumino/messaging';
 // Icons
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
+// Import CSS
+import '../styles/missing-schemas-dialog.css';
+
 export class MissingSchemasDialog extends AbstractDialog<void> {
 
-    private reactRoot: any; // Keep 'any' to avoid strict type issues with dynamic ReactDOM
+    private reactRoot: any; 
 
     constructor(private readonly count: number) {
         super({
@@ -47,7 +50,6 @@ export class MissingSchemasDialog extends AbstractDialog<void> {
 
     protected onAfterAttach(msg: Message): void {
         super.onAfterAttach(msg);
-        // Ensure rendering happens after attachment
         requestAnimationFrame(() => this.render());
     }
 
@@ -67,41 +69,16 @@ interface InfoContentProps {
 
 const InfoContent: React.FC<InfoContentProps> = ({ count, onConfirm }) => {
     return (
-        <div style={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            backgroundColor: 'var(--theia-editor-background)',
-            color: 'var(--theia-foreground)',
-            height: '100%'
-        }}>
+        <div className="missing-schemas">
             {/* Body */}
-            <div style={{ 
-                padding: '20px', 
-                display: 'flex', 
-                alignItems: 'start', 
-                gap: '15px',
-                flex: 1
-            }}>
-                <InfoOutlinedIcon style={{ 
-                    fontSize: '32px', 
-                    color: 'var(--theia-infoForeground, #2196F3)' // Standard Info Blue
-                }} />
+            <div className="missing-schemas__body">
+                <InfoOutlinedIcon className="missing-schemas__icon" />
                 
-                <div style={{ paddingTop: '4px' }}>
-                    <h3 style={{ 
-                        margin: '0 0 8px 0', 
-                        fontSize: '14px', 
-                        fontWeight: 600,
-                        color: 'var(--theia-foreground)'
-                    }}>
+                <div className="missing-schemas__text-container">
+                    <h3 className="missing-schemas__title">
                         Missing Metadata Schemas
                     </h3>
-                    <p style={{ 
-                        margin: 0, 
-                        fontSize: '13px', 
-                        color: 'var(--theia-descriptionForeground)',
-                        lineHeight: '1.5'
-                    }}>
+                    <p className="missing-schemas__message">
                         The RO-Crate references <strong>{count}</strong> missing schema{count !== 1 ? 's' : ''}.
                         <br/>
                         Downloading now...
@@ -110,21 +87,10 @@ const InfoContent: React.FC<InfoContentProps> = ({ count, onConfirm }) => {
             </div>
 
             {/* Custom Footer */}
-            <div style={{ 
-                display: 'flex', 
-                justifyContent: 'flex-end', 
-                alignItems: 'center',
-                padding: '15px 20px', 
-                backgroundColor: 'var(--theia-layout-color2)', 
-                borderTop: '1px solid var(--theia-panel-border)'
-            }}>
+            <div className="missing-schemas__footer">
                 <button 
-                    className="theia-button main"
+                    className="theia-button main missing-schemas__btn-ok"
                     onClick={onConfirm}
-                    style={{ 
-                        minWidth: '80px',
-                        cursor: 'pointer'
-                    }}
                 >
                     OK
                 </button>
