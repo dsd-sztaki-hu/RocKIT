@@ -1367,7 +1367,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   ): string {
     const entityType =
       token.entityType || field.entityTypes[0] || field.className || 'Thing'
-    const entityId = this.generateEntityId(entityType, graph)
+    const entityId = token.label
     const entity: Record<string, any> = {
       '@id': entityId,
       '@type': entityType,
@@ -1380,7 +1380,6 @@ export class MultiEditDialog extends ReactDialog<string> {
       entity.name = token.label
     }
 
-    this.applyRequiredDefaults(entity, entityType, token.label)
     graph.push(entity)
     return entityId
   }
