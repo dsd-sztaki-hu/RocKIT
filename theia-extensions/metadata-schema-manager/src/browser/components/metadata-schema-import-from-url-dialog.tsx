@@ -3,8 +3,13 @@
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
+// Use dynamic require in render for ReactDOM to be safe, or top-level if your setup supports it consistently
+// Keeping top-level import as per your provided snippet, but ensuring 'root' type usage is safe
 import * as ReactDOM from 'react-dom/client';
 import LinkIcon from '@mui/icons-material/Link';
+
+// Import the new stylesheet
+import '../styles/metadata-schema-import-from-url-dialog.css';
 
 export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
 
@@ -17,12 +22,10 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
             title: 'Import Schema from URL'
         });
 
+        // We keep the initial width for the dialog container, 
+        // but the internal content will now be responsive.
         this.contentNode.style.width = '500px';
         this.contentNode.style.padding = '0';
-
-        // Removed standard buttons to render custom styled ones in React
-        // this.appendCloseButton('Cancel');
-        // this.appendAcceptButton('Import');
     }
 
     get value(): string {
@@ -43,68 +46,32 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
         }
 
         this.reactRoot.render(
-            <div style={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                height: '100%',
-                backgroundColor: 'var(--theia-editor-background)',
-                color: 'var(--theia-foreground)'
-            }}>
+            <div className="metadata-schema-import-url">
                 {/* Content Area */}
-                <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="metadata-schema-import-url__content">
                     
                     {/* Header Section */}
-                    <div style={{ display: 'flex', gap: '15px' }}>
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '40px',
-                            height: '40px',
-                            backgroundColor: 'var(--theia-list-hoverBackground)',
-                            borderRadius: '50%',
-                            flexShrink: 0,
-                            border: '1px solid var(--theia-contrastBorder, transparent)'
-                        }}>
-                            <LinkIcon style={{ color: 'var(--theia-textLink-foreground)', fontSize: '24px' }} />
+                    <div className="metadata-schema-import-url__header">
+                        <div className="metadata-schema-import-url__icon-wrapper">
+                            <LinkIcon className="metadata-schema-import-url__icon" />
                         </div>
                         
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{ 
-                                fontWeight: 600, 
-                                fontSize: 'var(--theia-ui-font-size1)',
-                                lineHeight: '1.4'
-                            }}>
+                        <div className="metadata-schema-import-url__text-wrapper">
+                            <div className="metadata-schema-import-url__title">
                                 Enter Metadata Schema URL
                             </div>
-                            <div style={{ 
-                                fontSize: 'var(--theia-ui-font-size0)', 
-                                color: 'var(--theia-descriptionForeground)',
-                                lineHeight: '1.4'
-                            }}>
+                            <div className="metadata-schema-import-url__description">
                                 Paste the direct link to the JSON schema file. We'll handle the authentication if a provider matches.
                             </div>
                         </div>
                     </div>
                     
                     {/* Input Section */}
-                    <div>
+                    <div className="metadata-schema-import-url__input-wrapper">
                         <input
                             id={this.inputId}
                             type="text"
-                            className="theia-input" 
-                            style={{ 
-                                width: '100%', 
-                                boxSizing: 'border-box',
-                                padding: '8px 10px',
-                                height: '32px',
-                                fontSize: '13px',
-                                border: '1px solid var(--theia-input-border, #ccc)', 
-                                backgroundColor: 'var(--theia-input-background)',
-                                color: 'var(--theia-input-foreground)',
-                                borderRadius: '2px',
-                                outline: 'none'
-                            }}
+                            className="theia-input metadata-schema-import-url__input" 
                             placeholder="https://repo.schema.researchdata.hu/templates/..."
                             defaultValue={this.inputValue}
                             onChange={(e) => this.inputValue = e.target.value}
@@ -121,32 +88,16 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
                 </div>
 
                 {/* Footer / Button Area */}
-                <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'flex-end', 
-                    gap: '10px', 
-                    padding: '15px 20px',
-                    backgroundColor: 'var(--theia-layout-color2)', // Slightly darker/lighter background for contrast
-                    borderTop: '1px solid var(--theia-panel-border)'
-                }}>
+                <div className="metadata-schema-import-url__footer">
                     <button 
-                        className="theia-button secondary"
+                        className="theia-button secondary metadata-schema-import-url__button metadata-schema-import-url__button--secondary"
                         onClick={() => this.handleCancel()}
-                        style={{ 
-                            minWidth: '80px',
-                            // Ensure border is visible in light themes
-                            border: '1px solid var(--theia-button-border, #ccc)' 
-                        }}
                     >
                         Cancel
                     </button>
                     <button 
-                        className="theia-button main"
+                        className="theia-button main metadata-schema-import-url__button metadata-schema-import-url__button--main"
                         onClick={() => this.handleImport()}
-                        style={{ 
-                            minWidth: '80px',
-                            color: 'var(--theia-button-foreground)'
-                        }}
                     >
                         Import
                     </button>

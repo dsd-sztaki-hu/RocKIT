@@ -22,7 +22,7 @@ import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-
 import { DeleteConfirmationDialog } from './components/delete-confirmation-dialog';
 import type { SchemaInfo } from './types';
 
-import './style/index.css';
+import './styles/index.css';
 
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager';
 export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager';

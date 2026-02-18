@@ -1,0 +1,168 @@
+/* src/browser/styles/remote-schema-provider-config-dialog.css */
+
+.remote-provider-config {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--theia-editor-background);
+    color: var(--theia-foreground);
+    font-family: var(--theia-ui-font-family);
+}
+
+.remote-provider-config__content {
+    padding: 20px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* Header */
+.remote-provider-config__header {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.remote-provider-config__icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background-color: var(--theia-list-hoverBackground);
+    border: 1px solid var(--theia-contrastBorder, transparent);
+}
+
+.remote-provider-config__title {
+    font-weight: 600;
+    font-size: var(--theia-ui-font-size1);
+}
+
+.remote-provider-config__description {
+    font-size: var(--theia-ui-font-size0);
+    color: var(--theia-descriptionForeground);
+}
+
+/* Error Message */
+.remote-provider-config__error {
+    color: var(--theia-errorForeground);
+    border: 1px solid var(--theia-errorForeground);
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    font-size: 0.9em;
+    background-color: rgba(255, 0, 0, 0.05);
+}
+
+/* Form Fields */
+.remote-provider-config__form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.remote-provider-config__label {
+    font-size: var(--theia-ui-font-size0);
+    font-weight: 600;
+    color: var(--theia-foreground);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+/* FIX: 
+   1. Explicit height increased to 34px to prevent cutoff.
+   2. Padding reduced to 6px top/bottom to center text within that height.
+*/
+.remote-provider-config__input,
+.remote-provider-config__select {
+    width: 100%;
+    box-sizing: border-box;
+    height: 34px; 
+    padding: 6px 10px; 
+    font-size: 13px;
+    line-height: 20px; /* Ensure text is vertically centered */
+    border: 1px solid var(--theia-input-border, #ccc);
+    background-color: var(--theia-input-background);
+    color: var(--theia-input-foreground);
+    border-radius: 2px;
+    margin-top: 4px;
+    outline: none;
+}
+
+.remote-provider-config__input:focus,
+.remote-provider-config__select:focus {
+    border-color: var(--theia-focusBorder);
+}
+
+.remote-provider-config__select {
+    cursor: pointer;
+    /* Removes default appearance to ensure consistent styling */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    /* Re-add a simple arrow indicator since appearance:none removes it */
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23999%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 8px auto;
+    padding-right: 30px; /* Space for arrow */
+}
+
+/* API Key Field Specifics */
+.remote-provider-config__api-key-wrapper {
+    position: relative;
+    display: flex;
+    margin-top: 4px;
+    width: 100%;
+}
+
+.remote-provider-config__input--password {
+    margin-top: 0;
+    padding-right: 40px;
+}
+
+.remote-provider-config__visibility-toggle {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--theia-foreground);
+    opacity: 0.7;
+    /* Ensure icon is centered vertically */
+    display: flex; 
+    align-items: center;
+}
+
+.remote-provider-config__change-btn {
+    margin-left: 8px;
+    white-space: nowrap;
+    height: 34px; /* Match input height */
+}
+
+/* Footer */
+.remote-provider-config__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 15px 20px;
+    background-color: var(--theia-layout-color2);
+    border-top: 1px solid var(--theia-panel-border);
+    flex-shrink: 0;
+}
+
+.remote-provider-config__btn-cancel {
+    min-width: 80px;
+    border: 1px solid var(--theia-button-border, #ccc);
+}
+
+.remote-provider-config__btn-save {
+    min-width: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--theia-button-foreground);
+}

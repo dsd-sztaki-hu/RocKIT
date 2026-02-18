@@ -18,6 +18,9 @@ import { ConnectionSuccessDialog } from './connection-success-dialog';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
 import type { RemoteSchemaProviderConfig } from '../types';
 
+// Import CSS
+import '../styles/remote-schema-provider-config-dialog.css';
+
 export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchemaProviderConfig | undefined> {
 
     private reactRoot: ReactDOM.Root | undefined;
@@ -30,7 +33,7 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
     
     private isEditingKey = true;
     private isTesting = false;
-    private showKey = false; // Toggle password visibility
+    private showKey = false; 
     private errorMsg: string | null = null;
     private result: RemoteSchemaProviderConfig | undefined;
 
@@ -42,8 +45,9 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
             title: providerToEdit ? 'Edit Provider' : 'Add Provider'
         });
         
+        // Layout handled by CSS mostly, but container needs explicit size
         this.contentNode.style.width = '500px';
-        this.contentNode.style.padding = '0'; // Handle padding in React
+        this.contentNode.style.padding = '0';
 
         if (providerToEdit) {
             this.titleValue = providerToEdit.title;
@@ -126,83 +130,42 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
             this.reactRoot = ReactDOM.createRoot(this.contentNode);
         }
 
-        const inputStyle: React.CSSProperties = {
-            width: '100%',
-            boxSizing: 'border-box',
-            padding: '8px 10px',
-            fontSize: '13px',
-            border: '1px solid var(--theia-input-border, #ccc)',
-            backgroundColor: 'var(--theia-input-background)',
-            color: 'var(--theia-input-foreground)',
-            borderRadius: '2px',
-            marginTop: '4px'
-        };
-
-        const labelStyle: React.CSSProperties = {
-            fontSize: 'var(--theia-ui-font-size0)',
-            fontWeight: 600,
-            color: 'var(--theia-foreground)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-        };
-
         this.reactRoot.render(
-            <div style={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                height: '100%', // Take full height
-                backgroundColor: 'var(--theia-editor-background)',
-                color: 'var(--theia-foreground)'
-            }}>
+            <div className="remote-provider-config">
                 
                 {/* Scrollable Content Area */}
-                <div style={{ padding: '20px', flex: 1, overflowY: 'auto' }}>
+                <div className="remote-provider-config__content">
                     {/* Header Info */}
-                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '20px' }}>
-                        <div style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            width: '42px', height: '42px', borderRadius: '50%',
-                            backgroundColor: 'var(--theia-list-hoverBackground)',
-                            border: '1px solid var(--theia-contrastBorder, transparent)'
-                        }}>
+                    <div className="remote-provider-config__header">
+                        <div className="remote-provider-config__icon-wrapper">
                             <DnsIcon style={{ color: 'var(--theia-textLink-foreground)', fontSize: '24px' }} />
                         </div>
                         <div>
-                            <div style={{ fontWeight: 600, fontSize: 'var(--theia-ui-font-size1)' }}>
+                            <div className="remote-provider-config__title">
                                 {this.providerToEdit ? 'Edit Connection' : 'New Connection'}
                             </div>
-                            <div style={{ fontSize: 'var(--theia-ui-font-size0)', color: 'var(--theia-descriptionForeground)' }}>
+                            <div className="remote-provider-config__description">
                                 Configure connection details for a remote metadata repository.
                             </div>
                         </div>
                     </div>
 
                     {this.errorMsg && (
-                        <div style={{ 
-                            color: 'var(--theia-errorForeground)', 
-                            border: '1px solid var(--theia-errorForeground)', 
-                            padding: '10px', 
-                            borderRadius: '4px',
-                            marginBottom: '15px',
-                            fontSize: '0.9em',
-                            backgroundColor: 'rgba(255, 0, 0, 0.05)'
-                        }}>
+                        <div className="remote-provider-config__error">
                             <strong>Error:</strong> {this.errorMsg}
                         </div>
                     )}
 
                     {/* Form Fields */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                    <div className="remote-provider-config__form">
                         
                         {/* Title */}
                         <div>
-                            <label style={labelStyle}>
+                            <label className="remote-provider-config__label">
                                 Name (Display)
                             </label>
                             <input 
-                                className="theia-input" 
-                                style={inputStyle}
+                                className="theia-input remote-provider-config__input" 
                                 value={this.titleValue}
                                 onChange={(e) => { this.titleValue = e.target.value; this.render(); }}
                                 disabled={this.isTesting}
@@ -213,12 +176,11 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
 
                         {/* Base URL */}
                         <div>
-                            <label style={labelStyle}>
+                            <label className="remote-provider-config__label">
                                 <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Base URL
                             </label>
                             <input 
-                                className="theia-input" 
-                                style={inputStyle}
+                                className="theia-input remote-provider-config__input" 
                                 placeholder="https://cedar.schema.researchdata.hu"
                                 value={this.baseUrlValue}
                                 onChange={(e) => { this.baseUrlValue = e.target.value; this.render(); }}
@@ -228,12 +190,11 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
 
                         {/* Type Dropdown */}
                         <div>
-                            <label style={labelStyle}>
+                            <label className="remote-provider-config__label">
                                 <CategoryIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Type
                             </label>
                             <select 
-                                className="theia-select" 
-                                style={{ ...inputStyle, cursor: 'pointer' }}
+                                className="theia-select remote-provider-config__select" 
                                 value={this.typeValue}
                                 onChange={(e) => { this.typeValue = e.target.value as any; this.render(); }}
                                 disabled={this.isTesting} 
@@ -244,21 +205,20 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
 
                         {/* API Key */}
                         <div>
-                            <label style={labelStyle}>
+                            <label className="remote-provider-config__label">
                                 <VpnKeyIcon style={{ fontSize: '16px', opacity: 0.7 }}/> API Key (Optional)
                             </label>
-                            <div style={{ position: 'relative', display: 'flex', marginTop: '4px' }}>
+                            <div className="remote-provider-config__api-key-wrapper">
                                 <input 
-                                    className="theia-input" 
+                                    className="theia-input remote-provider-config__input remote-provider-config__input--password" 
                                     type={this.showKey ? "text" : "password"}
-                                    style={{ ...inputStyle, marginTop: 0, paddingRight: '40px' }}
                                     value={this.isEditingKey ? this.apiKeyValue : '********'}
                                     onChange={(e) => { this.apiKeyValue = e.target.value; this.render(); }}
                                     disabled={!this.isEditingKey || this.isTesting}
                                     placeholder={this.isEditingKey ? "Paste API Key here" : "Stored securely"}
                                 />
                                 {this.isEditingKey ? (
-                                    <div style={{ position: 'absolute', right: '5px', top: '50%', transform: 'translateY(-50%)' }}>
+                                    <div className="remote-provider-config__visibility-toggle">
                                         <IconButton 
                                             size="small" 
                                             onClick={() => { this.showKey = !this.showKey; this.render(); }}
@@ -270,8 +230,7 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                                     </div>
                                 ) : (
                                     <button 
-                                        className="theia-button secondary"
-                                        style={{ marginLeft: '8px', whiteSpace: 'nowrap', height: '32px' }}
+                                        className="theia-button secondary remote-provider-config__change-btn"
                                         onClick={() => { 
                                             this.isEditingKey = true; 
                                             this.apiKeyValue = ''; 
@@ -287,30 +246,18 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                 </div>
 
                 {/* Footer Section */}
-                <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'flex-end', 
-                    gap: '10px', 
-                    padding: '15px 20px',
-                    backgroundColor: 'var(--theia-layout-color2)', // Consistent footer
-                    borderTop: '1px solid var(--theia-panel-border)'
-                }}>
+                <div className="remote-provider-config__footer">
                     <button 
-                        className="theia-button secondary"
+                        className="theia-button secondary remote-provider-config__btn-cancel"
                         onClick={() => this.handleCancel()}
                         disabled={this.isTesting}
-                        style={{ 
-                            minWidth: '80px',
-                            border: '1px solid var(--theia-button-border, #ccc)' // Visible border in light mode
-                        }}
                     >
                         Cancel
                     </button>
                     <button 
-                        className="theia-button main"
+                        className="theia-button main remote-provider-config__btn-save"
                         onClick={() => this.handleSaveAttempt()}
                         disabled={this.isTesting}
-                        style={{ minWidth: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                     >
                         {this.isTesting && <i className="codicon codicon-loading codicon-modifier-spin" />}
                         {this.isTesting ? 'Verifying...' : 'Save'}
