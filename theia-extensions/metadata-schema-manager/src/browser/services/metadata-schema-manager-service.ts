@@ -6,13 +6,13 @@ import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { URI } from '@theia/core/lib/common/uri';
 import { Emitter, Event } from '@theia/core/lib/common/event';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
-import { Modal } from 'antd';
 
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
 import type { SchemaInfo, RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
 import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'aroma2-common/lib/browser';
-import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service'; 
+import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service';
+import { MissingSchemasDialog } from '../components/missing-schemas-dialog'; 
 
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
@@ -248,11 +248,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             if (missingIds.length === 0) return;
 
             await new Promise<void>((resolve) => {
-                Modal.info({
-                    title: 'Missing Metadata Schemas',
-                    content: `The RO-Crate references ${missingIds.length} missing schema(s). Downloading now...`,
-                    okText: 'OK', onOk: () => resolve(), maskClosable: false
-                });
+                const dialog = new MissingSchemasDialog(missingIds.length);
+                dialog.open().then(() => resolve());
             });
 
             await this.messageService.showProgress({ text: 'Resolving Missing Schemas...' })
