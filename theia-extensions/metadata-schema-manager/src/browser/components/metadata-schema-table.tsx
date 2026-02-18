@@ -1,8 +1,16 @@
+// src/browser/components/metadata-schema-table.tsx
+
 import * as React from 'react';
 import { Button, Input, Table, ConfigProvider, theme } from 'antd';
 import type { InputRef, TableColumnsType } from 'antd';
 import type { FilterDropdownProps, Key } from 'antd/es/table/interface';
 import type { SchemaInfo, SchemaTableProps } from '../types';
+
+// MUI Icons
+import SearchIcon from '@mui/icons-material/Search';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { IconButton, Tooltip } from '@mui/material';
 
 export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({ 
     schemas, 
@@ -26,7 +34,6 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                     ref={searchInput}
                     placeholder={`Search ${dataIndex}`}
                     value={selectedKeys[0]}
-                    // FIX: Added explicit type 'React.ChangeEvent<HTMLInputElement>'
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
                         setSelectedKeys(e.target.value ? [e.target.value] : [])
                     }
@@ -43,8 +50,13 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                 </div>
             </div>
         ),
+        // FIX: Use visible MUI Icon instead of Emoji or AntD default
         filterIcon: (filtered: boolean) => (
-            <span style={{ color: filtered ? 'var(--theia-focusBorder)' : undefined }}>🔍</span>
+            <SearchIcon style={{ 
+                color: filtered ? 'var(--theia-focusBorder)' : 'var(--theia-icon-foreground)',
+                fontSize: '16px',
+                opacity: filtered ? 1 : 0.7
+            }} />
         ),
         onFilter: (value: boolean | Key, record: SchemaInfo) =>
             (record[dataIndex] || '').toString().toLowerCase().includes(value.toString().toLowerCase()),
@@ -69,9 +81,30 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
         {
             title: 'Source',
             dataIndex: 'source',
-            width: 90,
+            width: 100,
             filters: [{ text: 'Local', value: 'local' }, { text: 'Remote', value: 'remote' }],
             onFilter: (value, record) => record.source === value,
+            // FIX: Explicit Filter Icon for Source column
+            filterIcon: (filtered: boolean) => (
+                <FilterListIcon style={{ 
+                    color: filtered ? 'var(--theia-focusBorder)' : 'var(--theia-icon-foreground)',
+                    fontSize: '16px',
+                    opacity: filtered ? 1 : 0.7
+                }} />
+            ),
+            render: (text: string) => (
+                <span style={{ 
+                    padding: '2px 6px', 
+                    borderRadius: '4px', 
+                    backgroundColor: text === 'remote' ? 'rgba(45, 122, 237, 0.15)' : 'rgba(76, 175, 80, 0.15)',
+                    color: text === 'remote' ? '#2d7aed' : '#4caf50',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    textTransform: 'uppercase'
+                }}>
+                    {text}
+                </span>
+            )
         },
         {
             title: 'Ref (@id)',
@@ -100,17 +133,21 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
         columns.push({
             title: 'Action',
             key: 'action',
-            width: 80,
+            width: 70,
+            align: 'center',
             render: (_, record) => (
-                <Button 
-                    type="link" danger size="small" 
-                    onClick={(e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        onDelete([record.path]);
-                    }}
-                >
-                    Delete
-                </Button>
+                <Tooltip title="Delete Schema" PopperProps={{ style: { zIndex: 99999 } }}>
+                    <IconButton 
+                        size="small" 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete([record.path]);
+                        }}
+                        style={{ color: 'var(--theia-errorForeground)', padding: 4 }}
+                    >
+                        <DeleteOutlineIcon style={{ fontSize: '18px' }} />
+                    </IconButton>
+                </Tooltip>
             ),
         });
     }
@@ -135,6 +172,8 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         borderColor: 'var(--theia-panel-border)',
                         rowHoverBg: 'var(--theia-list-hoverBackground)',
                         headerBorderRadius: 0,
+                        headerSortActiveBg: 'var(--theia-list-hoverBackground)', // Better state visibility
+                        headerFilterHoverBg: 'var(--theia-list-hoverBackground)',
                     },
                     Button: {
                         colorBgContainer: 'var(--theia-button-background)',
@@ -164,7 +203,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                     }}
                     size="small"
                     pagination={{ 
-                        pageSize: 10, 
+                        pageSize: 15, 
                         showSizeChanger: true,
                         size: "small",
                         position: ['bottomRight'],
