@@ -1,0 +1,81 @@
+/* src/browser/styles/remote-schema-browser-dialog.css */
+
+.remote-browser-dialog {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--theia-editor-background);
+    color: var(--theia-foreground);
+    font-family: var(--theia-ui-font-family);
+}
+
+.remote-browser-dialog__tree-container {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    /* Tree component will fill this space */
+}
+
+.remote-browser-dialog__loading {
+    padding: 20px;
+    color: var(--theia-descriptionForeground);
+    font-style: italic;
+    text-align: center;
+}
+
+/* Footer */
+.remote-browser-dialog__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background-color: var(--theia-layout-color2);
+    border-top: 1px solid var(--theia-panel-border);
+    flex-shrink: 0;
+}
+
+.remote-browser-dialog__selection-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    margin-right: 15px;
+}
+
+.remote-browser-dialog__controls {
+    display: flex;
+    margin-right: 10px;
+    flex-shrink: 0;
+    gap: 4px;
+}
+
+.remote-browser-dialog__selected-name {
+    font-weight: 600;
+    color: var(--theia-foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: var(--theia-ui-font-size1);
+}
+
+.remote-browser-dialog__placeholder {
+    color: var(--theia-descriptionForeground);
+    font-style: italic;
+    font-size: var(--theia-ui-font-size0);
+}
+
+.remote-browser-dialog__actions {
+    display: flex;
+    gap: 10px;
+}
+
+.remote-browser-dialog__btn-cancel {
+    min-width: 80px;
+    border: 1px solid var(--theia-button-border, #ccc);
+}
+
+.remote-browser-dialog__btn-add {
+    min-width: 80px;
+    color: var(--theia-button-foreground);
+}

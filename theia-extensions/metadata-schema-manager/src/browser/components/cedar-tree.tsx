@@ -14,7 +14,10 @@ import { LinearProgress, CircularProgress, IconButton, Tooltip, TextField, Input
 import { SchemaApi } from "../services/schema-api";
 import { File, FolderClosed } from "./icons"; 
 
-// --- Helpers ---
+// Import CSS
+import '../styles/cedar-tree.css';
+
+// --- Helpers (Unchanged) ---
 type TreeNode = {
   id: string;
   name: string;
@@ -349,10 +352,10 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
         label={
             <div 
                 id={`cedar-node-${node.id}`}
-                style={{ display: 'flex', alignItems: 'center', padding: '4px 0' }}
+                className="cedar-tree__node"
                 onClick={(e) => onNodeClick(node, e)}
             >
-                <span style={{ marginRight: 8, display: 'flex', alignItems: 'center' }}>
+                <span className="cedar-tree__node-icon">
                     {node.isFolder ? <FolderClosed /> : <File />}
                 </span>
                 
@@ -360,7 +363,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                     <span>
                         {node.name.split(new RegExp(`(${searchQuery})`, 'gi')).map((part, i) => 
                             part.toLowerCase() === searchQuery.toLowerCase() 
-                                ? <span key={i} style={{ backgroundColor: '#fff59d', color: 'black' }}>{part}</span> 
+                                ? <span key={i} className="cedar-tree__highlight">{part}</span> 
                                 : part
                         )}
                     </span>
@@ -413,22 +416,15 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
 
   // --- Main Render ---
   return (
-    <div style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        height: '100%', 
-        padding: '10px', 
-        boxSizing: 'border-box', 
-        color: 'var(--theia-foreground)',
-        backgroundColor: 'var(--theia-editor-background)'
-    }}>
+    <div className="cedar-tree">
       
       {/* Search Header */}
-      <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid var(--theia-panel-border)', paddingBottom: '4px', minHeight: '32px' }}>
+      <div className="cedar-tree__header">
           
-          <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div className="cedar-tree__toolbar">
                 {isSearchExpanded ? (
                     <TextField
+                        className="cedar-tree__search-box"
                         variant="standard"
                         placeholder={isSearching ? "Searching..." : "Search..."}
                         value={rawSearchInput}
@@ -436,13 +432,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                         autoFocus
                         InputProps={{
                             disableUnderline: true,
-                            style: { 
-                                fontSize: '14px', 
-                                paddingLeft: '4px',
-                                color: 'var(--theia-input-foreground)',
-                                backgroundColor: 'var(--theia-input-background)',
-                                border: '1px solid var(--theia-input-border)'
-                            },
+                            className: "cedar-tree__search-input",
                             endAdornment: (
                                 <InputAdornment position="end">
                                     {isSearching ? (
@@ -460,10 +450,8 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                                 </InputAdornment>
                             )
                         }}
-                        style={{ width: '220px', borderRadius: '4px', padding: '0' }}
                     />
                 ) : (
-                    // --- FIX: High Z-Index for Tooltip ---
                     <Tooltip title="Search Folders & Templates" PopperProps={{ style: { zIndex: 99999 } }}>
                         <IconButton size="small" onClick={() => setIsSearchExpanded(true)}>
                             <SearchIcon fontSize="small" style={{ color: 'var(--theia-icon-foreground)' }} />
@@ -472,15 +460,14 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                 )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div className="cedar-tree__toolbar">
               {isBulkExpanding && (
-                  <div style={{ marginRight: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <div className="cedar-tree__loading-indicator">
                       <CircularProgress size={14} style={{ color: 'var(--theia-focusBorder)' }} />
-                      <span style={{ fontSize: '11px', color: 'var(--theia-descriptionForeground)' }}>Expanding...</span>
+                      <span className="cedar-tree__loading-text">Expanding...</span>
                   </div>
               )}
 
-              {/* --- FIX: High Z-Index for Tooltip --- */}
               <Tooltip title="Expand All (Recursive)" PopperProps={{ style: { zIndex: 99999 } }}>
                   <span>
                     <IconButton 
@@ -494,7 +481,6 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                   </span>
               </Tooltip>
               
-              {/* --- FIX: High Z-Index for Tooltip --- */}
               <Tooltip title="Collapse All" PopperProps={{ style: { zIndex: 99999 } }}>
                   <IconButton size="small" onClick={handleCollapseAll} disabled={isBulkExpanding || isSearching}>
                       <UnfoldLessIcon fontSize="small" style={{ color: 'var(--theia-icon-foreground)' }} />
@@ -503,17 +489,17 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
           </div>
       </div>
 
-      <div style={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
+      <div className="cedar-tree__body">
           
           {isLoading && treeData.length === 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+            <div className="cedar-tree__init-loading">
                 <LinearProgress style={{ flexGrow: 1, marginRight: 10, color: 'var(--theia-focusBorder)' }} />
-                <span style={{ fontSize: '12px', color: 'var(--theia-descriptionForeground)' }}>Loading repository...</span>
+                <span className="cedar-tree__init-text">Loading repository...</span>
             </div>
           )}
 
           {errorMsg && (
-            <div style={{ color: 'var(--theia-errorForeground)', padding: 10, border: '1px solid var(--theia-errorForeground)', borderRadius: 4 }}>
+            <div className="cedar-tree__error">
                 {errorMsg}
             </div>
           )}
@@ -535,7 +521,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
           )}
           
           {!isLoading && !errorMsg && displayedNodes.length === 0 && (
-              <div style={{ color: 'var(--theia-descriptionForeground)', fontStyle: 'italic', padding: 20 }}>
+              <div className="cedar-tree__empty">
                   {searchQuery ? 'No results found.' : 'No templates found.'}
               </div>
           )}

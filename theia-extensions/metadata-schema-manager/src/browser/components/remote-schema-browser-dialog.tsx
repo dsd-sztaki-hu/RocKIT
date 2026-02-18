@@ -16,6 +16,9 @@ import { SchemaApi } from '../services/schema-api';
 import CedarTree from './cedar-tree';
 import { RemoteSchemaProviderConfig } from '../types';
 
+// Import CSS
+import '../styles/remote-schema-browser-dialog.css';
+
 @injectable()
 export class RemoteSchemaBrowserContribution implements FrontendApplicationContribution {
     @inject(SchemaManagerService) protected readonly schemaManagerService!: SchemaManagerService;
@@ -63,11 +66,10 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
             title: `Browse ${provider.title}`
         });
 
+        // Set dimensions for the dialog container
         this.contentNode.style.width = '600px';
         this.contentNode.style.height = '550px';
         this.contentNode.style.padding = '0';
-        this.contentNode.style.display = 'flex';
-        this.contentNode.style.flexDirection = 'column';
     }
 
     get value(): string | undefined {
@@ -155,7 +157,6 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
     };
 
     const handleFolderSelected = (id: string, name: string) => {
-        // Clicking a folder now clears the selection
         setSelectedId(null);
         setSelectedName(null);
     };
@@ -174,16 +175,9 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
     };
 
     return (
-        <div style={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            height: '100%', 
-            overflow: 'hidden',
-            backgroundColor: 'var(--theia-editor-background)',
-            color: 'var(--theia-foreground)'
-        }}>
+        <div className="remote-browser-dialog">
             
-            <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+            <div className="remote-browser-dialog__tree-container">
                 {schemaApi ? (
                     <CedarTree
                         schemaApi={schemaApi}
@@ -192,74 +186,52 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                         onFolderSelected={handleFolderSelected}
                     />
                 ) : (
-                    <div style={{ padding: 20, color: 'var(--theia-descriptionForeground)' }}>
+                    <div className="remote-browser-dialog__loading">
                         Initializing connection...
                     </div>
                 )}
             </div>
 
-            <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                padding: '15px 20px', 
-                backgroundColor: 'var(--theia-layout-color2)', 
-                borderTop: '1px solid var(--theia-panel-border)'
-            }}>
+            <div className="remote-browser-dialog__footer">
                 
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', overflow: 'hidden', marginRight: '15px' }}>
+                <div className="remote-browser-dialog__selection-info">
                     {selectedName ? (
                         <>
-                            <div style={{ display: 'flex', marginRight: '10px', flexShrink: 0 }}>
+                            <div className="remote-browser-dialog__controls">
                                 <Tooltip title="Locate in Tree" PopperProps={{ style: { zIndex: 99999 } }}>
                                     <IconButton size="small" onClick={handleGoTo} style={{ padding: 2, color: 'var(--theia-icon-foreground)' }}>
                                         <CenterFocusWeakIcon fontSize="small" />
                                     </IconButton>
                                 </Tooltip>
                                 <Tooltip title="Deselect" PopperProps={{ style: { zIndex: 99999 } }}>
-                                    <IconButton size="small" onClick={handleDeselect} style={{ padding: 2, marginLeft: 4, color: 'var(--theia-errorForeground)' }}>
+                                    <IconButton size="small" onClick={handleDeselect} style={{ padding: 2, color: 'var(--theia-errorForeground)' }}>
                                         <CancelIcon fontSize="small" />
                                     </IconButton>
                                 </Tooltip>
                             </div>
                             
-                            <span style={{ 
-                                fontWeight: 600, 
-                                color: 'var(--theia-foreground)', 
-                                whiteSpace: 'nowrap', 
-                                overflow: 'hidden', 
-                                textOverflow: 'ellipsis',
-                                fontSize: 'var(--theia-ui-font-size1)'
-                            }}>
+                            <span className="remote-browser-dialog__selected-name">
                                 {selectedName}
                             </span>
                         </>
                     ) : (
-                        <span style={{ color: 'var(--theia-descriptionForeground)', fontStyle: 'italic' }}>
+                        <span className="remote-browser-dialog__placeholder">
                             Select a template to import...
                         </span>
                     )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px' }}>
+                <div className="remote-browser-dialog__actions">
                     <button 
-                        className="theia-button secondary"
+                        className="theia-button secondary remote-browser-dialog__btn-cancel"
                         onClick={onCancel}
-                        style={{ 
-                            minWidth: '80px',
-                            border: '1px solid var(--theia-button-border, #ccc)' 
-                        }}
                     >
                         Cancel
                     </button>
                     <button 
-                        className="theia-button main"
+                        className="theia-button main remote-browser-dialog__btn-add"
                         onClick={() => selectedId && onAccept(selectedId)}
                         disabled={!selectedId}
-                        style={{ 
-                            minWidth: '80px',
-                            color: 'var(--theia-button-foreground)'
-                        }}
                     >
                         Add
                     </button>
