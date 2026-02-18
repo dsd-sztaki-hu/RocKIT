@@ -381,8 +381,9 @@
   gap: 10px;
   min-width: 920px;
   max-width: 92vw;
-  max-height: 72vh;
-  overflow: hidden;
+  min-height: 45vh;
+  max-height: 90vh;
+  overflow: visible;
 }
 
 .entities-overview-edit-modal-title {
@@ -438,6 +439,17 @@
   color: var(--theia-ui-font-color2);
 }
 
+.entities-overview-edit-modal-schema-org-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border: 1px dashed var(--theia-ui-border);
+  border-radius: 6px;
+  background: var(--theia-editorWidget-background);
+}
+
 .entities-overview-edit-modal-row-header {
   display: flex;
   justify-content: space-between;
@@ -477,6 +489,13 @@
   min-width: 180px;
 }
 
+.entities-overview-edit-modal-value .ant-select,
+.entities-overview-edit-modal-value .ant-input,
+.entities-overview-edit-modal-value .ant-input-number,
+.entities-overview-edit-modal-value .ant-picker {
+  width: 100%;
+}
+
 .entities-overview-edit-modal-row-actions {
   display: flex;
   align-items: center;
@@ -499,6 +518,13 @@
 
 .entities-overview-edit-modal-remove:hover {
   background: rgba(255, 77, 79, 0.1);
+}
+
+.lm-Widget.dialogOverlay .dialogControl .theia-button:disabled,
+.lm-Widget.dialogOverlay .dialogControl .theia-button:disabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .entities-overview-edit-modal-remove .codicon {
@@ -525,4 +551,119 @@
   padding-left: 18px;
   max-height: 16vh;
   overflow: auto;
+}
+
+.entities-overview-edit-modal-validation {
+  margin-top: 6px;
+}
+
+.entities-overview-edit-modal-validation > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theia-ui-font-color2);
+  list-style: none;
+  outline: none;
+}
+
+.entities-overview-edit-modal-validation > summary:focus,
+.entities-overview-edit-modal-validation > summary:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.entities-overview-edit-modal-validation > summary::-webkit-details-marker {
+  display: none;
+}
+
+.entities-overview-edit-modal-validation > summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.entities-overview-edit-modal-validation[open] > summary::before {
+  content: '▾';
+}
+
+.lm-Widget.dialogOverlay .dialogContent {
+  position: relative;
+  z-index: 2;
+}
+
+.lm-Widget.dialogOverlay .dialogControl {
+  position: relative;
+  z-index: 1;
+}
+
+.entities-overview-edit-modal-dropdown {
+  z-index: 6000;
+}
+
+.entities-overview-edit-modal-dropdown .ant-select-item-group {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theia-ui-font-color2);
+  padding: 6px 10px 4px;
+}
+
+.entities-overview-entity-option-group {
+  display: inline-block;
+}
+
+.entities-overview-entity-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.entities-overview-entity-option-type {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--theia-ui-font-color1);
+}
+
+.entities-overview-entity-option-name {
+  font-weight: 600;
+  color: var(--theia-ui-font-color1);
+}
+
+.entities-overview-entity-create-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #2ea043;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.entities-overview-entity-create-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  font-weight: 700;
+}
+
+.entities-overview-edit-modal-dropdown .ant-select-item-option-active
+  .entities-overview-entity-create-option {
+  filter: brightness(1.05);
+}
+
+.entities-overview-entity-no-data {
+  display: inline-block;
+  padding: 6px 8px;
+  color: var(--theia-ui-font-color2);
 }
