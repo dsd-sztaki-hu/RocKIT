@@ -6,10 +6,12 @@ import { AppStatePanelContribution } from './app-state-panel-contribution'
 import { AppStatePanelWidget } from './app-state-panel-widget'
 import { AppStateService } from './state/app-state-service'
 import {RoCrateLoaderContribution} from "./state/ro-crate-loader";
+import { bindAppStatePreferences } from '../common/app-state-preferences'
 
 export default new ContainerModule((bind) => {
   // Global app state service
   bind(AppStateService).toSelf().inSingletonScope()
+  bindAppStatePreferences(bind)
 
   // AppState Panel widget
   bind(AppStatePanelWidget).toSelf()

@@ -17,6 +17,7 @@ import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
+import { MultiEditDialog } from './entities-overview-multi-edit-dialog'
 import {
   EntitiesOverviewModel,
   ExampleTreeLeaf,
@@ -263,11 +264,22 @@ export class EntitiesOverviewWidget extends TreeWidget {
                 Advanced filters
               </Button>
             </div>
+            <div className="entities-overview-edit-button-wrap">
+              <Button
+                className="entities-overview-edit-button"
+                type="default"
+                onClick={() => this.openMultiEditDialog()}
+                onKeyDownCapture={(event: React.KeyboardEvent) =>
+                  this.stopFilterKeyEvents(event)
+                }
+              >
+                Edit
+              </Button>
+            </div>
             <Button
               className="entities-overview-filter-clear"
               danger
               ghost
-              block={!isAdvanced}
               disabled={
                 activeFilters.entityNameFilter.trim() === '' &&
                 selectedTypes.length === 0 &&
@@ -529,6 +541,14 @@ export class EntitiesOverviewWidget extends TreeWidget {
     if (result === 'apply') {
       this.applyAdvancedFilters()
     }
+  }
+
+  protected async openMultiEditDialog(): Promise<void> {
+    const selectedEntityIds = this.model.getSelectedEntityIds()
+    const entityIds =
+      selectedEntityIds.length > 0 ? selectedEntityIds : this.model.getVisibleEntityIds()
+    const dialog = new MultiEditDialog(entityIds)
+    await dialog.open()
   }
 
   protected applyAdvancedFilters(): void {

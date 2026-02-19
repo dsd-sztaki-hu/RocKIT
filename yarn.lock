@@ -124,10 +124,10 @@
     json2mq "^0.2.0"
     throttle-debounce "^5.0.0"
 
-"@arpproject/recrate@0.1.12":
-  version "0.1.12"
-  resolved "https://registry.yarnpkg.com/@arpproject/recrate/-/recrate-0.1.12.tgz#3a2bd2b1edf306253eb8095e3836c15405b0ec1a"
-  integrity sha512-dVgsRlz5ThMK7fydrW6cK1yQwAlbcKGgEf5N2EKdcDbP14ycJugGLlOrYpAWx7skmvN6136FSaRgvMhm+Bj1wQ==
+"@arpproject/recrate@0.1.12-test8":
+  version "0.1.12-test8"
+  resolved "https://registry.yarnpkg.com/@arpproject/recrate/-/recrate-0.1.12-test8.tgz#ff97b294730c25e8934ccb9c6d4715326a0ababd"
+  integrity sha512-PdNjifxeaKu1TsF373E2rKFBefIkbR3NfElGJSyYVY89FPkbQlyPZyLDAntwtnYF3ov4bAja3qsHAGLYvSPX4Q==
   dependencies:
     "@codemirror/lang-javascript" "^6.2.3"
     "@codemirror/state" "^6.5.2"
@@ -147,6 +147,7 @@
     "@mui/x-date-pickers" "^8.2.0"
     "@terraformer/wkt" "^2.2.1"
     ajv "^8.17.1"
+    allotment "^1.20.5"
     antd "^5.27.4"
     chance "^1.1.12"
     codemirror "^6.0.1"
@@ -4029,6 +4030,13 @@
   resolved "https://registry.yarnpkg.com/@types/jsonpath/-/jsonpath-0.2.4.tgz#065be59981c1420832835af656377622271154be"
   integrity sha512-K3hxB8Blw0qgW6ExKgMbXQv2UPZBoE2GqLpVY+yr7nMD2Pq86lsuIzyAaiQ7eMqFL5B6di6pxSkogLJEyEHoGA==
 
+"@types/keytar@^4.4.2":
+  version "4.4.2"
+  resolved "https://registry.yarnpkg.com/@types/keytar/-/keytar-4.4.2.tgz#49ef917d6cbb4f19241c0ab50cd35097b5729b32"
+  integrity sha512-xtQcDj9ruGnMwvSu1E2BH4SFa5Dv2PvSPd0CKEBLN5hEj/v5YpXJY+B6hAfuKIbvEomD7vJTc/P1s1xPNh2kRw==
+  dependencies:
+    keytar "*"
+
 "@types/keyv@^3.1.4":
   version "3.1.4"
   resolved "https://registry.npmjs.org/@types/keyv/-/keyv-3.1.4.tgz"
@@ -4286,7 +4294,7 @@
   resolved "https://registry.npmjs.org/@types/trusted-types/-/trusted-types-2.0.7.tgz"
   integrity sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==
 
-"@types/uuid@^9.0.8":
+"@types/uuid@^9.0.7", "@types/uuid@^9.0.8":
   version "9.0.8"
   resolved "https://registry.npmjs.org/@types/uuid/-/uuid-9.0.8.tgz"
   integrity sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA==
@@ -4644,6 +4652,18 @@ ajv@^8.0.0, ajv@^8.17.1, ajv@^8.6.3, ajv@^8.9.0:
     fast-uri "^3.0.1"
     json-schema-traverse "^1.0.0"
     require-from-string "^2.0.2"
+
+allotment@^1.20.5:
+  version "1.20.5"
+  resolved "https://registry.yarnpkg.com/allotment/-/allotment-1.20.5.tgz#f3458f8b77309cd6046e45e50bf70f3318bf7afd"
+  integrity sha512-7i4NT7ieXEyAd5lBrXmE7WHz/e7hRuo97+j+TwrPE85ha6kyFURoc76nom0dWSZ1pTKVEAMJy/+f3/Isfu/41A==
+  dependencies:
+    classnames "^2.3.0"
+    eventemitter3 "^5.0.0"
+    fast-deep-equal "^3.1.3"
+    lodash.clamp "^4.0.0"
+    lodash.debounce "^4.0.0"
+    usehooks-ts "^3.1.1"
 
 ansi-colors@^4.1.3:
   version "4.1.3"
@@ -5821,7 +5841,7 @@ cjs-module-lexer@^1.0.0:
   resolved "https://registry.npmjs.org/cjs-module-lexer/-/cjs-module-lexer-1.4.3.tgz"
   integrity sha512-9z8TZaGM1pfswYeXrUpzPrkx8UnWYdhJclsiYMm6x/w5+nN+8Tf/LnAgfLGQCm59qAOxU8WwHEq2vNwF6i4j+Q==
 
-classnames@2.x, classnames@^2.2.1, classnames@^2.2.3, classnames@^2.2.5, classnames@^2.2.6, classnames@^2.3.1, classnames@^2.3.2, classnames@^2.5.1:
+classnames@2.x, classnames@^2.2.1, classnames@^2.2.3, classnames@^2.2.5, classnames@^2.2.6, classnames@^2.3.0, classnames@^2.3.1, classnames@^2.3.2, classnames@^2.5.1:
   version "2.5.1"
   resolved "https://registry.npmjs.org/classnames/-/classnames-2.5.1.tgz"
   integrity sha512-saHYOzhIQs6wy2sVxTM6bUDsQO4F50V9RQ22qBpEdCW+I+/Wmke2HOl6lS6dTpdxVhb88/I6+Hs+438c3lfUow==
@@ -7336,6 +7356,11 @@ eventemitter3@^4.0.0:
   version "4.0.7"
   resolved "https://registry.npmjs.org/eventemitter3/-/eventemitter3-4.0.7.tgz"
   integrity sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw==
+
+eventemitter3@^5.0.0:
+  version "5.0.4"
+  resolved "https://registry.yarnpkg.com/eventemitter3/-/eventemitter3-5.0.4.tgz#a86d66170433712dde814707ac52b5271ceb1feb"
+  integrity sha512-mlsTRyGaPBjPedk6Bvw+aqbsXDtoAyAzm5MO7JgU+yVRyMQ5O8bD4Kcci7BS85f93veegeCPkL8R4GLClnjLFw==
 
 events-universal@^1.0.0:
   version "1.0.1"
@@ -9641,7 +9666,7 @@ just-performance@4.3.0:
   resolved "https://registry.npmjs.org/just-performance/-/just-performance-4.3.0.tgz"
   integrity sha512-L7RjvtJsL0QO8xFs5wEoDDzzJwoiowRw6Rn/GnvldlchS2JQr9wFYPiwZcDfrbbujEKqKN0tvENdbjXdYhDp5Q==
 
-keytar@7.9.0:
+keytar@*, keytar@7.9.0, keytar@^7.9.0:
   version "7.9.0"
   resolved "https://registry.npmjs.org/keytar/-/keytar-7.9.0.tgz"
   integrity sha512-VPD8mtVtm5JNtA2AErl6Chp06JBfy7diFQ7TQQhdpWOl6MrCRB+eRbvAZUsbGQS9kiMq0coJsy0W0vHpDCkWsQ==
@@ -9897,12 +9922,17 @@ lodash._reinterpolate@^3.0.0:
   resolved "https://registry.npmjs.org/lodash._reinterpolate/-/lodash._reinterpolate-3.0.0.tgz"
   integrity sha512-xYHt68QRoYGjeeM/XOE1uJtvXQAgvszfBhjV4yvsQH0u2i9I6cI6c6/eG4Hh3UAOVn0y/xAXwmTzEay49Q//HA==
 
+lodash.clamp@^4.0.0:
+  version "4.0.3"
+  resolved "https://registry.yarnpkg.com/lodash.clamp/-/lodash.clamp-4.0.3.tgz#5c24bedeeeef0753560dc2b4cb4671f90a6ddfaa"
+  integrity sha512-HvzRFWjtcguTW7yd8NJBshuNaCa8aqNFtnswdT7f/cMd/1YKy5Zzoq4W/Oxvnx9l7aeY258uSdDfM793+eLsVg==
+
 lodash.curry@^4.0.1:
   version "4.1.1"
   resolved "https://registry.npmjs.org/lodash.curry/-/lodash.curry-4.1.1.tgz"
   integrity sha512-/u14pXGviLaweY5JI0IUzgzF2J6Ne8INyzAZjImcryjgkZ+ebruBxy2/JaOOkTqScddcYtakjhSaeemV8lR0tA==
 
-lodash.debounce@^4.0.8:
+lodash.debounce@^4.0.0, lodash.debounce@^4.0.8:
   version "4.0.8"
   resolved "https://registry.npmjs.org/lodash.debounce/-/lodash.debounce-4.0.8.tgz"
   integrity sha512-FT1yDzDYEoYWhnSGnpE/4Kj1fLZkDFyqRb7fNt6FdYOSxlUWAtp42Eh6Wb0rGIv/m9Bgo7x4GhQbm5Ys4SG5ow==
@@ -14383,6 +14413,13 @@ use-sync-external-store@^1.6.0:
   version "1.6.0"
   resolved "https://registry.npmjs.org/use-sync-external-store/-/use-sync-external-store-1.6.0.tgz"
   integrity sha512-Pp6GSwGP/NrPIrxVFAIkOQeyw8lFenOHijQWkUTrDvrF4ALqylP2C/KCkeS9dpUM3KvYRQhna5vt7IL95+ZQ9w==
+
+usehooks-ts@^3.1.1:
+  version "3.1.1"
+  resolved "https://registry.yarnpkg.com/usehooks-ts/-/usehooks-ts-3.1.1.tgz#0bb7f38f36f8219ee4509cc5e944ae610fb97656"
+  integrity sha512-I4diPp9Cq6ieSUH2wu+fDAVQO43xwtulo+fKEidHUwZPnYImbtkTjzIJYcDcJqxgmX31GVqNFURodvcgHcW0pA==
+  dependencies:
+    lodash.debounce "^4.0.8"
 
 user-home@^2.0.0:
   version "2.0.0"

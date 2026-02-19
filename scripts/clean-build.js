@@ -31,7 +31,7 @@ const removePath = (targetPath) => {
     }
 };
 
-console.log('--- Starting Clean Build ---');
+console.log('--- Starting Clean Process ---');
 
 // TASK A: Clean Root Level Folders
 rootFoldersToDelete.forEach(folderName => {

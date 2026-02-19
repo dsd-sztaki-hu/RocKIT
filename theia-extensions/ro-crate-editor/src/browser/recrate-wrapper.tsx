@@ -1,5 +1,6 @@
 import { DescriboCrateBuilder } from '@arpproject/recrate'
 import * as React from 'react'
+import 'allotment/dist/style.css'
 
 export const DescriboCrateBuilderWrapper = ({
     crate,

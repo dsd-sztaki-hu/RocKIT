@@ -32,7 +32,8 @@
         "useKeyWithClickEvents": "off",
         "noLabelWithoutControl": "off",
         "useAnchorContent": "off",
-        "useValidAnchor": "off"
+        "useValidAnchor": "off",
+        "useSemanticElements": "off"
       },
       "style": {
         "useTemplate": "off",
