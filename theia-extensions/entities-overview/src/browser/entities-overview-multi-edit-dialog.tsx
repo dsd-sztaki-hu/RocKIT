@@ -76,6 +76,11 @@ const OPERATOR_LABELS: Record<BulkOperator, string> = {
   unset: 'Unset',
 }
 
+/**
+ * Parses one CSV row while respecting quoted values and escaped quotes.
+ * @param line Raw CSV row text.
+ * @returns Parsed column values.
+ */
 const parseCsvLine = (line: string): string[] => {
   const result: string[] = []
   let current = ''
@@ -108,6 +113,11 @@ const parseCsvLine = (line: string): string[] => {
   return result.map((value) => value.trim().replace(/^"|"$/g, ''))
 }
 
+/**
+ * Parses schema.org CSV content into label/comment property entries.
+ * @param csvText Full CSV response text.
+ * @returns Parsed schema.org properties.
+ */
 const parseSchemaOrgCsv = (csvText: string): SchemaOrgProperty[] => {
   const lines = csvText.split('\n').filter((line) => line.trim() !== '')
   if (lines.length <= 1) {
@@ -183,6 +193,11 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.initialize()
   }
 
+  /**
+   * Initializes dialog state from current crate/profile data.
+   * @returns void
+   * @protected
+   */
   protected initialize(): void {
     const crate = this.appStateService.roCrate
     const profile = this.appStateService.completeProfile ?? this.appStateService.profile
@@ -220,6 +235,11 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
   }
 
+  /**
+   * Creates a default empty operation row.
+   * @returns New operation definition.
+   * @protected
+   */
   protected createOperation(): OperationRow {
     return {
       id: `op-${Math.random().toString(36).slice(2, 10)}`,
@@ -228,6 +248,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
   }
 
+  /**
+   * Builds display metadata for selected entities.
+   * @param crate Active RO-Crate document.
+   * @param profile Active profile definition.
+   * @returns Entity summary rows for the UI.
+   * @protected
+   */
   protected buildEntitySummaries(
     crate: Record<string, any>,
     profile: Record<string, any>,
@@ -258,6 +285,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     return result
   }
 
+  /**
+   * Collects unique entity types from the selected entity ids.
+   * @param crate Active RO-Crate document.
+   * @returns Sorted list of selected entity types.
+   * @protected
+   */
   protected collectEntityTypes(crate: Record<string, any>): string[] {
     const graph = Array.isArray(crate['@graph'])
       ? (crate['@graph'] as Record<string, any>[])
@@ -279,6 +312,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     return Array.from(types.values()).sort((a, b) => a.localeCompare(b))
   }
 
+  /**
+   * Builds editable field definitions and schema options from profile classes/layouts.
+   * @param profile Active profile definition.
+   * @param entityTypes Selected entity types.
+   * @returns Field catalog and selectable schema list.
+   * @protected
+   */
   protected buildFieldCatalog(
     profile: Record<string, any>,
     entityTypes: string[],
@@ -289,8 +329,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       : []
     const localisation = (profile.localisation ?? {}) as Record<string, string>
 
-    const fields: FieldDefinition[] = []
-    const fieldKeys = new Set<string>()
+    const fieldsByKey = new Map<string, FieldDefinition>()
     const schemasById = new Map<string, SchemaOption>()
     this.schemaUrlsById = new Map()
 
@@ -348,15 +387,9 @@ export class MultiEditDialog extends ReactDialog<string> {
         }
 
         const dedupeKey = `${schemaMeta.id}::${propertyName}::${field.label}`
-        const existingField = fields.find(
-          (entry) =>
-            entry.schemaId === field.schemaId &&
-            entry.propertyName === field.propertyName &&
-            entry.label === field.label,
-        )
+        const existingField = fieldsByKey.get(dedupeKey)
         if (!existingField) {
-          fieldKeys.add(dedupeKey)
-          fields.push(field)
+          fieldsByKey.set(dedupeKey, field)
         } else {
           const supported = new Set(existingField.supportedClasses ?? [])
           supported.add(className)
@@ -380,6 +413,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       }
     }
 
+    const fields = Array.from(fieldsByKey.values())
     fields.sort((a, b) => {
       const labelCompare = a.label.localeCompare(b.label)
       if (labelCompare !== 0) {
@@ -395,6 +429,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     return { fields, schemas }
   }
 
+  /**
+   * Finds the first layout that applies to a class.
+   * @param layouts Profile layout definitions.
+   * @param className Class name to resolve.
+   * @returns Matching layout or undefined.
+   * @protected
+   */
   protected findLayoutForClass(
     layouts: Record<string, any>[],
     className: string,
@@ -405,6 +446,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     })
   }
 
+  /**
+   * Resolves the schema group name for a profile input field.
+   * @param input Profile input definition.
+   * @returns Group name, defaulting to "about".
+   * @protected
+   */
   protected getFieldGroup(input: Record<string, any>): string {
     if (typeof input.group === 'string' && input.group.trim().length > 0) {
       return input.group.trim()
@@ -412,6 +459,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     return 'about'
   }
 
+  /**
+   * Resolves schema metadata for a layout group.
+   * @param layout Class layout definition.
+   * @param group Group name from input definition.
+   * @returns Normalized schema metadata.
+   * @protected
+   */
   protected resolveSchemaMeta(
     layout: Record<string, any> | undefined,
     group: string,
@@ -447,10 +501,22 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
   }
 
+  /**
+   * Normalizes schema labels/names to stable ids.
+   * @param label Schema label.
+   * @returns Normalized schema id.
+   * @protected
+   */
   protected normalizeSchemaId(label: string): string {
     return label.trim().toLowerCase().replace(/\s+/g, ' ')
   }
 
+  /**
+   * Parses profile boolean-like values.
+   * @param value Candidate boolean value.
+   * @returns Parsed boolean result.
+   * @protected
+   */
   protected parseBoolean(value: unknown): boolean {
     if (typeof value === 'boolean') {
       return value
@@ -461,6 +527,14 @@ export class MultiEditDialog extends ReactDialog<string> {
     return false
   }
 
+  /**
+   * Resolves editor value kind from an input definition.
+   * @param input Profile input definition.
+   * @param classes Profile classes map.
+   * @param entityTypes Linked entity target types.
+   * @returns Value editor kind.
+   * @protected
+   */
   protected resolveValueKind(
     input: Record<string, any>,
     classes: Record<string, any>,
@@ -499,6 +573,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     return 'text'
   }
 
+  /**
+   * Extracts profile class names referenced by a field type declaration.
+   * @param input Profile input definition.
+   * @param classes Profile classes map.
+   * @returns Entity type names usable for relation pickers.
+   * @protected
+   */
   protected extractEntityTypes(
     input: Record<string, any>,
     classes: Record<string, any>,
@@ -518,6 +599,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     return Array.from(typeSet.values())
   }
 
+  /**
+   * Chooses a human-friendly display name for an entity.
+   * @param entity Entity object.
+   * @returns Display name text.
+   * @protected
+   */
   protected getEntityDisplayName(entity: Record<string, any>): string {
     const typeName = this.getEntityTypeName(entity)
     const nameKey = typeName ? this.getEntityNameField(typeName) : undefined
@@ -528,6 +615,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     return typeof name === 'string' && name.trim().length > 0 ? name.trim() : '(unnamed)'
   }
 
+  /**
+   * Resolves a primary entity type from @type.
+   * @param entity Entity object.
+   * @returns Preferred type name or undefined.
+   * @protected
+   */
   protected getEntityTypeName(entity: Record<string, any>): string | undefined {
     const raw = entity?.['@type']
     const candidates = Array.isArray(raw) ? raw : raw ? [raw] : []
@@ -550,6 +643,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     return undefined
   }
 
+  /**
+   * Returns the last path segment for URL-like type names.
+   * @param typeName Raw type value.
+   * @returns Normalized short type name.
+   * @protected
+   */
   protected toTypeTail(typeName: string): string {
     const trimmed = typeName.trim()
     if (!trimmed) {
@@ -562,6 +661,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     return trimmed
   }
 
+  /**
+   * Resolves localized class label for an entity type.
+   * @param typeName Type name.
+   * @returns Localized label when available.
+   * @protected
+   */
   protected getEntityTypeLabel(typeName: string): string {
     const profile = this.profileData
     const localized = profile?.localisation?.[typeName]
@@ -575,6 +680,11 @@ export class MultiEditDialog extends ReactDialog<string> {
     return typeName
   }
 
+  /**
+   * Returns fields visible under current schema/schema.org selection.
+   * @returns Visible field definitions.
+   * @protected
+   */
   protected getVisibleFields(): FieldDefinition[] {
     const baseFields = Array.from(this.fieldsByKey.values()).filter((field) =>
       this.selectedSchemaIds.has(field.schemaId),
@@ -588,6 +698,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     return [...baseFields, ...schemaOrgFields]
   }
 
+  /**
+   * Computes valid operators for a field based on multiplicity.
+   * @param field Optional field definition.
+   * @returns Allowed operators.
+   * @protected
+   */
   protected getAllowedOperators(field?: FieldDefinition): BulkOperator[] {
     if (!field) {
       return ['set', 'unset']
@@ -595,11 +711,23 @@ export class MultiEditDialog extends ReactDialog<string> {
     return field.multiple ? ['add', 'remove', 'set', 'unset'] : ['set', 'unset']
   }
 
+  /**
+   * Updates selected schema ids.
+   * @param schemaIds Selected schema identifiers.
+   * @returns void
+   * @protected
+   */
   protected onSchemaSelectionChange = (schemaIds: string[]) => {
     this.selectedSchemaIds = new Set(schemaIds)
     this.update()
   }
 
+  /**
+   * Toggles schema.org mode and lazily loads schema.org properties.
+   * @param enabled True when schema.org fields should be included.
+   * @returns void
+   * @protected
+   */
   protected toggleSchemaOrg = (enabled: boolean) => {
     this.schemaOrgEnabled = enabled
     if (enabled && this.schemaOrgProperties.length === 0 && !this.schemaOrgLoading) {
@@ -608,21 +736,42 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
   }
 
+  /**
+   * Toggles visibility of selected entity list in the dialog.
+   * @returns void
+   * @protected
+   */
   protected toggleEntityList = () => {
     this.showEntityList = !this.showEntityList
     this.update()
   }
 
+  /**
+   * Adds one new operation row.
+   * @returns void
+   * @protected
+   */
   protected addOperation = () => {
     this.operations.push(this.createOperation())
     this.update()
   }
 
+  /**
+   * Dismisses setup warning banner until next validation state reset.
+   * @returns void
+   * @protected
+   */
   protected dismissSetupWarning = () => {
     this.hideSetupWarning = true
     this.update()
   }
 
+  /**
+   * Removes an operation row by id.
+   * @param id Operation row id.
+   * @returns void
+   * @protected
+   */
   protected removeOperation = (id: string) => {
     const index = this.operations.findIndex((op) => op.id === id)
     if (index === -1) {
@@ -636,6 +785,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
   }
 
+  /**
+   * Sets the property field for an operation row.
+   * @param id Operation row id.
+   * @param fieldKey Selected field key.
+   * @returns void
+   * @protected
+   */
   protected setOperationField = (id: string, fieldKey?: string) => {
     const row = this.operations.find((operation) => operation.id === id)
     if (!row) {
@@ -653,6 +809,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
   }
 
+  /**
+   * Sets the operator for an operation row.
+   * @param id Operation row id.
+   * @param operator Selected bulk operator.
+   * @returns void
+   * @protected
+   */
   protected setOperationOperator = (id: string, operator: BulkOperator) => {
     const row = this.operations.find((operation) => operation.id === id)
     if (!row) {
@@ -665,6 +828,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
   }
 
+  /**
+   * Sets raw value text for an operation row.
+   * @param id Operation row id.
+   * @param value Raw user input value.
+   * @returns void
+   * @protected
+   */
   protected setOperationValue = (id: string, value: string) => {
     const row = this.operations.find((operation) => operation.id === id)
     if (!row) {
@@ -674,6 +844,11 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
   }
 
+  /**
+   * Validates the full multi-edit setup.
+   * @returns List of validation messages.
+   * @protected
+   */
   protected getValidationErrors(): string[] {
     const errors: string[] = []
 
@@ -725,6 +900,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     return errors
   }
 
+  /**
+   * Validates one raw input value against a field type.
+   * @param field Field definition.
+   * @param rawValue User-provided raw value.
+   * @returns Validation error text or undefined.
+   * @protected
+   */
   protected validateValue(field: FieldDefinition, rawValue: string): string | undefined {
     if (field.valueKind === 'entity') {
       const trimmed = rawValue.trim()
@@ -760,6 +942,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     return undefined
   }
 
+  /**
+   * Parses raw user input into operation-ready value.
+   * @param field Field definition.
+   * @param rawValue User-provided raw value.
+   * @returns Parsed value.
+   * @protected
+   */
   protected parseValue(field: FieldDefinition, rawValue: string): unknown {
     if (field.valueKind === 'number') {
       return Number(rawValue)
@@ -773,6 +962,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     return rawValue
   }
 
+  /**
+   * Checks whether a field applies to a specific entity type.
+   * @param entity Entity object.
+   * @param field Field definition.
+   * @returns True when field can be applied.
+   * @protected
+   */
   protected entitySupportsField(
     entity: Record<string, any>,
     field: FieldDefinition,
@@ -793,6 +989,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     )
   }
 
+  /**
+   * Converts a schema.org property into a generic field definition.
+   * @param property schema.org property entry.
+   * @returns Field definition usable in the operations UI.
+   * @protected
+   */
   protected toSchemaOrgField(property: SchemaOrgProperty): FieldDefinition {
     return {
       key: `schemaorg::${property.label}`,
@@ -812,6 +1014,11 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
   }
 
+  /**
+   * Loads schema.org property definitions from remote CSV.
+   * @returns Promise resolved when loading finishes.
+   * @protected
+   */
   protected async fetchSchemaOrgProperties(): Promise<void> {
     this.schemaOrgLoading = true
     this.schemaOrgError = undefined
@@ -836,6 +1043,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
   }
 
+  /**
+   * Ensures an entity has a given conformsTo association.
+   * @param entity Entity to mutate.
+   * @param schemaUrl Schema URL to attach.
+   * @returns True when entity was changed.
+   * @protected
+   */
   protected ensureSchemaAssociation(
     entity: Record<string, any>,
     schemaUrl?: string,
@@ -880,6 +1094,15 @@ export class MultiEditDialog extends ReactDialog<string> {
     return true
   }
 
+  /**
+   * Applies one operation to one entity property.
+   * @param entity Entity to mutate.
+   * @param field Target field definition.
+   * @param operator Operator to apply.
+   * @param parsedValue Parsed value payload.
+   * @returns True when entity changed.
+   * @protected
+   */
   protected executeOperationOnEntity(
     entity: Record<string, any>,
     field: FieldDefinition,
@@ -938,6 +1161,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     return false
   }
 
+  /**
+   * Normalizes a value to array form.
+   * @param value Source value.
+   * @returns Array-wrapped value.
+   * @protected
+   */
   protected toArray(value: unknown): unknown[] {
     if (value === undefined || value === null) {
       return []
@@ -948,10 +1177,24 @@ export class MultiEditDialog extends ReactDialog<string> {
     return [value]
   }
 
+  /**
+   * Checks if a value array contains a target value with deep comparison support.
+   * @param values Existing values.
+   * @param target Candidate value.
+   * @returns True when present.
+   * @protected
+   */
   protected arrayContains(values: unknown[], target: unknown): boolean {
     return values.some((value) => this.areValuesEqual(value, target))
   }
 
+  /**
+   * Compares two values, including stable object comparison.
+   * @param a First value.
+   * @param b Second value.
+   * @returns True when values are equivalent.
+   * @protected
+   */
   protected areValuesEqual(a: unknown, b: unknown): boolean {
     if (a === b) {
       return true
@@ -966,6 +1209,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     return this.stableStringify(a) === this.stableStringify(b)
   }
 
+  /**
+   * Serializes values with stable key ordering.
+   * @param value Value to serialize.
+   * @returns Stable JSON-like string.
+   * @protected
+   */
   protected stableStringify(value: unknown): string {
     if (value === null || typeof value !== 'object') {
       return JSON.stringify(value)
@@ -981,6 +1230,11 @@ export class MultiEditDialog extends ReactDialog<string> {
     return `{${content}}`
   }
 
+  /**
+   * Executes schema attachment and value updates for all selected entities.
+   * @returns Promise resolved when execution summary is updated.
+   * @protected
+   */
   protected async runOperations(): Promise<void> {
     if (this.isExecuting) {
       return
@@ -1022,16 +1276,6 @@ export class MultiEditDialog extends ReactDialog<string> {
       any
     >[]
     const conformsLookup = await this.buildSchemaConformsLookup()
-    console.info('[MultiEdit] Starting run', {
-      entities: Array.from(selectedEntitySet.values()),
-      operations: this.operations.map((op) => ({
-        id: op.id,
-        operator: op.operator,
-        fieldKey: op.fieldKey,
-        value: op.value,
-      })),
-      selectedSchemas: Array.from(this.selectedSchemaIds.values()),
-    })
 
     const resolvedValues = new Map<string, unknown>()
     for (const operation of this.operations) {
@@ -1067,7 +1311,6 @@ export class MultiEditDialog extends ReactDialog<string> {
     for (const entityId of selectedEntitySet) {
       const index = graph.findIndex((entry) => String(entry?.['@id']) === entityId)
       if (index < 0) {
-        console.warn('[MultiEdit] Entity not found, skipping', { entityId })
         errors.push(`Entity not found: ${entityId}`)
         continue
       }
@@ -1075,11 +1318,6 @@ export class MultiEditDialog extends ReactDialog<string> {
       const entity = graph[index]
       let changed = false
       processedEntities += 1
-      console.info('[MultiEdit] Processing entity', {
-        entityId,
-        entityType: entity?.['@type'],
-        conformsTo: entity?.conformsTo,
-      })
 
       for (let opIndex = 0; opIndex < this.operations.length; opIndex += 1) {
         const operation = this.operations[opIndex]
@@ -1087,53 +1325,16 @@ export class MultiEditDialog extends ReactDialog<string> {
           ? this.fieldsByKey.get(operation.fieldKey)
           : undefined
         if (!field) {
-          console.warn(
-            '[MultiEdit] Missing field for operation, skipping schema attach',
-            {
-              entityId,
-              opIndex: opIndex + 1,
-              operation,
-            },
-          )
           continue
         }
         if (!this.entitySupportsField(entity, field)) {
-          console.info(
-            '[MultiEdit] Entity does not support field, skipping schema attach',
-            {
-              entityId,
-              opIndex: opIndex + 1,
-              field: field.propertyName,
-              fieldClass: field.className,
-            },
-          )
           continue
         }
         if (operation.operator !== 'set' && operation.operator !== 'add') {
-          console.info('[MultiEdit] Operator does not require schema attach', {
-            entityId,
-            opIndex: opIndex + 1,
-            operator: operation.operator,
-          })
           continue
         }
         const schemaUrl = this.resolveConformsToUrl(field, conformsLookup)
-        console.info('[MultiEdit] Resolved schema url for attach', {
-          entityId,
-          opIndex: opIndex + 1,
-          schemaUrl,
-          schemaId: field.schemaId,
-          schemaLabel: field.schemaLabel,
-          schemaGroupName: field.schemaGroupName,
-          field: field.propertyName,
-        })
         const schemaAdded = this.ensureSchemaAssociation(entity, schemaUrl)
-        console.info('[MultiEdit] Schema attach result', {
-          entityId,
-          opIndex: opIndex + 1,
-          schemaAdded,
-          conformsTo: entity?.conformsTo,
-        })
         if (schemaAdded) {
           changed = true
         }
@@ -1146,22 +1347,11 @@ export class MultiEditDialog extends ReactDialog<string> {
           : undefined
 
         if (!field) {
-          console.warn('[MultiEdit] Missing field for operation, skipping', {
-            entityId,
-            opIndex: opIndex + 1,
-            operation,
-          })
           skippedOperations += 1
           continue
         }
 
         if (!this.entitySupportsField(entity, field)) {
-          console.info('[MultiEdit] Entity does not support field, skipping', {
-            entityId,
-            opIndex: opIndex + 1,
-            field: field.propertyName,
-            fieldClass: field.className,
-          })
           skippedOperations += 1
           continue
         }
@@ -1169,13 +1359,6 @@ export class MultiEditDialog extends ReactDialog<string> {
         try {
           const parsedValue =
             operation.operator === 'unset' ? undefined : resolvedValues.get(operation.id)
-          console.info('[MultiEdit] Executing operation', {
-            entityId,
-            opIndex: opIndex + 1,
-            operator: operation.operator,
-            field: field.propertyName,
-            parsedValue,
-          })
           const changedByOperation = this.executeOperationOnEntity(
             entity,
             field,
@@ -1183,41 +1366,21 @@ export class MultiEditDialog extends ReactDialog<string> {
             parsedValue,
           )
           if (changedByOperation) {
-            console.info('[MultiEdit] Operation applied', {
-              entityId,
-              opIndex: opIndex + 1,
-              operator: operation.operator,
-              field: field.propertyName,
-            })
             appliedOperations += 1
             changed = true
           } else {
-            console.info('[MultiEdit] Operation skipped (no change)', {
-              entityId,
-              opIndex: opIndex + 1,
-              operator: operation.operator,
-              field: field.propertyName,
-            })
             skippedOperations += 1
           }
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Unknown execution error.'
-          console.warn('[MultiEdit] Operation failed', {
-            entityId,
-            opIndex: opIndex + 1,
-            error: message,
-          })
           errors.push(`Entity ${entityId}, row ${opIndex + 1}: ${message}`)
         }
       }
 
       if (changed) {
-        console.info('[MultiEdit] Entity updated', { entityId })
         graph[index] = entity
         updatedEntities += 1
-      } else {
-        console.info('[MultiEdit] Entity unchanged', { entityId })
       }
     }
 
@@ -1242,6 +1405,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
   }
 
+  /**
+   * Enables/disables the start button and updates its label.
+   * @param canExecute True when execution can start.
+   * @returns void
+   * @protected
+   */
   protected syncStartButton(canExecute: boolean): void {
     if (!this.startButton) {
       return
@@ -1250,6 +1419,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.startButton.textContent = this.isExecuting ? 'Running...' : 'Start multi-edit'
   }
 
+  /**
+   * Renders the appropriate input control for an operation value.
+   * @param row Operation row.
+   * @param field Selected field definition.
+   * @returns Value editor node.
+   * @protected
+   */
   protected renderValueEditor(
     row: OperationRow,
     field: FieldDefinition | undefined,
@@ -1317,6 +1493,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     )
   }
 
+  /**
+   * Resolves a schema URL directly from field metadata.
+   * @param field Field definition.
+   * @returns Schema URL if available.
+   * @protected
+   */
   protected resolveSchemaUrl(field: FieldDefinition): string | undefined {
     if (field.schemaUrl && field.schemaUrl.trim().length > 0) {
       return field.schemaUrl.trim()
@@ -1328,6 +1510,11 @@ export class MultiEditDialog extends ReactDialog<string> {
     return undefined
   }
 
+  /**
+   * Builds lookup map from schema references/names to conformsTo URLs.
+   * @returns Lookup map used for schema attachment.
+   * @protected
+   */
   protected async buildSchemaConformsLookup(): Promise<Map<string, string>> {
     const lookup = new Map<string, string>()
     if (!this.schemaManagerService) {
@@ -1360,6 +1547,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     return lookup
   }
 
+  /**
+   * Resolves best conformsTo URL for a field.
+   * @param field Field definition.
+   * @param conformsLookup Reference-to-conformsTo lookup map.
+   * @returns ConformsTo URL or undefined.
+   * @protected
+   */
   protected resolveConformsToUrl(
     field: FieldDefinition,
     conformsLookup: Map<string, string>,
@@ -1382,6 +1576,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     return undefined
   }
 
+  /**
+   * Renders entity picker input for relation fields.
+   * @param row Operation row.
+   * @param field Field definition.
+   * @returns Entity selector node.
+   * @protected
+   */
   protected renderEntityValueEditor(
     row: OperationRow,
     field: FieldDefinition,
@@ -1409,11 +1610,26 @@ export class MultiEditDialog extends ReactDialog<string> {
     )
   }
 
+  /**
+   * Updates search text for one entity picker row.
+   * @param id Operation row id.
+   * @param value Current search text.
+   * @returns void
+   * @protected
+   */
   protected setOperationSearch(id: string, value: string): void {
     this.operationSearch.set(id, value)
     this.update()
   }
 
+  /**
+   * Builds grouped entity-picker options and optional create action.
+   * @param field Field definition.
+   * @param searchText Current search text.
+   * @param allowCreate Whether "create new entity" action is allowed.
+   * @returns Grouped select options.
+   * @protected
+   */
   protected getEntityOptions(
     field: FieldDefinition,
     searchText: string,
@@ -1499,6 +1715,11 @@ export class MultiEditDialog extends ReactDialog<string> {
     return groups
   }
 
+  /**
+   * Returns current crate graph.
+   * @returns Graph entries or empty array.
+   * @protected
+   */
   protected getGraph(): Record<string, any>[] {
     const crate = this.appStateService.roCrate
     if (!crate || !Array.isArray(crate['@graph'])) {
@@ -1507,6 +1728,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     return crate['@graph'] as Record<string, any>[]
   }
 
+  /**
+   * Checks whether an entity matches one of allowed target types.
+   * @param entity Entity object.
+   * @param types Allowed type names.
+   * @returns True when entity type is accepted.
+   * @protected
+   */
   protected entityMatchesTypes(entity: Record<string, any>, types: string[]): boolean {
     if (types.length === 0) {
       return false
@@ -1518,10 +1746,23 @@ export class MultiEditDialog extends ReactDialog<string> {
     return types.some((typeName) => typeName === entityType)
   }
 
+  /**
+   * Encodes a synthetic token for "create new entity" actions.
+   * @param entityType Target entity type.
+   * @param label Entity label entered by user.
+   * @returns Encoded create token.
+   * @protected
+   */
   protected buildCreateToken(entityType: string, label: string): string {
     return `__create__::${encodeURIComponent(entityType)}::${encodeURIComponent(label)}`
   }
 
+  /**
+   * Decodes a create token into entity type and label.
+   * @param token Encoded create token.
+   * @returns Decoded token payload or undefined.
+   * @protected
+   */
   protected parseCreateToken(
     token: string,
   ): { entityType: string; label: string } | undefined {
@@ -1540,10 +1781,24 @@ export class MultiEditDialog extends ReactDialog<string> {
     return { entityType, label }
   }
 
+  /**
+   * Checks whether a value is a create-token marker.
+   * @param value Raw value.
+   * @returns True when value encodes "create new entity".
+   * @protected
+   */
   protected isCreateToken(value: string): boolean {
     return value.startsWith('__create__::')
   }
 
+  /**
+   * Resolves relation value to an existing or newly created entity reference.
+   * @param field Field definition.
+   * @param rawValue Raw selected value.
+   * @param graph Mutable graph for optional entity creation.
+   * @returns Resolved @id object.
+   * @protected
+   */
   protected resolveEntityValue(
     field: FieldDefinition,
     rawValue: string,
@@ -1557,6 +1812,14 @@ export class MultiEditDialog extends ReactDialog<string> {
     return { '@id': createdId }
   }
 
+  /**
+   * Creates a new entity from a create token and adds it to the graph.
+   * @param field Field definition.
+   * @param token Decoded token payload.
+   * @param graph Mutable graph.
+   * @returns Created entity id.
+   * @protected
+   */
   protected createEntityFromToken(
     field: FieldDefinition,
     token: { entityType: string; label: string },
@@ -1576,32 +1839,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     return entityId
   }
 
-  protected generateEntityId(entityType: string, graph: Record<string, any>[]): string {
-    const typeSegment = `/${entityType}/`
-    const existingIds = graph
-      .map((entry) => (entry && entry['@id'] ? String(entry['@id']) : ''))
-      .filter((id) => id.length > 0)
-    const prefixCandidate = existingIds.find((id) => id.includes(typeSegment))
-    const prefix = prefixCandidate
-      ? prefixCandidate.slice(
-          0,
-          prefixCandidate.indexOf(typeSegment) + typeSegment.length,
-        )
-      : `./${entityType}/`
-
-    let candidate = ''
-    let attempts = 0
-    while (attempts < 5) {
-      const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      candidate = `${prefix}${suffix}`
-      if (!existingIds.includes(candidate)) {
-        return candidate
-      }
-      attempts += 1
-    }
-    return `${prefix}${Date.now()}`
-  }
-
+  /**
+   * Resolves best candidate name field for a class from profile inputs.
+   * @param entityType Entity class name.
+   * @returns Name-like field key or undefined.
+   * @protected
+   */
   protected getEntityNameField(entityType: string): string | undefined {
     const profile = this.profileData
     const classDef = profile?.classes?.[entityType]
@@ -1635,65 +1878,11 @@ export class MultiEditDialog extends ReactDialog<string> {
     return undefined
   }
 
-  protected applyRequiredDefaults(
-    entity: Record<string, any>,
-    entityType: string,
-    fallbackLabel: string,
-  ): void {
-    const profile = this.profileData
-    const classDef = profile?.classes?.[entityType]
-    const inputs = Array.isArray(classDef?.inputs)
-      ? (classDef.inputs as Record<string, any>[])
-      : []
-
-    for (const input of inputs) {
-      if (!input?.required) {
-        continue
-      }
-      const name = String(input.name ?? '').trim()
-      if (!name || entity[name] !== undefined) {
-        continue
-      }
-      entity[name] = this.buildRequiredValue(input, fallbackLabel)
-    }
-  }
-
-  protected buildRequiredValue(input: Record<string, any>, fallbackLabel: string): any {
-    const typeName = Array.isArray(input.type)
-      ? String(input.type[0] ?? '')
-      : String(input.type ?? '')
-    const normalized = typeName.toLowerCase()
-    const placeholder =
-      typeof input.placeholder === 'string' && input.placeholder.trim().length > 0
-        ? input.placeholder.trim()
-        : undefined
-
-    if (normalized.includes('date')) {
-      return new Date().toISOString().slice(0, 10)
-    }
-    if (
-      normalized.includes('number') ||
-      normalized.includes('int') ||
-      normalized.includes('float') ||
-      normalized.includes('double')
-    ) {
-      const minValue = Number(input.minValue)
-      return Number.isFinite(minValue) ? minValue : 0
-    }
-    if (normalized.includes('url')) {
-      return placeholder ?? 'https://example.com/'
-    }
-    if (Array.isArray(input.values) && input.values.length > 0) {
-      return input.values[0]
-    }
-
-    if (placeholder) {
-      return placeholder
-    }
-
-    return fallbackLabel || 'TBD'
-  }
-
+  /**
+   * Renders operation rows section.
+   * @returns Operations UI.
+   * @protected
+   */
   protected renderOperations(): React.ReactNode {
     const visibleFields = this.getVisibleFields()
 
@@ -1755,6 +1944,11 @@ export class MultiEditDialog extends ReactDialog<string> {
     )
   }
 
+  /**
+   * Renders post-execution summary panel.
+   * @returns Summary UI or undefined.
+   * @protected
+   */
   protected renderSummary(): React.ReactNode {
     if (!this.executionSummary) {
       return undefined
@@ -1803,6 +1997,11 @@ export class MultiEditDialog extends ReactDialog<string> {
     )
   }
 
+  /**
+   * Renders full dialog content.
+   * @returns Dialog body UI.
+   * @protected
+   */
   protected render(): React.ReactNode {
     if (this.configurationError) {
       return (
