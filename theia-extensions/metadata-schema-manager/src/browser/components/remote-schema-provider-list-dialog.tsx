@@ -3,7 +3,7 @@
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
-import * as ReactDOM from 'react-dom/client';
+import { createRoot, Root } from 'react-dom/client';
 import { IconButton, Tooltip } from '@mui/material';
 import StorageIcon from '@mui/icons-material/Storage';
 import AddIcon from '@mui/icons-material/Add';
@@ -17,10 +17,9 @@ import { RemoteSchemaProviderStoreService } from '../services/remote-schema-prov
 import type { RemoteSchemaProviderConfig } from '../types';
 import '../styles/remote-schema-provider-list-dialog.css';
 
-
 export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
 
-    private reactRoot: ReactDOM.Root | undefined;
+    private reactRoot: Root | undefined;
     private providers: RemoteSchemaProviderConfig[] = [];
     private isLoading = false;
 
@@ -102,7 +101,7 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
 
     protected render(): void {
         if (!this.reactRoot) {
-            this.reactRoot = ReactDOM.createRoot(this.contentNode);
+            this.reactRoot = createRoot(this.contentNode);
         }
 
         this.reactRoot.render(
@@ -215,7 +214,7 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
 
 // ... ConfirmDialog class ...
 class ConfirmDialog extends AbstractDialog<boolean> {
-    private reactRoot: ReactDOM.Root | undefined;
+    private reactRoot: Root | undefined;
 
     constructor(private titleStr: string, private msgStr: string) {
         super({ title: titleStr });
@@ -233,7 +232,7 @@ class ConfirmDialog extends AbstractDialog<boolean> {
 
     protected render(): void {
         if (!this.reactRoot) {
-            this.reactRoot = ReactDOM.createRoot(this.contentNode);
+            this.reactRoot = createRoot(this.contentNode);
         }
         this.reactRoot.render(
             <div className="confirm-dialog">
@@ -248,5 +247,11 @@ class ConfirmDialog extends AbstractDialog<boolean> {
         );
     }
     protected onAfterAttach(msg: Message): void { super.onAfterAttach(msg); this.render(); }
-    protected onBeforeDetach(msg: Message): void { if (this.reactRoot) { this.reactRoot.unmount(); this.reactRoot = undefined; } super.onBeforeDetach(msg); }
+    protected onBeforeDetach(msg: Message): void { 
+        if (this.reactRoot) { 
+            this.reactRoot.unmount(); 
+            this.reactRoot = undefined; 
+        } 
+        super.onBeforeDetach(msg); 
+    }
 }

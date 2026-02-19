@@ -2,7 +2,7 @@
 
 import { injectable, inject } from 'inversify';
 import * as React from 'react';
-import * as ReactDOM from 'react-dom/client';
+import { createRoot, Root } from 'react-dom/client';
 import { FrontendApplicationContribution, AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import { MessageService } from '@theia/core/lib/common/message-service';
@@ -16,7 +16,6 @@ import { SchemaApi } from '../services/schema-api';
 import CedarTree from './cedar-tree';
 import { RemoteSchemaProviderConfig } from '../types';
 import '../styles/remote-schema-browser-dialog.css';
-
 
 @injectable()
 export class RemoteSchemaBrowserContribution implements FrontendApplicationContribution {
@@ -53,7 +52,7 @@ export class RemoteSchemaBrowserContribution implements FrontendApplicationContr
 
 export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined> {
 
-    private reactRoot: ReactDOM.Root | undefined;
+    private reactRoot: Root | undefined;
     private result: string | undefined;
 
     constructor(
@@ -85,7 +84,7 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
 
     protected render(): void {
         if (!this.reactRoot) {
-            this.reactRoot = ReactDOM.createRoot(this.contentNode);
+            this.reactRoot = createRoot(this.contentNode);
         }
 
         this.reactRoot.render(

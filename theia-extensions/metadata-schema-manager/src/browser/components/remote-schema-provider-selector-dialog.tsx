@@ -3,7 +3,7 @@
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
-import * as ReactDOM from 'react-dom/client';
+import { createRoot, Root } from 'react-dom/client';
 import DnsIcon from '@mui/icons-material/Dns';
 import StorageIcon from '@mui/icons-material/Storage';
 import AddLinkIcon from '@mui/icons-material/AddLink';
@@ -15,10 +15,9 @@ import { RemoteSchemaProviderStoreService } from '../services/remote-schema-prov
 import type { RemoteSchemaProviderConfig } from '../types';
 import '../styles/remote-schema-provider-selector-dialog.css';
 
-
 export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemoteSchemaProviderConfig | undefined> {
 
-    private reactRoot: ReactDOM.Root | undefined;
+    private reactRoot: Root | undefined;
     private providers: RemoteSchemaProviderConfig[] = [];
     private isLoading = true;
     
@@ -66,7 +65,7 @@ export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemoteSch
 
     protected render(): void {
         if (!this.reactRoot) {
-            this.reactRoot = ReactDOM.createRoot(this.contentNode);
+            this.reactRoot = createRoot(this.contentNode);
         }
 
         this.reactRoot.render(

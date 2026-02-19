@@ -1,16 +1,16 @@
 // src/browser/components/missing-schemas-dialog.tsx
 
 import * as React from 'react';
+import { createRoot, Root } from 'react-dom/client';
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 import '../styles/missing-schemas-dialog.css';
 
-
 export class MissingSchemasDialog extends AbstractDialog<void> {
 
-    private reactRoot: any; 
+    private reactRoot: Root | undefined; 
 
     constructor(private readonly count: number) {
         super({
@@ -32,13 +32,11 @@ export class MissingSchemasDialog extends AbstractDialog<void> {
     protected render(): void {
         if (!this.contentNode) return;
 
-        const ReactDOM = require('react-dom/client');
-
         if (!this.reactRoot) {
-            this.reactRoot = ReactDOM.createRoot(this.contentNode);
+            this.reactRoot = createRoot(this.contentNode);
         }
 
-        this.reactRoot?.render(
+        this.reactRoot.render(
             <InfoContent 
                 count={this.count}
                 onConfirm={() => this.handleAccept()}

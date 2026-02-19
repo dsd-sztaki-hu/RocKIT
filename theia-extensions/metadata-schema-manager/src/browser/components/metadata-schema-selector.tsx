@@ -2,6 +2,7 @@
 
 import { injectable, inject } from 'inversify';
 import * as React from 'react';
+import { createRoot, Root } from 'react-dom/client';
 import { FrontendApplicationContribution, AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog';
@@ -19,7 +20,6 @@ import { RemoteSchemaProviderSelectorDialog } from './remote-schema-provider-sel
 import { MetadataSchemaImportFromUrlDialog } from './metadata-schema-import-from-url-dialog';
 import type { SchemaInfo } from '../types';
 import '../styles/metadata-schema-selector.css';
-
 
 const MSG_TIMEOUT = 5000;
 
@@ -113,7 +113,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
 export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | undefined> {
 
     protected selectedSchema: SchemaInfo | undefined;
-    private reactRoot: any;
+    private reactRoot: Root | undefined;
 
     constructor(
         protected readonly schemaManager: SchemaManagerService,
@@ -150,10 +150,8 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | un
     protected render(): void {
         if (!this.contentNode) return;
 
-        const ReactDOM = require('react-dom/client');
-
         if (!this.reactRoot) {
-            this.reactRoot = ReactDOM.createRoot(this.contentNode);
+            this.reactRoot = createRoot(this.contentNode);
         }
 
         this.reactRoot.render(

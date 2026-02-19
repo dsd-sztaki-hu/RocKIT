@@ -40,7 +40,7 @@
     outline: none;
     /* High contrast support */
     border: 1px solid var(--theia-contrastBorder, transparent);
-    transition: background-color 0.1s ease;
+    transition: background-color 0.1s ease, border-color 0.1s ease, color 0.1s ease;
 }
 
 /* Primary Buttons */
@@ -51,6 +51,8 @@
 
 .schema-toolbar__btn--primary:hover {
     background-color: var(--theia-button-hoverBackground);
+    color: var(--theia-button-foreground);
+    border-color: var(--theia-contrastActiveBorder, transparent);
 }
 
 /* Secondary Buttons */
@@ -61,6 +63,8 @@
 
 .schema-toolbar__btn--secondary:hover {
     background-color: var(--theia-button-secondaryHoverBackground);
+    color: var(--theia-button-secondaryForeground);
+    border-color: var(--theia-contrastActiveBorder, transparent);
 }
 
 /* Delete Button */
@@ -72,7 +76,7 @@
 .schema-toolbar__btn--delete:hover {
     background-color: var(--theia-list-hoverBackground);
     color: var(--theia-errorForeground);
-    border-color: var(--theia-errorForeground);
+    border-color: var(--theia-errorForeground, var(--theia-contrastActiveBorder));
 }
 
 /* --- Icon-Only Buttons (Refresh, Configure) --- */
@@ -80,12 +84,14 @@
     color: var(--theia-icon-foreground) !important;
     border-radius: 4px !important;
     padding: 4px !important;
-    transition: background-color 0.1s ease, color 0.1s ease !important;
+    border: 1px solid var(--theia-contrastBorder, transparent) !important;
+    transition: background-color 0.1s ease, color 0.1s ease, border-color 0.1s ease !important;
 }
 
 .schema-toolbar__icon-btn:hover {
     background-color: var(--theia-toolbar-hoverBackground, rgba(128, 128, 128, 0.1)) !important;
     color: var(--theia-foreground) !important;
+    border-color: var(--theia-contrastActiveBorder, transparent) !important;
 }
 
 /* --- SVG Icon Sizing --- */

@@ -3,7 +3,7 @@
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
-import * as ReactDOM from 'react-dom/client';
+import { createRoot, Root } from 'react-dom/client';
 import DnsIcon from '@mui/icons-material/Dns';
 import LinkIcon from '@mui/icons-material/Link';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
@@ -17,10 +17,9 @@ import { RemoteSchemaProviderStoreService } from '../services/remote-schema-prov
 import type { RemoteSchemaProviderConfig } from '../types';
 import '../styles/remote-schema-provider-config-dialog.css';
 
-
 export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchemaProviderConfig | undefined> {
 
-    private reactRoot: ReactDOM.Root | undefined;
+    private reactRoot: Root | undefined;
     
     // Form State
     private titleValue: string = '';
@@ -72,9 +71,6 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
         
         try {
             const schemaNames = await this.providerStore.testConnection(domainBase, this.apiKeyValue || undefined);
-            
-            this.isTesting = false; 
-            this.render();
 
             const successDialog = new ConnectionSuccessDialog(this.titleValue, schemaNames);
             const confirmed = await successDialog.open();
@@ -91,8 +87,9 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                 this.accept(); 
             }
         } catch (err: any) {
-            this.isTesting = false;
             this.errorMsg = `Connection failed: ${err.message || 'Unknown error'}`;
+        } finally {
+            this.isTesting = false; 
             this.render();
         }
     }
@@ -123,7 +120,7 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
 
     protected render(): void {
         if (!this.reactRoot) {
-            this.reactRoot = ReactDOM.createRoot(this.contentNode);
+            this.reactRoot = createRoot(this.contentNode);
         }
 
         this.reactRoot.render(

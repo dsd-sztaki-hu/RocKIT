@@ -3,17 +3,16 @@
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
-import * as ReactDOM from 'react-dom/client';
+import { createRoot, Root } from 'react-dom/client';
 import LinkIcon from '@mui/icons-material/Link';
 
 import '../styles/metadata-schema-import-from-url-dialog.css';
-
 
 export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
 
     private readonly inputId = 'metadata-schema-url-input';
     private inputValue: string = '';
-    private reactRoot: ReactDOM.Root | undefined;
+    private reactRoot: Root | undefined;
 
     constructor() {
         super({
@@ -38,7 +37,7 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
 
     protected render(): void {
         if (!this.reactRoot) {
-            this.reactRoot = ReactDOM.createRoot(this.contentNode);
+            this.reactRoot = createRoot(this.contentNode);
         }
 
         this.reactRoot.render(

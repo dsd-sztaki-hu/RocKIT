@@ -3,17 +3,16 @@
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
-import * as ReactDOM from 'react-dom/client';
+import { createRoot, Root } from 'react-dom/client';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 
 import { File } from './icons';
 import '../styles/connection-success-dialog.css';
 
-
 export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
 
-    private reactRoot: ReactDOM.Root | undefined;
+    private reactRoot: Root | undefined;
 
     constructor(
         private providerName: string,
@@ -42,7 +41,7 @@ export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
 
     protected render(): void {
         if (!this.reactRoot) {
-            this.reactRoot = ReactDOM.createRoot(this.contentNode);
+            this.reactRoot = createRoot(this.contentNode);
         }
 
         this.reactRoot.render(

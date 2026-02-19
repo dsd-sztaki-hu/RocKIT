@@ -1,17 +1,16 @@
 // src/browser/components/delete-confirmation-dialog.tsx
 
 import * as React from 'react';
-import type * as ReactDOMTypes from 'react-dom/client';
+import { createRoot, Root } from 'react-dom/client';
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import '../styles/delete-confirmation-dialog.css';
 
-
 export class DeleteConfirmationDialog extends AbstractDialog<boolean> {
 
-    private reactRoot: ReactDOMTypes.Root | undefined;
+    private reactRoot: Root | undefined;
     private result: boolean = false; 
 
     constructor(private readonly count: number) {
@@ -40,13 +39,11 @@ export class DeleteConfirmationDialog extends AbstractDialog<boolean> {
     protected render(): void {
         if (!this.contentNode) return;
 
-        const ReactDOM = require('react-dom/client');
-
         if (!this.reactRoot) {
-            this.reactRoot = ReactDOM.createRoot(this.contentNode);
+            this.reactRoot = createRoot(this.contentNode);
         }
 
-        this.reactRoot?.render(
+        this.reactRoot.render(
             <DeleteContent 
                 count={this.count}
                 onConfirm={() => this.handleAccept()}

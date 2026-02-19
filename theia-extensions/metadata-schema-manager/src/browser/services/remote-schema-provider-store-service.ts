@@ -1,4 +1,4 @@
-// src\browser\services\remote-schema-provider-store-service.ts
+// src/browser/services/remote-schema-provider-store-service.ts
 
 import { injectable, inject } from 'inversify';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
@@ -9,13 +9,14 @@ import { RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
 import { SecureStorageService } from 'aroma2-common/lib/common/secure-storage-protocol';
 
-
 @injectable()
 export class RemoteSchemaProviderStoreService {
 
-    @inject(FileService) protected readonly fileService!: FileService;
-    @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
-    @inject(SecureStorageService) protected readonly secureStorage!: SecureStorageService;
+    constructor(
+        @inject(FileService) protected readonly fileService: FileService,
+        @inject(EnvVariablesServer) protected readonly envVariablesServer: EnvVariablesServer,
+        @inject(SecureStorageService) protected readonly secureStorage: SecureStorageService
+    ) {}
 
     protected async getEnvConfig() {
         const rootPathEnv = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
