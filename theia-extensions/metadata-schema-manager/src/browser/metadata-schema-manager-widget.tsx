@@ -13,7 +13,11 @@ import type { Root } from 'react-dom/client';
 import { SchemaManagerService } from './services/metadata-schema-manager-service';
 import { MetadataSchemaTable } from './components/metadata-schema-table';
 import { MetadataSchemaToolbar } from './components/metadata-schema-toolbar';
-import type { SchemaInfo } from './types';
+import { RemoteSchemaProviderListDialog } from './components/remote-schema-provider-list-dialog';
+import { RemoteSchemaProviderConfigDialog } from './components/remote-schema-provider-config-dialog';
+import { RemoteSchemaProviderSelectorDialog } from './components/remote-schema-provider-selector-dialog';
+import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-import-from-url-dialog';
+import type { SchemaInfo, RemoteSchemaProviderConfig } from './types';
 
 import './style/index.css';
 
@@ -35,6 +39,16 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected schemas: SchemaInfo[] = [];
     protected isLoading = true;
     protected selectedSchemaKeys: Key[] = [];
+    
+    // --- State for Dialogs ---
+    protected isProviderListOpen = false;
+    protected isProviderConfigOpen = false;
+    protected isProviderSelectorOpen = false;
+    protected isImportUrlOpen = false; 
+
+    protected selectedProviderToEdit: RemoteSchemaProviderConfig | undefined = undefined;
+    protected providersLastUpdated = 0; 
+    protected configDialogKey = 0;
     
     private reactRoot: Root | undefined;
 
@@ -144,38 +158,17 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         });
     }
 
-    protected async importSchemaFromUrl(): Promise<void> {
-        const envVar = await this.envVariablesServer.getValue('CEDAR_API_KEY');
-        const apiKey = envVar?.value;
+    protected openImportUrlDialog(): void {
+        this.isImportUrlOpen = true;
+        this.update();
+    }
 
-        let url = '';
-        await new Promise((resolve) => {
-            let inputUrl = '';
-            Modal.confirm({
-                title: 'Import Schema from URL',
-                content: (
-                    <div style={{ marginTop: 10 }}>
-                        <Input 
-                            placeholder="Enter CEDAR URL" 
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => inputUrl = e.target.value} 
-                        />
-                        <div style={{ fontSize: 12, color: '#888', marginTop: 5 }}>
-                            {apiKey ? 'Using configured API Key' : 'No API Key configured - attempting open access'}
-                        </div>
-                    </div>
-                ),
-                onOk: () => { resolve(inputUrl); },
-                onCancel: () => { resolve(null); }
-            });
-        }).then(res => url = res as string);
-
-        if (!url) return;
-
+    protected async handleImportUrl(url: string): Promise<void> {
         this.messageService.showProgress({
             text: 'Importing from URL...'
         }).then(async progress => {
             try {
-                const schemaName = await this.schemaManagerService.importFromUrl(url, apiKey, progress);
+                const schemaName = await this.schemaManagerService.importFromUrl(url, progress);
                 
                 this.messageService.info(
                     `Successfully imported: ${schemaName}`, 
@@ -192,12 +185,71 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         });
     }
 
-    protected async browseRemoteSchemas(): Promise<void> {
-        await this.schemaManagerService.browseRemoteSchemas();
+    protected async importSchemaFromUrl(): Promise<void> {
+        this.openImportUrlDialog();
+    }
+
+    protected browseRemoteSchemas(): void {
+        this.isProviderSelectorOpen = true;
+        this.update();
+    }
+    
+    protected handleProviderSelected(provider: RemoteSchemaProviderConfig): void {
+        this.isProviderSelectorOpen = false;
+        this.update();
+        this.schemaManagerService.browseRemoteSchemas(provider);
     }
 
     protected async refreshSchemas(): Promise<void> {
         await this.loadSchemas();
+    }
+
+    // --- Provider Dialog Handlers ---
+
+    protected openProviderList(): void {
+        this.isProviderListOpen = true;
+        this.isProviderConfigOpen = false; 
+        this.isProviderSelectorOpen = false; 
+        this.update();
+    }
+
+    protected closeProviderList(): void {
+        this.isProviderListOpen = false;
+        this.isProviderConfigOpen = false;
+        this.update();
+    }
+
+    protected openProviderConfig(providerToEdit?: RemoteSchemaProviderConfig): void {
+        this.selectedProviderToEdit = providerToEdit;
+        this.isProviderListOpen = false;
+        this.isProviderConfigOpen = true;
+        this.configDialogKey++;
+        this.update();
+    }
+
+    protected closeProviderConfig(): void {
+        this.isProviderConfigOpen = false;
+        this.selectedProviderToEdit = undefined;
+        this.isProviderListOpen = true;
+        this.update();
+    }
+
+    protected async handleProviderSave(newConfig: RemoteSchemaProviderConfig): Promise<void> {
+        const store = this.schemaManagerService.providerStoreService;
+        const currentProviders = await store.loadProviders();
+        
+        let newList = [...currentProviders];
+        
+        const existingIndex = newList.findIndex(p => p.id === newConfig.id);
+        if (existingIndex !== -1) {
+            newList[existingIndex] = newConfig;
+        } else {
+            newList.push(newConfig);
+        }
+
+        await store.saveProviders(newList);
+        
+        this.providersLastUpdated = Date.now();
     }
 
     protected onAfterAttach(msg: Message): void {
@@ -227,14 +279,15 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             .map(schema => schema.path);
 
         this.reactRoot?.render(
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
                 
                 <MetadataSchemaToolbar 
                     onImportFile={() => this.importSchemaFromFile()}
-                    onImportUrl={() => this.importSchemaFromUrl()}
+                    onImportUrl={() => this.openImportUrlDialog()}
                     onBrowse={() => this.browseRemoteSchemas()} 
                     onRefresh={() => this.refreshSchemas()}
                     onDelete={() => this.deleteSchemas(selectedSchemaPaths)}
+                    onConfigureProviders={() => this.openProviderList()}
                     selectedCount={this.selectedSchemaKeys.length}
                 />
 
@@ -246,6 +299,46 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                         onDelete={(paths) => this.deleteSchemas(paths)}
                     />
                 </div>
+                
+                {this.isImportUrlOpen && (
+                    <MetadataSchemaImportFromUrlDialog 
+                        open={this.isImportUrlOpen}
+                        onClose={() => { this.isImportUrlOpen = false; this.update(); }}
+                        onImport={(url) => this.handleImportUrl(url)}
+                    />
+                )}
+                
+                {this.isProviderSelectorOpen && (
+                    <RemoteSchemaProviderSelectorDialog
+                        open={this.isProviderSelectorOpen}
+                        onClose={() => { this.isProviderSelectorOpen = false; this.update(); }}
+                        onSelect={(p) => this.handleProviderSelected(p)}
+                        onConfigure={() => this.openProviderList()}
+                        providerStore={this.schemaManagerService.providerStoreService}
+                    />
+                )}
+
+                {this.isProviderListOpen && (
+                    <RemoteSchemaProviderListDialog 
+                        open={this.isProviderListOpen}
+                        onClose={() => this.closeProviderList()}
+                        onAddProvider={() => this.openProviderConfig(undefined)}
+                        onEditProvider={(p) => this.openProviderConfig(p)}
+                        providerStore={this.schemaManagerService.providerStoreService}
+                        lastUpdated={this.providersLastUpdated}
+                    />
+                )}
+
+                {this.isProviderConfigOpen && (
+                    <RemoteSchemaProviderConfigDialog 
+                        key={this.configDialogKey} 
+                        open={this.isProviderConfigOpen}
+                        providerToEdit={this.selectedProviderToEdit}
+                        onClose={() => this.closeProviderConfig()}
+                        onSave={async (config) => await this.handleProviderSave(config)}
+                        providerStore={this.schemaManagerService.providerStoreService}
+                    />
+                )}
             </div>
         );
     }
