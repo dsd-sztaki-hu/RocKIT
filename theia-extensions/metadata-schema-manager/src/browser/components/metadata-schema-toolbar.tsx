@@ -42,11 +42,11 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
         primary = false
     ) => (
         <button 
-            className={`theia-button schema-toolbar__btn ${primary ? 'schema-toolbar__btn--primary' : 'schema-toolbar__btn--secondary'}`}
+            className={`schema-toolbar__btn ${primary ? 'schema-toolbar__btn--primary' : 'schema-toolbar__btn--secondary'}`}
             onClick={onClick}
             title={title}
         >
-            {icon}
+            <span className="schema-toolbar__btn-icon">{icon}</span>
             {label}
         </button>
     );
@@ -56,7 +56,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
             {/* Group 1: Local Imports */}
             {renderActionButton(
                 "Import File", 
-                <NoteAddIcon style={{ fontSize: '16px' }}/>, 
+                <NoteAddIcon className="schema-toolbar__icon-svg" />, 
                 onImportFile, 
                 "Import a schema from a local JSON file",
                 true 
@@ -64,7 +64,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
             
             {renderActionButton(
                 "Import URL", 
-                <LinkIcon style={{ fontSize: '16px' }}/>, 
+                <LinkIcon className="schema-toolbar__icon-svg" />, 
                 onImportUrl, 
                 "Import a schema from a URL",
                 true 
@@ -75,7 +75,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
             {/* Group 2: Remote / Cloud */}
             {onBrowse && renderActionButton(
                 "Browse Remote", 
-                <CloudDownloadIcon style={{ fontSize: '16px' }}/>, 
+                <CloudDownloadIcon className="schema-toolbar__icon-svg" />, 
                 onBrowse, 
                 "Browse remote schemas via API",
                 true 
@@ -88,7 +88,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                         onClick={onConfigureProviders}
                         className="schema-toolbar__icon-btn"
                     >
-                        <SettingsInputComponentIcon style={{ fontSize: '20px' }} />
+                        <SettingsInputComponentIcon className="schema-toolbar__icon-svg--large" />
                     </IconButton>
                 </Tooltip>
             )}
@@ -102,7 +102,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                     onClick={onRefresh}
                     className="schema-toolbar__icon-btn"
                 >
-                    <RefreshIcon style={{ fontSize: '20px' }} />
+                    <RefreshIcon className="schema-toolbar__icon-svg--large" />
                 </IconButton>
             </Tooltip>
             
@@ -110,11 +110,13 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                 <div className="schema-toolbar__delete-group">
                     <div className="schema-toolbar__separator" />
                     <button 
-                        className="theia-button schema-toolbar__btn-delete" 
+                        className="schema-toolbar__btn schema-toolbar__btn--delete" 
                         onClick={onDelete} 
                         title="Delete selected schemas"
                     >
-                        <DeleteOutlineIcon style={{ fontSize: '16px' }} />
+                        <span className="schema-toolbar__btn-icon">
+                            <DeleteOutlineIcon className="schema-toolbar__icon-svg" />
+                        </span>
                         Delete ({selectedCount})
                     </button>
                 </div>

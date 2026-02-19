@@ -28,7 +28,6 @@ const MSG_TIMEOUT = 5000;
 
 @injectable()
 export class MetadataSchemaSelectorContribution implements FrontendApplicationContribution {
-    // ... (unchanged logic) ...
     @inject(AppStateService) protected readonly appStateService!: AppStateService;
     @inject(SchemaManagerService) protected readonly schemaManagerService!: SchemaManagerService;
     @inject(FileDialogService) protected readonly fileDialogService!: FileDialogService;
@@ -70,7 +69,6 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
     }
 
     protected async handleAssociate(schema: SchemaInfo): Promise<void> {
-        // ... (unchanged) ...
         try {
             const crate = this.appStateService.roCrate;
             if (crate && Array.isArray(crate['@graph'])) {
@@ -137,7 +135,7 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | un
         
         this.contentNode.style.display = 'flex';
         this.contentNode.style.flexDirection = 'column';
-        this.contentNode.style.padding = '0';
+        // Padding is removed here so the internal layout class handles it natively
     }
 
     get value(): SchemaInfo | undefined {
@@ -226,7 +224,6 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
         setSelectedSchema(found);
     };
 
-    // ... (Import Handlers - Unchanged Logic) ...
     const handleImportFile = async () => {
         const uris = await fileDialog.showOpenDialog({ 
             title: 'Import', filters: { 'JSON': ['json'] }, canSelectFiles: true, canSelectMany: true 
@@ -274,7 +271,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
     };
 
     return (
-        <div className="schema-selector">
+        <div className="metadata-schema-layout-container" style={{ padding: 0 }}> 
             
             <MetadataSchemaToolbar 
                 onImportFile={handleImportFile} 
@@ -284,7 +281,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                 onConfigureProviders={handleOpenProviderList}
             />
             
-            <div className="schema-selector__content">
+            <div className="metadata-schema-table-wrapper">
                 <MetadataSchemaTable
                     schemas={schemas}
                     isLoading={isLoading}

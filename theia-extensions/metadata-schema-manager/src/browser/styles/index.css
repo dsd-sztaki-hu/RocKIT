@@ -47,3 +47,33 @@
 .metadata-schema-manager-widget a:hover {
     text-decoration: underline;
 }
+
+/* --- High Contrast Fixes for Buttons --- */
+/* These ensure buttons remain visible and readable in High Contrast Light/Dark themes */
+.metadata-schema-manager-widget .ant-btn-primary {
+    background-color: var(--theia-button-background) !important;
+    color: var(--theia-button-foreground) !important;
+    border: 1px solid var(--theia-contrastBorder, transparent) !important;
+}
+
+.metadata-schema-manager-widget .ant-btn-primary:hover,
+.metadata-schema-manager-widget .ant-btn-primary:focus {
+    background-color: var(--theia-button-hoverBackground) !important;
+    /* FIX: Prevent Ant Design from forcing white text on hover */
+    color: var(--theia-button-foreground) !important; 
+    border: 1px solid var(--theia-contrastBorder, transparent) !important;
+}
+
+.metadata-schema-manager-widget .ant-btn-default {
+    background-color: var(--theia-button-secondaryBackground) !important;
+    color: var(--theia-button-secondaryForeground) !important;
+    border: 1px solid var(--theia-contrastBorder, var(--theia-button-border, transparent)) !important;
+}
+
+.metadata-schema-manager-widget .ant-btn-default:hover,
+.metadata-schema-manager-widget .ant-btn-default:focus {
+    background-color: var(--theia-button-secondaryHoverBackground) !important;
+    /* FIX: Prevent Ant Design from forcing white text on hover */
+    color: var(--theia-button-secondaryForeground) !important; 
+    border: 1px solid var(--theia-contrastBorder, var(--theia-button-border, transparent)) !important;
+}

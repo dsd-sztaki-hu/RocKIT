@@ -219,7 +219,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         
                         size="small"
                         pagination={{ 
-                            pageSize: 15, 
+                            defaultPageSize: 10, 
                             showSizeChanger: true,
                             size: "small",
                             position: ['bottomRight'],

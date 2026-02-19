@@ -1,91 +1,104 @@
 /* src/browser/styles/metadata-schema-toolbar.css */
 
+/* --- Layout --- */
 .schema-toolbar {
     display: flex;
-    padding: 10px 15px;
-    flex-wrap: wrap;
     align-items: center;
-    background-color: var(--theia-editor-background);
-    border-bottom: 1px solid var(--theia-panel-border);
     gap: 8px;
-}
-
-.schema-toolbar__btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 28px;
-    font-size: 13px;
-    padding: 0 12px;
-    cursor: pointer;
-    white-space: nowrap;
-    color: var(--theia-button-foreground);
-}
-
-.schema-toolbar__btn--primary {
-    background-color: var(--theia-button-background);
-    border: 1px solid transparent;
-}
-
-.schema-toolbar__btn--primary:hover {
-    background-color: var(--theia-button-hoverBackground);
-}
-
-.schema-toolbar__btn--secondary {
-    background-color: transparent;
-    color: var(--theia-foreground);
-    border: 1px solid var(--theia-button-border, #ccc);
-}
-
-.schema-toolbar__btn--secondary:hover {
-    background-color: var(--theia-list-hoverBackground);
-}
-
-.schema-toolbar__separator {
-    width: 1px;
-    height: 20px;
-    background-color: var(--theia-panel-border);
-    margin: 0 6px; 
+    padding: 4px 0;
+    width: 100%;
 }
 
 .schema-toolbar__spacer {
     flex-grow: 1;
 }
 
+/* Vertical Separator mapped to native toolbar divider */
+.schema-toolbar__separator {
+    width: 1px;
+    height: 18px;
+    background-color: var(--theia-toolbar-dividerBackground, var(--theia-panel-border));
+    margin: 0 4px;
+}
+
 .schema-toolbar__delete-group {
     display: flex;
     align-items: center;
-    margin-left: 10px;
+    gap: 8px;
 }
 
-/* FIX: Use a solid safe red for background to ensure white text is readable */
-.schema-toolbar__btn-delete {
-    margin-left: 4px;
-    background-color: #d32f2f !important; /* Solid material red */
-    border-color: #d32f2f !important;
-    color: #FFFFFF !important; /* Force white text */
+/* --- Standard Action Buttons --- */
+.schema-toolbar__btn {
     display: flex;
     align-items: center;
     gap: 6px;
-    height: 28px;
-    font-size: 12px;
-    padding: 0 10px;
-    cursor: pointer;
+    padding: 4px 12px;
+    font-size: var(--theia-ui-font-size1);
+    font-family: var(--theia-ui-font-family);
     border-radius: 2px;
+    cursor: pointer;
+    outline: none;
+    /* High contrast support */
+    border: 1px solid var(--theia-contrastBorder, transparent);
+    transition: background-color 0.1s ease;
 }
 
-.schema-toolbar__btn-delete:hover {
-    background-color: #b71c1c !important; /* Darker red on hover */
+/* Primary Buttons */
+.schema-toolbar__btn--primary {
+    background-color: var(--theia-button-background);
+    color: var(--theia-button-foreground);
 }
 
-/* FIX: Force icon color to match theme foreground (White in Dark, Dark in Light) */
+.schema-toolbar__btn--primary:hover {
+    background-color: var(--theia-button-hoverBackground);
+}
+
+/* Secondary Buttons */
+.schema-toolbar__btn--secondary {
+    background-color: var(--theia-button-secondaryBackground);
+    color: var(--theia-button-secondaryForeground);
+}
+
+.schema-toolbar__btn--secondary:hover {
+    background-color: var(--theia-button-secondaryHoverBackground);
+}
+
+/* Delete Button (Secondary look, hover turns dangerous) */
+.schema-toolbar__btn--delete {
+    background-color: var(--theia-button-secondaryBackground);
+    color: var(--theia-button-secondaryForeground);
+}
+
+.schema-toolbar__btn--delete:hover {
+    background-color: var(--theia-list-hoverBackground);
+    color: var(--theia-errorForeground);
+    border-color: var(--theia-errorForeground);
+}
+
+/* --- Icon-Only Buttons (Refresh, Configure) --- */
+/* Overrides MUI's default circular gray hover to match IDE square toolbar hovers */
 .schema-toolbar__icon-btn {
     color: var(--theia-icon-foreground) !important;
-    padding: 6px;
-    border-radius: 4px;
-    border: 1px solid transparent;
+    border-radius: 4px !important;
+    padding: 4px !important;
+    transition: background-color 0.1s ease, color 0.1s ease !important;
 }
 
 .schema-toolbar__icon-btn:hover {
-    background-color: var(--theia-list-hoverBackground);
+    background-color: var(--theia-toolbar-hoverBackground, rgba(128, 128, 128, 0.1)) !important;
+    color: var(--theia-foreground) !important;
+}
+
+/* --- SVG Icon Sizing --- */
+.schema-toolbar__btn-icon {
+    display: flex;
+    align-items: center;
+}
+
+.schema-toolbar__icon-svg {
+    font-size: 16px !important;
+}
+
+.schema-toolbar__icon-svg--large {
+    font-size: 20px !important;
 }
