@@ -201,17 +201,25 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         if (!selectedSchema) return;
         try {
             setIsLoading(true);
+
             const crate = appState.roCrate;
+            const ctx = appState.getState().schemaSelectorContext;
+            const entityId = ctx?.entityId ?? './';
+
+            if (!ctx?.entityId) {
+                console.warn('MetadataSchemaSelector: missing schemaSelectorContext; defaulting to root entity', { entityId });
+            }
+
             if (crate && Array.isArray(crate['@graph'])) {
-                const entityId = appState.selectedEntityId ?? './';
-                const w3id = selectedSchema.conformsTo || service.deriveConformsToFromId(selectedSchema.reference);
-                
+                const w3id = selectedSchema.conformsTo ? service.deriveConformsToFromId(selectedSchema.reference) : '';
                 if (w3id) {
                     const updatedGraph = (crate['@graph'] as any[]).map(entry => {
                         if (String(entry['@id']) !== entityId) return entry;
                         const existing = entry.conformsTo;
                         const base = existing ? (Array.isArray(existing) ? existing.slice() : [existing]) : [];
-                        const normalized = base.map(v => (typeof v === 'string' ? { '@id': v } : v)).filter(v => v && typeof v['@id'] === 'string');
+                        const normalized = base
+                            .map(v => (typeof v === 'string' ? { '@id': v } : v))
+                            .filter(v => v && typeof v['@id'] === 'string');
                         const already = normalized.some(v => v['@id'] === w3id);
                         const next = already ? normalized : [...normalized, { '@id': w3id }];
                         return { ...entry, conformsTo: next };
@@ -219,11 +227,10 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
                     appState.roCrate = { ...crate, '@graph': updatedGraph } as any;
                 }
             }
-            const newProfileContent = await service.getConvertedProfileContent(selectedSchema.path);
-            const mergedProfile = await service.getMergedProfile(appState.roCrate!, newProfileContent!, appState.profile!, selectedSchema.reference);
-            appState.updateState({ profile: mergedProfile, openSchemaSelectorWindow: false });
+
+            appState.updateState({ openSchemaSelectorWindow: false, schemaSelectorContext: undefined });
         } catch (e) {
-            utils.msg.error('Failed to load profile content.', { timeout: MSG_TIMEOUT });
+            utils.msg.error('Failed to associate schema.', { timeout: MSG_TIMEOUT });
         } finally {
             setIsLoading(false);
         }
@@ -233,11 +240,11 @@ const SchemaSelector: React.FC<SelectorProps> = ({ isOpen, appState, service, ut
         <Modal
             title="Select Metadata Schema"
             open={isOpen}
-            onCancel={() => appState.updateState({ openSchemaSelectorWindow: false })}
+            onCancel={() => appState.updateState({ openSchemaSelectorWindow: false, schemaSelectorContext: undefined })}
             width={1000}
             centered
             footer={[
-                <Button key="cancel" onClick={() => appState.updateState({ openSchemaSelectorWindow: false })}>Cancel</Button>,
+                <Button key="cancel" onClick={() => appState.updateState({ openSchemaSelectorWindow: false, schemaSelectorContext: undefined })}>Cancel</Button>,
                 <Button key="ok" type="primary" onClick={handleAssociate} disabled={!selectedSchema || isLoading}>Associate</Button>
             ]}
         >

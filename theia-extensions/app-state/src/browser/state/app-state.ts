@@ -11,6 +11,11 @@ export type ValidationError = {
   errorCode: string;
 }
 
+export type SchemaSelectorContext = {
+  widgetId: string
+  entityId: string
+}
+
 // Define the default application state. This defines the shape of the state and initial values.
 export const defaultAppState = {
   roCrate: undefined as Record<string, any> | undefined,
@@ -26,6 +31,7 @@ export const defaultAppState = {
     fontSize: 14,
   },
   openSchemaSelectorWindow: false,
+  schemaSelectorContext: undefined as SchemaSelectorContext | undefined,
   completeProfile: undefined as Record<string, any> | undefined,
   validationErrors: undefined as ValidationError[] | undefined,
 }

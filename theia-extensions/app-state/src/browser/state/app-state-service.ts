@@ -41,7 +41,7 @@ export class AppStateService {
       .getData<AppState>(STORAGE_KEY)
       .then((stored) => {
         if (stored) {
-          const { roCrate, profile, selectedEntityId, ...restStored } = stored
+          const { roCrate, profile, selectedEntityId, schemaSelectorContext, ...restStored } = stored
           this.store.setState({
             ...cloneDefaultAppState(),
             ...(restStored as any), // Only restore other properties
@@ -252,6 +252,13 @@ export class AppStateService {
   }
   set openSchemaSelectorWindow(value: AppState['openSchemaSelectorWindow']) {
     this.updateState({ openSchemaSelectorWindow: value })
+  }
+
+  get schemaSelectorContext(): AppState['schemaSelectorContext'] {
+    return this.getState().schemaSelectorContext
+  }
+  set schemaSelectorContext(value: AppState['schemaSelectorContext']) {
+    this.updateState({ schemaSelectorContext: value })
   }
 
   get completeProfile(): AppState['completeProfile'] {

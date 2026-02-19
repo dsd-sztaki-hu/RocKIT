@@ -417,19 +417,35 @@ export class EntitiesOverviewWidget extends TreeWidget {
         return
       }
 
-      if (!entityId) return
+      if (!entityId) {
+        console.warn('EntitiesOverviewWidget: missing entityId for selection')
+        return
+      }
       void this.openRoCrateEditorForEntity(entityId)
     }
   }
 
   protected async openRoCrateEditorForEntity(entityId: string): Promise<void> {
+    if (!entityId) {
+      console.warn('EntitiesOverviewWidget: attempted to open editor without entityId')
+      return
+    }
     if (this.openingEntities.has(entityId)) {
       return
     }
     this.openingEntities.add(entityId)
+    const prevSelected = this.appStateService.selectedEntityId
+    if (prevSelected !== entityId) {
+      this.appStateService.selectedEntityId = entityId
+      console.log('EntitiesOverviewWidget: selectedEntityId updated', {
+        prev: prevSelected,
+        next: entityId,
+      })
+    }
     try {
       const existingWidgetId = this.findWidgetIdForEntity(entityId)
       if (existingWidgetId) {
+        this.appStateService.registerEntityEditor(existingWidgetId, entityId)
         await this.shell.activateWidget(existingWidgetId)
         return
       }
@@ -444,6 +460,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
       await this.shell.addWidget(widget, { area: 'main' })
       this.appStateService.registerEntityEditor(widget.id, entityId)
       await this.shell.activateWidget(widget.id)
+    } catch (error) {
+      console.error('EntitiesOverviewWidget: failed to open editor', { entityId, error })
     } finally {
       this.openingEntities.delete(entityId)
     }

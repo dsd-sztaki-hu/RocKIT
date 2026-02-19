@@ -2,12 +2,19 @@ import type {
   FrontendApplication,
   FrontendApplicationContribution,
 } from '@theia/core/lib/browser'
-import { CommandService, MessageService } from '@theia/core/lib/common'
+import type { Disposable } from '@theia/core'
+import { PreferenceScope } from '@theia/core'
+import { CommandService, MessageService, PreferenceService } from '@theia/core/lib/common'
 import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { MetadataSchemaManager, RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import {
+  AppStatePreferences,
+  ROCrateExternalChangeAction,
+  type ROCrateExternalChangeActionValue,
+} from '../../common/app-state-preferences'
 import { AppStateService } from './app-state-service'
 import { ROCrateDialog } from './ro-crate-dialog'
 import { RoCrateIdConversionDialog } from './ro-crate-id-conversion-dialog'
@@ -39,7 +46,19 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
   @inject(MessageService)
   protected readonly messageService: MessageService
 
+  @inject(AppStatePreferences)
+  protected readonly appStatePreferences: AppStatePreferences
+
+  @inject(PreferenceService)
+  protected readonly preferenceService: PreferenceService
+
   protected initialProfileTemplate?: Record<string, any>
+  protected metadataWatchDisposable?: Disposable
+  protected metadataChangeDisposable?: Disposable
+  protected metadataWatchRoot?: string
+  protected metadataFileUri?: URI
+  protected pendingExternalCheck?: ReturnType<typeof setTimeout>
+  protected lastKnownMetadataJson?: string
 
   /**
    * Critical: lets us distinguish between:
@@ -89,6 +108,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
     // Roots not available / empty:
     if (!roots || roots.length === 0) {
+      this.disposeMetadataWatch()
       // If we previously had roots, then this is a real "workspace closed" case => clear state.
       if (this.hadWorkspaceRoots) {
         this.updateState(undefined, false)
@@ -102,6 +122,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     this.hadWorkspaceRoots = true
 
     const rootUri = roots[0].resource
+    this.ensureMetadataWatch(rootUri)
 
     try {
       const roCrateUri = rootUri.resolve('ro-crate-metadata.json')
@@ -317,6 +338,154 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     this.appStateService.isROCrateInvalid = isInvalid
     this.appStateService.setRoCrateSnapshot(content)
     this.appStateService.dirty = false
+    this.lastKnownMetadataJson = this.normalizeCrate(content)
+  }
+
+  protected ensureMetadataWatch(rootUri: URI): void {
+    const rootKey = rootUri.toString()
+    if (this.metadataWatchRoot === rootKey) {
+      return
+    }
+    this.disposeMetadataWatch()
+    this.metadataWatchRoot = rootKey
+    this.metadataFileUri = rootUri.resolve('ro-crate-metadata.json')
+    this.metadataWatchDisposable = this.fileService.watch(rootUri)
+    this.metadataChangeDisposable = this.fileService.onDidFilesChange((event) => {
+      const metadataUri = this.metadataFileUri
+      if (!metadataUri) {
+        return
+      }
+      if (!event.contains(metadataUri)) {
+        return
+      }
+      this.scheduleExternalMetadataCheck()
+    })
+  }
+
+  protected disposeMetadataWatch(): void {
+    this.metadataWatchDisposable?.dispose()
+    this.metadataChangeDisposable?.dispose()
+    this.metadataWatchDisposable = undefined
+    this.metadataChangeDisposable = undefined
+    this.metadataWatchRoot = undefined
+    this.metadataFileUri = undefined
+  }
+
+  protected scheduleExternalMetadataCheck(): void {
+    if (this.pendingExternalCheck) {
+      clearTimeout(this.pendingExternalCheck)
+    }
+    this.pendingExternalCheck = setTimeout(() => {
+      void this.handleExternalMetadataChange()
+    }, 300)
+  }
+
+  protected async handleExternalMetadataChange(): Promise<void> {
+    this.pendingExternalCheck = undefined
+    const root = this.workspaceService.tryGetRoots()?.[0]?.resource
+    if (!root) {
+      return
+    }
+    const metadataUri = root.resolve('ro-crate-metadata.json')
+    const exists = await this.fileService.exists(metadataUri)
+    if (!exists) {
+      if (this.lastKnownMetadataJson) {
+        this.lastKnownMetadataJson = undefined
+        this.messageService.warn(
+          'ro-crate-metadata.json was removed or is missing on disk.',
+        )
+      }
+      return
+    }
+
+    let parsed: Record<string, any>
+    try {
+      const content = await this.fileService.read(metadataUri)
+      parsed = JSON.parse(content.value)
+    } catch (error) {
+      this.messageService.error(
+        'ro-crate-metadata.json changed on disk but could not be parsed.',
+      )
+      return
+    }
+
+    const normalized = this.normalizeCrate(parsed)
+    if (!normalized) {
+      return
+    }
+    const action =
+      this.appStatePreferences[ROCrateExternalChangeAction] ??
+      ('prompt' as ROCrateExternalChangeActionValue)
+    if (normalized === this.lastKnownMetadataJson) {
+      return
+    }
+    const currentNormalized = this.normalizeCrate(this.appStateService.roCrate)
+    if (normalized === currentNormalized) {
+      this.lastKnownMetadataJson = normalized
+      return
+    }
+    if (!this.appStateService.isRoCrateDirty(parsed)) {
+      this.lastKnownMetadataJson = normalized
+      return
+    }
+
+    this.lastKnownMetadataJson = normalized
+
+    if (action === 'off') {
+      return
+    }
+
+    if (action === 'auto') {
+      this.messageService.info(
+        'ro-crate-metadata.json changed outside the application. Reloading.',
+      )
+      await this.reloadExternalCrate(metadataUri)
+      return
+    }
+
+    const choice = await this.messageService.info(
+      'ro-crate-metadata.json changed outside the application. Reload changes?',
+      'Reload',
+      'Always Reload',
+      'Ignore',
+    )
+    if (choice === 'Always Reload') {
+      await this.preferenceService.set(
+        ROCrateExternalChangeAction,
+        'auto',
+        PreferenceScope.User,
+      )
+    }
+    if (choice === 'Reload' || choice === 'Always Reload') {
+      await this.reloadExternalCrate(metadataUri)
+    }
+  }
+
+  protected async reloadExternalCrate(metadataUri: URI): Promise<void> {
+    try {
+      const crate = await this.loadRoCrateWithNormalization(metadataUri)
+      this.updateState(crate, false)
+      await this.refreshCompleteProfile(crate)
+    } catch (error) {
+      console.error('Failed to reload RO-Crate after external change:', error)
+      this.messageService.error(
+        'Failed to reload ro-crate-metadata.json after external change.',
+      )
+    }
+  }
+
+  protected normalizeCrate(
+    crate: Record<string, any> | undefined,
+  ): string | undefined {
+    if (!crate) {
+      return undefined
+    }
+    try {
+      return JSON.stringify(crate)
+    } catch (error) {
+      console.warn('Failed to normalize RO-Crate metadata:', error)
+      return undefined
+    }
   }
 
   protected async refreshCompleteProfile(

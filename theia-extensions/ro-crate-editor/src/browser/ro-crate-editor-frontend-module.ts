@@ -15,9 +15,9 @@ export default new ContainerModule(bind => {
     bind(FrontendApplicationContribution).to(RoCrateEditorAppStateSyncContribution).inSingletonScope();
     bind(WidgetFactory).toDynamicValue(ctx => ({
         id: RoCrateEditorWidget.ID,
-        createWidget: (options : any) => {
+        createWidget: async (options : any) => {
             const widget = ctx.container.get(RoCrateEditorWidget);
-            widget.initialize(options);
+            await widget.initialize(options);
             return widget;
         }
     })).inSingletonScope();
