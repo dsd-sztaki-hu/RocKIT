@@ -1,4 +1,5 @@
 // src/browser/components/cedar-tree.tsx
+// This is a legacy code, please do not modify these, its important to keep these files as it is currently.
 
 import * as React from 'react';
 import { useEffect, useState, useMemo } from 'react';

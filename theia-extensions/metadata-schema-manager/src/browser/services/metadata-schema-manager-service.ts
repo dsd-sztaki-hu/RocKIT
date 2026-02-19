@@ -514,6 +514,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return root.resolve(`metadata-schemas/cedar/${type}`);
     }
 
+    // Below here are legacy methods, please do not modify these methods because these are used as it is right now.
+    
     public async getMergedProfile(crate: Record<string, any>, newProfile: Record<string, any>, profile: Record<string, any>, profileUrl?: string) {
         const entities: any = Object.values(crate["@graph"]).filter((entity: any) => entity["@type"] != "CreativeWork")
         for (const entity of entities) {

@@ -1,4 +1,5 @@
 // src\browser\services\schema-api.ts
+// This is a legacy code, please do not modify these, its important to keep these files as it is currently.
 
 import axios from "axios";
 import { to } from "await-to-js";
