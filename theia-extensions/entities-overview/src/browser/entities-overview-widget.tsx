@@ -15,6 +15,7 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { MetadataSchemaManager } from 'aroma2-common/lib/browser'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import { MultiEditDialog } from './entities-overview-multi-edit-dialog'
@@ -66,6 +67,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
     @inject(TreeModel) public override readonly model: EntitiesOverviewModel,
     @inject(ContextMenuRenderer) contextMenuRenderer: ContextMenuRenderer,
     @inject(AppStateService) private readonly appStateService: AppStateService,
+    @inject(MetadataSchemaManager)
+    private readonly schemaManagerService: MetadataSchemaManager,
     @inject(WidgetManager) private readonly widgetManager: WidgetManager,
     @inject(ApplicationShell) private readonly shell: ApplicationShell,
   ) {
@@ -529,7 +532,11 @@ export class EntitiesOverviewWidget extends TreeWidget {
     const selectedEntityIds = this.model.getSelectedEntityIds()
     const entityIds =
       selectedEntityIds.length > 0 ? selectedEntityIds : this.model.getVisibleEntityIds()
-    const dialog = new MultiEditDialog(entityIds, this.appStateService)
+    const dialog = new MultiEditDialog(
+      entityIds,
+      this.appStateService,
+      this.schemaManagerService,
+    )
     await dialog.open()
   }
 

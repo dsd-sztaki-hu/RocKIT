@@ -2,6 +2,7 @@ import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import * as React from '@theia/core/shared/react'
 import { Alert, Button, Input, Select, Switch, Tag } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import type { MetadataSchemaManager, SchemaInfo } from 'aroma2-common/lib/browser'
 
 type BulkOperator = 'add' | 'remove' | 'set' | 'unset'
 type FieldValueKind = 'text' | 'number' | 'date' | 'select' | 'json' | 'entity'
@@ -10,8 +11,10 @@ interface FieldDefinition {
   key: string
   className: string
   classLabel: string
+  supportedClasses?: string[]
   schemaId: string
   schemaLabel: string
+  schemaGroupName: string
   schemaUrl?: string
   propertyName: string
   label: string
@@ -26,6 +29,7 @@ interface FieldDefinition {
 interface SchemaOption {
   id: string
   label: string
+  url?: string
 }
 
 interface OperationRow {
@@ -148,6 +152,7 @@ export class MultiEditDialog extends ReactDialog<string> {
 
   protected schemaOptions: SchemaOption[] = []
   protected selectedSchemaIds = new Set<string>()
+  protected schemaUrlsById = new Map<string, string>()
 
   protected schemaOrgEnabled = false
   protected schemaOrgProperties: SchemaOrgProperty[] = []
@@ -169,6 +174,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   constructor(
     private readonly entityIds: string[],
     private readonly appStateService: AppStateService,
+    private readonly schemaManagerService?: MetadataSchemaManager,
   ) {
     super({ title: 'Multi Edit' })
     this.startButton = this.appendButton('Start multi-edit', true)
@@ -286,6 +292,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     const fields: FieldDefinition[] = []
     const fieldKeys = new Set<string>()
     const schemasById = new Map<string, SchemaOption>()
+    this.schemaUrlsById = new Map()
 
     for (const className of entityTypes) {
       const classDef = classes[className]
@@ -310,7 +317,11 @@ export class MultiEditDialog extends ReactDialog<string> {
           schemasById.set(schemaMeta.id, {
             id: schemaMeta.id,
             label: schemaMeta.label,
+            url: schemaMeta.url,
           })
+          if (schemaMeta.url && schemaMeta.url.trim().length > 0) {
+            this.schemaUrlsById.set(schemaMeta.id, schemaMeta.url.trim())
+          }
         }
 
         const entityTypes = this.extractEntityTypes(input, classes)
@@ -318,8 +329,10 @@ export class MultiEditDialog extends ReactDialog<string> {
           key: `${className}::${propertyName}`,
           className,
           classLabel,
+          supportedClasses: [className],
           schemaId: schemaMeta.id,
           schemaLabel: schemaMeta.label,
+          schemaGroupName: groupName,
           schemaUrl: schemaMeta.url,
           propertyName,
           label: String(input.label ?? propertyName),
@@ -335,9 +348,34 @@ export class MultiEditDialog extends ReactDialog<string> {
         }
 
         const dedupeKey = `${schemaMeta.id}::${propertyName}::${field.label}`
-        if (!fieldKeys.has(dedupeKey)) {
+        const existingField = fields.find(
+          (entry) =>
+            entry.schemaId === field.schemaId &&
+            entry.propertyName === field.propertyName &&
+            entry.label === field.label,
+        )
+        if (!existingField) {
           fieldKeys.add(dedupeKey)
           fields.push(field)
+        } else {
+          const supported = new Set(existingField.supportedClasses ?? [])
+          supported.add(className)
+          existingField.supportedClasses = Array.from(supported.values())
+          const mergedEntityTypes = new Set(existingField.entityTypes)
+          for (const typeName of field.entityTypes) {
+            mergedEntityTypes.add(typeName)
+          }
+          existingField.entityTypes = Array.from(mergedEntityTypes.values())
+          if (field.multiple) {
+            existingField.multiple = true
+          }
+          if (field.selectValues.length > 0) {
+            const mergedValues = new Set(existingField.selectValues)
+            for (const value of field.selectValues) {
+              mergedValues.add(value)
+            }
+            existingField.selectValues = Array.from(mergedValues.values())
+          }
         }
       }
     }
@@ -486,11 +524,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     const preferredName =
       (nameKey && typeof entity?.[nameKey] === 'string' && entity[nameKey]) || undefined
     const name =
-      preferredName ??
-      entity?.name ??
-      entity?.title ??
-      entity?.label ??
-      entity?.['@id']
+      preferredName ?? entity?.name ?? entity?.title ?? entity?.label ?? entity?.['@id']
     return typeof name === 'string' && name.trim().length > 0 ? name.trim() : '(unnamed)'
   }
 
@@ -701,9 +735,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         return undefined
       }
       const graph = this.getGraph()
-      const exists = graph.some(
-        (entry) => entry && String(entry['@id']) === trimmed,
-      )
+      const exists = graph.some((entry) => entry && String(entry['@id']) === trimmed)
       if (!exists) {
         return `selected entity does not exist for ${field.label}.`
       }
@@ -750,6 +782,12 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
     const rawType = entity?.['@type']
     const typeList = Array.isArray(rawType) ? rawType : rawType ? [rawType] : []
+    const supported = field.supportedClasses
+    if (supported && supported.length > 0) {
+      return typeList.some((typeValue) =>
+        supported.includes(this.toTypeTail(String(typeValue))),
+      )
+    }
     return typeList.some(
       (typeValue) => this.toTypeTail(String(typeValue)) === field.className,
     )
@@ -762,6 +800,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       classLabel: 'Any',
       schemaId: SCHEMA_ORG_SCHEMA_ID,
       schemaLabel: 'schema.org',
+      schemaGroupName: 'schema.org',
       propertyName: property.label,
       label: property.label,
       help: property.comment,
@@ -977,11 +1016,22 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.executionSummary = undefined
     this.update()
 
+    const selectedEntitySet = new Set(this.entityIds)
     const graph = JSON.parse(JSON.stringify(currentCrate['@graph'])) as Record<
       string,
       any
     >[]
-    const selectedEntitySet = new Set(this.entityIds)
+    const conformsLookup = await this.buildSchemaConformsLookup()
+    console.info('[MultiEdit] Starting run', {
+      entities: Array.from(selectedEntitySet.values()),
+      operations: this.operations.map((op) => ({
+        id: op.id,
+        operator: op.operator,
+        fieldKey: op.fieldKey,
+        value: op.value,
+      })),
+      selectedSchemas: Array.from(this.selectedSchemaIds.values()),
+    })
 
     const resolvedValues = new Map<string, unknown>()
     for (const operation of this.operations) {
@@ -1017,6 +1067,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     for (const entityId of selectedEntitySet) {
       const index = graph.findIndex((entry) => String(entry?.['@id']) === entityId)
       if (index < 0) {
+        console.warn('[MultiEdit] Entity not found, skipping', { entityId })
         errors.push(`Entity not found: ${entityId}`)
         continue
       }
@@ -1024,6 +1075,69 @@ export class MultiEditDialog extends ReactDialog<string> {
       const entity = graph[index]
       let changed = false
       processedEntities += 1
+      console.info('[MultiEdit] Processing entity', {
+        entityId,
+        entityType: entity?.['@type'],
+        conformsTo: entity?.conformsTo,
+      })
+
+      for (let opIndex = 0; opIndex < this.operations.length; opIndex += 1) {
+        const operation = this.operations[opIndex]
+        const field = operation.fieldKey
+          ? this.fieldsByKey.get(operation.fieldKey)
+          : undefined
+        if (!field) {
+          console.warn(
+            '[MultiEdit] Missing field for operation, skipping schema attach',
+            {
+              entityId,
+              opIndex: opIndex + 1,
+              operation,
+            },
+          )
+          continue
+        }
+        if (!this.entitySupportsField(entity, field)) {
+          console.info(
+            '[MultiEdit] Entity does not support field, skipping schema attach',
+            {
+              entityId,
+              opIndex: opIndex + 1,
+              field: field.propertyName,
+              fieldClass: field.className,
+            },
+          )
+          continue
+        }
+        if (operation.operator !== 'set' && operation.operator !== 'add') {
+          console.info('[MultiEdit] Operator does not require schema attach', {
+            entityId,
+            opIndex: opIndex + 1,
+            operator: operation.operator,
+          })
+          continue
+        }
+        const schemaUrl = this.resolveConformsToUrl(field, conformsLookup)
+        console.info('[MultiEdit] Resolved schema url for attach', {
+          entityId,
+          opIndex: opIndex + 1,
+          schemaUrl,
+          schemaId: field.schemaId,
+          schemaLabel: field.schemaLabel,
+          schemaGroupName: field.schemaGroupName,
+          field: field.propertyName,
+        })
+        const schemaAdded = this.ensureSchemaAssociation(entity, schemaUrl)
+        console.info('[MultiEdit] Schema attach result', {
+          entityId,
+          opIndex: opIndex + 1,
+          schemaAdded,
+          conformsTo: entity?.conformsTo,
+        })
+        if (schemaAdded) {
+          changed = true
+        }
+      }
 
       for (let opIndex = 0; opIndex < this.operations.length; opIndex += 1) {
         const operation = this.operations[opIndex]
@@ -1032,20 +1146,36 @@ export class MultiEditDialog extends ReactDialog<string> {
           : undefined
 
         if (!field) {
+          console.warn('[MultiEdit] Missing field for operation, skipping', {
+            entityId,
+            opIndex: opIndex + 1,
+            operation,
+          })
           skippedOperations += 1
           continue
         }
 
         if (!this.entitySupportsField(entity, field)) {
+          console.info('[MultiEdit] Entity does not support field, skipping', {
+            entityId,
+            opIndex: opIndex + 1,
+            field: field.propertyName,
+            fieldClass: field.className,
+          })
           skippedOperations += 1
           continue
         }
 
         try {
           const parsedValue =
-            operation.operator === 'unset'
-              ? undefined
-              : resolvedValues.get(operation.id)
+            operation.operator === 'unset' ? undefined : resolvedValues.get(operation.id)
+          console.info('[MultiEdit] Executing operation', {
+            entityId,
+            opIndex: opIndex + 1,
+            operator: operation.operator,
+            field: field.propertyName,
+            parsedValue,
+          })
           const changedByOperation = this.executeOperationOnEntity(
             entity,
             field,
@@ -1053,31 +1183,41 @@ export class MultiEditDialog extends ReactDialog<string> {
             parsedValue,
           )
           if (changedByOperation) {
+            console.info('[MultiEdit] Operation applied', {
+              entityId,
+              opIndex: opIndex + 1,
+              operator: operation.operator,
+              field: field.propertyName,
+            })
             appliedOperations += 1
             changed = true
           } else {
+            console.info('[MultiEdit] Operation skipped (no change)', {
+              entityId,
+              opIndex: opIndex + 1,
+              operator: operation.operator,
+              field: field.propertyName,
+            })
             skippedOperations += 1
-          }
-
-          if (
-            changedByOperation &&
-            (operation.operator === 'set' || operation.operator === 'add')
-          ) {
-            const schemaChanged = this.ensureSchemaAssociation(entity, field.schemaUrl)
-            if (schemaChanged) {
-              changed = true
-            }
           }
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Unknown execution error.'
+          console.warn('[MultiEdit] Operation failed', {
+            entityId,
+            opIndex: opIndex + 1,
+            error: message,
+          })
           errors.push(`Entity ${entityId}, row ${opIndex + 1}: ${message}`)
         }
       }
 
       if (changed) {
+        console.info('[MultiEdit] Entity updated', { entityId })
         graph[index] = entity
         updatedEntities += 1
+      } else {
+        console.info('[MultiEdit] Entity unchanged', { entityId })
       }
     }
 
@@ -1177,6 +1317,71 @@ export class MultiEditDialog extends ReactDialog<string> {
     )
   }
 
+  protected resolveSchemaUrl(field: FieldDefinition): string | undefined {
+    if (field.schemaUrl && field.schemaUrl.trim().length > 0) {
+      return field.schemaUrl.trim()
+    }
+    const mapped = this.schemaUrlsById.get(field.schemaId)
+    if (mapped && mapped.trim().length > 0) {
+      return mapped.trim()
+    }
+    return undefined
+  }
+
+  protected async buildSchemaConformsLookup(): Promise<Map<string, string>> {
+    const lookup = new Map<string, string>()
+    if (!this.schemaManagerService) {
+      return lookup
+    }
+    let schemas: SchemaInfo[] = []
+    try {
+      schemas = await this.schemaManagerService.loadAllSchemas()
+    } catch (error) {
+      console.warn('Failed to load schemas for multi-edit lookup.', error)
+      return lookup
+    }
+    for (const schema of schemas) {
+      const conformsTo = schema.conformsTo?.trim()
+      const reference = schema.reference?.trim()
+      if (reference && conformsTo) {
+        lookup.set(reference, conformsTo)
+      }
+      if (conformsTo) {
+        lookup.set(conformsTo, conformsTo)
+      }
+      const normalizedName = this.schemaManagerService.nameWithoutMetadataSuffix(
+        schema.name,
+      )
+      const key = this.normalizeSchemaId(normalizedName ?? schema.name)
+      if (conformsTo && key) {
+        lookup.set(`name:${key}`, conformsTo)
+      }
+    }
+    return lookup
+  }
+
+  protected resolveConformsToUrl(
+    field: FieldDefinition,
+    conformsLookup: Map<string, string>,
+  ): string | undefined {
+    const candidate = this.resolveSchemaUrl(field)
+    if (candidate) {
+      const mapped = conformsLookup.get(candidate)
+      return mapped ?? candidate
+    }
+    const groupKey = `name:${this.normalizeSchemaId(field.schemaGroupName)}`
+    const byGroup = conformsLookup.get(groupKey)
+    if (byGroup) {
+      return byGroup
+    }
+    const nameKey = `name:${this.normalizeSchemaId(field.schemaLabel)}`
+    const byName = conformsLookup.get(nameKey)
+    if (byName) {
+      return byName
+    }
+    return undefined
+  }
+
   protected renderEntityValueEditor(
     row: OperationRow,
     field: FieldDefinition,
@@ -1197,7 +1402,9 @@ export class MultiEditDialog extends ReactDialog<string> {
         dropdownClassName="entities-overview-edit-modal-dropdown"
         dropdownStyle={{ maxHeight: 260, overflowY: 'auto' }}
         options={options}
-        notFoundContent={<span className="entities-overview-entity-no-data">No matches</span>}
+        notFoundContent={
+          <span className="entities-overview-entity-no-data">No matches</span>
+        }
       />
     )
   }
@@ -1220,31 +1427,26 @@ export class MultiEditDialog extends ReactDialog<string> {
     const candidates = graph.filter((entry) =>
       this.entityMatchesTypes(entry, field.entityTypes),
     )
-    const existingOptionsWithLabel = candidates
-      .map((entry) => {
-        const id = String(entry['@id'])
-        const name = this.getEntityDisplayName(entry)
-        const rawType = this.getEntityTypeName(entry) ?? field.entityTypes[0] ?? 'Entity'
-        const typeLabel = this.getEntityTypeLabel(rawType)
-        return {
-          value: id,
-          label: (
-            <span className="entities-overview-entity-option">
-              <span className="entities-overview-entity-option-type">
-                {typeLabel}
-              </span>
-              <span className="entities-overview-entity-option-name">{name}</span>
-            </span>
-          ),
-          title: id,
-          rawLabel: String(name ?? '').toLowerCase(),
-        }
-      })
+    const existingOptionsWithLabel = candidates.map((entry) => {
+      const id = String(entry['@id'])
+      const name = this.getEntityDisplayName(entry)
+      const rawType = this.getEntityTypeName(entry) ?? field.entityTypes[0] ?? 'Entity'
+      const typeLabel = this.getEntityTypeLabel(rawType)
+      return {
+        value: id,
+        label: (
+          <span className="entities-overview-entity-option">
+            <span className="entities-overview-entity-option-type">{typeLabel}</span>
+            <span className="entities-overview-entity-option-name">{name}</span>
+          </span>
+        ),
+        title: id,
+        rawLabel: String(name ?? '').toLowerCase(),
+      }
+    })
     const existingOptions = existingOptionsWithLabel
       .filter((option) =>
-        normalizedSearch.length === 0
-          ? true
-          : option.rawLabel.includes(normalizedSearch),
+        normalizedSearch.length === 0 ? true : option.rawLabel.includes(normalizedSearch),
       )
       .map(({ rawLabel, ...rest }) => rest)
 
@@ -1305,10 +1507,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     return crate['@graph'] as Record<string, any>[]
   }
 
-  protected entityMatchesTypes(
-    entity: Record<string, any>,
-    types: string[],
-  ): boolean {
+  protected entityMatchesTypes(entity: Record<string, any>, types: string[]): boolean {
     if (types.length === 0) {
       return false
     }
@@ -1320,9 +1519,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   protected buildCreateToken(entityType: string, label: string): string {
-    return `__create__::${encodeURIComponent(entityType)}::${encodeURIComponent(
-      label,
-    )}`
+    return `__create__::${encodeURIComponent(entityType)}::${encodeURIComponent(label)}`
   }
 
   protected parseCreateToken(
@@ -1373,12 +1570,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       '@type': entityType,
     }
 
-    const nameKey = this.getEntityNameField(entityType)
-    if (nameKey) {
-      entity[nameKey] = token.label
-    } else {
-      entity.name = token.label
-    }
+    entity.name = token.label
 
     graph.push(entity)
     return entityId
@@ -1391,7 +1583,10 @@ export class MultiEditDialog extends ReactDialog<string> {
       .filter((id) => id.length > 0)
     const prefixCandidate = existingIds.find((id) => id.includes(typeSegment))
     const prefix = prefixCandidate
-      ? prefixCandidate.slice(0, prefixCandidate.indexOf(typeSegment) + typeSegment.length)
+      ? prefixCandidate.slice(
+          0,
+          prefixCandidate.indexOf(typeSegment) + typeSegment.length,
+        )
       : `./${entityType}/`
 
     let candidate = ''
@@ -1424,7 +1619,9 @@ export class MultiEditDialog extends ReactDialog<string> {
       return labelName.name
     }
     const endsWithName = inputs.find((input) =>
-      String(input.name ?? '').toLowerCase().endsWith('name'),
+      String(input.name ?? '')
+        .toLowerCase()
+        .endsWith('name'),
     )
     if (endsWithName && typeof endsWithName.name === 'string') {
       return endsWithName.name
