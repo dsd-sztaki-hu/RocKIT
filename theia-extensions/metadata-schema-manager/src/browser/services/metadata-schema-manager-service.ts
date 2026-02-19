@@ -1,3 +1,5 @@
+// src\browser\services\metadata-schema-manager-service.ts
+
 import { injectable, inject, postConstruct } from 'inversify';
 import { FrontendApplicationContribution } from '@theia/core/lib/browser';
 import { MessageService } from '@theia/core/lib/common/message-service';
@@ -5,8 +7,8 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { URI } from '@theia/core/lib/common/uri';
 import { Emitter, Event } from '@theia/core/lib/common/event';
-import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
 import type { SchemaInfo, RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
@@ -14,10 +16,10 @@ import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'aro
 import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service';
 import { MissingSchemasDialog } from '../components/missing-schemas-dialog'; 
 
+
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
 export const SCHEMA_FIELD_ID = '@id';
-
 const AROMA_METADATA_FIELD = '_aromaMetadata'; 
 const MSG_TIMEOUT = 5000;
 

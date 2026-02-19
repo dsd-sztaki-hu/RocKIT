@@ -1,8 +1,6 @@
 // src/browser/components/metadata-schema-toolbar.tsx
 
 import * as React from 'react';
-
-// MUI Icons
 import NoteAddIcon from '@mui/icons-material/NoteAdd'; 
 import LinkIcon from '@mui/icons-material/Link'; 
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload'; 
@@ -11,8 +9,8 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { Tooltip, IconButton } from '@mui/material';
 
-// Import CSS
 import '../styles/metadata-schema-toolbar.css';
+
 
 interface SchemaToolbarProps {
     onImportFile: () => void;

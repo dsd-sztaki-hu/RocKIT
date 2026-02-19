@@ -11,13 +11,13 @@ import UnfoldLessIcon from '@mui/icons-material/UnfoldLess';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import { LinearProgress, CircularProgress, IconButton, Tooltip, TextField, InputAdornment } from '@mui/material';
+
 import { SchemaApi } from "../services/schema-api";
 import { File, FolderClosed } from "./icons"; 
-
-// Import CSS
 import '../styles/cedar-tree.css';
 
-// --- Helpers (Unchanged) ---
+
+// --- Helpers ---
 type TreeNode = {
   id: string;
   name: string;
@@ -382,7 +382,6 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
             '& .MuiTreeItem-content': {
                 padding: '0px 8px',
                 borderRadius: '3px',
-                // --- FIX: Disable Background Colors ---
                 '&.Mui-selected': {
                     backgroundColor: 'transparent !important', // No background on selection
                     color: 'var(--theia-foreground) !important', // Keep text color visible

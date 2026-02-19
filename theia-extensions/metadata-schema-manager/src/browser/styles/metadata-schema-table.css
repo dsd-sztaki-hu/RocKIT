@@ -54,19 +54,18 @@
 
 /* Header */
 .schema-table-wrapper .ant-table-thead > tr > th {
-    background-color: var(--theia-editor-background) !important; /* IDEs usually match header to bg */
+    background-color: var(--theia-editor-background) !important;
     color: var(--theia-foreground) !important;
     border-bottom: 1px solid var(--theia-panel-border) !important;
-    border-right: none !important; /* IDE lists usually don't have vertical borders */
+    border-right: none !important;
     font-weight: 600;
 }
 
-/* Fix for Header Icons (Sort, Filter, Search) */
 .schema-table-wrapper .ant-table-thead > tr > th .anticon,
 .schema-table-wrapper .ant-table-thead > tr > th .schema-table__header-icon,
 .schema-table-wrapper .ant-table-column-sorter-inner {
     color: var(--theia-foreground) !important;
-    opacity: 0.5; /* Dims them slightly so they don't overpower the text */
+    opacity: 0.5;
 }
 
 /* Highlight the icon when sorting or filtering is active */
@@ -83,8 +82,8 @@
     background-color: transparent !important; 
     border-bottom: 1px solid var(--theia-panel-border) !important;
     color: var(--theia-foreground) !important;
-    padding: 6px 8px !important; /* Tighter padding, more native IDE feel */
-    transition: none !important; /* IDEs don't animate list hovers */
+    padding: 6px 8px !important;
+    transition: none !important;
 }
 
 /* --- 3. Theia Native Hover & Selection --- */
@@ -93,7 +92,6 @@
 .schema-table-wrapper.mode-row .ant-table-tbody > tr:hover > td {
     background-color: var(--theia-list-hoverBackground) !important;
     color: var(--theia-list-hoverForeground, var(--theia-foreground)) !important;
-    /* FIX: Top and bottom outline only (removes vertical internal lines) */
     box-shadow: inset 0 1px 0 0 var(--theia-contrastBorder, transparent),
                 inset 0 -1px 0 0 var(--theia-contrastBorder, transparent) !important;
 }
@@ -130,16 +128,16 @@
                 inset 0 -1px 0 0 var(--theia-focusBorder, var(--theia-contrastActiveBorder, transparent)) !important;
 }
 
-/* Manager Mode Checkbox Selection (Inactive Native Style) */
+/* Manager Mode Checkbox Selection */
 .schema-table-wrapper.mode-checkbox .ant-table-tbody > tr:hover > td {
-    background-color: transparent !important; /* No hover effect in manager */
+    background-color: transparent !important;
 }
 .schema-table-wrapper.mode-checkbox .ant-table-tbody > tr.ant-table-row-selected > td {
     background-color: var(--theia-list-inactiveSelectionBackground) !important;
     box-shadow: none !important;
 }
 
-/* --- 4. Links & Badges (The "Inherit" Trick) --- */
+/* --- 4. Links & Badges --- */
 
 /* Standard Link */
 .schema-table__link {
@@ -150,7 +148,7 @@
     text-decoration: underline;
 }
 
-/* Standard Badge (Mapped to Theia Badge variables) */
+/* Standard Badge */
 .schema-table__badge {
     padding: 2px 6px;
     border-radius: 11px;
@@ -160,8 +158,6 @@
     border: 1px solid var(--theia-contrastBorder, transparent);
 }
 
-/* CRITICAL FIX: When row is selected, force links and badges to INHERIT the row's color! 
-   This perfectly solves High Contrast Light vs Dark vs Normal themes. */
 .schema-table-wrapper.mode-row .ant-table-tbody > tr.ant-table-row-selected > td .schema-table__link,
 .schema-table-wrapper.mode-row .ant-table-tbody > tr.ant-table-row-selected > td .schema-table__badge {
     color: inherit !important; 
@@ -172,7 +168,7 @@
 }
 
 
-/* --- 5. Inputs, Buttons, & Pagination (Mapped to Theia Defaults) --- */
+/* --- 5. Inputs, Buttons, & Pagination --- */
 
 .schema-table-wrapper .ant-input {
     background-color: var(--theia-input-background) !important;
@@ -221,7 +217,7 @@
     color: var(--theia-badge-foreground) !important;
 }
 
-/* Pagination Dropdown (The Select Box) */
+/* Pagination Dropdown */
 .schema-table-wrapper .ant-select-selector {
     background-color: var(--theia-input-background) !important;
     color: var(--theia-input-foreground) !important;

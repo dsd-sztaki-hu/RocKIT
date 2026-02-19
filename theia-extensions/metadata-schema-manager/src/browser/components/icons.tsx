@@ -8,7 +8,6 @@ import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import FolderIcon from "@mui/icons-material/Folder";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 
-// Styles loaded by parent component (cedar-tree.css)
 
 export function FolderOpen() {
   return <FolderOpenIcon fontSize="inherit" className="cedar-icon cedar-icon--folder" />;

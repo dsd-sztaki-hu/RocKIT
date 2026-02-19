@@ -3,12 +3,10 @@
 import * as React from 'react';
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
-
-// Icons
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
-// Import CSS
 import '../styles/missing-schemas-dialog.css';
+
 
 export class MissingSchemasDialog extends AbstractDialog<void> {
 

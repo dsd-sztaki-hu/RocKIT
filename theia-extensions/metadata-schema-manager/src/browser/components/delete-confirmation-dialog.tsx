@@ -5,11 +5,9 @@ import type * as ReactDOMTypes from 'react-dom/client';
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 
-// Icons
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-
-// Import CSS
 import '../styles/delete-confirmation-dialog.css';
+
 
 export class DeleteConfirmationDialog extends AbstractDialog<boolean> {
 

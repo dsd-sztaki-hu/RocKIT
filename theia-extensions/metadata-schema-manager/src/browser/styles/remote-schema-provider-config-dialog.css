@@ -129,7 +129,6 @@
     align-items: center;
 }
 
-/* FIX: Added border, padding, and explicit colors for visibility in light theme */
 .remote-provider-config__change-btn {
     margin-left: 8px;
     white-space: nowrap;

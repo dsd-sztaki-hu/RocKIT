@@ -61,8 +61,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding-right: 5px; /* Tiny padding for scrollbar space */
-}
+    padding-right: 5px;
 
 /* Loading & Empty States */
 .remote-provider-selector__state-msg {

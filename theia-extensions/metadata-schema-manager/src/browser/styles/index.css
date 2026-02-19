@@ -7,7 +7,7 @@
     padding: 0;
     height: 100%;
     width: 100%;
-    overflow: hidden; /* Prevents widget-level scrollbars */
+    overflow: hidden;
     font-family: var(--theia-ui-font-family);
     font-size: var(--theia-ui-font-size1);
 }
@@ -18,26 +18,22 @@
     flex-direction: column;
     height: 100%;
     position: relative;
-    padding: 8px 12px; /* UI Enhancement: Adds breathing room from the edges */
+    padding: 8px 12px;
     box-sizing: border-box;
-    gap: 8px; /* UI Enhancement: Consistent spacing between Toolbar and Table */
+    gap: 8px;
 }
 
 /* --- Table Wrapper --- */
-/* This wrapper ensures the table takes up remaining space and handles resize */
 .metadata-schema-table-wrapper {
     flex-grow: 1;
-    min-height: 0; /* CRITICAL: Allows flex child to shrink below content size (enables scrolling) */
+    min-height: 0;
     width: 100%;
     position: relative;
-    
-    /* UI Enhancement: visual separation for the data area */
     border: 1px solid var(--theia-panel-border); 
     border-radius: 2px;
-    background-color: var(--theia-layout-color1); /* Slightly distinct background for data area */
+    background-color: var(--theia-layout-color1);
 }
 
-/* Optional: Global link styles within the widget */
 .metadata-schema-manager-widget a {
     color: var(--theia-textLink-foreground);
     text-decoration: none;
@@ -48,8 +44,6 @@
     text-decoration: underline;
 }
 
-/* --- High Contrast Fixes for Buttons --- */
-/* These ensure buttons remain visible and readable in High Contrast Light/Dark themes */
 .metadata-schema-manager-widget .ant-btn-primary {
     background-color: var(--theia-button-background) !important;
     color: var(--theia-button-foreground) !important;
@@ -59,7 +53,6 @@
 .metadata-schema-manager-widget .ant-btn-primary:hover,
 .metadata-schema-manager-widget .ant-btn-primary:focus {
     background-color: var(--theia-button-hoverBackground) !important;
-    /* FIX: Prevent Ant Design from forcing white text on hover */
     color: var(--theia-button-foreground) !important; 
     border: 1px solid var(--theia-contrastBorder, transparent) !important;
 }
@@ -73,7 +66,6 @@
 .metadata-schema-manager-widget .ant-btn-default:hover,
 .metadata-schema-manager-widget .ant-btn-default:focus {
     background-color: var(--theia-button-secondaryHoverBackground) !important;
-    /* FIX: Prevent Ant Design from forcing white text on hover */
     color: var(--theia-button-secondaryForeground) !important; 
     border: 1px solid var(--theia-contrastBorder, var(--theia-button-border, transparent)) !important;
 }

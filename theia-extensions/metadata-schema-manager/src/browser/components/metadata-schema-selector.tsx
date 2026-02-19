@@ -7,8 +7,6 @@ import { Message } from '@lumino/messaging';
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
-
-// Icons for the footer
 import CancelIcon from '@mui/icons-material/Cancel'; 
 import { IconButton, Tooltip } from '@mui/material';
 
@@ -20,9 +18,8 @@ import { RemoteSchemaProviderListDialog } from './remote-schema-provider-list-di
 import { RemoteSchemaProviderSelectorDialog } from './remote-schema-provider-selector-dialog';
 import { MetadataSchemaImportFromUrlDialog } from './metadata-schema-import-from-url-dialog';
 import type { SchemaInfo } from '../types';
-
-// Import CSS
 import '../styles/metadata-schema-selector.css';
+
 
 const MSG_TIMEOUT = 5000;
 
@@ -127,7 +124,6 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | un
             title: 'Select Metadata Schema'
         });
         
-        // Initial fixed size, layout handled by flexbox CSS
         this.contentNode.style.width = '1000px';
         this.contentNode.style.height = '600px';
         this.contentNode.style.maxHeight = '80vh';
@@ -135,7 +131,6 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | un
         
         this.contentNode.style.display = 'flex';
         this.contentNode.style.flexDirection = 'column';
-        // Padding is removed here so the internal layout class handles it natively
     }
 
     get value(): SchemaInfo | undefined {

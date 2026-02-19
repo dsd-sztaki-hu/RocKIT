@@ -4,8 +4,6 @@ import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
-
-// MUI Icons
 import DnsIcon from '@mui/icons-material/Dns';
 import LinkIcon from '@mui/icons-material/Link';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
@@ -17,9 +15,8 @@ import { IconButton } from '@mui/material';
 import { ConnectionSuccessDialog } from './connection-success-dialog';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
 import type { RemoteSchemaProviderConfig } from '../types';
-
-// Import CSS
 import '../styles/remote-schema-provider-config-dialog.css';
+
 
 export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchemaProviderConfig | undefined> {
 
@@ -45,7 +42,6 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
             title: providerToEdit ? 'Edit Provider' : 'Add Provider'
         });
         
-        // Layout handled by CSS mostly, but container needs explicit size
         this.contentNode.style.width = '500px';
         this.contentNode.style.padding = '0';
 

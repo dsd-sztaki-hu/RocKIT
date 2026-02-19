@@ -4,8 +4,6 @@ import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
-
-// MUI Icons
 import DnsIcon from '@mui/icons-material/Dns';
 import StorageIcon from '@mui/icons-material/Storage';
 import AddLinkIcon from '@mui/icons-material/AddLink';
@@ -15,9 +13,8 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import { RemoteSchemaProviderListDialog } from './remote-schema-provider-list-dialog';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
 import type { RemoteSchemaProviderConfig } from '../types';
-
-// Import CSS
 import '../styles/remote-schema-provider-selector-dialog.css';
+
 
 export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemoteSchemaProviderConfig | undefined> {
 

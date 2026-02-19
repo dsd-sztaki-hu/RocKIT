@@ -1,7 +1,10 @@
+// src\browser\services\schema-api.ts
+
 import axios from "axios";
 import { to } from "await-to-js";
 import * as jsonpath from "jsonpath";
 import log from 'loglevel';
+
 
 export class SchemaApi {
   userId?: string
@@ -64,7 +67,6 @@ export class SchemaApi {
     if (folderReqErr) throw folderReqErr
 
     const addTemplatesReqs = folderReqRes?.map(async (res) => {
-      // Use helper
       const templates = this.jsonQuery(res, "$.resources[?(@.resourceType=='template')]");
       allTemplates.push(...templates)
 
@@ -101,7 +103,6 @@ export class SchemaApi {
           throw err;
       }
 
-      // Use helper
       const id = this.jsonQuery(res.data, "$.resources[0]['@id']")
       
       if (!id || id.length == 0) {
@@ -127,7 +128,6 @@ export class SchemaApi {
     const [userErr, userRes] = await to(this.doGet(url, { headers: this.authHeaders() }))
     if (userErr) throw userErr
 
-    // Use helper
     const homeFolderId = this.jsonQuery(userRes.data, "$.homeFolderId")
     return await this.listFolder(homeFolderId[0])
   }

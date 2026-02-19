@@ -28,7 +28,6 @@
     padding: 0;
 }
 
-/* Overriding MUI TextField internal input styles via class */
 .cedar-tree__search-input {
     font-size: 14px;
     padding-left: 4px;

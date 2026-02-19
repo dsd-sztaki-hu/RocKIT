@@ -38,7 +38,6 @@
     margin-right: 20px;
 }
 
-/* FIX: Use standard icon foreground to ensure visibility in Dark Mode */
 .schema-selector__deselect-btn {
     padding: 2px;
     color: var(--theia-icon-foreground) !important; 

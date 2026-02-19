@@ -3,13 +3,11 @@
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
-// Use dynamic require in render for ReactDOM to be safe, or top-level if your setup supports it consistently
-// Keeping top-level import as per your provided snippet, but ensuring 'root' type usage is safe
 import * as ReactDOM from 'react-dom/client';
 import LinkIcon from '@mui/icons-material/Link';
 
-// Import the new stylesheet
 import '../styles/metadata-schema-import-from-url-dialog.css';
+
 
 export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
 
@@ -22,8 +20,6 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
             title: 'Import Schema from URL'
         });
 
-        // We keep the initial width for the dialog container, 
-        // but the internal content will now be responsive.
         this.contentNode.style.width = '500px';
         this.contentNode.style.padding = '0';
     }

@@ -15,8 +15,8 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-    flex: 1; /* Allows content to grow */
-    min-height: 0; /* Important for flex containers */
+    flex: 1;
+    min-height: 0;
 }
 
 .metadata-schema-import-url__header {
@@ -38,7 +38,7 @@
 
 .metadata-schema-import-url__icon {
     color: var(--theia-textLink-foreground);
-    font-size: 24px !important; /* Force MUI icon size */
+    font-size: 24px !important;
 }
 
 .metadata-schema-import-url__text-wrapper {
@@ -88,7 +88,7 @@
     padding: 15px 20px;
     background-color: var(--theia-layout-color2);
     border-top: 1px solid var(--theia-panel-border);
-    flex-shrink: 0; /* Prevent footer from shrinking */
+    flex-shrink: 0;
 }
 
 .metadata-schema-import-url__button {

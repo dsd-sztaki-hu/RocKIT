@@ -63,7 +63,7 @@
     background-color: var(--theia-button-secondaryHoverBackground);
 }
 
-/* Delete Button (Secondary look, hover turns dangerous) */
+/* Delete Button */
 .schema-toolbar__btn--delete {
     background-color: var(--theia-button-secondaryBackground);
     color: var(--theia-button-secondaryForeground);
@@ -76,7 +76,6 @@
 }
 
 /* --- Icon-Only Buttons (Refresh, Configure) --- */
-/* Overrides MUI's default circular gray hover to match IDE square toolbar hovers */
 .schema-toolbar__icon-btn {
     color: var(--theia-icon-foreground) !important;
     border-radius: 4px !important;

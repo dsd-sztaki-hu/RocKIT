@@ -1,10 +1,14 @@
+// src\browser\services\remote-schema-provider-store-service.ts
+
 import { injectable, inject } from 'inversify';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { URI } from '@theia/core/lib/common/uri';
+
 import { RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
 import { SecureStorageService } from 'aroma2-common/lib/common/secure-storage-protocol';
+
 
 @injectable()
 export class RemoteSchemaProviderStoreService {
@@ -114,7 +118,6 @@ export class RemoteSchemaProviderStoreService {
      */
     public async testConnection(domainBase: string, apiKey?: string): Promise<string[]> {
         try {
-            // Remove protocol to get the raw domain for SchemaApi (e.g. schema.researchdata.hu)
             let domain = domainBase.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
             const api = new SchemaApi({ domainBase: domain, apiKey: apiKey });
             

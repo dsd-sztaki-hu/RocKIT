@@ -4,6 +4,7 @@ import { Command, CommandContribution, CommandRegistry, MenuContribution, MenuMo
 import { FrontendApplicationContribution, WidgetManager, CommonMenus, ApplicationShell } from '@theia/core/lib/browser';
 import { METADATA_SCHEMA_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
 
+
 export namespace MetadataSchemaManagerCommands {
     export const OPEN: Command = {
         id: 'metadata-schema-manager:open',
@@ -37,12 +38,9 @@ export class MetadataSchemaManagerContribution implements CommandContribution, M
         commands.registerCommand(MetadataSchemaManagerCommands.OPEN, {
             execute: async () => {
                 try {
-                    // Get or create the widget instance
                     const widget = await this.widgetManager.getOrCreateWidget(METADATA_SCHEMA_MANAGER_WIDGET_ID);
                     if (widget) {
-                        // Add the widget to the main area of the shell
                         this.shell.addWidget(widget, { area: 'main' });
-                        // Activate (focus) the widget
                         this.shell.activateWidget(widget.id);
                     } else {
                         console.error("Failed to create or retrieve widget:", METADATA_SCHEMA_MANAGER_WIDGET_ID);

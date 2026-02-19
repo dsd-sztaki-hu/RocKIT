@@ -4,8 +4,6 @@ import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
-
-// MUI Components & Icons
 import { IconButton, Tooltip } from '@mui/material';
 import StorageIcon from '@mui/icons-material/Storage';
 import AddIcon from '@mui/icons-material/Add';
@@ -17,9 +15,8 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { RemoteSchemaProviderConfigDialog } from './remote-schema-provider-config-dialog';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
 import type { RemoteSchemaProviderConfig } from '../types';
-
-// Import Styles
 import '../styles/remote-schema-provider-list-dialog.css';
+
 
 export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
 
@@ -34,7 +31,6 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
             title: 'Manage Remote Providers'
         });
         
-        // We set layout via CSS, but AbstractDialog contentNode needs explicit size hint or style
         this.contentNode.style.width = '600px';
         this.contentNode.style.height = '500px'; 
         this.contentNode.style.padding = '0'; 
@@ -228,10 +224,6 @@ class ConfirmDialog extends AbstractDialog<boolean> {
         this.appendCloseButton('Cancel');
         const deleteBtn = this.appendAcceptButton('Delete');
         
-        // Inline styles for standard buttons are tricky to remove fully without
-        // replacing the entire footer logic like we did in other dialogs.
-        // For internal dialogs, simple inline overrides are often acceptable,
-        // but let's try to map them to CSS variables if possible.
         deleteBtn.style.backgroundColor = 'var(--theia-errorForeground)';
         deleteBtn.style.color = 'var(--theia-editor-background)'; 
         deleteBtn.style.border = '1px solid var(--theia-errorForeground)';

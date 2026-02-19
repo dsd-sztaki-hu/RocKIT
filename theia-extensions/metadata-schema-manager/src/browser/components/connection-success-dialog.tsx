@@ -4,16 +4,12 @@ import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
-
-// MUI Icons
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 
-// Reuse consistency
 import { File } from './icons';
-
-// Import CSS
 import '../styles/connection-success-dialog.css';
+
 
 export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
 
@@ -27,7 +23,6 @@ export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
             title: 'Connection Successful'
         });
         
-        // Layout sizing via JS for the dialog container, content via CSS
         this.contentNode.style.width = '500px';
         this.contentNode.style.height = '400px'; 
         this.contentNode.style.padding = '0'; 

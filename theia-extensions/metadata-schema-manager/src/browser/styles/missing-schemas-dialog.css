@@ -19,7 +19,7 @@
 
 .missing-schemas__icon {
     font-size: 32px !important;
-    color: var(--theia-infoForeground, #2196F3); /* Fallback to standard blue */
+    color: var(--theia-infoForeground, #2196F3);
 }
 
 .missing-schemas__text-container {
@@ -28,14 +28,14 @@
 
 .missing-schemas__title {
     margin: 0 0 8px 0;
-    font-size: 16px; /* Consistent with delete dialog */
+    font-size: 16px;
     font-weight: 600;
     color: var(--theia-foreground);
 }
 
 .missing-schemas__message {
     margin: 0;
-    font-size: 14px; /* Consistent with delete dialog */
+    font-size: 14px;
     color: var(--theia-descriptionForeground);
     line-height: 1.5;
 }

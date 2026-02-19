@@ -5,12 +5,12 @@ import { WidgetFactory, FrontendApplicationContribution } from '@theia/core/lib/
 import { MetadataSchemaManagerWidget, METADATA_SCHEMA_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
 import { MetadataSchemaManagerContribution } from './metadata-schema-manager-contribution';
 import { SchemaManagerService } from './services/metadata-schema-manager-service';
-import { RemoteSchemaProviderStoreService } from './services/remote-schema-provider-store-service'; // Import Renamed Service
+import { RemoteSchemaProviderStoreService } from './services/remote-schema-provider-store-service';
 import { MetadataSchemaSelectorContribution } from './components/metadata-schema-selector'; 
 import { RemoteSchemaBrowserContribution } from './components/remote-schema-browser-dialog';
 import { MetadataSchemaManager as MetadataSchemaManagerToken } from 'aroma2-common/lib/browser';
-
 import './styles/index.css';
+
 
 export default new ContainerModule(bind => {
     // 1. Widget
@@ -21,7 +21,7 @@ export default new ContainerModule(bind => {
     })).inSingletonScope();
 
     // 2. Services
-    bind(RemoteSchemaProviderStoreService).toSelf().inSingletonScope(); // Bind Renamed Service
+    bind(RemoteSchemaProviderStoreService).toSelf().inSingletonScope();
     bind(SchemaManagerService).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(SchemaManagerService);
     bind(MetadataSchemaManagerToken).toService(SchemaManagerService);

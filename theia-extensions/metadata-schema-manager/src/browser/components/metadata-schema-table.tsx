@@ -4,16 +4,14 @@ import * as React from 'react';
 import { Button, Input, Table, ConfigProvider, theme } from 'antd';
 import type { InputRef, TableColumnsType } from 'antd';
 import type { FilterDropdownProps, Key } from 'antd/es/table/interface';
-import type { SchemaInfo, SchemaTableProps } from '../types';
-
-// MUI Icons
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { IconButton, Tooltip } from '@mui/material';
 
-// Import CSS
+import type { SchemaInfo, SchemaTableProps } from '../types';
 import '../styles/metadata-schema-table.css';
+
 
 export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({ 
     schemas, 
@@ -226,7 +224,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                             className: 'schema-table__pagination'
                         }}
                         loading={isLoading}
-                        scroll={{ y: '100%' }} // Relies on CSS strict height in .schema-table-container
+                        scroll={{ y: '100%' }}
                     />
                 </div>
             </div>

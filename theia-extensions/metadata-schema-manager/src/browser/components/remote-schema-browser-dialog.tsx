@@ -15,9 +15,8 @@ import { SchemaManagerService } from '../services/metadata-schema-manager-servic
 import { SchemaApi } from '../services/schema-api';
 import CedarTree from './cedar-tree';
 import { RemoteSchemaProviderConfig } from '../types';
-
-// Import CSS
 import '../styles/remote-schema-browser-dialog.css';
+
 
 @injectable()
 export class RemoteSchemaBrowserContribution implements FrontendApplicationContribution {
@@ -66,7 +65,6 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
             title: `Browse ${provider.title}`
         });
 
-        // Set dimensions for the dialog container
         this.contentNode.style.width = '600px';
         this.contentNode.style.height = '550px';
         this.contentNode.style.padding = '0';
