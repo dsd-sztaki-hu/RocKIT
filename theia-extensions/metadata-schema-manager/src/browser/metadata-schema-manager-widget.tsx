@@ -1,5 +1,6 @@
 import { BaseWidget } from '@theia/core/lib/browser';
 import type { Message, StatefulWidget } from '@theia/core/lib/browser';
+import { ThemeService } from '@theia/core/lib/browser/theming';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { URI } from '@theia/core/lib/common/uri';
@@ -18,6 +19,7 @@ import { RemoteSchemaProviderConfigDialog } from './components/remote-schema-pro
 import { RemoteSchemaProviderSelectorDialog } from './components/remote-schema-provider-selector-dialog';
 import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-import-from-url-dialog';
 import type { SchemaInfo, RemoteSchemaProviderConfig } from './types';
+import { AntdThemeProvider } from './antd-theme-provider';
 
 import './style/index.css';
 
@@ -35,6 +37,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected readonly messageService: MessageService;
     protected readonly envVariablesServer: EnvVariablesServer;
     protected readonly schemaManagerService: SchemaManagerService;
+    protected readonly themeService: ThemeService;
 
     protected schemas: SchemaInfo[] = [];
     protected isLoading = true;
@@ -56,13 +59,15 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         @inject(FileDialogService) fileDialogService: FileDialogService,
         @inject(MessageService) messageService: MessageService,
         @inject(EnvVariablesServer) envVariablesServer: EnvVariablesServer,
-        @inject(SchemaManagerService) schemaManagerService: SchemaManagerService
+        @inject(SchemaManagerService) schemaManagerService: SchemaManagerService,
+        @inject(ThemeService) themeService: ThemeService
     ) {
         super();
         this.fileDialogService = fileDialogService;
         this.messageService = messageService;
         this.envVariablesServer = envVariablesServer;
         this.schemaManagerService = schemaManagerService;
+        this.themeService = themeService;
 
         this.id = METADATA_SCHEMA_MANAGER_WIDGET_ID;
         this.title.label = METADATA_SCHEMA_MANAGER_LABEL;
@@ -279,67 +284,69 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             .map(schema => schema.path);
 
         this.reactRoot?.render(
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
-                
-                <MetadataSchemaToolbar 
-                    onImportFile={() => this.importSchemaFromFile()}
-                    onImportUrl={() => this.openImportUrlDialog()}
-                    onBrowse={() => this.browseRemoteSchemas()} 
-                    onRefresh={() => this.refreshSchemas()}
-                    onDelete={() => this.deleteSchemas(selectedSchemaPaths)}
-                    onConfigureProviders={() => this.openProviderList()}
-                    selectedCount={this.selectedSchemaKeys.length}
-                />
-
-                <div style={{ flexGrow: 1 }}>
-                    <MetadataSchemaTable 
-                        schemas={this.schemas} 
-                        isLoading={this.isLoading}
-                        onSelectionChange={this.onSelectionChange}
-                        onDelete={(paths) => this.deleteSchemas(paths)}
+            <AntdThemeProvider themeService={this.themeService}>
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+                    
+                    <MetadataSchemaToolbar 
+                        onImportFile={() => this.importSchemaFromFile()}
+                        onImportUrl={() => this.openImportUrlDialog()}
+                        onBrowse={() => this.browseRemoteSchemas()} 
+                        onRefresh={() => this.refreshSchemas()}
+                        onDelete={() => this.deleteSchemas(selectedSchemaPaths)}
+                        onConfigureProviders={() => this.openProviderList()}
+                        selectedCount={this.selectedSchemaKeys.length}
                     />
+
+                    <div style={{ flexGrow: 1 }}>
+                        <MetadataSchemaTable 
+                            schemas={this.schemas} 
+                            isLoading={this.isLoading}
+                            onSelectionChange={this.onSelectionChange}
+                            onDelete={(paths) => this.deleteSchemas(paths)}
+                        />
+                    </div>
+                    
+                    {this.isImportUrlOpen && (
+                        <MetadataSchemaImportFromUrlDialog 
+                            open={this.isImportUrlOpen}
+                            onClose={() => { this.isImportUrlOpen = false; this.update(); }}
+                            onImport={(url) => this.handleImportUrl(url)}
+                        />
+                    )}
+                    
+                    {this.isProviderSelectorOpen && (
+                        <RemoteSchemaProviderSelectorDialog
+                            open={this.isProviderSelectorOpen}
+                            onClose={() => { this.isProviderSelectorOpen = false; this.update(); }}
+                            onSelect={(p) => this.handleProviderSelected(p)}
+                            onConfigure={() => this.openProviderList()}
+                            providerStore={this.schemaManagerService.providerStoreService}
+                        />
+                    )}
+
+                    {this.isProviderListOpen && (
+                        <RemoteSchemaProviderListDialog 
+                            open={this.isProviderListOpen}
+                            onClose={() => this.closeProviderList()}
+                            onAddProvider={() => this.openProviderConfig(undefined)}
+                            onEditProvider={(p) => this.openProviderConfig(p)}
+                            providerStore={this.schemaManagerService.providerStoreService}
+                            lastUpdated={this.providersLastUpdated}
+                        />
+                    )}
+
+                    {this.isProviderConfigOpen && (
+                        <RemoteSchemaProviderConfigDialog 
+                            key={this.configDialogKey} 
+                            open={this.isProviderConfigOpen}
+                            providerToEdit={this.selectedProviderToEdit}
+                            onClose={() => this.closeProviderConfig()}
+                            onSave={async (config) => await this.handleProviderSave(config)}
+                            providerStore={this.schemaManagerService.providerStoreService}
+                        />
+                    )}
                 </div>
-                
-                {this.isImportUrlOpen && (
-                    <MetadataSchemaImportFromUrlDialog 
-                        open={this.isImportUrlOpen}
-                        onClose={() => { this.isImportUrlOpen = false; this.update(); }}
-                        onImport={(url) => this.handleImportUrl(url)}
-                    />
-                )}
-                
-                {this.isProviderSelectorOpen && (
-                    <RemoteSchemaProviderSelectorDialog
-                        open={this.isProviderSelectorOpen}
-                        onClose={() => { this.isProviderSelectorOpen = false; this.update(); }}
-                        onSelect={(p) => this.handleProviderSelected(p)}
-                        onConfigure={() => this.openProviderList()}
-                        providerStore={this.schemaManagerService.providerStoreService}
-                    />
-                )}
-
-                {this.isProviderListOpen && (
-                    <RemoteSchemaProviderListDialog 
-                        open={this.isProviderListOpen}
-                        onClose={() => this.closeProviderList()}
-                        onAddProvider={() => this.openProviderConfig(undefined)}
-                        onEditProvider={(p) => this.openProviderConfig(p)}
-                        providerStore={this.schemaManagerService.providerStoreService}
-                        lastUpdated={this.providersLastUpdated}
-                    />
-                )}
-
-                {this.isProviderConfigOpen && (
-                    <RemoteSchemaProviderConfigDialog 
-                        key={this.configDialogKey} 
-                        open={this.isProviderConfigOpen}
-                        providerToEdit={this.selectedProviderToEdit}
-                        onClose={() => this.closeProviderConfig()}
-                        onSave={async (config) => await this.handleProviderSave(config)}
-                        providerStore={this.schemaManagerService.providerStoreService}
-                    />
-                )}
-            </div>
+            </AntdThemeProvider>
         );
     }
 

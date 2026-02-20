@@ -7,6 +7,7 @@ import {
     Widget,
     WidgetManager,
 } from '@theia/core/lib/browser'
+import { ThemeService } from '@theia/core/lib/browser/theming'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -21,6 +22,7 @@ import * as React from 'react'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import { SchemaValidatorWidget } from 'schema-validator/lib/browser/schema-validator-widget'
 import * as SparkMD5 from 'spark-md5'
+import { AntdThemeProvider } from './antd-theme-provider'
 import { RoCrateValidationErrorsDialog } from './ro-crate-validation-errors-dialog'
 
 interface CrateNode {
@@ -53,6 +55,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected readonly workspaceService: WorkspaceService
     @inject(FileService)
     protected readonly fileService: FileService
+    @inject(ThemeService)
+    protected readonly themeService: ThemeService
 
     protected crateSubscription?: Disposable
     protected validationSubscription?: Disposable
@@ -437,7 +441,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
         const validationIssueCount = this.appStateService.validationErrors?.length ?? 0
 
-        return (
+        const content = (
             <div
                 ref={this.containerRef}
                 className="ro-crate-structure-panel-body"
@@ -552,6 +556,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                     }}
                 />
             </div>
+        )
+
+        return (
+            <AntdThemeProvider themeService={this.themeService}>{content}</AntdThemeProvider>
         )
     }
 
