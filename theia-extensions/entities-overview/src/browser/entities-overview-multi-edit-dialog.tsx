@@ -339,7 +339,9 @@ export class MultiEditDialog extends ReactDialog<string> {
       if (!classDef) {
         continue
       }
-      const classLabel = String(localisation[className] ?? classDef.label ?? className)
+      const classLabel = String(
+        localisation[className] ?? classDef.label ?? className,
+      )
       const inputs = Array.isArray(classDef.inputs)
         ? (classDef.inputs as Record<string, any>[])
         : []
@@ -1078,7 +1080,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       }
       if (item && typeof item === 'object') {
         const idValue =
-          (item as Record<string, unknown>)['@id'] ?? (item as Record<string, unknown>).id
+          (item as Record<string, any>)['@id'] ?? (item as Record<string, any>).id
         if (typeof idValue === 'string' && idValue.trim().length > 0) {
           normalizedItems.push({ '@id': idValue.trim() })
         }
@@ -1223,7 +1225,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     if (Array.isArray(value)) {
       return `[${value.map((item) => this.stableStringify(item)).join(',')}]`
     }
-    const objectValue = value as Record<string, unknown>
+    const objectValue = value as Record<string, any>
     const keys = Object.keys(objectValue).sort((a, b) => a.localeCompare(b))
     const content = keys
       .map((key) => `${JSON.stringify(key)}:${this.stableStringify(objectValue[key])}`)
@@ -1445,8 +1447,8 @@ export class MultiEditDialog extends ReactDialog<string> {
           value={row.value || undefined}
           onChange={(value) => this.setOperationValue(row.id, String(value ?? ''))}
           getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
-          dropdownClassName="entities-overview-edit-modal-dropdown"
-          dropdownStyle={{ maxHeight: 260, overflowY: 'auto' }}
+          classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
+          styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
           options={field.selectValues.map((option) => ({
             label: option,
             value: option,
@@ -1595,14 +1597,15 @@ export class MultiEditDialog extends ReactDialog<string> {
       <Select
         value={row.value || undefined}
         onChange={(value) => this.setOperationValue(row.id, String(value ?? ''))}
-        onSearch={(value) => this.setOperationSearch(row.id, value)}
-        showSearch
+        showSearch={{
+          onSearch: (value) => this.setOperationSearch(row.id, value),
+          filterOption: false,
+        }}
         allowClear
-        filterOption={false}
         placeholder="Select or create entity"
         getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
-        dropdownClassName="entities-overview-edit-modal-dropdown"
-        dropdownStyle={{ maxHeight: 260, overflowY: 'auto' }}
+        classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
+        styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
         options={options}
         notFoundContent={
           <span className="entities-overview-entity-no-data">No matches</span>
@@ -1900,8 +1903,8 @@ export class MultiEditDialog extends ReactDialog<string> {
                 onChange={(value) => this.setOperationField(row.id, String(value))}
                 placeholder="Select property"
                 getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
-                dropdownClassName="entities-overview-edit-modal-dropdown"
-                dropdownStyle={{ maxHeight: 260, overflowY: 'auto' }}
+                classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
+                styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
                 style={{ width: '38%' }}
                 showSearch={{ optionFilterProp: 'label' }}
                 options={visibleFields.map((item) => ({
@@ -1916,8 +1919,8 @@ export class MultiEditDialog extends ReactDialog<string> {
                   this.setOperationOperator(row.id, value as BulkOperator)
                 }
                 getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
-                dropdownClassName="entities-overview-edit-modal-dropdown"
-                dropdownStyle={{ maxHeight: 260, overflowY: 'auto' }}
+                classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
+                styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
                 style={{ width: 110 }}
                 options={allowedOperators.map((operator) => ({
                   value: operator,
@@ -1962,7 +1965,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         <Alert
           type={hasErrors ? 'warning' : 'success'}
           showIcon
-          message={
+          title={
             hasErrors
               ? 'Multi-edit finished with warnings.'
               : 'Multi-edit finished successfully.'
@@ -2007,7 +2010,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     if (this.configurationError) {
       return (
         <div className="entities-overview-edit-modal-body">
-          <Alert type="error" showIcon message={this.configurationError} />
+          <Alert type="error" showIcon title={this.configurationError} />
         </div>
       )
     }
@@ -2054,47 +2057,47 @@ export class MultiEditDialog extends ReactDialog<string> {
                 <span>Selected entities</span>
                 <button
                   type="button"
-                    className="entities-overview-edit-modal-entity-window-close"
-                    onClick={this.toggleEntityList}
-                    aria-label="Close entity list"
-                  >
-                    <span className="codicon codicon-close" aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="entities-overview-edit-modal-entity-window-search">
-                  <Input
-                    value={this.entitySearch}
-                    onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                      this.entitySearch = event.target.value
-                      this.update()
-                    }}
-                    placeholder="Search entity names"
-                    allowClear
-                  />
-                  <span className="entities-overview-edit-modal-entity-window-count">
-                    {filteredEntities.length} / {this.entitySummaries.length}
-                  </span>
-                </div>
-                <div className="entities-overview-edit-modal-entity-window-body">
-                  <table className="entities-overview-edit-modal-entity-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Type</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredEntities.map((entity) => (
-                        <tr key={entity.id} title={entity.id}>
-                          <td>{entity.name}</td>
-                          <td>{entity.typeLabel}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                  className="entities-overview-edit-modal-entity-window-close"
+                  onClick={this.toggleEntityList}
+                  aria-label="Close entity list"
+                >
+                  <span className="codicon codicon-close" aria-hidden="true" />
+                </button>
               </div>
-            )
+              <div className="entities-overview-edit-modal-entity-window-search">
+                <Input
+                  value={this.entitySearch}
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                    this.entitySearch = event.target.value
+                    this.update()
+                  }}
+                  placeholder="Search entity names"
+                  allowClear
+                />
+                <span className="entities-overview-edit-modal-entity-window-count">
+                  {filteredEntities.length} / {this.entitySummaries.length}
+                </span>
+              </div>
+              <div className="entities-overview-edit-modal-entity-window-body">
+                <table className="entities-overview-edit-modal-entity-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Type</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEntities.map((entity) => (
+                      <tr key={entity.id} title={entity.id}>
+                        <td>{entity.name}</td>
+                        <td>{entity.typeLabel}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
         })()}
 
         <div className="entities-overview-edit-modal-section">
@@ -2109,8 +2112,8 @@ export class MultiEditDialog extends ReactDialog<string> {
             onChange={this.onSchemaSelectionChange}
             placeholder="Select schemas"
             getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
-            dropdownClassName="entities-overview-edit-modal-dropdown"
-            dropdownStyle={{ maxHeight: 260, overflowY: 'auto' }}
+            classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
+            styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
             style={{ width: '100%' }}
             maxTagCount="responsive"
           />
@@ -2125,7 +2128,7 @@ export class MultiEditDialog extends ReactDialog<string> {
             />
           </div>
           {this.schemaOrgError && (
-            <Alert type="warning" showIcon message={this.schemaOrgError} />
+            <Alert type="warning" showIcon title={this.schemaOrgError} />
           )}
         </div>
 
@@ -2144,7 +2147,7 @@ export class MultiEditDialog extends ReactDialog<string> {
             <Alert
               type="info"
               showIcon
-              message={
+              title={
                 this.schemaOrgEnabled
                   ? 'No properties are available for the selected schemas or schema.org.'
                   : 'No properties are available for the selected schemas.'
@@ -2159,9 +2162,8 @@ export class MultiEditDialog extends ReactDialog<string> {
           <Alert
             type="warning"
             showIcon
-            message="Multi-edit setup"
-            closable
-            onClose={this.dismissSetupWarning}
+            title="Multi-edit setup"
+            closable={{ onClose: this.dismissSetupWarning }}
             description={
               <ol className="entities-overview-edit-modal-errors">
                 <li>Select a schema or enable schema.org properties.</li>
