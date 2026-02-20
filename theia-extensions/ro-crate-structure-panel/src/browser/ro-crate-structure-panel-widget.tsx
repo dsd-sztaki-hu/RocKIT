@@ -22,7 +22,7 @@ import * as React from 'react'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import { SchemaValidatorWidget } from 'schema-validator/lib/browser/schema-validator-widget'
 import * as SparkMD5 from 'spark-md5'
-import { AntdThemeProvider } from './antd-theme-provider'
+import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { RoCrateValidationErrorsDialog } from './ro-crate-validation-errors-dialog'
 
 interface CrateNode {

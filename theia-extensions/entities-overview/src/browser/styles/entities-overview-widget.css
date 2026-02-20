@@ -158,6 +158,19 @@
   padding: 0 8px;
 }
 
+.entities-overview-edit-button.ant-btn {
+  background: transparent;
+  border-color: var(--theia-ui-border);
+  color: var(--theia-ui-font-color1);
+}
+
+.entities-overview-edit-button.ant-btn:hover,
+.entities-overview-edit-button.ant-btn:focus,
+.entities-overview-edit-button.ant-btn:focus-visible {
+  border-color: var(--theia-ui-border);
+  box-shadow: none !important;
+}
+
 .entities-overview-advanced-button-wrap {
   flex: 1 1 0;
   max-width: 0;

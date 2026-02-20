@@ -18,7 +18,7 @@ import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
-import { AntdThemeProvider } from './antd-theme-provider'
+import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { MultiEditDialog } from './entities-overview-multi-edit-dialog'
 import {
   EntitiesOverviewModel,

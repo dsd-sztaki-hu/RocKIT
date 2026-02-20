@@ -19,7 +19,7 @@ import { RemoteSchemaProviderConfigDialog } from './components/remote-schema-pro
 import { RemoteSchemaProviderSelectorDialog } from './components/remote-schema-provider-selector-dialog';
 import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-import-from-url-dialog';
 import type { SchemaInfo, RemoteSchemaProviderConfig } from './types';
-import { AntdThemeProvider } from './antd-theme-provider';
+import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider';
 
 import './style/index.css';
 

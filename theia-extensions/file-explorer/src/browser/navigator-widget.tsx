@@ -37,7 +37,7 @@ import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browse
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { DataSourceService } from 'data-sources/lib/browser/data-source-service'
-import { AntdThemeProvider } from './antd-theme-provider'
+import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
 import { FileNavigatorFilter } from './navigator-filter'
