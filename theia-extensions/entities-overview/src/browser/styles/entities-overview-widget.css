@@ -384,6 +384,7 @@
   min-height: 45vh;
   max-height: 90vh;
   overflow: visible;
+  position: relative;
 }
 
 .entities-overview-edit-modal-title {
@@ -401,6 +402,71 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.entities-overview-edit-modal-entity-window {
+  position: relative;
+  top: 0;
+  left: 0;
+  width: 100%;
+  max-height: 30vh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--theia-ui-border);
+  border-radius: 8px;
+  background: var(--theia-editorWidget-background);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  z-index: 5;
+}
+
+.entities-overview-edit-modal-entity-window-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theia-ui-font-color2);
+}
+
+.entities-overview-edit-modal-entity-window-close {
+  border: none;
+  background: transparent;
+  color: var(--theia-ui-font-color2);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.entities-overview-edit-modal-entity-window-body {
+  overflow: auto;
+  max-height: calc(30vh - 40px);
+}
+
+.entities-overview-edit-modal-entity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.entities-overview-edit-modal-entity-table th,
+.entities-overview-edit-modal-entity-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--theia-ui-border);
+}
+
+.entities-overview-edit-modal-entity-table th {
+  position: sticky;
+  top: 0;
+  background: var(--theia-editorWidget-background);
+  z-index: 1;
+}
+
+.entities-overview-edit-modal-entity-table td:first-child {
+  font-weight: 600;
 }
 
 .entities-overview-edit-modal-list {

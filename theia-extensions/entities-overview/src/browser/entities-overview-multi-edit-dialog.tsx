@@ -1,6 +1,6 @@
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import * as React from '@theia/core/shared/react'
-import { Alert, Button, Input, Select, Switch, Tag } from 'antd'
+import { Alert, Button, Input, Select, Switch } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import type { MetadataSchemaManager, SchemaInfo } from 'aroma2-common/lib/browser'
 
@@ -2035,17 +2035,37 @@ export class MultiEditDialog extends ReactDialog<string> {
         </div>
 
         {this.showEntityList && (
-          <ul className="entities-overview-edit-modal-list">
-            {this.entitySummaries.map((entity) => (
-              <li key={entity.id}>
-                <span className="entities-overview-edit-modal-entity-name">
-                  {entity.name}
-                </span>{' '}
-                <Tag>{entity.typeLabel}</Tag>
-                <code>{entity.id}</code>
-              </li>
-            ))}
-          </ul>
+          <div className="entities-overview-edit-modal-entity-window">
+            <div className="entities-overview-edit-modal-entity-window-header">
+              <span>Selected entities</span>
+              <button
+                type="button"
+                className="entities-overview-edit-modal-entity-window-close"
+                onClick={this.toggleEntityList}
+                aria-label="Close entity list"
+              >
+                <span className="codicon codicon-close" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="entities-overview-edit-modal-entity-window-body">
+              <table className="entities-overview-edit-modal-entity-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {this.entitySummaries.map((entity) => (
+                    <tr key={entity.id} title={entity.id}>
+                      <td>{entity.name}</td>
+                      <td>{entity.typeLabel}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
 
         <div className="entities-overview-edit-modal-section">
