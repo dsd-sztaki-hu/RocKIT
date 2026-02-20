@@ -174,6 +174,7 @@ export class MultiEditDialog extends ReactDialog<string> {
 
   protected entitySummaries: EntitySummary[] = []
   protected showEntityList = false
+  protected entitySearch = ''
 
   protected executionSummary?: ExecutionSummary
   protected configurationError?: string
@@ -2034,39 +2035,67 @@ export class MultiEditDialog extends ReactDialog<string> {
           </Button>
         </div>
 
-        {this.showEntityList && (
-          <div className="entities-overview-edit-modal-entity-window">
-            <div className="entities-overview-edit-modal-entity-window-header">
-              <span>Selected entities</span>
-              <button
-                type="button"
-                className="entities-overview-edit-modal-entity-window-close"
-                onClick={this.toggleEntityList}
-                aria-label="Close entity list"
-              >
-                <span className="codicon codicon-close" aria-hidden="true" />
-              </button>
-            </div>
-            <div className="entities-overview-edit-modal-entity-window-body">
-              <table className="entities-overview-edit-modal-entity-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Type</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {this.entitySummaries.map((entity) => (
-                    <tr key={entity.id} title={entity.id}>
-                      <td>{entity.name}</td>
-                      <td>{entity.typeLabel}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {(() => {
+          const normalizedSearch = this.entitySearch.trim().toLowerCase()
+          const filteredEntities =
+            normalizedSearch.length === 0
+              ? this.entitySummaries
+              : this.entitySummaries.filter((entity) =>
+                  entity.name.toLowerCase().includes(normalizedSearch),
+                )
+          return (
+            <div
+              className={`entities-overview-edit-modal-entity-window${
+                this.showEntityList ? '' : ' is-hidden'
+              }`}
+              aria-hidden={!this.showEntityList}
+            >
+              <div className="entities-overview-edit-modal-entity-window-header">
+                <span>Selected entities</span>
+                <button
+                  type="button"
+                    className="entities-overview-edit-modal-entity-window-close"
+                    onClick={this.toggleEntityList}
+                    aria-label="Close entity list"
+                  >
+                    <span className="codicon codicon-close" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="entities-overview-edit-modal-entity-window-search">
+                  <Input
+                    value={this.entitySearch}
+                    onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                      this.entitySearch = event.target.value
+                      this.update()
+                    }}
+                    placeholder="Search entity names"
+                    allowClear
+                  />
+                  <span className="entities-overview-edit-modal-entity-window-count">
+                    {filteredEntities.length} / {this.entitySummaries.length}
+                  </span>
+                </div>
+                <div className="entities-overview-edit-modal-entity-window-body">
+                  <table className="entities-overview-edit-modal-entity-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredEntities.map((entity) => (
+                        <tr key={entity.id} title={entity.id}>
+                          <td>{entity.name}</td>
+                          <td>{entity.typeLabel}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+        })()}
 
         <div className="entities-overview-edit-modal-section">
           <span className="entities-overview-edit-modal-label">Select schemas</span>

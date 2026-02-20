@@ -419,6 +419,26 @@
   background: var(--theia-editorWidget-background);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
   z-index: 5;
+  overflow: hidden;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    max-height 280ms ease,
+    opacity 200ms ease,
+    transform 280ms ease,
+    padding 280ms ease,
+    border-width 280ms ease,
+    box-shadow 280ms ease;
+}
+
+.entities-overview-edit-modal-entity-window.is-hidden {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+  padding: 0;
+  border-width: 0;
+  box-shadow: none;
+  pointer-events: none;
 }
 
 .entities-overview-edit-modal-entity-window-header {
@@ -432,6 +452,29 @@
   color: var(--theia-ui-font-color2);
 }
 
+.entities-overview-edit-modal-entity-window-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.entities-overview-edit-modal-entity-window-search .ant-input {
+  background: var(--theia-input-background);
+  border-color: var(--theia-ui-border);
+  color: var(--theia-ui-font-color1);
+}
+
+.entities-overview-edit-modal-entity-window-search .ant-input::placeholder {
+  color: var(--theia-ui-font-color2);
+}
+
+.entities-overview-edit-modal-entity-window-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--theia-ui-font-color2);
+  white-space: nowrap;
+}
+
 .entities-overview-edit-modal-entity-window-close {
   border: none;
   background: transparent;
@@ -442,7 +485,7 @@
 
 .entities-overview-edit-modal-entity-window-body {
   overflow: auto;
-  max-height: calc(30vh - 40px);
+  max-height: calc(30vh - 72px);
 }
 
 .entities-overview-edit-modal-entity-table {
