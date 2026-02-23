@@ -75,6 +75,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   protected readonly fileNameInputRef = React.createRef<HTMLInputElement>()
   protected fileNameSelection: { start: number | null; end: number | null } | undefined
   protected filterKeydownListenerAttached = false
+  protected suppressRootSelection = false
 
   constructor(
     @inject(TreeProps) props: TreeProps,
@@ -100,6 +101,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
     this.toDispose.pushAll([
       this.model.onSelectionChanged(() => this.updateSelectionContextKeys()),
+      this.model.onSelectionChanged(() => this.stripRootSelections()),
       this.model.onExpansionChanged((node) => {
         if (node.expanded && node.children.length === 1) {
           const child = node.children[0]
@@ -462,6 +464,17 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       attributes.className = `${withoutState} navigator-data-source-root`.trim()
     }
 
+    if (FileStatNode.is(node) && this.isNavigatorRootNode(node)) {
+      attributes.onMouseDown = (event: React.MouseEvent<HTMLElement>) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+      attributes.onClick = (event: React.MouseEvent<HTMLElement>) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    }
+
     // drag support (from 26662)
     if (FileStatNode.is(node)) {
       attributes.draggable = true
@@ -754,18 +767,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     let nodesToTransfer =
       selectionIncludesNode && selectedNodes.length > 1 ? selectedNodes : [node]
 
-    if (!this.isNavigatorRootNode(node) && nodesToTransfer.length > 1) {
-      for (const selected of nodesToTransfer) {
-        if (this.isNavigatorRootNode(selected)) {
-          this.model.addSelection({
-            node: selected,
-            type: TreeSelection.SelectionType.TOGGLE,
-          })
-        }
-      }
-    }
-
-    nodesToTransfer = nodesToTransfer.filter((n) => !this.isNavigatorRootNode(n))
+    nodesToTransfer = this.normalizeDragSelection(nodesToTransfer, node)
     if (!nodesToTransfer.length && !this.isNavigatorRootNode(node)) {
       nodesToTransfer = [node]
     }
@@ -781,5 +783,85 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
   protected isNavigatorRootNode(node: FileStatNode): boolean {
     return WorkspaceRootNode.is(node) || DataSourceRootNode.is(node)
+  }
+
+  protected normalizeDragSelection(
+    selected: ReadonlyArray<FileStatNode>,
+    anchor: FileStatNode,
+  ): FileStatNode[] {
+    if (this.isNavigatorRootNode(anchor)) {
+      return selected.filter((n) => !this.isNavigatorRootNode(n))
+    }
+
+    const filtered = selected.filter((n) => !this.isNavigatorRootNode(n))
+    const nextSelection = filtered.length ? filtered : [anchor]
+
+    const ordered: FileStatNode[] = []
+    const seen = new Set<string>()
+    if (nextSelection.some((n) => n.id === anchor.id)) {
+      ordered.push(anchor)
+      seen.add(anchor.id)
+    }
+    for (const node of nextSelection) {
+      if (!seen.has(node.id)) {
+        ordered.push(node)
+        seen.add(node.id)
+      }
+    }
+
+    this.resetSelection(ordered)
+    return ordered
+  }
+
+  protected resetSelection(nodes: ReadonlyArray<FileStatNode>): void {
+    if (!nodes.length) {
+      return
+    }
+    this.model.clearSelection()
+    nodes.forEach((node, index) => {
+      this.model.addSelection({
+        node,
+        type:
+          index === 0
+            ? TreeSelection.SelectionType.DEFAULT
+            : TreeSelection.SelectionType.TOGGLE,
+      })
+    })
+  }
+
+  protected stripRootSelections(): void {
+    if (this.suppressRootSelection) {
+      return
+    }
+
+    const selected = this.model.selectedNodes
+    if (!selected.length) {
+      return
+    }
+
+    const roots = selected.filter(
+      (node): node is FileStatNode => FileStatNode.is(node) && this.isNavigatorRootNode(node),
+    )
+    if (!roots.length) {
+      return
+    }
+
+    const nonRootSelected = selected.some(
+      (node) => FileStatNode.is(node) && !this.isNavigatorRootNode(node),
+    )
+
+    this.suppressRootSelection = true
+    try {
+      if (!nonRootSelected) {
+        this.model.clearSelection()
+        return
+      }
+
+      for (const root of roots) {
+        this.model.addSelection({ node: root, type: TreeSelection.SelectionType.TOGGLE })
+      }
+    } finally {
+      this.suppressRootSelection = false
+    }
   }
 }
