@@ -1,3 +1,5 @@
+// src/browser/services/metadata-schema-manager-service.ts
+
 import { injectable, inject, postConstruct } from 'inversify';
 import { FrontendApplicationContribution } from '@theia/core/lib/browser';
 import { MessageService } from '@theia/core/lib/common/message-service';
@@ -5,21 +7,26 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { URI } from '@theia/core/lib/common/uri';
 import { Emitter, Event } from '@theia/core/lib/common/event';
-import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
-import { Modal } from 'antd';
 
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
 import type { SchemaInfo, RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
 import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'aroma2-common/lib/browser';
-import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service'; 
+import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service';
+import { MissingSchemasDialog } from '../components/missing-schemas-dialog'; 
 
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
 export const SCHEMA_FIELD_ID = '@id';
-
 const AROMA_METADATA_FIELD = '_aromaMetadata'; 
 const MSG_TIMEOUT = 5000;
+
+// Local interface for better type safety with Theia's progress reporting
+export interface TaskProgress {
+    report(progress: { message?: string; work?: { done: number; total: number } }): void;
+    cancel(): void;
+}
 
 @injectable()
 export class SchemaManagerService implements FrontendApplicationContribution, MetadataSchemaManagerContract {
@@ -53,7 +60,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         if (currentCrate) this.checkAndDownloadSchemas(currentCrate);
     }
 
-    private async processInChunks<T>(items: T[], chunkSize: number, iteratorFn: (item: T) => Promise<void>, progressCb?: (completed: number) => void) {
+    private async processInChunks<T>(
+        items: T[], 
+        chunkSize: number, 
+        iteratorFn: (item: T) => Promise<void>, 
+        progressCb?: (completed: number) => void
+    ) {
         let completed = 0;
         for (let i = 0; i < items.length; i += chunkSize) {
             const chunk = items.slice(i, i + chunkSize);
@@ -67,6 +79,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                     if (progressCb) progressCb(completed);
                 }
             }));
+            // Yield to main thread
             await new Promise(r => setTimeout(r, 0));
         }
     }
@@ -121,7 +134,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             const matchedProvider = providers.find(p => {
                 try {
                     const sourceUrl = p.domainBase || p.baseUrl;
-                    let providerHost = new URL(sourceUrl).hostname.toLowerCase();
+                    const providerHost = new URL(sourceUrl).hostname.toLowerCase();
                     return targetHost.includes(providerHost) || providerHost.includes(targetHost);
                 } catch { return false; }
             });
@@ -135,7 +148,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return undefined;
     }
 
-    public async importFromUrl(url: string, progress: any): Promise<string> {
+    public async importFromUrl(url: string, progress: TaskProgress): Promise<string> {
         progress.report({ message: 'Resolving access...', work: { done: 10, total: 100 } });
         
         try {
@@ -174,7 +187,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         };
 
         const fetchAttempt = async (useKey: boolean): Promise<Response> => {
-            const currentHeaders = { ...headers };
+            const currentHeaders: Record<string, string> = { ...headers as Record<string, string> };
             if (useKey && apiKey) {
                 currentHeaders['Authorization'] = `apiKey ${apiKey}`;
             }
@@ -248,15 +261,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             if (missingIds.length === 0) return;
 
             await new Promise<void>((resolve) => {
-                Modal.info({
-                    title: 'Missing Metadata Schemas',
-                    content: `The RO-Crate references ${missingIds.length} missing schema(s). Downloading now...`,
-                    okText: 'OK', onOk: () => resolve(), maskClosable: false
-                });
+                const dialog = new MissingSchemasDialog(missingIds.length);
+                dialog.open().then(() => resolve());
             });
 
             await this.messageService.showProgress({ text: 'Resolving Missing Schemas...' })
-                .then(async progress => {
+                .then(async (progress: TaskProgress) => {
                     try {
                         const total = missingIds.length;
                         progress.report({ message: 'Starting...', work: { done: 0, total } });
@@ -325,7 +335,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         });
     }
 
-    public async importFiles(fileUris: URI[], progress: any): Promise<{ success: number; fail: number }> {
+    public async importFiles(fileUris: URI[], progress: TaskProgress): Promise<{ success: number; fail: number }> {
         let success = 0;
         let fail = 0;
         const total = fileUris.length;
@@ -364,12 +374,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         }
     }
 
+    // Modernized hashing algorithm helper
     private simpleHash(str: string): string {
         let hash = 0;
         for (let i = 0; i < str.length; i++) {
             const char = str.charCodeAt(i);
-            hash = (hash << 5) - hash + char;
-            hash = hash & hash;
+            hash = Math.imul(31, hash) + char | 0; // Bitwise integer math prevents float issues
         }
         return Math.abs(hash).toString(16);
     }
@@ -480,7 +490,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                             downloadUrl: extraMeta.downloadUrl || ''
                         });
                     }
-                } catch { /* ignore */ }
+                } catch { /* ignore parsing errors to allow iteration to continue */ }
             }
         }
         return schemas;
@@ -515,6 +525,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return root.resolve(`metadata-schemas/cedar/${type}`);
     }
 
+    // Below here are legacy methods, please do not modify these methods because these are used as it is right now.
+    
     public async getMergedProfile(crate: Record<string, any>, newProfile: Record<string, any>, profile: Record<string, any>, profileUrl?: string) {
         const entities: any = Object.values(crate["@graph"]).filter((entity: any) => entity["@type"] != "CreativeWork")
         for (const entity of entities) {

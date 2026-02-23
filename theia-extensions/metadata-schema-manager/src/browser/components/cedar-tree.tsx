@@ -1,5 +1,8 @@
+// src/browser/components/cedar-tree.tsx
+// This is a legacy code, please do not modify these, its important to keep these files as it is currently.
+
 import * as React from 'react';
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { TreeView } from '@mui/x-tree-view/TreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -9,9 +12,13 @@ import UnfoldLessIcon from '@mui/icons-material/UnfoldLess';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import { LinearProgress, CircularProgress, IconButton, Tooltip, TextField, InputAdornment } from '@mui/material';
+
 import { SchemaApi } from "../services/schema-api";
 import { File, FolderClosed } from "./icons"; 
+import '../styles/cedar-tree.css';
 
+
+// --- Helpers ---
 type TreeNode = {
   id: string;
   name: string;
@@ -21,8 +28,6 @@ type TreeNode = {
   expanded: boolean;
   disabled: boolean;
 };
-
-// --- Helpers ---
 
 function cedarFolderResultToTreeData(cedarResult: any, alreadySelectedSchemaIds?: string[]): TreeNode[] {
     if (!cedarResult || !cedarResult.resources) return [];
@@ -83,8 +88,6 @@ function collectSubtreeIds(nodes: TreeNode[]): string[] {
     return ids;
 }
 
-// --- Search / Filtering Logic ---
-
 function filterNodes(nodes: TreeNode[], query: string): { nodes: TreeNode[], expandedIds: string[] } {
     const lowerQuery = query.toLowerCase();
     let expandedIds: string[] = [];
@@ -106,9 +109,6 @@ function filterNodes(nodes: TreeNode[], query: string): { nodes: TreeNode[], exp
 
     return { nodes: filtered, expandedIds };
 }
-
-
-// --- Component ---
 
 export type CedarTreeProps = {
   onTemplateSelected: (templateId: string, templateName: string) => void
@@ -273,9 +273,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
           const trimmedInput = rawSearchInput.trim();
           
           if (trimmedInput) {
-              // STARTING SEARCH
               if (!isSearching && !searchQuery) {
-                  // Save current state before we mess it up with search results
                   setPreSearchExpandedNodes(expandedNodes);
               }
 
@@ -294,7 +292,6 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
               setSearchQuery(trimmedInput);
               setIsSearching(false);
           } else {
-              // CLEARING SEARCH
               if (searchQuery) {
                   setSearchQuery('');
                   setExpandedNodes(preSearchExpandedNodes);
@@ -324,9 +321,9 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
           }
           
           if (!searchQuery) {
-             updateExpansionState(nextExpanded);
+              updateExpansionState(nextExpanded);
           } else {
-             setExpandedNodes(nextExpanded);
+              setExpandedNodes(nextExpanded);
           }
       } else {
           props.onTemplateSelected(node.id, node.name);
@@ -356,10 +353,10 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
         label={
             <div 
                 id={`cedar-node-${node.id}`}
-                style={{ display: 'flex', alignItems: 'center', padding: '4px 0' }}
+                className="cedar-tree__node"
                 onClick={(e) => onNodeClick(node, e)}
             >
-                <span style={{ marginRight: 8, display: 'flex', alignItems: 'center' }}>
+                <span className="cedar-tree__node-icon">
                     {node.isFolder ? <FolderClosed /> : <File />}
                 </span>
                 
@@ -367,7 +364,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                     <span>
                         {node.name.split(new RegExp(`(${searchQuery})`, 'gi')).map((part, i) => 
                             part.toLowerCase() === searchQuery.toLowerCase() 
-                                ? <span key={i} style={{ backgroundColor: '#fff59d' }}>{part}</span> 
+                                ? <span key={i} className="cedar-tree__highlight">{part}</span> 
                                 : part
                         )}
                     </span>
@@ -376,23 +373,33 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                 )}
 
                 {loadingNodeId === node.id && (
-                    <CircularProgress size={12} style={{ marginLeft: 8 }} />
+                    <CircularProgress size={12} style={{ marginLeft: 8, color: 'var(--theia-focusBorder)' }} />
                 )}
             </div>
         }
         disabled={node.disabled}
         sx={{
+            color: 'var(--theia-foreground)',
             '& .MuiTreeItem-content': {
                 padding: '0px 8px',
+                borderRadius: '3px',
                 '&.Mui-selected': {
-                    backgroundColor: 'rgba(25, 118, 210, 0.08) !important',
+                    backgroundColor: 'transparent !important', // No background on selection
+                    color: 'var(--theia-foreground) !important', // Keep text color visible
+                },
+                '&.Mui-selected:hover': {
+                    backgroundColor: 'transparent !important', // No background on hover+selected
                 },
                 '&.Mui-focused': {
-                    backgroundColor: 'transparent !important',
+                    backgroundColor: 'transparent !important', // No background on focus
                 },
                 '&:hover': {
-                    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                    backgroundColor: 'transparent !important', // No background on hover
+                    color: 'var(--theia-foreground)',
                 }
+            },
+            '& .MuiTreeItem-label': {
+                fontFamily: 'inherit'
             }
         }}
       >
@@ -407,14 +414,17 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
       </TreeItem>
     ));
 
+  // --- Main Render ---
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '10px', boxSizing: 'border-box', color: 'black' }}>
+    <div className="cedar-tree">
       
-      <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid #eee', paddingBottom: '4px', minHeight: '32px' }}>
+      {/* Search Header */}
+      <div className="cedar-tree__header">
           
-          <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div className="cedar-tree__toolbar">
                 {isSearchExpanded ? (
                     <TextField
+                        className="cedar-tree__search-box"
                         variant="standard"
                         placeholder={isSearching ? "Searching..." : "Search..."}
                         value={rawSearchInput}
@@ -422,45 +432,43 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                         autoFocus
                         InputProps={{
                             disableUnderline: true,
-                            style: { fontSize: '14px', paddingLeft: '4px' },
+                            className: "cedar-tree__search-input",
                             endAdornment: (
                                 <InputAdornment position="end">
                                     {isSearching ? (
-                                        <CircularProgress size={16} style={{ marginRight: 8 }} />
+                                        <CircularProgress size={16} style={{ marginRight: 8, color: 'var(--theia-focusBorder)' }} />
                                     ) : (
                                         <IconButton size="small" onClick={() => { 
                                             setRawSearchInput(''); 
-                                            // Trigger clearing logic immediately via effect
                                             setSearchQuery(''); 
-                                            setExpandedNodes(preSearchExpandedNodes); // Immediate visual feedback
+                                            setExpandedNodes(preSearchExpandedNodes); 
                                             setIsSearchExpanded(false); 
                                         }}>
-                                            <CloseIcon fontSize="small" />
+                                            <CloseIcon fontSize="small" style={{ color: 'var(--theia-icon-foreground)' }} />
                                         </IconButton>
                                     )}
                                 </InputAdornment>
                             )
                         }}
-                        style={{ width: '220px', border: '1px solid #ddd', borderRadius: '4px', padding: '2px 4px' }}
                     />
                 ) : (
-                    <Tooltip title="Search Folders & Templates">
+                    <Tooltip title="Search Folders & Templates" PopperProps={{ style: { zIndex: 99999 } }}>
                         <IconButton size="small" onClick={() => setIsSearchExpanded(true)}>
-                            <SearchIcon fontSize="small" />
+                            <SearchIcon fontSize="small" style={{ color: 'var(--theia-icon-foreground)' }} />
                         </IconButton>
                     </Tooltip>
                 )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div className="cedar-tree__toolbar">
               {isBulkExpanding && (
-                  <div style={{ marginRight: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <CircularProgress size={14} />
-                      <span style={{ fontSize: '11px', color: '#666' }}>Expanding...</span>
+                  <div className="cedar-tree__loading-indicator">
+                      <CircularProgress size={14} style={{ color: 'var(--theia-focusBorder)' }} />
+                      <span className="cedar-tree__loading-text">Expanding...</span>
                   </div>
               )}
 
-              <Tooltip title="Expand All (Recursive)">
+              <Tooltip title="Expand All (Recursive)" PopperProps={{ style: { zIndex: 99999 } }}>
                   <span>
                     <IconButton 
                         size="small" 
@@ -468,38 +476,38 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                         disabled={isBulkExpanding || isSearching}
                         style={{ marginRight: 4 }}
                     >
-                        <UnfoldMoreIcon fontSize="small" />
+                        <UnfoldMoreIcon fontSize="small" style={{ color: 'var(--theia-icon-foreground)' }} />
                     </IconButton>
                   </span>
               </Tooltip>
               
-              <Tooltip title="Collapse All">
+              <Tooltip title="Collapse All" PopperProps={{ style: { zIndex: 99999 } }}>
                   <IconButton size="small" onClick={handleCollapseAll} disabled={isBulkExpanding || isSearching}>
-                      <UnfoldLessIcon fontSize="small" />
+                      <UnfoldLessIcon fontSize="small" style={{ color: 'var(--theia-icon-foreground)' }} />
                   </IconButton>
               </Tooltip>
           </div>
       </div>
 
-      <div style={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
+      <div className="cedar-tree__body">
           
           {isLoading && treeData.length === 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-                <LinearProgress style={{ flexGrow: 1, marginRight: 10 }} />
-                <span style={{ fontSize: '12px', color: '#666' }}>Loading repository...</span>
+            <div className="cedar-tree__init-loading">
+                <LinearProgress style={{ flexGrow: 1, marginRight: 10, color: 'var(--theia-focusBorder)' }} />
+                <span className="cedar-tree__init-text">Loading repository...</span>
             </div>
           )}
 
           {errorMsg && (
-            <div style={{ color: 'red', padding: 10, border: '1px solid red', borderRadius: 4 }}>
+            <div className="cedar-tree__error">
                 {errorMsg}
             </div>
           )}
 
           {displayedNodes.length > 0 && (
               <TreeView
-                defaultCollapseIcon={<ExpandMoreIcon />}
-                defaultExpandIcon={<ChevronRightIcon />}
+                defaultCollapseIcon={<ExpandMoreIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
+                defaultExpandIcon={<ChevronRightIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
                 expanded={expandedNodes}
                 onNodeToggle={handleToggle}
                 sx={{
@@ -513,7 +521,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
           )}
           
           {!isLoading && !errorMsg && displayedNodes.length === 0 && (
-              <div style={{ color: '#888', fontStyle: 'italic', padding: 20 }}>
+              <div className="cedar-tree__empty">
                   {searchQuery ? 'No results found.' : 'No templates found.'}
               </div>
           )}

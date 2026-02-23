@@ -1,0 +1,104 @@
+/* src/browser/styles/metadata-schema-import-from-url-dialog.css */
+
+.metadata-schema-import-url {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--theia-editor-background);
+    color: var(--theia-foreground);
+    font-family: var(--theia-ui-font-family);
+    font-size: var(--theia-ui-font-size1);
+}
+
+.metadata-schema-import-url__content {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex: 1;
+    min-height: 0;
+}
+
+.metadata-schema-import-url__header {
+    display: flex;
+    gap: 15px;
+}
+
+.metadata-schema-import-url__icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background-color: var(--theia-list-hoverBackground);
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid var(--theia-contrastBorder, transparent);
+}
+
+.metadata-schema-import-url__icon {
+    color: var(--theia-textLink-foreground);
+    font-size: 24px !important;
+}
+
+.metadata-schema-import-url__text-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    justify-content: center;
+}
+
+.metadata-schema-import-url__title {
+    font-weight: 600;
+    font-size: var(--theia-ui-font-size1);
+    line-height: 1.4;
+}
+
+.metadata-schema-import-url__description {
+    font-size: var(--theia-ui-font-size0);
+    color: var(--theia-descriptionForeground);
+    line-height: 1.4;
+}
+
+.metadata-schema-import-url__input-wrapper {
+    width: 100%;
+}
+
+.metadata-schema-import-url__input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    height: 32px;
+    font-size: 13px;
+    border: 1px solid var(--theia-input-border, #ccc);
+    background-color: var(--theia-input-background);
+    color: var(--theia-input-foreground);
+    border-radius: 2px;
+    outline: none;
+}
+
+.metadata-schema-import-url__input:focus {
+    border-color: var(--theia-focusBorder);
+}
+
+.metadata-schema-import-url__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 15px 20px;
+    background-color: var(--theia-layout-color2);
+    border-top: 1px solid var(--theia-panel-border);
+    flex-shrink: 0;
+}
+
+.metadata-schema-import-url__button {
+    min-width: 80px;
+}
+
+.metadata-schema-import-url__button--secondary {
+    border: 1px solid var(--theia-button-border, #ccc);
+}
+
+.metadata-schema-import-url__button--main {
+    color: var(--theia-button-foreground);
+}
