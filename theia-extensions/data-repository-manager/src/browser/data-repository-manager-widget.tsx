@@ -7,7 +7,7 @@ import { createRoot, Root } from 'react-dom/client';
 import { DataRepositoryToolbar } from './components/data-repository-toolbar';
 import { DataRepositoryTable } from './components/data-repository-table';
 import { DataRepositoryConfigDialog } from './components/data-repository-config-dialog';
-import { DataRepositoryDeleteDialog } from './components/data-repository-delete-dialog'; // NEW IMPORT
+import { DataRepositoryDeleteDialog } from './components/data-repository-delete-dialog';
 import { DataRepositoryStoreService } from './services/data-repository-store-service';
 import { DataRepositoryConfig } from './types';
 import './styles/index.css';
@@ -23,7 +23,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     private reactRoot: Root | undefined;
     protected repositories: DataRepositoryConfig[] = [];
     protected isLoading = true;
-    protected selectedKeys: React.Key[] = []; // NEW: Tracks selected checkboxes
+    protected selectedKeys: React.Key[] = [];
 
     constructor(
         @inject(MessageService) protected readonly messageService: MessageService,

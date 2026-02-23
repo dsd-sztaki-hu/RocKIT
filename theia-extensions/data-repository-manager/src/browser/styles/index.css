@@ -7,7 +7,7 @@
     padding: 0;
     height: 100%;
     width: 100%;
-    overflow: hidden; /* Prevents whole-tab scrollbars */
+    overflow: hidden;
     font-family: var(--theia-ui-font-family);
     font-size: var(--theia-ui-font-size1);
 }
@@ -22,5 +22,5 @@
     padding: 8px 12px;
     box-sizing: border-box;
     gap: 8px;
-    min-height: 0; /* Critical for flex children to shrink properly */
+    min-height: 0;
 }

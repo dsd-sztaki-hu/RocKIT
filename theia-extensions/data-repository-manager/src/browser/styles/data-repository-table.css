@@ -21,7 +21,6 @@
     border-color: var(--theia-panel-border) !important;
 }
 
-/* --- Scrollbar Fix (Removes empty arrows on the right side) --- */
 .data-repo-table-wrapper .ant-table-body {
     overflow-y: auto !important; 
     overflow-x: hidden !important;
@@ -62,7 +61,6 @@
     transition: none !important;
 }
 
-/* --- UI Enhancement: Remove Hover & Polish Selection --- */
 /* Remove hover effect entirely to hide the trailing empty space issue */
 .data-repo-table-wrapper .ant-table-tbody > tr:hover > td {
     background-color: transparent !important;
@@ -140,8 +138,8 @@
 
 /* --- Filter & Sorter Header Icons --- */
 .data-repo-table-wrapper .ant-table-filter-trigger {
-    background-color: transparent !important; /* Removes the white background */
-    border: none !important; /* Removes the blue border */
+    background-color: transparent !important;
+    border: none !important;
     box-shadow: none !important;
     border-radius: 2px !important;
     padding: 4px !important;
@@ -187,7 +185,6 @@
     border-radius: 2px !important;
 }
 
-/* Fix AntD Filter Checkbox List Backgrounds & Borders */
 .data-repo-table-wrapper .ant-table-filter-dropdown .ant-dropdown-menu {
     background-color: var(--theia-menu-background) !important;
     color: var(--theia-menu-foreground) !important;

@@ -13,7 +13,7 @@
 .data-repo-config__content {
     padding: 20px;
     flex: 1;
-    overflow-y: auto; /* Ensures form fields scroll if the window is shrunk */
+    overflow-y: auto;
 }
 
 .data-repo-config__header {
@@ -45,7 +45,6 @@
     color: var(--theia-descriptionForeground);
 }
 
-/* UI Enhancement: Error box layout */
 .data-repo-config__error {
     display: flex;
     align-items: center;
@@ -75,7 +74,6 @@
     margin-bottom: 4px;
 }
 
-/* Shared Input/Select styling */
 .data-repo-config__input,
 .data-repo-config__select {
     width: 100%;
@@ -96,7 +94,6 @@
     border-color: var(--theia-focusBorder);
 }
 
-/* UI Enhancement: Flex layout for the API Key row */
 .data-repo-config__api-key-wrapper {
     display: flex;
     gap: 8px;
@@ -106,12 +103,12 @@
 
 .data-repo-config__input-icon-wrapper {
     position: relative;
-    flex: 1; /* Input takes up remaining space */
-    min-width: 0; /* Prevents flexbox from blowing out the width */
+    flex: 1;
+    min-width: 0;
 }
 
 .data-repo-config__input--password {
-    padding-right: 40px; /* Space for the eyeball icon */
+    padding-right: 40px;
 }
 
 .data-repo-config__visibility-toggle {
@@ -124,7 +121,7 @@
 }
 
 .data-repo-config__change-btn {
-    flex-shrink: 0; /* Prevents the button from squishing on small screens */
+    flex-shrink: 0;
     white-space: nowrap;
     height: 34px;
     border: 1px solid var(--theia-button-border, #ccc);

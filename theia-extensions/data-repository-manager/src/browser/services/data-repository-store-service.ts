@@ -16,7 +16,6 @@ export class DataRepositoryStoreService {
     ) {}
 
     protected async getEnvConfig() {
-        // Fetch values injected by app-setup.js
         const rootPathEnv = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
         const configFileNameEnv = await this.envVariablesServer.getValue('AROMA_DATA_REPOSITORY_CONFIG_FILE');
         const keytarServiceEnv = await this.envVariablesServer.getValue('AROMA_DATA_REPOSITORY_KEYTAR_SERVICE');

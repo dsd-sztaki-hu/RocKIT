@@ -18,7 +18,6 @@ export class DataRepositorySuccessDialog extends AbstractDialog<boolean> {
             title: 'Connection Successful'
         });
         
-        // UI Enhancement: Responsive sizing limits
         this.contentNode.style.width = '450px';
         this.contentNode.style.maxWidth = '90vw';
         this.contentNode.style.maxHeight = '90vh';
@@ -36,7 +35,7 @@ export class DataRepositorySuccessDialog extends AbstractDialog<boolean> {
     }
 
     protected handleCancel() {
-        this.close(); // Returns undefined/false
+        this.close();
     }
 
     protected render(): void {

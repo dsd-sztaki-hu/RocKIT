@@ -11,7 +11,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { IconButton } from '@mui/material';
 
 import { DataRepositoryConfig } from '../types';
-import { DataRepositorySuccessDialog } from './data-repository-success-dialog'; // RESTORED IMPORT
+import { DataRepositorySuccessDialog } from './data-repository-success-dialog';
 import '../styles/data-repository-config-dialog.css';
 
 export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryConfig | undefined> {
@@ -112,7 +112,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                     throw new Error(`Server returned ${response.status}: ${response.statusText}`);
                 }
 
-                // RESTORED: Parse the expiration date from the "message" string
+                // Parse the expiration date from the "message" string
                 if (data.data && typeof data.data.message === 'string') {
                     const match = data.data.message.match(/expires on (.*)$/);
                     if (match && match[1]) {
@@ -121,7 +121,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                 }
             }
 
-            // RESTORED: Open Success Dialog
+            // Open Success Dialog
             const successDialog = new DataRepositorySuccessDialog(cleanTitle, expirationDate);
             const confirmed = await successDialog.open();
 

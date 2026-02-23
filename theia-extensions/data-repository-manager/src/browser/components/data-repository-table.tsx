@@ -184,9 +184,9 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
                     colorText: 'var(--theia-foreground)',
                     colorTextHeading: 'var(--theia-foreground)',
                     colorBorder: 'var(--theia-panel-border)',
-                    colorBgElevated: 'var(--theia-menu-background)', // Fixes the white dropdowns
+                    colorBgElevated: 'var(--theia-menu-background)',
                     colorTextPlaceholder: 'var(--theia-descriptionForeground)',
-                    colorPrimary: 'var(--theia-button-background)', // Fixes primary buttons and checkboxes
+                    colorPrimary: 'var(--theia-button-background)',
                     colorIcon: 'var(--theia-icon-foreground)',
                     colorIconHover: 'var(--theia-focusBorder)',
                     controlItemBgHover: 'var(--theia-list-hoverBackground)',
