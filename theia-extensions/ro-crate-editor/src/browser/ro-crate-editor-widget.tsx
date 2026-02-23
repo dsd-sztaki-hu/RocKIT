@@ -70,6 +70,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected isRefreshingProfile = false
   protected pendingSchemasRefresh = false
   protected profileRevision = 0
+  protected lastFocusedElement?: HTMLElement
+  protected lastSelectionStart?: number
+  protected lastSelectionEnd?: number
+  protected lastAppliedConformsTo: string[] = []
   protected async validateCurrentCrate(): Promise<void> {
     const crate = this.localCrate ?? this.appStateService.roCrate
     const baseProfile = this.baseProfile
@@ -101,15 +105,36 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
   protected onAfterAttach(msg: Message): void {
     super.onAfterAttach(msg)
+    this.node.addEventListener('focusin', this.handleFocusIn, true)
+  }
+
+  protected handleFocusIn = (e: Event): void => {
+    const t = e.target as any
+    this.lastFocusedElement = t as HTMLElement
+    if (t && typeof t.selectionStart === 'number' && typeof t.selectionEnd === 'number') {
+      this.lastSelectionStart = t.selectionStart
+      this.lastSelectionEnd = t.selectionEnd
+    }
   }
 
   protected async onActivateRequest(msg: Message): Promise<void> {
     super.onActivateRequest(msg)
-    const entityId = this.assignedEntityId ?? this.localSelectedEntityId ?? './'
-    if (this.baseProfile) {
-      await this.updateProfileWithEntitySchemas(this.baseProfile, entityId)
-    }
     this.update()
+    if (this.lastFocusedElement && this.node.contains(this.lastFocusedElement)) {
+      const el: any = this.lastFocusedElement
+      if (el && typeof el.focus === 'function') {
+        el.focus()
+        if (
+          typeof this.lastSelectionStart === 'number' &&
+          typeof this.lastSelectionEnd === 'number' &&
+          typeof el.setSelectionRange === 'function'
+        ) {
+          try {
+            el.setSelectionRange(this.lastSelectionStart, this.lastSelectionEnd)
+          } catch {}
+        }
+      }
+    }
   }
 
   async initialize(options: RoCrateEditorWidgetOptions = {}): Promise<void> {
@@ -173,14 +198,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       },
     )
 
-    this.schemasSubscription = this.schemaManagerService.onDidChangeSchemas(async () => {
-      if (!this.baseProfile || !this.localCrate) {
-        return
-      }
-      const entityId = this.assignedEntityId ?? this.localSelectedEntityId ?? './'
-      await this.updateProfileWithEntitySchemas(this.baseProfile, entityId)
-      this.update()
-    })
+
 
     this.eirceiaSubscription = this.appStateService.onDidChangeSelector((s) => s.EIRCEIA)(
       async (mapping) => {
@@ -580,9 +598,14 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       }
       const conformsTos = this.computeConformsToIdsForSelectedEntity(entityId)
 
+      if (this.isSameStringSet(this.lastAppliedConformsTo, conformsTos)) {
+        return
+      }
+
       if (!conformsTos || conformsTos.length === 0) {
         this.localProfile = JSON.parse(JSON.stringify(baseProfile))
         this.profileRevision += 1
+        this.lastAppliedConformsTo = []
         this.update()
         return
       }
@@ -618,6 +641,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         this.localProfile = updateProfile
         this.profileRevision += 1
       }
+      this.lastAppliedConformsTo = conformsTos.slice()
       this.update()
     } finally {
       await this.validateCurrentCrate()
@@ -857,7 +881,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     this.eirceiaSubscription?.dispose()
     this.dirtySubscription?.dispose()
     this.schemasSubscription?.dispose()
-    this.schemasSubscription?.dispose()
+    this.node.removeEventListener('focusin', this.handleFocusIn, true)
     this.onDirtyChangedEmitter.dispose()
     this.onContentChangedEmitter.dispose()
     super.dispose()
