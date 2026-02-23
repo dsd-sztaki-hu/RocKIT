@@ -1,0 +1,148 @@
+/* src/browser/styles/data-repository-config-dialog.css */
+
+.data-repo-config {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--theia-editor-background);
+    color: var(--theia-foreground);
+    font-family: var(--theia-ui-font-family);
+}
+
+.data-repo-config__content {
+    padding: 20px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.data-repo-config__header {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.data-repo-config__icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background-color: var(--theia-list-hoverBackground);
+    border: 1px solid var(--theia-contrastBorder, transparent);
+}
+
+.data-repo-config__title {
+    font-weight: 600;
+    font-size: var(--theia-ui-font-size1);
+}
+
+.data-repo-config__description {
+    font-size: var(--theia-ui-font-size0);
+    color: var(--theia-descriptionForeground);
+}
+
+.data-repo-config__error {
+    color: var(--theia-errorForeground);
+    border: 1px solid var(--theia-errorForeground);
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    font-size: 0.9em;
+    background-color: rgba(255, 0, 0, 0.05);
+}
+
+.data-repo-config__form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.data-repo-config__label {
+    font-size: var(--theia-ui-font-size0);
+    font-weight: 600;
+    color: var(--theia-foreground);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.data-repo-config__input,
+.data-repo-config__select {
+    width: 100%;
+    box-sizing: border-box;
+    height: 34px; 
+    padding: 6px 10px; 
+    font-size: 13px;
+    line-height: 20px;
+    border: 1px solid var(--theia-input-border, #ccc);
+    background-color: var(--theia-input-background);
+    color: var(--theia-input-foreground);
+    border-radius: 2px;
+    margin-top: 4px;
+    outline: none;
+}
+
+.data-repo-config__input:focus,
+.data-repo-config__select:focus {
+    border-color: var(--theia-focusBorder);
+}
+
+.data-repo-config__api-key-wrapper {
+    position: relative;
+    display: flex;
+    margin-top: 4px;
+    width: 100%;
+}
+
+.data-repo-config__input--password {
+    margin-top: 0;
+    padding-right: 40px;
+}
+
+.data-repo-config__visibility-toggle {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex; 
+    align-items: center;
+}
+
+.data-repo-config__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 15px 20px;
+    background-color: var(--theia-layout-color2);
+    border-top: 1px solid var(--theia-panel-border);
+    flex-shrink: 0;
+}
+
+.data-repo-config__btn-cancel {
+    min-width: 80px;
+    border: 1px solid var(--theia-button-border, #ccc);
+}
+
+.data-repo-config__btn-save {
+    min-width: 100px;
+    color: var(--theia-button-foreground);
+}
+
+/* --- Change Button for API Key --- */
+.data-repo-config__change-btn {
+    margin-left: 8px;
+    white-space: nowrap;
+    height: 34px;
+    border: 1px solid var(--theia-button-border, #ccc);
+    background-color: var(--theia-button-background);
+    color: var(--theia-button-foreground);
+    padding: 0 12px;
+    cursor: pointer;
+}
+
+.data-repo-config__change-btn:hover {
+    background-color: var(--theia-button-hoverBackground);
+}

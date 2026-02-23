@@ -25,7 +25,7 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
             execute: async () => {
                 const widget = await this.widgetManager.getOrCreateWidget(DATA_REPOSITORY_MANAGER_WIDGET_ID);
                 if (widget) {
-                    this.shell.addWidget(widget, { area: 'main' }); // Opens in main workspace
+                    this.shell.addWidget(widget, { area: 'main' });
                     this.shell.activateWidget(widget.id);
                 }
             }

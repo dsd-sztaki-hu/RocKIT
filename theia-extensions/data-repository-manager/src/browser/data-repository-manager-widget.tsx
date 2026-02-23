@@ -6,6 +6,8 @@ import { createRoot, Root } from 'react-dom/client';
 
 import { DataRepositoryToolbar } from './components/data-repository-toolbar';
 import { DataRepositoryTable } from './components/data-repository-table';
+import { DataRepositoryConfigDialog } from './components/data-repository-config-dialog';
+import { DataRepositoryStoreService } from './services/data-repository-store-service';
 import { DataRepositoryConfig } from './types';
 import './styles/index.css';
 
@@ -18,13 +20,12 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     static readonly LABEL = DATA_REPOSITORY_MANAGER_LABEL;
 
     private reactRoot: Root | undefined;
-    
-    // Starting with an empty array
     protected repositories: DataRepositoryConfig[] = [];
-    protected isLoading = false;
+    protected isLoading = true;
 
     constructor(
-        @inject(MessageService) protected readonly messageService: MessageService
+        @inject(MessageService) protected readonly messageService: MessageService,
+        @inject(DataRepositoryStoreService) protected readonly storeService: DataRepositoryStoreService
     ) {
         super();
         this.id = DATA_REPOSITORY_MANAGER_WIDGET_ID;
@@ -34,26 +35,62 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.title.iconClass = 'fa fa-database'; 
     }
 
+    protected async loadData() {
+        this.isLoading = true;
+        this.update();
+        try {
+            this.repositories = await this.storeService.loadRepositories();
+        } catch (e) {
+            console.error(e);
+        } finally {
+            this.isLoading = false;
+            this.update();
+        }
+    }
+
     protected handleImport = () => {
-        this.messageService.info("Import placeholder clicked!");
+        this.messageService.info("Import placeholder clicked!", { timeout: 5000 });
     }
 
     protected handleExport = () => {
-        this.messageService.info("Export placeholder clicked!");
+        this.messageService.info("Export placeholder clicked!", { timeout: 5000 });
     }
 
-    protected handleConfigure = () => {
-        this.messageService.info("Configure Repositories placeholder clicked!");
+    protected handleAddRepository = async () => {
+        const dialog = new DataRepositoryConfigDialog();
+        const newConfig = await dialog.open();
+
+        if (newConfig) {
+            const updatedList = [...this.repositories, newConfig];
+            await this.storeService.saveRepositories(updatedList);
+            await this.loadData();
+        }
     }
 
-    protected handleDelete = (id: string) => {
-        this.messageService.info(`Delete placeholder clicked for repo ID: ${id}`);
+    protected handleEdit = async (repoToEdit: DataRepositoryConfig) => {
+        const dialog = new DataRepositoryConfigDialog(repoToEdit);
+        const updatedConfig = await dialog.open();
+
+        if (updatedConfig) {
+            const updatedList = this.repositories.map(repo => 
+                repo.id === updatedConfig.id ? updatedConfig : repo
+            );
+            await this.storeService.saveRepositories(updatedList);
+            await this.loadData();
+        }
+    }
+
+    protected handleDelete = async (id: string) => {
+        const updatedList = this.repositories.filter(repo => repo.id !== id);
+        await this.storeService.saveRepositories(updatedList);
+        await this.loadData();
     }
 
     protected onAfterAttach(msg: Message): void {
         super.onAfterAttach(msg);
-        this.node.innerHTML = ''; // Clean slate for React 18
+        this.node.innerHTML = ''; 
         this.render();
+        this.loadData(); 
     }
 
     protected onUpdateRequest(msg: Message): void {
@@ -75,12 +112,13 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                 <DataRepositoryToolbar 
                     onImport={this.handleImport}
                     onExport={this.handleExport}
-                    onConfigure={this.handleConfigure}
+                    onConfigure={this.handleAddRepository}
                 />
                 <DataRepositoryTable 
                     repositories={this.repositories} 
                     isLoading={this.isLoading} 
                     onDelete={this.handleDelete}
+                    onEdit={this.handleEdit}
                 />
             </div>
         );

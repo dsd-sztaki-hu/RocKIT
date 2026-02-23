@@ -10,6 +10,7 @@ export interface DataRepositoryTableProps {
     repositories: DataRepositoryConfig[];
     isLoading: boolean;
     onDelete?: (id: string) => void;
+    onEdit?: (repo: DataRepositoryConfig) => void;
 }
 
 export interface DataRepositoryToolbarProps {

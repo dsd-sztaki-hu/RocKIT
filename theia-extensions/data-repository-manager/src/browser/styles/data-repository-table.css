@@ -67,11 +67,65 @@
 }
 
 /* --- Action Icons --- */
+.data-repo-table__actions-container {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+}
+
 .data-repo-table__action-btn {
     color: var(--theia-icon-foreground) !important;
 }
-.data-repo-table__action-btn:hover {
+
+.data-repo-table__action-btn--edit:hover {
+    color: var(--theia-textLink-foreground) !important;
+}
+
+.data-repo-table__action-btn--delete:hover {
     color: var(--theia-errorForeground) !important;
 }
-.data-repo-table__delete-icon { font-size: 18px; }
-.data-repo-table__tooltip { z-index: 99999 !important; }
+
+.data-repo-table__action-icon { 
+    font-size: 18px !important; 
+}
+
+.data-repo-table__tooltip { 
+    z-index: 99999 !important; 
+}
+
+/* --- Empty State --- */
+.data-repo-table__empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--theia-descriptionForeground);
+}
+
+.data-repo-table__empty-icon {
+    font-size: 48px !important;
+    opacity: 0.3;
+    margin-bottom: 12px;
+}
+
+.data-repo-table__empty-title {
+    font-size: var(--theia-ui-font-size1);
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--theia-foreground);
+}
+
+.data-repo-table__empty-desc {
+    font-size: var(--theia-ui-font-size0);
+}
+
+/* --- Hide Ant Design Header Splitters & Scrollbar Gutter Artifacts --- */
+.data-repo-table-wrapper .ant-table-thead > tr > th::before {
+    display: none !important;
+}
+
+.data-repo-table-wrapper .ant-table-cell-scrollbar {
+    box-shadow: none !important; 
+    border-left: none !important;
+}

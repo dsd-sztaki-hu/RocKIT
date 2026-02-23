@@ -2,6 +2,8 @@ import * as React from 'react';
 import { Table, ConfigProvider, theme } from 'antd';
 import type { TableColumnsType } from 'antd';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import EditIcon from '@mui/icons-material/Edit';
+import StorageIcon from '@mui/icons-material/Storage';
 import { IconButton, Tooltip } from '@mui/material';
 import { DataRepositoryConfig, DataRepositoryTableProps } from '../types';
 
@@ -10,7 +12,8 @@ import '../styles/data-repository-table.css';
 export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.memo(({ 
     repositories, 
     isLoading,
-    onDelete
+    onDelete,
+    onEdit
 }) => {
     const tableWrapperRef = React.useRef<HTMLDivElement>(null);
 
@@ -20,43 +23,78 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
             dataIndex: 'title',
             key: 'title',
             sorter: (a, b) => a.title.localeCompare(b.title),
+            ellipsis: true,
         },
         {
             title: 'Type',
             dataIndex: 'type',
             key: 'type',
             width: 150,
+            ellipsis: true,
         },
         {
             title: 'Base URL',
             dataIndex: 'baseUrl',
             key: 'baseUrl',
-            render: (text: string) => <a href={text} target="_blank" rel="noreferrer" className="data-repo-table__link">{text}</a>
+            ellipsis: true,
+            render: (text: string) => (
+                <a href={text} target="_blank" rel="noreferrer" className="data-repo-table__link">
+                    {text}
+                </a>
+            )
         }
     ];
 
-    if (onDelete) {
+    if (onDelete || onEdit) {
         columns.push({
             title: 'Action',
             key: 'action',
-            width: 70,
+            width: 90,
             align: 'center',
             render: (_, record) => (
-                <Tooltip title="Delete Repository" classes={{ tooltip: 'data-repo-table__tooltip' }}>
-                    <IconButton 
-                        size="small" 
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete(record.id);
-                        }}
-                        className="data-repo-table__action-btn"
-                    >
-                        <DeleteOutlineIcon className="data-repo-table__delete-icon" />
-                    </IconButton>
-                </Tooltip>
+                <div className="data-repo-table__actions-container">
+                    {onEdit && (
+                        <Tooltip title="Edit Repository" classes={{ tooltip: 'data-repo-table__tooltip' }}>
+                            <IconButton 
+                                size="small" 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onEdit(record);
+                                }}
+                                className="data-repo-table__action-btn data-repo-table__action-btn--edit"
+                            >
+                                <EditIcon className="data-repo-table__action-icon" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                    {onDelete && (
+                        <Tooltip title="Delete Repository" classes={{ tooltip: 'data-repo-table__tooltip' }}>
+                            <IconButton 
+                                size="small" 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDelete(record.id);
+                                }}
+                                className="data-repo-table__action-btn data-repo-table__action-btn--delete"
+                            >
+                                <DeleteOutlineIcon className="data-repo-table__action-icon" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                </div>
             ),
         });
     }
+
+    const customEmptyState = (
+        <div className="data-repo-table__empty-state">
+            <StorageIcon className="data-repo-table__empty-icon" />
+            <div className="data-repo-table__empty-title">No Data Repositories</div>
+            <div className="data-repo-table__empty-desc">
+                Click <strong>Add Repository</strong> to connect to a remote server.
+            </div>
+        </div>
+    );
 
     return (
         <ConfigProvider
@@ -80,6 +118,7 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
                     loading={isLoading}
                     pagination={false}
                     scroll={{ y: '100%' }}
+                    locale={{ emptyText: customEmptyState }}
                 />
             </div>
         </ConfigProvider>

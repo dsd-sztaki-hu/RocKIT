@@ -1,7 +1,7 @@
 import * as React from 'react';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import SettingsIcon from '@mui/icons-material/Settings';
+import AddIcon from '@mui/icons-material/Add';
 
 import { DataRepositoryToolbarProps } from '../types';
 import '../styles/data-repository-toolbar.css';
@@ -24,10 +24,10 @@ export const DataRepositoryToolbar: React.FC<DataRepositoryToolbarProps> = React
             
             <div className="data-repo-toolbar__spacer" />
             
-            <button className="data-repo-toolbar__btn data-repo-toolbar__btn--secondary" onClick={onConfigure}>
-                <span className="data-repo-toolbar__btn-icon"><SettingsIcon fontSize="small" /></span>
-                Configure Repositories
-            </button>
+                <button className="data-repo-toolbar__btn data-repo-toolbar__btn--secondary" onClick={onConfigure}>
+                    <span className="data-repo-toolbar__btn-icon"><AddIcon fontSize="small" /></span>
+                    Add Repository
+                </button>
         </div>
     );
 });
