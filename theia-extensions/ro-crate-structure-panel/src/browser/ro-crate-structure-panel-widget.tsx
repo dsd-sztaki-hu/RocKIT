@@ -637,9 +637,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       }
     }
 
-    const relativePaths = droppedFiles.map((file) => file.relPath)
+    const uniqueDroppedFiles = this.dedupeDroppedFilesByPath(droppedFiles)
+    const relativePaths = uniqueDroppedFiles.map((file) => file.relPath)
     console.log('RO-Crate Structure: relative paths', relativePaths)
-    if (!droppedFiles.length) {
+    if (!uniqueDroppedFiles.length) {
       console.warn('RO-Crate Structure: drop ignored, no relative paths')
       return
     }
@@ -664,7 +665,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     const updatedCrate = await this.applyDroppedFilesToCrate(
       crate,
       datasetTargetEntityId,
-      droppedFiles,
+      uniqueDroppedFiles,
     )
 
     console.log('RO-Crate Structure: crate updated', {
@@ -686,14 +687,55 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       dataTransfer.getData('application/vnd.code.uri-list') ||
       ''
     const text = dataTransfer.getData('text/plain') || ''
-    const raw = uriList || text
-    if (!raw) {
-      return []
+
+    const rawSources = [uriList, text].filter((value) => Boolean(value))
+    const uris = new Set<string>()
+
+    for (const raw of rawSources) {
+      const chunks: string[] = []
+      for (const line of raw.split(/[\r\n\0]+/)) {
+        const trimmed = line.trim()
+        if (!trimmed || trimmed.startsWith('#')) {
+          continue
+        }
+        chunks.push(trimmed)
+      }
+
+      if (!chunks.length && raw.trim()) {
+        chunks.push(raw.trim())
+      }
+
+      for (const chunk of chunks) {
+        if (!chunk) {
+          continue
+        }
+
+        const schemeMatches = chunk.match(/(?:file|https?):\/\//g) ?? []
+        if (schemeMatches.length > 1) {
+          const split = chunk.split(/(?=file:\/\/|https?:\/\/)/g)
+          for (const part of split) {
+            const trimmed = part.trim()
+            if (trimmed) {
+              uris.add(trimmed)
+            }
+          }
+          continue
+        }
+
+        uris.add(chunk)
+      }
     }
-    return raw
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith('#'))
+
+    if (dataTransfer.files?.length) {
+      for (const file of Array.from(dataTransfer.files)) {
+        const path = (file as any)?.path
+        if (typeof path === 'string' && path.trim()) {
+          uris.add(path)
+        }
+      }
+    }
+
+    return Array.from(uris)
   }
 
   protected parseDroppedUri(raw: string): URI | undefined {
@@ -712,6 +754,24 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       return new URI(`file://${normalized}`)
     }
     return undefined
+  }
+
+  protected dedupeDroppedFilesByPath(
+    droppedFiles: { relPath: string; sourceUri?: URI }[],
+  ): { relPath: string; sourceUri?: URI }[] {
+    const seen = new Set<string>()
+    const unique: { relPath: string; sourceUri?: URI }[] = []
+
+    for (const file of droppedFiles) {
+      const normalized = this.normalizeWorkspaceRelativePath(file.relPath).toLowerCase()
+      if (!normalized || seen.has(normalized)) {
+        continue
+      }
+      seen.add(normalized)
+      unique.push(file)
+    }
+
+    return unique
   }
 
   protected resolveDropTargetEntityId(event: React.DragEvent): string | undefined {

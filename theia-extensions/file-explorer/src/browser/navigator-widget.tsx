@@ -24,6 +24,7 @@ import {
   TreeModel,
   TreeNode,
   TreeProps,
+  TreeSelection,
 } from '@theia/core/lib/browser'
 import { CommandService } from '@theia/core/lib/common'
 import { nls } from '@theia/core/lib/common/nls'
@@ -750,14 +751,35 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     }
     const selectedNodes = this.model.selectedFileStatNodes
     const selectionIncludesNode = selectedNodes.some((n) => n.id === node.id)
-    const nodesToTransfer =
+    let nodesToTransfer =
       selectionIncludesNode && selectedNodes.length > 1 ? selectedNodes : [node]
+
+    if (!this.isNavigatorRootNode(node) && nodesToTransfer.length > 1) {
+      for (const selected of nodesToTransfer) {
+        if (this.isNavigatorRootNode(selected)) {
+          this.model.addSelection({
+            node: selected,
+            type: TreeSelection.SelectionType.TOGGLE,
+          })
+        }
+      }
+    }
+
+    nodesToTransfer = nodesToTransfer.filter((n) => !this.isNavigatorRootNode(n))
+    if (!nodesToTransfer.length && !this.isNavigatorRootNode(node)) {
+      nodesToTransfer = [node]
+    }
+
     const uriList = nodesToTransfer.map((n) => n.uri.toString())
 
-    const payload = uriList.join('\n')
+    const payload = uriList.join('\r\n')
     event.dataTransfer.setData('text/uri-list', payload)
     event.dataTransfer.setData('application/vnd.code.uri-list', payload)
     event.dataTransfer.setData('text/plain', payload)
     event.dataTransfer.effectAllowed = 'link'
+  }
+
+  protected isNavigatorRootNode(node: FileStatNode): boolean {
+    return WorkspaceRootNode.is(node) || DataSourceRootNode.is(node)
   }
 }
