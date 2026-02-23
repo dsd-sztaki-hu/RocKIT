@@ -7,6 +7,7 @@ import { createRoot, Root } from 'react-dom/client';
 import { DataRepositoryToolbar } from './components/data-repository-toolbar';
 import { DataRepositoryTable } from './components/data-repository-table';
 import { DataRepositoryConfigDialog } from './components/data-repository-config-dialog';
+import { DataRepositoryDeleteDialog } from './components/data-repository-delete-dialog'; // NEW IMPORT
 import { DataRepositoryStoreService } from './services/data-repository-store-service';
 import { DataRepositoryConfig } from './types';
 import './styles/index.css';
@@ -22,6 +23,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     private reactRoot: Root | undefined;
     protected repositories: DataRepositoryConfig[] = [];
     protected isLoading = true;
+    protected selectedKeys: React.Key[] = []; // NEW: Tracks selected checkboxes
 
     constructor(
         @inject(MessageService) protected readonly messageService: MessageService,
@@ -37,6 +39,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     protected async loadData() {
         this.isLoading = true;
+        this.selectedKeys = []; // Reset selection on load
         this.update();
         try {
             this.repositories = await this.storeService.loadRepositories();
@@ -46,6 +49,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             this.isLoading = false;
             this.update();
         }
+    }
+
+    protected handleSelectionChange = (keys: React.Key[]) => {
+        this.selectedKeys = keys;
+        this.update(); // Trigger React re-render
     }
 
     protected handleImport = () => {
@@ -80,10 +88,30 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         }
     }
 
+    // Handles single item deletion from the Action column
     protected handleDelete = async (id: string) => {
-        const updatedList = this.repositories.filter(repo => repo.id !== id);
-        await this.storeService.saveRepositories(updatedList);
-        await this.loadData();
+        const dialog = new DataRepositoryDeleteDialog(1);
+        const confirmed = await dialog.open();
+
+        if (confirmed) {
+            const updatedList = this.repositories.filter(repo => repo.id !== id);
+            await this.storeService.saveRepositories(updatedList);
+            await this.loadData();
+        }
+    }
+
+    // Handles bulk deletion from the Toolbar
+    protected handleDeleteSelected = async () => {
+        if (this.selectedKeys.length === 0) return;
+
+        const dialog = new DataRepositoryDeleteDialog(this.selectedKeys.length);
+        const confirmed = await dialog.open();
+
+        if (confirmed) {
+            const updatedList = this.repositories.filter(repo => !this.selectedKeys.includes(repo.id));
+            await this.storeService.saveRepositories(updatedList);
+            await this.loadData();
+        }
     }
 
     protected onAfterAttach(msg: Message): void {
@@ -113,12 +141,16 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                     onImport={this.handleImport}
                     onExport={this.handleExport}
                     onConfigure={this.handleAddRepository}
+                    selectedCount={this.selectedKeys.length}       // NEW
+                    onDeleteSelected={this.handleDeleteSelected} // NEW
                 />
                 <DataRepositoryTable 
                     repositories={this.repositories} 
                     isLoading={this.isLoading} 
                     onDelete={this.handleDelete}
                     onEdit={this.handleEdit}
+                    selectedKeys={this.selectedKeys}             // NEW
+                    onSelectionChange={this.handleSelectionChange} // NEW
                 />
             </div>
         );

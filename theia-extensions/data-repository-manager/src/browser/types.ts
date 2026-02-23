@@ -1,3 +1,5 @@
+import type { Key } from 'react';
+
 export interface DataRepositoryConfig {
     id: string;
     title: string;
@@ -9,6 +11,8 @@ export interface DataRepositoryConfig {
 export interface DataRepositoryTableProps {
     repositories: DataRepositoryConfig[];
     isLoading: boolean;
+    selectedKeys?: Key[];
+    onSelectionChange?: (keys: Key[]) => void;
     onDelete?: (id: string) => void;
     onEdit?: (repo: DataRepositoryConfig) => void;
 }
@@ -17,4 +21,6 @@ export interface DataRepositoryToolbarProps {
     onImport: () => void;
     onExport: () => void;
     onConfigure: () => void;
+    selectedCount?: number;
+    onDeleteSelected?: () => void;
 }

@@ -18,8 +18,13 @@ export class DataRepositorySuccessDialog extends AbstractDialog<boolean> {
             title: 'Connection Successful'
         });
         
+        // UI Enhancement: Responsive sizing limits
         this.contentNode.style.width = '450px';
+        this.contentNode.style.maxWidth = '90vw';
+        this.contentNode.style.maxHeight = '90vh';
         this.contentNode.style.padding = '0'; 
+        this.contentNode.style.display = 'flex';
+        this.contentNode.style.flexDirection = 'column';
     }
 
     get value(): boolean {
@@ -62,7 +67,9 @@ export class DataRepositorySuccessDialog extends AbstractDialog<boolean> {
                     {/* Expiration Info (if available) */}
                     {this.expirationDate && (
                         <div className="data-repo-success__info-box">
-                            <EventAvailableIcon className="data-repo-success__info-icon" />
+                            <div className="data-repo-success__info-icon-wrapper">
+                                <EventAvailableIcon className="data-repo-success__info-icon" />
+                            </div>
                             <div className="data-repo-success__info-text">
                                 <span>API Key Expiration:</span>
                                 <strong>{this.expirationDate}</strong>

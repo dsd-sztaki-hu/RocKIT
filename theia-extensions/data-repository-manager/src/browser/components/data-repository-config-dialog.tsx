@@ -7,10 +7,11 @@ import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import CategoryIcon from '@mui/icons-material/Category';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { IconButton } from '@mui/material';
 
 import { DataRepositoryConfig } from '../types';
-import { DataRepositorySuccessDialog } from './data-repository-success-dialog'; // NEW IMPORT
+import { DataRepositorySuccessDialog } from './data-repository-success-dialog'; // RESTORED IMPORT
 import '../styles/data-repository-config-dialog.css';
 
 export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryConfig | undefined> {
@@ -35,7 +36,11 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         });
         
         this.contentNode.style.width = '500px';
+        this.contentNode.style.maxWidth = '90vw';
+        this.contentNode.style.maxHeight = '90vh';
         this.contentNode.style.padding = '0';
+        this.contentNode.style.display = 'flex';
+        this.contentNode.style.flexDirection = 'column';
 
         if (repoToEdit) {
             this.titleValue = repoToEdit.title;
@@ -51,7 +56,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
     }
 
     private async handleSaveAttempt() {
-        // 1. Strict Form Validation
         const cleanTitle = this.titleValue.trim();
         let cleanBaseUrl = this.baseUrlValue.trim();
         const cleanApiKey = this.apiKeyValue.trim();
@@ -80,7 +84,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             this.render(); return;
         }
 
-        // 2. Begin Connection Test
         this.isTesting = true;
         this.errorMsg = null;
         this.render();
@@ -88,7 +91,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         let expirationDate: string | undefined = undefined;
 
         try {
-            // Type checking: Currently we only test ARP Dataverse types
             if (this.typeValue === 'ARP Dataverse') {
                 const testUrl = `${cleanBaseUrl}/api/users/token`;
                 const headers: HeadersInit = { 'X-Dataverse-key': cleanApiKey };
@@ -110,24 +112,20 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                     throw new Error(`Server returned ${response.status}: ${response.statusText}`);
                 }
 
-                // Parse the expiration date from the "message" string
-                // Example: "Token $API_TOKEN expires on 2026-09-18 11:11:13.376"
+                // RESTORED: Parse the expiration date from the "message" string
                 if (data.data && typeof data.data.message === 'string') {
                     const match = data.data.message.match(/expires on (.*)$/);
                     if (match && match[1]) {
                         expirationDate = match[1];
                     }
                 }
-            } else {
-                // Future fallback for other repository types
-                // We will implement specific checks here as new types are added
             }
 
-            // 3. Open Success Dialog
+            // RESTORED: Open Success Dialog
             const successDialog = new DataRepositorySuccessDialog(cleanTitle, expirationDate);
             const confirmed = await successDialog.open();
 
-            // 4. Finalize
+            // Finalize
             if (confirmed) {
                 this.result = {
                     id: this.repoToEdit ? this.repoToEdit.id : Date.now().toString(),
@@ -138,7 +136,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                 };
                 this.accept(); 
             } else {
-                // If the user clicked "Cancel" on the success dialog, we return to the form
+                // If they hit cancel on the success dialog, return to form state
                 this.isTesting = false;
                 this.render();
             }
@@ -185,7 +183,8 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
 
                     {this.errorMsg && (
                         <div className="data-repo-config__error">
-                            <strong>Error:</strong> {this.errorMsg}
+                            <ErrorOutlineIcon fontSize="small" />
+                            <span><strong>Error:</strong> {this.errorMsg}</span>
                         </div>
                     )}
 
@@ -235,27 +234,30 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                 <VpnKeyIcon style={{ fontSize: '16px', opacity: 0.7 }}/> API Key
                             </label>
                             <div className="data-repo-config__api-key-wrapper">
-                                <input 
-                                    className="theia-input data-repo-config__input data-repo-config__input--password" 
-                                    type={this.showKey ? "text" : "password"}
-                                    value={this.isEditingKey ? this.apiKeyValue : '••••••••••••••••'}
-                                    onChange={(e) => { this.apiKeyValue = e.target.value; this.render(); }}
-                                    disabled={!this.isEditingKey || this.isTesting}
-                                    placeholder={this.isEditingKey ? "Paste API Key here" : "Stored securely"}
-                                />
-                                {this.isEditingKey ? (
-                                    <div className="data-repo-config__visibility-toggle">
-                                        <IconButton 
-                                            size="small" 
-                                            onClick={() => { this.showKey = !this.showKey; this.render(); }}
-                                            disabled={this.isTesting}
-                                            style={{ color: 'var(--theia-foreground)', opacity: 0.7 }}
-                                            title={this.showKey ? "Hide API Key" : "Show API Key"}
-                                        >
-                                            {this.showKey ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                                        </IconButton>
-                                    </div>
-                                ) : (
+                                <div className="data-repo-config__input-icon-wrapper">
+                                    <input 
+                                        className="theia-input data-repo-config__input data-repo-config__input--password" 
+                                        type={this.showKey ? "text" : "password"}
+                                        value={this.isEditingKey ? this.apiKeyValue : '••••••••••••••••'}
+                                        onChange={(e) => { this.apiKeyValue = e.target.value; this.render(); }}
+                                        disabled={!this.isEditingKey || this.isTesting}
+                                        placeholder={this.isEditingKey ? "Paste API Key here" : "Stored securely"}
+                                    />
+                                    {this.isEditingKey && (
+                                        <div className="data-repo-config__visibility-toggle">
+                                            <IconButton 
+                                                size="small" 
+                                                onClick={() => { this.showKey = !this.showKey; this.render(); }}
+                                                disabled={this.isTesting}
+                                                style={{ color: 'var(--theia-foreground)', opacity: 0.7 }}
+                                                title={this.showKey ? "Hide API Key" : "Show API Key"}
+                                            >
+                                                {this.showKey ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                                            </IconButton>
+                                        </div>
+                                    )}
+                                </div>
+                                {!this.isEditingKey && (
                                     <button 
                                         className="theia-button secondary data-repo-config__change-btn"
                                         disabled={this.isTesting}
