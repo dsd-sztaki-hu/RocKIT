@@ -10,6 +10,7 @@ import CategoryIcon from '@mui/icons-material/Category';
 import { IconButton } from '@mui/material';
 
 import { DataRepositoryConfig } from '../types';
+import { DataRepositorySuccessDialog } from './data-repository-success-dialog'; // NEW IMPORT
 import '../styles/data-repository-config-dialog.css';
 
 export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryConfig | undefined> {
@@ -22,8 +23,9 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
     private apiKeyValue: string = '';
     private typeValue: string = 'ARP Dataverse';
     
-    private isEditingKey = true;
+    private isEditingKey = true; 
     private showKey = false; 
+    private isTesting = false; 
     private errorMsg: string | null = null;
     private result: DataRepositoryConfig | undefined;
 
@@ -40,7 +42,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             this.baseUrlValue = repoToEdit.baseUrl;
             this.typeValue = repoToEdit.type;
             this.apiKeyValue = repoToEdit.apiKey || '';
-            this.isEditingKey = false;
+            this.isEditingKey = false; 
         }
     }
 
@@ -48,22 +50,109 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         return this.result;
     }
 
-    private handleSaveAttempt() {
-        if (!this.titleValue || !this.baseUrlValue) {
-            this.errorMsg = "Title and Base URL are required.";
-            this.render();
-            return;
+    private async handleSaveAttempt() {
+        // 1. Strict Form Validation
+        const cleanTitle = this.titleValue.trim();
+        let cleanBaseUrl = this.baseUrlValue.trim();
+        const cleanApiKey = this.apiKeyValue.trim();
+
+        if (!cleanTitle) {
+            this.errorMsg = "Name (Display) is required.";
+            this.render(); return;
+        }
+        if (!cleanBaseUrl) {
+            this.errorMsg = "Base URL is required.";
+            this.render(); return;
+        }
+        if (!cleanApiKey) {
+            this.errorMsg = "API Key is required.";
+            this.render(); return;
         }
 
-        this.result = {
-            id: this.repoToEdit ? this.repoToEdit.id : Date.now().toString(),
-            title: this.titleValue,
-            baseUrl: this.baseUrlValue,
-            type: this.typeValue,
-            apiKey: this.apiKeyValue || undefined
-        };
-        
-        this.accept(); 
+        try {
+            const parsedUrl = new URL(cleanBaseUrl);
+            if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+                throw new Error("Invalid protocol");
+            }
+            cleanBaseUrl = cleanBaseUrl.replace(/\/+$/, '');
+        } catch (e) {
+            this.errorMsg = "Please enter a valid HTTP or HTTPS Base URL.";
+            this.render(); return;
+        }
+
+        // 2. Begin Connection Test
+        this.isTesting = true;
+        this.errorMsg = null;
+        this.render();
+
+        let expirationDate: string | undefined = undefined;
+
+        try {
+            // Type checking: Currently we only test ARP Dataverse types
+            if (this.typeValue === 'ARP Dataverse') {
+                const testUrl = `${cleanBaseUrl}/api/users/token`;
+                const headers: HeadersInit = { 'X-Dataverse-key': cleanApiKey };
+
+                const response = await fetch(testUrl, { method: 'GET', headers });
+                
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonErr) {
+                    throw new Error("Server did not return a valid JSON response. Is this a correct Dataverse repository URL?");
+                }
+
+                if (data.status === 'ERROR') {
+                    throw new Error(data.message || "Invalid API key or server error.");
+                }
+
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                }
+
+                // Parse the expiration date from the "message" string
+                // Example: "Token $API_TOKEN expires on 2026-09-18 11:11:13.376"
+                if (data.data && typeof data.data.message === 'string') {
+                    const match = data.data.message.match(/expires on (.*)$/);
+                    if (match && match[1]) {
+                        expirationDate = match[1];
+                    }
+                }
+            } else {
+                // Future fallback for other repository types
+                // We will implement specific checks here as new types are added
+            }
+
+            // 3. Open Success Dialog
+            const successDialog = new DataRepositorySuccessDialog(cleanTitle, expirationDate);
+            const confirmed = await successDialog.open();
+
+            // 4. Finalize
+            if (confirmed) {
+                this.result = {
+                    id: this.repoToEdit ? this.repoToEdit.id : Date.now().toString(),
+                    title: cleanTitle,
+                    baseUrl: cleanBaseUrl,
+                    type: this.typeValue,
+                    apiKey: cleanApiKey
+                };
+                this.accept(); 
+            } else {
+                // If the user clicked "Cancel" on the success dialog, we return to the form
+                this.isTesting = false;
+                this.render();
+            }
+
+        } catch (error: any) {
+            console.error("Connection Test Failed:", error);
+            if (error.message === 'Failed to fetch' || error.message.includes('NetworkError')) {
+                this.errorMsg = "Could not reach the server. Please check the Base URL and your network connection.";
+            } else {
+                this.errorMsg = error.message || "An unknown error occurred during connection testing.";
+            }
+            this.isTesting = false;
+            this.render();
+        }
     }
 
     private handleCancel() {
@@ -80,7 +169,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             <div className="data-repo-config">
                 <div className="data-repo-config__content">
                     
-                    {/* Header Info */}
                     <div className="data-repo-config__header">
                         <div className="data-repo-config__icon-wrapper">
                             <DnsIcon style={{ color: 'var(--theia-textLink-foreground)', fontSize: '24px' }} />
@@ -101,22 +189,20 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                         </div>
                     )}
 
-                    {/* Form Fields */}
                     <div className="data-repo-config__form">
                         
-                        {/* Title */}
                         <div>
                             <label className="data-repo-config__label">Name (Display)</label>
                             <input 
                                 className="theia-input data-repo-config__input" 
                                 value={this.titleValue}
                                 onChange={(e) => { this.titleValue = e.target.value; this.render(); }}
+                                disabled={this.isTesting}
                                 placeholder="e.g. ARP Research Data Repository"
                                 autoFocus
                             />
                         </div>
 
-                        {/* Base URL */}
                         <div>
                             <label className="data-repo-config__label">
                                 <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Base URL
@@ -125,11 +211,11 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                 className="theia-input data-repo-config__input" 
                                 placeholder="https://repo.researchdata.hu"
                                 value={this.baseUrlValue}
+                                disabled={this.isTesting}
                                 onChange={(e) => { this.baseUrlValue = e.target.value; this.render(); }}
                             />
                         </div>
 
-                        {/* Type Dropdown */}
                         <div>
                             <label className="data-repo-config__label">
                                 <CategoryIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Type
@@ -137,16 +223,16 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                             <select 
                                 className="theia-select data-repo-config__select" 
                                 value={this.typeValue}
+                                disabled={this.isTesting}
                                 onChange={(e) => { this.typeValue = e.target.value; this.render(); }}
                             >
                                 <option value="ARP Dataverse">ARP Dataverse</option>
                             </select>
                         </div>
 
-                        {/* API Key */}
                         <div>
                             <label className="data-repo-config__label">
-                                <VpnKeyIcon style={{ fontSize: '16px', opacity: 0.7 }}/> API Key (Optional)
+                                <VpnKeyIcon style={{ fontSize: '16px', opacity: 0.7 }}/> API Key
                             </label>
                             <div className="data-repo-config__api-key-wrapper">
                                 <input 
@@ -154,7 +240,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                     type={this.showKey ? "text" : "password"}
                                     value={this.isEditingKey ? this.apiKeyValue : '••••••••••••••••'}
                                     onChange={(e) => { this.apiKeyValue = e.target.value; this.render(); }}
-                                    disabled={!this.isEditingKey}
+                                    disabled={!this.isEditingKey || this.isTesting}
                                     placeholder={this.isEditingKey ? "Paste API Key here" : "Stored securely"}
                                 />
                                 {this.isEditingKey ? (
@@ -162,6 +248,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                         <IconButton 
                                             size="small" 
                                             onClick={() => { this.showKey = !this.showKey; this.render(); }}
+                                            disabled={this.isTesting}
                                             style={{ color: 'var(--theia-foreground)', opacity: 0.7 }}
                                             title={this.showKey ? "Hide API Key" : "Show API Key"}
                                         >
@@ -171,6 +258,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                 ) : (
                                     <button 
                                         className="theia-button secondary data-repo-config__change-btn"
+                                        disabled={this.isTesting}
                                         onClick={() => { 
                                             this.isEditingKey = true; 
                                             this.apiKeyValue = ''; 
@@ -185,19 +273,21 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                     </div>
                 </div>
 
-                {/* Footer Section */}
                 <div className="data-repo-config__footer">
                     <button 
                         className="theia-button secondary data-repo-config__btn-cancel"
                         onClick={() => this.handleCancel()}
+                        disabled={this.isTesting}
                     >
                         Cancel
                     </button>
                     <button 
                         className="theia-button main data-repo-config__btn-save"
                         onClick={() => this.handleSaveAttempt()}
+                        disabled={this.isTesting}
                     >
-                        Save
+                        {this.isTesting && <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} />}
+                        {this.isTesting ? 'Verifying...' : 'Save'}
                     </button>
                 </div>
             </div>

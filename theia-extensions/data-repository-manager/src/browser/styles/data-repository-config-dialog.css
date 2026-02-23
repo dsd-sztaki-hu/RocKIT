@@ -129,6 +129,7 @@
 .data-repo-config__btn-save {
     min-width: 100px;
     color: var(--theia-button-foreground);
+    text-align: center;
 }
 
 /* --- Change Button for API Key --- */
