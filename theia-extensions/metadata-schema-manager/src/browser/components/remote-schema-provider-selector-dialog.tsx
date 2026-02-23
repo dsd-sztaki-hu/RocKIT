@@ -1,103 +1,187 @@
+// src/browser/components/remote-schema-provider-selector-dialog.tsx
+
+import { AbstractDialog } from '@theia/core/lib/browser';
+import { Message } from '@lumino/messaging';
 import * as React from 'react';
-import {
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
-    List,
-    ListItem,
-    ListItemText,
-    ListItemIcon,
-    Typography,
-    CircularProgress
-} from '@mui/material';
+import { createRoot, Root } from 'react-dom/client';
+import DnsIcon from '@mui/icons-material/Dns';
 import StorageIcon from '@mui/icons-material/Storage';
-import AddIcon from '@mui/icons-material/Add';
-import { RemoteSchemaProviderConfig } from '../types';
+import AddLinkIcon from '@mui/icons-material/AddLink';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'; 
+import SettingsIcon from '@mui/icons-material/Settings'; 
+
+import { RemoteSchemaProviderListDialog } from './remote-schema-provider-list-dialog';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
+import type { RemoteSchemaProviderConfig } from '../types';
+import '../styles/remote-schema-provider-selector-dialog.css';
 
-interface Props {
-    open: boolean;
-    onClose: () => void;
-    onSelect: (provider: RemoteSchemaProviderConfig) => void;
-    onConfigure: () => void;
-    providerStore: RemoteSchemaProviderStoreService;
-}
+export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemoteSchemaProviderConfig | undefined> {
 
-export const RemoteSchemaProviderSelectorDialog: React.FC<Props> = ({ 
-    open, 
-    onClose, 
-    onSelect, 
-    onConfigure, 
-    providerStore 
-}) => {
-    const [providers, setProviders] = React.useState<RemoteSchemaProviderConfig[]>([]);
-    const [isLoading, setIsLoading] = React.useState(false);
+    private reactRoot: Root | undefined;
+    private providers: RemoteSchemaProviderConfig[] = [];
+    private isLoading = true;
+    
+    private result: RemoteSchemaProviderConfig | undefined;
 
-    React.useEffect(() => {
-        if (open) {
-            setIsLoading(true);
-            providerStore.loadProviders().then(data => {
-                setProviders(data);
-                setIsLoading(false);
-            });
+    constructor(
+        protected readonly providerStore: RemoteSchemaProviderStoreService
+    ) {
+        super({
+            title: 'Select Remote Provider'
+        });
+        
+        this.contentNode.style.width = '500px';
+        this.contentNode.style.height = '400px';
+        this.contentNode.style.padding = '0'; 
+    }
+
+    get value(): RemoteSchemaProviderConfig | undefined {
+        return this.result;
+    }
+
+    protected async loadProviders() {
+        this.isLoading = true;
+        this.render(); 
+        try {
+            this.providers = await this.providerStore.loadProviders();
+        } catch (error) {
+            console.error("Failed to load providers:", error);
+        } finally {
+            this.isLoading = false;
+            this.render();
         }
-    }, [open, providerStore]);
+    }
 
-    const handleListItemClick = (provider: RemoteSchemaProviderConfig) => {
-        onSelect(provider);
-        onClose();
-    };
+    protected handleSelect(provider: RemoteSchemaProviderConfig) {
+        this.result = provider;
+        this.accept(); 
+    }
 
-    return (
-        <Dialog 
-            open={open} 
-            onClose={onClose} 
-            maxWidth="sm" 
-            fullWidth
-            disablePortal={false} // Render in body
-            disableScrollLock={true}
-            style={{ zIndex: 1200 }} 
-        >
-            <DialogTitle>Select a Remote Provider</DialogTitle>
-            <DialogContent>
-                {isLoading ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
-                        <CircularProgress />
+    protected async handleConfigure() {
+        const dialog = new RemoteSchemaProviderListDialog(this.providerStore);
+        await dialog.open();
+        await this.loadProviders();
+    }
+
+    protected render(): void {
+        if (!this.reactRoot) {
+            this.reactRoot = createRoot(this.contentNode);
+        }
+
+        this.reactRoot.render(
+            <div className="remote-provider-selector">
+                
+                {/* Content Area */}
+                <div className="remote-provider-selector__content">
+                    
+                    {/* Header */}
+                    <div className="remote-provider-selector__header">
+                        <div className="remote-provider-selector__icon-wrapper">
+                            <DnsIcon className="remote-provider-selector__header-icon" />
+                        </div>
+                        <div>
+                            <div className="remote-provider-selector__title">
+                                Choose Repository
+                            </div>
+                            <div className="remote-provider-selector__description">
+                                Select a remote provider to browse schemas.
+                            </div>
+                        </div>
                     </div>
-                ) : providers.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: 20 }}>
-                        <Typography color="textSecondary" paragraph>
-                            No remote schema providers configured.
-                        </Typography>
-                        <Button variant="outlined" startIcon={<AddIcon />} onClick={onConfigure}>
-                            Configure Providers
-                        </Button>
+
+                    {/* Content Body */}
+                    <div className="remote-provider-selector__body">
+                        
+                        {this.isLoading ? (
+                            <div className="remote-provider-selector__state-msg">
+                                <i className="codicon codicon-loading codicon-modifier-spin" />
+                                Loading providers...
+                            </div>
+                        ) : this.providers.length === 0 ? (
+                            <div className="remote-provider-selector__state-msg">
+                                <div className="remote-provider-selector__empty-box">
+                                    <StorageIcon className="remote-provider-selector__empty-icon" />
+                                    <div className="remote-provider-selector__empty-title">
+                                        No Providers Found
+                                    </div>
+                                    <p className="remote-provider-selector__empty-desc">
+                                        You haven't configured any remote repositories yet.
+                                    </p>
+                                    <button 
+                                        className="theia-button" 
+                                        onClick={() => this.handleConfigure()}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                                    >
+                                        <AddLinkIcon fontSize="small" /> Configure Providers
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            // List of Providers
+                            this.providers.map(p => (
+                                <button
+                                    key={p.id}
+                                    className="remote-provider-selector__item"
+                                    onClick={() => this.handleSelect(p)}
+                                    title={p.baseUrl}
+                                >
+                                    <div className="remote-provider-selector__item-content">
+                                        <div className="remote-provider-selector__item-icon-box">
+                                            <StorageIcon className="remote-provider-selector__item-icon" />
+                                        </div>
+                                        
+                                        <div className="remote-provider-selector__item-details">
+                                            <div className="remote-provider-selector__item-title">
+                                                {p.title}
+                                            </div>
+                                            <div className="remote-provider-selector__item-url">
+                                                {p.baseUrl}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <ChevronRightIcon style={{ color: 'var(--theia-icon-foreground)', opacity: 0.5 }} />
+                                </button>
+                            ))
+                        )}
                     </div>
-                ) : (
-                    <List>
-                        {providers.map((provider) => (
-                            <ListItem 
-                                button 
-                                key={provider.id} 
-                                onClick={() => handleListItemClick(provider)}
-                            >
-                                <ListItemIcon>
-                                    <StorageIcon color="primary" />
-                                </ListItemIcon>
-                                <ListItemText 
-                                    primary={provider.title} 
-                                    secondary={provider.baseUrl} 
-                                />
-                            </ListItem>
-                        ))}
-                    </List>
-                )}
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose}>Cancel</Button>
-            </DialogActions>
-        </Dialog>
-    );
-};
+                </div>
+
+                {/* Footer */}
+                <div className="remote-provider-selector__footer">
+                    {this.providers.length > 0 ? (
+                        <button 
+                            className="remote-provider-selector__manage-btn"
+                            onClick={() => this.handleConfigure()}
+                        >
+                            <SettingsIcon style={{ fontSize: '14px', marginRight: '6px' }} />
+                            Manage Providers...
+                        </button>
+                    ) : (
+                        <div /> 
+                    )}
+
+                    <button 
+                        className="theia-button secondary remote-provider-selector__cancel-btn"
+                        onClick={() => this.close()}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    protected onAfterAttach(msg: Message): void {
+        super.onAfterAttach(msg);
+        this.loadProviders();
+    }
+
+    protected onBeforeDetach(msg: Message): void {
+        if (this.reactRoot) {
+            this.reactRoot.unmount();
+            this.reactRoot = undefined;
+        }
+        super.onBeforeDetach(msg);
+    }
+}

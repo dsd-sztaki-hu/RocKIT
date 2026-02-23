@@ -1,70 +1,126 @@
+// src/browser/components/connection-success-dialog.tsx
+
+import { AbstractDialog } from '@theia/core/lib/browser';
+import { Message } from '@lumino/messaging';
 import * as React from 'react';
-import {
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
-    List,
-    ListItem,
-    ListItemIcon,
-    ListItemText,
-    Typography,
-    Paper
-} from '@mui/material';
+import { createRoot, Root } from 'react-dom/client';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import DescriptionIcon from '@mui/icons-material/Description';
+import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 
-interface Props {
-    open: boolean;
-    providerName: string;
-    schemaNames: string[];
-    onConfirm: () => void;
-    onCancel: () => void;
-}
+import { File } from './icons';
+import '../styles/connection-success-dialog.css';
 
-export const ConnectionSuccessDialog: React.FC<Props> = ({ open, providerName, schemaNames, onConfirm, onCancel }) => {
-    return (
-        <Dialog open={open} onClose={undefined} maxWidth="sm" fullWidth>
-            <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#2e7d32' }}>
-                <CheckCircleOutlineIcon fontSize="large" />
-                Connection Successful
-            </DialogTitle>
-            <DialogContent>
-                <Typography variant="body1" paragraph>
-                    Successfully connected to <strong>{providerName}</strong>.
-                </Typography>
-                <Typography variant="body2" color="textSecondary" paragraph>
-                    We found {schemaNames.length} available metadata templates. Here is a preview of what we found:
-                </Typography>
+export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
+
+    private reactRoot: Root | undefined;
+
+    constructor(
+        private providerName: string,
+        private schemaNames: string[]
+    ) {
+        super({
+            title: 'Connection Successful'
+        });
+        
+        this.contentNode.style.width = '500px';
+        this.contentNode.style.height = '400px'; 
+        this.contentNode.style.padding = '0'; 
+    }
+
+    get value(): boolean {
+        return true; 
+    }
+
+    protected handleSave() {
+        this.accept();
+    }
+
+    protected handleCancel() {
+        this.close();
+    }
+
+    protected render(): void {
+        if (!this.reactRoot) {
+            this.reactRoot = createRoot(this.contentNode);
+        }
+
+        this.reactRoot.render(
+            <div className="connection-success">
                 
-                <Paper variant="outlined" style={{ maxHeight: '250px', overflow: 'auto', background: '#f9f9f9' }}>
-                    <List dense>
-                        {schemaNames.length > 0 ? (
-                            schemaNames.map((name, index) => (
-                                <ListItem key={index}>
-                                    <ListItemIcon style={{ minWidth: '32px' }}>
-                                        <DescriptionIcon fontSize="small" color="primary" />
-                                    </ListItemIcon>
-                                    <ListItemText primary={name} />
-                                </ListItem>
+                {/* Scrollable Content */}
+                <div className="connection-success__content">
+                    
+                    {/* Success Header */}
+                    <div className="connection-success__header">
+                        <div className="connection-success__header-icon-wrapper">
+                            <CheckCircleOutlineIcon className="connection-success__header-icon" />
+                        </div>
+                        <div>
+                            <div className="connection-success__title">
+                                Connection Established
+                            </div>
+                            <div className="connection-success__message">
+                                Successfully authenticated with <strong>{this.providerName}</strong>.
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* List Label */}
+                    <div className="connection-success__list-label">
+                        <FolderOpenIcon style={{ fontSize: '16px', color: 'var(--theia-textLink-foreground)' }} />
+                        <span>Available Templates ({this.schemaNames.length})</span>
+                    </div>
+
+                    {/* List Container */}
+                    <div className="connection-success__list-container">
+                        {this.schemaNames.length > 0 ? (
+                            this.schemaNames.map((name, i) => (
+                                <div key={i} className="connection-success__list-item">
+                                    <span className="connection-success__list-item-icon">
+                                        <File /> 
+                                    </span>
+                                    <span className="connection-success__list-item-text">
+                                        {name}
+                                    </span>
+                                </div>
                             ))
                         ) : (
-                            <ListItem>
-                                <ListItemText secondary="No templates found in public folders, but connection was established." />
-                            </ListItem>
+                            <div className="connection-success__empty">
+                                No templates found in the root folder.
+                            </div>
                         )}
-                    </List>
-                </Paper>
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={onCancel} color="inherit">
-                    Cancel
-                </Button>
-                <Button onClick={onConfirm} variant="contained" color="success">
-                    Save
-                </Button>
-            </DialogActions>
-        </Dialog>
-    );
-};
+                    </div>
+                </div>
+
+                {/* Footer Section */}
+                <div className="connection-success__footer">
+                    <button 
+                        className="theia-button secondary connection-success__btn-cancel"
+                        onClick={() => this.handleCancel()}
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        className="theia-button main connection-success__btn-save"
+                        onClick={() => this.handleSave()}
+                    >
+                        Save
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    protected onAfterAttach(msg: Message): void {
+        super.onAfterAttach(msg);
+        this.render();
+    }
+
+    protected onBeforeDetach(msg: Message): void {
+        if (this.reactRoot) {
+            this.reactRoot.unmount();
+            this.reactRoot = undefined;
+        }
+        super.onBeforeDetach(msg);
+    }
+}

@@ -1,4 +1,3 @@
-import { environment } from '@theia/core'
 import {
   CommonCommands,
   CommonMenus,
@@ -12,7 +11,6 @@ import {
   CommandService,
   MenuModelRegistry,
 } from '@theia/core/lib/common'
-import { isOSX } from '@theia/core/lib/common/os'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
@@ -138,13 +136,11 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
       WorkspaceCommands.OPEN_FOLDER.id,
       CommonMenus.FILE_OPEN,
     )
-    if (!isOSX && environment.electron.is()) {
-      this.menuRegistry.registerMenuAction(CommonMenus.FILE_OPEN, {
-        commandId: WorkspaceCommands.OPEN_FOLDER.id,
-        label: 'Open Folder as RO-Crate',
-        order: 'a02',
-      })
-    }
+    this.menuRegistry.registerMenuAction(CommonMenus.FILE_OPEN, {
+      commandId: WorkspaceCommands.OPEN_FOLDER.id,
+      label: 'Open Folder as RO-Crate',
+      order: 'a02',
+    })
   }
 
   protected removeWorkspaceCommands(): void {
