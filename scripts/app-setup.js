@@ -20,6 +20,10 @@ const APP_FOLDER_NAME = '.aroma';
 const REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME = 'remote-schema-providers.json';
 const REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'AROMA2.RemoteSchemaProvider';
 
+// Feature: Data Repository
+const DATA_REPOSITORY_CONFIG_FILENAME = 'data-repositories.json';
+const DATA_REPOSITORY_KEYTAR_SERVICE = 'AROMA2.DataRepository';
+
 class AppSetup {
     constructor() {
         this._env = { ...process.env };
@@ -27,18 +31,40 @@ class AppSetup {
 
     /**
      * Cleans up API keys stored in the OS Keychain that no longer have 
-     * a corresponding entry in the JSON config file.
+     * a corresponding entry in the JSON config files.
      */
     async cleanOrphanedApiKeys() {
         console.log('[AppSetup] Checking for orphaned API keys...');
         
-        // 1. Resolve Config Path using constants
+        try {
+            const keytar = require('keytar');
+            
+            // Clean up Remote Schema Providers
+            await this._cleanServiceKeys(keytar, REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME, REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE);
+            
+            // Clean up Data Repositories
+            await this._cleanServiceKeys(keytar, DATA_REPOSITORY_CONFIG_FILENAME, DATA_REPOSITORY_KEYTAR_SERVICE);
+            
+            console.log('[AppSetup] Orphaned key check complete.');
+        } catch (error) {
+            if (error.code === 'MODULE_NOT_FOUND') {
+                console.warn('[AppSetup] "keytar" module not found. Skipping cleanup.');
+            } else {
+                console.warn('[AppSetup] Skipped orphaned key cleanup (Native module mismatch or error):', error.message);
+            }
+        }
+    }
+
+    /**
+     * Reusable helper to compare a JSON config file against stored keychain credentials
+     */
+    async _cleanServiceKeys(keytar, configFilename, serviceName) {
         const userHome = os.homedir();
-        const configPath = path.join(userHome, APP_FOLDER_NAME, REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME);
+        const configPath = path.join(userHome, APP_FOLDER_NAME, configFilename);
         
         let activeIds = [];
 
-        // 2. Read Active IDs from JSON
+        // Read Active IDs from JSON
         if (fs.existsSync(configPath)) {
             try {
                 const content = fs.readFileSync(configPath, 'utf8');
@@ -47,28 +73,16 @@ class AppSetup {
                     activeIds = json.map(c => c.id);
                 }
             } catch (e) {
-                console.warn('[AppSetup] Failed to read config file for cleanup:', e.message);
+                console.warn(`[AppSetup] Failed to read ${configFilename} for cleanup:`, e.message);
             }
         }
 
-        // 3. Compare with Keychain
-        try {
-            const keytar = require('keytar');
-            
-            const credentials = await keytar.findCredentials(REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE);
-            
-            for (const cred of credentials) {
-                if (!activeIds.includes(cred.account)) {
-                    console.log(`[AppSetup] Deleting orphaned key for ID: ${cred.account} (Service: ${REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE})`);
-                    await keytar.deletePassword(REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE, cred.account);
-                }
-            }
-            console.log('[AppSetup] Orphaned key check complete.');
-        } catch (error) {
-            if (error.code === 'MODULE_NOT_FOUND') {
-                console.warn('[AppSetup] "keytar" module not found. Skipping cleanup.');
-            } else {
-                console.warn('[AppSetup] Skipped orphaned key cleanup (Native module mismatch or error):', error.message);
+        // Compare with Keychain
+        const credentials = await keytar.findCredentials(serviceName);
+        for (const cred of credentials) {
+            if (!activeIds.includes(cred.account)) {
+                console.log(`[AppSetup] Deleting orphaned key for ID: ${cred.account} (Service: ${serviceName})`);
+                await keytar.deletePassword(serviceName, cred.account);
             }
         }
     }
@@ -105,11 +119,15 @@ class AppSetup {
         this._env.AROMA_ROOT_PATH = paths.root; 
         this._env.THEIA_CONFIG_DIR = paths.root;
         
-        // Pass the Configuration Filenames & Service IDs
+        // Remote Schema Provider Env Vars
         this._env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME;
         this._env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE;
 
-        console.log(`[AppSetup] Configuration locked: Root=${paths.root}, KeytarService=${REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE}`);
+        // Data Repository Env Vars
+        this._env.AROMA_DATA_REPOSITORY_CONFIG_FILE = DATA_REPOSITORY_CONFIG_FILENAME;
+        this._env.AROMA_DATA_REPOSITORY_KEYTAR_SERVICE = DATA_REPOSITORY_KEYTAR_SERVICE;
+
+        console.log(`[AppSetup] Configuration locked: Root=${paths.root}`);
     }
 
     getEnv() {

@@ -16,13 +16,14 @@
     }
   ],
   "dependencies": {
-    "@theia/core": "1.65.2",
-    "antd": "^5.11.0",
-    "@mui/material": "^5.15.0",
-    "@mui/icons-material": "^5.15.0",
-    "@emotion/react": "^11.11.0",
-    "@emotion/styled": "^11.11.0"
-  },
+      "@theia/core": "1.65.2",
+      "antd": "^5.11.0",
+      "@mui/material": "^5.15.0",
+      "@mui/icons-material": "^5.15.0",
+      "@emotion/react": "^11.11.0",
+      "@emotion/styled": "^11.11.0",
+      "aroma2-common": "0.0.0"
+    },
   "devDependencies": {
     "@testing-library/react": "^14.0.0",
     "@types/jest": "^29.5.0",
