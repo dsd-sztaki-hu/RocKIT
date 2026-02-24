@@ -505,7 +505,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
    */
   private shouldHighlightFile(node: FileStatNode): boolean {
     const { files, directories } = this.getRoCrateEntityPathIndex()
-    if (files.size === 0 && directories.length === 0) {
+    if (files.size === 0 && directories.size === 0) {
       return false
     }
 
@@ -518,11 +518,10 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       return false
     }
 
-    for (const directory of directories) {
-      if (!directory) continue
-      if (relativePath === directory || relativePath.startsWith(`${directory}/`)) {
-        return false
-      }
+    // A directory entity only describes that directory node.
+    // Descendant files still need their own explicit entities.
+    if (DirNode.is(node) && directories.has(relativePath)) {
+      return false
     }
 
     return true
@@ -541,10 +540,10 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     return normalized ? normalized.toLowerCase() : undefined
   }
 
-  private getRoCrateEntityPathIndex(): { files: Set<string>; directories: string[] } {
+  private getRoCrateEntityPathIndex(): { files: Set<string>; directories: Set<string> } {
     const crate = this.appStateService.roCrate
     if (!crate) {
-      return { files: new Set(), directories: [] }
+      return { files: new Set(), directories: new Set() }
     }
 
     const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
@@ -574,7 +573,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       }
     }
 
-    return { files, directories: Array.from(directories) }
+    return { files, directories }
   }
 
   private deriveRelativePathFromEntityId(
