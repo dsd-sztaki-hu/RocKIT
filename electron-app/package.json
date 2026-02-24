@@ -32,7 +32,8 @@
     "remote-ro-crate-conversion": "0.0.0",
     "schema-validator": "0.0.0",
     "aroma2-common": "0.0.0",
-    "data-sources": "0.0.0"
+    "data-sources": "0.0.0",
+    "data-repository-manager": "0.0.0"
   },
   "devDependencies": {
     "@theia/cli": "1.65.2",
