@@ -11,7 +11,7 @@
   ],
   "dependencies": {
     "@theia/core": "1.65.2",
-    "antd": "^6.1.4",
+    "antd": "^5.29.1",
     "keytar": "^7.9.0",
     "uuid": "^9.0.1"
   },
