@@ -26,6 +26,7 @@ import {
   TreeProps,
   TreeSelection,
 } from '@theia/core/lib/browser'
+import { ThemeService } from '@theia/core/lib/browser/theming'
 import { CommandService } from '@theia/core/lib/common'
 import { nls } from '@theia/core/lib/common/nls'
 import URI from '@theia/core/lib/common/uri'
@@ -37,6 +38,7 @@ import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browse
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { DataSourceService } from 'data-sources/lib/browser/data-source-service'
+import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
 import { FileNavigatorFilter } from './navigator-filter'
@@ -61,6 +63,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   @inject(AppStateService) protected readonly appStateService: AppStateService
   @inject(FileNavigatorFilter) protected readonly fileNavigatorFilter: FileNavigatorFilter
   @inject(DataSourceService) protected readonly dataSourceService: DataSourceService
+  @inject(ThemeService) protected readonly themeService: ThemeService
 
   protected readonly filters: {
     fileNameFilter: string
@@ -167,15 +170,11 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       this.filters.fileNameFilter.trim() !== '' || this.filters.roCrateFilter !== 'all'
 
     // keep behavior: if workspace isn't opened, show just tree container (from main)
-    if (!this.workspaceService.opened) {
-      return (
-        <div className="navigator-filter-panel">
-          <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
-        </div>
-      )
-    }
-
-    return (
+    const content = !this.workspaceService.opened ? (
+      <div className="navigator-filter-panel">
+        <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
+      </div>
+    ) : (
       <div className="navigator-filter-panel">
         <div
           className={`navigator-filters ${
@@ -264,6 +263,10 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
         <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
       </div>
+    )
+
+    return (
+      <AntdThemeProvider themeService={this.themeService}>{content}</AntdThemeProvider>
     )
   }
 

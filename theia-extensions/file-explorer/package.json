@@ -9,6 +9,7 @@
     "minimatch": "^10.0.3",
     "tslib": "^2.6.2",
     "app-state": "0.0.1",
+    "aroma2-common": "0.0.0",
     "data-sources": "0.0.0"
   },
   "publishConfig": {

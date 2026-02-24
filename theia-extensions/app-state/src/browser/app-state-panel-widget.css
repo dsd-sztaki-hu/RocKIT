@@ -1,0 +1,38 @@
+.app-state-panel {
+  padding: 10px;
+  height: 100%;
+  overflow: auto;
+  font-family: 'Cascadia Mono', 'Consolas', 'SFMono-Regular', Menlo, monospace;
+  font-size: 12px;
+  color: var(--theia-ui-font-color1);
+  background: var(--theia-editorWidget-background);
+}
+
+.app-state-panel-title {
+  margin: 0 0 10px;
+  color: var(--theia-ui-font-color1);
+  font-size: 14px;
+}
+
+.app-state-panel-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.app-state-panel-button {
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.app-state-panel-json {
+  background: var(--theia-sideBar-background);
+  border: 1px solid var(--theia-ui-border);
+  padding: 10px;
+  border-radius: 6px;
+  overflow: auto;
+  white-space: normal;
+  word-break: break-word;
+  color: var(--theia-ui-font-color1);
+}

@@ -1,0 +1,69 @@
+/* src/browser/styles/data-repository-delete-dialog.css */
+
+.data-repo-delete-dialog {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--theia-editor-background);
+    color: var(--theia-foreground);
+    font-family: var(--theia-ui-font-family);
+}
+
+.data-repo-delete-dialog__body {
+    padding: 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    flex: 1;
+}
+
+.data-repo-delete-dialog__icon {
+    font-size: 32px !important;
+    color: var(--theia-warnForeground, #FF9800);
+}
+
+.data-repo-delete-dialog__text-container {
+    padding-top: 4px;
+}
+
+.data-repo-delete-dialog__title {
+    margin: 0 0 8px 0;
+    font-size: 16px; 
+    font-weight: 600;
+    color: var(--theia-foreground);
+}
+
+.data-repo-delete-dialog__message {
+    margin: 0;
+    font-size: 14px;
+    color: var(--theia-descriptionForeground);
+    line-height: 1.5;
+}
+
+.data-repo-delete-dialog__footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    padding: 15px 20px;
+    background-color: var(--theia-layout-color2);
+    border-top: 1px solid var(--theia-panel-border);
+}
+
+.data-repo-delete-dialog__btn-cancel {
+    min-width: 80px;
+    border: 1px solid var(--theia-button-border, #ccc);
+    cursor: pointer;
+}
+
+.data-repo-delete-dialog__btn-delete {
+    min-width: 80px;
+    background-color: #d32f2f !important;
+    border-color: #d32f2f !important;
+    color: #FFFFFF !important;
+    cursor: pointer;
+}
+
+.data-repo-delete-dialog__btn-delete:hover {
+    background-color: #b71c1c !important;
+}

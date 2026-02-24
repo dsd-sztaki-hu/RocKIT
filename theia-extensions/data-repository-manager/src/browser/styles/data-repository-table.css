@@ -1,0 +1,229 @@
+/* src/browser/styles/data-repository-table.css */
+
+/* --- Wrapper & Layout --- */
+.data-repo-table-wrapper {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--theia-panel-border); 
+    border-radius: 2px;
+    background-color: var(--theia-layout-color1);
+    overflow: hidden;
+}
+
+/* --- AntD Overrides for Theia Theme --- */
+.data-repo-table-wrapper .ant-table,
+.data-repo-table-wrapper .ant-table-container {
+    background-color: transparent !important;
+    color: var(--theia-foreground) !important;
+    border-color: var(--theia-panel-border) !important;
+}
+
+.data-repo-table-wrapper .ant-table-body {
+    overflow-y: auto !important; 
+    overflow-x: hidden !important;
+}
+
+/* Table Header */
+.data-repo-table-wrapper .ant-table-thead > tr > th {
+    background-color: var(--theia-editor-background) !important;
+    color: var(--theia-foreground) !important;
+    border-bottom: 1px solid var(--theia-panel-border) !important;
+    border-right: none !important;
+    font-weight: 600;
+}
+
+.data-repo-table-wrapper .ant-table-column-sorter-inner {
+    color: var(--theia-foreground) !important;
+    opacity: 0.5;
+}
+
+.data-repo-table-wrapper .ant-table-column-sorter-up.active .anticon,
+.data-repo-table-wrapper .ant-table-column-sorter-down.active .anticon {
+    color: var(--theia-focusBorder) !important;
+    opacity: 1;
+}
+
+/* Hide Ant Design Header Splitters & Dummy Scrollbar Gutter */
+.data-repo-table-wrapper .ant-table-thead > tr > th::before,
+.data-repo-table-wrapper .ant-table-thead > tr > th.ant-table-cell-scrollbar {
+    display: none !important;
+}
+
+/* Standard Rows */
+.data-repo-table-wrapper .ant-table-tbody > tr > td {
+    background-color: transparent !important; 
+    border-bottom: 1px solid var(--theia-panel-border) !important;
+    color: var(--theia-foreground) !important;
+    padding: 6px 8px !important;
+    transition: none !important;
+}
+
+/* Remove hover effect entirely to hide the trailing empty space issue */
+.data-repo-table-wrapper .ant-table-tbody > tr:hover > td {
+    background-color: transparent !important;
+}
+
+/* Subtle background for selected rows matching native Theia inactive selection */
+.data-repo-table-wrapper .ant-table-tbody > tr.ant-table-row-selected > td,
+.data-repo-table-wrapper .ant-table-tbody > tr.ant-table-row-selected:hover > td {
+    background-color: var(--theia-list-inactiveSelectionBackground) !important;
+}
+
+/* --- Internal Elements --- */
+.data-repo-table__link {
+    color: var(--theia-textLink-foreground) !important;
+    text-decoration: none;
+}
+
+.data-repo-table__link:hover {
+    text-decoration: underline;
+}
+
+/* --- Action Icons --- */
+.data-repo-table__actions-container {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+}
+
+.data-repo-table__action-btn {
+    color: var(--theia-icon-foreground) !important;
+}
+
+.data-repo-table__action-btn--edit:hover {
+    color: var(--theia-textLink-foreground) !important;
+}
+
+.data-repo-table__action-btn--delete:hover {
+    color: var(--theia-errorForeground) !important;
+}
+
+.data-repo-table__action-icon { 
+    font-size: 18px !important; 
+}
+
+.data-repo-table__tooltip { 
+    z-index: 99999 !important; 
+}
+
+/* --- Empty State --- */
+.data-repo-table__empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--theia-descriptionForeground);
+}
+
+.data-repo-table__empty-icon {
+    font-size: 48px !important;
+    opacity: 0.3;
+    margin-bottom: 12px;
+}
+
+.data-repo-table__empty-title {
+    font-size: var(--theia-ui-font-size1);
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--theia-foreground);
+}
+
+.data-repo-table__empty-desc {
+    font-size: var(--theia-ui-font-size0);
+}
+
+/* --- Filter & Sorter Header Icons --- */
+.data-repo-table-wrapper .ant-table-filter-trigger {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 2px !important;
+    padding: 4px !important;
+    margin-left: 4px;
+}
+
+.data-repo-table-wrapper .ant-table-filter-trigger.active {
+    background-color: transparent !important; 
+}
+
+.data-repo-table-wrapper .ant-table-filter-trigger:hover {
+    background-color: var(--theia-list-hoverBackground) !important;
+}
+
+/* --- Filter Dropdown Menus (Type Checkboxes & Search) --- */
+.data-repo-table-wrapper .ant-table-filter-dropdown {
+    background-color: var(--theia-menu-background) !important;
+    border: 1px solid var(--theia-menu-border, var(--theia-contrastBorder)) !important;
+    box-shadow: var(--theia-widget-shadow) !important;
+    border-radius: 4px !important;
+    overflow: hidden;
+}
+
+.data-repo-table__filter-dropdown {
+    padding: 12px;
+    background-color: var(--theia-menu-background) !important; /* Fixes transparent search box */
+}
+
+.data-repo-table__filter-input { 
+    display: block; 
+    margin-bottom: 12px; 
+    width: 200px; 
+}
+
+.data-repo-table__filter-actions { 
+    display: flex; 
+    justify-content: space-between; 
+    gap: 8px; 
+}
+
+.data-repo-table__filter-btn { 
+    flex: 1; 
+    border-radius: 2px !important;
+}
+
+.data-repo-table-wrapper .ant-table-filter-dropdown .ant-dropdown-menu {
+    background-color: var(--theia-menu-background) !important;
+    color: var(--theia-menu-foreground) !important;
+    border: none !important;
+}
+
+.data-repo-table-wrapper .ant-table-filter-dropdown .ant-checkbox-wrapper {
+    color: var(--theia-menu-foreground) !important;
+}
+
+/* Bottom action row in the Checkbox Dropdown */
+.data-repo-table-wrapper .ant-table-filter-dropdown-btns {
+    background-color: var(--theia-editor-background) !important;
+    border-top: 1px solid var(--theia-panel-border) !important;
+}
+
+/* Primary Search/OK buttons inside the dropdowns */
+.data-repo-table-wrapper .ant-table-filter-dropdown .ant-btn-primary,
+.data-repo-table__filter-btn--search {
+    background-color: var(--theia-button-background) !important;
+    color: var(--theia-button-foreground) !important;
+    border: 1px solid var(--theia-contrastBorder, transparent) !important;
+}
+
+.data-repo-table-wrapper .ant-table-filter-dropdown .ant-btn-primary:hover,
+.data-repo-table__filter-btn--search:hover {
+    background-color: var(--theia-button-hoverBackground) !important;
+}
+
+/* Reset / Link buttons inside the dropdowns */
+.data-repo-table-wrapper .ant-table-filter-dropdown .ant-btn-link,
+.data-repo-table__filter-btn--reset {
+    color: var(--theia-textLink-foreground) !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.data-repo-table-wrapper .ant-table-filter-dropdown .ant-btn-link:hover,
+.data-repo-table__filter-btn--reset:hover {
+    color: var(--theia-textLink-activeForeground, var(--theia-focusBorder)) !important;
+}

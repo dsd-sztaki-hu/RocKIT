@@ -7,11 +7,11 @@ import type { FilterDropdownProps, Key } from 'antd/es/table/interface';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import { IconButton, Tooltip } from '@mui/material';
 
 import type { SchemaInfo, SchemaTableProps } from '../types';
 import '../styles/metadata-schema-table.css';
-
 
 export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({ 
     schemas, 
@@ -150,6 +150,17 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
 
     const activeSelectionType = isRowSelection ? undefined : selectionType;
 
+    // Custom Empty State Element
+    const emptyState = (
+        <div className="schema-table__empty-state">
+            <AccountTreeIcon className="schema-table__empty-icon" />
+            <div className="schema-table__empty-title">No Metadata Schemas</div>
+            <div className="schema-table__empty-desc">
+                Click <strong>Import File</strong>, <strong>Import URL</strong>, or <strong>Browse Remote</strong> to add schemas.
+            </div>
+        </div>
+    );
+
     return (
         <ConfigProvider
             getPopupContainer={() => tableWrapperRef.current || document.body}
@@ -196,6 +207,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         dataSource={schemas}
                         columns={columns}
                         rowKey="path"
+                        locale={{ emptyText: emptyState }}
                         rowSelection={activeSelectionType ? { 
                             type: activeSelectionType, 
                             selectedRowKeys: selectedKeys,
