@@ -39,6 +39,10 @@ export type ValidationError = {
   }
 
 export async function validateEntities(crate: Record<string, any>, baseProfile: Record<string, any>, profile: Record<string, any>, completeProfile: Record<string, any>, schemaManagerService: MetadataSchemaManager) {
+  if (!crate || !Array.isArray(crate["@graph"])) {
+    return undefined
+  }
+
   let validationErrors: any[] = []
 
   const entities: any = Object.values(crate["@graph"])

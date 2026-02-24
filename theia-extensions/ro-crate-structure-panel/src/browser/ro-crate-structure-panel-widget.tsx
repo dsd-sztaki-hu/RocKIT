@@ -1,6 +1,5 @@
 import { FileOutlined, FolderOpenOutlined, FolderOutlined } from '@ant-design/icons'
-import type { Disposable } from '@theia/core'
-import type { MenuPath } from '@theia/core'
+import type { Disposable, MenuPath } from '@theia/core'
 import {
     ApplicationShell,
     ContextMenuRenderer,
@@ -82,9 +81,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             (_) => this.update(),
         )
 
-        this.invalidEntityIds = this.buildInvalidEntityIdSet(
-            this.appStateService.validationErrors,
-        )
+        this.invalidEntityIds = this.buildInvalidEntityIdSet(this.appStateService.validationErrors)
         this.validationSubscription = this.appStateService.onDidChangeSelector(
             (s) => s.validationErrors,
         )((errors) => {
@@ -137,7 +134,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
     public async openEditFromContextMenu(): Promise<void> {
         const entityIds = this.getEntityIdsForMultiEdit()
-        const dialog = new MultiEditDialog(entityIds)
+        // main: passes appStateService (branch didn't)
+        const dialog = new MultiEditDialog(entityIds, this.appStateService)
         await dialog.open()
     }
 
@@ -145,9 +143,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         const crate = this.appStateService.roCrate
         const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
         const selectedIds =
-            this.selectedEntityIds.size > 0
-                ? Array.from(this.selectedEntityIds.values())
-                : []
+            this.selectedEntityIds.size > 0 ? Array.from(this.selectedEntityIds.values()) : []
 
         const selectedEditableIds: string[] = []
         const allFileIds: string[] = []
@@ -165,10 +161,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 allDatasetIds.push(id)
             }
             if (selectedIds.includes(id)) {
-                if (
-                    this.entityHasType(entity, 'Dataset') ||
-                    this.entityHasType(entity, 'File')
-                ) {
+                if (this.entityHasType(entity, 'Dataset') || this.entityHasType(entity, 'File')) {
                     selectedEditableIds.push(id)
                 }
             }
@@ -181,9 +174,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         return [...allDatasetIds, ...allFileIds]
     }
 
-    protected readonly handleContextMenu = (
-        event: React.MouseEvent<HTMLDivElement>,
-    ): void => {
+    protected readonly handleContextMenu = (event: React.MouseEvent<HTMLDivElement>): void => {
         event.preventDefault()
         event.stopPropagation()
         void this.shell.activateWidget(this.id)
@@ -558,9 +549,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             </div>
         )
 
-        return (
-            <AntdThemeProvider themeService={this.themeService}>{content}</AntdThemeProvider>
-        )
+        return <AntdThemeProvider themeService={this.themeService}>{content}</AntdThemeProvider>
     }
 
     protected handleDragOver(event: React.DragEvent): void {
@@ -581,10 +570,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         }
 
         const targetEntityId = this.resolveDropTargetEntityIdWithFallback(event)
-        const datasetTargetEntityId = this.resolveDatasetTargetEntityId(
-            crate,
-            targetEntityId ?? './',
-        )
+        const datasetTargetEntityId = this.resolveDatasetTargetEntityId(crate, targetEntityId ?? './')
         this.setDropTargetDatasetId(datasetTargetEntityId)
     }
 
@@ -740,10 +726,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             return direct
         }
 
-        const pointTarget = document.elementFromPoint(
-            event.clientX,
-            event.clientY,
-        ) as HTMLElement | null
+        const pointTarget = document.elementFromPoint(event.clientX, event.clientY) as
+            | HTMLElement
+            | null
         const pointEntityId = pointTarget
             ?.closest?.('[data-entity-id]')
             ?.getAttribute('data-entity-id')
@@ -788,10 +773,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         this.update()
     }
 
-    protected resolveDatasetTargetEntityId(
-        crate: Record<string, any>,
-        targetEntityId: string,
-    ): string {
+    protected resolveDatasetTargetEntityId(crate: Record<string, any>, targetEntityId: string): string {
         const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
         const entityById = new Map<string, any>()
         for (const entity of graph) {

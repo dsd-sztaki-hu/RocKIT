@@ -1,157 +1,257 @@
-import * as React from 'react';
-import {
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
-    List,
-    ListItem,
-    ListItemText,
-    ListItemSecondaryAction,
-    IconButton,
-    Typography,
-    Divider,
-    DialogContentText
-} from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import AddIcon from '@mui/icons-material/Add';
-import WarningIcon from '@mui/icons-material/Warning';
-import { RemoteSchemaProviderConfig } from '../types';
-import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
+// src/browser/components/remote-schema-provider-list-dialog.tsx
 
-interface Props {
-    open: boolean;
-    onClose: () => void;
-    onAddProvider: () => void;
-    onEditProvider: (provider: RemoteSchemaProviderConfig) => void;
-    providerStore: RemoteSchemaProviderStoreService;
-    lastUpdated: number; 
+import { AbstractDialog } from '@theia/core/lib/browser';
+import { Message } from '@lumino/messaging';
+import * as React from 'react';
+import { createRoot, Root } from 'react-dom/client';
+import { IconButton, Tooltip } from '@mui/material';
+import StorageIcon from '@mui/icons-material/Storage';
+import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import SettingsInputComponentIcon from '@mui/icons-material/SettingsInputComponent';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+
+import { RemoteSchemaProviderConfigDialog } from './remote-schema-provider-config-dialog';
+import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
+import type { RemoteSchemaProviderConfig } from '../types';
+import '../styles/remote-schema-provider-list-dialog.css';
+
+export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
+
+    private reactRoot: Root | undefined;
+    private providers: RemoteSchemaProviderConfig[] = [];
+    private isLoading = false;
+
+    constructor(
+        protected readonly providerStore: RemoteSchemaProviderStoreService
+    ) {
+        super({
+            title: 'Manage Remote Providers'
+        });
+        
+        this.contentNode.style.width = '600px';
+        this.contentNode.style.height = '500px'; 
+        this.contentNode.style.padding = '0'; 
+    }
+
+    get value(): void {
+        return;
+    }
+
+    protected async loadProviders() {
+        this.isLoading = true;
+        this.render();
+        try {
+            this.providers = await this.providerStore.loadProviders();
+        } finally {
+            this.isLoading = false;
+            this.render();
+        }
+    }
+
+    protected async handleAdd() {
+        const dialog = new RemoteSchemaProviderConfigDialog(this.providerStore);
+        const newConfig = await dialog.open();
+        
+        if (newConfig) {
+            await this.saveProvider(newConfig);
+        }
+    }
+
+    protected async handleEdit(provider: RemoteSchemaProviderConfig) {
+        const dialog = new RemoteSchemaProviderConfigDialog(this.providerStore, provider);
+        const updatedConfig = await dialog.open();
+        
+        if (updatedConfig) {
+            await this.saveProvider(updatedConfig);
+        }
+    }
+
+    protected async saveProvider(config: RemoteSchemaProviderConfig) {
+        const current = await this.providerStore.loadProviders();
+        const index = current.findIndex(p => p.id === config.id);
+        
+        const newList = [...current];
+        if (index !== -1) {
+            newList[index] = config;
+        } else {
+            newList.push(config);
+        }
+        
+        await this.providerStore.saveProviders(newList);
+        await this.loadProviders(); 
+    }
+
+    protected async handleDelete(id: string) {
+        const dialog = new ConfirmDialog(
+            'Confirm Deletion',
+            'Are you sure you want to delete this remote schema provider configuration?'
+        );
+        
+        const confirmed = await dialog.open();
+
+        if (confirmed) {
+            const current = await this.providerStore.loadProviders();
+            const newList = current.filter(p => p.id !== id);
+            await this.providerStore.saveProviders(newList);
+            await this.loadProviders();
+        }
+    }
+
+    protected render(): void {
+        if (!this.reactRoot) {
+            this.reactRoot = createRoot(this.contentNode);
+        }
+
+        this.reactRoot.render(
+            <div className="remote-provider-list">
+                {/* Main Content Area */}
+                <div className="remote-provider-list__content">
+                    
+                    {/* Header Section */}
+                    <div className="remote-provider-list__header">
+                        <div className="remote-provider-list__header-left">
+                            <div className="remote-provider-list__icon-wrapper">
+                                <SettingsInputComponentIcon />
+                            </div>
+                            <div>
+                                <div className="remote-provider-list__title">Configured Providers</div>
+                                <div className="remote-provider-list__description">
+                                    Manage connections to remote schema repositories.
+                                </div>
+                            </div>
+                        </div>
+
+                        <button 
+                            className="theia-button remote-provider-list__add-button" 
+                            onClick={() => this.handleAdd()}
+                        >
+                            <AddIcon style={{ fontSize: '18px' }} /> Add Provider
+                        </button>
+                    </div>
+
+                    {/* List Container */}
+                    <div className="remote-provider-list__container">
+                        {this.isLoading ? (
+                            <div className="remote-provider-list__loading">
+                                <i className="codicon codicon-loading codicon-modifier-spin" /> Loading...
+                            </div>
+                        ) : this.providers.length === 0 ? (
+                            <div className="remote-provider-list__empty-state">
+                                <StorageIcon style={{ fontSize: '48px', color: 'var(--theia-descriptionForeground)', opacity: 0.5 }} />
+                                <div>No remote providers configured.</div>
+                            </div>
+                        ) : (
+                            this.providers.map((provider) => (
+                                <div key={provider.id} className="remote-provider-list__item">
+                                    <div className="remote-provider-list__item-details">
+                                        <StorageIcon style={{ color: 'var(--theia-textLink-foreground)', opacity: 0.9 }} />
+                                        
+                                        <div className="remote-provider-list__item-text">
+                                            <div className="remote-provider-list__item-title">
+                                                {provider.title}
+                                            </div>
+                                            <div className="remote-provider-list__item-url">
+                                                {provider.baseUrl}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="remote-provider-list__item-actions">
+                                        <Tooltip title="Edit Configuration" PopperProps={{ style: { zIndex: 99999 } }}>
+                                            <IconButton 
+                                                size="small"
+                                                onClick={() => this.handleEdit(provider)}
+                                                style={{ color: 'var(--theia-icon-foreground)' }}
+                                            >
+                                                <EditIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                        
+                                        <Tooltip title="Delete Provider" PopperProps={{ style: { zIndex: 99999 } }}>
+                                            <IconButton 
+                                                size="small"
+                                                onClick={() => this.handleDelete(provider.id)}
+                                                style={{ color: 'var(--theia-errorForeground)' }}
+                                            >
+                                                <DeleteOutlineIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+
+                {/* Footer Section */}
+                <div className="remote-provider-list__footer">
+                    <button 
+                        className="theia-button secondary remote-provider-list__close-button"
+                        onClick={() => this.close()}
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    protected onAfterAttach(msg: Message): void {
+        super.onAfterAttach(msg);
+        this.loadProviders();
+    }
+
+    protected onBeforeDetach(msg: Message): void {
+        if (this.reactRoot) {
+            this.reactRoot.unmount();
+            this.reactRoot = undefined;
+        }
+        super.onBeforeDetach(msg);
+    }
 }
 
-export const RemoteSchemaProviderListDialog: React.FC<Props> = ({ 
-    open, 
-    onClose, 
-    onAddProvider, 
-    onEditProvider, 
-    providerStore,
-    lastUpdated 
-}) => {
-    const [providers, setProviders] = React.useState<RemoteSchemaProviderConfig[]>([]);
-    const [isLoading, setIsLoading] = React.useState(false);
+// ... ConfirmDialog class ...
+class ConfirmDialog extends AbstractDialog<boolean> {
+    private reactRoot: Root | undefined;
+
+    constructor(private titleStr: string, private msgStr: string) {
+        super({ title: titleStr });
+        this.contentNode.style.padding = '0';
+        this.contentNode.style.width = '400px';
+        this.appendCloseButton('Cancel');
+        const deleteBtn = this.appendAcceptButton('Delete');
+        
+        deleteBtn.style.backgroundColor = 'var(--theia-errorForeground)';
+        deleteBtn.style.color = 'var(--theia-editor-background)'; 
+        deleteBtn.style.border = '1px solid var(--theia-errorForeground)';
+    }
     
-    // State for the Delete Confirmation Dialog
-    const [deleteCandidateId, setDeleteCandidateId] = React.useState<string | null>(null);
+    get value(): boolean { return true; }
 
-    const loadProviders = React.useCallback(async () => {
-        setIsLoading(true);
-        const data = await providerStore.loadProviders();
-        setProviders(data);
-        setIsLoading(false);
-    }, [providerStore]);
-
-    React.useEffect(() => {
-        if (open) {
-            loadProviders();
+    protected render(): void {
+        if (!this.reactRoot) {
+            this.reactRoot = createRoot(this.contentNode);
         }
-    }, [open, loadProviders, lastUpdated]);
-
-    // 1. Request Deletion (Opens Dialog)
-    const requestDelete = (id: string) => {
-        setDeleteCandidateId(id);
-    };
-
-    // 2. Confirm Deletion (Performs Action)
-    const confirmDelete = async () => {
-        if (deleteCandidateId) {
-            const newList = providers.filter(p => p.id !== deleteCandidateId);
-            await providerStore.saveProviders(newList);
-            setDeleteCandidateId(null); // Close confirm dialog
-            loadProviders(); // Refresh list
-        }
-    };
-
-    // 3. Cancel Deletion
-    const cancelDelete = () => {
-        setDeleteCandidateId(null);
-    };
-
-    return (
-        <>
-            {/* MAIN LIST DIALOG */}
-            <Dialog 
-                open={open} 
-                onClose={onClose} 
-                maxWidth="md" 
-                fullWidth
-                disablePortal={false} // Use standard Portal
-                disableScrollLock={true} // Protect Theia layout
-                style={{ zIndex: 1200 }} 
-            >
-                <DialogTitle style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    Remote Schema Providers
-                    <Button variant="contained" startIcon={<AddIcon />} onClick={onAddProvider}>
-                        Add Provider
-                    </Button>
-                </DialogTitle>
-                <DialogContent>
-                    {isLoading ? (
-                        <Typography>Loading...</Typography>
-                    ) : providers.length === 0 ? (
-                        <Typography align="center" color="textSecondary" style={{ marginTop: 20 }}>
-                            No remote schema providers configured. Click "Add Provider" to create one.
-                        </Typography>
-                    ) : (
-                        <List>
-                            {providers.map((provider, index) => (
-                                <React.Fragment key={provider.id}>
-                                    <ListItem>
-                                        <ListItemText
-                                            primary={provider.title}
-                                            secondary={`${provider.type} - ${provider.baseUrl}`}
-                                        />
-                                        <ListItemSecondaryAction>
-                                            <IconButton edge="end" aria-label="edit" onClick={() => onEditProvider(provider)} style={{ marginRight: 8 }}>
-                                                <EditIcon />
-                                            </IconButton>
-                                            <IconButton edge="end" aria-label="delete" onClick={() => requestDelete(provider.id)}>
-                                                <DeleteIcon />
-                                            </IconButton>
-                                        </ListItemSecondaryAction>
-                                    </ListItem>
-                                    {index < providers.length - 1 && <Divider />}
-                                </React.Fragment>
-                            ))}
-                        </List>
-                    )}
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={onClose}>Close</Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* DELETE CONFIRMATION DIALOG (Replaces window.confirm) */}
-            <Dialog
-                open={!!deleteCandidateId}
-                onClose={cancelDelete}
-                maxWidth="xs"
-                disableScrollLock={true}
-                style={{ zIndex: 1300 }} // Sit on top of list
-            >
-                <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#d32f2f' }}>
-                    <WarningIcon color="error" /> Confirm Deletion
-                </DialogTitle>
-                <DialogContent>
-                    <DialogContentText>
-                        Are you sure you want to delete this remote schema provider configuration?
-                    </DialogContentText>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={cancelDelete} color="inherit">Cancel</Button>
-                    <Button onClick={confirmDelete} color="error" variant="contained">Delete</Button>
-                </DialogActions>
-            </Dialog>
-        </>
-    );
-};
+        this.reactRoot.render(
+            <div className="confirm-dialog">
+                <div className="confirm-dialog__icon-wrapper">
+                    <WarningAmberIcon style={{ color: 'var(--theia-errorForeground)', fontSize: '28px' }} />
+                </div>
+                <div className="confirm-dialog__content">
+                    <div className="confirm-dialog__title">{this.titleStr}</div>
+                    <div className="confirm-dialog__message">{this.msgStr}</div>
+                </div>
+            </div>
+        );
+    }
+    protected onAfterAttach(msg: Message): void { super.onAfterAttach(msg); this.render(); }
+    protected onBeforeDetach(msg: Message): void { 
+        if (this.reactRoot) { 
+            this.reactRoot.unmount(); 
+            this.reactRoot = undefined; 
+        } 
+        super.onBeforeDetach(msg); 
+    }
+}

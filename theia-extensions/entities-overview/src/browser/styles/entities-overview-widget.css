@@ -405,8 +405,13 @@ body.hc-black .entities-overview-edit-button.ant-btn {
 .entities-overview-edit-modal-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 50vh;
+  gap: 10px;
+  min-width: 920px;
+  max-width: 92vw;
+  min-height: 45vh;
+  max-height: 90vh;
+  overflow: visible;
+  position: relative;
 }
 
 .entities-overview-edit-modal-title {
@@ -419,9 +424,382 @@ body.hc-black .entities-overview-edit-button.ant-btn {
   color: var(--theia-ui-font-color2);
 }
 
+.entities-overview-edit-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.entities-overview-edit-modal-entity-window {
+  position: relative;
+  top: 0;
+  left: 0;
+  width: 100%;
+  max-height: 30vh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--theia-ui-border);
+  border-radius: 8px;
+  background: var(--theia-editorWidget-background);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  z-index: 5;
+  overflow: hidden;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    max-height 280ms ease,
+    opacity 200ms ease,
+    transform 280ms ease,
+    padding 280ms ease,
+    border-width 280ms ease,
+    box-shadow 280ms ease;
+}
+
+.entities-overview-edit-modal-entity-window.is-hidden {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+  padding: 0;
+  border-width: 0;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.entities-overview-edit-modal-entity-window-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theia-ui-font-color2);
+}
+
+.entities-overview-edit-modal-entity-window-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.entities-overview-edit-modal-entity-window-search .ant-input {
+  background: var(--theia-input-background);
+  border-color: var(--theia-ui-border);
+  color: var(--theia-ui-font-color1);
+}
+
+.entities-overview-edit-modal-entity-window-search .ant-input::placeholder {
+  color: var(--theia-ui-font-color2);
+}
+
+.entities-overview-edit-modal-entity-window-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--theia-ui-font-color2);
+  white-space: nowrap;
+}
+
+.entities-overview-edit-modal-entity-window-close {
+  border: none;
+  background: transparent;
+  color: var(--theia-ui-font-color2);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.entities-overview-edit-modal-entity-window-body {
+  overflow: auto;
+  max-height: calc(30vh - 72px);
+}
+
+.entities-overview-edit-modal-entity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.entities-overview-edit-modal-entity-table th,
+.entities-overview-edit-modal-entity-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--theia-ui-border);
+}
+
+.entities-overview-edit-modal-entity-table th {
+  position: sticky;
+  top: 0;
+  background: var(--theia-editorWidget-background);
+  z-index: 1;
+}
+
+.entities-overview-edit-modal-entity-table td:first-child {
+  font-weight: 600;
+}
+
 .entities-overview-edit-modal-list {
   margin: 0;
   padding-left: 18px;
   overflow: auto;
-  max-height: 40vh;
+  max-height: 18vh;
+  border: 1px solid var(--theia-ui-border);
+  border-radius: 6px;
+  background: var(--theia-editorWidget-background);
+}
+
+.entities-overview-edit-modal-list li {
+  margin: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.entities-overview-edit-modal-entity-name {
+  font-weight: 600;
+}
+
+.entities-overview-edit-modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.entities-overview-edit-modal-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theia-ui-font-color2);
+}
+
+.entities-overview-edit-modal-schema-org-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border: 1px dashed var(--theia-ui-border);
+  border-radius: 6px;
+  background: var(--theia-editorWidget-background);
+}
+
+.entities-overview-edit-modal-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.entities-overview-edit-modal-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  max-height: 30vh;
+  padding-right: 2px;
+}
+
+.entities-overview-edit-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--theia-ui-border);
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--theia-editorWidget-background);
+}
+
+.entities-overview-edit-modal-row-order {
+  width: 24px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--theia-ui-font-color2);
+}
+
+.entities-overview-edit-modal-value {
+  flex: 1 1 auto;
+  min-width: 180px;
+}
+
+.entities-overview-edit-modal-value .ant-select,
+.entities-overview-edit-modal-value .ant-input,
+.entities-overview-edit-modal-value .ant-input-number,
+.entities-overview-edit-modal-value .ant-picker {
+  width: 100%;
+}
+
+.entities-overview-edit-modal-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.entities-overview-edit-modal-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #ff4d4f;
+  background: transparent;
+  color: #ff4d4f;
+  cursor: pointer;
+  padding: 0;
+}
+
+.entities-overview-edit-modal-remove:hover {
+  background: rgba(255, 77, 79, 0.1);
+}
+
+.lm-Widget.dialogOverlay .dialogControl .theia-button:disabled,
+.lm-Widget.dialogOverlay .dialogControl .theia-button:disabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.entities-overview-edit-modal-remove .codicon {
+  font-size: 14px;
+}
+
+.entities-overview-edit-modal-no-value {
+  color: var(--theia-ui-font-color2);
+  font-style: italic;
+  font-size: 12px;
+}
+
+.entities-overview-edit-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.entities-overview-edit-modal-summary {
+  margin-top: 2px;
+}
+
+.entities-overview-edit-modal-errors {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  max-height: 16vh;
+  overflow: auto;
+}
+
+.entities-overview-edit-modal-validation {
+  margin-top: 6px;
+}
+
+.entities-overview-edit-modal-validation > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theia-ui-font-color2);
+  list-style: none;
+  outline: none;
+}
+
+.entities-overview-edit-modal-validation > summary:focus,
+.entities-overview-edit-modal-validation > summary:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.entities-overview-edit-modal-validation > summary::-webkit-details-marker {
+  display: none;
+}
+
+.entities-overview-edit-modal-validation > summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.entities-overview-edit-modal-validation[open] > summary::before {
+  content: '▾';
+}
+
+.lm-Widget.dialogOverlay .dialogContent {
+  position: relative;
+  z-index: 2;
+}
+
+.lm-Widget.dialogOverlay .dialogControl {
+  position: relative;
+  z-index: 1;
+}
+
+.entities-overview-edit-modal-dropdown {
+  z-index: 6000;
+}
+
+.entities-overview-edit-modal-dropdown .ant-select-item-group {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theia-ui-font-color2);
+  padding: 6px 10px 4px;
+}
+
+.entities-overview-entity-option-group {
+  display: inline-block;
+}
+
+.entities-overview-entity-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.entities-overview-entity-option-type {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--theia-ui-font-color1);
+}
+
+.entities-overview-entity-option-name {
+  font-weight: 600;
+  color: var(--theia-ui-font-color1);
+}
+
+.entities-overview-entity-create-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #2ea043;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.entities-overview-entity-create-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  font-weight: 700;
+}
+
+.entities-overview-edit-modal-dropdown .ant-select-item-option-active
+  .entities-overview-entity-create-option {
+  filter: brightness(1.05);
+}
+
+.entities-overview-entity-no-data {
+  display: inline-block;
+  padding: 6px 8px;
+  color: var(--theia-ui-font-color2);
 }

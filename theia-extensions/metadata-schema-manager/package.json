@@ -39,6 +39,6 @@
     "build": "tsc && yarn copy:assets",
     "watch": "tsc -w",
     "prepublishOnly": "yarn run build",
-    "copy:assets": "shx mkdir -p lib/browser/style && shx cp src/browser/style/index.css lib/browser/style/"
+    "copy:assets": "shx mkdir -p lib/browser && shx cp -r src/browser/styles lib/browser/"
   }
 }

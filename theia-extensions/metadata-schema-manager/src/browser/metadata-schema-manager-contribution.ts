@@ -13,36 +13,24 @@ export namespace MetadataSchemaManagerCommands {
 
 @injectable()
 export class MetadataSchemaManagerContribution implements CommandContribution, MenuContribution, FrontendApplicationContribution {
-    @inject(WidgetManager) protected readonly widgetManager: WidgetManager;
-    @inject(ApplicationShell) protected readonly shell: ApplicationShell; // Inject ApplicationShell
-
-    // Initialize the properties explicitly
+    
+    // Clean, standard Inversify constructor injection. Avoids double-initialization.
     constructor(
-        @inject(WidgetManager) widgetManager: WidgetManager,
-        @inject(ApplicationShell) shell: ApplicationShell // Inject ApplicationShell in constructor
-    ) {
-        this.widgetManager = widgetManager;
-        this.shell = shell;
-    }
+        @inject(WidgetManager) protected readonly widgetManager: WidgetManager,
+        @inject(ApplicationShell) protected readonly shell: ApplicationShell
+    ) {}
 
     async initializeLayout(): Promise<void> {
-        // Optional: Create widget on startup if desired
-        // const widget = await this.widgetManager.getOrCreateWidget(METADATA_SCHEMA_MANAGER_WIDGET_ID);
-        // if (widget) {
-        //     widget.update();
-        // }
+        // Reserved for future layout initialization
     }
 
     registerCommands(commands: CommandRegistry): void {
         commands.registerCommand(MetadataSchemaManagerCommands.OPEN, {
             execute: async () => {
                 try {
-                    // Get or create the widget instance
                     const widget = await this.widgetManager.getOrCreateWidget(METADATA_SCHEMA_MANAGER_WIDGET_ID);
                     if (widget) {
-                        // Add the widget to the main area of the shell
                         this.shell.addWidget(widget, { area: 'main' });
-                        // Activate (focus) the widget
                         this.shell.activateWidget(widget.id);
                     } else {
                         console.error("Failed to create or retrieve widget:", METADATA_SCHEMA_MANAGER_WIDGET_ID);
