@@ -23,6 +23,8 @@ interface RoCrateEditorWidgetOptions {
   entityId?: string
 }
 
+type NavigationEntity = { ['@id']?: string } & Record<string, unknown>
+
 @injectable()
 export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   static readonly ID = 'rocrate-editor-widget'
@@ -273,9 +275,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     this.onContentChangedEmitter.fire()
   }
 
-  protected handleNavigation = (entity: any) => {
-    const nextId = entity && entity['@id']
-    console.log('navigation event', entity)
+  protected handleNavigation = (entity: NavigationEntity): void => {
+    const raw = entity?.['@id']
+    const nextId = typeof raw === 'string' ? raw : ''
     if (!nextId) {
       console.warn('handleNavigation: missing entity id', { entity })
       return
@@ -283,10 +285,18 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     if (nextId === this.assignedEntityId) {
       return
     }
+    const widgetId = this.id
+    if (!widgetId) {
+      return
+    }
+    this.appStateService.registerEntityEditor(widgetId, nextId)
     const prevId = this.assignedEntityId
-    this.assignEntity(nextId)
+    this.assignedEntityId = nextId
+    this.localSelectedEntityId = nextId
+    this.updateTitleLabel()
+    this.update()
     console.log('RoCrateEditorWidget: entityId set from navigation', {
-      widget: this.id,
+      widget: widgetId,
       prev: prevId,
       next: nextId,
     })
