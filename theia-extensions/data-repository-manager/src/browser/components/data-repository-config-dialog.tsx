@@ -69,7 +69,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             this.render(); return;
         }
         if (!cleanApiKey) {
-            this.errorMsg = "API Key is required.";
+            this.errorMsg = "API Token is required.";
             this.render(); return;
         }
 
@@ -105,14 +105,13 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                 }
 
                 if (data.status === 'ERROR') {
-                    throw new Error(data.message || "Invalid API key or server error.");
+                    throw new Error(data.message || "Invalid API Token or server error.");
                 }
 
                 if (!response.ok) {
                     throw new Error(`Server returned ${response.status}: ${response.statusText}`);
                 }
 
-                // Parse the expiration date from the "message" string
                 if (data.data && typeof data.data.message === 'string') {
                     const match = data.data.message.match(/expires on (.*)$/);
                     if (match && match[1]) {
@@ -121,11 +120,9 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                 }
             }
 
-            // Open Success Dialog
             const successDialog = new DataRepositorySuccessDialog(cleanTitle, expirationDate);
             const confirmed = await successDialog.open();
 
-            // Finalize
             if (confirmed) {
                 this.result = {
                     id: this.repoToEdit ? this.repoToEdit.id : Date.now().toString(),
@@ -136,7 +133,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                 };
                 this.accept(); 
             } else {
-                // If they hit cancel on the success dialog, return to form state
                 this.isTesting = false;
                 this.render();
             }
@@ -231,7 +227,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
 
                         <div>
                             <label className="data-repo-config__label">
-                                <VpnKeyIcon style={{ fontSize: '16px', opacity: 0.7 }}/> API Key
+                                <VpnKeyIcon style={{ fontSize: '16px', opacity: 0.7 }}/> API Token
                             </label>
                             <div className="data-repo-config__api-key-wrapper">
                                 <div className="data-repo-config__input-icon-wrapper">
@@ -241,7 +237,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                         value={this.isEditingKey ? this.apiKeyValue : '••••••••••••••••'}
                                         onChange={(e) => { this.apiKeyValue = e.target.value; this.render(); }}
                                         disabled={!this.isEditingKey || this.isTesting}
-                                        placeholder={this.isEditingKey ? "Paste API Key here" : "Stored securely"}
+                                        placeholder={this.isEditingKey ? "Paste API Token here" : "Stored securely"}
                                     />
                                     {this.isEditingKey && (
                                         <div className="data-repo-config__visibility-toggle">
@@ -250,7 +246,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                                 onClick={() => { this.showKey = !this.showKey; this.render(); }}
                                                 disabled={this.isTesting}
                                                 style={{ color: 'var(--theia-foreground)', opacity: 0.7 }}
-                                                title={this.showKey ? "Hide API Key" : "Show API Key"}
+                                                title={this.showKey ? "Hide API Token" : "Show API Token"}
                                             >
                                                 {this.showKey ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                                             </IconButton>

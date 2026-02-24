@@ -70,7 +70,7 @@ export class DataRepositorySuccessDialog extends AbstractDialog<boolean> {
                                 <EventAvailableIcon className="data-repo-success__info-icon" />
                             </div>
                             <div className="data-repo-success__info-text">
-                                <span>API Key Expiration:</span>
+                                <span>API Token Expiration:</span>
                                 <strong>{this.expirationDate}</strong>
                             </div>
                         </div>
