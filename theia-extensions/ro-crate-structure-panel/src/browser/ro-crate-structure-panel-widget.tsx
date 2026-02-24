@@ -600,9 +600,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   }
 
   protected handleDrop(event: React.DragEvent): void {
-    console.log('RO-Crate Structure: drop', {
-      types: Array.from(event.dataTransfer?.types ?? []),
-    })
     event.preventDefault()
     event.stopPropagation()
     this.setDropTargetDatasetId(undefined)
@@ -612,14 +609,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected async handleDropAsync(event: React.DragEvent): Promise<void> {
     const dataTransfer = event.dataTransfer
     if (!dataTransfer) {
-      console.warn('RO-Crate Structure: drop ignored, no dataTransfer')
       return
     }
 
     const uris = this.extractUrisFromDataTransfer(dataTransfer)
-    console.log('RO-Crate Structure: extracted URIs', uris)
     if (!uris.length) {
-      console.warn('RO-Crate Structure: drop ignored, no URIs found')
       return
     }
 
@@ -628,14 +622,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       try {
         const uri = this.parseDroppedUri(uriString)
         if (!uri) {
-          console.warn('RO-Crate Structure: failed to parse URI', uriString)
           continue
         }
         const rel = await this.workspaceService.getWorkspaceRelativePath(uri)
         if (rel) {
           droppedFiles.push({ relPath: rel, sourceUri: uri })
         } else {
-          console.warn('RO-Crate Structure: no workspace-relative path', uriString)
         }
       } catch (error) {
         console.warn('Failed to parse dropped URI', uriString, error)
@@ -643,10 +635,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
 
     const uniqueDroppedFiles = this.dedupeDroppedFilesByPath(droppedFiles)
-    const relativePaths = uniqueDroppedFiles.map((file) => file.relPath)
-    console.log('RO-Crate Structure: relative paths', relativePaths)
     if (!uniqueDroppedFiles.length) {
-      console.warn('RO-Crate Structure: drop ignored, no relative paths')
       return
     }
 
@@ -662,24 +651,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       './'
 
     const datasetTargetEntityId = this.resolveDatasetTargetEntityId(crate, targetEntityId)
-    console.log('RO-Crate Structure: target entity', {
-      original: targetEntityId,
-      resolvedDataset: datasetTargetEntityId,
-    })
 
     const updatedCrate = await this.applyDroppedFilesToCrate(
       crate,
       datasetTargetEntityId,
       uniqueDroppedFiles,
     )
-
-    console.log('RO-Crate Structure: crate updated', {
-      targetEntityId: datasetTargetEntityId,
-      added: relativePaths,
-      graphSize: Array.isArray(updatedCrate['@graph'])
-        ? updatedCrate['@graph'].length
-        : 0,
-    })
 
     this.appStateService.roCrate = updatedCrate
     this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)

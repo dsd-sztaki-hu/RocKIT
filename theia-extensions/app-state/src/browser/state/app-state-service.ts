@@ -115,11 +115,9 @@ export class AppStateService {
   }
 
   get roCrate(): AppState['roCrate'] {
-    console.log('Getting roCrate:', this.getState().roCrate)
     return this.getState().roCrate
   }
   set roCrate(value: AppState['roCrate']) {
-    console.log('AppStateService: Setting roCrate to:', value)
     this.updateState({ roCrate: value })
   }
 
