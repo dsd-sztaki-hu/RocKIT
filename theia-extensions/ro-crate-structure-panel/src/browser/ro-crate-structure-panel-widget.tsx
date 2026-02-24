@@ -548,9 +548,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
 
     protected handleDragOver(event: React.DragEvent): void {
-        console.log('RO-Crate Structure: dragover', {
-            types: Array.from(event.dataTransfer?.types ?? []),
-        })
         if (!event.dataTransfer) {
             return
         }
