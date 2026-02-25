@@ -1692,6 +1692,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
         styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
         mode={isMulti ? 'multiple' : undefined}
+        tagRender={(props) => this.renderEntityTag(props)}
         options={options}
         notFoundContent={
           <span className="entities-overview-entity-no-data">No matches</span>
@@ -1917,6 +1918,53 @@ export class MultiEditDialog extends ReactDialog<string> {
       return this.splitMultiValue(row.value, true)
     }
     return row.value || undefined
+  }
+
+  protected renderEntityTag(props: any): React.ReactElement {
+    const { label, value, closable, onClose } = props
+    const stringValue = String(value ?? '')
+    const isCreate = this.isCreateToken(stringValue)
+    const createToken = isCreate ? this.parseCreateToken(stringValue) : undefined
+    const renderedLabel = createToken
+      ? `Create new ${createToken.entityType}: ${createToken.label}`
+      : label
+    return (
+      <span
+        className={`entities-overview-entity-tag${isCreate ? ' is-create' : ''}`}
+        onMouseDown={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+        }}
+      >
+        <span className="entities-overview-entity-tag-label">
+          {isCreate && (
+            <span className="entities-overview-entity-tag-plus">
+              <span className="entities-overview-entity-tag-plus-glyph">+</span>
+            </span>
+          )}
+          {renderedLabel}
+        </span>
+        {closable && (
+          <span
+            className="entities-overview-entity-tag-close"
+            onMouseDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onClose()
+            }}
+            role="button"
+            tabIndex={-1}
+            aria-label="Remove"
+          >
+            ×
+          </span>
+        )}
+      </span>
+    )
   }
 
   /**
