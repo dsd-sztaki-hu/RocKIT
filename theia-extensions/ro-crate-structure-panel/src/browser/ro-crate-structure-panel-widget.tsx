@@ -904,16 +904,22 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       }
       const normalizedRelPath = this.normalizeWorkspaceRelativePath(relPath)
       const { isDirectory, fileUri } = await this.resolveDroppedEntryInfo(relPath, sourceUri)
-      const newId = this.toFileEntityId(normalizedRelPath, sourceUri)
-      const workspaceId = this.toFileEntityId(normalizedRelPath, undefined)
+      const baseNewId = this.toFileEntityId(normalizedRelPath, sourceUri)
+      const baseWorkspaceId = this.toFileEntityId(normalizedRelPath, undefined)
+      const newId = isDirectory ? this.toDatasetEntityId(baseNewId) : baseNewId
+      const workspaceId = isDirectory
+        ? this.toDatasetEntityId(baseWorkspaceId)
+        : baseWorkspaceId
       const legacyId = relPath
 
       const candidateIds = [
         newId,
+        ...(isDirectory ? this.getDatasetIdVariants(baseNewId) : []),
         legacyId,
         sourceUri?.toString(),
         sourceUri ? this.formatAbsoluteFileUri(sourceUri) : undefined,
         workspaceId,
+        ...(isDirectory ? this.getDatasetIdVariants(baseWorkspaceId) : []),
       ].filter((value): value is string => Boolean(value))
 
       const existingId = candidateIds.find((candidate) => indexById.has(candidate))
@@ -944,7 +950,13 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         }
       }
 
-      if (!existingHasPartIds.has(id)) {
+      const hasExistingPart =
+        existingHasPartIds.has(id) ||
+        (isDirectory &&
+          this.getDatasetIdVariants(id).some((variantId) =>
+            existingHasPartIds.has(variantId),
+          ))
+      if (!hasExistingPart) {
         existingHasPart.push({ '@id': id })
         existingHasPartIds.add(id)
       }
@@ -987,7 +999,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       relPath.split('/').pop() ||
       relPath
 
-    const entityId = this.toFileEntityId(this.normalizeWorkspaceRelativePath(relPath), sourceUri)
+    const baseEntityId = this.toFileEntityId(
+      this.normalizeWorkspaceRelativePath(relPath),
+      sourceUri,
+    )
+    const entityId = isDirectory ? this.toDatasetEntityId(baseEntityId) : baseEntityId
 
     if (isDirectory) {
       return {
@@ -1043,6 +1059,22 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       return this.formatAbsoluteFileUri(sourceUri)
     }
     return `file://./${relPath}`
+  }
+
+  protected toDatasetEntityId(entityId: string): string {
+    if (!entityId.startsWith('file:')) {
+      return entityId
+    }
+    return entityId.endsWith('/') ? entityId : `${entityId}/`
+  }
+
+  protected getDatasetIdVariants(entityId: string): string[] {
+    if (!entityId.startsWith('file:')) {
+      return [entityId]
+    }
+    const withSlash = entityId.endsWith('/') ? entityId : `${entityId}/`
+    const withoutSlash = withSlash.endsWith('/') ? withSlash.slice(0, -1) : withSlash
+    return Array.from(new Set([withSlash, withoutSlash]))
   }
 
   protected formatAbsoluteFileUri(uri: URI): string {
