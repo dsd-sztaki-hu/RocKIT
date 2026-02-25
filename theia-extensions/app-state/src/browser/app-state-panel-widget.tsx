@@ -6,6 +6,7 @@ import {
   useAppStateService,
 } from './state/app-state-react'
 import { AppStateService } from './state/app-state-service'
+import './app-state-panel-widget.css'
 
 import React = require('react')
 
@@ -141,45 +142,28 @@ function AppStatePanelView() {
   }
 
   return (
-    <div
-      style={{
-        padding: '10px',
-        height: '100%',
-        overflow: 'auto',
-        fontFamily: 'monospace',
-        fontSize: '12px',
-      }}
-    >
-      <h3 style={{ marginTop: 0, marginBottom: 10 }}>Global AppState</h3>
+    <div className="app-state-panel">
+      <h3 className="app-state-panel-title">Global AppState</h3>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+      <div className="app-state-panel-actions">
         <button
           type="button"
+          className="theia-button app-state-panel-button"
           onClick={() => service.reset()}
-          style={{ padding: '6px 10px', cursor: 'pointer' }}
         >
           Reset state to defaults
         </button>
 
         <button
           type="button"
+          className="theia-button app-state-panel-button"
           onClick={collapseAll}
-          style={{ padding: '6px 10px', cursor: 'pointer' }}
         >
           Collapse all
         </button>
       </div>
 
-      <div
-        style={{
-          backgroundColor: '#f5f5f5',
-          padding: '10px',
-          borderRadius: '4px',
-          overflow: 'auto',
-          whiteSpace: 'normal',
-          wordBreak: 'break-word',
-        }}
-      >
+      <div className="app-state-panel-json">
         <JsonNode
           value={appState}
           path="root"

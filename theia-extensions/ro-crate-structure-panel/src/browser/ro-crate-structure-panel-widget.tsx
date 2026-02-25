@@ -6,6 +6,7 @@ import {
   Widget,
   WidgetManager,
 } from '@theia/core/lib/browser'
+import { ThemeService } from '@theia/core/lib/browser/theming'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -13,6 +14,7 @@ import { WorkspaceService } from '@theia/workspace/lib/browser'
 import type { TreeDataNode } from 'antd'
 import { Tooltip, Tree } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { MultiEditDialog } from 'entities-overview/lib/browser/entities-overview-multi-edit-dialog'
 import { inject, injectable } from 'inversify'
 import * as mime from 'mime-types'
@@ -52,6 +54,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected readonly workspaceService: WorkspaceService
   @inject(FileService)
   protected readonly fileService: FileService
+  @inject(ThemeService)
+  protected readonly themeService: ThemeService
 
   protected crateSubscription?: Disposable
   protected validationSubscription?: Disposable
@@ -437,7 +441,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
     const validationIssueCount = this.appStateService.validationErrors?.length ?? 0
 
-    return (
+    const content = (
       <div
         ref={this.containerRef}
         className="ro-crate-structure-panel-body"
@@ -553,12 +557,13 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         />
       </div>
     )
+
+    return (
+      <AntdThemeProvider themeService={this.themeService}>{content}</AntdThemeProvider>
+    )
   }
 
   protected handleDragOver(event: React.DragEvent): void {
-    console.log('RO-Crate Structure: dragover', {
-      types: Array.from(event.dataTransfer?.types ?? []),
-    })
     if (!event.dataTransfer) {
       return
     }
@@ -595,9 +600,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   }
 
   protected handleDrop(event: React.DragEvent): void {
-    console.log('RO-Crate Structure: drop', {
-      types: Array.from(event.dataTransfer?.types ?? []),
-    })
     event.preventDefault()
     event.stopPropagation()
     this.setDropTargetDatasetId(undefined)
@@ -607,14 +609,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected async handleDropAsync(event: React.DragEvent): Promise<void> {
     const dataTransfer = event.dataTransfer
     if (!dataTransfer) {
-      console.warn('RO-Crate Structure: drop ignored, no dataTransfer')
       return
     }
 
     const uris = this.extractUrisFromDataTransfer(dataTransfer)
-    console.log('RO-Crate Structure: extracted URIs', uris)
     if (!uris.length) {
-      console.warn('RO-Crate Structure: drop ignored, no URIs found')
       return
     }
 
@@ -623,24 +622,20 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       try {
         const uri = this.parseDroppedUri(uriString)
         if (!uri) {
-          console.warn('RO-Crate Structure: failed to parse URI', uriString)
           continue
         }
         const rel = await this.workspaceService.getWorkspaceRelativePath(uri)
         if (rel) {
           droppedFiles.push({ relPath: rel, sourceUri: uri })
         } else {
-          console.warn('RO-Crate Structure: no workspace-relative path', uriString)
         }
       } catch (error) {
         console.warn('Failed to parse dropped URI', uriString, error)
       }
     }
 
-    const relativePaths = droppedFiles.map((file) => file.relPath)
-    console.log('RO-Crate Structure: relative paths', relativePaths)
-    if (!droppedFiles.length) {
-      console.warn('RO-Crate Structure: drop ignored, no relative paths')
+    const uniqueDroppedFiles = this.dedupeDroppedFilesByPath(droppedFiles)
+    if (!uniqueDroppedFiles.length) {
       return
     }
 
@@ -656,24 +651,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       './'
 
     const datasetTargetEntityId = this.resolveDatasetTargetEntityId(crate, targetEntityId)
-    console.log('RO-Crate Structure: target entity', {
-      original: targetEntityId,
-      resolvedDataset: datasetTargetEntityId,
-    })
 
     const updatedCrate = await this.applyDroppedFilesToCrate(
       crate,
       datasetTargetEntityId,
-      droppedFiles,
+      uniqueDroppedFiles,
     )
-
-    console.log('RO-Crate Structure: crate updated', {
-      targetEntityId: datasetTargetEntityId,
-      added: relativePaths,
-      graphSize: Array.isArray(updatedCrate['@graph'])
-        ? updatedCrate['@graph'].length
-        : 0,
-    })
 
     this.appStateService.roCrate = updatedCrate
     this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
@@ -681,19 +664,61 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   }
 
   protected extractUrisFromDataTransfer(dataTransfer: DataTransfer): string[] {
+    // Prefer the more robust extraction from 26755 (handles multiple sources, null separators, and files[] fallback).
     const uriList =
       dataTransfer.getData('text/uri-list') ||
       dataTransfer.getData('application/vnd.code.uri-list') ||
       ''
     const text = dataTransfer.getData('text/plain') || ''
-    const raw = uriList || text
-    if (!raw) {
-      return []
+
+    const rawSources = [uriList, text].filter((value) => Boolean(value))
+    const uris = new Set<string>()
+
+    for (const raw of rawSources) {
+      const chunks: string[] = []
+      for (const line of raw.split(/[\r\n\0]+/)) {
+        const trimmed = line.trim()
+        if (!trimmed || trimmed.startsWith('#')) {
+          continue
+        }
+        chunks.push(trimmed)
+      }
+
+      if (!chunks.length && raw.trim()) {
+        chunks.push(raw.trim())
+      }
+
+      for (const chunk of chunks) {
+        if (!chunk) {
+          continue
+        }
+
+        const schemeMatches = chunk.match(/(?:file|https?):\/\//g) ?? []
+        if (schemeMatches.length > 1) {
+          const split = chunk.split(/(?=file:\/\/|https?:\/\/)/g)
+          for (const part of split) {
+            const trimmed = part.trim()
+            if (trimmed) {
+              uris.add(trimmed)
+            }
+          }
+          continue
+        }
+
+        uris.add(chunk)
+      }
     }
-    return raw
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith('#'))
+
+    if (dataTransfer.files?.length) {
+      for (const file of Array.from(dataTransfer.files)) {
+        const path = (file as any)?.path
+        if (typeof path === 'string' && path.trim()) {
+          uris.add(path)
+        }
+      }
+    }
+
+    return Array.from(uris)
   }
 
   protected parseDroppedUri(raw: string): URI | undefined {
@@ -714,6 +739,24 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     return undefined
   }
 
+  protected dedupeDroppedFilesByPath(
+    droppedFiles: { relPath: string; sourceUri?: URI }[],
+  ): { relPath: string; sourceUri?: URI }[] {
+    const seen = new Set<string>()
+    const unique: { relPath: string; sourceUri?: URI }[] = []
+
+    for (const file of droppedFiles) {
+      const normalized = this.normalizeWorkspaceRelativePath(file.relPath).toLowerCase()
+      if (!normalized || seen.has(normalized)) {
+        continue
+      }
+      seen.add(normalized)
+      unique.push(file)
+    }
+
+    return unique
+  }
+
   protected resolveDropTargetEntityId(event: React.DragEvent): string | undefined {
     const target = event.target as HTMLElement | null
     if (!target) {
@@ -722,9 +765,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
     const el = target.closest('[data-entity-id]') as HTMLElement | null
     const id = el?.getAttribute('data-entity-id')
-    if (!id) {
-      console.warn('RO-Crate Structure: no data-entity-id on drop target')
-    }
     return id ? id : undefined
   }
 
