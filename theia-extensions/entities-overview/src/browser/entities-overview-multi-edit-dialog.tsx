@@ -911,34 +911,54 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected validateValue(field: FieldDefinition, rawValue: string): string | undefined {
+    const tokens = this.splitMultiValue(rawValue, field.multiple)
+    if (tokens.length === 0) {
+      return `value must be selected for ${field.label}.`
+    }
+
     if (field.valueKind === 'entity') {
-      const trimmed = rawValue.trim()
-      if (trimmed.length === 0) {
-        return `value must be selected for ${field.label}.`
-      }
-      if (this.isCreateToken(trimmed)) {
-        return undefined
-      }
       const graph = this.getGraph()
-      const exists = graph.some((entry) => entry && String(entry['@id']) === trimmed)
-      if (!exists) {
-        return `selected entity does not exist for ${field.label}.`
+      for (const token of tokens) {
+        if (!token) {
+          return `value must be selected for ${field.label}.`
+        }
+        if (this.isCreateToken(token)) {
+          continue
+        }
+        const exists = graph.some((entry) => entry && String(entry['@id']) === token)
+        if (!exists) {
+          return `selected entity does not exist for ${field.label}.`
+        }
       }
       return undefined
     }
 
     if (field.valueKind === 'number') {
-      const numberValue = Number(rawValue)
-      if (!Number.isFinite(numberValue)) {
-        return `value must be a number for ${field.label}.`
+      for (const token of tokens) {
+        const numberValue = Number(token)
+        if (!Number.isFinite(numberValue)) {
+          return `value must be a number for ${field.label}.`
+        }
       }
     }
 
     if (field.valueKind === 'json') {
       try {
-        JSON.parse(rawValue)
+        const parsed = JSON.parse(rawValue)
+        if (field.multiple && !Array.isArray(parsed)) {
+          return `value must be a JSON array for ${field.label}.`
+        }
       } catch {
         return `value must be valid JSON for ${field.label}.`
+      }
+    }
+
+    if (field.valueKind === 'select' && field.selectValues.length > 0) {
+      const allowed = new Set(field.selectValues.map((value) => value.trim()))
+      for (const token of tokens) {
+        if (!allowed.has(token)) {
+          return `value must be one of the allowed options for ${field.label}.`
+        }
       }
     }
 
@@ -953,16 +973,19 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected parseValue(field: FieldDefinition, rawValue: string): unknown {
+    const tokens = this.splitMultiValue(rawValue, field.multiple)
     if (field.valueKind === 'number') {
-      return Number(rawValue)
+      const values = tokens.map((token) => Number(token))
+      return field.multiple ? values : values[0]
     }
     if (field.valueKind === 'json') {
       return JSON.parse(rawValue)
     }
     if (field.valueKind === 'entity') {
-      return { '@id': rawValue.trim() }
+      const values = tokens.map((token) => ({ '@id': token.trim() }))
+      return field.multiple ? values : values[0]
     }
-    return rawValue
+    return field.multiple ? tokens : tokens[0]
   }
 
   /**
@@ -1123,8 +1146,9 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
 
     if (operator === 'set') {
-      const nextValue =
-        field.multiple && !Array.isArray(parsedValue) ? [parsedValue] : parsedValue
+      const nextValue = field.multiple
+        ? this.normalizeParsedValues(parsedValue)
+        : parsedValue
       if (this.areValuesEqual(entity[propertyName], nextValue)) {
         return false
       }
@@ -1139,16 +1163,27 @@ export class MultiEditDialog extends ReactDialog<string> {
     const existingValues = this.toArray(entity[propertyName])
 
     if (operator === 'add') {
-      if (this.arrayContains(existingValues, parsedValue)) {
+      const valuesToAdd = this.normalizeParsedValues(parsedValue)
+      let changed = false
+      for (const value of valuesToAdd) {
+        if (this.arrayContains(existingValues, value)) {
+          continue
+        }
+        existingValues.push(value)
+        changed = true
+      }
+      if (!changed) {
         return false
       }
-      entity[propertyName] = [...existingValues, parsedValue]
+      entity[propertyName] = [...existingValues]
       return true
     }
 
     if (operator === 'remove') {
+      const valuesToRemove = this.normalizeParsedValues(parsedValue)
       const filtered = existingValues.filter(
-        (value) => !this.areValuesEqual(value, parsedValue),
+        (value) =>
+          !valuesToRemove.some((candidate) => this.areValuesEqual(value, candidate)),
       )
       if (filtered.length === existingValues.length) {
         return false
@@ -1178,6 +1213,28 @@ export class MultiEditDialog extends ReactDialog<string> {
       return [...value]
     }
     return [value]
+  }
+
+  protected normalizeParsedValues(value: unknown): unknown[] {
+    if (value === undefined || value === null) {
+      return []
+    }
+    if (Array.isArray(value)) {
+      return value
+    }
+    return [value]
+  }
+
+  protected splitMultiValue(rawValue: string, allowMultiple: boolean): string[] {
+    const trimmed = rawValue.trim()
+    if (!allowMultiple) {
+      return trimmed ? [trimmed] : []
+    }
+    const parts = trimmed
+      .split(/[\n;,]+/)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0)
+    return parts
   }
 
   /**
@@ -1296,7 +1353,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         continue
       }
       if (field.valueKind === 'entity') {
-        const resolved = this.resolveEntityValue(field, rawValue, graph)
+        const resolved = this.resolveEntityValues(field, rawValue, graph)
         if (resolved) {
           resolvedValues.set(operation.id, resolved)
         }
@@ -1442,20 +1499,29 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
 
     if (field.valueKind === 'select' && field.selectValues.length > 0) {
+      const isMulti = field.multiple
+      const multiValue = isMulti ? this.splitMultiValue(row.value, true) : undefined
       return (
         <Select
-          value={row.value || undefined}
-          onChange={(value) => this.setOperationValue(row.id, String(value ?? ''))}
+          value={isMulti ? multiValue : row.value || undefined}
+          onChange={(value) => {
+            if (Array.isArray(value)) {
+              this.setOperationValue(row.id, value.join(', '))
+              return
+            }
+            this.setOperationValue(row.id, String(value ?? ''))
+          }}
           getPopupContainer={() => document.body}
           classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
           styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
+          mode={isMulti ? 'multiple' : undefined}
           options={field.selectValues.map((option) => ({
             label: option,
             value: option,
           }))}
           showSearch
           allowClear
-          placeholder="Select value"
+          placeholder={isMulti ? 'Select one or more values' : 'Select value'}
           style={{ width: '100%' }}
         />
       )
@@ -1474,6 +1540,19 @@ export class MultiEditDialog extends ReactDialog<string> {
           }
           autoSize={{ minRows: 1, maxRows: 4 }}
           placeholder='Enter JSON value, e.g. {"@id":"./file.txt"}'
+        />
+      )
+    }
+
+    if (field.multiple) {
+      return (
+        <Input.TextArea
+          value={row.value}
+          onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) =>
+            this.setOperationValue(row.id, event.target.value)
+          }
+          autoSize={{ minRows: 1, maxRows: 4 }}
+          placeholder="Enter values separated by comma or newline"
         />
       )
     }
@@ -1593,18 +1672,26 @@ export class MultiEditDialog extends ReactDialog<string> {
     const searchText = this.operationSearch.get(row.id) ?? ''
     const allowCreate = row.operator === 'set' || row.operator === 'add'
     const options = this.getEntityOptions(field, searchText, allowCreate)
+    const isMulti = field.multiple
     return (
       <Select
-        value={row.value || undefined}
-        onChange={(value) => this.setOperationValue(row.id, String(value ?? ''))}
+        value={this.getEntityValueInputValue(row, isMulti)}
+        onChange={(value) => {
+          if (Array.isArray(value)) {
+            this.setOperationValue(row.id, value.join(', '))
+            return
+          }
+          this.setOperationValue(row.id, String(value ?? ''))
+        }}
         showSearch
         onSearch={(value: string) => this.setOperationSearch(row.id, value)}
         filterOption={false}
         allowClear
-        placeholder="Select or create entity"
+        placeholder={isMulti ? 'Select or create entities' : 'Select or create entity'}
         getPopupContainer={() => document.body}
         classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
         styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
+        mode={isMulti ? 'multiple' : undefined}
         options={options}
         notFoundContent={
           <span className="entities-overview-entity-no-data">No matches</span>
@@ -1813,6 +1900,23 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
     const createdId = this.createEntityFromToken(field, createToken, graph)
     return { '@id': createdId }
+  }
+
+  protected resolveEntityValues(
+    field: FieldDefinition,
+    rawValue: string,
+    graph: Record<string, any>[],
+  ): unknown {
+    const tokens = this.splitMultiValue(rawValue, field.multiple)
+    const resolved = tokens.map((token) => this.resolveEntityValue(field, token, graph))
+    return field.multiple ? resolved : resolved[0]
+  }
+
+  protected getEntityValueInputValue(row: OperationRow, isMulti: boolean): string[] | string | undefined {
+    if (isMulti) {
+      return this.splitMultiValue(row.value, true)
+    }
+    return row.value || undefined
   }
 
   /**
