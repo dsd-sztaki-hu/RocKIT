@@ -1446,7 +1446,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         <Select
           value={row.value || undefined}
           onChange={(value) => this.setOperationValue(row.id, String(value ?? ''))}
-          getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
+          getPopupContainer={() => document.body}
           classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
           styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
           options={field.selectValues.map((option) => ({
@@ -1602,7 +1602,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         filterOption={false}
         allowClear
         placeholder="Select or create entity"
-        getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
+        getPopupContainer={() => document.body}
         classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
         styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
         options={options}
@@ -1901,7 +1901,7 @@ export class MultiEditDialog extends ReactDialog<string> {
                 value={row.fieldKey}
                 onChange={(value) => this.setOperationField(row.id, String(value))}
                 placeholder="Select property"
-                getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
+                getPopupContainer={() => document.body}
                 classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
                 styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
                 style={{ width: '38%' }}
@@ -1918,7 +1918,7 @@ export class MultiEditDialog extends ReactDialog<string> {
                 onChange={(value) =>
                   this.setOperationOperator(row.id, value as BulkOperator)
                 }
-                getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
+                getPopupContainer={() => document.body}
                 classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
                 styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
                 style={{ width: 110 }}
@@ -2111,7 +2111,7 @@ export class MultiEditDialog extends ReactDialog<string> {
             }))}
             onChange={this.onSchemaSelectionChange}
             placeholder="Select schemas"
-            getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
+            getPopupContainer={() => document.body}
             classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
             styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
             style={{ width: '100%' }}
