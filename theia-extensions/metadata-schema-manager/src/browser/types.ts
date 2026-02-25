@@ -2,15 +2,29 @@
 
 import type { Key } from 'antd/es/table/interface';
 
+export interface SchemaFiles {
+    sourcePath: string;
+    convertedPath: string;
+}
 
 export interface SchemaInfo {
+    id: string;
+    templateUuid?: string;
     name: string;
     version: string;
     source: 'local' | 'remote';
     reference: string; // This is the @id
-    path: string;
+    type: string;
+    files: SchemaFiles;
     conformsTo?: string; 
     downloadUrl?: string;
+    createdAt: string | null;
+    updatedAt: string | null;
+}
+
+export interface SchemaIndex {
+    profiles: SchemaInfo[];
+    conformsToIndex: Record<string, string[]>;
 }
 
 export interface SchemaTableProps {
@@ -19,7 +33,7 @@ export interface SchemaTableProps {
     selectionType?: 'checkbox' | 'radio' | 'row'; 
     selectedKeys?: Key[]; 
     onSelectionChange: (selectedRowKeys: Key[]) => void;
-    onDelete?: (schemaPaths: string[]) => void;
+    onDelete?: (schemaIds: string[]) => void;
 }
 
 export interface RemoteSchemaProviderConfig {

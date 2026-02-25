@@ -10,7 +10,7 @@ import { Emitter, Event } from '@theia/core/lib/common/event';
 
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
-import type { SchemaInfo, RemoteSchemaProviderConfig } from '../types';
+import type { SchemaInfo, SchemaIndex, RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
 import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'aroma2-common/lib/browser';
 import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service';
@@ -19,7 +19,8 @@ import { MissingSchemasDialog } from '../components/missing-schemas-dialog';
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
 export const SCHEMA_FIELD_ID = '@id';
-const AROMA_METADATA_FIELD = '_aromaMetadata'; 
+export const SCHEMA_FIELD_CREATED_ON = 'pav:createdOn';
+export const SCHEMA_FIELD_UPDATED_ON = 'pav:lastUpdatedOn';
 const MSG_TIMEOUT = 5000;
 
 // Local interface for better type safety with Theia's progress reporting
@@ -39,6 +40,13 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     private readonly converter = new CedarTemplateToDescriboProfileConverter();
     private isChecking = false;
+    private indexMutex: Promise<void> = Promise.resolve();
+
+    // Default Configuration Fallbacks (overridden dynamically via env vars)
+    private arpProdPrefix = 'https://repo.schema.researchdata.hu/templates/';
+    private arpDevPrefix = 'https://repo.cedardev.dsd.sztaki.hu/templates/';
+    private arpW3idProd = 'https://w3id.org/arp/schema/';
+    private arpW3idDev = 'https://w3id.org/arp/dev/schema/';
 
     private readonly onDidChangeSchemasEmitter = new Emitter<void>();
     readonly onDidChangeSchemas: Event<void> = this.onDidChangeSchemasEmitter.event;
@@ -48,6 +56,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     @postConstruct()
     init() {
+        this.loadEnvVariables();
+
         this.appStateService.onDidChangeSelector(state => state.roCrate)(
             (newCrate) => {
                 if (newCrate) this.checkAndDownloadSchemas(newCrate);
@@ -55,9 +65,147 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         );
     }
 
-    onStart(): void {
+    private async loadEnvVariables() {
+        const prodPrefix = await this.envVariablesServer.getValue('ARP_PROD_PREFIX');
+        if (prodPrefix?.value) this.arpProdPrefix = prodPrefix.value;
+        
+        const devPrefix = await this.envVariablesServer.getValue('ARP_DEV_PREFIX');
+        if (devPrefix?.value) this.arpDevPrefix = devPrefix.value;
+        
+        const w3idProd = await this.envVariablesServer.getValue('ARP_W3ID_PROD');
+        if (w3idProd?.value) this.arpW3idProd = w3idProd.value;
+        
+        const w3idDev = await this.envVariablesServer.getValue('ARP_W3ID_DEV');
+        if (w3idDev?.value) this.arpW3idDev = w3idDev.value;
+    }
+
+    async onStart(): Promise<void> {
+        // Run self-healing synchronization on startup
+        await this.synchronizeIndex();
+
         const currentCrate = this.appStateService.roCrate;
         if (currentCrate) this.checkAndDownloadSchemas(currentCrate);
+    }
+
+    /**
+     * Self-healing function to ensure the index and file system are perfectly synced.
+     */
+    private async synchronizeIndex(): Promise<void> {
+        await (this.indexMutex = this.indexMutex.then(async () => {
+            const root = await this.getAromaRootUri();
+            if (!root) return;
+
+            const index = await this.loadIndex();
+            const validProfiles: SchemaInfo[] = [];
+            let indexChanged = false;
+
+            // --- CASE 1: Prune Orphaned Index Entries ---
+            for (const profile of index.profiles) {
+                const sourceUri = root.resolve(profile.files.sourcePath);
+                const convertedUri = root.resolve(profile.files.convertedPath);
+                
+                const sourceExists = await this.fileService.exists(sourceUri);
+                const convertedExists = await this.fileService.exists(convertedUri);
+
+                if (sourceExists && convertedExists) {
+                    validProfiles.push(profile);
+                } else {
+                    console.warn(`[SchemaManager] Removing corrupted index entry: ${profile.name}`);
+                    indexChanged = true;
+                    // Clean up partial remnants so it downloads fresh next time
+                    if (sourceExists) await this.fileService.delete(sourceUri);
+                    if (convertedExists) await this.fileService.delete(convertedUri);
+                }
+            }
+
+            index.profiles = validProfiles;
+
+            // --- CASE 2: Discover Unindexed Files ---
+            const cedarDir = root.resolve('metadata-schemas/cedar');
+            if (await this.fileService.exists(cedarDir)) {
+                const stat = await this.fileService.resolve(cedarDir);
+                if (stat && stat.children) {
+                    for (const file of stat.children) {
+                        if (!file.name.endsWith('.json')) continue;
+                        
+                        const relativeCedarPath = `metadata-schemas/cedar/${file.name}`;
+                        const isIndexed = index.profiles.some(p => p.files.sourcePath === relativeCedarPath);
+                        
+                        if (!isIndexed) {
+                            console.log(`[SchemaManager] Discovered unindexed schema file: ${file.name}`);
+                            try {
+                                const content = await this.fileService.read(file.resource);
+                                const parsedRaw = JSON.parse(content.value);
+                                
+                                const schemaName = parsedRaw[SCHEMA_FIELD_NAME];
+                                const schemaVersion = parsedRaw[SCHEMA_FIELD_VERSION] || '1.0.0';
+                                const schemaId = parsedRaw[SCHEMA_FIELD_ID] || ''; 
+                                const createdAt = parsedRaw[SCHEMA_FIELD_CREATED_ON] || null;
+                                const updatedAt = parsedRaw[SCHEMA_FIELD_UPDATED_ON] || null;
+
+                                if (!schemaName) continue;
+
+                                const conformsTo = this.deriveConformsToFromId(schemaId);
+                                
+                                // Regenerate missing RO-Crate file to ensure parity
+                                let convertedContent: string;
+                                try { 
+                                    convertedContent = this.converter.processCedarTemplate(content.value); 
+                                } catch (convErr) { 
+                                    continue; // Skip if it can't be converted
+                                }
+                                
+                                const relativeRoCratePath = `metadata-schemas/ro-crate/${file.name}`;
+                                const roCrateUri = root.resolve(relativeRoCratePath);
+                                if (!await this.fileService.exists(roCrateUri.parent)) {
+                                    await this.fileService.createFolder(roCrateUri.parent);
+                                }
+                                await this.fileService.write(roCrateUri, convertedContent);
+
+                                const idMatch = schemaId.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+                                const uuidId = idMatch ? idMatch[1] : schemaId;
+
+                                // Guess source from filename format
+                                const sourceMatch = file.name.match(/_(local|remote)_/);
+                                const source = sourceMatch ? sourceMatch[1] as 'local' | 'remote' : 'local';
+
+                                const newSchemaInfo: SchemaInfo = {
+                                    id: this.generateUniqueId(),
+                                    templateUuid: uuidId,
+                                    name: schemaName,
+                                    version: schemaVersion,
+                                    reference: schemaId,
+                                    source: source,
+                                    type: 'cedar',
+                                    files: {
+                                        sourcePath: relativeCedarPath,
+                                        convertedPath: relativeRoCratePath
+                                    },
+                                    conformsTo: conformsTo,
+                                    downloadUrl: '',
+                                    createdAt: createdAt,
+                                    updatedAt: updatedAt
+                                };
+
+                                index.profiles.push(newSchemaInfo);
+                                indexChanged = true;
+                            } catch (e) {
+                                console.warn(`[SchemaManager] Failed to recover file ${file.name}`, e);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Save if anything was repaired
+            if (indexChanged) {
+                this.rebuildConformsToIndex(index);
+                await this.saveIndex(index);
+                this.onDidChangeSchemasEmitter.fire();
+            }
+        }).catch(err => {
+            console.error("[SchemaManager] Synchronization failed", err);
+        }));
     }
 
     private async processInChunks<T>(
@@ -361,10 +509,14 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         return { success, fail };
     }
 
-    public async getConvertedProfileContent(sourcePath: string): Promise<any> {
+    public async getConvertedProfileContent(sourceRelativePath: string): Promise<any> {
         try {
-            const roCratePathStr = sourcePath.replace('/metadata-schemas/cedar/', '/metadata-schemas/ro-crate/');
-            const roCrateUri = new URI(roCratePathStr);
+            const root = await this.getAromaRootUri();
+            if (!root) throw new Error('Root directory configuration missing');
+            
+            const convertedRelativePath = sourceRelativePath.replace('metadata-schemas/cedar/', 'metadata-schemas/ro-crate/');
+            const roCrateUri = root.resolve(convertedRelativePath);
+            
             if (!await this.fileService.exists(roCrateUri)) throw new Error('Converted profile file not found.');
             const content = await this.fileService.read(roCrateUri);
             return JSON.parse(content.value);
@@ -374,32 +526,116 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         }
     }
 
-    // Modernized hashing algorithm helper
-    private simpleHash(str: string): string {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = Math.imul(31, hash) + char | 0; // Bitwise integer math prevents float issues
+    /**
+     * Utilizes standard Web Crypto APIs to securely generate hashes.
+     * Includes a pure JS fallback for extremely restricted offline environments.
+     */
+    private async generateHash(str: string): Promise<string> {
+        try {
+            const msgBuffer = new TextEncoder().encode(str);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 8);
+        } catch (e) {
+            // Offline fallback if crypto.subtle is unavailable
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = Math.imul(31, hash) + char | 0;
+            }
+            return Math.abs(hash).toString(16).padStart(8, '0');
         }
-        return Math.abs(hash).toString(16);
+    }
+
+    /**
+     * Utilizes standard Web Crypto APIs to securely generate UUID v4 strings.
+     * Includes a pure JS fallback for extremely restricted offline environments.
+     */
+    private generateUniqueId(): string {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return crypto.randomUUID();
+        }
+        // Offline fallback
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
     }
 
     public deriveConformsToFromId(schemaId: string): string {
-        const PROD_PREFIX = 'https://repo.schema.researchdata.hu/templates/';
-        const DEV_PREFIX = 'https://repo.cedardev.dsd.sztaki.hu/templates/';
-        
-        const W3ID_PROD = 'https://w3id.org/arp/schema/';
-        const W3ID_DEV = 'https://w3id.org/arp/dev/schema/';
-
-        if (schemaId.startsWith(PROD_PREFIX)) {
-            const uuid = schemaId.substring(PROD_PREFIX.length);
-            return W3ID_PROD + uuid;
+        if (schemaId.startsWith(this.arpProdPrefix)) {
+            const uuid = schemaId.substring(this.arpProdPrefix.length);
+            return this.arpW3idProd + uuid;
         }
-        if (schemaId.startsWith(DEV_PREFIX)) {
-            const uuid = schemaId.substring(DEV_PREFIX.length);
-            return W3ID_DEV + uuid;
+        if (schemaId.startsWith(this.arpDevPrefix)) {
+            const uuid = schemaId.substring(this.arpDevPrefix.length);
+            return this.arpW3idDev + uuid;
         }
         return schemaId;
+    }
+
+    protected async getAromaRootUri(): Promise<URI | null> {
+        const result = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
+        if (!result?.value) return null;
+        const normalized = result.value.replace(/\\/g, '/');
+        return normalized.match(/^[a-zA-Z]:/) ? new URI('file:///' + normalized) : new URI('file://' + normalized);
+    }
+
+    protected async getIndexUri(): Promise<URI | null> {
+        const root = await this.getAromaRootUri();
+        if (!root) return null;
+        
+        const envVar = await this.envVariablesServer.getValue('AROMA_METADATA_SCHEMA_INDEX_FILE');
+        const fileName = envVar?.value || 'metadata-schema-index.json';
+        
+        return root.resolve(fileName);
+    }
+
+    protected async loadIndex(): Promise<SchemaIndex> {
+        const uri = await this.getIndexUri();
+        const defaultIndex: SchemaIndex = { profiles: [], conformsToIndex: {} };
+        if (!uri) return defaultIndex;
+        if (await this.fileService.exists(uri)) {
+            try {
+                const content = await this.fileService.read(uri);
+                const parsed = JSON.parse(content.value);
+                
+                if (Array.isArray(parsed)) {
+                    const migratedIndex: SchemaIndex = { profiles: parsed, conformsToIndex: {} };
+                    this.rebuildConformsToIndex(migratedIndex);
+                    return migratedIndex;
+                }
+                
+                return parsed as SchemaIndex;
+            } catch (e) {
+                console.error('Failed to parse schema index', e);
+                return defaultIndex;
+            }
+        }
+        return defaultIndex;
+    }
+
+    protected async saveIndex(index: SchemaIndex): Promise<void> {
+        const uri = await this.getIndexUri();
+        if (!uri) return;
+        if (!await this.fileService.exists(uri.parent)) {
+            await this.fileService.createFolder(uri.parent);
+        }
+        await this.fileService.write(uri, JSON.stringify(index, null, 4));
+    }
+
+    private rebuildConformsToIndex(index: SchemaIndex): void {
+        index.conformsToIndex = {};
+        for (const profile of index.profiles) {
+            if (profile.conformsTo) {
+                if (!index.conformsToIndex[profile.conformsTo]) {
+                    index.conformsToIndex[profile.conformsTo] = [];
+                }
+                if (!index.conformsToIndex[profile.conformsTo].includes(profile.id)) {
+                    index.conformsToIndex[profile.conformsTo].push(profile.id);
+                }
+            }
+        }
     }
 
     private async processAndSaveSchema(
@@ -416,27 +652,25 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         }
 
         const schemaName = parsedRaw[SCHEMA_FIELD_NAME];
-        const schemaVersion = parsedRaw[SCHEMA_FIELD_VERSION];
+        const schemaVersion = parsedRaw[SCHEMA_FIELD_VERSION] || '1.0.0';
         const schemaId = parsedRaw[SCHEMA_FIELD_ID] || ''; 
         
-        if (!schemaName || !schemaVersion) {
-            throw new Error(`Missing required fields: ${SCHEMA_FIELD_NAME} or ${SCHEMA_FIELD_VERSION}`);
+        const createdAt = parsedRaw[SCHEMA_FIELD_CREATED_ON] || null;
+        const updatedAt = parsedRaw[SCHEMA_FIELD_UPDATED_ON] || null;
+        
+        if (!schemaName) {
+            throw new Error(`Missing required field: ${SCHEMA_FIELD_NAME}`);
         }
 
-        if (metadata) {
-            if (!metadata.conformsTo) {
-                metadata.conformsTo = this.deriveConformsToFromId(schemaId);
-            }
-            parsedRaw[AROMA_METADATA_FIELD] = metadata;
-            rawContent = JSON.stringify(parsedRaw, null, 2);
+        let conformsTo = metadata?.conformsTo || '';
+        if (!conformsTo && schemaId) {
+            conformsTo = this.deriveConformsToFromId(schemaId);
         }
+        const downloadUrl = metadata?.downloadUrl || '';
 
-        let fileName = originalFileName;
-        if (!fileName || type === 'remote') {
-            const uniqueHash = this.simpleHash(schemaId);
-            const safeName = schemaName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-            fileName = `remote_${safeName}_v${schemaVersion}_${uniqueHash}.json`;
-        }
+        const uniqueHash = await this.generateHash(schemaId + type);
+        const safeName = schemaName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        const fileName = `${safeName}_v${schemaVersion}_${type}_${uniqueHash}.json`;
 
         let convertedContent: string;
         try { 
@@ -448,81 +682,114 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         const root = await this.getAromaRootUri();
         if (!root) throw new Error('Root directory configuration missing');
 
-        const cedarUri = root.resolve(`metadata-schemas/cedar/${type}/${fileName}`);
-        const roCrateUri = root.resolve(`metadata-schemas/ro-crate/${type}/${fileName}`);
+        // Relative paths to store in the JSON
+        const relativeCedarPath = `metadata-schemas/cedar/${fileName}`;
+        const relativeRoCratePath = `metadata-schemas/ro-crate/${fileName}`;
+
+        // Absolute URIs for file writing
+        const cedarUri = root.resolve(relativeCedarPath);
+        const roCrateUri = root.resolve(relativeRoCratePath);
+
+        if (!await this.fileService.exists(cedarUri.parent)) await this.fileService.createFolder(cedarUri.parent);
+        if (!await this.fileService.exists(roCrateUri.parent)) await this.fileService.createFolder(roCrateUri.parent);
 
         await Promise.all([
             this.fileService.write(cedarUri, rawContent),
             this.fileService.write(roCrateUri, convertedContent)
         ]);
 
+        const idMatch = schemaId.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+        const uuidId = idMatch ? idMatch[1] : schemaId;
+
+        const newSchemaInfo: SchemaInfo = {
+            id: this.generateUniqueId(),
+            templateUuid: uuidId,
+            name: schemaName,
+            version: schemaVersion,
+            reference: schemaId,
+            source: type,
+            type: 'cedar',
+            files: {
+                sourcePath: relativeCedarPath,
+                convertedPath: relativeRoCratePath
+            },
+            conformsTo: conformsTo,
+            downloadUrl: downloadUrl,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        };
+
+        // Ensure single-threaded access to the index file
+        await (this.indexMutex = this.indexMutex.then(async () => {
+            const index = await this.loadIndex();
+            
+            const existingSchema = index.profiles.find(s => s.reference === schemaId && s.source === type);
+            // Only inherit created date if the new one doesn't have it natively
+            if (existingSchema && existingSchema.createdAt && !newSchemaInfo.createdAt) {
+                newSchemaInfo.createdAt = existingSchema.createdAt;
+            }
+
+            index.profiles = index.profiles.filter(s => !(s.reference === schemaId && s.source === type));
+            index.profiles.push(newSchemaInfo);
+            
+            this.rebuildConformsToIndex(index);
+            await this.saveIndex(index);
+        }).catch(err => {
+            console.error("Failed to update index:", err);
+            throw err;
+        }));
+
         return schemaName;
     }
 
     public async loadAllSchemas(): Promise<SchemaInfo[]> {
-        const schemas: SchemaInfo[] = [];
-        for (const source of ['local', 'remote'] as const) {
-            const cedarDir = await this.getCedarDir(source);
-            if (!cedarDir || !await this.fileService.exists(cedarDir)) continue;
-            
-            const stat = await this.fileService.resolve(cedarDir);
-            if (!stat?.children) continue;
+        const index = await this.loadIndex();
+        return index.profiles;
+    }
 
-            for (const file of stat.children) {
-                if (!file.name.endsWith('.json')) continue;
+    public async deleteSchemas(schemaIds: string[]): Promise<number> {
+        let count = 0;
+        const idsToDelete = new Set(schemaIds);
+        let schemasToDelete: SchemaInfo[] = [];
+
+        // Read phase
+        await (this.indexMutex = this.indexMutex.then(async () => {
+            const index = await this.loadIndex();
+            schemasToDelete = index.profiles.filter(s => idsToDelete.has(s.id));
+        }));
+
+        const root = await this.getAromaRootUri();
+
+        // File deletion outside of mutex block to prevent blocking reads
+        if (root) {
+            for (const schema of schemasToDelete) {
                 try {
-                    const content = await this.fileService.read(file.resource);
-                    const parsed = JSON.parse(content.value);
-                    
-                    const schemaName = parsed[SCHEMA_FIELD_NAME];
-                    const schemaVersion = parsed[SCHEMA_FIELD_VERSION];
-                    const schemaId = parsed[SCHEMA_FIELD_ID];
-                    const extraMeta = parsed[AROMA_METADATA_FIELD] || {};
-
-                    if (schemaName && schemaVersion) {
-                        schemas.push({ 
-                            name: schemaName, 
-                            version: schemaVersion, 
-                            reference: schemaId || '', 
-                            source, 
-                            path: file.resource.toString(),
-                            conformsTo: extraMeta.conformsTo || '',
-                            downloadUrl: extraMeta.downloadUrl || ''
-                        });
+                    const sourceUri = root.resolve(schema.files.sourcePath);
+                    if (await this.fileService.exists(sourceUri)) {
+                        await this.fileService.delete(sourceUri);
                     }
-                } catch { /* ignore parsing errors to allow iteration to continue */ }
+
+                    const convertedUri = root.resolve(schema.files.convertedPath);
+                    if (await this.fileService.exists(convertedUri)) {
+                        await this.fileService.delete(convertedUri);
+                    }
+                    count++;
+                } catch (err) { 
+                    console.error(`Failed to delete files for schema ${schema.id}`, err); 
+                }
             }
         }
-        return schemas;
-    }
 
-    public async deleteSchemas(cedarPaths: string[]): Promise<number> {
-        let count = 0;
-        for (const pathStr of cedarPaths) {
-            try {
-                const cedarUri = new URI(pathStr);
-                await this.fileService.delete(cedarUri);
-                const roCratePathStr = pathStr.replace('/metadata-schemas/cedar/', '/metadata-schemas/ro-crate/');
-                const roCrateUri = new URI(roCratePathStr);
-                if (await this.fileService.exists(roCrateUri)) await this.fileService.delete(roCrateUri);
-                count++;
-            } catch (err) { console.error(`Failed to delete ${pathStr}`, err); }
-        }
+        // Write phase
+        await (this.indexMutex = this.indexMutex.then(async () => {
+            const index = await this.loadIndex();
+            index.profiles = index.profiles.filter(s => !idsToDelete.has(s.id));
+            this.rebuildConformsToIndex(index);
+            await this.saveIndex(index);
+        }));
+
         if (count > 0) this.onDidChangeSchemasEmitter.fire();
         return count;
-    }
-
-    protected async getAromaRootUri(): Promise<URI | null> {
-        const result = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
-        if (!result?.value) return null;
-        const normalized = result.value.replace(/\\/g, '/');
-        return normalized.match(/^[a-zA-Z]:/) ? new URI('file:///' + normalized) : new URI('file://' + normalized);
-    }
-
-    protected async getCedarDir(type: 'local' | 'remote'): Promise<URI | null> {
-        const root = await this.getAromaRootUri();
-        if (!root) return null;
-        return root.resolve(`metadata-schemas/cedar/${type}`);
     }
 
     // Below here are legacy methods, please do not modify these methods because these are used as it is right now.

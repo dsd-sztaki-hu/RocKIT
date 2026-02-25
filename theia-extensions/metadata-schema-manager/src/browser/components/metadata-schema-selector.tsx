@@ -63,7 +63,6 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
             console.error("Failed to open selector dialog:", err);
         } finally {
             this.isDialogVisible = false;
-            // Clean up state and context when dialog closes, ensuring we don't leave stale data
             this.appStateService.updateState({ 
                 openSchemaSelectorWindow: false, 
                 schemaSelectorContext: undefined 
@@ -216,7 +215,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
     }, [service, loadData]);
 
     const handleSelectionChange = (keys: React.Key[]) => {
-        const found = schemas.find(s => s.path === keys[0]);
+        const found = schemas.find(s => s.id === keys[0]);
         setSelectedSchema(found);
     };
 
@@ -282,7 +281,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                     schemas={schemas}
                     isLoading={isLoading}
                     selectionType="row"
-                    selectedKeys={selectedSchema ? [selectedSchema.path] : []}
+                    selectedKeys={selectedSchema ? [selectedSchema.id] : []}
                     onSelectionChange={handleSelectionChange}
                 />
             </div>

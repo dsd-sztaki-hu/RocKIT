@@ -517,7 +517,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       if (!matchingSchema) continue
 
       const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
-        matchingSchema.path,
+        matchingSchema.files.convertedPath,
       )
 
       if (convertedContent) {

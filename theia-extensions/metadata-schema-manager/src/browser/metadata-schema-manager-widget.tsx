@@ -71,7 +71,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                 { timeout: MSG_TIMEOUT },
             )
         } finally {
-            // main: guaranteed UI unblock
             this.isLoading = false
             this.update()
         }
@@ -82,11 +81,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.update()
     }
 
-    protected async deleteSchemas(paths: string[]): Promise<void> {
-        if (paths.length === 0) return
+    protected async deleteSchemas(ids: string[]): Promise<void> {
+        if (ids.length === 0) return
 
-        // main: keep the dedicated delete dialog
-        const dialog = new DeleteConfirmationDialog(paths.length)
+        const dialog = new DeleteConfirmationDialog(ids.length)
         const confirmed = await dialog.open()
 
         if (!confirmed) return
@@ -95,7 +93,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.update()
 
         try {
-            const deletedCount = await this.schemaManagerService.deleteSchemas(paths)
+            const deletedCount = await this.schemaManagerService.deleteSchemas(ids)
             if (deletedCount > 0) {
                 this.messageService.info(`Deleted ${deletedCount} schema(s).`, { timeout: MSG_TIMEOUT })
             }
@@ -178,8 +176,6 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         await this.loadSchemas()
     }
 
-    // --- Provider Dialog Handlers ---
-
     protected async openProviderList(): Promise<void> {
         const dialog = new RemoteSchemaProviderListDialog(
             this.schemaManagerService.providerStoreService,
@@ -218,9 +214,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             this.reactRoot = createRoot(this.node)
         }
 
-        const selectedSchemaPaths = this.schemas
-            .filter((schema) => this.selectedSchemaKeys.includes(schema.path))
-            .map((schema) => schema.path)
+        const selectedSchemaIds = this.selectedSchemaKeys as string[];
 
         this.reactRoot.render(
             <AntdThemeProvider themeService={this.themeService}>
@@ -230,7 +224,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                         onImportUrl={() => this.importSchemaFromUrl()}
                         onBrowse={() => this.browseRemoteSchemas()}
                         onRefresh={() => this.refreshSchemas()}
-                        onDelete={() => this.deleteSchemas(selectedSchemaPaths)}
+                        onDelete={() => this.deleteSchemas(selectedSchemaIds)}
                         onConfigureProviders={() => this.openProviderList()}
                         selectedCount={this.selectedSchemaKeys.length}
                     />
@@ -242,7 +236,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                             selectionType="checkbox"
                             selectedKeys={this.selectedSchemaKeys}
                             onSelectionChange={this.onSelectionChange}
-                            onDelete={(paths) => this.deleteSchemas(paths)}
+                            onDelete={(ids) => this.deleteSchemas(ids)}
                         />
                     </div>
 

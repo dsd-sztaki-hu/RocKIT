@@ -137,7 +137,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         size="small" 
                         onClick={(e) => {
                             e.stopPropagation();
-                            onDelete([record.path]);
+                            onDelete([record.id]);
                         }}
                         className="schema-table__action-btn"
                     >
@@ -206,7 +206,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                     <Table
                         dataSource={schemas}
                         columns={columns}
-                        rowKey="path"
+                        rowKey="id"
                         locale={{ emptyText: emptyState }}
                         rowSelection={activeSelectionType ? { 
                             type: activeSelectionType, 
@@ -216,11 +216,11 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         } : undefined}
                         
                         onRow={(record) => {
-                            const isSelected = selectedKeys && selectedKeys.includes(record.path);
+                            const isSelected = selectedKeys && selectedKeys.includes(record.id);
                             return {
                                 onClick: () => {
                                     if (isRowSelection) {
-                                        onSelectionChange([record.path]);
+                                        onSelectionChange([record.id]);
                                     }
                                 },
                                 className: isSelected ? 'ant-table-row-selected' : '',

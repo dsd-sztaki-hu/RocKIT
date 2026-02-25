@@ -1,15 +1,27 @@
+// theia-extensions/aroma2-common/src/common/metadata-schema-manager-protocol.ts
+
 import type { Event } from '@theia/core/lib/common/event'
 
 export const MetadataSchemaManager = Symbol('MetadataSchemaManager')
 
+export interface SchemaFiles {
+    sourcePath: string;
+    convertedPath: string;
+}
+
 export interface SchemaInfo {
+    id: string;
+    templateUuid?: string;
     name: string;
     version: string;
     source: 'local' | 'remote';
     reference: string; // This is the @id
-    path: string;
+    type: string;
+    files: SchemaFiles;
     conformsTo?: string; 
     downloadUrl?: string;
+    createdAt: string | null;
+    updatedAt: string | null;
 }
 
 export interface MetadataSchemaManager {
