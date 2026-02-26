@@ -71,6 +71,23 @@ export const DescriboCrateBuilderWrapper = ({
     }
   }, [])*/
   React.useEffect(() => {
+    if (loading) {
+      if (entityId && entityId === lastNavTarget.current) {
+        setCurrentEntityId(entityId)
+        setLoading(false)
+        lastNavTarget.current = undefined
+        if (transitionTimeoutRef.current) {
+          clearTimeout(transitionTimeoutRef.current)
+          transitionTimeoutRef.current = null
+        }
+      }
+    } else {
+      if (entityId !== currentEntityId) {
+        setCurrentEntityId(entityId)
+      }
+    }
+  }, [entityId, loading, currentEntityId])
+  React.useEffect(() => {
     requestAnimationFrame(() => {
       containerRef.current?.scrollTo({ top: 0, behavior: 'auto' })
       containerRef.current
@@ -122,7 +139,6 @@ export const DescriboCrateBuilderWrapper = ({
         <div ref={containerRef}>
             {loading && <div style={{ padding: '0.5rem', color: '#888' }}>Loading entity...</div>}
             <DescriboCrateBuilder
-                key={`${currentEntityId ?? 'none'}:${profileKey}`}
                 crate={crate}
                 profile={profile}
                 onAddNewProfileRequest={handleAddNewProfileRequest}

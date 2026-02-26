@@ -343,7 +343,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected async openRoCrateEditor(entityId: string): Promise<void> {
     const existingWidgetId = this.appStateService.getEntityEditorWidgetId(entityId)
     if (existingWidgetId) {
-      const existing = this.widgetManager.tryGetWidget(existingWidgetId)
+      const existing = this.shell.getWidgetById(existingWidgetId)
       if (existing) {
         this.appStateService.registerEntityEditor(existingWidgetId, entityId)
         this.ensureWidgetInMain(existing)
@@ -903,28 +903,60 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         continue
       }
       const normalizedRelPath = this.normalizeWorkspaceRelativePath(relPath)
-      const newId = this.toFileEntityId(normalizedRelPath, sourceUri)
-      const workspaceId = this.toFileEntityId(normalizedRelPath, undefined)
+      const { isDirectory, fileUri } = await this.resolveDroppedEntryInfo(relPath, sourceUri)
+      const baseNewId = this.toFileEntityId(normalizedRelPath, sourceUri)
+      const baseWorkspaceId = this.toFileEntityId(normalizedRelPath, undefined)
+      const newId = isDirectory ? this.toDatasetEntityId(baseNewId) : baseNewId
+      const workspaceId = isDirectory
+        ? this.toDatasetEntityId(baseWorkspaceId)
+        : baseWorkspaceId
       const legacyId = relPath
 
       const candidateIds = [
         newId,
+        ...(isDirectory ? this.getDatasetIdVariants(baseNewId) : []),
         legacyId,
         sourceUri?.toString(),
         sourceUri ? this.formatAbsoluteFileUri(sourceUri) : undefined,
         workspaceId,
+        ...(isDirectory ? this.getDatasetIdVariants(baseWorkspaceId) : []),
       ].filter((value): value is string => Boolean(value))
 
       const existingId = candidateIds.find((candidate) => indexById.has(candidate))
       const id = existingId ?? newId
 
       if (!indexById.has(id)) {
-        const fileEntity = await this.buildFileEntityFromPath(relPath, sourceUri)
-        graph.push(fileEntity)
+        const droppedEntity = await this.buildDroppedEntityFromPath(
+          relPath,
+          sourceUri,
+          isDirectory,
+          fileUri,
+        )
+        graph.push(droppedEntity)
         indexById.set(id, graph.length - 1)
+      } else if (isDirectory) {
+        const existingIndex = indexById.get(id)
+        if (existingIndex !== undefined) {
+          const existingEntity = graph[existingIndex]
+          if (existingEntity && !this.entityHasType(existingEntity, 'Dataset')) {
+            const rawType = existingEntity['@type']
+            const nextTypes = Array.isArray(rawType) ? [...rawType] : rawType ? [rawType] : []
+            if (!nextTypes.includes('Dataset')) {
+              nextTypes.push('Dataset')
+            }
+            existingEntity['@type'] = nextTypes
+            graph[existingIndex] = { ...existingEntity }
+          }
+        }
       }
 
-      if (!existingHasPartIds.has(id)) {
+      const hasExistingPart =
+        existingHasPartIds.has(id) ||
+        (isDirectory &&
+          this.getDatasetIdVariants(id).some((variantId) =>
+            existingHasPartIds.has(variantId),
+          ))
+      if (!hasExistingPart) {
         existingHasPart.push({ '@id': id })
         existingHasPartIds.add(id)
       }
@@ -938,9 +970,28 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     return { ...crate, '@graph': graph }
   }
 
-  protected async buildFileEntityFromPath(
+  protected async resolveDroppedEntryInfo(
     relPath: string,
     sourceUri?: URI,
+  ): Promise<{ fileUri?: URI; isDirectory: boolean }> {
+    const fileUri = sourceUri ?? this.resolveWorkspaceRelativeUri(relPath)
+    if (!fileUri) {
+      return { fileUri: undefined, isDirectory: false }
+    }
+    try {
+      const fileStat = await this.fileService.resolve(fileUri, { resolveMetadata: true })
+      return { fileUri, isDirectory: Boolean(fileStat.isDirectory) }
+    } catch (error) {
+      console.warn('Failed to resolve dropped file metadata', relPath, error)
+      return { fileUri, isDirectory: false }
+    }
+  }
+
+  protected async buildDroppedEntityFromPath(
+    relPath: string,
+    sourceUri: URI | undefined,
+    isDirectory: boolean,
+    fileUri: URI | undefined,
   ): Promise<Record<string, any>> {
     const name =
       sourceUri?.path?.base ||
@@ -948,15 +999,28 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       relPath.split('/').pop() ||
       relPath
 
+    const baseEntityId = this.toFileEntityId(
+      this.normalizeWorkspaceRelativePath(relPath),
+      sourceUri,
+    )
+    const entityId = isDirectory ? this.toDatasetEntityId(baseEntityId) : baseEntityId
+
+    if (isDirectory) {
+      return {
+        '@id': entityId,
+        '@type': 'Dataset',
+        name,
+      }
+    }
+
     const mimeType = mime.lookup(name) || 'application/octet-stream'
     const fileEntity: Record<string, any> = {
-      '@id': this.toFileEntityId(this.normalizeWorkspaceRelativePath(relPath), sourceUri),
+      '@id': entityId,
       '@type': 'File',
       name,
       encodingFormat: mimeType,
     }
 
-    const fileUri = sourceUri ?? this.resolveWorkspaceRelativeUri(relPath)
     if (!fileUri) {
       return fileEntity
     }
@@ -995,6 +1059,22 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       return this.formatAbsoluteFileUri(sourceUri)
     }
     return `file://./${relPath}`
+  }
+
+  protected toDatasetEntityId(entityId: string): string {
+    if (!entityId.startsWith('file:')) {
+      return entityId
+    }
+    return entityId.endsWith('/') ? entityId : `${entityId}/`
+  }
+
+  protected getDatasetIdVariants(entityId: string): string[] {
+    if (!entityId.startsWith('file:')) {
+      return [entityId]
+    }
+    const withSlash = entityId.endsWith('/') ? entityId : `${entityId}/`
+    const withoutSlash = withSlash.endsWith('/') ? withSlash.slice(0, -1) : withSlash
+    return Array.from(new Set([withSlash, withoutSlash]))
   }
 
   protected formatAbsoluteFileUri(uri: URI): string {
