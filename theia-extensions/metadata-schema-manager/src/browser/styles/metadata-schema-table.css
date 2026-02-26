@@ -44,7 +44,6 @@
 }
 
 /* --- 2. Theia Native Table Overrides --- */
-/* Reset AntD backgrounds to transparent so the Theia editor background shines through naturally */
 .schema-table-wrapper .ant-table,
 .schema-table-wrapper .ant-table-container {
     background-color: transparent !important;
@@ -68,7 +67,6 @@
     opacity: 0.5;
 }
 
-/* Highlight the icon when sorting or filtering is active */
 .schema-table-wrapper .ant-table-thead > tr > th .schema-table__header-icon--active,
 .schema-table-wrapper .ant-table-column-sorter-up.active .anticon,
 .schema-table-wrapper .ant-table-column-sorter-down.active .anticon,
@@ -164,9 +162,8 @@
 }
 .schema-table-wrapper.mode-row .ant-table-tbody > tr.ant-table-row-selected > td .schema-table__badge {
     background-color: transparent !important;
-    border-color: currentColor !important; /* Draws a nice native border around the badge using the inherited text color */
+    border-color: currentColor !important; 
 }
-
 
 /* --- 5. Inputs, Buttons, & Pagination --- */
 
@@ -238,4 +235,37 @@
 .schema-table-wrapper .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
     background-color: var(--theia-menu-selectionBackground) !important;
     color: var(--theia-menu-selectionForeground) !important;
+}
+
+/* --- 6. Custom Empty State --- */
+
+.schema-table__empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    font-family: var(--theia-ui-font-family);
+}
+
+.schema-table__empty-icon {
+    font-size: 48px !important;
+    opacity: 0.25;
+    margin-bottom: 12px;
+    color: var(--theia-foreground);
+}
+
+.schema-table__empty-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--theia-foreground);
+    margin-bottom: 4px;
+}
+
+.schema-table__empty-desc {
+    font-size: 13px;
+    max-width: 350px;
+    text-align: center;
+    line-height: 1.4;
+    color: var(--theia-descriptionForeground);
 }

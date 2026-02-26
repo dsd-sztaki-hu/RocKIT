@@ -596,16 +596,27 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     if (this.isRefreshingProfile) {
       return
     }
-    this.isRefreshingProfile = true
-    try {
-    if (!this.localCrate || !Array.isArray(this.localCrate['@graph'])) {
-      return
-    }
 
-    const entity = this.findEntity(this.localCrate, entityId)
+    this.isRefreshingProfile = true
+
+    try {
+      if (!this.localCrate || !Array.isArray(this.localCrate['@graph'])) {
+        return
+      }
+
+      const entity = this.findEntity(this.localCrate, entityId)
       if (!entity) {
         return
       }
+
+      const entityType = Array.isArray(entity["@type"]) ? entity["@type"][0] : entity["@type"]
+      if (entityType !== 'Dataset' && entityType !== 'File') {
+        this.localProfile = JSON.parse(JSON.stringify(this.localCompleteProfile))
+        this.profileRevision += 1
+        this.update()
+        return
+      }
+
       const conformsTos = this.computeConformsToIdsForSelectedEntity(entityId)
 
       if (this.isSameStringSet(this.lastAppliedConformsTo, conformsTos)) {

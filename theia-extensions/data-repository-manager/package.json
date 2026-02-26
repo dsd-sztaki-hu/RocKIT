@@ -1,0 +1,43 @@
+{
+  "name": "data-repository-manager",
+  "version": "0.0.0",
+  "description": "A Theia extension to manage remote data repositories",
+  "keywords": [
+    "theia-extension",
+    "frontend"
+  ],
+  "files": [
+    "lib",
+    "src"
+  ],
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/data-repository-manager-frontend-module.js"
+    }
+  ],
+  "dependencies": {
+      "@theia/core": "1.65.2",
+      "antd": "^5.29.1",
+      "@mui/material": "^5.15.0",
+      "@mui/icons-material": "^5.15.0",
+      "@emotion/react": "^11.11.0",
+      "@emotion/styled": "^11.11.0",
+      "aroma2-common": "0.0.0"
+    },
+  "devDependencies": {
+    "@testing-library/react": "^14.0.0",
+    "@types/jest": "^29.5.0",
+    "jest": "^29.5.0",
+    "jest-environment-jsdom": "^29.5.0",
+    "rimraf": "^5.0.0",
+    "ts-jest": "^29.1.0",
+    "ts-node": "^10.9.1",
+    "typescript": "~5.4.5"
+  },
+  "scripts": {
+    "build": "tsc && yarn copy:assets",
+    "watch": "tsc -w",
+    "copy:assets": "shx mkdir -p lib/browser && shx cp -r src/browser/styles lib/browser/",
+    "test": "jest --config configs/jest.config.ts"
+  }
+}

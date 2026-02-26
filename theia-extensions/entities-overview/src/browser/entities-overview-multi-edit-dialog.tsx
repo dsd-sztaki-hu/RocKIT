@@ -1597,10 +1597,9 @@ export class MultiEditDialog extends ReactDialog<string> {
       <Select
         value={row.value || undefined}
         onChange={(value) => this.setOperationValue(row.id, String(value ?? ''))}
-        showSearch={{
-          onSearch: (value) => this.setOperationSearch(row.id, value),
-          filterOption: false,
-        }}
+        showSearch
+        onSearch={(value: string) => this.setOperationSearch(row.id, value)}
+        filterOption={false}
         allowClear
         placeholder="Select or create entity"
         getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
@@ -1906,7 +1905,8 @@ export class MultiEditDialog extends ReactDialog<string> {
                 classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
                 styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
                 style={{ width: '38%' }}
-                showSearch={{ optionFilterProp: 'label' }}
+                showSearch
+                optionFilterProp="label"
                 options={visibleFields.map((item) => ({
                   value: item.key,
                   label: `${item.label} - ${item.schemaLabel}`,
@@ -1965,7 +1965,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         <Alert
           type={hasErrors ? 'warning' : 'success'}
           showIcon
-          title={
+          message={
             hasErrors
               ? 'Multi-edit finished with warnings.'
               : 'Multi-edit finished successfully.'
@@ -2010,7 +2010,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     if (this.configurationError) {
       return (
         <div className="entities-overview-edit-modal-body">
-          <Alert type="error" showIcon title={this.configurationError} />
+          <Alert type="error" showIcon message={this.configurationError} />
         </div>
       )
     }
@@ -2128,7 +2128,7 @@ export class MultiEditDialog extends ReactDialog<string> {
             />
           </div>
           {this.schemaOrgError && (
-            <Alert type="warning" showIcon title={this.schemaOrgError} />
+            <Alert type="warning" showIcon message={this.schemaOrgError} />
           )}
         </div>
 
@@ -2147,7 +2147,7 @@ export class MultiEditDialog extends ReactDialog<string> {
             <Alert
               type="info"
               showIcon
-              title={
+              message={
                 this.schemaOrgEnabled
                   ? 'No properties are available for the selected schemas or schema.org.'
                   : 'No properties are available for the selected schemas.'
@@ -2162,8 +2162,9 @@ export class MultiEditDialog extends ReactDialog<string> {
           <Alert
             type="warning"
             showIcon
-            title="Multi-edit setup"
-            closable={{ onClose: this.dismissSetupWarning }}
+            message="Multi-edit setup"
+            closable
+            onClose={this.dismissSetupWarning}
             description={
               <ol className="entities-overview-edit-modal-errors">
                 <li>Select a schema or enable schema.org properties.</li>

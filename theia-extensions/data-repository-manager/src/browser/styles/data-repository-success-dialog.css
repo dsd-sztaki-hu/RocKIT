@@ -1,0 +1,120 @@
+/* src/browser/styles/data-repository-success-dialog.css */
+
+.data-repo-success {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    background-color: var(--theia-editor-background);
+    color: var(--theia-foreground);
+    font-family: var(--theia-ui-font-family);
+}
+
+.data-repo-success__content {
+    padding: 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    overflow-y: auto;
+}
+
+/* Success Header Banner */
+.data-repo-success__header {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    padding: 15px;
+    background-color: rgba(76, 175, 80, 0.08);
+    border-radius: 4px;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    flex-shrink: 0;
+}
+
+.data-repo-success__header-icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.data-repo-success__header-icon {
+    color: #4caf50;
+    font-size: 32px !important;
+}
+
+.data-repo-success__title {
+    font-weight: 600;
+    font-size: var(--theia-ui-font-size1);
+    color: var(--theia-foreground);
+    line-height: 1.4;
+}
+
+.data-repo-success__message {
+    font-size: var(--theia-ui-font-size0);
+    color: var(--theia-descriptionForeground);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+/* Info Box for Expiration */
+.data-repo-success__info-box {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 15px;
+    background-color: var(--theia-input-background);
+    border: 1px solid var(--theia-panel-border);
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.data-repo-success__info-icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.data-repo-success__info-icon {
+    color: var(--theia-textLink-foreground);
+    font-size: 20px !important;
+}
+
+.data-repo-success__info-text {
+    display: flex;
+    flex-direction: column;
+    font-size: var(--theia-ui-font-size0);
+    overflow: hidden;
+}
+
+.data-repo-success__info-text span {
+    color: var(--theia-descriptionForeground);
+    font-size: 0.9em;
+    margin-bottom: 2px;
+}
+
+.data-repo-success__info-text strong {
+    word-break: break-all;
+}
+
+/* Footer */
+.data-repo-success__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 15px 20px;
+    background-color: var(--theia-layout-color2);
+    border-top: 1px solid var(--theia-panel-border);
+    flex-shrink: 0;
+}
+
+.data-repo-success__btn-cancel {
+    min-width: 80px;
+    border: 1px solid var(--theia-button-border, #ccc);
+}
+
+.data-repo-success__btn-save {
+    min-width: 100px;
+    color: var(--theia-button-foreground);
+}
