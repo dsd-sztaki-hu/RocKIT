@@ -650,6 +650,60 @@ body.hc-black .entities-overview-edit-button.ant-btn {
   height: 100%;
 }
 
+.entities-overview-edit-modal-multi-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.entities-overview-edit-modal-multi-text-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.entities-overview-edit-modal-multi-text-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #ff4d4f;
+  background: transparent;
+  color: #ff4d4f;
+  cursor: pointer;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+.entities-overview-edit-modal-multi-text-remove:hover:not(:disabled) {
+  background: rgba(255, 77, 79, 0.1);
+}
+
+.entities-overview-edit-modal-multi-text-remove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.entities-overview-edit-modal-multi-text-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  border: 1px solid var(--theia-ui-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--theia-ui-font-color1);
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.entities-overview-edit-modal-multi-text-add:hover {
+  background: rgba(127, 127, 127, 0.12);
+}
+
 .entities-overview-edit-modal-row .ant-select-selector {
   min-height: 36px;
   align-items: flex-start;

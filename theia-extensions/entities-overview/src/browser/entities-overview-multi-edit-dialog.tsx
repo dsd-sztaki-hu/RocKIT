@@ -847,6 +847,56 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
   }
 
+  protected getEditableMultiTextValues(rawValue: string): string[] {
+    const normalized = rawValue.replace(/\r\n/g, '\n')
+    if (normalized.length === 0) {
+      return ['']
+    }
+    return normalized.split('\n')
+  }
+
+  protected setOperationMultiTextValue = (id: string, valueIndex: number, value: string) => {
+    const row = this.operations.find((operation) => operation.id === id)
+    if (!row) {
+      return
+    }
+    const values = this.getEditableMultiTextValues(row.value)
+    while (values.length <= valueIndex) {
+      values.push('')
+    }
+    values[valueIndex] = value
+    row.value = values.join('\n')
+    this.update()
+  }
+
+  protected addOperationMultiTextValue = (id: string) => {
+    const row = this.operations.find((operation) => operation.id === id)
+    if (!row) {
+      return
+    }
+    const values = this.getEditableMultiTextValues(row.value)
+    values.push('')
+    row.value = values.join('\n')
+    this.update()
+  }
+
+  protected removeOperationMultiTextValue = (id: string, valueIndex: number) => {
+    const row = this.operations.find((operation) => operation.id === id)
+    if (!row) {
+      return
+    }
+    const values = this.getEditableMultiTextValues(row.value)
+    if (valueIndex < 0 || valueIndex >= values.length) {
+      return
+    }
+    values.splice(valueIndex, 1)
+    if (values.length === 0) {
+      values.push('')
+    }
+    row.value = values.join('\n')
+    this.update()
+  }
+
   /**
    * Validates the full multi-edit setup.
    * @returns List of validation messages.
@@ -911,7 +961,7 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected validateValue(field: FieldDefinition, rawValue: string): string | undefined {
-    const tokens = this.splitMultiValue(rawValue, field.multiple)
+    const tokens = this.splitMultiValue(rawValue, field)
     if (tokens.length === 0) {
       return `value must be selected for ${field.label}.`
     }
@@ -973,7 +1023,7 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected parseValue(field: FieldDefinition, rawValue: string): unknown {
-    const tokens = this.splitMultiValue(rawValue, field.multiple)
+    const tokens = this.splitMultiValue(rawValue, field)
     if (field.valueKind === 'number') {
       const values = tokens.map((token) => Number(token))
       return field.multiple ? values : values[0]
@@ -1225,13 +1275,14 @@ export class MultiEditDialog extends ReactDialog<string> {
     return [value]
   }
 
-  protected splitMultiValue(rawValue: string, allowMultiple: boolean): string[] {
+  protected splitMultiValue(rawValue: string, field: FieldDefinition): string[] {
     const trimmed = rawValue.trim()
-    if (!allowMultiple) {
+    if (!field.multiple) {
       return trimmed ? [trimmed] : []
     }
+    const separatorPattern = field.valueKind === 'text' ? /\r?\n+/ : /[\n;,]+/
     const parts = trimmed
-      .split(/[\n;,]+/)
+      .split(separatorPattern)
       .map((part) => part.trim())
       .filter((part) => part.length > 0)
     return parts
@@ -1500,7 +1551,7 @@ export class MultiEditDialog extends ReactDialog<string> {
 
     if (field.valueKind === 'select' && field.selectValues.length > 0) {
       const isMulti = field.multiple
-      const multiValue = isMulti ? this.splitMultiValue(row.value, true) : undefined
+      const multiValue = isMulti ? this.splitMultiValue(row.value, field) : undefined
       return (
         <Select
           value={isMulti ? multiValue : row.value || undefined}
@@ -1545,15 +1596,41 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
 
     if (field.multiple) {
+      const values = this.getEditableMultiTextValues(row.value)
       return (
-        <Input.TextArea
-          value={row.value}
-          onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) =>
-            this.setOperationValue(row.id, event.target.value)
-          }
-          autoSize={{ minRows: 1, maxRows: 4 }}
-          placeholder="Enter values separated by comma or newline"
-        />
+        <div className="entities-overview-edit-modal-multi-text">
+          {values.map((value, valueIndex) => (
+            <div
+              className="entities-overview-edit-modal-multi-text-row"
+              key={`${row.id}-value-${valueIndex}`}
+            >
+              <Input
+                value={value}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                  this.setOperationMultiTextValue(row.id, valueIndex, event.target.value)
+                }
+                placeholder="Enter value"
+              />
+              <button
+                type="button"
+                className="entities-overview-edit-modal-multi-text-remove"
+                title="Remove value"
+                aria-label="Remove value"
+                onClick={() => this.removeOperationMultiTextValue(row.id, valueIndex)}
+                disabled={values.length === 1 && values[0].trim().length === 0}
+              >
+                <span className="codicon codicon-trash" aria-hidden="true" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="entities-overview-edit-modal-multi-text-add"
+            onClick={() => this.addOperationMultiTextValue(row.id)}
+          >
+            <span className="codicon codicon-add" aria-hidden="true" /> Add value
+          </button>
+        </div>
       )
     }
 
@@ -1675,7 +1752,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     const isMulti = field.multiple
     return (
       <Select
-        value={this.getEntityValueInputValue(row, isMulti)}
+        value={this.getEntityValueInputValue(row, field, isMulti)}
         onChange={(value) => {
           if (Array.isArray(value)) {
             this.setOperationValue(row.id, value.join(', '))
@@ -1908,14 +1985,18 @@ export class MultiEditDialog extends ReactDialog<string> {
     rawValue: string,
     graph: Record<string, any>[],
   ): unknown {
-    const tokens = this.splitMultiValue(rawValue, field.multiple)
+    const tokens = this.splitMultiValue(rawValue, field)
     const resolved = tokens.map((token) => this.resolveEntityValue(field, token, graph))
     return field.multiple ? resolved : resolved[0]
   }
 
-  protected getEntityValueInputValue(row: OperationRow, isMulti: boolean): string[] | string | undefined {
+  protected getEntityValueInputValue(
+    row: OperationRow,
+    field: FieldDefinition,
+    isMulti: boolean,
+  ): string[] | string | undefined {
     if (isMulti) {
-      return this.splitMultiValue(row.value, true)
+      return this.splitMultiValue(row.value, field)
     }
     return row.value || undefined
   }
