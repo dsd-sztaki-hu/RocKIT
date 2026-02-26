@@ -50,7 +50,8 @@ export async function validateEntities(crate: Record<string, any>, baseProfile: 
   for (const entity of entities) {
     let updatedProfile = JSON.parse(JSON.stringify(baseProfile))
 
-    if (entity["@type"] == "Dataset" || entity["@type"] == "File") {
+    const entityType = Array.isArray(entity["@type"]) ? entity["@type"][0] : entity["@type"]
+    if (entityType == "Dataset" || entityType == "File") {
       // TODO get merged profile for entity
       // Probably need a global get profile for entity fn that gets the entity id as a parameter and returns the profile
       // To find this entity easier, we also need to make findEntity global
