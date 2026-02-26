@@ -1,8 +1,9 @@
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import * as React from '@theia/core/shared/react'
-import { Alert, Button, Input, Select, Switch } from 'antd'
+import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import type { MetadataSchemaManager, SchemaInfo } from 'aroma2-common/lib/browser'
+import dayjs = require('dayjs')
 
 type BulkOperator = 'add' | 'remove' | 'set' | 'unset'
 type FieldValueKind = 'text' | 'number' | 'date' | 'select' | 'json' | 'entity'
@@ -954,6 +955,66 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
   }
 
+  protected renderMultiValueScalarInput(
+    row: OperationRow,
+    field: FieldDefinition,
+    value: string,
+    valueIndex: number,
+    disableRemove: boolean,
+  ): React.ReactNode {
+    const removeButton = (
+      <button
+        type="button"
+        className="entities-overview-edit-modal-multi-text-suffix-remove"
+        title="Remove value"
+        aria-label="Remove value"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => this.removeOperationMultiTextValue(row.id, valueIndex)}
+        disabled={disableRemove}
+      >
+        <span className="codicon codicon-trash" aria-hidden="true" />
+      </button>
+    )
+
+    if (field.valueKind === 'date') {
+      const parsed = value.trim().length > 0 ? dayjs(value) : null
+      const pickerValue = parsed && parsed.isValid() ? parsed : null
+      return (
+        <div className="entities-overview-edit-modal-multi-text-date-wrap">
+          <DatePicker
+            value={pickerValue}
+            onChange={(_, dateString) =>
+              this.setOperationMultiTextValue(
+                row.id,
+                valueIndex,
+                Array.isArray(dateString) ? dateString[0] ?? '' : String(dateString ?? ''),
+              )
+            }
+            format="YYYY-MM-DD"
+            placeholder="Pick a date"
+            style={{ width: '100%' }}
+            getPopupContainer={() => document.body}
+            popupClassName="entities-overview-edit-modal-date-popup"
+          />
+          {removeButton}
+        </div>
+      )
+    }
+
+    return (
+      <Input
+        id={this.getMultiTextInputId(row.id, valueIndex)}
+        value={value}
+        onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+          this.setOperationMultiTextValueFromEvent(row.id, valueIndex, event)
+        }
+        placeholder="Enter value"
+        type={field.valueKind === 'number' ? 'number' : 'text'}
+        suffix={removeButton}
+      />
+    )
+  }
+
   /**
    * Validates the full multi-edit setup.
    * @returns List of validation messages.
@@ -1652,6 +1713,28 @@ export class MultiEditDialog extends ReactDialog<string> {
       )
     }
 
+    if (field.valueKind === 'date') {
+      const parsed = row.value.trim().length > 0 ? dayjs(row.value) : null
+      const pickerValue = parsed && parsed.isValid() ? parsed : null
+      return (
+        <DatePicker
+          value={pickerValue}
+          onChange={(_, dateString) =>
+            this.setOperationValue(
+              row.id,
+              Array.isArray(dateString) ? dateString[0] ?? '' : String(dateString ?? ''),
+            )
+          }
+          format="YYYY-MM-DD"
+          placeholder="Pick a date"
+          style={{ width: '100%' }}
+          getPopupContainer={() => document.body}
+          popupClassName="entities-overview-edit-modal-date-popup"
+          allowClear
+        />
+      )
+    }
+
     if (field.multiple) {
       const values = this.getEditableMultiTextValues(row.value)
       return (
@@ -1661,27 +1744,13 @@ export class MultiEditDialog extends ReactDialog<string> {
               className="entities-overview-edit-modal-multi-text-row"
               key={`${row.id}-value-${valueIndex}`}
             >
-              <Input
-                id={this.getMultiTextInputId(row.id, valueIndex)}
-                value={value}
-                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                  this.setOperationMultiTextValueFromEvent(row.id, valueIndex, event)
-                }
-                placeholder="Enter value"
-                suffix={
-                  <button
-                    type="button"
-                    className="entities-overview-edit-modal-multi-text-suffix-remove"
-                    title="Remove value"
-                    aria-label="Remove value"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => this.removeOperationMultiTextValue(row.id, valueIndex)}
-                    disabled={values.length === 1 && values[0].trim().length === 0}
-                  >
-                    <span className="codicon codicon-trash" aria-hidden="true" />
-                  </button>
-                }
-              />
+              {this.renderMultiValueScalarInput(
+                row,
+                field,
+                value,
+                valueIndex,
+                values.length === 1 && values[0].trim().length === 0,
+              )}
             </div>
           ))}
           <button
@@ -1705,9 +1774,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         type={
           field.valueKind === 'number'
             ? 'number'
-            : field.valueKind === 'date'
-              ? 'date'
-              : 'text'
+            : 'text'
         }
       />
     )

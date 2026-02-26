@@ -674,6 +674,30 @@ body.hc-black .entities-overview-edit-button.ant-btn {
   line-height: 1.2 !important;
 }
 
+.entities-overview-edit-modal-multi-text-date-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.entities-overview-edit-modal-multi-text-date-wrap .ant-picker {
+  width: 100%;
+  min-height: 36px;
+  padding-right: 32px;
+}
+
+.entities-overview-edit-modal-multi-text-date-wrap
+  .entities-overview-edit-modal-multi-text-suffix-remove {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.entities-overview-edit-modal-date-popup {
+  z-index: 20000 !important;
+}
+
 .entities-overview-edit-modal-multi-text-suffix-remove {
   display: inline-flex;
   align-items: center;
