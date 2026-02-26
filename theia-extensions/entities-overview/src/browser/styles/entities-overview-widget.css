@@ -770,8 +770,8 @@ body.hc-black .entities-overview-edit-button.ant-btn {
 }
 
 .entities-overview-edit-modal-value .ant-select-multiple .ant-select-selector {
-  min-height: 38px;
-  padding: 4px 8px;
+  min-height: 26px;
+  padding: 3px 8px;
 }
 
 .entities-overview-edit-modal-value
@@ -780,9 +780,7 @@ body.hc-black .entities-overview-edit-button.ant-btn {
   max-width: 100%;
 }
 
-.entities-overview-edit-modal-value
-  .ant-select-multiple
-  .ant-select-selection-item {
+.entities-overview-edit-modal-value .ant-select-multiple .ant-select-selection-item {
   display: inline-flex;
   align-items: center;
   max-width: 360px;
@@ -973,13 +971,13 @@ body.hc-black .entities-overview-edit-button.ant-btn {
 }
 
 .entities-overview-edit-modal-validation > summary::before {
-  content: '▸';
+  content: "▸";
   display: inline-block;
   margin-right: 6px;
 }
 
 .entities-overview-edit-modal-validation[open] > summary::before {
-  content: '▾';
+  content: "▾";
 }
 
 .lm-Widget.dialogOverlay .dialogContent {
@@ -1053,7 +1051,8 @@ body.hc-black .entities-overview-edit-button.ant-btn {
   font-weight: 700;
 }
 
-.entities-overview-edit-modal-dropdown .ant-select-item-option-active
+.entities-overview-edit-modal-dropdown
+  .ant-select-item-option-active
   .entities-overview-entity-create-option {
   filter: brightness(1.05);
 }
