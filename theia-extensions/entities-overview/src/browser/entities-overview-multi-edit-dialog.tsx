@@ -181,6 +181,10 @@ export class MultiEditDialog extends ReactDialog<string> {
   protected isExecuting = false
   protected profileData?: Record<string, any>
   protected readonly operationSearch = new Map<string, string>()
+  protected readonly pendingMultiTextSelection = new Map<
+    string,
+    { start: number; end: number }
+  >()
 
   constructor(
     private readonly entityIds: string[],
@@ -867,6 +871,59 @@ export class MultiEditDialog extends ReactDialog<string> {
     values[valueIndex] = value
     row.value = values.join('\n')
     this.update()
+  }
+
+  protected setOperationMultiTextValueFromEvent = (
+    id: string,
+    valueIndex: number,
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const input = event.target
+    const selectionStart = input.selectionStart
+    const selectionEnd = input.selectionEnd
+    const key = this.getMultiTextValueKey(id, valueIndex)
+    if (selectionStart !== null && selectionEnd !== null) {
+      this.pendingMultiTextSelection.set(key, {
+        start: selectionStart,
+        end: selectionEnd,
+      })
+    }
+    this.setOperationMultiTextValue(id, valueIndex, input.value)
+    requestAnimationFrame(() => this.restorePendingMultiTextSelection(key))
+  }
+
+  protected getMultiTextValueKey(operationId: string, valueIndex: number): string {
+    return `${operationId}::${valueIndex}`
+  }
+
+  protected getMultiTextInputId(operationId: string, valueIndex: number): string {
+    const key = this.getMultiTextValueKey(operationId, valueIndex)
+    return `multi-text-${key.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+  }
+
+  protected restorePendingMultiTextSelection(key: string): void {
+    const pending = this.pendingMultiTextSelection.get(key)
+    if (!pending) {
+      return
+    }
+    const [operationId, rawIndex] = key.split('::')
+    const valueIndex = Number(rawIndex)
+    if (!operationId || !Number.isFinite(valueIndex)) {
+      this.pendingMultiTextSelection.delete(key)
+      return
+    }
+    const inputId = this.getMultiTextInputId(operationId, valueIndex)
+    const input = document.getElementById(inputId) as HTMLInputElement | null
+    if (!input) {
+      return
+    }
+    try {
+      input.focus()
+      input.setSelectionRange(pending.start, pending.end)
+    } catch {
+      // no-op for unsupported input types/browsers
+    }
+    this.pendingMultiTextSelection.delete(key)
   }
 
   protected addOperationMultiTextValue = (id: string) => {
@@ -1605,22 +1662,26 @@ export class MultiEditDialog extends ReactDialog<string> {
               key={`${row.id}-value-${valueIndex}`}
             >
               <Input
+                id={this.getMultiTextInputId(row.id, valueIndex)}
                 value={value}
                 onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                  this.setOperationMultiTextValue(row.id, valueIndex, event.target.value)
+                  this.setOperationMultiTextValueFromEvent(row.id, valueIndex, event)
                 }
                 placeholder="Enter value"
+                suffix={
+                  <button
+                    type="button"
+                    className="entities-overview-edit-modal-multi-text-suffix-remove"
+                    title="Remove value"
+                    aria-label="Remove value"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => this.removeOperationMultiTextValue(row.id, valueIndex)}
+                    disabled={values.length === 1 && values[0].trim().length === 0}
+                  >
+                    <span className="codicon codicon-trash" aria-hidden="true" />
+                  </button>
+                }
               />
-              <button
-                type="button"
-                className="entities-overview-edit-modal-multi-text-remove"
-                title="Remove value"
-                aria-label="Remove value"
-                onClick={() => this.removeOperationMultiTextValue(row.id, valueIndex)}
-                disabled={values.length === 1 && values[0].trim().length === 0}
-              >
-                <span className="codicon codicon-trash" aria-hidden="true" />
-              </button>
             </div>
           ))}
           <button
