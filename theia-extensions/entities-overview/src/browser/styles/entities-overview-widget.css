@@ -333,6 +333,8 @@ body.hc-black .entities-overview-edit-button.ant-btn {
 
 .entities-overview-validity-select {
   width: 100%;
+  height: 32px !important;
+  min-height: 32px !important;
 }
 
 .entities-overview-type-select .ant-select-selector {
@@ -348,8 +350,16 @@ body.hc-black .entities-overview-edit-button.ant-btn {
   background: var(--theia-input-background) !important;
   border-color: var(--theia-ui-border) !important;
   min-height: 32px !important;
-  padding-top: 1px !important;
-  padding-bottom: 1px !important;
+  height: 32px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.entities-overview-validity-select.ant-select-single.ant-select-sm .ant-select-selection-item,
+.entities-overview-validity-select.ant-select-single.ant-select-sm .ant-select-selection-placeholder {
+  line-height: 30px !important;
 }
 
 .entities-overview-type-select .ant-select-selection-item {
