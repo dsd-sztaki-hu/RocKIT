@@ -10,13 +10,16 @@ import {
   WidgetManager,
 } from '@theia/core/lib/browser'
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
+import { ThemeService } from '@theia/core/lib/browser/theming'
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { MetadataSchemaManager } from 'aroma2-common/lib/browser'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
+import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { MultiEditDialog } from './entities-overview-multi-edit-dialog'
 import {
   EntitiesOverviewModel,
@@ -66,8 +69,11 @@ export class EntitiesOverviewWidget extends TreeWidget {
     @inject(TreeModel) public override readonly model: EntitiesOverviewModel,
     @inject(ContextMenuRenderer) contextMenuRenderer: ContextMenuRenderer,
     @inject(AppStateService) private readonly appStateService: AppStateService,
+    @inject(MetadataSchemaManager)
+    private readonly schemaManagerService: MetadataSchemaManager,
     @inject(WidgetManager) private readonly widgetManager: WidgetManager,
     @inject(ApplicationShell) private readonly shell: ApplicationShell,
+    @inject(ThemeService) private readonly themeService: ThemeService,
   ) {
     super(props, model, contextMenuRenderer)
 
@@ -173,7 +179,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
     const selectedTypes = this.normalizeSelectedTypes(availableTypes, activeFilters)
     const isAdvanced = this.filterMode === 'advanced'
     return (
-      <div className="entities-overview-panel-content">
+      <AntdThemeProvider themeService={this.themeService}>
+        <div className="entities-overview-panel-content">
         <div className="entities-overview-filters">
           <div className="entities-overview-filter-header">
             <span className="entities-overview-filter-title">Filters</span>
@@ -296,6 +303,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
         </div>
         <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
       </div>
+      </AntdThemeProvider>
     )
   }
 
@@ -547,7 +555,11 @@ export class EntitiesOverviewWidget extends TreeWidget {
     const selectedEntityIds = this.model.getSelectedEntityIds()
     const entityIds =
       selectedEntityIds.length > 0 ? selectedEntityIds : this.model.getVisibleEntityIds()
-    const dialog = new MultiEditDialog(entityIds)
+    const dialog = new MultiEditDialog(
+      entityIds,
+      this.appStateService,
+      this.schemaManagerService,
+    )
     await dialog.open()
   }
 

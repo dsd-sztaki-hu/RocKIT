@@ -1,280 +1,275 @@
+// src/browser/components/remote-schema-provider-config-dialog.tsx
+
+import { AbstractDialog } from '@theia/core/lib/browser';
+import { Message } from '@lumino/messaging';
 import * as React from 'react';
-import {
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
-    TextField,
-    Select,
-    MenuItem,
-    FormControl,
-    InputLabel,
-    FormHelperText,
-    Alert,
-    CircularProgress,
-    InputAdornment,
-    IconButton
-} from '@mui/material';
+import { createRoot, Root } from 'react-dom/client';
+import DnsIcon from '@mui/icons-material/Dns';
+import LinkIcon from '@mui/icons-material/Link';
+import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
-import { RemoteSchemaProviderConfig } from '../types';
-import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
+import CategoryIcon from '@mui/icons-material/Category';
+import { IconButton } from '@mui/material';
+
 import { ConnectionSuccessDialog } from './connection-success-dialog';
+import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
+import type { RemoteSchemaProviderConfig } from '../types';
+import '../styles/remote-schema-provider-config-dialog.css';
 
-// Restricted list of CEDAR prefixes/modules as requested
-const CEDAR_MODULE_PREFIXES = [
-    'cedar', 
-    'repo', 
-    'resource', 
-    'open', 
-    'openview'
-];
+export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchemaProviderConfig | undefined> {
 
-interface Props {
-    open: boolean;
-    providerToEdit?: RemoteSchemaProviderConfig;
-    onClose: () => void;
-    onSave: (config: RemoteSchemaProviderConfig) => Promise<void>;
-    providerStore: RemoteSchemaProviderStoreService;
-}
-
-export const RemoteSchemaProviderConfigDialog: React.FC<Props> = ({ open, providerToEdit, onClose, onSave, providerStore }) => {
-    // Form State
-    const [baseUrl, setBaseUrl] = React.useState('');
-    const [title, setTitle] = React.useState('');
-    const [type, setType] = React.useState<'CEDAR'>('CEDAR');
-    const [apiKey, setApiKey] = React.useState('');
+    private reactRoot: Root | undefined;
     
-    // UI Logic State
-    const [showApiKey, setShowApiKey] = React.useState(false);
-    const [isEditingKey, setIsEditingKey] = React.useState(true); 
-    const [isTesting, setIsTesting] = React.useState(false);
-    const [error, setError] = React.useState<string | null>(null);
+    // Form State
+    private titleValue: string = '';
+    private baseUrlValue: string = '';
+    private apiKeyValue: string = '';
+    private typeValue: 'CEDAR' = 'CEDAR';
+    
+    private isEditingKey = true;
+    private isTesting = false;
+    private showKey = false; 
+    private errorMsg: string | null = null;
+    private result: RemoteSchemaProviderConfig | undefined;
 
-    // Success Flow State
-    const [foundSchemas, setFoundSchemas] = React.useState<string[]>([]);
-    const [showSuccessDialog, setShowSuccessDialog] = React.useState(false);
-    const [pendingConfig, setPendingConfig] = React.useState<RemoteSchemaProviderConfig | null>(null);
-
-    // Ref for manual focus enforcement
-    const titleInputRef = React.useRef<HTMLInputElement>(null);
-
-    React.useEffect(() => {
-        // Reset state
-        setError(null);
-        setIsTesting(false);
-        setShowSuccessDialog(false);
-        setFoundSchemas([]);
-        setPendingConfig(null);
+    constructor(
+        private readonly providerStore: RemoteSchemaProviderStoreService,
+        private readonly providerToEdit?: RemoteSchemaProviderConfig
+    ) {
+        super({
+            title: providerToEdit ? 'Edit Provider' : 'Add Provider'
+        });
+        
+        this.contentNode.style.width = '500px';
+        this.contentNode.style.padding = '0';
 
         if (providerToEdit) {
-            setBaseUrl(providerToEdit.baseUrl);
-            setTitle(providerToEdit.title);
-            setType(providerToEdit.type);
-            setApiKey(providerToEdit.apiKey || '');
-            setIsEditingKey(false); 
-        } else {
-            setBaseUrl('');
-            setTitle('');
-            setType('CEDAR');
-            setApiKey('');
-            setIsEditingKey(true);
-            
-            // Focus Enforcement
-            setTimeout(() => {
-                if (titleInputRef.current) {
-                    titleInputRef.current.focus();
-                }
-            }, 300);
+            this.titleValue = providerToEdit.title;
+            this.baseUrlValue = providerToEdit.baseUrl;
+            this.apiKeyValue = providerToEdit.apiKey || '';
+            this.isEditingKey = false; 
         }
-    }, [providerToEdit]);
+    }
 
-    /**
-     * Calculates the 'domainBase' by stripping specific CEDAR prefixes.
-     * Does NOT affect the user-visible 'baseUrl'.
-     */
-    const calculateDomainBase = (url: string): string => {
-        try {
-            const trimmed = url.trim();
-            if (!trimmed) return '';
+    get value(): RemoteSchemaProviderConfig | undefined {
+        return this.result;
+    }
 
-            // Ensure protocol for parsing
-            const hasProtocol = /^https?:\/\//i.test(trimmed);
-            const urlObj = new URL(hasProtocol ? trimmed : `https://${trimmed}`);
-            
-            const hostname = urlObj.hostname;
-            const parts = hostname.split('.');
-
-            // Check if the first subdomain matches a known CEDAR module exactly
-            // We ensure parts.length > 2 to avoid stripping if it's the root domain
-            if (parts.length > 1 && CEDAR_MODULE_PREFIXES.includes(parts[0].toLowerCase())) {
-                 // Remove the prefix (e.g., 'cedar')
-                 parts.shift();
-                 urlObj.hostname = parts.join('.');
-                 return urlObj.origin;
-            }
-            
-            return urlObj.origin;
-        } catch (e) {
-            return url;
-        }
-    };
-
-    const handleTestAndProceed = async () => {
-        if (!baseUrl || !title || !type) {
-            setError('Please fill in all required fields (Base URL, Title, Type).');
+    private async handleSaveAttempt() {
+        if (!this.titleValue || !this.baseUrlValue) {
+            this.errorMsg = "Title and Base URL are required.";
+            this.render();
             return;
         }
 
-        setIsTesting(true);
-        setError(null);
+        this.isTesting = true;
+        this.errorMsg = null;
+        this.render();
 
-        // 1. Calculate the functional domainBase (hidden from UI, used for logic)
-        const domainBase = type === 'CEDAR' ? calculateDomainBase(baseUrl) : baseUrl;
-
-        const configToTest: RemoteSchemaProviderConfig = {
-            id: providerToEdit ? providerToEdit.id : Date.now().toString(),
-            title,
-            baseUrl: baseUrl, // User input
-            domainBase: domainBase, // Calculated field
-            type,
-            apiKey: apiKey || undefined
-        };
-
+        const domainBase = this.calculateDomainBase(this.baseUrlValue);
+        
         try {
-            // Pass the calculated domainBase for the test connection
-            const schemaNames = await providerStore.testConnection(domainBase, apiKey);
-            
-            setFoundSchemas(schemaNames);
-            setPendingConfig(configToTest);
-            setShowSuccessDialog(true);
+            const schemaNames = await this.providerStore.testConnection(domainBase, this.apiKeyValue || undefined);
+
+            const successDialog = new ConnectionSuccessDialog(this.titleValue, schemaNames);
+            const confirmed = await successDialog.open();
+
+            if (confirmed) {
+                this.result = {
+                    id: this.providerToEdit ? this.providerToEdit.id : Date.now().toString(),
+                    title: this.titleValue,
+                    baseUrl: this.baseUrlValue,
+                    domainBase: domainBase,
+                    type: this.typeValue,
+                    apiKey: this.apiKeyValue || undefined
+                };
+                this.accept(); 
+            }
         } catch (err: any) {
-            setError(`Connection failed: ${err.message || 'Unknown error'}. Please check your configuration.`);
+            this.errorMsg = `Connection failed: ${err.message || 'Unknown error'}`;
         } finally {
-            setIsTesting(false);
+            this.isTesting = false; 
+            this.render();
         }
-    };
+    }
 
-    const handleConfirmSave = async () => {
-        if (pendingConfig) {
-            await onSave(pendingConfig);
-            onClose();
+    private handleCancel() {
+        this.result = undefined;
+        this.close();
+    }
+
+    private calculateDomainBase(url: string): string {
+        try {
+            const trimmed = url.trim();
+            const hasProtocol = /^https?:\/\//i.test(trimmed);
+            const urlObj = new URL(hasProtocol ? trimmed : `https://${trimmed}`);
+            const parts = urlObj.hostname.split('.');
+            const CEDAR_PREFIXES = ['cedar', 'repo', 'resource', 'open', 'openview'];
+            
+            if (parts.length > 1 && CEDAR_PREFIXES.includes(parts[0].toLowerCase())) {
+                parts.shift();
+                urlObj.hostname = parts.join('.');
+                return urlObj.origin;
+            }
+            return urlObj.origin;
+        } catch {
+            return url;
         }
-    };
+    }
 
-    const handleResetKey = () => {
-        setApiKey('');
-        setIsEditingKey(true);
-    };
+    protected render(): void {
+        if (!this.reactRoot) {
+            this.reactRoot = createRoot(this.contentNode);
+        }
 
-    if (showSuccessDialog) {
-        return (
-            <ConnectionSuccessDialog 
-                open={showSuccessDialog}
-                providerName={title}
-                schemaNames={foundSchemas}
-                onConfirm={handleConfirmSave}
-                onCancel={() => setShowSuccessDialog(false)}
-            />
+        this.reactRoot.render(
+            <div className="remote-provider-config">
+                
+                {/* Scrollable Content Area */}
+                <div className="remote-provider-config__content">
+                    {/* Header Info */}
+                    <div className="remote-provider-config__header">
+                        <div className="remote-provider-config__icon-wrapper">
+                            <DnsIcon style={{ color: 'var(--theia-textLink-foreground)', fontSize: '24px' }} />
+                        </div>
+                        <div>
+                            <div className="remote-provider-config__title">
+                                {this.providerToEdit ? 'Edit Connection' : 'New Connection'}
+                            </div>
+                            <div className="remote-provider-config__description">
+                                Configure connection details for a remote metadata repository.
+                            </div>
+                        </div>
+                    </div>
+
+                    {this.errorMsg && (
+                        <div className="remote-provider-config__error">
+                            <strong>Error:</strong> {this.errorMsg}
+                        </div>
+                    )}
+
+                    {/* Form Fields */}
+                    <div className="remote-provider-config__form">
+                        
+                        {/* Title */}
+                        <div>
+                            <label className="remote-provider-config__label">
+                                Name (Display)
+                            </label>
+                            <input 
+                                className="theia-input remote-provider-config__input" 
+                                value={this.titleValue}
+                                onChange={(e) => { this.titleValue = e.target.value; this.render(); }}
+                                disabled={this.isTesting}
+                                placeholder="e.g. ARP Production"
+                                autoFocus
+                            />
+                        </div>
+
+                        {/* Base URL */}
+                        <div>
+                            <label className="remote-provider-config__label">
+                                <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Base URL
+                            </label>
+                            <input 
+                                className="theia-input remote-provider-config__input" 
+                                placeholder="https://cedar.schema.researchdata.hu"
+                                value={this.baseUrlValue}
+                                onChange={(e) => { this.baseUrlValue = e.target.value; this.render(); }}
+                                disabled={this.isTesting}
+                            />
+                        </div>
+
+                        {/* Type Dropdown */}
+                        <div>
+                            <label className="remote-provider-config__label">
+                                <CategoryIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Type
+                            </label>
+                            <select 
+                                className="theia-select remote-provider-config__select" 
+                                value={this.typeValue}
+                                onChange={(e) => { this.typeValue = e.target.value as any; this.render(); }}
+                                disabled={this.isTesting} 
+                            >
+                                <option value="CEDAR">CEDAR</option>
+                            </select>
+                        </div>
+
+                        {/* API Key */}
+                        <div>
+                            <label className="remote-provider-config__label">
+                                <VpnKeyIcon style={{ fontSize: '16px', opacity: 0.7 }}/> API Key (Optional)
+                            </label>
+                            <div className="remote-provider-config__api-key-wrapper">
+                                <input 
+                                    className="theia-input remote-provider-config__input remote-provider-config__input--password" 
+                                    type={this.showKey ? "text" : "password"}
+                                    value={this.isEditingKey ? this.apiKeyValue : '********'}
+                                    onChange={(e) => { this.apiKeyValue = e.target.value; this.render(); }}
+                                    disabled={!this.isEditingKey || this.isTesting}
+                                    placeholder={this.isEditingKey ? "Paste API Key here" : "Stored securely"}
+                                />
+                                {this.isEditingKey ? (
+                                    <div className="remote-provider-config__visibility-toggle">
+                                        <IconButton 
+                                            size="small" 
+                                            onClick={() => { this.showKey = !this.showKey; this.render(); }}
+                                            style={{ color: 'var(--theia-foreground)', opacity: 0.7 }}
+                                            title={this.showKey ? "Hide API Key" : "Show API Key"}
+                                        >
+                                            {this.showKey ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                                        </IconButton>
+                                    </div>
+                                ) : (
+                                    <button 
+                                        className="theia-button secondary remote-provider-config__change-btn"
+                                        onClick={() => { 
+                                            this.isEditingKey = true; 
+                                            this.apiKeyValue = ''; 
+                                            this.render(); 
+                                        }}
+                                    >
+                                        Change
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer Section */}
+                <div className="remote-provider-config__footer">
+                    <button 
+                        className="theia-button secondary remote-provider-config__btn-cancel"
+                        onClick={() => this.handleCancel()}
+                        disabled={this.isTesting}
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        className="theia-button main remote-provider-config__btn-save"
+                        onClick={() => this.handleSaveAttempt()}
+                        disabled={this.isTesting}
+                    >
+                        {this.isTesting && <i className="codicon codicon-loading codicon-modifier-spin" />}
+                        {this.isTesting ? 'Verifying...' : 'Save'}
+                    </button>
+                </div>
+            </div>
         );
     }
 
-    return (
-        <Dialog 
-            open={open} 
-            onClose={isTesting ? undefined : onClose} 
-            maxWidth="sm" 
-            fullWidth
-            disablePortal={false} 
-            disableScrollLock={true}
-            disableRestoreFocus={true}
-            disableEnforceFocus={true} 
-            style={{ zIndex: 1301 }} 
-        >
-            <DialogTitle>
-                {providerToEdit ? 'Edit Remote Schema Provider' : 'New Remote Schema Provider'}
-            </DialogTitle>
-            <DialogContent>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
-                    {error && <Alert severity="error">{error}</Alert>}
-                    
-                    <TextField
-                        inputRef={titleInputRef}
-                        label="Title (Display Name)"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        required
-                        helperText="The name displayed in the remote schema provider list."
-                        disabled={isTesting}
-                        autoFocus
-                    />
+    protected onAfterAttach(msg: Message): void {
+        super.onAfterAttach(msg);
+        this.render();
+    }
 
-                    <TextField
-                        label="Base URL"
-                        value={baseUrl}
-                        onChange={(e) => setBaseUrl(e.target.value)}
-                        required
-                        helperText="e.g., https://cedar.schema.researchdata.hu"
-                        disabled={isTesting}
-                    />
-
-                    <FormControl required disabled={isTesting}>
-                        <InputLabel>Type</InputLabel>
-                        <Select
-                            value={type}
-                            label="Type"
-                            onChange={(e) => setType(e.target.value as 'CEDAR')}
-                            MenuProps={{ disablePortal: true }} 
-                        >
-                            <MenuItem value="CEDAR">CEDAR</MenuItem>
-                        </Select>
-                        <FormHelperText>Currently only CEDAR systems are supported.</FormHelperText>
-                    </FormControl>
-
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                         <TextField
-                            label="API Key"
-                            value={isEditingKey ? apiKey : '********'}
-                            onChange={(e) => setApiKey(e.target.value)}
-                            type={showApiKey && isEditingKey ? 'text' : 'password'}
-                            fullWidth
-                            helperText="Optional. Required for private resources."
-                            disabled={!isEditingKey || isTesting}
-                            InputProps={{
-                                endAdornment: isEditingKey ? (
-                                    <InputAdornment position="end">
-                                        <IconButton
-                                            onClick={() => setShowApiKey(!showApiKey)}
-                                            edge="end"
-                                        >
-                                            {showApiKey ? <VisibilityOff /> : <Visibility />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                ) : undefined
-                            }}
-                        />
-                        {!isEditingKey && (
-                            <Button 
-                                variant="outlined" 
-                                color="warning" 
-                                onClick={handleResetKey}
-                                startIcon={<DeleteOutline />}
-                                sx={{ mt: 1, height: '40px' }}
-                            >
-                                Change
-                            </Button>
-                        )}
-                    </div>
-                </div>
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose} disabled={isTesting}>Cancel</Button>
-                <Button onClick={handleTestAndProceed} variant="contained" disabled={isTesting}>
-                    {isTesting ? <CircularProgress size={24} /> : 'Save'}
-                </Button>
-            </DialogActions>
-        </Dialog>
-    );
-};
+    protected onBeforeDetach(msg: Message): void {
+        if (this.reactRoot) {
+            this.reactRoot.unmount();
+            this.reactRoot = undefined;
+        }
+        super.onBeforeDetach(msg);
+    }
+}

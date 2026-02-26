@@ -24,7 +24,9 @@ import {
   TreeModel,
   TreeNode,
   TreeProps,
+  TreeSelection,
 } from '@theia/core/lib/browser'
+import { ThemeService } from '@theia/core/lib/browser/theming'
 import { CommandService } from '@theia/core/lib/common'
 import { nls } from '@theia/core/lib/common/nls'
 import URI from '@theia/core/lib/common/uri'
@@ -36,6 +38,7 @@ import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browse
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { DataSourceService } from 'data-sources/lib/browser/data-source-service'
+import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
 import { FileNavigatorFilter } from './navigator-filter'
@@ -60,6 +63,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   @inject(AppStateService) protected readonly appStateService: AppStateService
   @inject(FileNavigatorFilter) protected readonly fileNavigatorFilter: FileNavigatorFilter
   @inject(DataSourceService) protected readonly dataSourceService: DataSourceService
+  @inject(ThemeService) protected readonly themeService: ThemeService
 
   protected readonly filters: {
     fileNameFilter: string
@@ -74,6 +78,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   protected readonly fileNameInputRef = React.createRef<HTMLInputElement>()
   protected fileNameSelection: { start: number | null; end: number | null } | undefined
   protected filterKeydownListenerAttached = false
+  protected suppressRootSelection = false
 
   constructor(
     @inject(TreeProps) props: TreeProps,
@@ -99,6 +104,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
     this.toDispose.pushAll([
       this.model.onSelectionChanged(() => this.updateSelectionContextKeys()),
+      this.model.onSelectionChanged(() => this.stripRootSelections()),
       this.model.onExpansionChanged((node) => {
         if (node.expanded && node.children.length === 1) {
           const child = node.children[0]
@@ -164,15 +170,11 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       this.filters.fileNameFilter.trim() !== '' || this.filters.roCrateFilter !== 'all'
 
     // keep behavior: if workspace isn't opened, show just tree container (from main)
-    if (!this.workspaceService.opened) {
-      return (
-        <div className="navigator-filter-panel">
-          <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
-        </div>
-      )
-    }
-
-    return (
+    const content = !this.workspaceService.opened ? (
+      <div className="navigator-filter-panel">
+        <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
+      </div>
+    ) : (
       <div className="navigator-filter-panel">
         <div
           className={`navigator-filters ${
@@ -261,6 +263,10 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
         <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
       </div>
+    )
+
+    return (
+      <AntdThemeProvider themeService={this.themeService}>{content}</AntdThemeProvider>
     )
   }
 
@@ -461,6 +467,17 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       attributes.className = `${withoutState} navigator-data-source-root`.trim()
     }
 
+    if (FileStatNode.is(node) && this.isNavigatorRootNode(node)) {
+      attributes.onMouseDown = (event: React.MouseEvent<HTMLElement>) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+      attributes.onClick = (event: React.MouseEvent<HTMLElement>) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    }
+
     // drag support (from 26662)
     if (FileStatNode.is(node)) {
       attributes.draggable = true
@@ -491,7 +508,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
    */
   private shouldHighlightFile(node: FileStatNode): boolean {
     const { files, directories } = this.getRoCrateEntityPathIndex()
-    if (files.size === 0 && directories.length === 0) {
+    if (files.size === 0 && directories.size === 0) {
       return false
     }
 
@@ -504,11 +521,10 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       return false
     }
 
-    for (const directory of directories) {
-      if (!directory) continue
-      if (relativePath === directory || relativePath.startsWith(`${directory}/`)) {
-        return false
-      }
+    // A directory entity only describes that directory node.
+    // Descendant files still need their own explicit entities.
+    if (DirNode.is(node) && directories.has(relativePath)) {
+      return false
     }
 
     return true
@@ -527,10 +543,10 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     return normalized ? normalized.toLowerCase() : undefined
   }
 
-  private getRoCrateEntityPathIndex(): { files: Set<string>; directories: string[] } {
+  private getRoCrateEntityPathIndex(): { files: Set<string>; directories: Set<string> } {
     const crate = this.appStateService.roCrate
     if (!crate) {
-      return { files: new Set(), directories: [] }
+      return { files: new Set(), directories: new Set() }
     }
 
     const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
@@ -560,7 +576,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       }
     }
 
-    return { files, directories: Array.from(directories) }
+    return { files, directories }
   }
 
   private deriveRelativePathFromEntityId(
@@ -750,14 +766,104 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     }
     const selectedNodes = this.model.selectedFileStatNodes
     const selectionIncludesNode = selectedNodes.some((n) => n.id === node.id)
-    const nodesToTransfer =
+    let nodesToTransfer =
       selectionIncludesNode && selectedNodes.length > 1 ? selectedNodes : [node]
+
+    nodesToTransfer = this.normalizeDragSelection(nodesToTransfer, node)
+    if (!nodesToTransfer.length && !this.isNavigatorRootNode(node)) {
+      nodesToTransfer = [node]
+    }
+
     const uriList = nodesToTransfer.map((n) => n.uri.toString())
 
-    const payload = uriList.join('\n')
+    const payload = uriList.join('\r\n')
     event.dataTransfer.setData('text/uri-list', payload)
     event.dataTransfer.setData('application/vnd.code.uri-list', payload)
     event.dataTransfer.setData('text/plain', payload)
     event.dataTransfer.effectAllowed = 'link'
+  }
+
+  protected isNavigatorRootNode(node: FileStatNode): boolean {
+    return WorkspaceRootNode.is(node) || DataSourceRootNode.is(node)
+  }
+
+  protected normalizeDragSelection(
+    selected: ReadonlyArray<FileStatNode>,
+    anchor: FileStatNode,
+  ): FileStatNode[] {
+    if (this.isNavigatorRootNode(anchor)) {
+      return selected.filter((n) => !this.isNavigatorRootNode(n))
+    }
+
+    const filtered = selected.filter((n) => !this.isNavigatorRootNode(n))
+    const nextSelection = filtered.length ? filtered : [anchor]
+
+    const ordered: FileStatNode[] = []
+    const seen = new Set<string>()
+    if (nextSelection.some((n) => n.id === anchor.id)) {
+      ordered.push(anchor)
+      seen.add(anchor.id)
+    }
+    for (const node of nextSelection) {
+      if (!seen.has(node.id)) {
+        ordered.push(node)
+        seen.add(node.id)
+      }
+    }
+
+    this.resetSelection(ordered)
+    return ordered
+  }
+
+  protected resetSelection(nodes: ReadonlyArray<FileStatNode>): void {
+    if (!nodes.length) {
+      return
+    }
+    this.model.clearSelection()
+    nodes.forEach((node, index) => {
+      this.model.addSelection({
+        node,
+        type:
+          index === 0
+            ? TreeSelection.SelectionType.DEFAULT
+            : TreeSelection.SelectionType.TOGGLE,
+      })
+    })
+  }
+
+  protected stripRootSelections(): void {
+    if (this.suppressRootSelection) {
+      return
+    }
+
+    const selected = this.model.selectedNodes
+    if (!selected.length) {
+      return
+    }
+
+    const roots = selected.filter(
+      (node): node is FileStatNode => FileStatNode.is(node) && this.isNavigatorRootNode(node),
+    )
+    if (!roots.length) {
+      return
+    }
+
+    const nonRootSelected = selected.some(
+      (node) => FileStatNode.is(node) && !this.isNavigatorRootNode(node),
+    )
+
+    this.suppressRootSelection = true
+    try {
+      if (!nonRootSelected) {
+        this.model.clearSelection()
+        return
+      }
+
+      for (const root of roots) {
+        this.model.addSelection({ node: root, type: TreeSelection.SelectionType.TOGGLE })
+      }
+    } finally {
+      this.suppressRootSelection = false
+    }
   }
 }

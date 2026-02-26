@@ -10,8 +10,9 @@
   ],
   "dependencies": {
     "@theia/core": "1.65.2",
-    "antd": "^6.1.4",
+    "antd": "^5.29.1",
     "app-state": "0.0.1",
+    "aroma2-common": "0.0.0",
     "entities-overview": "0.0.0",
     "ro-crate-editor": "0.0.0",
     "schema-validator": "0.0.0",

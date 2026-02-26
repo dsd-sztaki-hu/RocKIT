@@ -9,7 +9,7 @@
   "scripts": {
     "clean": "rimraf lib",
     "generate:accessors": "node ./scripts/generate-accessors.cjs",
-    "build": "yarn generate:accessors && tsc",
+    "build": "yarn generate:accessors && tsc && node scripts/copy-css.js",
     "watch": "node ./scripts/watch-all.cjs",
     "test": "jest"
   },
