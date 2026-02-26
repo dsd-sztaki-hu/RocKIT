@@ -9,19 +9,24 @@ export interface SchemaFiles {
     convertedPath: string;
 }
 
-export interface SchemaInfo {
-    id: string;
+export interface SchemaAux {
     templateUuid?: string;
+    reference: string;
+}
+
+export interface SchemaInfo {
+    id: string; // Truly unique generated ID
     name: string;
     version: string;
     source: 'local' | 'remote';
-    reference: string; // This is the @id
     type: string;
     files: SchemaFiles;
+    aux: SchemaAux;
     conformsTo?: string; 
     downloadUrl?: string;
     createdAt: string | null;
     updatedAt: string | null;
+    downloadedAt: string;
 }
 
 export interface MetadataSchemaManager {

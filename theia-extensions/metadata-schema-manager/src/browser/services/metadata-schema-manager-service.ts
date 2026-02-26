@@ -171,20 +171,23 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
                                 const newSchemaInfo: SchemaInfo = {
                                     id: this.generateUniqueId(),
-                                    templateUuid: uuidId,
                                     name: schemaName,
                                     version: schemaVersion,
-                                    reference: schemaId,
                                     source: source,
                                     type: 'cedar',
                                     files: {
                                         sourcePath: relativeCedarPath,
                                         convertedPath: relativeRoCratePath
                                     },
+                                    aux: {
+                                        templateUuid: uuidId,
+                                        reference: schemaId
+                                    },
                                     conformsTo: conformsTo,
                                     downloadUrl: '',
                                     createdAt: createdAt,
-                                    updatedAt: updatedAt
+                                    updatedAt: updatedAt,
+                                    downloadedAt: new Date().toISOString()
                                 };
 
                                 index.profiles.push(newSchemaInfo);
@@ -469,14 +472,14 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     public async getSchemaByConformsTo(conformsToUrl: string): Promise<SchemaInfo | undefined> {
         const all = await this.loadAllSchemas();
-        return all.find(s => s.conformsTo === conformsToUrl || s.reference === conformsToUrl);
+        return all.find(s => s.conformsTo === conformsToUrl || s.aux.reference === conformsToUrl);
     }
 
     protected async filterMissingSchemas(ids: string[]): Promise<string[]> {
         const localSchemas = await this.loadAllSchemas();
         return ids.filter(reqId => {
             const exists = localSchemas.some(local => 
-                local.reference === reqId || 
+                local.aux.reference === reqId || 
                 local.conformsTo === reqId
             );
             return !exists;
@@ -657,6 +660,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         
         const createdAt = parsedRaw[SCHEMA_FIELD_CREATED_ON] || null;
         const updatedAt = parsedRaw[SCHEMA_FIELD_UPDATED_ON] || null;
+        const downloadedAt = new Date().toISOString();
         
         if (!schemaName) {
             throw new Error(`Missing required field: ${SCHEMA_FIELD_NAME}`);
@@ -703,33 +707,36 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
         const newSchemaInfo: SchemaInfo = {
             id: this.generateUniqueId(),
-            templateUuid: uuidId,
             name: schemaName,
             version: schemaVersion,
-            reference: schemaId,
             source: type,
             type: 'cedar',
             files: {
                 sourcePath: relativeCedarPath,
                 convertedPath: relativeRoCratePath
             },
+            aux: {
+                templateUuid: uuidId,
+                reference: schemaId
+            },
             conformsTo: conformsTo,
             downloadUrl: downloadUrl,
             createdAt: createdAt,
-            updatedAt: updatedAt
+            updatedAt: updatedAt,
+            downloadedAt: downloadedAt
         };
 
         // Ensure single-threaded access to the index file
         await (this.indexMutex = this.indexMutex.then(async () => {
             const index = await this.loadIndex();
             
-            const existingSchema = index.profiles.find(s => s.reference === schemaId && s.source === type);
+            const existingSchema = index.profiles.find(s => s.aux.reference === schemaId && s.source === type);
             // Only inherit created date if the new one doesn't have it natively
             if (existingSchema && existingSchema.createdAt && !newSchemaInfo.createdAt) {
                 newSchemaInfo.createdAt = existingSchema.createdAt;
             }
 
-            index.profiles = index.profiles.filter(s => !(s.reference === schemaId && s.source === type));
+            index.profiles = index.profiles.filter(s => !(s.aux.reference === schemaId && s.source === type));
             index.profiles.push(newSchemaInfo);
             
             this.rebuildConformsToIndex(index);

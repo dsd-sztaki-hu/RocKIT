@@ -81,7 +81,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
             }
 
             if (crate && Array.isArray(crate['@graph'])) {
-                const w3id = schema.conformsTo ? this.schemaManagerService.deriveConformsToFromId(schema.reference) : '';
+                const w3id = schema.conformsTo ? this.schemaManagerService.deriveConformsToFromId(schema.aux.reference) : '';
                 
                 if (w3id) {
                     const updatedGraph = (crate['@graph'] as any[]).map(entry => {
