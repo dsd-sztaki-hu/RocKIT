@@ -852,6 +852,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
   }
 
+  // Split stored multi-value text into editable rows (newline-delimited).
   protected getEditableMultiTextValues(rawValue: string): string[] {
     const normalized = rawValue.replace(/\r\n/g, '\n')
     if (normalized.length === 0) {
@@ -860,6 +861,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     return normalized.split('\n')
   }
 
+  // Update a specific row value and persist back to the operation.
   protected setOperationMultiTextValue = (id: string, valueIndex: number, value: string) => {
     const row = this.operations.find((operation) => operation.id === id)
     if (!row) {
@@ -874,6 +876,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
   }
 
+  // Track selection before update so caret position survives re-render.
   protected setOperationMultiTextValueFromEvent = (
     id: string,
     valueIndex: number,
@@ -893,15 +896,18 @@ export class MultiEditDialog extends ReactDialog<string> {
     requestAnimationFrame(() => this.restorePendingMultiTextSelection(key))
   }
 
+  // Stable key used to track selection across re-renders.
   protected getMultiTextValueKey(operationId: string, valueIndex: number): string {
     return `${operationId}::${valueIndex}`
   }
 
+  // DOM id for locating the input after re-render.
   protected getMultiTextInputId(operationId: string, valueIndex: number): string {
     const key = this.getMultiTextValueKey(operationId, valueIndex)
     return `multi-text-${key.replace(/[^a-zA-Z0-9_-]/g, '_')}`
   }
 
+  // Restore a previously captured caret selection for a specific input.
   protected restorePendingMultiTextSelection(key: string): void {
     const pending = this.pendingMultiTextSelection.get(key)
     if (!pending) {
@@ -927,6 +933,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.pendingMultiTextSelection.delete(key)
   }
 
+  // Append a blank row for multi-value inputs.
   protected addOperationMultiTextValue = (id: string) => {
     const row = this.operations.find((operation) => operation.id === id)
     if (!row) {
@@ -938,6 +945,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
   }
 
+  // Remove a specific row and keep at least one empty entry.
   protected removeOperationMultiTextValue = (id: string, valueIndex: number) => {
     const row = this.operations.find((operation) => operation.id === id)
     if (!row) {
@@ -955,6 +963,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
   }
 
+  // Render a single multi-value row input based on field type.
   protected renderMultiValueScalarInput(
     row: OperationRow,
     field: FieldDefinition,
