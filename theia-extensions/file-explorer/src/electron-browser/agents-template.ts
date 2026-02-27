@@ -5,7 +5,7 @@ export const AGENTS_TEMPLATE = `# AGENTS.md
 
 You are editing an RO-Crate in this directory.
 
-## Mandatory Workflow
+## Mandatory Workflow\`
 1. Primary artifact is \`ro-crate-metadata.json\`.
 2. Use MCP tools from the \`rocrate\` server for all metadata edits and validation.
 3. Before editing, call \`get_rocrate_context\` to detect active profile constraints from \`conformsTo\`.
@@ -27,7 +27,9 @@ You are editing an RO-Crate in this directory.
    - Do not leave \`name\` empty.
    - Do not use \`@id\` as \`name\` if a better descriptive label exists.
    - For role entities (for example \`author\`), keep role-specific fields (for example \`authorName\`) and also provide \`name\`.
-2. Use only fields allowed by the active profile plus RO-Crate built-ins.
+2. For new entities generate a descriptive \`@id\`. Eg. for an author "László Kovács" generate something like \`#author-laszlo-kovacs\` (lowercase, no spaces, prefixed with entity type)." instead of \`#author1\` or \`#entity123\`.
+3. When generating \`@id\` for new entities, ensure they are unique within the crate and do not conflict with existing IDs.
+3. Use only fields allowed by the active profile plus RO-Crate built-ins.
 3. Do not invent factual metadata unless the user explicitly asks for examples.
 4. If data is missing, report missing fields clearly; do not inject dummy placeholders unless explicitly requested.
 
