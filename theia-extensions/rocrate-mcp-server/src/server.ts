@@ -15,6 +15,10 @@ import {
 } from './core'
 import type { RoCrate, RoCrateChangeSet, RoCrateEntity } from './core/types'
 
+// Dashboard telemetry imports (optional, disabled by default)
+import { getGlobalCollector } from './dashboard/collector'
+import { startDashboardIfNeeded } from './dashboard/http-server'
+
 type JsonRpcId = string | number | null
 
 type JsonRpcRequest = {
@@ -691,6 +695,16 @@ const tools: ToolDefinition[] = [
     },
   },
 ]
+
+// Dashboard telemetry collector (singleton, lazy-initialized)
+// Enabled only when ROCRATE_DASHBOARD_ENABLED=true
+function getTelemetryCollector() {
+  try {
+    return getGlobalCollector()
+  } catch {
+    return null
+  }
+}
 
 function findHeaderTerminator(
   buffer: Buffer,
@@ -2969,6 +2983,9 @@ function parseWebSearchParams(params: Record<string, unknown>): WebSearchParams 
 }
 
 async function runWebSearch(params: WebSearchParams): Promise<unknown> {
+  const collector = getTelemetryCollector()
+  const startTime = Date.now()
+
   const apiKey =
     (typeof process.env.TAVILY_API_KEY === 'string' &&
     process.env.TAVILY_API_KEY.trim() !== ''
@@ -2996,6 +3013,13 @@ async function runWebSearch(params: WebSearchParams): Promise<unknown> {
     }),
   })
   const payloadText = await response.text()
+  const latencyMs = Date.now() - startTime
+
+  // Dashboard telemetry: track Tavily usage
+  if (collector) {
+    collector.recordDependencyCall('tavily', response.ok, latencyMs)
+  }
+
   if (!response.ok) {
     throw new Error(
       `Tavily request failed (${response.status}): ${payloadText.slice(0, 300)}`,
@@ -3811,436 +3835,514 @@ async function handleToolCall(
   toolName: string,
   params: Record<string, unknown>,
 ): Promise<unknown> {
-  if (toolName === 'search') {
-    const searchParams = parseWebSearchParams(params)
-    const result = await runWebSearch(searchParams)
-    return textResult(result)
-  }
+  // Dashboard telemetry: track tool call start
+  const collector = getTelemetryCollector()
+  let telemetryId: string | undefined
 
-  if (toolName === 'download_url') {
-    const downloadParams = parseDownloadUrlParams(params)
-    const result = await runDownloadUrl(downloadParams)
-    return textResult(result)
-  }
-
-  if (toolName === 'upload_rocrate_to_dataverse') {
-    const uploadParams = parseDataverseUploadParams(params)
-    const payload = await runDataverseUpload(uploadParams)
-    if (uploadParams.responseMode === 'full') {
-      return textResult(payload)
+  try {
+    if (collector) {
+      telemetryId = collector.startToolCall(toolName, params)
+      // Ensure session is tracked
+      collector.getOrCreateSession('content-length')
     }
-    return textResult(summarizeDataverseUploadPayload(payload))
-  }
 
-  if (toolName === 'download_rocrate_from_dataverse') {
-    const downloadParams = parseDataverseDownloadParams(params)
-    const payload = await runDataverseDownload(downloadParams)
-    if (downloadParams.responseMode === 'full') {
-      return textResult(payload)
+    if (toolName === 'search') {
+      const searchParams = parseWebSearchParams(params)
+      const result = await runWebSearch(searchParams)
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId, result)
+      }
+      return textResult(result)
     }
-    return textResult(summarizeDataverseDownloadPayload(payload))
-  }
 
-  if (toolName === 'read_crate') {
-    const loaded = loadCrateFromParams(params)
-    const responseMode = parseResponseMode(
-      params,
-      loaded.mode === 'remote' ? 'full' : 'summary',
-    )
-    if (responseMode === 'full') {
-      return textResult(loaded.crate)
+    if (toolName === 'download_url') {
+      const downloadParams = parseDownloadUrlParams(params)
+      const result = await runDownloadUrl(downloadParams)
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId, result)
+      }
+      return textResult(result)
     }
-    return textResult(summarizeCratePayload(loaded.crate, loaded.mode, loaded.cratePath))
-  }
 
-  if (toolName === 'compute_delta') {
-    const loaded = loadCrateFromParams(params)
-    const includeHidden = params.includeHidden === true
-    let delta: unknown
-    if (loaded.mode === 'local') {
-      const rootPath =
-        typeof params.rootPath === 'string' && params.rootPath.trim() !== ''
-          ? path.resolve(params.rootPath)
-          : path.dirname(loaded.cratePath ?? resolveCratePath())
-      delta = computeDelta(loaded.crate, rootPath, { includeHidden })
-    } else {
-      const workspaceEntries = Array.isArray(params.workspaceEntries)
-        ? params.workspaceEntries.filter(
-            (entry): entry is string => typeof entry === 'string',
+    if (toolName === 'upload_rocrate_to_dataverse') {
+      const uploadParams = parseDataverseUploadParams(params)
+      const payload = await runDataverseUpload(uploadParams)
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId, payload)
+      }
+      if (uploadParams.responseMode === 'full') {
+        return textResult(payload)
+      }
+      return textResult(summarizeDataverseUploadPayload(payload))
+    }
+
+    if (toolName === 'download_rocrate_from_dataverse') {
+      const downloadParams = parseDataverseDownloadParams(params)
+      const payload = await runDataverseDownload(downloadParams)
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId, payload)
+      }
+      if (downloadParams.responseMode === 'full') {
+        return textResult(payload)
+      }
+      return textResult(summarizeDataverseDownloadPayload(payload))
+    }
+
+    if (toolName === 'read_crate') {
+      const loaded = loadCrateFromParams(params)
+      const responseMode = parseResponseMode(
+        params,
+        loaded.mode === 'remote' ? 'full' : 'summary',
+      )
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId, loaded.crate)
+      }
+      if (responseMode === 'full') {
+        return textResult(loaded.crate)
+      }
+      return textResult(summarizeCratePayload(loaded.crate, loaded.mode, loaded.cratePath))
+    }
+
+    if (toolName === 'compute_delta') {
+      const loaded = loadCrateFromParams(params)
+      const includeHidden = params.includeHidden === true
+      let delta: unknown
+      if (loaded.mode === 'local') {
+        const rootPath =
+          typeof params.rootPath === 'string' && params.rootPath.trim() !== ''
+            ? path.resolve(params.rootPath)
+            : path.dirname(loaded.cratePath ?? resolveCratePath())
+        delta = computeDelta(loaded.crate, rootPath, { includeHidden })
+      } else {
+        const workspaceEntries = Array.isArray(params.workspaceEntries)
+          ? params.workspaceEntries.filter(
+              (entry): entry is string => typeof entry === 'string',
+            )
+          : []
+        if (workspaceEntries.length === 0) {
+          throw new Error(
+            'remote compute_delta requires workspaceEntries array of relative paths.',
           )
-        : []
-      if (workspaceEntries.length === 0) {
-        throw new Error(
-          'remote compute_delta requires workspaceEntries array of relative paths.',
+        }
+        delta = computeRemoteDeltaWithWorkspaceEntries(
+          loaded.crate,
+          workspaceEntries,
+          includeHidden,
         )
       }
-      delta = computeRemoteDeltaWithWorkspaceEntries(
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId, delta)
+      }
+      return textResult(delta)
+    }
+
+    if (toolName === 'apply_changes') {
+      if (params.write !== true) {
+        throw new Error(
+          'apply_changes requires write=true. Use explicit write intent for all apply_changes calls.',
+        )
+      }
+      const loaded = loadCrateFromParams(params)
+      const resolutionInputs = parseProfileResolutionInputs(params)
+      const profileRequiredMode = parseProfileRequiredMode(params, 'allow_missing')
+      const contextMode = parseContextMode(params, 'auto_reconcile')
+      const normalizedChangeSet = normalizeChangeSet(params.changeSet)
+      const profileChangeTargets = detectProfileChangeTargets(loaded.crate, normalizedChangeSet)
+      if (profileChangeTargets.length > 0) {
+        throw new Error(
+          `conformsTo update blocked in apply_changes for Dataset/File entity IDs: ${profileChangeTargets.join(', ')}. Use update_profile_conforms_to.`,
+        )
+      }
+      const changed = applyChangeSet(loaded.crate, normalizedChangeSet)
+      const responseMode = parseResponseMode(
+        params,
+        loaded.mode === 'remote' ? 'full' : 'summary',
+      )
+      const preConstraints = buildProfileConstraints(changed, loaded.mode, resolutionInputs)
+      const contextPatched = applyContextModePatch(changed, preConstraints, contextMode)
+      const updated = contextPatched.crate
+      const constraints = ensureProfileConformanceOrThrow(
+        updated,
+        loaded.mode,
+        resolutionInputs,
+        {
+          requiredMode: profileRequiredMode,
+        },
+      )
+      if (loaded.mode === 'local') {
+        const indent = typeof params.indent === 'number' ? params.indent : 2
+        writeCrateAtomic(loaded.cratePath ?? resolveCratePath(), updated, indent)
+        const payload = {
+          crate: updated,
+          mode: loaded.mode,
+          writeApplied: true,
+          cratePath: loaded.cratePath ?? resolveCratePath(),
+          profileRequiredMode,
+          contextMode,
+          contextPatchReport: contextPatched.report,
+          profileResolution: constraints.resolution,
+        }
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, payload)
+        }
+        if (responseMode === 'full') {
+          return textResult(payload)
+        }
+        return textResult(
+          summarizeApplyChangesPayload(payload, updated, normalizedChangeSet, constraints),
+        )
+      }
+      if (loaded.mode === 'remote') {
+        const payload = {
+          crate: updated,
+          writeApplied: false,
+          mode: 'remote',
+          profileRequiredMode,
+          contextMode,
+          contextPatchReport: contextPatched.report,
+          profileResolution: constraints.resolution,
+          note: 'Remote mode does not persist files. Use returned crate payload.',
+        }
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, payload)
+        }
+        if (responseMode === 'full') {
+          return textResult(payload)
+        }
+        return textResult(
+          summarizeApplyChangesPayload(payload, updated, normalizedChangeSet, constraints),
+        )
+      }
+      throw new Error(`Unsupported mode for apply_changes: ${loaded.mode}`)
+    }
+
+    if (toolName === 'update_profile_conforms_to') {
+      if (params.write !== true) {
+        throw new Error(
+          'update_profile_conforms_to requires write=true. Use explicit write intent for all write operations.',
+        )
+      }
+      const loaded = loadCrateFromParams(params)
+      const entityId =
+        typeof params.entityId === 'string' && params.entityId.trim() !== ''
+          ? params.entityId.trim()
+          : './'
+      const ops = readProfileConformsToUpdateOps(params)
+
+      const { previousUrls, addedUrls, removedUrls, finalUrls } = updateProfileConformsTo(
         loaded.crate,
-        workspaceEntries,
-        includeHidden,
+        entityId,
+        ops,
       )
-    }
-    return textResult(delta)
-  }
+      const responseMode = parseResponseMode(
+        params,
+        loaded.mode === 'remote' ? 'full' : 'summary',
+      )
 
-  if (toolName === 'apply_changes') {
-    if (params.write !== true) {
-      throw new Error(
-        'apply_changes requires write=true. Use explicit write intent for all apply_changes calls.',
-      )
-    }
-    const loaded = loadCrateFromParams(params)
-    const resolutionInputs = parseProfileResolutionInputs(params)
-    const profileRequiredMode = parseProfileRequiredMode(params, 'allow_missing')
-    const contextMode = parseContextMode(params, 'auto_reconcile')
-    const normalizedChangeSet = normalizeChangeSet(params.changeSet)
-    const profileChangeTargets = detectProfileChangeTargets(loaded.crate, normalizedChangeSet)
-    if (profileChangeTargets.length > 0) {
-      throw new Error(
-        `conformsTo update blocked in apply_changes for Dataset/File entity IDs: ${profileChangeTargets.join(', ')}. Use update_profile_conforms_to.`,
-      )
-    }
-    const changed = applyChangeSet(loaded.crate, normalizedChangeSet)
-    const responseMode = parseResponseMode(
-      params,
-      loaded.mode === 'remote' ? 'full' : 'summary',
-    )
-    const preConstraints = buildProfileConstraints(changed, loaded.mode, resolutionInputs)
-    const contextPatched = applyContextModePatch(changed, preConstraints, contextMode)
-    const updated = contextPatched.crate
-    const constraints = ensureProfileConformanceOrThrow(
-      updated,
-      loaded.mode,
-      resolutionInputs,
-      {
-        requiredMode: profileRequiredMode,
-      },
-    )
-    if (loaded.mode === 'local') {
-      const indent = typeof params.indent === 'number' ? params.indent : 2
-      writeCrateAtomic(loaded.cratePath ?? resolveCratePath(), updated, indent)
-      const payload = {
-        crate: updated,
-        mode: loaded.mode,
-        writeApplied: true,
-        cratePath: loaded.cratePath ?? resolveCratePath(),
-        profileRequiredMode,
-        contextMode,
-        contextPatchReport: contextPatched.report,
-        profileResolution: constraints.resolution,
+      if (loaded.mode === 'local') {
+        const cratePath = loaded.cratePath ?? resolveCratePath()
+        const indent = typeof params.indent === 'number' ? params.indent : 2
+        writeCrateAtomic(cratePath, loaded.crate, indent)
+        const payload = {
+          mode: 'local',
+          writeApplied: true,
+          cratePath,
+          entityId,
+          requestedAddProfileUrls: ops.add,
+          requestedRemoveProfileUrls: ops.remove,
+          requestedSetProfileUrls: ops.set,
+          previousProfileUrls: previousUrls,
+          addedProfileUrls: addedUrls,
+          removedProfileUrls: removedUrls,
+          finalProfileUrls: finalUrls,
+          crate: loaded.crate,
+        }
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, payload)
+        }
+        if (responseMode === 'full') {
+          return textResult(payload)
+        }
+        return textResult({
+          mode: payload.mode,
+          writeApplied: payload.writeApplied,
+          cratePath: payload.cratePath,
+          entityId: payload.entityId,
+          requestedAddProfileUrls: payload.requestedAddProfileUrls,
+          requestedRemoveProfileUrls: payload.requestedRemoveProfileUrls,
+          requestedSetProfileUrls: payload.requestedSetProfileUrls,
+          previousProfileUrls: payload.previousProfileUrls,
+          addedProfileUrls: payload.addedProfileUrls,
+          removedProfileUrls: payload.removedProfileUrls,
+          finalProfileUrls: payload.finalProfileUrls,
+        })
       }
+
+      if (loaded.mode === 'remote') {
+        const payload = {
+          mode: 'remote',
+          writeApplied: false,
+          entityId,
+          requestedAddProfileUrls: ops.add,
+          requestedRemoveProfileUrls: ops.remove,
+          requestedSetProfileUrls: ops.set,
+          previousProfileUrls: previousUrls,
+          addedProfileUrls: addedUrls,
+          removedProfileUrls: removedUrls,
+          finalProfileUrls: finalUrls,
+          crate: loaded.crate,
+          note: 'Remote mode does not persist files. Use returned crate payload.',
+        }
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, payload)
+        }
+        if (responseMode === 'full') {
+          return textResult(payload)
+        }
+        return textResult({
+          mode: payload.mode,
+          writeApplied: payload.writeApplied,
+          entityId: payload.entityId,
+          requestedAddProfileUrls: payload.requestedAddProfileUrls,
+          requestedRemoveProfileUrls: payload.requestedRemoveProfileUrls,
+          requestedSetProfileUrls: payload.requestedSetProfileUrls,
+          previousProfileUrls: payload.previousProfileUrls,
+          addedProfileUrls: payload.addedProfileUrls,
+          removedProfileUrls: payload.removedProfileUrls,
+          finalProfileUrls: payload.finalProfileUrls,
+          note: payload.note,
+        })
+      }
+
+      throw new Error(`Unsupported mode for update_profile_conforms_to: ${loaded.mode}`)
+    }
+
+    if (toolName === 'validate_crate') {
+      const loaded = loadCrateFromParams(params)
+      const resolutionInputs = parseProfileResolutionInputs(params)
+      const strict = params.strict === true
+      const profileRequiredMode = parseProfileRequiredMode(
+        params,
+        strict ? 'enforce_required' : 'allow_missing',
+      )
+      const report = validateCrate(loaded.crate, { strict })
+      const constraints = buildProfileConstraints(
+        loaded.crate,
+        loaded.mode,
+        resolutionInputs,
+      )
+      const profileValidation = validateCrateAgainstProfileConstraints(
+        loaded.crate,
+        constraints,
+        {
+          requiredMode: profileRequiredMode,
+        },
+      )
+      const payload = {
+        ...report,
+        profile: {
+          valid: profileValidation.valid,
+          errors: profileValidation.errors,
+          warnings: profileValidation.warnings,
+          requiredMode: profileRequiredMode,
+          resolution: constraints.resolution,
+        },
+      }
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId, payload)
+      }
+      const responseMode = parseResponseMode(params, 'summary')
       if (responseMode === 'full') {
         return textResult(payload)
       }
-      return textResult(
-        summarizeApplyChangesPayload(payload, updated, normalizedChangeSet, constraints),
-      )
+      return textResult(summarizeValidationPayload(payload))
     }
-    if (loaded.mode === 'remote') {
-      const payload = {
-        crate: updated,
-        writeApplied: false,
-        mode: 'remote',
-        profileRequiredMode,
-        contextMode,
-        contextPatchReport: contextPatched.report,
-        profileResolution: constraints.resolution,
-        note: 'Remote mode does not persist files. Use returned crate payload.',
+
+    if (toolName === 'write_crate_atomic') {
+      const mode = parseAccessMode(params)
+      const responseMode = parseResponseMode(params, mode === 'remote' ? 'full' : 'summary')
+      const resolutionInputs = parseProfileResolutionInputs(params)
+      const profileRequiredMode = parseProfileRequiredMode(params, 'allow_missing')
+      const crateParam = params.crate
+      if (!crateParam || typeof crateParam !== 'object' || Array.isArray(crateParam)) {
+        throw new Error('write_crate_atomic requires crate object.')
       }
-      if (responseMode === 'full') {
-        return textResult(payload)
+      const crate = asRoCrate(crateParam)
+      const constraints = ensureProfileConformanceOrThrow(
+        crate,
+        mode,
+        resolutionInputs,
+        {
+          requiredMode: profileRequiredMode,
+        },
+      )
+      if (mode === 'remote') {
+        const payload = {
+          ok: true,
+          mode: 'remote',
+          writeApplied: false,
+          crate,
+          profileRequiredMode,
+          profileResolution: constraints.resolution,
+          note: 'Remote mode does not persist files. Use returned crate payload.',
+        }
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, payload)
+        }
+        if (responseMode === 'full') {
+          return textResult(payload)
+        }
+        return textResult({
+          ok: true,
+          mode: payload.mode,
+          writeApplied: payload.writeApplied,
+          profileRequiredMode: payload.profileRequiredMode,
+          profileResolution: summarizeProfileResolution(constraints.resolution),
+          crateSummary: summarizeCratePayload(crate, mode),
+          note: payload.note,
+        })
       }
-      return textResult(
-        summarizeApplyChangesPayload(payload, updated, normalizedChangeSet, constraints),
-      )
-    }
-    throw new Error(`Unsupported mode for apply_changes: ${loaded.mode}`)
-  }
-
-  if (toolName === 'update_profile_conforms_to') {
-    if (params.write !== true) {
-      throw new Error(
-        'update_profile_conforms_to requires write=true. Use explicit write intent for all write operations.',
-      )
-    }
-    const loaded = loadCrateFromParams(params)
-    const entityId =
-      typeof params.entityId === 'string' && params.entityId.trim() !== ''
-        ? params.entityId.trim()
-        : './'
-    const ops = readProfileConformsToUpdateOps(params)
-
-    const { previousUrls, addedUrls, removedUrls, finalUrls } = updateProfileConformsTo(
-      loaded.crate,
-      entityId,
-      ops,
-    )
-    const responseMode = parseResponseMode(
-      params,
-      loaded.mode === 'remote' ? 'full' : 'summary',
-    )
-
-    if (loaded.mode === 'local') {
-      const cratePath = loaded.cratePath ?? resolveCratePath()
+      const cratePath = ensureCratePath(params.cratePath)
       const indent = typeof params.indent === 'number' ? params.indent : 2
-      writeCrateAtomic(cratePath, loaded.crate, indent)
+      writeCrateAtomic(cratePath, crate, indent)
       const payload = {
+        ok: true,
         mode: 'local',
         writeApplied: true,
         cratePath,
-        entityId,
-        requestedAddProfileUrls: ops.add,
-        requestedRemoveProfileUrls: ops.remove,
-        requestedSetProfileUrls: ops.set,
-        previousProfileUrls: previousUrls,
-        addedProfileUrls: addedUrls,
-        removedProfileUrls: removedUrls,
-        finalProfileUrls: finalUrls,
-        crate: loaded.crate,
+        profileRequiredMode,
+        profileResolution: constraints.resolution,
+      }
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId)
       }
       if (responseMode === 'full') {
         return textResult(payload)
       }
       return textResult({
+        ok: payload.ok,
         mode: payload.mode,
         writeApplied: payload.writeApplied,
         cratePath: payload.cratePath,
-        entityId: payload.entityId,
-        requestedAddProfileUrls: payload.requestedAddProfileUrls,
-        requestedRemoveProfileUrls: payload.requestedRemoveProfileUrls,
-        requestedSetProfileUrls: payload.requestedSetProfileUrls,
-        previousProfileUrls: payload.previousProfileUrls,
-        addedProfileUrls: payload.addedProfileUrls,
-        removedProfileUrls: payload.removedProfileUrls,
-        finalProfileUrls: payload.finalProfileUrls,
-      })
-    }
-
-    if (loaded.mode === 'remote') {
-      const payload = {
-        mode: 'remote',
-        writeApplied: false,
-        entityId,
-        requestedAddProfileUrls: ops.add,
-        requestedRemoveProfileUrls: ops.remove,
-        requestedSetProfileUrls: ops.set,
-        previousProfileUrls: previousUrls,
-        addedProfileUrls: addedUrls,
-        removedProfileUrls: removedUrls,
-        finalProfileUrls: finalUrls,
-        crate: loaded.crate,
-        note: 'Remote mode does not persist files. Use returned crate payload.',
-      }
-      if (responseMode === 'full') {
-        return textResult(payload)
-      }
-      return textResult({
-        mode: payload.mode,
-        writeApplied: payload.writeApplied,
-        entityId: payload.entityId,
-        requestedAddProfileUrls: payload.requestedAddProfileUrls,
-        requestedRemoveProfileUrls: payload.requestedRemoveProfileUrls,
-        requestedSetProfileUrls: payload.requestedSetProfileUrls,
-        previousProfileUrls: payload.previousProfileUrls,
-        addedProfileUrls: payload.addedProfileUrls,
-        removedProfileUrls: payload.removedProfileUrls,
-        finalProfileUrls: payload.finalProfileUrls,
-        note: payload.note,
-      })
-    }
-
-    throw new Error(`Unsupported mode for update_profile_conforms_to: ${loaded.mode}`)
-  }
-
-  if (toolName === 'validate_crate') {
-    const loaded = loadCrateFromParams(params)
-    const resolutionInputs = parseProfileResolutionInputs(params)
-    const strict = params.strict === true
-    const profileRequiredMode = parseProfileRequiredMode(
-      params,
-      strict ? 'enforce_required' : 'allow_missing',
-    )
-    const report = validateCrate(loaded.crate, { strict })
-    const constraints = buildProfileConstraints(
-      loaded.crate,
-      loaded.mode,
-      resolutionInputs,
-    )
-    const profileValidation = validateCrateAgainstProfileConstraints(
-      loaded.crate,
-      constraints,
-      {
-        requiredMode: profileRequiredMode,
-      },
-    )
-    const payload = {
-      ...report,
-      profile: {
-        valid: profileValidation.valid,
-        errors: profileValidation.errors,
-        warnings: profileValidation.warnings,
-        requiredMode: profileRequiredMode,
-        resolution: constraints.resolution,
-      },
-    }
-    const responseMode = parseResponseMode(params, 'summary')
-    if (responseMode === 'full') {
-      return textResult(payload)
-    }
-    return textResult(summarizeValidationPayload(payload))
-  }
-
-  if (toolName === 'write_crate_atomic') {
-    const mode = parseAccessMode(params)
-    const responseMode = parseResponseMode(params, mode === 'remote' ? 'full' : 'summary')
-    const resolutionInputs = parseProfileResolutionInputs(params)
-    const profileRequiredMode = parseProfileRequiredMode(params, 'allow_missing')
-    const crateParam = params.crate
-    if (!crateParam || typeof crateParam !== 'object' || Array.isArray(crateParam)) {
-      throw new Error('write_crate_atomic requires crate object.')
-    }
-    const crate = asRoCrate(crateParam)
-    const constraints = ensureProfileConformanceOrThrow(
-      crate,
-      mode,
-      resolutionInputs,
-      {
-        requiredMode: profileRequiredMode,
-      },
-    )
-    if (mode === 'remote') {
-      const payload = {
-        ok: true,
-        mode: 'remote',
-        writeApplied: false,
-        crate,
-        profileRequiredMode,
-        profileResolution: constraints.resolution,
-        note: 'Remote mode does not persist files. Use returned crate payload.',
-      }
-      if (responseMode === 'full') {
-        return textResult(payload)
-      }
-      return textResult({
-        ok: true,
-        mode: payload.mode,
-        writeApplied: payload.writeApplied,
         profileRequiredMode: payload.profileRequiredMode,
         profileResolution: summarizeProfileResolution(constraints.resolution),
-        crateSummary: summarizeCratePayload(crate, mode),
+        crateSummary: summarizeCratePayload(crate, mode, cratePath),
+      })
+    }
+
+    if (toolName === 'get_rocrate_context') {
+      const loaded = loadCrateFromParams(params)
+      const resolutionInputs = parseProfileResolutionInputs(params)
+      const context = buildRoCrateContext(
+        loaded.crate,
+        loaded.mode,
+        loaded.cratePath,
+        resolutionInputs,
+      )
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId)
+      }
+      const responseMode = parseResponseMode(params, 'summary')
+      if (responseMode === 'full') {
+        return textResult(context)
+      }
+      return textResult(summarizeRoCrateContext(context))
+    }
+
+    if (toolName === 'suggest_context_terms') {
+      const loaded = loadCrateFromParams(params)
+      const resolutionInputs = parseProfileResolutionInputs(params)
+      const constraints = buildProfileConstraints(
+        loaded.crate,
+        loaded.mode,
+        resolutionInputs,
+      )
+      const suggestion = buildContextTermSuggestion(loaded.crate, constraints)
+      const payload = {
+        mode: loaded.mode,
+        cratePath: loaded.cratePath,
+        profileResolution: summarizeProfileResolution(constraints.resolution),
+        mergeContext: suggestion.mergeContext,
+        missingTerms: suggestion.missingTerms,
+        unknownTerms: suggestion.unknownTerms,
+        usedTerms: suggestion.usedTerms,
+        declaredTerms: suggestion.declaredTerms,
+        note: 'Merge mergeContext into top-level @context alongside the default RO-Crate context URL.',
+      }
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId)
+      }
+      const responseMode = parseResponseMode(
+        params,
+        loaded.mode === 'remote' ? 'full' : 'summary',
+      )
+      if (responseMode === 'full') {
+        return textResult(payload)
+      }
+      return textResult({
+        mode: payload.mode,
+        cratePath: payload.cratePath,
+        profileResolution: payload.profileResolution,
+        mergeContext: payload.mergeContext,
+        missingTerms: payload.missingTerms,
+        unknownTerms: payload.unknownTerms,
         note: payload.note,
       })
     }
-    const cratePath = ensureCratePath(params.cratePath)
-    const indent = typeof params.indent === 'number' ? params.indent : 2
-    writeCrateAtomic(cratePath, crate, indent)
-    const payload = {
-      ok: true,
-      mode: 'local',
-      writeApplied: true,
-      cratePath,
-      profileRequiredMode,
-      profileResolution: constraints.resolution,
+
+    if (toolName === 'resolve_profile_schema') {
+      const profileUrl =
+        typeof params.profileUrl === 'string' ? params.profileUrl.trim() : ''
+      if (profileUrl === '') {
+        throw new Error('resolve_profile_schema requires profileUrl.')
+      }
+      const mode = parseAccessMode(params)
+      const includeProfileContent = params.includeProfileContent === true
+      const resolutionInputs = parseProfileResolutionInputs(params)
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId)
+      }
+      return textResult(
+        resolveProfileUrls([profileUrl], mode, includeProfileContent, resolutionInputs),
+      )
     }
-    if (responseMode === 'full') {
-      return textResult(payload)
+
+    if (toolName === 'prepare_remote_profile_payload') {
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId)
+      }
+      return textResult(prepareRemoteProfilePayload(params))
     }
-    return textResult({
-      ok: payload.ok,
-      mode: payload.mode,
-      writeApplied: payload.writeApplied,
-      cratePath: payload.cratePath,
-      profileRequiredMode: payload.profileRequiredMode,
-      profileResolution: summarizeProfileResolution(constraints.resolution),
-      crateSummary: summarizeCratePayload(crate, mode, cratePath),
-    })
-  }
 
-  if (toolName === 'get_rocrate_context') {
-    const loaded = loadCrateFromParams(params)
-    const resolutionInputs = parseProfileResolutionInputs(params)
-    const context = buildRoCrateContext(
-      loaded.crate,
-      loaded.mode,
-      loaded.cratePath,
-      resolutionInputs,
-    )
-    const responseMode = parseResponseMode(params, 'summary')
-    if (responseMode === 'full') {
-      return textResult(context)
+    if (toolName === 'create_profile_context') {
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId)
+      }
+      return textResult(createProfileContext(params))
     }
-    return textResult(summarizeRoCrateContext(context))
-  }
 
-  if (toolName === 'suggest_context_terms') {
-    const loaded = loadCrateFromParams(params)
-    const resolutionInputs = parseProfileResolutionInputs(params)
-    const constraints = buildProfileConstraints(
-      loaded.crate,
-      loaded.mode,
-      resolutionInputs,
-    )
-    const suggestion = buildContextTermSuggestion(loaded.crate, constraints)
-    const payload = {
-      mode: loaded.mode,
-      cratePath: loaded.cratePath,
-      profileResolution: summarizeProfileResolution(constraints.resolution),
-      mergeContext: suggestion.mergeContext,
-      missingTerms: suggestion.missingTerms,
-      unknownTerms: suggestion.unknownTerms,
-      usedTerms: suggestion.usedTerms,
-      declaredTerms: suggestion.declaredTerms,
-      note: 'Merge mergeContext into top-level @context alongside the default RO-Crate context URL.',
+    if (toolName === 'get_profile_context_info') {
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId)
+      }
+      return textResult(getProfileContextInfo(params))
     }
-    const responseMode = parseResponseMode(
-      params,
-      loaded.mode === 'remote' ? 'full' : 'summary',
-    )
-    if (responseMode === 'full') {
-      return textResult(payload)
+
+    if (toolName === 'delete_profile_context') {
+      if (collector && telemetryId) {
+        collector.completeToolCallSuccess(telemetryId)
+      }
+      return textResult(deleteProfileContext(params))
     }
-    return textResult({
-      mode: payload.mode,
-      cratePath: payload.cratePath,
-      profileResolution: payload.profileResolution,
-      mergeContext: payload.mergeContext,
-      missingTerms: payload.missingTerms,
-      unknownTerms: payload.unknownTerms,
-      note: payload.note,
-    })
-  }
 
-  if (toolName === 'resolve_profile_schema') {
-    const profileUrl =
-      typeof params.profileUrl === 'string' ? params.profileUrl.trim() : ''
-    if (profileUrl === '') {
-      throw new Error('resolve_profile_schema requires profileUrl.')
+    throw new Error(`Unknown tool: ${toolName}`)
+  } catch (error) {
+    // Dashboard telemetry: track tool call error
+    if (collector && telemetryId) {
+      collector.completeToolCallError(telemetryId, error)
     }
-    const mode = parseAccessMode(params)
-    const includeProfileContent = params.includeProfileContent === true
-    const resolutionInputs = parseProfileResolutionInputs(params)
-    return textResult(
-      resolveProfileUrls([profileUrl], mode, includeProfileContent, resolutionInputs),
-    )
+    throw error
   }
-
-  if (toolName === 'prepare_remote_profile_payload') {
-    return textResult(prepareRemoteProfilePayload(params))
-  }
-
-  if (toolName === 'create_profile_context') {
-    return textResult(createProfileContext(params))
-  }
-
-  if (toolName === 'get_profile_context_info') {
-    return textResult(getProfileContextInfo(params))
-  }
-
-  if (toolName === 'delete_profile_context') {
-    return textResult(deleteProfileContext(params))
-  }
-
-  throw new Error(`Unknown tool: ${toolName}`)
 }
 
 async function handleRequest(
@@ -4335,6 +4437,23 @@ function startServer(): void {
   let buffer = Buffer.alloc(0)
   process.stdin.resume()
   process.stderr.write('rocrate-mcp-server: started (stdio)\n')
+
+  // Start dashboard HTTP server if enabled (non-blocking, optional)
+  void (async () => {
+    try {
+      const collector = getTelemetryCollector()
+      if (collector) {
+        const dashboard = await startDashboardIfNeeded(collector)
+        if (dashboard) {
+          process.stderr.write('rocrate-mcp-server: dashboard enabled\n')
+        }
+      }
+    } catch (err) {
+      // Dashboard is optional - don't crash the MCP server if it fails
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      process.stderr.write(`rocrate-mcp-server: dashboard failed to start: ${errorMsg}\n`)
+    }
+  })()
 
   process.stdin.on('data', (chunk: Buffer) => {
     buffer = Buffer.concat([buffer, chunk])
