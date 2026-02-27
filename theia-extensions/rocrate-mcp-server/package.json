@@ -1,0 +1,25 @@
+{
+  "name": "rocrate-mcp-server",
+  "version": "0.0.0",
+  "description": "MCP server exposing RO-Crate editing and profile-aware validation tools",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "main": "lib/server.js",
+  "types": "lib/server.d.ts",
+  "bin": {
+    "rocrate-mcp-server": "lib/server.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rimraf lib tsconfig.tsbuildinfo",
+    "watch": "tsc -b -w",
+    "start": "node lib/server.js",
+    "test": "yarn build && node test/test-core.js && node test/test-mcp-server.js"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.0",
+    "typescript": "~5.4.5"
+  }
+}

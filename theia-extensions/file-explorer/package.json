@@ -5,6 +5,7 @@
   "dependencies": {
     "@theia/core": "1.65.2",
     "@theia/filesystem": "1.65.2",
+    "@theia/terminal": "1.65.2",
     "@theia/workspace": "1.65.2",
     "minimatch": "^10.0.3",
     "tslib": "^2.6.2",
@@ -41,13 +42,13 @@
     "src"
   ],
   "scripts": {
-    "build": "theiaext build && node scripts/copy-css.js",
+    "build": "node scripts/generate-agents-template.js && theiaext build && node scripts/copy-css.js",
     "postbuild": "rimraf tsconfig.tsbuildinfo",
     "clean": "theiaext clean",
-    "compile": "theiaext compile",
+    "compile": "node scripts/generate-agents-template.js && theiaext compile",
     "lint": "theiaext lint",
     "test": "theiaext test",
-    "watch": "theiaext watch"
+    "watch": "node scripts/generate-agents-template.js && theiaext watch"
   },
   "devDependencies": {
     "@theia/ext-scripts": "1.65.2",
