@@ -78,27 +78,32 @@ type AgentSpec = {
 const AGENT_SPECS: AgentSpec[] = [
   {
     id: 'codex',
-    menuLabel: 'Open Codex',
+    menuLabel: 'Edit with Codex',
     executables: ['codex'],
     markerPaths: ['.codex'],
   },
   {
     id: 'claude',
-    menuLabel: 'Open Claude',
+    menuLabel: 'Edit with Claude',
     executables: ['claude'],
     markerPaths: ['.claude'],
   },
   {
     id: 'opencode',
-    menuLabel: 'Open Opencode',
+    menuLabel: 'Edit with Opencode',
     executables: ['opencode'],
     markerPaths: ['.opencode'],
   },
-  { id: 'kilo', menuLabel: 'Open Kilo', executables: ['kilo'], markerPaths: ['.kilo'] },
-  { id: 'roo', menuLabel: 'Open Roo', executables: ['roo'], markerPaths: ['.roo'] },
+  {
+    id: 'kilo',
+    menuLabel: 'Edit with Kilo',
+    executables: ['kilo'],
+    markerPaths: ['.kilo'],
+  },
+  { id: 'roo', menuLabel: 'Edit with Roo', executables: ['roo'], markerPaths: ['.roo'] },
   {
     id: 'gemini',
-    menuLabel: 'Open Gemini',
+    menuLabel: 'Edit with Gemini',
     executables: ['gemini', 'gemini-cli'],
     markerPaths: ['.gemini'],
   },
