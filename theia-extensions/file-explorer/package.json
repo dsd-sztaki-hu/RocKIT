@@ -48,7 +48,7 @@
     "compile": "node scripts/generate-agents-template.js && theiaext compile",
     "lint": "theiaext lint",
     "test": "theiaext test",
-    "watch": "node scripts/generate-agents-template.js && theiaext watch"
+    "watch": "node scripts/generate-agents-template.js && tsc -b -w --preserveWatchOutput"
   },
   "devDependencies": {
     "@theia/ext-scripts": "1.65.2",

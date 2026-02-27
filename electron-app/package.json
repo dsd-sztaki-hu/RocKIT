@@ -46,7 +46,7 @@
     "bundle": "yarn run rebuild && theia build --mode development",
     "rebuild": "theia rebuild:electron --cacheRoot ..",
     "start": "theia start",
-    "watch": "yarn run rebuild && theia build --watch --mode development"
+    "watch": "yarn run rebuild && WATCHPACK_POLLING=true WATCHPACK_POLLING_INTERVAL=1000 theia build --watch --mode development"
   },
   "theia": {
     "target": "electron"
