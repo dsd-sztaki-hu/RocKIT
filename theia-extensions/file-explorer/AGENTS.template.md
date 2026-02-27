@@ -2,7 +2,7 @@
 
 You are editing an RO-Crate in this directory.
 
-## Mandatory Workflow`
+## Mandatory Workflow
 1. Primary artifact is `ro-crate-metadata.json`.
 2. Use MCP tools from the `rocrate` server for all metadata edits and validation.
 3. Before editing, call `get_rocrate_context` to detect active profile constraints from `conformsTo`.
