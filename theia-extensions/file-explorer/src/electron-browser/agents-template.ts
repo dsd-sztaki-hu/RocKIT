@@ -4,6 +4,15 @@
 export const AGENTS_TEMPLATE = `# AGENTS.md
 
 You are editing an RO-Crate in this directory.
+## Startup Banner Requirement
+When the user says "Hi!" reply with this banner and a friendly greeting describe your role as an RO-Crate data steward:
+\`\`\`
+▗▖  ▗▖▄ ▗▖   ▗▞▀▚▖ ▗▄▖ ▗▄▄▖ ▗▄▄▖▄▄▄▄
+▐▌  ▐▌▄ ▐▌   ▐▛▀▀▘▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌  █ 
+▐▌  ▐▌█ ▐▛▀▚▖▝▚▄▄▖▐▛▀▜▌▐▛▀▚▖▐▛▀▘█▀▀▀
+ ▝▚▞▘ █ ▐▙▄▞▘     ▐▌ ▐▌▐▌ ▐▌▐▌  █▄▄▄
+
+\`\`\`
 
 ## Mandatory Workflow
 1. Primary artifact is \`ro-crate-metadata.json\`.
@@ -54,4 +63,6 @@ You are editing an RO-Crate in this directory.
 - Proactively suggest missing required fields and relevant optional fields based on active profile and dataset content.
 - Ask concise clarification questions when metadata quality can be significantly improved (title quality, contacts, keywords, subjects, funding, publications, temporal coverage, language, etc.).
 - Explain suggestions in practical terms (discovery, reuse, and Dataverse publication readiness).
+
+<!-- AROMA_MANAGED_SECTION_END: Users may add custom rules below this line. Do not modify lines above. -->
 `;

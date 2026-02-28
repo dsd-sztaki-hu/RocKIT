@@ -19,6 +19,7 @@ export type RoCrate = {
 export type RoCrateEntityUpdate = {
   '@id': string
   merge?: Record<string, unknown>
+  unset?: string[]
   [key: string]: unknown
 }
 

@@ -109,6 +109,9 @@ const AGENT_SPECS: AgentSpec[] = [
   },
 ]
 
+const INSTRUCTIONS_USER_SECTION_MARKER =
+  '<!-- AROMA_MANAGED_SECTION_END: Users may add custom rules below this line. Do not modify lines above. -->'
+
 function agentCommandId(agentId: string): string {
   return `openAgent.${agentId}`
 }
@@ -246,7 +249,7 @@ export class ElectronNavigatorMenuContribution
     await terminal.start()
     await this.waitForTerminalOpen(terminal, 1000)
     try {
-      await terminal.executeCommand({ cwd, args: [executable] })
+      await terminal.executeCommand({ cwd, args: [executable, 'Hi!'] })
     } catch {
       terminal.sendText(`${executable}\n`)
     }
@@ -263,9 +266,56 @@ export class ElectronNavigatorMenuContribution
   ): Promise<void> {
     const fileName = agentId === 'claude' ? 'CLAUDE.md' : 'AGENTS.md'
     const instructionsUri = directoryUri.resolve(fileName)
+    const managedTemplate = this.buildAgentInstructionsTemplate(agentId)
     if (!(await this.fileService.exists(instructionsUri))) {
-      await this.fileService.create(instructionsUri, AGENTS_TEMPLATE)
+      await this.fileService.create(instructionsUri, `${managedTemplate}\n`)
+      return
     }
+    const existing = await this.readTextFile(instructionsUri)
+    const upgraded = this.upgradeAgentInstructions(existing, managedTemplate)
+    if (upgraded !== existing) {
+      await this.fileService.write(instructionsUri, upgraded)
+    }
+  }
+
+  protected buildAgentInstructionsTemplate(agentId: string): string {
+    const heading = agentId === 'claude' ? '# CLAUDE.md' : '# AGENTS.md'
+    const normalized = AGENTS_TEMPLATE.replace(/\r\n/g, '\n')
+    const rewrittenHeading = normalized.replace(/^#\s+AGENTS\.md/m, heading)
+    return rewrittenHeading.trimEnd()
+  }
+
+  protected upgradeAgentInstructions(
+    existingContent: string,
+    managedTemplate: string,
+  ): string {
+    const normalize = (value: string): string => value.replace(/\r\n/g, '\n').trim()
+    const withLf = existingContent.replace(/\r\n/g, '\n')
+    const marker = INSTRUCTIONS_USER_SECTION_MARKER
+    const markerIndex = withLf.indexOf(marker)
+
+    if (markerIndex >= 0) {
+      const markerEnd = markerIndex + marker.length
+      const managedPart = withLf.slice(0, markerEnd)
+      const customPartRaw = withLf.slice(markerEnd).replace(/^\s*\n/, '')
+      if (normalize(managedPart) === normalize(managedTemplate)) {
+        return existingContent
+      }
+      const customPart = customPartRaw.trimEnd()
+      return customPart.length > 0
+        ? `${managedTemplate}\n\n${customPart}\n`
+        : `${managedTemplate}\n`
+    }
+
+    const managedLegacy = managedTemplate.replace(`\n${marker}`, '')
+    if (normalize(withLf) === normalize(managedLegacy)) {
+      return `${managedTemplate}\n`
+    }
+
+    const preservedUserPart = withLf.trim()
+    return preservedUserPart.length > 0
+      ? `${managedTemplate}\n\n${preservedUserPart}\n`
+      : `${managedTemplate}\n`
   }
 
   protected async ensureAgentMcpConfigured(

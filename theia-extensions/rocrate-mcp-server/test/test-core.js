@@ -39,6 +39,19 @@ function main() {
   const report = core.validateCrate(updated, { strict: true })
   assert.equal(report.summary.errors, 0, 'Expected no validation errors')
 
+  const withExtraField = core.applyChangeSet(updated, {
+    updateEntities: [{ '@id': './', merge: { datePublished: '2026-01-01T00:00:00Z' } }],
+  })
+  const afterUnset = core.applyChangeSet(withExtraField, {
+    updateEntities: [{ '@id': './', unset: ['datePublished'] }],
+  })
+  const unsetRoot = afterUnset['@graph'].find((entity) => entity['@id'] === './')
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(unsetRoot, 'datePublished'),
+    false,
+    'Expected unset to remove field from target entity',
+  )
+
   core.writeCrateAtomic(cratePath, updated)
   const reloaded = core.readCrateFromFile(cratePath)
   assert.ok(Array.isArray(reloaded['@graph']), 'Graph must be array after write/read')

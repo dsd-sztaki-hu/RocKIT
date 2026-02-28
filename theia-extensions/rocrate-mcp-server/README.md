@@ -14,13 +14,19 @@ Important: `remote` is an RO-Crate data-access mode, **not** HTTP/SSE transport.
 
 - `search`: Tavily-backed web search (`TAVILY_API_KEY`, optional per-call `apiKey` fallback).
 - `download_url`: download and extract text/raw HTML from one URL.
+- `upload_rocrate_to_dataverse`: Dataverse upload (`write: true` required):
+  - create (no `pid`): ZIP upload (`ro-crate-metadata.json` + referenced files), local mode only.
+  - update (with `pid`): JSON metadata POST to update existing dataset.
+- `download_rocrate_from_dataverse`: download crate JSON by PID from Dataverse ARP API.
 - `read_crate`: read crate (`local` from disk or `remote` from provided `crate` payload).
 - `compute_delta`: compute additive file/dataset delta against crate.
 - `apply_changes`: apply compact changeset; requires `write: true`.
+  - `updateEntities` supports `merge` (set fields) and `unset` (remove fields).
 - `add_profile_conforms_to`: attach one or more profile URLs to entity `conformsTo`; requires `write: true`.
 - `validate_crate`: RO-Crate + profile-aware validation.
 - `write_crate_atomic`: atomic write in local mode.
 - `get_rocrate_context`: summary context including profile resolution hints.
+- `suggest_context_terms`: suggest `mergeContext` mappings for used-but-undeclared terms.
 - `resolve_profile_schema`: resolve one profile URL via schema index/profile inputs.
 - `prepare_remote_profile_payload`: build `schemaIndex` + `profileContents` payload for remote calls.
 - `create_profile_context`: cache profile payload server-side; returns `profileContextId`.
@@ -43,6 +49,18 @@ Notes:
 - `apply_changes(write=true)` and `write_crate_atomic` only persist in local mode.
 - In remote mode, write requests return updated crate payload and do not persist files.
 - `compute_delta` in remote mode requires `workspaceEntries` (relative path list, folders ending with `/`).
+- `upload_rocrate_to_dataverse` always runs strict preflight validation:
+  core RO-Crate strict checks plus profile validation in `full` +
+  `enforce_required` mode. Upload is blocked on any validation error.
+- `upload_rocrate_to_dataverse` also calls Dataverse
+  `/api/arp/validateRoCrate?strict=true` before upload and blocks if Dataverse
+  reports any validation issue.
+- Upload preflight enforces context coverage for used terms:
+  used `@graph` fields must be declared in `@context` unless treated as
+  default RO-Crate context terms.
+- `upload_rocrate_to_dataverse` create flow requires local mode and zips
+  `ro-crate-metadata.json` together with files referenced by `File` entities
+  in the crate graph.
 
 ## Response mode (`responseMode`)
 
@@ -54,6 +72,7 @@ Heavy tools support `responseMode: "summary" | "full"`:
 - `validate_crate`
 - `write_crate_atomic`
 - `get_rocrate_context`
+- `suggest_context_terms`
 
 Defaults:
 
@@ -61,6 +80,7 @@ Defaults:
 - Local mode defaults to `summary` for `add_profile_conforms_to`.
 - Remote mode defaults to `full` for `read_crate`, `apply_changes`, `add_profile_conforms_to`, `write_crate_atomic` so updated crate payload is available to caller.
 - `validate_crate` and `get_rocrate_context` default to `summary`.
+- `suggest_context_terms` defaults to `summary` in local mode, `full` in remote mode.
 
 Use `responseMode: "full"` only when caller explicitly needs full crate or full report payloads.
 
@@ -110,6 +130,9 @@ yarn workspace rocrate-mcp-server start
 
 - `TAVILY_API_KEY`: Tavily key for `search`.
 - `TAVILY_API_URL` (optional): Tavily endpoint override.
+- `DATAVERSE_BASE_URL` (optional): Dataverse/ARP base URL for upload/download tools (default `http://localhost:8080`).
+- `DATAVERSE_OWNER_ID` (optional): owner ID for new uploads (default `root`).
+- `DATAVERSE_API_KEY` (optional): API key used as `X-Dataverse-key` header.
 - `AROMA_ROOT_PATH` (optional): base directory for schema index/profile files (default `~/.aroma`).
 - `AROMA_METADATA_SCHEMA_INDEX_FILE` (optional): schema index filename or absolute path.
 - `ROCRATE_MCP_DEFAULT_MODE` (optional): default mode if tool arg omitted (`local` or `remote`).

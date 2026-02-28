@@ -181,9 +181,20 @@ export function applyChangeSet(crate: RoCrate, changeSet: RoCrateChangeSet): RoC
       update.merge && typeof update.merge === 'object' && !Array.isArray(update.merge)
         ? update.merge
         : Object.fromEntries(
-            Object.entries(update).filter(([key]) => key !== '@id' && key !== 'merge'),
+            Object.entries(update).filter(
+              ([key]) => key !== '@id' && key !== 'merge' && key !== 'unset',
+            ),
           )
     Object.assign(target, mergePayload)
+    const unsetFields = Array.isArray(update.unset)
+      ? update.unset.filter((item): item is string => typeof item === 'string')
+      : []
+    for (const key of unsetFields) {
+      if (key === '@id' || key === '@type') {
+        continue
+      }
+      delete target[key]
+    }
   }
 
   if (changeSet.setRootFields && typeof changeSet.setRootFields === 'object') {

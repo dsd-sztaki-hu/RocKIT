@@ -65,9 +65,68 @@ function parseMessages(onMessage) {
   }
 }
 
-async function startMockWebToolsServer() {
+async function startMockWebToolsServer(profileUrl) {
+  const dataverseState = {
+    lastUploaded: null,
+  }
+  const defaultContextKnownTerms = new Set([
+    'name',
+    'title',
+    'description',
+    'hasPart',
+    'about',
+    'conformsTo',
+    'author',
+    'identifier',
+    'url',
+    'encodingFormat',
+    'contentSize',
+    'datePublished',
+    'dateModified',
+    'subject',
+  ])
+
+  function collectUsedTerms(crate) {
+    const used = new Set()
+    const graph = Array.isArray(crate && crate['@graph']) ? crate['@graph'] : []
+    for (const entity of graph) {
+      if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+        continue
+      }
+      for (const key of Object.keys(entity)) {
+        if (!key.startsWith('@')) {
+          used.add(key)
+        }
+      }
+    }
+    return used
+  }
+
+  function collectDeclaredTerms(crate) {
+    const declared = new Set()
+    const ctx = crate ? crate['@context'] : undefined
+    const collect = (item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return
+      }
+      for (const key of Object.keys(item)) {
+        declared.add(key)
+      }
+    }
+    if (Array.isArray(ctx)) {
+      for (const item of ctx) {
+        collect(item)
+      }
+      return declared
+    }
+    collect(ctx)
+    return declared
+  }
+
   const server = http.createServer((req, res) => {
-    if (req.url === '/page') {
+    const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`)
+
+    if (parsedUrl.pathname === '/page') {
       res.statusCode = 200
       res.setHeader('content-type', 'text/html; charset=utf-8')
       res.end(
@@ -75,7 +134,7 @@ async function startMockWebToolsServer() {
       )
       return
     }
-    if (req.url === '/search' && req.method === 'POST') {
+    if (parsedUrl.pathname === '/search' && req.method === 'POST') {
       let body = ''
       req.on('data', (chunk) => {
         body += chunk.toString('utf8')
@@ -97,6 +156,110 @@ async function startMockWebToolsServer() {
           }),
         )
       })
+      return
+    }
+    if (parsedUrl.pathname === '/api/arp/validateRoCrate' && req.method === 'POST') {
+      let body = ''
+      req.on('data', (chunk) => {
+        body += chunk.toString('utf8')
+      })
+      req.on('end', () => {
+        let crate = {}
+        try {
+          crate = JSON.parse(body || '{}')
+        } catch {
+          res.statusCode = 400
+          res.setHeader('content-type', 'application/json')
+          res.end(JSON.stringify({ status: 'ERROR', message: 'Invalid JSON payload.' }))
+          return
+        }
+        const used = collectUsedTerms(crate)
+        const declared = collectDeclaredTerms(crate)
+        const missing = Array.from(used).filter(
+          (term) => !declared.has(term) && !defaultContextKnownTerms.has(term),
+        )
+        if (missing.length > 0) {
+          const details = {
+            strict: true,
+            warnings: [],
+            errors: [
+              {
+                errorEntity: 'RO-Crate',
+                errors: missing.map((term) => ({
+                  errorField: '@context',
+                  errorMessage: `Missing mapping for term: ${term}`,
+                  errorSuggestion: `Add ${term} to @context.`,
+                })),
+              },
+            ],
+          }
+          res.statusCode = 400
+          res.setHeader('content-type', 'application/json')
+          res.end(JSON.stringify({ status: 'ERROR', details, message: JSON.stringify(details) }))
+          return
+        }
+        res.statusCode = 200
+        res.setHeader('content-type', 'application/json')
+        res.end(JSON.stringify({ status: 'OK', details: { strict: true, warnings: [], errors: [] } }))
+      })
+      return
+    }
+    if (parsedUrl.pathname === '/api/arp/uploadRoCrateZip' && req.method === 'POST') {
+      req.on('data', () => {})
+      req.on('end', () => {
+        res.statusCode = 200
+        res.setHeader('content-type', 'application/json')
+        res.end(JSON.stringify({ status: 'OK', pid: 'hdl:21.T15999/DSDDEV/MOCKPID' }))
+      })
+      return
+    }
+    if (parsedUrl.pathname.startsWith('/api/arp/rocrate/') && req.method === 'POST') {
+      const pid = decodeURIComponent(parsedUrl.pathname.slice('/api/arp/rocrate/'.length))
+      let body = ''
+      req.on('data', (chunk) => {
+        body += chunk.toString('utf8')
+      })
+      req.on('end', () => {
+        const inputCrate = JSON.parse(body || '{}')
+        const nextCrate = JSON.parse(JSON.stringify(inputCrate))
+        dataverseState.lastUploaded = nextCrate
+        res.statusCode = 200
+        res.setHeader('content-type', 'application/json')
+        res.end(JSON.stringify({ status: 'OK', pid, data: nextCrate }))
+      })
+      return
+    }
+    if (parsedUrl.pathname.startsWith('/api/arp/rocrate/') && req.method === 'GET') {
+      const pid = decodeURIComponent(parsedUrl.pathname.slice('/api/arp/rocrate/'.length))
+      const downloaded = dataverseState.lastUploaded
+        ? JSON.parse(JSON.stringify(dataverseState.lastUploaded))
+        : {
+            '@context': 'https://w3id.org/ro/crate/1.1/context',
+            '@graph': [
+              {
+                '@id': './',
+                '@type': 'Dataset',
+                name: 'Downloaded crate',
+                title: 'Downloaded crate title',
+                author: 'Downloaded Author',
+                conformsTo: [{ '@id': profileUrl }],
+              },
+              {
+                '@id': 'ro-crate-metadata.json',
+                '@type': 'CreativeWork',
+                conformsTo: { '@id': 'https://w3id.org/ro/crate/1.1' },
+                about: { '@id': './' },
+              },
+            ],
+          }
+      const graph = Array.isArray(downloaded['@graph']) ? downloaded['@graph'] : []
+      const root = graph.find((entity) => entity && entity['@id'] === './')
+      if (root && typeof root === 'object') {
+        root.name = `Downloaded ${pid}`
+      }
+      res.statusCode = 200
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ status: 'OK', pid, data: downloaded }))
       return
     }
     res.statusCode = 404
@@ -128,11 +291,11 @@ async function startMockWebToolsServer() {
 }
 
 async function run() {
-  const webToolsMock = await startMockWebToolsServer()
+  const profileUrl = 'https://w3id.org/arp/schema/33677b82-7973-3e4c-b09d-b5189e095627'
+  const webToolsMock = await startMockWebToolsServer(profileUrl)
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'rocrate-mcp-test-'))
   const aromaRoot = path.join(tempRoot, 'aroma-root')
   fs.mkdirSync(path.join(aromaRoot, 'metadata-schemas', 'ro-crate'), { recursive: true })
-  const profileUrl = 'https://w3id.org/arp/schema/33677b82-7973-3e4c-b09d-b5189e095627'
   const extraProfileUrl = 'https://w3id.org/arp/schema/example-profile'
   const convertedRelativePath = 'metadata-schemas/ro-crate/citation_profile.json'
   fs.writeFileSync(
@@ -210,6 +373,8 @@ async function run() {
             '@id': './',
             '@type': 'Dataset',
             name: 'Root',
+            title: 'Root dataset title',
+            author: 'Example Author',
             hasPart: [],
             conformsTo: [{ '@id': profileUrl }],
           },
@@ -293,7 +458,16 @@ async function run() {
     console.log('Discovered MCP tools:', toolNames.join(', '))
     assert.ok(toolNames.includes('search'), 'search tool should exist')
     assert.ok(toolNames.includes('download_url'), 'download_url tool should exist')
+    assert.ok(
+      toolNames.includes('upload_rocrate_to_dataverse'),
+      'upload_rocrate_to_dataverse tool should exist',
+    )
+    assert.ok(
+      toolNames.includes('download_rocrate_from_dataverse'),
+      'download_rocrate_from_dataverse tool should exist',
+    )
     assert.ok(toolNames.includes('get_rocrate_context'), 'get_rocrate_context tool should exist')
+    assert.ok(toolNames.includes('suggest_context_terms'), 'suggest_context_terms tool should exist')
     assert.ok(toolNames.includes('resolve_profile_schema'), 'resolve_profile_schema tool should exist')
     assert.ok(
       toolNames.includes('prepare_remote_profile_payload'),
@@ -389,6 +563,34 @@ async function run() {
         },
       },
     })
+
+    await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        changeSet: {
+          updateEntities: [{ '@id': './', merge: { temporaryField: 'to-remove' } }],
+        },
+      },
+    })
+    await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        changeSet: {
+          updateEntities: [{ '@id': './', unset: ['temporaryField'] }],
+        },
+      },
+    })
+    const crateAfterUnset = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    const rootAfterUnset = crateAfterUnset['@graph'].find((entity) => entity['@id'] === './')
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(rootAfterUnset, 'temporaryField'),
+      false,
+      'temporaryField should be removed by unset',
+    )
 
     const outOfScopeUpdateResponse = await request('tools/call', {
       name: 'apply_changes',
@@ -490,6 +692,71 @@ async function run() {
     assert.ok(Array.isArray(searchPayload.results), 'search should return results array')
     assert.equal(searchPayload.results[0].url, 'https://example.org/mock')
 
+    const uploadDataverseResponse = await request('tools/call', {
+      name: 'upload_rocrate_to_dataverse',
+      arguments: {
+        cratePath,
+        write: true,
+        baseUrl: webToolsMock.baseUrl,
+        ownerId: 'root',
+      },
+    })
+    const uploadDataversePayload = JSON.parse(uploadDataverseResponse.result.content[0].text)
+    assert.equal(uploadDataversePayload.mode, 'local')
+    assert.equal(uploadDataversePayload.writeApplied, false)
+    assert.equal(uploadDataversePayload.status, 200)
+    assert.equal(uploadDataversePayload.endpoint, 'create')
+    assert.equal(uploadDataversePayload.pid, 'hdl:21.T15999/DSDDEV/MOCKPID')
+    assert.match(uploadDataversePayload.dataverseUrl, /dataset\.xhtml\?persistentId=/)
+
+    const crateWithArpPid = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    const crateWithArpPidRoot = crateWithArpPid['@graph'].find((entity) => entity['@id'] === './')
+    crateWithArpPidRoot['@arpPid'] = 'hdl:21.T15999/DSDDEV/EXISTING'
+    fs.writeFileSync(cratePath, `${JSON.stringify(crateWithArpPid, null, 2)}\n`, 'utf8')
+
+    const createWithArpPidResponse = await request('tools/call', {
+      name: 'upload_rocrate_to_dataverse',
+      arguments: {
+        cratePath,
+        write: true,
+        baseUrl: webToolsMock.baseUrl,
+        ownerId: 'root',
+      },
+    })
+    assert.ok(createWithArpPidResponse.error, 'create upload should fail when crate has @arpPid')
+    assert.match(createWithArpPidResponse.error.message, /Create upload blocked: crate already contains @arpPid/)
+
+    const updatePidMismatchResponse = await request('tools/call', {
+      name: 'upload_rocrate_to_dataverse',
+      arguments: {
+        cratePath,
+        write: true,
+        baseUrl: webToolsMock.baseUrl,
+        pid: 'hdl:21.T15999/DSDDEV/OTHER',
+      },
+    })
+    assert.ok(updatePidMismatchResponse.error, 'update upload should fail on pid mismatch')
+    assert.match(updatePidMismatchResponse.error.message, /Update upload blocked: pid mismatch/)
+
+    const downloadDataverseResponse = await request('tools/call', {
+      name: 'download_rocrate_from_dataverse',
+      arguments: {
+        cratePath,
+        pid: 'hdl:21.T15999/DSDDEV/DOWNLOADED',
+        write: true,
+        baseUrl: webToolsMock.baseUrl,
+      },
+    })
+    const downloadDataversePayload = JSON.parse(downloadDataverseResponse.result.content[0].text)
+    assert.equal(downloadDataversePayload.mode, 'local')
+    assert.equal(downloadDataversePayload.writeApplied, true)
+    assert.equal(downloadDataversePayload.status, 200)
+    assert.equal(downloadDataversePayload.pid, 'hdl:21.T15999/DSDDEV/DOWNLOADED')
+
+    const crateAfterDownload = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    const rootAfterDownload = crateAfterDownload['@graph'].find((entity) => entity['@id'] === './')
+    assert.equal(rootAfterDownload.name, 'Downloaded hdl:21.T15999/DSDDEV/DOWNLOADED')
+
     const localResolveProfileResponse = await request('tools/call', {
       name: 'resolve_profile_schema',
       arguments: {
@@ -517,6 +784,17 @@ async function run() {
     assert.equal(localContextPayload.profileResolution.profiles[0].loaded, true)
     assert.equal(localContextPayload.conformance.valid, true)
 
+    const suggestContextResponse = await request('tools/call', {
+      name: 'suggest_context_terms',
+      arguments: {
+        cratePath,
+      },
+    })
+    const suggestContextPayload = JSON.parse(suggestContextResponse.result.content[0].text)
+    assert.equal(suggestContextPayload.mode, 'local')
+    assert.ok(Array.isArray(suggestContextPayload.missingTerms))
+    assert.ok(typeof suggestContextPayload.mergeContext === 'object')
+
     const strictValidateResponse = await request('tools/call', {
       name: 'validate_crate',
       arguments: {
@@ -527,12 +805,8 @@ async function run() {
     const strictValidatePayload = JSON.parse(strictValidateResponse.result.content[0].text)
     assert.equal(strictValidatePayload.profile.requiredMode, 'enforce_required')
     assert.equal(strictValidatePayload.profile.validationMode, 'full')
-    assert.equal(strictValidatePayload.profile.valid, false)
-    assert.ok(
-      strictValidatePayload.profile.errors.some((error) =>
-        String(error).includes('missing required property'),
-      ),
-    )
+    assert.equal(strictValidatePayload.profile.valid, true)
+    assert.equal(strictValidatePayload.profile.errors.length, 0)
 
     const localCrateBeforeScoped = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
     const localRoot = localCrateBeforeScoped['@graph'].find((entity) => entity['@id'] === './')
@@ -585,6 +859,8 @@ async function run() {
           '@id': './',
           '@type': 'Dataset',
           name: 'Remote Root',
+          title: 'Remote title',
+          author: 'Remote Author',
           conformsTo: [{ '@id': profileUrl }],
         },
         {
@@ -605,6 +881,40 @@ async function run() {
     })
     const remoteReadPayload = JSON.parse(remoteReadResponse.result.content[0].text)
     assert.equal(remoteReadPayload['@graph'][0].name, 'Remote Root')
+
+    const remoteUploadResponse = await request('tools/call', {
+      name: 'upload_rocrate_to_dataverse',
+      arguments: {
+        mode: 'remote',
+        crate: remoteCrate,
+        write: true,
+        baseUrl: webToolsMock.baseUrl,
+        pid: 'hdl:21.T15999/DSDDEV/REMOTEPID',
+      },
+    })
+    const remoteUploadPayload = JSON.parse(remoteUploadResponse.result.content[0].text)
+    assert.equal(remoteUploadPayload.mode, 'remote')
+    assert.equal(remoteUploadPayload.writeApplied, false)
+    assert.equal(remoteUploadPayload.status, 200)
+    assert.equal(remoteUploadPayload.pid, 'hdl:21.T15999/DSDDEV/REMOTEPID')
+    assert.equal(remoteUploadPayload.ingestedCrate['@graph'].find((entity) => entity['@id'] === './').name, 'Remote Root')
+
+    const remoteDownloadResponse = await request('tools/call', {
+      name: 'download_rocrate_from_dataverse',
+      arguments: {
+        mode: 'remote',
+        baseUrl: webToolsMock.baseUrl,
+        pid: 'hdl:21.T15999/DSDDEV/REMOTE-DOWNLOAD',
+      },
+    })
+    const remoteDownloadPayload = JSON.parse(remoteDownloadResponse.result.content[0].text)
+    assert.equal(remoteDownloadPayload.mode, 'remote')
+    assert.equal(remoteDownloadPayload.writeApplied, false)
+    assert.equal(remoteDownloadPayload.pid, 'hdl:21.T15999/DSDDEV/REMOTE-DOWNLOAD')
+    assert.equal(
+      remoteDownloadPayload.crate['@graph'].find((entity) => entity['@id'] === './').name,
+      'Downloaded hdl:21.T15999/DSDDEV/REMOTE-DOWNLOAD',
+    )
 
     const remoteContextResponse = await request('tools/call', {
       name: 'get_rocrate_context',
