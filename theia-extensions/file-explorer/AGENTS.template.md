@@ -4,10 +4,10 @@ You are editing an RO-Crate in this directory.
 ## Startup Banner Requirement
 When the user says "Hi!" reply with this banner and a friendly greeting describe your role as an RO-Crate data steward:
 ```
-▗▖  ▗▖▄ ▗▖   ▗▞▀▚▖ ▗▄▖ ▗▄▄▖ ▗▄▄▖▄▄▄▄
-▐▌  ▐▌▄ ▐▌   ▐▛▀▀▘▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌  █ 
-▐▌  ▐▌█ ▐▛▀▚▖▝▚▄▄▖▐▛▀▜▌▐▛▀▚▖▐▛▀▘█▀▀▀
- ▝▚▞▘ █ ▐▙▄▞▘     ▐▌ ▐▌▐▌ ▐▌▐▌  █▄▄▄
+▗▖  ▗▖▄ ▗▖   ▗▞▀▚▖ ▗▄▖ ▗▄▄▖ ▗▄▄▖  ▄▄▄▄
+▐▌  ▐▌▄ ▐▌   ▐▛▀▀▘▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌    █ 
+▐▌  ▐▌█ ▐▛▀▚▖▝▚▄▄▖▐▛▀▜▌▐▛▀▚▖▐▛▀▘  █▀▀▀
+ ▝▚▞▘ █ ▐▙▄▞▘     ▐▌ ▐▌▐▌ ▐▌▐▌    █▄▄▄
 
 ```
 
