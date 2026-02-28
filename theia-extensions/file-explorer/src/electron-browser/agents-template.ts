@@ -9,25 +9,30 @@ You are editing an RO-Crate in this directory.
 1. Primary artifact is \`ro-crate-metadata.json\`.
 2. Use MCP tools from the \`rocrate\` server for all metadata edits and validation.
 3. Before editing, call \`get_rocrate_context\` to detect active profile constraints from \`conformsTo\`.
-4. Use profile-aware flow:
+4. If user asks to add/activate a profile (for example "Add citation profile to rocrate"), call \`add_profile_conforms_to\` first with \`write=true\` (default target \`entityId="./"\`), then call \`read_crate\` to confirm \`conformsTo\` persisted.
+5. Use profile-aware flow:
    - local: server can resolve profiles from local schema index.
    - remote: use \`create_profile_context\` and pass \`profileContextId\` in subsequent calls.
-5. Do not use random profile files discovered in the dataset unless explicitly referenced by active \`conformsTo\` URLs.
-6. Prefer MCP write tools (\`apply_changes\`, \`write_crate_atomic\`) over ad-hoc file rewrites.
-7. Always call \`apply_changes\` with \`write=true\`.
-8. After \`apply_changes\`, call \`read_crate\` to verify the value is present on disk before reporting success.
-9. In \`remote\` mode, MCP tools do not persist files:
+6. Do not use random profile files discovered in the dataset unless explicitly referenced by active \`conformsTo\` URLs.
+7. Prefer MCP write tools (\`apply_changes\`, \`write_crate_atomic\`) over ad-hoc file rewrites.
+8. Always call \`apply_changes\` with \`write=true\`.
+9. After \`apply_changes\`, call \`read_crate\` to verify the value is present on disk before reporting success.
+10. In \`remote\` mode, MCP tools do not persist files:
    - \`apply_changes(write=true)\` returns updated crate payload but does not write to disk.
    - \`write_crate_atomic\` in \`remote\` mode also does not write to disk.
    - Never claim metadata was saved in \`remote\` mode unless the client explicitly writes returned crate payload to storage.
-10. Use \`responseMode="summary"\` by default to reduce token usage; request \`responseMode="full"\` only when full crate/report payload is explicitly needed.
-11. If MCP write fails with profile errors, do not edit JSON directly.
-12. In that case, report the failure and ask user to choose:
+11. Use \`responseMode="summary"\` by default to reduce token usage; request \`responseMode="full"\` only when full crate/report payload is explicitly needed.
+12. If MCP write fails with profile errors, do not edit JSON directly.
+13. In that case, report the failure and ask user to choose:
    - run full profile cleanup (strict/full profile validation), or
    - use scoped mode (ignore unrelated pre-existing profile violations).
-13. After edits, run \`validate_crate\` and report both core and profile validation status.
-14. During iterative editing, use non-strict profile mode (\`profileRequiredMode=allow_missing\`) so missing required fields are allowed temporarily.
-15. Before publication/upload (for example Dataverse), run strict/full validation (\`profileValidationMode=full\`, \`profileRequiredMode=enforce_required\`) and resolve all errors.
+14. After edits, run \`validate_crate\` and report both core and profile validation status.
+15. During iterative editing, use non-strict profile mode (\`profileRequiredMode=allow_missing\`) so missing required fields are allowed temporarily.
+16. Keep edits minimal: only touch entities and properties that actually need to be updated for the requested task.
+17. For profile-driven changes, target only entities that explicitly declare that profile URL in their own \`conformsTo\`.
+18. If additional entities without that \`conformsTo\` would also be changed, stop and ask the user for confirmation, listing the entities you would touch.
+19. Do not set \`allowOutOfProfileTargets=true\` unless the user explicitly confirms that broader update.
+20. Before publication/upload (for example Dataverse), run strict/full validation (\`profileValidationMode=full\`, \`profileRequiredMode=enforce_required\`) and resolve all errors.
 
 ## Critical Metadata Rules
 1. Every entity in \`@graph\` must have a human-friendly \`name\`.

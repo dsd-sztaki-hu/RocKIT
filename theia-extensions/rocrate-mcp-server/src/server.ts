@@ -312,11 +312,33 @@ const tools: ToolDefinition[] = [
         profileContextId: { type: 'string' },
         profileValidationMode: { type: 'string', enum: ['scoped', 'full'] },
         profileRequiredMode: { type: 'string', enum: ['allow_missing', 'enforce_required'] },
+        allowOutOfProfileTargets: { type: 'boolean' },
         schemaIndex: { type: 'object' },
         profileContents: { type: 'object' },
         responseMode: { type: 'string', enum: ['summary', 'full'] },
       },
       required: ['changeSet', 'write'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'add_profile_conforms_to',
+    description:
+      'Attach profile URL(s) to an entity conformsTo (default root dataset "./"). Requires write=true.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['local', 'remote'] },
+        cratePath: { type: 'string' },
+        crate: { type: 'object' },
+        entityId: { type: 'string' },
+        profileUrl: { type: 'string' },
+        profileUrls: { type: 'array', items: { type: 'string' } },
+        write: { type: 'boolean', enum: [true] },
+        indent: { type: 'number' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
+      },
+      required: ['write'],
       additionalProperties: false,
     },
   },
@@ -910,6 +932,55 @@ function uniqueStrings(values: string[]): string[] {
   return ordered
 }
 
+function readProfileUrlsToAttach(params: Record<string, unknown>): string[] {
+  const urls: string[] = []
+  if (typeof params.profileUrl === 'string') {
+    const trimmed = params.profileUrl.trim()
+    if (trimmed !== '') {
+      urls.push(trimmed)
+    }
+  }
+  if (Array.isArray(params.profileUrls)) {
+    for (const item of params.profileUrls) {
+      if (typeof item !== 'string') {
+        continue
+      }
+      const trimmed = item.trim()
+      if (trimmed === '') {
+        continue
+      }
+      urls.push(trimmed)
+    }
+  }
+  return uniqueStrings(urls)
+}
+
+function addProfileConformsTo(
+  crate: RoCrate,
+  entityId: string,
+  profileUrls: string[],
+): { previousUrls: string[]; addedUrls: string[]; finalUrls: string[] } {
+  const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
+  const target = graph.find(
+    (entity) =>
+      !!entity &&
+      typeof entity === 'object' &&
+      !Array.isArray(entity) &&
+      entity['@id'] === entityId,
+  )
+  if (!target) {
+    throw new Error(`Entity not found for conformsTo update: ${entityId}`)
+  }
+
+  const previousUrls = extractConformsToUrls(target.conformsTo)
+  const finalUrls = uniqueStrings([...previousUrls, ...profileUrls])
+  const previousSet = new Set(previousUrls)
+  const addedUrls = finalUrls.filter((url) => !previousSet.has(url))
+  target.conformsTo = finalUrls.map((url) => ({ '@id': url }))
+
+  return { previousUrls, addedUrls, finalUrls }
+}
+
 function collectProfileUrls(crate: RoCrate): string[] {
   const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
   const urls: string[] = []
@@ -924,6 +995,37 @@ function collectProfileUrls(crate: RoCrate): string[] {
     urls.push(...extractConformsToUrls(entity.conformsTo))
   }
   return uniqueStrings(urls.filter((url) => url !== ROCRATE_CONFORMS_TO_URL))
+}
+
+function collectProfileTargetsByUrl(crate: RoCrate): Record<string, string[]> {
+  const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
+  const targets = new Map<string, string[]>()
+  for (const entity of graph) {
+    if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+      continue
+    }
+    const entityId = typeof entity['@id'] === 'string' ? entity['@id'] : undefined
+    if (!entityId) {
+      continue
+    }
+    const types = entityTypes(entity)
+    if (!types.includes('Dataset') && !types.includes('File')) {
+      continue
+    }
+    const profileUrls = extractConformsToUrls(entity.conformsTo).filter(
+      (url) => url !== ROCRATE_CONFORMS_TO_URL,
+    )
+    for (const profileUrl of profileUrls) {
+      const current = targets.get(profileUrl) ?? []
+      current.push(entityId)
+      targets.set(profileUrl, current)
+    }
+  }
+  return Object.fromEntries(
+    Array.from(targets.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([profileUrl, entityIds]) => [profileUrl, uniqueStrings(entityIds)]),
+  )
 }
 
 function resolveAromaRootPath(): string {
@@ -1538,6 +1640,12 @@ function validateCrateAgainstProfileConstraints(
     if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
       continue
     }
+    const entityProfileUrls = extractConformsToUrls(entity.conformsTo).filter(
+      (url) => url !== ROCRATE_CONFORMS_TO_URL,
+    )
+    if (entityProfileUrls.length === 0) {
+      continue
+    }
     const entityId = typeof entity['@id'] === 'string' ? entity['@id'] : '<unknown>'
     const types = entityTypes(entity)
     for (const entityType of types) {
@@ -1613,6 +1721,86 @@ function validateCrateAgainstProfileConstraints(
   }
 }
 
+function collectProfilePropertyNames(constraints: ProfileConstraints): Set<string> {
+  const names = new Set<string>()
+  for (const properties of constraints.allowedPropertiesByClass.values()) {
+    for (const propertyName of properties) {
+      names.add(propertyName)
+    }
+  }
+  return names
+}
+
+function validateProfileTargetScopeForChangeSet(
+  crate: RoCrate,
+  changeSet: RoCrateChangeSet,
+  constraints: ProfileConstraints,
+): Array<{ entityId: string; properties: string[] }> {
+  const violations: Array<{ entityId: string; properties: string[] }> = []
+  if (constraints.resolution.profileUrls.length === 0) {
+    return violations
+  }
+
+  const profilePropertyNames = collectProfilePropertyNames(constraints)
+  if (profilePropertyNames.size === 0) {
+    return violations
+  }
+
+  const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
+  const updates = Array.isArray(changeSet.updateEntities) ? changeSet.updateEntities : []
+  for (const update of updates) {
+    if (!update || typeof update !== 'object' || Array.isArray(update)) {
+      continue
+    }
+    const entityId = typeof update['@id'] === 'string' ? update['@id'] : ''
+    if (entityId === '') {
+      continue
+    }
+    const merge =
+      update.merge && typeof update.merge === 'object' && !Array.isArray(update.merge)
+        ? (update.merge as Record<string, unknown>)
+        : undefined
+    if (!merge) {
+      continue
+    }
+    const changedProfileProperties = Object.keys(merge).filter((key) =>
+      profilePropertyNames.has(key),
+    )
+    if (changedProfileProperties.length === 0) {
+      continue
+    }
+
+    const entity = graph.find(
+      (item) =>
+        !!item &&
+        typeof item === 'object' &&
+        !Array.isArray(item) &&
+        item['@id'] === entityId,
+    )
+    if (!entity) {
+      continue
+    }
+    const types = entityTypes(entity)
+    if (!types.includes('Dataset') && !types.includes('File')) {
+      continue
+    }
+
+    const entityProfileUrls = extractConformsToUrls(entity.conformsTo).filter(
+      (url) => url !== ROCRATE_CONFORMS_TO_URL,
+    )
+    const declaresActiveProfile = entityProfileUrls.some((profileUrl) =>
+      constraints.resolution.profileUrls.includes(profileUrl),
+    )
+    if (!declaresActiveProfile) {
+      violations.push({
+        entityId,
+        properties: changedProfileProperties,
+      })
+    }
+  }
+  return violations
+}
+
 function ensureProfileConformanceOrThrow(
   crate: RoCrate,
   mode: AccessMode,
@@ -1664,6 +1852,7 @@ function buildRoCrateContext(
   const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
   const descriptor = pickMetadataDescriptor(crate)
   const constraints = buildProfileConstraints(crate, mode, inputs)
+  const profileTargetsByUrl = collectProfileTargetsByUrl(crate)
   const validation = validateCrateAgainstProfileConstraints(crate, constraints)
   return {
     mode,
@@ -1690,6 +1879,7 @@ function buildRoCrateContext(
       })),
       warnings: constraints.resolution.warnings,
     },
+    profileTargetsByUrl,
     profileRules: {
       allowedClasses: Array.from(constraints.allowedClasses).sort(),
       allowedPropertiesByClass: Object.fromEntries(
@@ -1701,6 +1891,9 @@ function buildRoCrateContext(
     conformance: validation,
     instructions: [
       'Primary target is ro-crate-metadata.json.',
+      'When user asks to add/activate a profile, use add_profile_conforms_to first.',
+      'Treat profile scope as entity-local: profile fields apply only to entities that explicitly declare that profile URL in their own conformsTo.',
+      'Do not fan out profile-field edits by class across other Dataset/File entities unless user explicitly asks.',
       'Use profileResolution to determine active profile files from conformsTo values on Dataset/File entities.',
       'Only edit entity types and properties that are allowed by resolved profiles.',
     ],
@@ -1730,6 +1923,28 @@ function summarizeRoCrateContext(context: Record<string, unknown>): Record<strin
     !Array.isArray(context.profileRules)
       ? (context.profileRules as Record<string, unknown>)
       : {}
+  const profileTargetsByUrlRaw =
+    context.profileTargetsByUrl &&
+    typeof context.profileTargetsByUrl === 'object' &&
+    !Array.isArray(context.profileTargetsByUrl)
+      ? (context.profileTargetsByUrl as Record<string, unknown>)
+      : {}
+  const profileTargetsByUrl = Object.fromEntries(
+    Object.entries(profileTargetsByUrlRaw).map(([profileUrl, ids]) => {
+      const entityIds = Array.isArray(ids)
+        ? ids.filter((item): item is string => typeof item === 'string')
+        : []
+      const summary = summarizeStringArray(entityIds)
+      return [
+        profileUrl,
+        {
+          entityIds: summary.items,
+          entityCount: summary.total,
+          entityIdsTruncated: summary.truncated,
+        },
+      ]
+    }),
+  )
   const allowedClasses = Array.isArray(profileRules.allowedClasses)
     ? profileRules.allowedClasses.filter((item): item is string => typeof item === 'string')
     : []
@@ -1747,6 +1962,7 @@ function summarizeRoCrateContext(context: Record<string, unknown>): Record<strin
       allowedClassCount: allowedClasses.length,
       allowedClasses: summarizeStringArray(allowedClasses).items,
     },
+    profileTargetsByUrl,
     conformance: {
       valid: conformance.valid === true,
       errors: errorSummary.items,
@@ -2207,6 +2423,20 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
       },
       loaded.crate,
     )
+    const allowOutOfProfileTargets = params.allowOutOfProfileTargets === true
+    const outOfScopeViolations = validateProfileTargetScopeForChangeSet(
+      updated,
+      normalizedChangeSet,
+      constraints,
+    )
+    if (!allowOutOfProfileTargets && outOfScopeViolations.length > 0) {
+      const message = outOfScopeViolations
+        .map((violation) => `${violation.entityId} [${violation.properties.join(', ')}]`)
+        .join(' | ')
+      throw new Error(
+        `Profile-scoped update includes entities without matching conformsTo: ${message}. Ask user confirmation before broad updates, then retry with allowOutOfProfileTargets=true.`,
+      )
+    }
     if (loaded.mode === 'local') {
       const indent = typeof params.indent === 'number' ? params.indent : 2
       writeCrateAtomic(loaded.cratePath ?? resolveCratePath(), updated, indent)
@@ -2244,6 +2474,92 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
       )
     }
     throw new Error(`Unsupported mode for apply_changes: ${loaded.mode}`)
+  }
+
+  if (toolName === 'add_profile_conforms_to') {
+    if (params.write !== true) {
+      throw new Error(
+        'add_profile_conforms_to requires write=true. Use explicit write intent for all write operations.',
+      )
+    }
+    const loaded = loadCrateFromParams(params)
+    const entityId =
+      typeof params.entityId === 'string' && params.entityId.trim() !== ''
+        ? params.entityId.trim()
+        : './'
+    const profileUrls = readProfileUrlsToAttach(params)
+    if (profileUrls.length === 0) {
+      throw new Error('add_profile_conforms_to requires profileUrl or profileUrls.')
+    }
+
+    const { previousUrls, addedUrls, finalUrls } = addProfileConformsTo(
+      loaded.crate,
+      entityId,
+      profileUrls,
+    )
+    const responseMode = parseResponseMode(
+      params,
+      loaded.mode === 'remote' ? 'full' : 'summary',
+    )
+
+    if (loaded.mode === 'local') {
+      const cratePath = loaded.cratePath ?? resolveCratePath()
+      const indent = typeof params.indent === 'number' ? params.indent : 2
+      writeCrateAtomic(cratePath, loaded.crate, indent)
+      const payload = {
+        mode: 'local',
+        writeApplied: true,
+        cratePath,
+        entityId,
+        requestedProfileUrls: profileUrls,
+        previousProfileUrls: previousUrls,
+        addedProfileUrls: addedUrls,
+        finalProfileUrls: finalUrls,
+        crate: loaded.crate,
+      }
+      if (responseMode === 'full') {
+        return textResult(payload)
+      }
+      return textResult({
+        mode: payload.mode,
+        writeApplied: payload.writeApplied,
+        cratePath: payload.cratePath,
+        entityId: payload.entityId,
+        requestedProfileUrls: payload.requestedProfileUrls,
+        previousProfileUrls: payload.previousProfileUrls,
+        addedProfileUrls: payload.addedProfileUrls,
+        finalProfileUrls: payload.finalProfileUrls,
+      })
+    }
+
+    if (loaded.mode === 'remote') {
+      const payload = {
+        mode: 'remote',
+        writeApplied: false,
+        entityId,
+        requestedProfileUrls: profileUrls,
+        previousProfileUrls: previousUrls,
+        addedProfileUrls: addedUrls,
+        finalProfileUrls: finalUrls,
+        crate: loaded.crate,
+        note: 'Remote mode does not persist files. Use returned crate payload.',
+      }
+      if (responseMode === 'full') {
+        return textResult(payload)
+      }
+      return textResult({
+        mode: payload.mode,
+        writeApplied: payload.writeApplied,
+        entityId: payload.entityId,
+        requestedProfileUrls: payload.requestedProfileUrls,
+        previousProfileUrls: payload.previousProfileUrls,
+        addedProfileUrls: payload.addedProfileUrls,
+        finalProfileUrls: payload.finalProfileUrls,
+        note: payload.note,
+      })
+    }
+
+    throw new Error(`Unsupported mode for add_profile_conforms_to: ${loaded.mode}`)
   }
 
   if (toolName === 'validate_crate') {
@@ -2421,7 +2737,7 @@ async function handleRequest(request: JsonRpcRequest, mode: TransportMode): Prom
           version: '0.0.0',
         },
         instructions:
-          'Primary artifact is ro-crate-metadata.json. Prefer RO-Crate tools over ad-hoc edits. Detect profile URLs from conformsTo on Dataset/File entities, resolve them via metadata-schema-index, and keep edits limited to profile-allowed entity types/properties.',
+          'Primary artifact is ro-crate-metadata.json. Prefer RO-Crate tools over ad-hoc edits. Use add_profile_conforms_to to activate profile URLs on conformsTo before profile-field edits. Treat profile scope as entity-local (only entities explicitly declaring that profile URL in conformsTo). Do not fan out profile-field edits by class unless user explicitly asks. Detect profile URLs from conformsTo on Dataset/File entities, resolve them via metadata-schema-index, and keep edits limited to profile-allowed entity types/properties.',
         capabilities: {
           tools: {
             listChanged: false,

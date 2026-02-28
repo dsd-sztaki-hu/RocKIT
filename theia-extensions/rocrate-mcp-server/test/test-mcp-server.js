@@ -133,6 +133,7 @@ async function run() {
   const aromaRoot = path.join(tempRoot, 'aroma-root')
   fs.mkdirSync(path.join(aromaRoot, 'metadata-schemas', 'ro-crate'), { recursive: true })
   const profileUrl = 'https://w3id.org/arp/schema/33677b82-7973-3e4c-b09d-b5189e095627'
+  const extraProfileUrl = 'https://w3id.org/arp/schema/example-profile'
   const convertedRelativePath = 'metadata-schemas/ro-crate/citation_profile.json'
   fs.writeFileSync(
     path.join(aromaRoot, convertedRelativePath),
@@ -174,9 +175,22 @@ async function run() {
             },
             conformsTo: profileUrl,
           },
+          {
+            id: 'f1b4cf4c-63b4-4d8f-8b66-a357975f0a30',
+            name: 'Example Profile',
+            version: '0.0.1',
+            source: 'remote',
+            type: 'cedar',
+            files: {
+              sourcePath: 'metadata-schemas/cedar/example_profile.json',
+              convertedPath: convertedRelativePath,
+            },
+            conformsTo: extraProfileUrl,
+          },
         ],
         conformsToIndex: {
           [profileUrl]: ['b060794f-1a81-41fc-ab35-f51569fa1188'],
+          [extraProfileUrl]: ['f1b4cf4c-63b4-4d8f-8b66-a357975f0a30'],
         },
       },
       null,
@@ -293,6 +307,10 @@ async function run() {
     assert.ok(toolNames.includes('delete_profile_context'), 'delete_profile_context tool should exist')
     assert.ok(toolNames.includes('compute_delta'), 'compute_delta tool should exist')
     assert.ok(toolNames.includes('apply_changes'), 'apply_changes tool should exist')
+    assert.ok(
+      toolNames.includes('add_profile_conforms_to'),
+      'add_profile_conforms_to tool should exist',
+    )
 
     const deltaResponse = await request('tools/call', {
       name: 'compute_delta',
@@ -328,6 +346,88 @@ async function run() {
     assert.equal(localApplySummaryPayload.mode, 'local')
     assert.equal(localApplySummaryPayload.writeApplied, true)
     assert.ok(!('crate' in localApplySummaryPayload), 'local apply default should be summary')
+
+    const localAddProfileResponse = await request('tools/call', {
+      name: 'add_profile_conforms_to',
+      arguments: {
+        cratePath,
+        write: true,
+        profileUrl: extraProfileUrl,
+      },
+    })
+    const localAddProfilePayload = JSON.parse(
+      localAddProfileResponse.result.content[0].text,
+    )
+    assert.equal(localAddProfilePayload.mode, 'local')
+    assert.equal(localAddProfilePayload.writeApplied, true)
+    assert.equal(localAddProfilePayload.entityId, './')
+    assert.ok(localAddProfilePayload.addedProfileUrls.includes(extraProfileUrl))
+    const localAddProfileCrate = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    const localAddProfileRoot = localAddProfileCrate['@graph'].find(
+      (entity) => entity['@id'] === './',
+    )
+    const localAddProfileUrls = (localAddProfileRoot.conformsTo || []).map(
+      (entry) => entry['@id'],
+    )
+    assert.ok(localAddProfileUrls.includes(profileUrl))
+    assert.ok(localAddProfileUrls.includes(extraProfileUrl))
+
+    await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        changeSet: {
+          addEntities: [
+            {
+              '@id': 'file://./unprofiled/',
+              '@type': 'Dataset',
+              name: 'Unprofiled Dataset',
+              hasPart: [],
+            },
+          ],
+        },
+      },
+    })
+
+    const outOfScopeUpdateResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        changeSet: {
+          updateEntities: [
+            {
+              '@id': 'file://./unprofiled/',
+              merge: { title: 'Should require confirmation' },
+            },
+          ],
+        },
+      },
+    })
+    assert.ok(outOfScopeUpdateResponse.error, 'out-of-profile target update should fail by default')
+    assert.match(
+      outOfScopeUpdateResponse.error.message,
+      /without matching conformsTo/,
+    )
+
+    const outOfScopeAllowedResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        allowOutOfProfileTargets: true,
+        changeSet: {
+          updateEntities: [
+            {
+              '@id': 'file://./unprofiled/',
+              merge: { title: 'Allowed by explicit confirmation' },
+            },
+          ],
+        },
+      },
+    })
+    assert.ok(outOfScopeAllowedResponse.result, 'confirmed out-of-profile target update should pass')
 
     await request('tools/call', {
       name: 'apply_changes',
@@ -604,6 +704,29 @@ async function run() {
     assert.equal(remoteApplyPayload.mode, 'remote')
     assert.equal(remoteApplyPayload.writeApplied, false)
     assert.equal(remoteApplyPayload.crate['@graph'][0].name, 'Remote Updated Root')
+
+    const remoteAddProfileResponse = await request('tools/call', {
+      name: 'add_profile_conforms_to',
+      arguments: {
+        mode: 'remote',
+        crate: remoteCrate,
+        write: true,
+        profileUrls: [extraProfileUrl],
+      },
+    })
+    const remoteAddProfilePayload = JSON.parse(
+      remoteAddProfileResponse.result.content[0].text,
+    )
+    assert.equal(remoteAddProfilePayload.mode, 'remote')
+    assert.equal(remoteAddProfilePayload.writeApplied, false)
+    const remoteAddProfileRoot = remoteAddProfilePayload.crate['@graph'].find(
+      (entity) => entity['@id'] === './',
+    )
+    const remoteAddProfileUrls = (remoteAddProfileRoot.conformsTo || []).map(
+      (entry) => entry['@id'],
+    )
+    assert.ok(remoteAddProfileUrls.includes(profileUrl))
+    assert.ok(remoteAddProfileUrls.includes(extraProfileUrl))
 
     const remoteDisallowedEditResponse = await request('tools/call', {
       name: 'apply_changes',
