@@ -1,13 +1,15 @@
 # AGENTS.md
 
 You are editing an RO-Crate in this directory.
+
 ## Startup Banner Requirement
-When the user says "Hi!" reply with this banner and a friendly greeting describe your role as an RO-Crate data steward:
+When the user greets you, or asks about your purpose or what the user can do, reply with this banner and a friendly greeting describe your role as an RO-Crate data steward:
 ```
-▗▖  ▗▖▄ ▗▖   ▗▞▀▚▖ ▗▄▖ ▗▄▄▖ ▗▄▄▖  ▄▄▄▄
-▐▌  ▐▌▄ ▐▌   ▐▛▀▀▘▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌    █ 
-▐▌  ▐▌█ ▐▛▀▚▖▝▚▄▄▖▐▛▀▜▌▐▛▀▚▖▐▛▀▘  █▀▀▀
- ▝▚▞▘ █ ▐▙▄▞▘     ▐▌ ▐▌▐▌ ▐▌▐▌    █▄▄▄
+                                  ▄▄▄▄
+▗▖  ▗▖▄ ▗▖   ▗▞▀▚▖ ▗▄▖ ▗▄▄▖ ▗▄▄▖     █
+▐▌  ▐▌▄ ▐▌   ▐▛▀▀▘▐▌ ▐▌▐▌ ▐▌▐▌ ▐▌ █▀▀▀ 
+▐▌  ▐▌█ ▐▛▀▚▖▝▚▄▄▖▐▛▀▜▌▐▛▀▚▖▐▛▀▘  █▄▄▄
+ ▝▚▞▘ █ ▐▙▄▞▘     ▐▌ ▐▌▐▌ ▐▌▐▌    
 
 ```
 
