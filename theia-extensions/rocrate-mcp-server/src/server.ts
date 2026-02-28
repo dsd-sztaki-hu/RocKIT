@@ -51,6 +51,7 @@ type TransportMode = 'content-length' | 'jsonl'
 type AccessMode = 'local' | 'remote'
 type ProfileValidationMode = 'scoped' | 'full'
 type ProfileRequiredMode = 'allow_missing' | 'enforce_required'
+type ResponseMode = 'summary' | 'full'
 
 type SchemaIndexProfile = {
   id: string
@@ -196,6 +197,8 @@ const PROTOCOL_VERSION = '2025-03-26'
 const ROCRATE_CONFORMS_TO_URL = 'https://w3id.org/ro/crate/1.1'
 const DEFAULT_SCHEMA_INDEX_FILENAME = 'metadata-schema-index.json'
 const DEFAULT_PROFILE_CONTEXT_TTL_SEC = 3600
+const DEFAULT_SUMMARY_ISSUE_LIMIT = 10
+const DEFAULT_SUMMARY_ENTITY_ID_LIMIT = 10
 const BASE_ALLOWED_PROPERTIES = new Set<string>([
   '@id',
   '@type',
@@ -266,6 +269,7 @@ const tools: ToolDefinition[] = [
         mode: { type: 'string', enum: ['local', 'remote'] },
         cratePath: { type: 'string', description: 'Path to ro-crate-metadata.json in local mode.' },
         crate: { type: 'object', description: 'RO-Crate JSON payload in remote mode.' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
       },
       additionalProperties: false,
     },
@@ -295,7 +299,7 @@ const tools: ToolDefinition[] = [
   {
     name: 'apply_changes',
     description:
-      'Apply compact change-set to crate. Optionally persist updates to disk when write=true.',
+      'Apply compact change-set to crate. Requires write=true for explicit write intent.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -303,15 +307,16 @@ const tools: ToolDefinition[] = [
         cratePath: { type: 'string' },
         crate: { type: 'object' },
         changeSet: CHANGE_SET_INPUT_SCHEMA,
-        write: { type: 'boolean' },
+        write: { type: 'boolean', enum: [true] },
         indent: { type: 'number' },
         profileContextId: { type: 'string' },
         profileValidationMode: { type: 'string', enum: ['scoped', 'full'] },
         profileRequiredMode: { type: 'string', enum: ['allow_missing', 'enforce_required'] },
         schemaIndex: { type: 'object' },
         profileContents: { type: 'object' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
       },
-      required: ['changeSet'],
+      required: ['changeSet', 'write'],
       additionalProperties: false,
     },
   },
@@ -331,6 +336,7 @@ const tools: ToolDefinition[] = [
         profileRequiredMode: { type: 'string', enum: ['allow_missing', 'enforce_required'] },
         schemaIndex: { type: 'object' },
         profileContents: { type: 'object' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
       },
       additionalProperties: false,
     },
@@ -350,6 +356,7 @@ const tools: ToolDefinition[] = [
         profileRequiredMode: { type: 'string', enum: ['allow_missing', 'enforce_required'] },
         schemaIndex: { type: 'object' },
         profileContents: { type: 'object' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
       },
       required: ['crate'],
       additionalProperties: false,
@@ -368,6 +375,7 @@ const tools: ToolDefinition[] = [
         profileContextId: { type: 'string' },
         schemaIndex: { type: 'object' },
         profileContents: { type: 'object' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
       },
       additionalProperties: false,
     },
@@ -536,6 +544,221 @@ function parseAccessMode(params: Record<string, unknown>): AccessMode {
     return 'local'
   }
   return process.env.ROCRATE_MCP_DEFAULT_MODE === 'remote' ? 'remote' : 'local'
+}
+
+function parseResponseMode(
+  params: Record<string, unknown>,
+  defaultMode: ResponseMode = 'summary',
+): ResponseMode {
+  if (params.responseMode === 'full') {
+    return 'full'
+  }
+  if (params.responseMode === 'summary') {
+    return 'summary'
+  }
+  return defaultMode
+}
+
+function summarizeArray(values: unknown[], limit = DEFAULT_SUMMARY_ISSUE_LIMIT): {
+  items: unknown[]
+  total: number
+  truncated: boolean
+} {
+  const safeLimit = Math.max(1, limit)
+  return {
+    items: values.slice(0, safeLimit),
+    total: values.length,
+    truncated: values.length > safeLimit,
+  }
+}
+
+function summarizeStringArray(values: string[], limit = DEFAULT_SUMMARY_ENTITY_ID_LIMIT): {
+  items: string[]
+  total: number
+  truncated: boolean
+} {
+  return summarizeArray(values, limit) as {
+    items: string[]
+    total: number
+    truncated: boolean
+  }
+}
+
+function summarizeProfileResolution(
+  resolution: ProfileResolution,
+): Record<string, unknown> {
+  return {
+    mode: resolution.mode,
+    inputProvided: resolution.inputProvided,
+    profileContextId: resolution.profileContextId,
+    profileUrls: resolution.profileUrls,
+    unresolvedUrls: resolution.unresolvedUrls,
+    warnings: resolution.warnings,
+    indexPath: resolution.indexPath,
+    aromaRootPath: resolution.aromaRootPath,
+    profiles: resolution.profiles.map((profile) => ({
+      id: profile.id,
+      name: profile.name,
+      version: profile.version,
+      conformsTo: profile.conformsTo,
+      convertedPath: profile.convertedPath,
+      loaded: profile.loaded,
+      loadError: profile.loadError,
+    })),
+  }
+}
+
+function summarizeEntityTypeCounts(crate: RoCrate): Record<string, number> {
+  const counts = new Map<string, number>()
+  const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
+  for (const entity of graph) {
+    if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+      continue
+    }
+    const rawType = entity['@type']
+    const types = Array.isArray(rawType)
+      ? rawType.filter((item): item is string => typeof item === 'string')
+      : typeof rawType === 'string'
+        ? [rawType]
+        : ['Unknown']
+    for (const type of types) {
+      counts.set(type, (counts.get(type) ?? 0) + 1)
+    }
+  }
+  return Object.fromEntries(
+    Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0])),
+  )
+}
+
+function summarizeCratePayload(
+  crate: RoCrate,
+  mode: AccessMode,
+  cratePath?: string,
+): Record<string, unknown> {
+  const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
+  const descriptor = pickMetadataDescriptor(crate)
+  const rootDataset =
+    graph.find(
+      (entity) =>
+        !!entity && typeof entity === 'object' && !Array.isArray(entity) && entity['@id'] === './',
+    ) ?? null
+  const rootDatasetSummary =
+    rootDataset && typeof rootDataset === 'object' && !Array.isArray(rootDataset)
+      ? {
+          '@id': rootDataset['@id'],
+          '@type': rootDataset['@type'],
+          name: rootDataset.name ?? null,
+          propertyKeys: Object.keys(rootDataset).sort(),
+        }
+      : null
+
+  return {
+    mode,
+    metadataPath: cratePath,
+    graphEntityCount: graph.length,
+    hasRootDataset: rootDataset !== null,
+    metadataDescriptorId:
+      descriptor && typeof descriptor['@id'] === 'string' ? descriptor['@id'] : null,
+    profileUrls: collectProfileUrls(crate),
+    entityTypeCounts: summarizeEntityTypeCounts(crate),
+    rootDataset: rootDatasetSummary,
+  }
+}
+
+function summarizeChangeSet(changeSet: RoCrateChangeSet): Record<string, unknown> {
+  const addEntities = Array.isArray(changeSet.addEntities) ? changeSet.addEntities : []
+  const updateEntities = Array.isArray(changeSet.updateEntities) ? changeSet.updateEntities : []
+  const removeEntities = Array.isArray(changeSet.removeEntities) ? changeSet.removeEntities : []
+  const addHasPart = Array.isArray(changeSet.addHasPart) ? changeSet.addHasPart : []
+  const removeHasPart = Array.isArray(changeSet.removeHasPart) ? changeSet.removeHasPart : []
+  const setRootFields =
+    changeSet.setRootFields &&
+    typeof changeSet.setRootFields === 'object' &&
+    !Array.isArray(changeSet.setRootFields)
+      ? Object.keys(changeSet.setRootFields)
+      : []
+  const mergeContext =
+    changeSet.mergeContext &&
+    typeof changeSet.mergeContext === 'object' &&
+    !Array.isArray(changeSet.mergeContext)
+      ? Object.keys(changeSet.mergeContext)
+      : []
+
+  const addedIds = addEntities
+    .map((entity) =>
+      entity && typeof entity === 'object' && !Array.isArray(entity) ? entity['@id'] : undefined,
+    )
+    .filter((id): id is string => typeof id === 'string')
+  const updatedIds = updateEntities
+    .map((entity) =>
+      entity && typeof entity === 'object' && !Array.isArray(entity) ? entity['@id'] : undefined,
+    )
+    .filter((id): id is string => typeof id === 'string')
+  const removedIds = removeEntities.filter((id): id is string => typeof id === 'string')
+
+  return {
+    counts: {
+      addEntities: addEntities.length,
+      updateEntities: updateEntities.length,
+      removeEntities: removeEntities.length,
+      addHasPart: addHasPart.length,
+      removeHasPart: removeHasPart.length,
+      setRootFields: setRootFields.length,
+      mergeContext: mergeContext.length,
+    },
+    changedEntityIds: {
+      added: summarizeStringArray(addedIds),
+      updated: summarizeStringArray(updatedIds),
+      removed: summarizeStringArray(removedIds),
+    },
+    changedRootFields: setRootFields,
+    mergeContextKeys: mergeContext,
+  }
+}
+
+function summarizeValidationPayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const errors = Array.isArray(payload.errors) ? payload.errors : []
+  const warnings = Array.isArray(payload.warnings) ? payload.warnings : []
+  const profile =
+    payload.profile && typeof payload.profile === 'object' && !Array.isArray(payload.profile)
+      ? (payload.profile as Record<string, unknown>)
+      : {}
+  const profileErrors = Array.isArray(profile.errors) ? profile.errors : []
+  const profileWarnings = Array.isArray(profile.warnings) ? profile.warnings : []
+  const resolution =
+    profile.resolution &&
+    typeof profile.resolution === 'object' &&
+    !Array.isArray(profile.resolution)
+      ? (profile.resolution as ProfileResolution)
+      : undefined
+
+  const errorSummary = summarizeArray(errors)
+  const warningSummary = summarizeArray(warnings)
+  const profileErrorSummary = summarizeArray(profileErrors)
+  const profileWarningSummary = summarizeArray(profileWarnings)
+
+  return {
+    valid: payload.valid === true,
+    summary: payload.summary,
+    errors: errorSummary.items,
+    warnings: warningSummary.items,
+    errorsTotal: errorSummary.total,
+    warningsTotal: warningSummary.total,
+    errorsTruncated: errorSummary.truncated,
+    warningsTruncated: warningSummary.truncated,
+    profile: {
+      valid: profile.valid === true,
+      errors: profileErrorSummary.items,
+      warnings: profileWarningSummary.items,
+      errorsTotal: profileErrorSummary.total,
+      warningsTotal: profileWarningSummary.total,
+      errorsTruncated: profileErrorSummary.truncated,
+      warningsTruncated: profileWarningSummary.truncated,
+      validationMode: profile.validationMode,
+      requiredMode: profile.requiredMode,
+      resolution: resolution ? summarizeProfileResolution(resolution) : undefined,
+    },
+  }
 }
 
 function asRoCrate(value: unknown): RoCrate {
@@ -1484,6 +1707,78 @@ function buildRoCrateContext(
   }
 }
 
+function summarizeRoCrateContext(context: Record<string, unknown>): Record<string, unknown> {
+  const profileResolution =
+    context.profileResolution &&
+    typeof context.profileResolution === 'object' &&
+    !Array.isArray(context.profileResolution)
+      ? (context.profileResolution as ProfileResolution)
+      : undefined
+  const conformance =
+    context.conformance &&
+    typeof context.conformance === 'object' &&
+    !Array.isArray(context.conformance)
+      ? (context.conformance as Record<string, unknown>)
+      : {}
+  const conformanceErrors = Array.isArray(conformance.errors) ? conformance.errors : []
+  const conformanceWarnings = Array.isArray(conformance.warnings) ? conformance.warnings : []
+  const errorSummary = summarizeArray(conformanceErrors)
+  const warningSummary = summarizeArray(conformanceWarnings)
+  const profileRules =
+    context.profileRules &&
+    typeof context.profileRules === 'object' &&
+    !Array.isArray(context.profileRules)
+      ? (context.profileRules as Record<string, unknown>)
+      : {}
+  const allowedClasses = Array.isArray(profileRules.allowedClasses)
+    ? profileRules.allowedClasses.filter((item): item is string => typeof item === 'string')
+    : []
+
+  return {
+    mode: context.mode,
+    metadataPath: context.metadataPath,
+    graphEntityCount: context.graphEntityCount,
+    hasRootDataset: context.hasRootDataset,
+    metadataDescriptorId: context.metadataDescriptorId,
+    profileResolution: profileResolution
+      ? summarizeProfileResolution(profileResolution)
+      : undefined,
+    profileRules: {
+      allowedClassCount: allowedClasses.length,
+      allowedClasses: summarizeStringArray(allowedClasses).items,
+    },
+    conformance: {
+      valid: conformance.valid === true,
+      errors: errorSummary.items,
+      warnings: warningSummary.items,
+      errorsTotal: errorSummary.total,
+      warningsTotal: warningSummary.total,
+      errorsTruncated: errorSummary.truncated,
+      warningsTruncated: warningSummary.truncated,
+    },
+    instructions: context.instructions,
+  }
+}
+
+function summarizeApplyChangesPayload(
+  payload: Record<string, unknown>,
+  crate: RoCrate,
+  changeSet: RoCrateChangeSet,
+  constraints: ProfileConstraints,
+): Record<string, unknown> {
+  return {
+    mode: payload.mode,
+    writeApplied: payload.writeApplied,
+    cratePath: payload.cratePath,
+    profileValidationMode: payload.profileValidationMode,
+    profileRequiredMode: payload.profileRequiredMode,
+    profileResolution: summarizeProfileResolution(constraints.resolution),
+    graphEntityCount: Array.isArray(crate['@graph']) ? crate['@graph'].length : 0,
+    changes: summarizeChangeSet(changeSet),
+    note: payload.note,
+  }
+}
+
 function readProfileUrlsFromParams(params: Record<string, unknown>): string[] {
   if (!Array.isArray(params.profileUrls)) {
     return []
@@ -1849,8 +2144,17 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
   }
 
   if (toolName === 'read_crate') {
-    const { crate } = loadCrateFromParams(params)
-    return textResult(crate)
+    const loaded = loadCrateFromParams(params)
+    const responseMode = parseResponseMode(
+      params,
+      loaded.mode === 'remote' ? 'full' : 'summary',
+    )
+    if (responseMode === 'full') {
+      return textResult(loaded.crate)
+    }
+    return textResult(
+      summarizeCratePayload(loaded.crate, loaded.mode, loaded.cratePath),
+    )
   }
 
   if (toolName === 'compute_delta') {
@@ -1878,12 +2182,21 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
   }
 
   if (toolName === 'apply_changes') {
+    if (params.write !== true) {
+      throw new Error(
+        'apply_changes requires write=true. Use explicit write intent for all apply_changes calls.',
+      )
+    }
     const loaded = loadCrateFromParams(params)
     const resolutionInputs = parseProfileResolutionInputs(params)
     const profileValidationMode = parseProfileValidationMode(params, 'scoped')
     const profileRequiredMode = parseProfileRequiredMode(params, 'allow_missing')
     const normalizedChangeSet = normalizeChangeSet(params.changeSet)
     const updated = applyChangeSet(loaded.crate, normalizedChangeSet)
+    const responseMode = parseResponseMode(
+      params,
+      loaded.mode === 'remote' ? 'full' : 'summary',
+    )
     const constraints = ensureProfileConformanceOrThrow(
       updated,
       loaded.mode,
@@ -1894,10 +2207,10 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
       },
       loaded.crate,
     )
-    if (params.write === true && loaded.mode === 'local') {
+    if (loaded.mode === 'local') {
       const indent = typeof params.indent === 'number' ? params.indent : 2
       writeCrateAtomic(loaded.cratePath ?? resolveCratePath(), updated, indent)
-      return textResult({
+      const payload = {
         crate: updated,
         mode: loaded.mode,
         writeApplied: true,
@@ -1905,10 +2218,16 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
         profileValidationMode,
         profileRequiredMode,
         profileResolution: constraints.resolution,
-      })
+      }
+      if (responseMode === 'full') {
+        return textResult(payload)
+      }
+      return textResult(
+        summarizeApplyChangesPayload(payload, updated, normalizedChangeSet, constraints),
+      )
     }
-    if (params.write === true && loaded.mode === 'remote') {
-      return textResult({
+    if (loaded.mode === 'remote') {
+      const payload = {
         crate: updated,
         writeApplied: false,
         mode: 'remote',
@@ -1916,16 +2235,15 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
         profileRequiredMode,
         profileResolution: constraints.resolution,
         note: 'Remote mode does not persist files. Use returned crate payload.',
-      })
+      }
+      if (responseMode === 'full') {
+        return textResult(payload)
+      }
+      return textResult(
+        summarizeApplyChangesPayload(payload, updated, normalizedChangeSet, constraints),
+      )
     }
-    return textResult({
-      crate: updated,
-      mode: loaded.mode,
-      writeApplied: false,
-      profileValidationMode,
-      profileRequiredMode,
-      profileResolution: constraints.resolution,
-    })
+    throw new Error(`Unsupported mode for apply_changes: ${loaded.mode}`)
   }
 
   if (toolName === 'validate_crate') {
@@ -1942,7 +2260,7 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
     const profileValidation = validateCrateAgainstProfileConstraints(loaded.crate, constraints, {
       requiredMode: profileRequiredMode,
     })
-    return textResult({
+    const payload = {
       ...report,
       profile: {
         valid: profileValidation.valid,
@@ -1952,11 +2270,20 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
         requiredMode: profileRequiredMode,
         resolution: constraints.resolution,
       },
-    })
+    }
+    const responseMode = parseResponseMode(params, 'summary')
+    if (responseMode === 'full') {
+      return textResult(payload)
+    }
+    return textResult(summarizeValidationPayload(payload))
   }
 
   if (toolName === 'write_crate_atomic') {
     const mode = parseAccessMode(params)
+    const responseMode = parseResponseMode(
+      params,
+      mode === 'remote' ? 'full' : 'summary',
+    )
     const resolutionInputs = parseProfileResolutionInputs(params)
     const profileValidationMode = parseProfileValidationMode(params, 'scoped')
     const profileRequiredMode = parseProfileRequiredMode(params, 'allow_missing')
@@ -1980,7 +2307,7 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
       previousCrate,
     )
     if (mode === 'remote') {
-      return textResult({
+      const payload = {
         ok: true,
         mode: 'remote',
         writeApplied: false,
@@ -1989,12 +2316,25 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
         profileRequiredMode,
         profileResolution: constraints.resolution,
         note: 'Remote mode does not persist files. Use returned crate payload.',
+      }
+      if (responseMode === 'full') {
+        return textResult(payload)
+      }
+      return textResult({
+        ok: true,
+        mode: payload.mode,
+        writeApplied: payload.writeApplied,
+        profileValidationMode: payload.profileValidationMode,
+        profileRequiredMode: payload.profileRequiredMode,
+        profileResolution: summarizeProfileResolution(constraints.resolution),
+        crateSummary: summarizeCratePayload(crate, mode),
+        note: payload.note,
       })
     }
     const cratePath = ensureCratePath(params.cratePath)
     const indent = typeof params.indent === 'number' ? params.indent : 2
     writeCrateAtomic(cratePath, crate, indent)
-    return textResult({
+    const payload = {
       ok: true,
       mode: 'local',
       writeApplied: true,
@@ -2002,13 +2342,36 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
       profileValidationMode,
       profileRequiredMode,
       profileResolution: constraints.resolution,
+    }
+    if (responseMode === 'full') {
+      return textResult(payload)
+    }
+    return textResult({
+      ok: payload.ok,
+      mode: payload.mode,
+      writeApplied: payload.writeApplied,
+      cratePath: payload.cratePath,
+      profileValidationMode: payload.profileValidationMode,
+      profileRequiredMode: payload.profileRequiredMode,
+      profileResolution: summarizeProfileResolution(constraints.resolution),
+      crateSummary: summarizeCratePayload(crate, mode, cratePath),
     })
   }
 
   if (toolName === 'get_rocrate_context') {
     const loaded = loadCrateFromParams(params)
     const resolutionInputs = parseProfileResolutionInputs(params)
-    return textResult(buildRoCrateContext(loaded.crate, loaded.mode, loaded.cratePath, resolutionInputs))
+    const context = buildRoCrateContext(
+      loaded.crate,
+      loaded.mode,
+      loaded.cratePath,
+      resolutionInputs,
+    )
+    const responseMode = parseResponseMode(params, 'summary')
+    if (responseMode === 'full') {
+      return textResult(context)
+    }
+    return textResult(summarizeRoCrateContext(context))
   }
 
   if (toolName === 'resolve_profile_schema') {

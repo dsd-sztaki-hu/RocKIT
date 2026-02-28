@@ -11,13 +11,20 @@ You are editing an RO-Crate in this directory.
    - remote: use `create_profile_context` and pass `profileContextId` in subsequent calls.
 5. Do not use random profile files discovered in the dataset unless explicitly referenced by active `conformsTo` URLs.
 6. Prefer MCP write tools (`apply_changes`, `write_crate_atomic`) over ad-hoc file rewrites.
-7. If MCP write fails with profile errors, do not edit JSON directly.
-8. In that case, report the failure and ask user to choose:
+7. Always call `apply_changes` with `write=true`.
+8. After `apply_changes`, call `read_crate` to verify the value is present on disk before reporting success.
+9. In `remote` mode, MCP tools do not persist files:
+   - `apply_changes(write=true)` returns updated crate payload but does not write to disk.
+   - `write_crate_atomic` in `remote` mode also does not write to disk.
+   - Never claim metadata was saved in `remote` mode unless the client explicitly writes returned crate payload to storage.
+10. Use `responseMode="summary"` by default to reduce token usage; request `responseMode="full"` only when full crate/report payload is explicitly needed.
+11. If MCP write fails with profile errors, do not edit JSON directly.
+12. In that case, report the failure and ask user to choose:
    - run full profile cleanup (strict/full profile validation), or
    - use scoped mode (ignore unrelated pre-existing profile violations).
-9. After edits, run `validate_crate` and report both core and profile validation status.
-10. During iterative editing, use non-strict profile mode (`profileRequiredMode=allow_missing`) so missing required fields are allowed temporarily.
-11. Before publication/upload (for example Dataverse), run strict/full validation (`profileValidationMode=full`, `profileRequiredMode=enforce_required`) and resolve all errors.
+13. After edits, run `validate_crate` and report both core and profile validation status.
+14. During iterative editing, use non-strict profile mode (`profileRequiredMode=allow_missing`) so missing required fields are allowed temporarily.
+15. Before publication/upload (for example Dataverse), run strict/full validation (`profileValidationMode=full`, `profileRequiredMode=enforce_required`) and resolve all errors.
 
 ## Critical Metadata Rules
 1. Every entity in `@graph` must have a human-friendly `name`.

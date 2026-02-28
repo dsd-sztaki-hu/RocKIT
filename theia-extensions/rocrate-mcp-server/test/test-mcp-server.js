@@ -301,7 +301,18 @@ async function run() {
     const deltaPayload = JSON.parse(deltaResponse.result.content[0].text)
     assert.ok(deltaPayload.summary.newEntities >= 2, 'Expected structural additions')
 
-    await request('tools/call', {
+    const localReadSummaryResponse = await request('tools/call', {
+      name: 'read_crate',
+      arguments: {
+        cratePath,
+      },
+    })
+    const localReadSummaryPayload = JSON.parse(localReadSummaryResponse.result.content[0].text)
+    assert.equal(localReadSummaryPayload.mode, 'local')
+    assert.equal(typeof localReadSummaryPayload.graphEntityCount, 'number')
+    assert.ok(!('@graph' in localReadSummaryPayload), 'local read default should be summary')
+
+    const localApplySummaryResponse = await request('tools/call', {
       name: 'apply_changes',
       arguments: {
         cratePath,
@@ -311,6 +322,12 @@ async function run() {
         },
       },
     })
+    const localApplySummaryPayload = JSON.parse(
+      localApplySummaryResponse.result.content[0].text,
+    )
+    assert.equal(localApplySummaryPayload.mode, 'local')
+    assert.equal(localApplySummaryPayload.writeApplied, true)
+    assert.ok(!('crate' in localApplySummaryPayload), 'local apply default should be summary')
 
     await request('tools/call', {
       name: 'apply_changes',
@@ -327,6 +344,7 @@ async function run() {
       name: 'apply_changes',
       arguments: {
         cratePath,
+        write: true,
         changeSet: {
           totallyUnsupportedKey: true,
         },
@@ -334,6 +352,18 @@ async function run() {
     })
     assert.ok(invalidChangeSetResponse.error, 'unsupported changeset key should fail')
     assert.match(invalidChangeSetResponse.error.message, /unsupported keys/)
+
+    const missingWriteResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        changeSet: {
+          updateEntities: [{ '@id': './', merge: { name: 'Missing write should fail' } }],
+        },
+      },
+    })
+    assert.ok(missingWriteResponse.error, 'apply_changes without write should fail')
+    assert.match(missingWriteResponse.error.message, /requires write=true/)
 
     const downloadResponse = await request('tools/call', {
       name: 'download_url',
@@ -412,6 +442,7 @@ async function run() {
       name: 'apply_changes',
       arguments: {
         cratePath,
+        write: true,
         changeSet: {
           updateEntities: [{ '@id': './', merge: { name: 'Root scoped update' } }],
         },
@@ -423,6 +454,7 @@ async function run() {
       name: 'apply_changes',
       arguments: {
         cratePath,
+        write: true,
         changeSet: {
           updateEntities: [{ '@id': './', merge: { forbiddenField: 'x' } }],
         },
@@ -578,6 +610,7 @@ async function run() {
       arguments: {
         mode: 'remote',
         crate: remoteCrate,
+        write: true,
         profileContextId,
         changeSet: {
           updateEntities: [{ '@id': './', merge: { forbiddenRemote: 'x' } }],
@@ -626,7 +659,7 @@ async function run() {
 
     const reloaded = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
     const rootEntity = reloaded['@graph'].find((entity) => entity['@id'] === './')
-    assert.equal(rootEntity.name, 'Updated By Alias')
+    assert.equal(rootEntity.name, 'Root scoped update')
 
     console.log('rocrate-mcp-server test passed')
   } finally {

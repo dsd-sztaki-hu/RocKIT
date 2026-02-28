@@ -16,7 +16,7 @@ Important: `remote` is an RO-Crate data-access mode, **not** HTTP/SSE transport.
 - `download_url`: download and extract text/raw HTML from one URL.
 - `read_crate`: read crate (`local` from disk or `remote` from provided `crate` payload).
 - `compute_delta`: compute additive file/dataset delta against crate.
-- `apply_changes`: apply compact changeset; optional write in local mode.
+- `apply_changes`: apply compact changeset; requires `write: true`.
 - `validate_crate`: RO-Crate + profile-aware validation.
 - `write_crate_atomic`: atomic write in local mode.
 - `get_rocrate_context`: summary context including profile resolution hints.
@@ -33,9 +33,28 @@ Important: `remote` is an RO-Crate data-access mode, **not** HTTP/SSE transport.
 
 Notes:
 
+- `apply_changes` requires `write: true` in both modes.
 - `apply_changes(write=true)` and `write_crate_atomic` only persist in local mode.
 - In remote mode, write requests return updated crate payload and do not persist files.
 - `compute_delta` in remote mode requires `workspaceEntries` (relative path list, folders ending with `/`).
+
+## Response mode (`responseMode`)
+
+Heavy tools support `responseMode: "summary" | "full"`:
+
+- `read_crate`
+- `apply_changes`
+- `validate_crate`
+- `write_crate_atomic`
+- `get_rocrate_context`
+
+Defaults:
+
+- Local mode defaults to `summary` for `read_crate`, `apply_changes`, `write_crate_atomic`.
+- Remote mode defaults to `full` for `read_crate`, `apply_changes`, `write_crate_atomic` so updated crate payload is available to caller.
+- `validate_crate` and `get_rocrate_context` default to `summary`.
+
+Use `responseMode: "full"` only when caller explicitly needs full crate or full report payloads.
 
 ## Profile-aware behavior
 
