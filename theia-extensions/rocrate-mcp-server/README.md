@@ -27,7 +27,8 @@ Important: `remote` is an RO-Crate data-access mode, **not** HTTP/SSE transport.
     - `auto_add`: add missing profile-derived term mappings only.
     - `auto_reconcile`: add missing mappings and reconcile conflicting existing mappings.
   - Default `contextMode` is `auto_reconcile`.
-- `add_profile_conforms_to`: attach one or more profile URLs to entity `conformsTo`; requires `write: true`.
+  - `conformsTo` edits are prohibited in `apply_changes`.
+- `update_profile_conforms_to`: update `conformsTo` profile URLs on one Dataset/File entity using `add`/`remove`/`set`; requires `write: true`.
 - `validate_crate`: RO-Crate + profile-aware validation.
 - `write_crate_atomic`: atomic write in local mode.
 - `get_rocrate_context`: summary context including profile resolution hints.
@@ -46,17 +47,20 @@ Important: `remote` is an RO-Crate data-access mode, **not** HTTP/SSE transport.
 Notes:
 
 - `apply_changes` requires `write: true` in both modes.
-- `apply_changes` enforces profile target scope by default: profile-specific
-  properties may be updated only on entities declaring matching `conformsTo`.
-  To intentionally update entities outside profile targets, set
-  `allowOutOfProfileTargets: true` after explicit user confirmation.
-- `add_profile_conforms_to` requires `write: true` in both modes.
+- Profile enforcement is entity-local for `Dataset`/`File` entities:
+  - If entity has profile `conformsTo` URL(s), only profile-allowed types and
+    properties are accepted.
+  - If entity has no profile `conformsTo`, any property declared in effective
+    `@context` is allowed.
+- `apply_changes` always blocks direct `conformsTo` edits on `Dataset`/`File`
+  entities. Use `update_profile_conforms_to` instead.
+- `update_profile_conforms_to` requires `write: true` in both modes.
 - `apply_changes(write=true)` and `write_crate_atomic` only persist in local mode.
 - In remote mode, write requests return updated crate payload and do not persist files.
 - `compute_delta` in remote mode requires `workspaceEntries` (relative path list, folders ending with `/`).
 - `upload_rocrate_to_dataverse` always runs strict preflight validation:
-  core RO-Crate strict checks plus profile validation in `full` +
-  `enforce_required` mode. Upload is blocked on any validation error.
+  core RO-Crate strict checks plus profile validation with
+  `profileRequiredMode=enforce_required`. Upload is blocked on any validation error.
 - `upload_rocrate_to_dataverse` also calls Dataverse
   `/api/arp/validateRoCrate?strict=true` before upload and blocks if Dataverse
   reports any validation issue.
@@ -73,7 +77,7 @@ Heavy tools support `responseMode: "summary" | "full"`:
 
 - `read_crate`
 - `apply_changes`
-- `add_profile_conforms_to`
+- `update_profile_conforms_to`
 - `validate_crate`
 - `write_crate_atomic`
 - `get_rocrate_context`
@@ -82,8 +86,8 @@ Heavy tools support `responseMode: "summary" | "full"`:
 Defaults:
 
 - Local mode defaults to `summary` for `read_crate`, `apply_changes`, `write_crate_atomic`.
-- Local mode defaults to `summary` for `add_profile_conforms_to`.
-- Remote mode defaults to `full` for `read_crate`, `apply_changes`, `add_profile_conforms_to`, `write_crate_atomic` so updated crate payload is available to caller.
+- Local mode defaults to `summary` for `update_profile_conforms_to`.
+- Remote mode defaults to `full` for `read_crate`, `apply_changes`, `update_profile_conforms_to`, `write_crate_atomic` so updated crate payload is available to caller.
 - `validate_crate` and `get_rocrate_context` default to `summary`.
 - `suggest_context_terms` defaults to `summary` in local mode, `full` in remote mode.
 
@@ -113,8 +117,8 @@ Recommended:
 
 Profile activation:
 
-- Use `add_profile_conforms_to` first when user asks to add/activate a
-  profile on the crate.
+- Use `update_profile_conforms_to` first when user asks to add/remove/replace
+  profile URLs on the crate.
 - Profile scope is entity-local: profile fields apply only to entities that
   explicitly declare the profile URL in their own `conformsTo`.
 - This tool only mutates `conformsTo` and intentionally does not enforce

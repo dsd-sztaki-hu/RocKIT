@@ -3,9 +3,9 @@ import type { URI } from '@theia/core/lib/common/uri'
 import { injectable } from '@theia/core/shared/inversify'
 import type { FileService } from '@theia/filesystem/lib/browser/file-service'
 import type { WorkspaceService } from '@theia/workspace/lib/browser'
+import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 import * as mime from 'mime-types'
 import type * as React from 'react'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 import SparkMD5 from 'spark-md5'
 
 @injectable()
@@ -183,8 +183,15 @@ export class ROCrateDialog extends ReactDialog<string> {
       }
     }
 
+    // Add directoryLabel and hash which are non-schema.org properties but are Dataverse specific
     const roCrate = {
-      '@context': 'https://w3id.org/ro/crate/1.1/context',
+      '@context': [
+        'https://w3id.org/ro/crate/1.1/context',
+        {
+          directoryLabel: 'https://dataverse.org/schema/file/directoryLabel',
+          hash: 'https://dataverse.org/schema/file/hash',
+        },
+      ],
       '@graph': graph,
     }
 
@@ -199,7 +206,10 @@ export class ROCrateDialog extends ReactDialog<string> {
     await this.fileService.create(previewUri, htmlContent, { overwrite: true })
   }
 
-  private splitDirectoryInfo(relativePath: string): { directoryLabel: string; name: string } {
+  private splitDirectoryInfo(relativePath: string): {
+    directoryLabel: string
+    name: string
+  } {
     const normalized = this.normalizeRelativePathForId(relativePath)
     if (!normalized) {
       return { directoryLabel: '', name: '' }
@@ -214,7 +224,11 @@ export class ROCrateDialog extends ReactDialog<string> {
     }
   }
 
-  private buildEntityId(directoryLabel: string, name: string, isDirectory: boolean): string | undefined {
+  private buildEntityId(
+    directoryLabel: string,
+    name: string,
+    isDirectory: boolean,
+  ): string | undefined {
     if (!name) {
       return undefined
     }

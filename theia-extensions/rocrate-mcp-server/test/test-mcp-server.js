@@ -483,8 +483,8 @@ async function run() {
     assert.ok(toolNames.includes('compute_delta'), 'compute_delta tool should exist')
     assert.ok(toolNames.includes('apply_changes'), 'apply_changes tool should exist')
     assert.ok(
-      toolNames.includes('add_profile_conforms_to'),
-      'add_profile_conforms_to tool should exist',
+      toolNames.includes('update_profile_conforms_to'),
+      'update_profile_conforms_to tool should exist',
     )
 
     const deltaResponse = await request('tools/call', {
@@ -535,11 +535,11 @@ async function run() {
     assert.ok(!('crate' in localApplySummaryPayload), 'local apply default should be summary')
 
     const localAddProfileResponse = await request('tools/call', {
-      name: 'add_profile_conforms_to',
+      name: 'update_profile_conforms_to',
       arguments: {
         cratePath,
         write: true,
-        profileUrl: extraProfileUrl,
+        add: [extraProfileUrl],
       },
     })
     const localAddProfilePayload = JSON.parse(
@@ -558,6 +558,49 @@ async function run() {
     )
     assert.ok(localAddProfileUrls.includes(profileUrl))
     assert.ok(localAddProfileUrls.includes(extraProfileUrl))
+
+    const blockedProfileChangeResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        changeSet: {
+          updateEntities: [{ '@id': './', unset: ['conformsTo'] }],
+        },
+      },
+    })
+    assert.ok(blockedProfileChangeResponse.error, 'conformsTo edits should be blocked by default')
+    assert.match(blockedProfileChangeResponse.error.message, /conformsTo update blocked in apply_changes/)
+
+    const allowedProfileChangeResponse = await request('tools/call', {
+      name: 'update_profile_conforms_to',
+      arguments: {
+        cratePath,
+        write: true,
+        remove: [profileUrl, extraProfileUrl],
+      },
+    })
+    assert.ok(
+      allowedProfileChangeResponse.result,
+      'conformsTo edits should be allowed with explicit update_profile_conforms_to',
+    )
+
+    await request('tools/call', {
+      name: 'update_profile_conforms_to',
+      arguments: {
+        cratePath,
+        write: true,
+        add: [profileUrl],
+      },
+    })
+    await request('tools/call', {
+      name: 'update_profile_conforms_to',
+      arguments: {
+        cratePath,
+        write: true,
+        add: [extraProfileUrl],
+      },
+    })
 
     await request('tools/call', {
       name: 'apply_changes',
@@ -605,7 +648,7 @@ async function run() {
       'temporaryField should be removed by unset',
     )
 
-    const outOfScopeUpdateResponse = await request('tools/call', {
+    const unprofiledTargetUpdateResponse = await request('tools/call', {
       name: 'apply_changes',
       arguments: {
         cratePath,
@@ -620,29 +663,35 @@ async function run() {
         },
       },
     })
-    assert.ok(outOfScopeUpdateResponse.error, 'out-of-profile target update should fail by default')
-    assert.match(
-      outOfScopeUpdateResponse.error.message,
-      /without matching conformsTo/,
+    assert.ok(
+      unprofiledTargetUpdateResponse.result,
+      'unprofiled Dataset/File should allow @context-defined properties',
     )
 
-    const outOfScopeAllowedResponse = await request('tools/call', {
+    const unprofiledUnknownPropertyResponse = await request('tools/call', {
       name: 'apply_changes',
       arguments: {
         cratePath,
         write: true,
-        allowOutOfProfileTargets: true,
+        contextMode: 'strict',
         changeSet: {
           updateEntities: [
             {
               '@id': 'file://./unprofiled/',
-              merge: { title: 'Allowed by explicit confirmation' },
+              merge: { unlistedProperty: 'should fail without context definition' },
             },
           ],
         },
       },
     })
-    assert.ok(outOfScopeAllowedResponse.result, 'confirmed out-of-profile target update should pass')
+    assert.ok(
+      unprofiledUnknownPropertyResponse.error,
+      'unprofiled Dataset/File should reject properties not defined in @context',
+    )
+    assert.match(
+      unprofiledUnknownPropertyResponse.error.message,
+      /contains property not defined by @context: unlistedProperty/,
+    )
 
     await request('tools/call', {
       name: 'apply_changes',
@@ -1177,12 +1226,12 @@ async function run() {
     assert.equal(remoteApplyPayload.crate['@graph'][0].name, 'Remote Updated Root')
 
     const remoteAddProfileResponse = await request('tools/call', {
-      name: 'add_profile_conforms_to',
+      name: 'update_profile_conforms_to',
       arguments: {
         mode: 'remote',
         crate: remoteCrate,
         write: true,
-        profileUrls: [extraProfileUrl],
+        add: [extraProfileUrl],
       },
     })
     const remoteAddProfilePayload = JSON.parse(
