@@ -22,6 +22,11 @@ Important: `remote` is an RO-Crate data-access mode, **not** HTTP/SSE transport.
 - `compute_delta`: compute additive file/dataset delta against crate.
 - `apply_changes`: apply compact changeset; requires `write: true`.
   - `updateEntities` supports `merge` (set fields) and `unset` (remove fields).
+  - `contextMode` controls auto-`@context` handling:
+    - `strict`: no automatic context edits.
+    - `auto_add`: add missing profile-derived term mappings only.
+    - `auto_reconcile`: add missing mappings and reconcile conflicting existing mappings.
+  - Default `contextMode` is `auto_reconcile`.
 - `add_profile_conforms_to`: attach one or more profile URLs to entity `conformsTo`; requires `write: true`.
 - `validate_crate`: RO-Crate + profile-aware validation.
 - `write_crate_atomic`: atomic write in local mode.
@@ -98,13 +103,13 @@ Profile resolution can come from:
 
 Validation/write knobs:
 
-- `profileValidationMode`: `scoped` or `full`
 - `profileRequiredMode`: `allow_missing` or `enforce_required`
+- `contextMode`: `strict`, `auto_add`, or `auto_reconcile` (default)
 
 Recommended:
 
-- Interactive editing: `scoped` + `allow_missing`
-- Pre-publication gate: `full` + `enforce_required`
+- Interactive editing: `allow_missing`
+- Pre-publication gate: `enforce_required`
 
 Profile activation:
 

@@ -306,8 +306,9 @@ async function run() {
         classes: {
           Dataset: {
             inputs: [
-              { name: 'title', required: true },
-              { name: 'author', required: true },
+              { name: 'title', id: 'http://purl.org/dc/terms/title', required: true },
+              { name: 'author', id: 'http://purl.org/dc/terms/creator', required: true },
+              { name: 'customTerm', id: 'https://example.org/vocab/customTerm' },
             ],
           },
           File: {
@@ -503,6 +504,18 @@ async function run() {
     assert.equal(localReadSummaryPayload.mode, 'local')
     assert.equal(typeof localReadSummaryPayload.graphEntityCount, 'number')
     assert.ok(!('@graph' in localReadSummaryPayload), 'local read default should be summary')
+
+    const localReadSummaryByDirResponse = await request('tools/call', {
+      name: 'read_crate',
+      arguments: {
+        cratePath: tempRoot,
+      },
+    })
+    const localReadSummaryByDirPayload = JSON.parse(
+      localReadSummaryByDirResponse.result.content[0].text,
+    )
+    assert.equal(localReadSummaryByDirPayload.mode, 'local')
+    assert.equal(localReadSummaryByDirPayload.metadataPath, cratePath)
 
     const localApplySummaryResponse = await request('tools/call', {
       name: 'apply_changes',
@@ -804,7 +817,6 @@ async function run() {
     })
     const strictValidatePayload = JSON.parse(strictValidateResponse.result.content[0].text)
     assert.equal(strictValidatePayload.profile.requiredMode, 'enforce_required')
-    assert.equal(strictValidatePayload.profile.validationMode, 'full')
     assert.equal(strictValidatePayload.profile.valid, true)
     assert.equal(strictValidatePayload.profile.errors.length, 0)
 
@@ -822,7 +834,23 @@ async function run() {
         },
       },
     })
-    assert.ok(scopedApplyResponse.result, 'scoped apply should ignore unrelated pre-existing violations')
+    assert.ok(
+      scopedApplyResponse.error,
+      'scoped apply should fail when any non-required profile violation exists',
+    )
+    assert.match(scopedApplyResponse.error.message, /Profile conformance failed/)
+
+    const scopedCleanupResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        changeSet: {
+          updateEntities: [{ '@id': './', unset: ['forbiddenExisting'] }],
+        },
+      },
+    })
+    assert.ok(scopedCleanupResponse.result, 'cleanup of legacy forbidden field should succeed')
 
     const disallowedEditResponse = await request('tools/call', {
       name: 'apply_changes',
@@ -836,6 +864,139 @@ async function run() {
     })
     assert.ok(disallowedEditResponse.error, 'disallowed profile edit should fail')
     assert.match(disallowedEditResponse.error.message, /Profile conformance failed/)
+
+    const strictContextModeResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        contextMode: 'strict',
+        changeSet: {
+          updateEntities: [{ '@id': './', merge: { customTerm: 'strict mode should fail' } }],
+        },
+      },
+    })
+    assert.ok(strictContextModeResponse.error, 'strict context mode should fail on missing mappings')
+    assert.match(strictContextModeResponse.error.message, /Missing @context mapping for used term: customTerm/)
+
+    const autoReconcileContextModeResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        changeSet: {
+          updateEntities: [{ '@id': './', merge: { customTerm: 'auto reconcile adds mapping' } }],
+        },
+      },
+    })
+    const autoReconcileContextModePayload = JSON.parse(
+      autoReconcileContextModeResponse.result.content[0].text,
+    )
+    assert.equal(autoReconcileContextModePayload.contextMode, 'auto_reconcile')
+    assert.ok(autoReconcileContextModePayload.contextPatch.addedTerms.includes('customTerm'))
+
+    const crateAfterContextAutoReconcile = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    const rootAfterContextAutoReconcile = crateAfterContextAutoReconcile['@graph'].find(
+      (entity) => entity['@id'] === './',
+    )
+    assert.equal(rootAfterContextAutoReconcile.customTerm, 'auto reconcile adds mapping')
+    const contextObjects = Array.isArray(crateAfterContextAutoReconcile['@context'])
+      ? crateAfterContextAutoReconcile['@context'].filter(
+          (item) => item && typeof item === 'object' && !Array.isArray(item),
+        )
+      : []
+    const hasCustomTermMapping = contextObjects.some(
+      (ctx) => ctx.customTerm === 'https://example.org/vocab/customTerm',
+    )
+    assert.equal(hasCustomTermMapping, true, 'auto_reconcile should add missing context mappings')
+
+    await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        contextMode: 'strict',
+        changeSet: {
+          mergeContext: {
+            customTerm: 'https://example.org/vocab/customTerm-wrong',
+          },
+        },
+      },
+    })
+
+    const autoAddContextModeResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        contextMode: 'auto_add',
+        changeSet: {
+          updateEntities: [{ '@id': './', merge: { customTerm: 'auto add keeps existing mapping' } }],
+        },
+      },
+    })
+    const autoAddContextModePayload = JSON.parse(autoAddContextModeResponse.result.content[0].text)
+    assert.equal(autoAddContextModePayload.contextMode, 'auto_add')
+    assert.ok(
+      autoAddContextModePayload.contextPatch.skippedConflicts.some(
+        (entry) => entry.term === 'customTerm',
+      ),
+      'auto_add should keep conflicting mappings unchanged',
+    )
+
+    const crateAfterContextAutoAdd = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    const contextAfterAutoAdd = Array.isArray(crateAfterContextAutoAdd['@context'])
+      ? crateAfterContextAutoAdd['@context'].find(
+          (item) =>
+            item &&
+            typeof item === 'object' &&
+            !Array.isArray(item) &&
+            Object.prototype.hasOwnProperty.call(item, 'customTerm'),
+        )
+      : undefined
+    assert.ok(contextAfterAutoAdd && typeof contextAfterAutoAdd === 'object')
+    assert.equal(
+      contextAfterAutoAdd.customTerm,
+      'https://example.org/vocab/customTerm-wrong',
+      'auto_add should not rewrite existing mapping',
+    )
+
+    const autoReconcileConflictResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        contextMode: 'auto_reconcile',
+        changeSet: {
+          updateEntities: [{ '@id': './', merge: { customTerm: 'auto reconcile fixes mapping' } }],
+        },
+      },
+    })
+    const autoReconcileConflictPayload = JSON.parse(
+      autoReconcileConflictResponse.result.content[0].text,
+    )
+    assert.ok(
+      autoReconcileConflictPayload.contextPatch.reconciledTerms.some(
+        (entry) => entry.term === 'customTerm',
+      ),
+      'auto_reconcile should rewrite conflicting mappings',
+    )
+    const crateAfterContextReconcileConflict = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    const contextAfterReconcile = Array.isArray(crateAfterContextReconcileConflict['@context'])
+      ? crateAfterContextReconcileConflict['@context'].find(
+          (item) =>
+            item &&
+            typeof item === 'object' &&
+            !Array.isArray(item) &&
+            Object.prototype.hasOwnProperty.call(item, 'customTerm'),
+        )
+      : undefined
+    assert.ok(contextAfterReconcile && typeof contextAfterReconcile === 'object')
+    assert.equal(
+      contextAfterReconcile.customTerm,
+      'https://example.org/vocab/customTerm',
+      'auto_reconcile should fix conflicting mapping',
+    )
 
     const preparedPayloadResponse = await request('tools/call', {
       name: 'prepare_remote_profile_payload',
@@ -1092,7 +1253,7 @@ async function run() {
 
     const reloaded = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
     const rootEntity = reloaded['@graph'].find((entity) => entity['@id'] === './')
-    assert.equal(rootEntity.name, 'Root scoped update')
+    assert.equal(rootEntity.name, 'Downloaded hdl:21.T15999/DSDDEV/DOWNLOADED')
 
     console.log('rocrate-mcp-server test passed')
   } finally {

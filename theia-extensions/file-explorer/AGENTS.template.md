@@ -32,15 +32,15 @@ When the user greets you, or asks about your purpose or what the user can do, re
 11. Use `responseMode="summary"` by default to reduce token usage; request `responseMode="full"` only when full crate/report payload is explicitly needed.
 12. If MCP write fails with profile errors, do not edit JSON directly.
 13. In that case, report the failure and ask user to choose:
-   - run full profile cleanup (strict/full profile validation), or
-   - use scoped mode (ignore unrelated pre-existing profile violations).
+   - run profile cleanup while allowing missing required fields (`profileRequiredMode=allow_missing`), or
+   - enforce required fields and resolve all missing required values (`profileRequiredMode=enforce_required`).
 14. After edits, run `validate_crate` and report both core and profile validation status.
 15. During iterative editing, use non-strict profile mode (`profileRequiredMode=allow_missing`) so missing required fields are allowed temporarily.
 16. Keep edits minimal: only touch entities and properties that actually need to be updated for the requested task.
 17. For profile-driven changes, target only entities that explicitly declare that profile URL in their own `conformsTo`.
 18. If additional entities without that `conformsTo` would also be changed, stop and ask the user for confirmation, listing the entities you would touch.
 19. Do not set `allowOutOfProfileTargets=true` unless the user explicitly confirms that broader update.
-20. Before publication/upload (for example Dataverse), run strict/full validation (`profileValidationMode=full`, `profileRequiredMode=enforce_required`) and resolve all errors.
+20. Before publication/upload (for example Dataverse), run validation with `profileRequiredMode=enforce_required` and resolve all errors.
 
 ## Critical Metadata Rules
 1. Every entity in `@graph` must have a human-friendly `name`.

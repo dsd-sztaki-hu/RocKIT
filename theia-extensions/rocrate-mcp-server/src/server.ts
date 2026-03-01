@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 
-import * as fs from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
+import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-
-import type { RoCrate, RoCrateChangeSet, RoCrateEntity } from './core/types'
 import {
   applyChangeSet,
   computeDelta,
@@ -15,6 +13,7 @@ import {
   validateCrate,
   writeCrateAtomic,
 } from './core'
+import type { RoCrate, RoCrateChangeSet, RoCrateEntity } from './core/types'
 
 type JsonRpcId = string | number | null
 
@@ -49,9 +48,9 @@ type ToolDefinition = {
 
 type TransportMode = 'content-length' | 'jsonl'
 type AccessMode = 'local' | 'remote'
-type ProfileValidationMode = 'scoped' | 'full'
 type ProfileRequiredMode = 'allow_missing' | 'enforce_required'
 type ResponseMode = 'summary' | 'full'
+type ContextMode = 'strict' | 'auto_add' | 'auto_reconcile'
 
 type SchemaIndexProfile = {
   id: string
@@ -101,8 +100,20 @@ type ProfileConstraints = {
   requiredPropertiesByClass: Map<string, Set<string>>
 }
 
+type ProfileTermIriResolution = {
+  termToIri: Record<string, string>
+  ambiguousTerms: string[]
+}
+
+type ContextAutoPatchReport = {
+  mode: ContextMode
+  addedTerms: string[]
+  reconciledTerms: Array<{ term: string; from: string; to: string }>
+  skippedConflicts: Array<{ term: string; from: string; expected: string }>
+  ambiguousTerms: string[]
+}
+
 type ProfileValidationOptions = {
-  validationMode: ProfileValidationMode
   requiredMode: ProfileRequiredMode
 }
 
@@ -338,11 +349,13 @@ const tools: ToolDefinition[] = [
         },
         baseUrl: {
           type: 'string',
-          description: 'Optional Dataverse base URL. Defaults to DATAVERSE_BASE_URL or http://localhost:8080.',
+          description:
+            'Optional Dataverse base URL. Defaults to DATAVERSE_BASE_URL or http://localhost:8080.',
         },
         ownerId: {
           type: 'string',
-          description: 'Optional ownerId for new uploads. Defaults to DATAVERSE_OWNER_ID or root.',
+          description:
+            'Optional ownerId for new uploads. Defaults to DATAVERSE_OWNER_ID or root.',
         },
         apiKey: { type: 'string', description: 'Optional X-Dataverse-key override.' },
         timeoutMs: { type: 'number' },
@@ -370,7 +383,8 @@ const tools: ToolDefinition[] = [
         version: { type: 'string' },
         baseUrl: {
           type: 'string',
-          description: 'Optional Dataverse base URL. Defaults to DATAVERSE_BASE_URL or http://localhost:8080.',
+          description:
+            'Optional Dataverse base URL. Defaults to DATAVERSE_BASE_URL or http://localhost:8080.',
         },
         apiKey: { type: 'string', description: 'Optional X-Dataverse-key override.' },
         timeoutMs: { type: 'number' },
@@ -390,7 +404,10 @@ const tools: ToolDefinition[] = [
       type: 'object',
       properties: {
         mode: { type: 'string', enum: ['local', 'remote'] },
-        cratePath: { type: 'string', description: 'Path to ro-crate-metadata.json in local mode.' },
+        cratePath: {
+          type: 'string',
+          description: 'Path to ro-crate-metadata.json in local mode.',
+        },
         crate: { type: 'object', description: 'RO-Crate JSON payload in remote mode.' },
         responseMode: { type: 'string', enum: ['summary', 'full'] },
       },
@@ -422,7 +439,7 @@ const tools: ToolDefinition[] = [
   {
     name: 'apply_changes',
     description:
-      'Apply compact change-set to crate. Requires write=true for explicit write intent.',
+      'Apply compact change-set to crate. Requires write=true for explicit write intent. cratePath must be the ro-crate-metadata.json location to write to in local mode; in remote mode, cratePath is ignored and crate payload is required.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -433,8 +450,11 @@ const tools: ToolDefinition[] = [
         write: { type: 'boolean', enum: [true] },
         indent: { type: 'number' },
         profileContextId: { type: 'string' },
-        profileValidationMode: { type: 'string', enum: ['scoped', 'full'] },
-        profileRequiredMode: { type: 'string', enum: ['allow_missing', 'enforce_required'] },
+        profileRequiredMode: {
+          type: 'string',
+          enum: ['allow_missing', 'enforce_required'],
+        },
+        contextMode: { type: 'string', enum: ['strict', 'auto_add', 'auto_reconcile'] },
         allowOutOfProfileTargets: { type: 'boolean' },
         schemaIndex: { type: 'object' },
         profileContents: { type: 'object' },
@@ -477,8 +497,10 @@ const tools: ToolDefinition[] = [
         crate: { type: 'object' },
         strict: { type: 'boolean' },
         profileContextId: { type: 'string' },
-        profileValidationMode: { type: 'string', enum: ['scoped', 'full'] },
-        profileRequiredMode: { type: 'string', enum: ['allow_missing', 'enforce_required'] },
+        profileRequiredMode: {
+          type: 'string',
+          enum: ['allow_missing', 'enforce_required'],
+        },
         schemaIndex: { type: 'object' },
         profileContents: { type: 'object' },
         responseMode: { type: 'string', enum: ['summary', 'full'] },
@@ -497,8 +519,10 @@ const tools: ToolDefinition[] = [
         crate: { type: 'object' },
         indent: { type: 'number' },
         profileContextId: { type: 'string' },
-        profileValidationMode: { type: 'string', enum: ['scoped', 'full'] },
-        profileRequiredMode: { type: 'string', enum: ['allow_missing', 'enforce_required'] },
+        profileRequiredMode: {
+          type: 'string',
+          enum: ['allow_missing', 'enforce_required'],
+        },
         schemaIndex: { type: 'object' },
         profileContents: { type: 'object' },
         responseMode: { type: 'string', enum: ['summary', 'full'] },
@@ -650,7 +674,10 @@ function findHeaderTerminator(
   return undefined
 }
 
-function writeMessage(mode: TransportMode, message: JsonRpcSuccess | JsonRpcFailure): void {
+function writeMessage(
+  mode: TransportMode,
+  message: JsonRpcSuccess | JsonRpcFailure,
+): void {
   const body = JSON.stringify(message)
   if (mode === 'jsonl') {
     process.stdout.write(`${body}\n`)
@@ -686,7 +713,9 @@ function asRecord(value: unknown): Record<string, unknown> {
   return {}
 }
 
-function textResult(payload: unknown): { content: Array<{ type: 'text'; text: string }> } {
+function textResult(payload: unknown): {
+  content: Array<{ type: 'text'; text: string }>
+} {
   return {
     content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
   }
@@ -694,7 +723,17 @@ function textResult(payload: unknown): { content: Array<{ type: 'text'; text: st
 
 function ensureCratePath(inputPath?: unknown): string {
   if (typeof inputPath === 'string' && inputPath.trim() !== '') {
-    return path.resolve(inputPath)
+    const resolved = path.resolve(inputPath)
+    if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
+      const metadataPath = path.join(resolved, 'ro-crate-metadata.json')
+      if (!fs.existsSync(metadataPath)) {
+        throw new Error(
+          `cratePath points to a directory but ro-crate-metadata.json was not found: ${metadataPath}`,
+        )
+      }
+      return metadataPath
+    }
+    return resolved
   }
   return resolveCratePath()
 }
@@ -722,7 +761,10 @@ function parseResponseMode(
   return defaultMode
 }
 
-function summarizeArray(values: unknown[], limit = DEFAULT_SUMMARY_ISSUE_LIMIT): {
+function summarizeArray(
+  values: unknown[],
+  limit = DEFAULT_SUMMARY_ISSUE_LIMIT,
+): {
   items: unknown[]
   total: number
   truncated: boolean
@@ -735,7 +777,10 @@ function summarizeArray(values: unknown[], limit = DEFAULT_SUMMARY_ISSUE_LIMIT):
   }
 }
 
-function summarizeStringArray(values: string[], limit = DEFAULT_SUMMARY_ENTITY_ID_LIMIT): {
+function summarizeStringArray(
+  values: string[],
+  limit = DEFAULT_SUMMARY_ENTITY_ID_LIMIT,
+): {
   items: string[]
   total: number
   truncated: boolean
@@ -803,7 +848,10 @@ function summarizeCratePayload(
   const rootDataset =
     graph.find(
       (entity) =>
-        !!entity && typeof entity === 'object' && !Array.isArray(entity) && entity['@id'] === './',
+        !!entity &&
+        typeof entity === 'object' &&
+        !Array.isArray(entity) &&
+        entity['@id'] === './',
     ) ?? null
   const rootDatasetSummary =
     rootDataset && typeof rootDataset === 'object' && !Array.isArray(rootDataset)
@@ -830,10 +878,16 @@ function summarizeCratePayload(
 
 function summarizeChangeSet(changeSet: RoCrateChangeSet): Record<string, unknown> {
   const addEntities = Array.isArray(changeSet.addEntities) ? changeSet.addEntities : []
-  const updateEntities = Array.isArray(changeSet.updateEntities) ? changeSet.updateEntities : []
-  const removeEntities = Array.isArray(changeSet.removeEntities) ? changeSet.removeEntities : []
+  const updateEntities = Array.isArray(changeSet.updateEntities)
+    ? changeSet.updateEntities
+    : []
+  const removeEntities = Array.isArray(changeSet.removeEntities)
+    ? changeSet.removeEntities
+    : []
   const addHasPart = Array.isArray(changeSet.addHasPart) ? changeSet.addHasPart : []
-  const removeHasPart = Array.isArray(changeSet.removeHasPart) ? changeSet.removeHasPart : []
+  const removeHasPart = Array.isArray(changeSet.removeHasPart)
+    ? changeSet.removeHasPart
+    : []
   const setRootFields =
     changeSet.setRootFields &&
     typeof changeSet.setRootFields === 'object' &&
@@ -849,12 +903,16 @@ function summarizeChangeSet(changeSet: RoCrateChangeSet): Record<string, unknown
 
   const addedIds = addEntities
     .map((entity) =>
-      entity && typeof entity === 'object' && !Array.isArray(entity) ? entity['@id'] : undefined,
+      entity && typeof entity === 'object' && !Array.isArray(entity)
+        ? entity['@id']
+        : undefined,
     )
     .filter((id): id is string => typeof id === 'string')
   const updatedIds = updateEntities
     .map((entity) =>
-      entity && typeof entity === 'object' && !Array.isArray(entity) ? entity['@id'] : undefined,
+      entity && typeof entity === 'object' && !Array.isArray(entity)
+        ? entity['@id']
+        : undefined,
     )
     .filter((id): id is string => typeof id === 'string')
   const removedIds = removeEntities.filter((id): id is string => typeof id === 'string')
@@ -879,11 +937,15 @@ function summarizeChangeSet(changeSet: RoCrateChangeSet): Record<string, unknown
   }
 }
 
-function summarizeValidationPayload(payload: Record<string, unknown>): Record<string, unknown> {
+function summarizeValidationPayload(
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
   const errors = Array.isArray(payload.errors) ? payload.errors : []
   const warnings = Array.isArray(payload.warnings) ? payload.warnings : []
   const profile =
-    payload.profile && typeof payload.profile === 'object' && !Array.isArray(payload.profile)
+    payload.profile &&
+    typeof payload.profile === 'object' &&
+    !Array.isArray(payload.profile)
       ? (payload.profile as Record<string, unknown>)
       : {}
   const profileErrors = Array.isArray(profile.errors) ? profile.errors : []
@@ -917,7 +979,6 @@ function summarizeValidationPayload(payload: Record<string, unknown>): Record<st
       warningsTotal: profileWarningSummary.total,
       errorsTruncated: profileErrorSummary.truncated,
       warningsTruncated: profileWarningSummary.truncated,
-      validationMode: profile.validationMode,
       requiredMode: profile.requiredMode,
       resolution: resolution ? summarizeProfileResolution(resolution) : undefined,
     },
@@ -928,9 +989,11 @@ function asRoCrate(value: unknown): RoCrate {
   return normalizeCrate(value as RoCrate)
 }
 
-function loadCrateFromParams(
-  params: Record<string, unknown>,
-): { mode: AccessMode; crate: RoCrate; cratePath?: string } {
+function loadCrateFromParams(params: Record<string, unknown>): {
+  mode: AccessMode
+  crate: RoCrate
+  cratePath?: string
+} {
   const mode = parseAccessMode(params)
   if (mode === 'remote') {
     const crateParam = params.crate
@@ -944,7 +1007,9 @@ function loadCrateFromParams(
   return { mode, crate, cratePath }
 }
 
-function normalizeUpdateEntityAliasEntry(entry: Record<string, unknown>): Record<string, unknown> | undefined {
+function normalizeUpdateEntityAliasEntry(
+  entry: Record<string, unknown>,
+): Record<string, unknown> | undefined {
   const id = typeof entry['@id'] === 'string' ? entry['@id'] : undefined
   if (!id) {
     return undefined
@@ -986,16 +1051,18 @@ function normalizeChangeSet(input: unknown): RoCrateChangeSet {
 
   if (Array.isArray(raw.entityChanges) && !Array.isArray(raw.updateEntities)) {
     normalized.updateEntities = raw.entityChanges
-      .filter((entry): entry is Record<string, unknown> =>
-        !!entry && typeof entry === 'object' && !Array.isArray(entry),
+      .filter(
+        (entry): entry is Record<string, unknown> =>
+          !!entry && typeof entry === 'object' && !Array.isArray(entry),
       )
       .map((entry) => normalizeUpdateEntityAliasEntry(entry))
       .filter((entry): entry is Record<string, unknown> => !!entry)
   }
   if (Array.isArray(raw.setProperties) && !Array.isArray(raw.updateEntities)) {
     normalized.updateEntities = raw.setProperties
-      .filter((entry): entry is Record<string, unknown> =>
-        !!entry && typeof entry === 'object' && !Array.isArray(entry),
+      .filter(
+        (entry): entry is Record<string, unknown> =>
+          !!entry && typeof entry === 'object' && !Array.isArray(entry),
       )
       .map((entry) => normalizeUpdateEntityAliasEntry(entry))
       .filter((entry): entry is Record<string, unknown> => !!entry)
@@ -1020,7 +1087,9 @@ function normalizeChangeSet(input: unknown): RoCrateChangeSet {
   delete normalized.upsertEntities
   delete normalized.rootFields
 
-  const unknownKeys = Object.keys(normalized).filter((key) => !CHANGE_SET_ALLOWED_KEYS.has(key))
+  const unknownKeys = Object.keys(normalized).filter(
+    (key) => !CHANGE_SET_ALLOWED_KEYS.has(key),
+  )
   if (unknownKeys.length > 0) {
     throw new Error(
       `apply_changes changeSet has unsupported keys: ${unknownKeys.join(
@@ -1039,7 +1108,10 @@ function pickMetadataDescriptor(crate: RoCrate): RoCrateEntity | undefined {
       return false
     }
     const entityId = entity['@id']
-    return entityId === 'ro-crate-metadata.json' || entityId === 'file://./ro-crate-metadata.json'
+    return (
+      entityId === 'ro-crate-metadata.json' ||
+      entityId === 'file://./ro-crate-metadata.json'
+    )
   })
 }
 
@@ -1342,7 +1414,9 @@ function storeProfileContext(
   return record
 }
 
-function parseProfileResolutionInputs(params: Record<string, unknown>): ProfileResolutionInputs {
+function parseProfileResolutionInputs(
+  params: Record<string, unknown>,
+): ProfileResolutionInputs {
   const inputs: ProfileResolutionInputs = {}
   const profileContextId = parseProfileContextId(params.profileContextId)
   if (profileContextId) {
@@ -1365,18 +1439,29 @@ function parseProfileResolutionInputs(params: Record<string, unknown>): ProfileR
   return inputs
 }
 
-function parseProfileValidationMode(
-  params: Record<string, unknown>,
-  defaultMode: ProfileValidationMode,
-): ProfileValidationMode {
-  return params.profileValidationMode === 'full' ? 'full' : defaultMode
-}
-
 function parseProfileRequiredMode(
   params: Record<string, unknown>,
   defaultMode: ProfileRequiredMode,
 ): ProfileRequiredMode {
-  return params.profileRequiredMode === 'enforce_required' ? 'enforce_required' : defaultMode
+  return params.profileRequiredMode === 'enforce_required'
+    ? 'enforce_required'
+    : defaultMode
+}
+
+function parseContextMode(
+  params: Record<string, unknown>,
+  defaultMode: ContextMode = 'auto_reconcile',
+): ContextMode {
+  if (params.contextMode === 'strict') {
+    return 'strict'
+  }
+  if (params.contextMode === 'auto_add') {
+    return 'auto_add'
+  }
+  if (params.contextMode === 'auto_reconcile') {
+    return 'auto_reconcile'
+  }
+  return defaultMode
 }
 
 function loadSchemaIndexFromDisk(): {
@@ -1419,7 +1504,8 @@ function loadConvertedProfile(
   includeProfileContent: boolean,
 ): ResolvedProfile {
   const convertedPathRaw = profile.files?.convertedPath
-  const convertedPath = typeof convertedPathRaw === 'string' ? convertedPathRaw : undefined
+  const convertedPath =
+    typeof convertedPathRaw === 'string' ? convertedPathRaw : undefined
   const absoluteConvertedPath =
     convertedPath && path.isAbsolute(convertedPath)
       ? convertedPath
@@ -1479,7 +1565,9 @@ function resolveProfileUrls(
       profiles: [],
       warnings:
         profileUrls.length > 0
-          ? ['Remote mode profile resolution requires caller-supplied schema index/profile content.']
+          ? [
+              'Remote mode profile resolution requires caller-supplied schema index/profile content.',
+            ]
           : [],
     }
   }
@@ -1523,7 +1611,9 @@ function resolveProfileUrls(
         }
         const profileRecord = profilesById.get(id)
         if (id !== profileUrl && !profileRecord) {
-          warnings.push(`Profile id referenced by schemaIndex but not found in profiles: ${id}`)
+          warnings.push(
+            `Profile id referenced by schemaIndex but not found in profiles: ${id}`,
+          )
         }
         const convertedPath = profileRecord?.files?.convertedPath
         const inlineProfile = fromInline([id, profileUrl, convertedPath ?? ''])
@@ -1598,13 +1688,17 @@ function resolveProfileUrls(
     for (const profileId of profileIds) {
       const profile = profilesById.get(profileId)
       if (!profile) {
-        warnings.push(`Profile id referenced by conformsToIndex but not found in profiles: ${profileId}`)
+        warnings.push(
+          `Profile id referenced by conformsToIndex but not found in profiles: ${profileId}`,
+        )
         continue
       }
       if (resolvedProfiles.some((item) => item.id === profileId)) {
         continue
       }
-      resolvedProfiles.push(loadConvertedProfile(profile, loadedIndex.rootPath, includeProfileContent))
+      resolvedProfiles.push(
+        loadConvertedProfile(profile, loadedIndex.rootPath, includeProfileContent),
+      )
     }
   }
 
@@ -1704,7 +1798,8 @@ function buildProfileConstraints(
       }
       allowedPropertiesByClass.set(className, currentAllowed)
 
-      const currentRequired = requiredPropertiesByClass.get(className) ?? new Set<string>()
+      const currentRequired =
+        requiredPropertiesByClass.get(className) ?? new Set<string>()
       const extractedRequired = extractRequiredPropertiesFromClass(classDef)
       for (const propertyName of extractedRequired) {
         currentRequired.add(propertyName)
@@ -1766,18 +1861,26 @@ function validateCrateAgainstProfileConstraints(
   }
   if (constraints.resolution.unresolvedUrls.length > 0) {
     const message = `No schema profile mapping found for conformsTo URL(s): ${constraints.resolution.unresolvedUrls.join(', ')}`
-    if (constraints.resolution.mode === 'remote' && !constraints.resolution.inputProvided) {
+    if (
+      constraints.resolution.mode === 'remote' &&
+      !constraints.resolution.inputProvided
+    ) {
       warnings.push(message)
     } else {
       errors.push(message)
     }
   }
-  const failedProfiles = constraints.resolution.profiles.filter((profile) => !profile.loaded)
+  const failedProfiles = constraints.resolution.profiles.filter(
+    (profile) => !profile.loaded,
+  )
   if (failedProfiles.length > 0) {
     const message = `Failed to load converted profile(s): ${failedProfiles
       .map((profile) => profile.loadError ?? profile.id)
       .join('; ')}`
-    if (constraints.resolution.mode === 'remote' && !constraints.resolution.inputProvided) {
+    if (
+      constraints.resolution.mode === 'remote' &&
+      !constraints.resolution.inputProvided
+    ) {
       warnings.push(message)
     } else {
       errors.push(message)
@@ -1860,7 +1963,9 @@ function validateCrateAgainstProfileConstraints(
       }
       for (const requiredProperty of requiredProperties) {
         if (!hasMeaningfulValue(entity[requiredProperty])) {
-          errors.push(`Entity ${entityId} is missing required property: ${requiredProperty}`)
+          errors.push(
+            `Entity ${entityId} is missing required property: ${requiredProperty}`,
+          )
         }
       }
     }
@@ -1930,15 +2035,21 @@ function collectUsedGraphTerms(crate: RoCrate): Set<string> {
   return used
 }
 
-function collectProfileTermIriMap(constraints: ProfileConstraints): Record<string, string> {
-  const mappings: Record<string, string> = {}
+function collectProfileTermIriResolution(
+  constraints: ProfileConstraints,
+): ProfileTermIriResolution {
+  const iriCandidates = new Map<string, Set<string>>()
   for (const profile of constraints.resolution.profiles) {
     const content = profile.profile
     if (!content) {
       continue
     }
     const classesValue = content.classes
-    if (!classesValue || typeof classesValue !== 'object' || Array.isArray(classesValue)) {
+    if (
+      !classesValue ||
+      typeof classesValue !== 'object' ||
+      Array.isArray(classesValue)
+    ) {
       continue
     }
     for (const classValue of Object.values(classesValue as Record<string, unknown>)) {
@@ -1961,12 +2072,122 @@ function collectProfileTermIriMap(constraints: ProfileConstraints): Record<strin
           typeof iri === 'string' &&
           iri.trim() !== ''
         ) {
-          mappings[name] = iri
+          const trimmedName = name.trim()
+          const trimmedIri = iri.trim()
+          const existing = iriCandidates.get(trimmedName)
+          if (existing) {
+            existing.add(trimmedIri)
+          } else {
+            iriCandidates.set(trimmedName, new Set<string>([trimmedIri]))
+          }
         }
       }
     }
   }
+  const termToIri: Record<string, string> = {}
+  const ambiguousTerms: string[] = []
+  for (const [term, iris] of Array.from(iriCandidates.entries()).sort((a, b) =>
+    a[0].localeCompare(b[0]),
+  )) {
+    const values = Array.from(iris.values()).sort((a, b) => a.localeCompare(b))
+    if (values.length === 1) {
+      termToIri[term] = values[0]
+      continue
+    }
+    ambiguousTerms.push(term)
+  }
+  return {
+    termToIri,
+    ambiguousTerms,
+  }
+}
+
+function collectDeclaredContextMappings(crate: RoCrate): Record<string, string> {
+  const mappings: Record<string, string> = {}
+  const context = crate['@context']
+  const collect = (item: unknown): void => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return
+    }
+    for (const [key, value] of Object.entries(item as Record<string, unknown>)) {
+      if (typeof value === 'string' && value.trim() !== '') {
+        mappings[key] = value.trim()
+      }
+    }
+  }
+  if (Array.isArray(context)) {
+    for (const item of context) {
+      collect(item)
+    }
+    return mappings
+  }
+  collect(context)
   return mappings
+}
+
+function applyContextUpdate(
+  crate: RoCrate,
+  contextUpdate: Record<string, string>,
+): RoCrate {
+  if (Object.keys(contextUpdate).length === 0) {
+    return crate
+  }
+  return applyChangeSet(crate, { mergeContext: contextUpdate })
+}
+
+function applyContextModePatch(
+  crate: RoCrate,
+  constraints: ProfileConstraints,
+  contextMode: ContextMode,
+): { crate: RoCrate; report: ContextAutoPatchReport } {
+  const report: ContextAutoPatchReport = {
+    mode: contextMode,
+    addedTerms: [],
+    reconciledTerms: [],
+    skippedConflicts: [],
+    ambiguousTerms: [],
+  }
+  if (contextMode === 'strict') {
+    return { crate, report }
+  }
+
+  const suggestion = buildContextTermSuggestion(crate, constraints)
+  const usedTerms = new Set<string>(suggestion.usedTerms)
+  const declaredMappings = collectDeclaredContextMappings(crate)
+  const termResolution = collectProfileTermIriResolution(constraints)
+  report.ambiguousTerms = termResolution.ambiguousTerms
+
+  const contextUpdate: Record<string, string> = {}
+  for (const [term, iri] of Object.entries(suggestion.mergeContext)) {
+    contextUpdate[term] = iri
+    report.addedTerms.push(term)
+  }
+
+  if (contextMode === 'auto_reconcile') {
+    for (const term of usedTerms) {
+      const expectedIri = termResolution.termToIri[term]
+      const currentIri = declaredMappings[term]
+      if (!expectedIri || !currentIri || expectedIri === currentIri) {
+        continue
+      }
+      contextUpdate[term] = expectedIri
+      report.reconciledTerms.push({ term, from: currentIri, to: expectedIri })
+    }
+  } else if (contextMode === 'auto_add') {
+    for (const term of usedTerms) {
+      const expectedIri = termResolution.termToIri[term]
+      const currentIri = declaredMappings[term]
+      if (!expectedIri || !currentIri || expectedIri === currentIri) {
+        continue
+      }
+      report.skippedConflicts.push({ term, from: currentIri, expected: expectedIri })
+    }
+  }
+
+  if (Object.keys(contextUpdate).length === 0) {
+    return { crate, report }
+  }
+  return { crate: applyContextUpdate(crate, contextUpdate), report }
 }
 
 function buildContextTermSuggestion(
@@ -1981,7 +2202,11 @@ function buildContextTermSuggestion(
 } {
   const usedTerms = collectUsedGraphTerms(crate)
   const declaredTerms = collectDeclaredContextTerms(crate)
-  const profileTermIriMap = constraints ? collectProfileTermIriMap(constraints) : {}
+  const termResolution = constraints
+    ? collectProfileTermIriResolution(constraints)
+    : { termToIri: {}, ambiguousTerms: [] }
+  const profileTermIriMap = termResolution.termToIri
+  const ambiguousTerms = new Set<string>(termResolution.ambiguousTerms)
   const mergeContext: Record<string, string> = {}
   const missingTerms: string[] = []
   const unknownTerms: string[] = []
@@ -1993,6 +2218,10 @@ function buildContextTermSuggestion(
       continue
     }
     missingTerms.push(term)
+    if (ambiguousTerms.has(term)) {
+      unknownTerms.push(term)
+      continue
+    }
     const profileIri = profileTermIriMap[term]
     if (profileIri) {
       mergeContext[term] = profileIri
@@ -2089,10 +2318,8 @@ function ensureProfileConformanceOrThrow(
   mode: AccessMode,
   inputs: ProfileResolutionInputs = {},
   options: ProfileValidationOptions = {
-    validationMode: 'scoped',
     requiredMode: 'allow_missing',
   },
-  previousCrate?: RoCrate,
 ): ProfileConstraints {
   const constraints = buildProfileConstraints(crate, mode, inputs)
   if (mode !== 'local' && !constraints.resolution.inputProvided) {
@@ -2105,23 +2332,8 @@ function ensureProfileConformanceOrThrow(
     return constraints
   }
 
-  if (options.validationMode === 'scoped' && previousCrate) {
-    const previousConstraints = buildProfileConstraints(previousCrate, mode, inputs)
-    const previousValidation = validateCrateAgainstProfileConstraints(previousCrate, previousConstraints, {
-      requiredMode: options.requiredMode,
-    })
-    const previousErrors = new Set(previousValidation.errors)
-    const newErrors = validation.errors.filter((error) => !previousErrors.has(error))
-    if (newErrors.length === 0) {
-      return constraints
-    }
-    throw new Error(`Profile conformance failed: ${newErrors.join(' | ')}`)
-  }
-
   if (!validation.valid) {
-    throw new Error(
-      `Profile conformance failed: ${validation.errors.join(' | ')}`,
-    )
+    throw new Error(`Profile conformance failed: ${validation.errors.join(' | ')}`)
   }
   return constraints
 }
@@ -2183,7 +2395,9 @@ function buildRoCrateContext(
   }
 }
 
-function summarizeRoCrateContext(context: Record<string, unknown>): Record<string, unknown> {
+function summarizeRoCrateContext(
+  context: Record<string, unknown>,
+): Record<string, unknown> {
   const profileResolution =
     context.profileResolution &&
     typeof context.profileResolution === 'object' &&
@@ -2197,7 +2411,9 @@ function summarizeRoCrateContext(context: Record<string, unknown>): Record<strin
       ? (context.conformance as Record<string, unknown>)
       : {}
   const conformanceErrors = Array.isArray(conformance.errors) ? conformance.errors : []
-  const conformanceWarnings = Array.isArray(conformance.warnings) ? conformance.warnings : []
+  const conformanceWarnings = Array.isArray(conformance.warnings)
+    ? conformance.warnings
+    : []
   const errorSummary = summarizeArray(conformanceErrors)
   const warningSummary = summarizeArray(conformanceWarnings)
   const profileRules =
@@ -2229,7 +2445,9 @@ function summarizeRoCrateContext(context: Record<string, unknown>): Record<strin
     }),
   )
   const allowedClasses = Array.isArray(profileRules.allowedClasses)
-    ? profileRules.allowedClasses.filter((item): item is string => typeof item === 'string')
+    ? profileRules.allowedClasses.filter(
+        (item): item is string => typeof item === 'string',
+      )
     : []
 
   return {
@@ -2265,15 +2483,29 @@ function summarizeApplyChangesPayload(
   changeSet: RoCrateChangeSet,
   constraints: ProfileConstraints,
 ): Record<string, unknown> {
+  const contextPatchReport =
+    payload.contextPatchReport &&
+    typeof payload.contextPatchReport === 'object' &&
+    !Array.isArray(payload.contextPatchReport)
+      ? (payload.contextPatchReport as ContextAutoPatchReport)
+      : undefined
   return {
     mode: payload.mode,
     writeApplied: payload.writeApplied,
     cratePath: payload.cratePath,
-    profileValidationMode: payload.profileValidationMode,
     profileRequiredMode: payload.profileRequiredMode,
+    contextMode: payload.contextMode,
     profileResolution: summarizeProfileResolution(constraints.resolution),
     graphEntityCount: Array.isArray(crate['@graph']) ? crate['@graph'].length : 0,
     changes: summarizeChangeSet(changeSet),
+    contextPatch: contextPatchReport
+      ? {
+          addedTerms: contextPatchReport.addedTerms,
+          reconciledTerms: contextPatchReport.reconciledTerms,
+          skippedConflicts: contextPatchReport.skippedConflicts,
+          ambiguousTerms: contextPatchReport.ambiguousTerms,
+        }
+      : undefined,
     note: payload.note,
   }
 }
@@ -2290,9 +2522,7 @@ function readProfileUrlsFromParams(params: Record<string, unknown>): string[] {
   )
 }
 
-function collectRemoteProfilePayload(
-  params: Record<string, unknown>,
-): {
+function collectRemoteProfilePayload(params: Record<string, unknown>): {
   mode: 'local'
   metadataPath?: string
   profileUrls: string[]
@@ -2561,7 +2791,8 @@ function parseWebSearchParams(params: Record<string, unknown>): WebSearchParams 
 
 async function runWebSearch(params: WebSearchParams): Promise<unknown> {
   const apiKey =
-    (typeof process.env.TAVILY_API_KEY === 'string' && process.env.TAVILY_API_KEY.trim() !== ''
+    (typeof process.env.TAVILY_API_KEY === 'string' &&
+    process.env.TAVILY_API_KEY.trim() !== ''
       ? process.env.TAVILY_API_KEY.trim()
       : undefined) ?? params.apiKey
   if (!apiKey) {
@@ -2587,7 +2818,9 @@ async function runWebSearch(params: WebSearchParams): Promise<unknown> {
   })
   const payloadText = await response.text()
   if (!response.ok) {
-    throw new Error(`Tavily request failed (${response.status}): ${payloadText.slice(0, 300)}`)
+    throw new Error(
+      `Tavily request failed (${response.status}): ${payloadText.slice(0, 300)}`,
+    )
   }
   try {
     return JSON.parse(payloadText) as unknown
@@ -2643,7 +2876,10 @@ function resolveDataverseOwnerId(value: unknown): string {
 }
 
 function resolveDataverseApiKey(value: unknown): string | undefined {
-  return readOptionalStringParam(value) ?? readOptionalStringParam(process.env.DATAVERSE_API_KEY)
+  return (
+    readOptionalStringParam(value) ??
+    readOptionalStringParam(process.env.DATAVERSE_API_KEY)
+  )
 }
 
 function parseTimeoutMs(value: unknown, fallbackMs: number): number {
@@ -2664,7 +2900,12 @@ function extractDataverseCrate(payload: unknown): RoCrate | undefined {
       }
     }
     const data = record.data
-    if (data && typeof data === 'object' && !Array.isArray(data) && Array.isArray((data as Record<string, unknown>)['@graph'])) {
+    if (
+      data &&
+      typeof data === 'object' &&
+      !Array.isArray(data) &&
+      Array.isArray((data as Record<string, unknown>)['@graph'])
+    ) {
       try {
         const nested = asRoCrate(data)
         return nested
@@ -2710,7 +2951,11 @@ function isSafeRelativePath(value: string): boolean {
     return false
   }
   const normalized = value.replace(/\\/g, '/')
-  if (normalized.startsWith('../') || normalized.includes('/../') || normalized === '..') {
+  if (
+    normalized.startsWith('../') ||
+    normalized.includes('/../') ||
+    normalized === '..'
+  ) {
     return false
   }
   return true
@@ -2751,7 +2996,7 @@ function createCrc32Table(): Uint32Array {
   for (let i = 0; i < 256; i += 1) {
     let c = i
     for (let j = 0; j < 8; j += 1) {
-      c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1)
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
     }
     table[i] = c >>> 0
   }
@@ -2885,7 +3130,9 @@ function buildDataverseUploadZip(
   return createStoredZip(entries)
 }
 
-function parseDataverseUploadParams(params: Record<string, unknown>): DataverseUploadParams {
+function parseDataverseUploadParams(
+  params: Record<string, unknown>,
+): DataverseUploadParams {
   if (params.write !== true) {
     throw new Error(
       'upload_rocrate_to_dataverse requires write=true. Use explicit write intent for upload operations.',
@@ -2913,14 +3160,15 @@ function parseDataverseUploadParams(params: Record<string, unknown>): DataverseU
   }
 }
 
-function parseDataverseDownloadParams(params: Record<string, unknown>): DataverseDownloadParams {
+function parseDataverseDownloadParams(
+  params: Record<string, unknown>,
+): DataverseDownloadParams {
   const mode = parseAccessMode(params)
   const pid = readOptionalStringParam(params.pid)
   if (!pid) {
     throw new Error('download_rocrate_from_dataverse requires non-empty pid.')
   }
-  const writeToDisk =
-    mode === 'local' ? params.write === true : false
+  const writeToDisk = mode === 'local' ? params.write === true : false
   if (mode === 'local' && !writeToDisk) {
     throw new Error(
       'download_rocrate_from_dataverse in local mode requires write=true to persist downloaded crate.',
@@ -2943,7 +3191,9 @@ function parseDataverseDownloadParams(params: Record<string, unknown>): Datavers
   }
 }
 
-function tryParseJsonObjectFromString(value: string): Record<string, unknown> | undefined {
+function tryParseJsonObjectFromString(
+  value: string,
+): Record<string, unknown> | undefined {
   const trimmed = value.trim()
   if (trimmed === '') {
     return undefined
@@ -2991,7 +3241,11 @@ function extractDataverseValidationMessages(payload: unknown): string[] {
         continue
       }
       for (const nestedIssue of nested) {
-        if (!nestedIssue || typeof nestedIssue !== 'object' || Array.isArray(nestedIssue)) {
+        if (
+          !nestedIssue ||
+          typeof nestedIssue !== 'object' ||
+          Array.isArray(nestedIssue)
+        ) {
           continue
         }
         const errorField =
@@ -3007,7 +3261,9 @@ function extractDataverseValidationMessages(payload: unknown): string[] {
             ? ((nestedIssue as Record<string, unknown>).errorSuggestion as string)
             : ''
         const prefix = `${errorEntity}${errorField ? `.${errorField}` : ''}`
-        const body = [errorMessage, errorSuggestion].filter((part) => part !== '').join(' ')
+        const body = [errorMessage, errorSuggestion]
+          .filter((part) => part !== '')
+          .join(' ')
         messages.push(`${prefix}: ${body}`.trim())
       }
     }
@@ -3083,7 +3339,9 @@ async function validateRoCrateViaDataverse(
   }
 }
 
-async function runDataverseUpload(params: DataverseUploadParams): Promise<Record<string, unknown>> {
+async function runDataverseUpload(
+  params: DataverseUploadParams,
+): Promise<Record<string, unknown>> {
   const creatingDataset = !params.pid
   const crateArpPid = extractArpPid(params.crate)
   if (creatingDataset && crateArpPid) {
@@ -3108,7 +3366,6 @@ async function runDataverseUpload(params: DataverseUploadParams): Promise<Record
     params.mode,
     params.profileResolutionInputs,
     {
-      validationMode: 'full',
       requiredMode: 'enforce_required',
     },
   )
@@ -3142,7 +3399,11 @@ async function runDataverseUpload(params: DataverseUploadParams): Promise<Record
     endpoint = 'create'
     endpointUrl = new URL('/api/arp/uploadRoCrateZip', `${params.baseUrl}/`)
     endpointUrl.searchParams.set('ownerId', params.ownerId)
-    const zipBuffer = buildDataverseUploadZip(params.crate, params.cratePath, params.indent)
+    const zipBuffer = buildDataverseUploadZip(
+      params.crate,
+      params.cratePath,
+      params.indent,
+    )
     const form = new FormData()
     form.append('file', new Blob([zipBuffer], { type: 'application/zip' }), 'rocrate.zip')
     const headers: Record<string, string> = {
@@ -3193,11 +3454,19 @@ async function runDataverseUpload(params: DataverseUploadParams): Promise<Record
   if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
     const payloadRecord = payload as Record<string, unknown>
     payloadPid = readOptionalStringParam(payloadRecord.pid)
-    if (!payloadPid && payloadRecord.data && typeof payloadRecord.data === 'object' && !Array.isArray(payloadRecord.data)) {
-      payloadPid = readOptionalStringParam((payloadRecord.data as Record<string, unknown>).pid)
+    if (
+      !payloadPid &&
+      payloadRecord.data &&
+      typeof payloadRecord.data === 'object' &&
+      !Array.isArray(payloadRecord.data)
+    ) {
+      payloadPid = readOptionalStringParam(
+        (payloadRecord.data as Record<string, unknown>).pid,
+      )
     }
   }
-  const resolvedPid = (ingestedCrate ? extractArpPid(ingestedCrate) : undefined) ?? payloadPid
+  const resolvedPid =
+    (ingestedCrate ? extractArpPid(ingestedCrate) : undefined) ?? payloadPid
   const dataverseUrl = buildDataverseDatasetUrl(params.baseUrl, resolvedPid)
   let writeApplied = false
   if (params.mode === 'local' && ingestedCrate && params.cratePath) {
@@ -3226,10 +3495,7 @@ async function runDataverseUpload(params: DataverseUploadParams): Promise<Record
 async function runDataverseDownload(
   params: DataverseDownloadParams,
 ): Promise<Record<string, unknown>> {
-  const endpointUrl = new URL(
-    `/api/arp/rocrate/${params.pid}`,
-    `${params.baseUrl}/`,
-  )
+  const endpointUrl = new URL(`/api/arp/rocrate/${params.pid}`, `${params.baseUrl}/`)
   if (params.version) {
     endpointUrl.searchParams.set('version', params.version)
   }
@@ -3259,7 +3525,9 @@ async function runDataverseDownload(
   }
   const crate = extractDataverseCrate(payload)
   if (!crate) {
-    throw new Error('Dataverse download response did not contain a valid RO-Crate payload.')
+    throw new Error(
+      'Dataverse download response did not contain a valid RO-Crate payload.',
+    )
   }
   let writeApplied = false
   if (params.mode === 'local' && params.cratePath && params.writeToDisk) {
@@ -3288,7 +3556,9 @@ function summarizeDataverseUploadPayload(
   payload: Record<string, unknown>,
 ): Record<string, unknown> {
   const ingestedCrate =
-    payload.ingestedCrate && typeof payload.ingestedCrate === 'object' && !Array.isArray(payload.ingestedCrate)
+    payload.ingestedCrate &&
+    typeof payload.ingestedCrate === 'object' &&
+    !Array.isArray(payload.ingestedCrate)
       ? (payload.ingestedCrate as RoCrate)
       : undefined
   return {
@@ -3358,7 +3628,10 @@ async function runDownloadUrl(params: DownloadUrlParams): Promise<unknown> {
   }
 }
 
-async function handleToolCall(toolName: string, params: Record<string, unknown>): Promise<unknown> {
+async function handleToolCall(
+  toolName: string,
+  params: Record<string, unknown>,
+): Promise<unknown> {
   if (toolName === 'search') {
     const searchParams = parseWebSearchParams(params)
     const result = await runWebSearch(searchParams)
@@ -3398,9 +3671,7 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
     if (responseMode === 'full') {
       return textResult(loaded.crate)
     }
-    return textResult(
-      summarizeCratePayload(loaded.crate, loaded.mode, loaded.cratePath),
-    )
+    return textResult(summarizeCratePayload(loaded.crate, loaded.mode, loaded.cratePath))
   }
 
   if (toolName === 'compute_delta') {
@@ -3415,14 +3686,20 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
       delta = computeDelta(loaded.crate, rootPath, { includeHidden })
     } else {
       const workspaceEntries = Array.isArray(params.workspaceEntries)
-        ? params.workspaceEntries.filter((entry): entry is string => typeof entry === 'string')
+        ? params.workspaceEntries.filter(
+            (entry): entry is string => typeof entry === 'string',
+          )
         : []
       if (workspaceEntries.length === 0) {
         throw new Error(
           'remote compute_delta requires workspaceEntries array of relative paths.',
         )
       }
-      delta = computeRemoteDeltaWithWorkspaceEntries(loaded.crate, workspaceEntries, includeHidden)
+      delta = computeRemoteDeltaWithWorkspaceEntries(
+        loaded.crate,
+        workspaceEntries,
+        includeHidden,
+      )
     }
     return textResult(delta)
   }
@@ -3435,23 +3712,24 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
     }
     const loaded = loadCrateFromParams(params)
     const resolutionInputs = parseProfileResolutionInputs(params)
-    const profileValidationMode = parseProfileValidationMode(params, 'scoped')
     const profileRequiredMode = parseProfileRequiredMode(params, 'allow_missing')
+    const contextMode = parseContextMode(params, 'auto_reconcile')
     const normalizedChangeSet = normalizeChangeSet(params.changeSet)
-    const updated = applyChangeSet(loaded.crate, normalizedChangeSet)
+    const changed = applyChangeSet(loaded.crate, normalizedChangeSet)
     const responseMode = parseResponseMode(
       params,
       loaded.mode === 'remote' ? 'full' : 'summary',
     )
+    const preConstraints = buildProfileConstraints(changed, loaded.mode, resolutionInputs)
+    const contextPatched = applyContextModePatch(changed, preConstraints, contextMode)
+    const updated = contextPatched.crate
     const constraints = ensureProfileConformanceOrThrow(
       updated,
       loaded.mode,
       resolutionInputs,
       {
-        validationMode: profileValidationMode,
         requiredMode: profileRequiredMode,
       },
-      loaded.crate,
     )
     const allowOutOfProfileTargets = params.allowOutOfProfileTargets === true
     const outOfScopeViolations = validateProfileTargetScopeForChangeSet(
@@ -3475,8 +3753,9 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
         mode: loaded.mode,
         writeApplied: true,
         cratePath: loaded.cratePath ?? resolveCratePath(),
-        profileValidationMode,
         profileRequiredMode,
+        contextMode,
+        contextPatchReport: contextPatched.report,
         profileResolution: constraints.resolution,
       }
       if (responseMode === 'full') {
@@ -3491,8 +3770,9 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
         crate: updated,
         writeApplied: false,
         mode: 'remote',
-        profileValidationMode,
         profileRequiredMode,
+        contextMode,
+        contextPatchReport: contextPatched.report,
         profileResolution: constraints.resolution,
         note: 'Remote mode does not persist files. Use returned crate payload.',
       }
@@ -3596,23 +3876,29 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
     const loaded = loadCrateFromParams(params)
     const resolutionInputs = parseProfileResolutionInputs(params)
     const strict = params.strict === true
-    const profileValidationMode = parseProfileValidationMode(params, strict ? 'full' : 'scoped')
     const profileRequiredMode = parseProfileRequiredMode(
       params,
       strict ? 'enforce_required' : 'allow_missing',
     )
     const report = validateCrate(loaded.crate, { strict })
-    const constraints = buildProfileConstraints(loaded.crate, loaded.mode, resolutionInputs)
-    const profileValidation = validateCrateAgainstProfileConstraints(loaded.crate, constraints, {
-      requiredMode: profileRequiredMode,
-    })
+    const constraints = buildProfileConstraints(
+      loaded.crate,
+      loaded.mode,
+      resolutionInputs,
+    )
+    const profileValidation = validateCrateAgainstProfileConstraints(
+      loaded.crate,
+      constraints,
+      {
+        requiredMode: profileRequiredMode,
+      },
+    )
     const payload = {
       ...report,
       profile: {
         valid: profileValidation.valid,
         errors: profileValidation.errors,
         warnings: profileValidation.warnings,
-        validationMode: profileValidationMode,
         requiredMode: profileRequiredMode,
         resolution: constraints.resolution,
       },
@@ -3626,31 +3912,21 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
 
   if (toolName === 'write_crate_atomic') {
     const mode = parseAccessMode(params)
-    const responseMode = parseResponseMode(
-      params,
-      mode === 'remote' ? 'full' : 'summary',
-    )
+    const responseMode = parseResponseMode(params, mode === 'remote' ? 'full' : 'summary')
     const resolutionInputs = parseProfileResolutionInputs(params)
-    const profileValidationMode = parseProfileValidationMode(params, 'scoped')
     const profileRequiredMode = parseProfileRequiredMode(params, 'allow_missing')
     const crateParam = params.crate
     if (!crateParam || typeof crateParam !== 'object' || Array.isArray(crateParam)) {
       throw new Error('write_crate_atomic requires crate object.')
     }
     const crate = asRoCrate(crateParam)
-    const previousCrate =
-      mode === 'local'
-        ? readCrateFromFile(ensureCratePath(params.cratePath))
-        : undefined
     const constraints = ensureProfileConformanceOrThrow(
       crate,
       mode,
       resolutionInputs,
       {
-        validationMode: profileValidationMode,
         requiredMode: profileRequiredMode,
       },
-      previousCrate,
     )
     if (mode === 'remote') {
       const payload = {
@@ -3658,7 +3934,6 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
         mode: 'remote',
         writeApplied: false,
         crate,
-        profileValidationMode,
         profileRequiredMode,
         profileResolution: constraints.resolution,
         note: 'Remote mode does not persist files. Use returned crate payload.',
@@ -3670,7 +3945,6 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
         ok: true,
         mode: payload.mode,
         writeApplied: payload.writeApplied,
-        profileValidationMode: payload.profileValidationMode,
         profileRequiredMode: payload.profileRequiredMode,
         profileResolution: summarizeProfileResolution(constraints.resolution),
         crateSummary: summarizeCratePayload(crate, mode),
@@ -3685,7 +3959,6 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
       mode: 'local',
       writeApplied: true,
       cratePath,
-      profileValidationMode,
       profileRequiredMode,
       profileResolution: constraints.resolution,
     }
@@ -3697,7 +3970,6 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
       mode: payload.mode,
       writeApplied: payload.writeApplied,
       cratePath: payload.cratePath,
-      profileValidationMode: payload.profileValidationMode,
       profileRequiredMode: payload.profileRequiredMode,
       profileResolution: summarizeProfileResolution(constraints.resolution),
       crateSummary: summarizeCratePayload(crate, mode, cratePath),
@@ -3723,7 +3995,11 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
   if (toolName === 'suggest_context_terms') {
     const loaded = loadCrateFromParams(params)
     const resolutionInputs = parseProfileResolutionInputs(params)
-    const constraints = buildProfileConstraints(loaded.crate, loaded.mode, resolutionInputs)
+    const constraints = buildProfileConstraints(
+      loaded.crate,
+      loaded.mode,
+      resolutionInputs,
+    )
     const suggestion = buildContextTermSuggestion(loaded.crate, constraints)
     const payload = {
       mode: loaded.mode,
@@ -3763,7 +4039,9 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
     const mode = parseAccessMode(params)
     const includeProfileContent = params.includeProfileContent === true
     const resolutionInputs = parseProfileResolutionInputs(params)
-    return textResult(resolveProfileUrls([profileUrl], mode, includeProfileContent, resolutionInputs))
+    return textResult(
+      resolveProfileUrls([profileUrl], mode, includeProfileContent, resolutionInputs),
+    )
   }
 
   if (toolName === 'prepare_remote_profile_payload') {
@@ -3785,7 +4063,10 @@ async function handleToolCall(toolName: string, params: Record<string, unknown>)
   throw new Error(`Unknown tool: ${toolName}`)
 }
 
-async function handleRequest(request: JsonRpcRequest, mode: TransportMode): Promise<void> {
+async function handleRequest(
+  request: JsonRpcRequest,
+  mode: TransportMode,
+): Promise<void> {
   const id = request.id ?? null
   try {
     if (request.method === 'initialize') {
@@ -3881,9 +4162,7 @@ function startServer(): void {
     while (buffer.length > 0) {
       const headerTerminator = findHeaderTerminator(buffer)
       if (headerTerminator) {
-        const headerText = buffer
-          .subarray(0, headerTerminator.index)
-          .toString('utf8')
+        const headerText = buffer.subarray(0, headerTerminator.index).toString('utf8')
         const contentLengthMatch = headerText.match(/Content-Length:\s*(\d+)/i)
         if (!contentLengthMatch) {
           buffer = buffer.subarray(headerTerminator.index + headerTerminator.size)
