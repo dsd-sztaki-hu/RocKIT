@@ -36,6 +36,22 @@
   border-bottom: 1px solid var(--theia-ui-border);
   background: var(--theia-sideBar-background);
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  max-height: 360px;
+  opacity: 1;
+  transition:
+    max-height 500ms ease,
+    opacity 400ms ease,
+    padding 500ms ease;
+}
+
+.entities-overview-filters.is-hidden {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom-width: 0;
+  pointer-events: none;
 }
 
 .entities-overview-filter-header {

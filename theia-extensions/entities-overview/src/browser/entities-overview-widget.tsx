@@ -190,8 +190,10 @@ export class EntitiesOverviewWidget extends TreeWidget {
     return (
       <AntdThemeProvider themeService={this.themeService}>
         <div className="entities-overview-panel-content">
-        {showFilters && (
-          <div className="entities-overview-filters">
+        <div
+          className={`entities-overview-filters${showFilters ? '' : ' is-hidden'}`}
+          aria-hidden={!showFilters}
+        >
             <div className="entities-overview-filter-header">
               <div className="entities-overview-filter-toggle">
                 <Button.Group size="small">
@@ -300,7 +302,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
               </Button>
             </div>
           </div>
-        )}
         <div className="entities-overview-edit-row">
           <Button
             className="entities-overview-edit-button"
