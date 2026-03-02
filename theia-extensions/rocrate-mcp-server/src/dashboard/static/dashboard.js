@@ -530,6 +530,18 @@ function closeSettings() {
   elements.settingsModal.classList.add('hidden');
 }
 
+function closeOpenModals() {
+  if (elements.sessionModal && !elements.sessionModal.classList.contains('hidden')) {
+    elements.sessionModal.classList.add('hidden');
+  }
+  if (elements.toolCallModal && !elements.toolCallModal.classList.contains('hidden')) {
+    elements.toolCallModal.classList.add('hidden');
+  }
+  if (elements.settingsModal && !elements.settingsModal.classList.contains('hidden')) {
+    elements.settingsModal.classList.add('hidden');
+  }
+}
+
 // Update dependencies table
 async function updateDependencies() {
   try {
@@ -635,6 +647,12 @@ if (elements.settingsModal) {
     }
   });
 }
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeOpenModals();
+  }
+});
 
 // Make viewSession and viewToolCall available globally
 window.viewSession = viewSession;

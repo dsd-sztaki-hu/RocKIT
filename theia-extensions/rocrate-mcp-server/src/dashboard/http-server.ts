@@ -645,7 +645,7 @@ export function parseDashboardConfig(): DashboardConfig {
       10,
     ),
     detailedToolCallLogging:
-      process.env.ROCRATE_DASHBOARD_DETAILED_LOGGING === 'true',
+      process.env.ROCRATE_DASHBOARD_DETAILED_LOGGING !== 'false',
   }
 }
 

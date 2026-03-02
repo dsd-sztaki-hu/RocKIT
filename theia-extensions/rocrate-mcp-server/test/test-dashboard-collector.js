@@ -100,6 +100,25 @@ async function testCollector() {
   const sessionCalls = collector.getToolCallsForSession(session1.id)
   assert.strictEqual(sessionCalls.length, 2)
 
+  // Test per-connection session keys
+  console.log('  Testing session keys...')
+  const callA = collector.startToolCall('tool_a', {}, 'conn-a', 'content-length')
+  collector.completeToolCallSuccess(callA)
+  const callB = collector.startToolCall('tool_b', {}, 'conn-b', 'content-length')
+  collector.completeToolCallSuccess(callB)
+  assert.notStrictEqual(
+    collector.getToolCalls().find((tc) => tc.id === callA)?.sessionId,
+    collector.getToolCalls().find((tc) => tc.id === callB)?.sessionId,
+    'Different session keys should map to different sessions',
+  )
+  collector.deactivateSession('conn-a')
+  const callC = collector.startToolCall('tool_c', {}, 'conn-a', 'content-length')
+  assert.notStrictEqual(
+    collector.getToolCalls().find((tc) => tc.id === callA)?.sessionId,
+    collector.getToolCalls().find((tc) => tc.id === callC)?.sessionId,
+    'Deactivated session key should create a new session',
+  )
+
   // Test cleanup
   console.log('  Testing cleanup...')
   collector.performPeriodicCleanup()

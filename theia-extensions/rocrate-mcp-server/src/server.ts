@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 import { createHash, randomUUID } from 'node:crypto'
+import { spawn } from 'node:child_process'
 import * as fs from 'node:fs'
+import * as net from 'node:net'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import {
@@ -730,19 +732,25 @@ function findHeaderTerminator(
 function writeMessage(
   mode: TransportMode,
   message: JsonRpcSuccess | JsonRpcFailure,
+  output: NodeJS.WritableStream = process.stdout,
 ): void {
   const body = JSON.stringify(message)
   if (mode === 'jsonl') {
-    process.stdout.write(`${body}\n`)
+    output.write(`${body}\n`)
     return
   }
   const payload = Buffer.from(body, 'utf8')
   const header = Buffer.from(`Content-Length: ${payload.length}\r\n\r\n`, 'utf8')
-  process.stdout.write(Buffer.concat([header, payload]))
+  output.write(Buffer.concat([header, payload]))
 }
 
-function writeResult(mode: TransportMode, id: JsonRpcId, result: unknown): void {
-  writeMessage(mode, { jsonrpc: '2.0', id, result })
+function writeResult(
+  mode: TransportMode,
+  id: JsonRpcId,
+  result: unknown,
+  output: NodeJS.WritableStream = process.stdout,
+): void {
+  writeMessage(mode, { jsonrpc: '2.0', id, result }, output)
 }
 
 function writeError(
@@ -751,12 +759,13 @@ function writeError(
   code: number,
   message: string,
   data?: unknown,
+  output: NodeJS.WritableStream = process.stdout,
 ): void {
   writeMessage(mode, {
     jsonrpc: '2.0',
     id,
     error: { code, message, data },
-  })
+  }, output)
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -3834,6 +3843,10 @@ async function runDownloadUrl(params: DownloadUrlParams): Promise<unknown> {
 async function handleToolCall(
   toolName: string,
   params: Record<string, unknown>,
+  telemetryContext?: {
+    sessionKey: string
+    transportMode: TransportMode
+  },
 ): Promise<unknown> {
   // Dashboard telemetry: track tool call start
   const collector = getTelemetryCollector()
@@ -3841,9 +3854,12 @@ async function handleToolCall(
 
   try {
     if (collector) {
-      telemetryId = collector.startToolCall(toolName, params)
-      // Ensure session is tracked
-      collector.getOrCreateSession('content-length')
+      telemetryId = collector.startToolCall(
+        toolName,
+        params,
+        telemetryContext?.sessionKey,
+        telemetryContext?.transportMode,
+      )
     }
 
     if (toolName === 'search') {
@@ -4351,6 +4367,8 @@ async function handleToolCall(
 async function handleRequest(
   request: JsonRpcRequest,
   mode: TransportMode,
+  output: NodeJS.WritableStream = process.stdout,
+  sessionKey = 'default',
 ): Promise<void> {
   const id = request.id ?? null
   try {
@@ -4373,30 +4391,30 @@ async function handleRequest(
             listChanged: false,
           },
         },
-      })
+      }, output)
       return
     }
 
     if (request.method === 'notifications/initialized') {
       if (request.id !== undefined) {
-        writeResult(mode, id, {})
+        writeResult(mode, id, {}, output)
       }
       return
     }
     if (request.method === 'initialized') {
       if (request.id !== undefined) {
-        writeResult(mode, id, {})
+        writeResult(mode, id, {}, output)
       }
       return
     }
 
     if (request.method === 'ping') {
-      writeResult(mode, id, {})
+      writeResult(mode, id, {}, output)
       return
     }
 
     if (request.method === 'tools/list') {
-      writeResult(mode, id, { tools })
+      writeResult(mode, id, { tools }, output)
       return
     }
 
@@ -4404,19 +4422,22 @@ async function handleRequest(
       const params = asRecord(request.params)
       const toolName = params.name
       if (typeof toolName !== 'string' || toolName.trim() === '') {
-        writeError(mode, id, -32602, 'tools/call requires a tool name.')
+        writeError(mode, id, -32602, 'tools/call requires a tool name.', undefined, output)
         return
       }
       const args = asRecord(params.arguments)
-      const result = await handleToolCall(toolName, args)
-      writeResult(mode, id, result)
+      const result = await handleToolCall(toolName, args, {
+        sessionKey,
+        transportMode: mode,
+      })
+      writeResult(mode, id, result, output)
       return
     }
 
-    writeError(mode, id, -32601, `Method not found: ${request.method}`)
+    writeError(mode, id, -32601, `Method not found: ${request.method}`, undefined, output)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    writeError(mode, id, -32000, message)
+    writeError(mode, id, -32000, message, undefined, output)
   }
 }
 
@@ -4436,10 +4457,15 @@ function parseJsonMessage(payload: string): JsonRpcRequest | undefined {
   return candidate
 }
 
-function startServer(): void {
+function startTransportServer(
+  input: NodeJS.ReadableStream,
+  output: NodeJS.WritableStream,
+  transportLabel: string,
+): void {
+  const sessionKey = `${transportLabel}:${randomUUID()}`
   let buffer = Buffer.alloc(0)
-  process.stdin.resume()
-  process.stderr.write('rocrate-mcp-server: started (stdio)\n')
+  input.resume()
+  process.stderr.write(`rocrate-mcp-server: started (${transportLabel})\n`)
 
   // Start dashboard HTTP server if enabled (non-blocking, optional)
   void (async () => {
@@ -4458,7 +4484,7 @@ function startServer(): void {
     }
   })()
 
-  process.stdin.on('data', (chunk: Buffer) => {
+  input.on('data', (chunk: Buffer) => {
     buffer = Buffer.concat([buffer, chunk])
 
     while (buffer.length > 0) {
@@ -4481,7 +4507,7 @@ function startServer(): void {
         const request = parseJsonMessage(body)
         if (request) {
           process.stderr.write(`rocrate-mcp-server: request ${request.method}\n`)
-          void handleRequest(request, 'content-length')
+          void handleRequest(request, 'content-length', output, sessionKey)
         }
         continue
       }
@@ -4511,7 +4537,7 @@ function startServer(): void {
         const request = parseJsonMessage(line)
         if (request) {
           process.stderr.write(`rocrate-mcp-server: request ${request.method}\n`)
-          void handleRequest(request, 'jsonl')
+          void handleRequest(request, 'jsonl', output, sessionKey)
         }
       } catch {
         // Put data back and wait for more bytes if JSON might be incomplete.
@@ -4520,6 +4546,134 @@ function startServer(): void {
       }
     }
   })
+
+  const collector = getTelemetryCollector()
+  const closeSession = () => {
+    if (collector) {
+      collector.deactivateSession(sessionKey)
+    }
+  }
+  input.on('end', closeSession)
+  input.on('close', closeSession)
+  input.on('error', closeSession)
 }
 
-startServer()
+function parseSocketPathFromArgs(args: string[], flag: string): string | undefined {
+  const index = args.indexOf(flag)
+  if (index < 0) {
+    return undefined
+  }
+  const value = args[index + 1]
+  if (!value || value.trim() === '') {
+    return undefined
+  }
+  return value.trim()
+}
+
+function isWindowsNamedPipe(socketPath: string): boolean {
+  return process.platform === 'win32' && socketPath.startsWith('\\\\.\\pipe\\')
+}
+
+function ensureDaemon(socketPath: string): Promise<void> {
+  const tryConnect = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      const probe = net.createConnection(socketPath)
+      probe.once('connect', () => {
+        probe.end()
+        resolve(true)
+      })
+      probe.once('error', () => {
+        resolve(false)
+      })
+    })
+
+  return (async () => {
+    const alreadyRunning = await tryConnect()
+    if (alreadyRunning) {
+      return
+    }
+    const serverPath = process.argv[1]
+    if (!serverPath) {
+      throw new Error('Cannot resolve server script path for daemon startup.')
+    }
+    const child = spawn(process.execPath, [serverPath, '--listen', socketPath], {
+      detached: true,
+      stdio: 'ignore',
+    })
+    child.unref()
+
+    const maxAttempts = 20
+    const waitMs = 100
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, waitMs))
+      const running = await tryConnect()
+      if (running) {
+        return
+      }
+    }
+    throw new Error(`Daemon startup timeout: socket not ready at ${socketPath}`)
+  })()
+}
+
+function startSocketDaemon(socketPath: string): void {
+  if (!isWindowsNamedPipe(socketPath)) {
+    const parent = path.dirname(socketPath)
+    if (!fs.existsSync(parent)) {
+      fs.mkdirSync(parent, { recursive: true })
+    }
+  }
+  if (!isWindowsNamedPipe(socketPath) && fs.existsSync(socketPath)) {
+    try {
+      fs.unlinkSync(socketPath)
+    } catch {
+      // stale socket cleanup is best effort
+    }
+  }
+  const server = net.createServer((socket) => {
+    startTransportServer(socket, socket, `socket:${socketPath}`)
+  })
+  server.on('error', (error) => {
+    process.stderr.write(
+      `rocrate-mcp-server: socket daemon error: ${error instanceof Error ? error.message : String(error)}\n`,
+    )
+    process.exitCode = 1
+  })
+  server.listen(socketPath, () => {
+    process.stderr.write(`rocrate-mcp-server: listening on ${socketPath}\n`)
+  })
+}
+
+function startSocketProxy(socketPath: string): void {
+  const socket = net.createConnection(socketPath, () => {
+    process.stdin.pipe(socket)
+    socket.pipe(process.stdout)
+  })
+  socket.on('error', (error) => {
+    process.stderr.write(
+      `rocrate-mcp-server: proxy connection failed: ${error instanceof Error ? error.message : String(error)}\n`,
+    )
+    process.exitCode = 1
+  })
+}
+
+async function startServer(): Promise<void> {
+  const args = process.argv.slice(2)
+  const ensureSocketPath = parseSocketPathFromArgs(args, '--ensure-daemon')
+  if (ensureSocketPath) {
+    await ensureDaemon(ensureSocketPath)
+    return
+  }
+  const listenSocketPath = parseSocketPathFromArgs(args, '--listen')
+  if (listenSocketPath) {
+    startSocketDaemon(listenSocketPath)
+    return
+  }
+  const connectSocketPath = parseSocketPathFromArgs(args, '--connect')
+  if (connectSocketPath) {
+    startSocketProxy(connectSocketPath)
+    return
+  }
+  startTransportServer(process.stdin, process.stdout, 'stdio')
+}
+
+void startServer()

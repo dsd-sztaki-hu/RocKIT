@@ -28,7 +28,7 @@ const DEFAULT_CONFIG: CollectorConfig = {
   maxErrors: 1000,
   retentionHours: 24,
   maxErrorMessageLength: 500,
-  detailedToolCallLogging: false,
+  detailedToolCallLogging: true,
   maxDetailSizeBytes: 100 * 1024, // 100KB
 }
 
@@ -43,8 +43,8 @@ export class TelemetryCollector {
   private readonly dependencyUsage: Map<string, DependencyUsage>
   private readonly sessionToolCalls: Map<string, Set<string>>
   private readonly sessionErrors: Map<string, Set<string>>
+  private readonly sessionIdsByKey: Map<string, string>
   private serverStartTime: Date
-  private currentSessionId: string | null = null
 
   constructor(config: Partial<CollectorConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config }
@@ -54,6 +54,7 @@ export class TelemetryCollector {
     this.dependencyUsage = new Map()
     this.sessionToolCalls = new Map()
     this.sessionErrors = new Map()
+    this.sessionIdsByKey = new Map()
     this.serverStartTime = new Date()
   }
 
@@ -90,14 +91,15 @@ export class TelemetryCollector {
    * @param transportMode - Transport mode for the session
    * @returns The current session
    */
-  getOrCreateSession(transportMode: TransportMode): Session {
+  getOrCreateSession(
+    transportMode: TransportMode,
+    sessionKey = 'default',
+  ): Session {
     const now = new Date().toISOString()
-
-    // Reuse existing session if still active
-    if (this.currentSessionId) {
-      const existing = this.sessions.get(this.currentSessionId)
+    const existingSessionId = this.sessionIdsByKey.get(sessionKey)
+    if (existingSessionId) {
+      const existing = this.sessions.get(existingSessionId)
       if (existing && existing.active) {
-        // Update last activity
         existing.lastActivityAt = now
         return existing
       }
@@ -118,7 +120,7 @@ export class TelemetryCollector {
     this.sessions.set(sessionId, session)
     this.sessionToolCalls.set(sessionId, new Set())
     this.sessionErrors.set(sessionId, new Set())
-    this.currentSessionId = sessionId
+    this.sessionIdsByKey.set(sessionKey, sessionId)
 
     // Enforce session limit
     this.enforceSessionLimit()
@@ -132,8 +134,13 @@ export class TelemetryCollector {
    * @param args - Tool arguments (optionally stored if detailed logging enabled)
    * @returns The tool call ID
    */
-  startToolCall(toolName: string, args: unknown): string {
-    const session = this.getOrCreateSession('content-length') // Default mode
+  startToolCall(
+    toolName: string,
+    args: unknown,
+    sessionKey = 'default',
+    transportMode: TransportMode = 'content-length',
+  ): string {
+    const session = this.getOrCreateSession(transportMode, sessionKey)
     const toolCallId = randomUUID()
     const now = new Date().toISOString()
 
@@ -152,11 +159,32 @@ export class TelemetryCollector {
 
     this.toolCalls.set(toolCallId, toolCall)
     this.sessionToolCalls.get(session.id)?.add(toolCallId)
+    session.requestCount++
+    session.lastActivityAt = now
 
     // Enforce tool call limit
     this.enforceToolCallLimit()
 
     return toolCallId
+  }
+
+  /**
+   * Marks a session inactive by its key when a connection ends
+   * @param sessionKey - Stable key used to map a connection to a session
+   */
+  deactivateSession(sessionKey = 'default'): void {
+    const sessionId = this.sessionIdsByKey.get(sessionKey)
+    if (!sessionId) {
+      return
+    }
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      this.sessionIdsByKey.delete(sessionKey)
+      return
+    }
+    session.active = false
+    session.lastActivityAt = new Date().toISOString()
+    this.sessionIdsByKey.delete(sessionKey)
   }
 
   /**
@@ -431,6 +459,11 @@ export class TelemetryCollector {
    */
   private removeSession(sessionId: string): void {
     this.sessions.delete(sessionId)
+    for (const [key, id] of this.sessionIdsByKey.entries()) {
+      if (id === sessionId) {
+        this.sessionIdsByKey.delete(key)
+      }
+    }
 
     // Remove associated tool calls
     const callIds = this.sessionToolCalls.get(sessionId)

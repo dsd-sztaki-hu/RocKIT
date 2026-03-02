@@ -135,6 +135,31 @@ type RocrateMcpLaunchConfig = {
   command: string
   args: string[]
   env: Record<string, string>
+  socketPath?: string
+}
+
+function arraysEqual(a: string[] | undefined, b: string[] | undefined): boolean {
+  if (!a || !b || a.length !== b.length) {
+    return false
+  }
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) {
+      return false
+    }
+  }
+  return true
+}
+
+function toSerializableLaunchConfig(launchConfig: RocrateMcpLaunchConfig): {
+  command: string
+  args: string[]
+  env: Record<string, string>
+} {
+  return {
+    command: launchConfig.command,
+    args: launchConfig.args,
+    env: launchConfig.env,
+  }
 }
 
 @injectable()
@@ -242,30 +267,59 @@ export class ElectronNavigatorMenuContribution
 
   protected async openAgentForUri(uri: URI, agentId: string): Promise<void> {
     const directoryUri = await this.resolveDirectoryUri(uri)
-    const executable = sharedAvailableAgents.get(agentId)
-    if (!executable) return
-
-    const mcpReady = await this.ensureAgentMcpConfigured(agentId, directoryUri)
-    if (!mcpReady) return
-
-    await this.ensureAgentInstructionsFile(directoryUri, agentId)
     const cwd = FileUri.fsPath(directoryUri)
     const terminal = await this.terminalService.newTerminal({ cwd })
     this.terminalService.open(terminal, { mode: 'activate' })
     await terminal.start()
     await this.waitForTerminalOpen(terminal, 1000)
+    this.setAgentTerminalStatus(terminal, agentId, 'Preparing...')
+
+    const executable = sharedAvailableAgents.get(agentId)
+    if (!executable) {
+      this.setAgentTerminalStatus(terminal, agentId, 'Executable not found')
+      return
+    }
+
+    this.setAgentTerminalStatus(terminal, agentId, 'Checking MCP...')
+    const mcpReady = await this.ensureAgentMcpConfigured(agentId, directoryUri)
+    if (!mcpReady) {
+      this.setAgentTerminalStatus(terminal, agentId, 'MCP setup cancelled/failed')
+      return
+    }
+
+    this.setAgentTerminalStatus(terminal, agentId, 'Updating instructions...')
+    await this.ensureAgentInstructionsFile(directoryUri, agentId)
+
+    this.setAgentTerminalStatus(terminal, agentId, `Starting ${executable}...`)
     const launchArgs = this.buildAgentLaunchArgs(agentId, executable)
     try {
       await terminal.executeCommand({ cwd, args: launchArgs })
+      this.setAgentTerminalStatus(terminal, agentId, 'Running')
     } catch {
       terminal.sendText(`${executable}\n`)
+      this.setAgentTerminalStatus(terminal, agentId, 'Running')
     }
+  }
+
+  protected setAgentTerminalStatus(
+    terminal: TerminalWidget,
+    agentId: string,
+    status: string,
+  ): void {
+    const name = agentId.charAt(0).toUpperCase() + agentId.slice(1)
+    const label = `${name} - ${status}`
+    terminal.title.label = label
+    terminal.title.caption = label
   }
 
   protected buildAgentLaunchArgs(agentId: string, executable: string): string[] {
     // Qwen CLI rejects positional prompts; use its interactive prompt flag instead.
     if (agentId === 'qwen') {
       return [executable, '--prompt-interactive', 'Hi!']
+    }
+    // OpenCode treats positional args as paths/workspaces, not prompts.
+    if (agentId === 'opencode') {
+      return [executable]
     }
     return [executable, 'Hi!']
   }
@@ -349,6 +403,7 @@ export class ElectronNavigatorMenuContribution
       await new ConfirmDialog({ title: 'AROMA MCP Error', msg }).open()
       return false
     }
+    await this.ensureRocrateMcpDaemonRunning(cwd, launchConfig)
 
     if (agentId === 'claude') {
       return this.ensureClaudeMcpConfigured(directoryUri, launchConfig, cwd)
@@ -415,7 +470,11 @@ export class ElectronNavigatorMenuContribution
     if (spec.kind === 'toml') {
       return (
         content.includes(`command = "${launchConfig.command.replace(/\\/g, '\\\\')}"`) &&
-        content.includes(launchConfig.args[0].replace(/\\/g, '\\\\'))
+        content.includes(
+          `args = [${launchConfig.args
+            .map((arg) => `"${arg.replace(/\\/g, '\\\\')}"`)
+            .join(', ')}]`,
+        )
       )
     }
     try {
@@ -424,14 +483,13 @@ export class ElectronNavigatorMenuContribution
         const rocrate = parsed.mcp?.rocrate
         return (
           Array.isArray(rocrate?.command) &&
-          rocrate.command[0] === launchConfig.command &&
-          rocrate.command[1] === launchConfig.args[0]
+          arraysEqual(rocrate.command, [launchConfig.command, ...launchConfig.args])
         )
       }
       const rocrate = parsed.mcpServers?.rocrate
       return (
         rocrate?.command === launchConfig.command &&
-        rocrate?.args?.[0] === launchConfig.args[0]
+        arraysEqual(rocrate?.args, launchConfig.args)
       )
     } catch {
       return false
@@ -446,7 +504,7 @@ export class ElectronNavigatorMenuContribution
       return [
         '[mcp_servers.rocrate]',
         `command = "${launchConfig.command}"`,
-        `args = ["${launchConfig.args[0]}"]`,
+        `args = [${launchConfig.args.map((arg) => `"${arg}"`).join(', ')}]`,
         'startup_timeout_sec = 30',
         'env = { ROCRATE_MCP_DEFAULT_MODE = "local" }',
       ].join('\n')
@@ -458,7 +516,7 @@ export class ElectronNavigatorMenuContribution
             rocrate: {
               type: 'local',
               enabled: true,
-              command: [launchConfig.command, launchConfig.args[0]],
+              command: [launchConfig.command, ...launchConfig.args],
               environment: launchConfig.env,
             },
           },
@@ -467,7 +525,11 @@ export class ElectronNavigatorMenuContribution
         2,
       )
     }
-    return JSON.stringify({ mcpServers: { rocrate: launchConfig } }, null, 2)
+    return JSON.stringify(
+      { mcpServers: { rocrate: toSerializableLaunchConfig(launchConfig) } },
+      null,
+      2,
+    )
   }
 
   protected async resolveRocrateServerPath(): Promise<string> {
@@ -553,10 +615,57 @@ export class ElectronNavigatorMenuContribution
     const nodeCommand = await this.findExecutableAbsolutePath(['node'])
     if (!nodeCommand) throw new Error('Node not found in PATH.')
     const serverPath = await this.resolveRocrateServerPath()
+    const socketPath = this.resolveRocrateMcpSocketPath()
     return {
       command: nodeCommand,
-      args: [serverPath],
+      args: [serverPath, '--connect', socketPath],
       env: { ROCRATE_MCP_DEFAULT_MODE: 'local' },
+      socketPath,
+    }
+  }
+
+  protected resolveRocrateMcpSocketPath(): string {
+    const homeDirs = this.getHomeDirs()
+    const home = homeDirs.length > 0 ? homeDirs[0] : this.homeDirPath
+    if (isWindows) {
+      const user =
+        ((window as any).process?.env?.USERNAME as string | undefined) ?? 'user'
+      return `\\\\.\\pipe\\aroma-rocrate-mcp-${user}`
+    }
+    const base = home ? path.join(home, '.aroma') : path.join('/tmp', 'aroma')
+    return path.join(base, 'rocrate-mcp-server.sock')
+  }
+
+  protected async ensureRocrateMcpDaemonRunning(
+    cwd: string,
+    launchConfig: RocrateMcpLaunchConfig,
+  ): Promise<void> {
+    if (!launchConfig.socketPath || launchConfig.args.length === 0) {
+      return
+    }
+    const [serverPath] = launchConfig.args
+    const args = [
+      launchConfig.command,
+      serverPath,
+      '--ensure-daemon',
+      launchConfig.socketPath,
+    ]
+    try {
+      console.info('[agents-menu] rocrate.mcp.ensure-daemon.start', {
+        cwd,
+        command: launchConfig.command,
+        serverPath,
+        socketPath: launchConfig.socketPath,
+      })
+      await this.executeCommandArgs(cwd, args, 'rocrate.mcp.ensure-daemon')
+      console.info('[agents-menu] rocrate.mcp.ensure-daemon.dispatched', {
+        socketPath: launchConfig.socketPath,
+      })
+    } catch (error) {
+      console.warn('[agents-menu] rocrate.mcp.ensure-daemon.failed', {
+        socketPath: launchConfig.socketPath,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 
@@ -584,12 +693,15 @@ export class ElectronNavigatorMenuContribution
           rocrate: {
             type: 'local',
             enabled: true,
-            command: [launchConfig.command, launchConfig.args[0]],
+            command: [launchConfig.command, ...launchConfig.args],
             environment: launchConfig.env,
           },
         }
       } else {
-        json.mcpServers = { ...(json.mcpServers || {}), rocrate: launchConfig }
+        json.mcpServers = {
+          ...(json.mcpServers || {}),
+          rocrate: toSerializableLaunchConfig(launchConfig),
+        }
       }
       await this.fileService.write(configUri, JSON.stringify(json, null, 2))
     }
@@ -620,7 +732,7 @@ export class ElectronNavigatorMenuContribution
         '',
         `claude: ${claudeExecutable}`,
         `node: ${launchConfig.command}`,
-        `server: ${launchConfig.args[0]}`,
+        `server: ${launchConfig.args.join(' ')}`,
         '',
         'Add this configuration now?',
       ].join('\n'),
@@ -633,7 +745,7 @@ export class ElectronNavigatorMenuContribution
         cwd,
         claudeExecutable,
         nodeCommand: launchConfig.command,
-        serverPath: launchConfig.args[0],
+        serverPath: launchConfig.args.join(' '),
         payloadSize: payload.length,
       })
       if (!isWindows) {
@@ -691,7 +803,7 @@ export class ElectronNavigatorMenuContribution
         if (
           rocrate?.command === launchConfig.command &&
           Array.isArray(rocrate?.args) &&
-          rocrate.args[0] === launchConfig.args[0]
+          arraysEqual(rocrate.args, launchConfig.args)
         ) {
           return true
         }

@@ -4,11 +4,32 @@ MCP server for RO-Crate editing, validation, and profile-aware constraints.
 
 ## Transport vs mode
 
-- Transport: **stdio MCP server** (JSON-RPC over `Content-Length` framing).
+- Transports:
+  - **stdio server** (JSON-RPC over `Content-Length` framing)
+  - **UNIX socket daemon** (`--listen <socketPath>`) with stdio proxy clients
+    (`--connect <socketPath>`)
+  - one-shot daemon bootstrap (`--ensure-daemon <socketPath>`)
 - Compatibility: also accepts newline-delimited JSON-RPC (JSONL fallback).
 - Access mode (`mode` tool arg): **`local`** or **`remote`**.
 
 Important: `remote` is an RO-Crate data-access mode, **not** HTTP/SSE transport.
+
+### Recommended multi-agent topology
+
+For multiple agents (Codex/Claude/Gemini/Qwen/OpenCode), run one shared daemon
+and have each agent connect through proxy mode:
+
+1. Ensure daemon is running (idempotent):
+   ```bash
+   node /absolute/path/to/rocrate-mcp-server/lib/server.js --ensure-daemon /Users/<you>/.aroma/rocrate-mcp-server.sock
+   ```
+2. Configure each MCP client to launch:
+   ```bash
+   node /absolute/path/to/rocrate-mcp-server/lib/server.js --connect /Users/<you>/.aroma/rocrate-mcp-server.sock
+   ```
+
+This avoids one full server per agent process and keeps all telemetry in one
+dashboard instance.
 
 ## Tools
 
@@ -54,6 +75,11 @@ The RO-Crate MCP server includes a built-in web dashboard for real-time monitori
 
 By default, the dashboard starts automatically at `http://127.0.0.1:9393`. Open this URL in your browser to view the dashboard.
 
+Notes:
+- Sessions are connection-scoped: each active `--connect` client appears as a
+  separate dashboard session.
+- `Requests` is the per-session tool call count.
+
 ### Dashboard Environment Variables
 
 | Variable | Description | Default |
@@ -63,7 +89,7 @@ By default, the dashboard starts automatically at `http://127.0.0.1:9393`. Open 
 | `ROCRATE_DASHBOARD_PORT` | Dashboard port | `9393` |
 | `ROCRATE_DASHBOARD_AUTH_TOKEN` | Optional bearer token for authentication | (none) |
 | `ROCRATE_DASHBOARD_RETENTION_HOURS` | Data retention period | `24` |
-| `ROCRATE_DASHBOARD_DETAILED_LOGGING` | Store tool params/results | `false` |
+| `ROCRATE_DASHBOARD_DETAILED_LOGGING` | Store tool params/results | `true` |
 
 ### Dashboard API Endpoints
 
@@ -93,9 +119,9 @@ The dashboard uses bounded in-memory storage with automatic cleanup:
 
 ### Detailed Logging
 
-By default, tool call parameters and results are **not** stored to minimize memory usage. Enable detailed logging to inspect full request/response payloads:
+By default, tool call parameters and results are stored. Disable detailed logging if you need lower memory usage:
 
-1. Set `ROCRATE_DASHBOARD_DETAILED_LOGGING=true` before starting the server, or
+1. Set `ROCRATE_DASHBOARD_DETAILED_LOGGING=false` before starting the server, or
 2. Toggle it via the Settings modal in the dashboard UI
 
 With detailed logging enabled:
@@ -199,6 +225,27 @@ yarn workspace rocrate-mcp-server test
 yarn workspace rocrate-mcp-server start
 ```
 
+### Run modes
+
+Direct stdio server:
+
+```bash
+node /absolute/path/to/rocrate-mcp-server/lib/server.js
+```
+
+Shared daemon:
+
+```bash
+# Start daemon explicitly
+node /absolute/path/to/rocrate-mcp-server/lib/server.js --listen /Users/<you>/.aroma/rocrate-mcp-server.sock
+
+# Or start only if needed
+node /absolute/path/to/rocrate-mcp-server/lib/server.js --ensure-daemon /Users/<you>/.aroma/rocrate-mcp-server.sock
+
+# Per-agent proxy client
+node /absolute/path/to/rocrate-mcp-server/lib/server.js --connect /Users/<you>/.aroma/rocrate-mcp-server.sock
+```
+
 ## Environment variables
 
 ### Server Configuration
@@ -221,7 +268,7 @@ yarn workspace rocrate-mcp-server start
 - `ROCRATE_DASHBOARD_PORT`: Dashboard port (default: `9393`).
 - `ROCRATE_DASHBOARD_AUTH_TOKEN` (optional): Bearer token for dashboard authentication.
 - `ROCRATE_DASHBOARD_RETENTION_HOURS`: Data retention period in hours (default: `24`).
-- `ROCRATE_DASHBOARD_DETAILED_LOGGING`: Store tool params/results (default: `false`).
+- `ROCRATE_DASHBOARD_DETAILED_LOGGING`: Store tool params/results (default: `true`).
 
 ## MCP client configuration examples
 
@@ -232,10 +279,13 @@ Use absolute paths for both `command` and `args`.
 ```toml
 [mcp_servers.rocrate]
 command = "/absolute/path/to/node"
-args = ["/absolute/path/to/rocrate-mcp-server/lib/server.js"]
+args = ["/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"]
 startup_timeout_sec = 30
 env = { ROCRATE_MCP_DEFAULT_MODE = "local" }
 ```
+
+If you do not run a shared daemon, fallback to direct stdio by removing
+`--connect` and socket args.
 
 ### Claude Code
 
@@ -244,6 +294,9 @@ Prefer CLI-based setup:
 ```bash
 claude mcp add-json -s user rocrate '{"type":"stdio","command":"/absolute/path/to/node","args":["/absolute/path/to/rocrate-mcp-server/lib/server.js"],"env":{"ROCRATE_MCP_DEFAULT_MODE":"local"}}'
 ```
+
+For shared daemon mode, set args to:
+`["/absolute/path/to/rocrate-mcp-server/lib/server.js","--connect","/Users/<you>/.aroma/rocrate-mcp-server.sock"]`
 
 Then verify:
 
@@ -260,7 +313,7 @@ Gemini CLI uses `mcpServers` in settings JSON (user-level `~/.gemini/settings.js
   "mcpServers": {
     "rocrate": {
       "command": "/absolute/path/to/node",
-      "args": ["/absolute/path/to/rocrate-mcp-server/lib/server.js"],
+      "args": ["/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"],
       "env": {
         "ROCRATE_MCP_DEFAULT_MODE": "local"
       }
@@ -278,7 +331,7 @@ Qwen Code can use the same `mcpServers` JSON shape as Gemini-style clients.
   "mcpServers": {
     "rocrate": {
       "command": "/absolute/path/to/node",
-      "args": ["/absolute/path/to/rocrate-mcp-server/lib/server.js"],
+      "args": ["/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"],
       "env": {
         "ROCRATE_MCP_DEFAULT_MODE": "local"
       }
@@ -297,7 +350,7 @@ OpenCode expects `mcp` (not `mcpServers`):
     "rocrate": {
       "type": "local",
       "enabled": true,
-      "command": ["/absolute/path/to/node", "/absolute/path/to/rocrate-mcp-server/lib/server.js"],
+      "command": ["/absolute/path/to/node", "/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"],
       "environment": {
         "ROCRATE_MCP_DEFAULT_MODE": "local"
       }
