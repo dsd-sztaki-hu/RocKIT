@@ -19,6 +19,15 @@
   height: 100%;
 }
 
+.entities-overview-top-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px 12px 0;
+  gap: 6px;
+  background: var(--theia-sideBar-background);
+}
+
 .entities-overview-filters {
   display: flex;
   flex-direction: column;
