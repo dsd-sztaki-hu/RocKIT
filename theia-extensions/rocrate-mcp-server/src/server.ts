@@ -21,6 +21,23 @@ import type { RoCrate, RoCrateChangeSet, RoCrateEntity } from './core/types'
 import { getGlobalCollector } from './dashboard/collector'
 import { startDashboardIfNeeded } from './dashboard/http-server'
 
+/**
+ * rocrate-mcp-server architecture (single-file entrypoint)
+ *
+ * This file is intentionally self-contained. It wires together:
+ * 1. JSON-RPC/MCP transport handling (stdio or socket proxy/daemon)
+ * 2. Tool parameter parsing and response shaping
+ * 3. RO-Crate read/write/change operations via ./core
+ * 4. Profile-aware validation and @context reconciliation
+ * 5. External service integrations (Tavily and Dataverse)
+ * 6. Optional in-process telemetry dashboard
+ *
+ * High-level flow:
+ * transport input -> parse JSON-RPC request -> handleRequest ->
+ * tools/call -> handleToolCall -> run* tool implementation ->
+ * write JSON-RPC result/error
+ */
+
 type JsonRpcId = string | number | null
 
 type JsonRpcRequest = {
@@ -708,6 +725,10 @@ function getTelemetryCollector() {
   }
 }
 
+/**
+ * Finds the end of an MCP Content-Length header block.
+ * Supports both CRLF and LF-only separators for compatibility.
+ */
 function findHeaderTerminator(
   buffer: Buffer,
 ): { index: number; size: number } | undefined {
@@ -729,6 +750,9 @@ function findHeaderTerminator(
   return undefined
 }
 
+/**
+ * Writes a JSON-RPC message in the requested framing mode.
+ */
 function writeMessage(
   mode: TransportMode,
   message: JsonRpcSuccess | JsonRpcFailure,
@@ -744,6 +768,9 @@ function writeMessage(
   output.write(Buffer.concat([header, payload]))
 }
 
+/**
+ * Writes a JSON-RPC success response.
+ */
 function writeResult(
   mode: TransportMode,
   id: JsonRpcId,
@@ -753,6 +780,9 @@ function writeResult(
   writeMessage(mode, { jsonrpc: '2.0', id, result }, output)
 }
 
+/**
+ * Writes a JSON-RPC error response.
+ */
 function writeError(
   mode: TransportMode,
   id: JsonRpcId,
@@ -768,6 +798,9 @@ function writeError(
   }, output)
 }
 
+/**
+ * Safely coerces unknown values to object records.
+ */
 function asRecord(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>
@@ -775,6 +808,9 @@ function asRecord(value: unknown): Record<string, unknown> {
   return {}
 }
 
+/**
+ * Wraps payloads into MCP text content result shape.
+ */
 function textResult(payload: unknown): {
   content: Array<{ type: 'text'; text: string }>
 } {
@@ -783,6 +819,9 @@ function textResult(payload: unknown): {
   }
 }
 
+/**
+ * Resolves crate path, accepting either metadata file path or dataset directory.
+ */
 function ensureCratePath(inputPath?: unknown): string {
   if (typeof inputPath === 'string' && inputPath.trim() !== '') {
     const resolved = path.resolve(inputPath)
@@ -800,6 +839,9 @@ function ensureCratePath(inputPath?: unknown): string {
   return resolveCratePath()
 }
 
+/**
+ * Resolves data access mode from request params or environment default.
+ */
 function parseAccessMode(params: Record<string, unknown>): AccessMode {
   if (params.mode === 'remote') {
     return 'remote'
@@ -810,6 +852,9 @@ function parseAccessMode(params: Record<string, unknown>): AccessMode {
   return process.env.ROCRATE_MCP_DEFAULT_MODE === 'remote' ? 'remote' : 'local'
 }
 
+/**
+ * Resolves summary/full response mode for tools that support heavy payloads.
+ */
 function parseResponseMode(
   params: Record<string, unknown>,
   defaultMode: ResponseMode = 'summary',
@@ -1051,6 +1096,11 @@ function asRoCrate(value: unknown): RoCrate {
   return normalizeCrate(value as RoCrate)
 }
 
+/**
+ * Loads crate source based on mode:
+ * - remote: from params.crate
+ * - local: from disk at cratePath / default resolver
+ */
 function loadCrateFromParams(params: Record<string, unknown>): {
   mode: AccessMode
   crate: RoCrate
@@ -1104,6 +1154,9 @@ function normalizeUpdateEntityAliasEntry(
   return unset && unset.length > 0 ? { '@id': id, unset } : { '@id': id }
 }
 
+/**
+ * Canonicalizes multiple user alias forms into a strict RoCrateChangeSet.
+ */
 function normalizeChangeSet(input: unknown): RoCrateChangeSet {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new Error('apply_changes requires changeSet object.')
@@ -1163,6 +1216,9 @@ function normalizeChangeSet(input: unknown): RoCrateChangeSet {
   return normalized as RoCrateChangeSet
 }
 
+/**
+ * Locates the descriptor node for ro-crate-metadata.json in @graph.
+ */
 function pickMetadataDescriptor(crate: RoCrate): RoCrateEntity | undefined {
   const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
   return graph.find((entity) => {
@@ -1177,6 +1233,9 @@ function pickMetadataDescriptor(crate: RoCrate): RoCrateEntity | undefined {
   })
 }
 
+/**
+ * Normalizes entity @type to a plain string array.
+ */
 function entityTypes(entity: RoCrateEntity): string[] {
   const raw = entity['@type']
   if (typeof raw === 'string') {
@@ -1188,6 +1247,9 @@ function entityTypes(entity: RoCrateEntity): string[] {
   return []
 }
 
+/**
+ * Extracts profile URLs from any valid conformsTo representation.
+ */
 function extractConformsToUrls(value: unknown): string[] {
   if (!value) {
     return []
@@ -1206,6 +1268,9 @@ function extractConformsToUrls(value: unknown): string[] {
   return []
 }
 
+/**
+ * De-duplicates strings while preserving insertion order.
+ */
 function uniqueStrings(values: string[]): string[] {
   const seen = new Set<string>()
   const ordered: string[] = []
@@ -1218,6 +1283,9 @@ function uniqueStrings(values: string[]): string[] {
   return ordered
 }
 
+/**
+ * Reads and sanitizes list-like profile URL params.
+ */
 function readProfileUrlList(value: unknown): string[] {
   const urls: string[] = []
   if (!Array.isArray(value)) {
@@ -1235,6 +1303,9 @@ function readProfileUrlList(value: unknown): string[] {
   return uniqueStrings(urls)
 }
 
+/**
+ * Parses add/remove/set operations for profile conformsTo updates.
+ */
 function readProfileConformsToUpdateOps(params: Record<string, unknown>): {
   add: string[]
   remove: string[]
@@ -1253,6 +1324,9 @@ function readProfileConformsToUpdateOps(params: Record<string, unknown>): {
   return { add, remove, set }
 }
 
+/**
+ * Applies conformsTo profile URL updates to one target Dataset/File entity.
+ */
 function updateProfileConformsTo(
   crate: RoCrate,
   entityId: string,
@@ -1301,6 +1375,9 @@ function updateProfileConformsTo(
   return { previousUrls, addedUrls, removedUrls, finalUrls }
 }
 
+/**
+ * Collects all declared profile URLs from Dataset/File entities.
+ */
 function collectProfileUrls(crate: RoCrate): string[] {
   const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
   const urls: string[] = []
@@ -1317,6 +1394,9 @@ function collectProfileUrls(crate: RoCrate): string[] {
   return uniqueStrings(urls.filter((url) => url !== ROCRATE_CONFORMS_TO_URL))
 }
 
+/**
+ * Builds reverse index: profile URL -> entity IDs declaring that profile.
+ */
 function collectProfileTargetsByUrl(crate: RoCrate): Record<string, string[]> {
   const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
   const targets = new Map<string, string[]>()
@@ -1348,6 +1428,9 @@ function collectProfileTargetsByUrl(crate: RoCrate): Record<string, string[]> {
   )
 }
 
+/**
+ * Resolves base aroma directory for schema index/profile artifacts.
+ */
 function resolveAromaRootPath(): string {
   const configuredRoot = process.env.AROMA_ROOT_PATH
   if (configuredRoot && configuredRoot.trim() !== '') {
@@ -1356,6 +1439,9 @@ function resolveAromaRootPath(): string {
   return path.join(os.homedir(), '.aroma')
 }
 
+/**
+ * Resolves schema index file location from env overrides/defaults.
+ */
 function resolveSchemaIndexPath(): { rootPath: string; indexPath: string } {
   const rootPath = resolveAromaRootPath()
   const configuredIndex = process.env.AROMA_METADATA_SCHEMA_INDEX_FILE
@@ -1368,6 +1454,9 @@ function resolveSchemaIndexPath(): { rootPath: string; indexPath: string } {
   return { rootPath, indexPath: path.join(rootPath, configuredIndex) }
 }
 
+/**
+ * Coerces unknown payload to schema-index shape.
+ */
 function asSchemaIndex(value: unknown): SchemaIndexDocument {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return { profiles: [], conformsToIndex: {} }
@@ -1396,6 +1485,9 @@ function asSchemaIndex(value: unknown): SchemaIndexDocument {
   }
 }
 
+/**
+ * Parses optional map of in-memory profile payloads for remote mode.
+ */
 function parseProfileContentsMap(
   value: unknown,
 ): Record<string, Record<string, unknown>> | undefined {
@@ -1412,6 +1504,9 @@ function parseProfileContentsMap(
   return Object.keys(map).length > 0 ? map : undefined
 }
 
+/**
+ * Parses reusable profile context ID parameter.
+ */
 function parseProfileContextId(value: unknown): string | undefined {
   if (typeof value !== 'string') {
     return undefined
@@ -1420,6 +1515,9 @@ function parseProfileContextId(value: unknown): string | undefined {
   return trimmed === '' ? undefined : trimmed
 }
 
+/**
+ * Bounds profile-context cache TTL to safe server-side limits.
+ */
 function parseTtlSec(value: unknown): number {
   const defaultTtl = DEFAULT_PROFILE_CONTEXT_TTL_SEC
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -1428,6 +1526,9 @@ function parseTtlSec(value: unknown): number {
   return Math.max(60, Math.min(86400, Math.floor(value)))
 }
 
+/**
+ * Removes expired profile-context cache entries.
+ */
 function pruneExpiredProfileContexts(now = Date.now()): void {
   for (const [id, record] of profileContextStore.entries()) {
     if (new Date(record.expiresAt).getTime() <= now) {
@@ -1436,6 +1537,9 @@ function pruneExpiredProfileContexts(now = Date.now()): void {
   }
 }
 
+/**
+ * Returns compact metadata for a cached profile context.
+ */
 function summarizeProfileContext(record: ProfileContextRecord): Record<string, unknown> {
   return {
     profileContextId: record.id,
@@ -1451,6 +1555,9 @@ function summarizeProfileContext(record: ProfileContextRecord): Record<string, u
   }
 }
 
+/**
+ * Fetches cached profile context or throws if missing/expired.
+ */
 function getProfileContextOrThrow(profileContextId: string): ProfileContextRecord {
   pruneExpiredProfileContexts()
   const record = profileContextStore.get(profileContextId)
@@ -1460,6 +1567,9 @@ function getProfileContextOrThrow(profileContextId: string): ProfileContextRecor
   return record
 }
 
+/**
+ * Stores (or refreshes) a cached profile context for remote tool calls.
+ */
 function storeProfileContext(
   payload: {
     profileUrls: string[]
@@ -1510,6 +1620,9 @@ function storeProfileContext(
   return record
 }
 
+/**
+ * Collects profile resolution inputs from params and optional cached context.
+ */
 function parseProfileResolutionInputs(
   params: Record<string, unknown>,
 ): ProfileResolutionInputs {
@@ -1535,6 +1648,9 @@ function parseProfileResolutionInputs(
   return inputs
 }
 
+/**
+ * Parses required-field enforcement mode for profile validation.
+ */
 function parseProfileRequiredMode(
   params: Record<string, unknown>,
   defaultMode: ProfileRequiredMode,
@@ -1544,6 +1660,9 @@ function parseProfileRequiredMode(
     : defaultMode
 }
 
+/**
+ * Parses @context reconciliation mode used during apply_changes.
+ */
 function parseContextMode(
   params: Record<string, unknown>,
   defaultMode: ContextMode = 'auto_reconcile',
@@ -1560,6 +1679,9 @@ function parseContextMode(
   return defaultMode
 }
 
+/**
+ * Loads schema index from disk with resilient empty-index fallback.
+ */
 function loadSchemaIndexFromDisk(): {
   index: SchemaIndexDocument
   indexPath: string
@@ -1644,6 +1766,9 @@ function loadConvertedProfile(
   }
 }
 
+/**
+ * Resolves profile URLs into loaded profile documents and diagnostics.
+ */
 function resolveProfileUrls(
   profileUrls: string[],
   mode: AccessMode,
@@ -1854,6 +1979,9 @@ function extractRequiredPropertiesFromClass(profileClass: unknown): Set<string> 
   return required
 }
 
+/**
+ * Builds the merged profile rule matrix from all active resolved profiles.
+ */
 function buildProfileConstraints(
   crate: RoCrate,
   mode: AccessMode,
@@ -1963,6 +2091,9 @@ function getBestNameCandidate(entity: RoCrateEntity): string | undefined {
   return undefined
 }
 
+/**
+ * Validates crate graph against profile rule matrix and required-field policy.
+ */
 function validateCrateAgainstProfileConstraints(
   crate: RoCrate,
   constraints: ProfileConstraints,
@@ -2181,6 +2312,9 @@ function collectDeclaredContextTerms(crate: RoCrate): Set<string> {
   return declared
 }
 
+/**
+ * Collects non-JSON-LD terms used by entities in @graph.
+ */
 function collectUsedGraphTerms(crate: RoCrate): Set<string> {
   const used = new Set<string>()
   const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
@@ -2197,6 +2331,9 @@ function collectUsedGraphTerms(crate: RoCrate): Set<string> {
   return used
 }
 
+/**
+ * Builds term -> IRI mapping candidates from loaded profile input definitions.
+ */
 function collectProfileTermIriResolution(
   constraints: ProfileConstraints,
 ): ProfileTermIriResolution {
@@ -2264,6 +2401,9 @@ function collectProfileTermIriResolution(
   }
 }
 
+/**
+ * Reads explicit term mappings declared in @context.
+ */
 function collectDeclaredContextMappings(crate: RoCrate): Record<string, string> {
   const mappings: Record<string, string> = {}
   const context = crate['@context']
@@ -2287,6 +2427,9 @@ function collectDeclaredContextMappings(crate: RoCrate): Record<string, string> 
   return mappings
 }
 
+/**
+ * Applies mergeContext update through core applyChangeSet helper.
+ */
 function applyContextUpdate(
   crate: RoCrate,
   contextUpdate: Record<string, string>,
@@ -2297,6 +2440,9 @@ function applyContextUpdate(
   return applyChangeSet(crate, { mergeContext: contextUpdate })
 }
 
+/**
+ * Applies selected context auto-patch mode and reports what changed/skipped.
+ */
 function applyContextModePatch(
   crate: RoCrate,
   constraints: ProfileConstraints,
@@ -2352,6 +2498,9 @@ function applyContextModePatch(
   return { crate: applyContextUpdate(crate, contextUpdate), report }
 }
 
+/**
+ * Suggests missing context mappings for terms currently used in @graph.
+ */
 function buildContextTermSuggestion(
   crate: RoCrate,
   constraints?: ProfileConstraints,
@@ -2490,6 +2639,9 @@ function detectProfileChangeTargets(
   return Array.from(targets).sort((a, b) => a.localeCompare(b))
 }
 
+/**
+ * Validates profile conformance and throws on failures in enforcing modes.
+ */
 function ensureProfileConformanceOrThrow(
   crate: RoCrate,
   mode: AccessMode,
@@ -2515,6 +2667,9 @@ function ensureProfileConformanceOrThrow(
   return constraints
 }
 
+/**
+ * Builds context summary payload consumed by get_rocrate_context tool.
+ */
 function buildRoCrateContext(
   crate: RoCrate,
   mode: AccessMode,
@@ -3342,6 +3497,9 @@ function buildDataverseUploadZip(
   return createStoredZip(entries)
 }
 
+/**
+ * Parses and validates upload_rocrate_to_dataverse tool parameters.
+ */
 function parseDataverseUploadParams(
   params: Record<string, unknown>,
 ): DataverseUploadParams {
@@ -3507,6 +3665,9 @@ function extractDataverseValidationMessages(payload: unknown): string[] {
   return uniqueStrings(messages.filter((item) => item.trim() !== ''))
 }
 
+/**
+ * Performs Dataverse-side strict preflight validation for a crate payload.
+ */
 async function validateRoCrateViaDataverse(
   crate: RoCrate,
   baseUrl: string,
@@ -3551,6 +3712,9 @@ async function validateRoCrateViaDataverse(
   }
 }
 
+/**
+ * Upload entry point with create/update guardrails and strict preflight gates.
+ */
 async function runDataverseUpload(
   params: DataverseUploadParams,
 ): Promise<Record<string, unknown>> {
@@ -3704,6 +3868,9 @@ async function runDataverseUpload(
   }
 }
 
+/**
+ * Downloads RO-Crate JSON from Dataverse ARP endpoint.
+ */
 async function runDataverseDownload(
   params: DataverseDownloadParams,
 ): Promise<Record<string, unknown>> {
@@ -3819,6 +3986,9 @@ function summarizeDataverseDownloadPayload(
   }
 }
 
+/**
+ * Fetches one URL and returns either raw HTML or extracted plain text.
+ */
 async function runDownloadUrl(params: DownloadUrlParams): Promise<unknown> {
   const response = await fetchTextWithTimeout(params.url, params.timeoutMs)
   if (!response.ok) {
@@ -3840,6 +4010,9 @@ async function runDownloadUrl(params: DownloadUrlParams): Promise<unknown> {
   }
 }
 
+/**
+ * Main tools/call dispatcher: parse params, execute tool, emit telemetry.
+ */
 async function handleToolCall(
   toolName: string,
   params: Record<string, unknown>,
@@ -4364,6 +4537,9 @@ async function handleToolCall(
   }
 }
 
+/**
+ * Main JSON-RPC request router for MCP methods.
+ */
 async function handleRequest(
   request: JsonRpcRequest,
   mode: TransportMode,
@@ -4441,6 +4617,9 @@ async function handleRequest(
   }
 }
 
+/**
+ * Parses a JSON-RPC request object from raw string payload.
+ */
 function parseJsonMessage(payload: string): JsonRpcRequest | undefined {
   const trimmed = payload.trim()
   if (trimmed === '') {
@@ -4457,6 +4636,9 @@ function parseJsonMessage(payload: string): JsonRpcRequest | undefined {
   return candidate
 }
 
+/**
+ * Runs one transport instance over provided input/output streams.
+ */
 function startTransportServer(
   input: NodeJS.ReadableStream,
   output: NodeJS.WritableStream,
@@ -4558,6 +4740,9 @@ function startTransportServer(
   input.on('error', closeSession)
 }
 
+/**
+ * Extracts socket path value for daemon/proxy CLI flags.
+ */
 function parseSocketPathFromArgs(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag)
   if (index < 0) {
@@ -4574,6 +4759,9 @@ function isWindowsNamedPipe(socketPath: string): boolean {
   return process.platform === 'win32' && socketPath.startsWith('\\\\.\\pipe\\')
 }
 
+/**
+ * Starts daemon if not already running and waits for socket readiness.
+ */
 function ensureDaemon(socketPath: string): Promise<void> {
   const tryConnect = (): Promise<boolean> =>
     new Promise((resolve) => {
@@ -4615,6 +4803,9 @@ function ensureDaemon(socketPath: string): Promise<void> {
   })()
 }
 
+/**
+ * Starts shared socket daemon serving multiple proxy clients.
+ */
 function startSocketDaemon(socketPath: string): void {
   if (!isWindowsNamedPipe(socketPath)) {
     const parent = path.dirname(socketPath)
@@ -4643,6 +4834,9 @@ function startSocketDaemon(socketPath: string): void {
   })
 }
 
+/**
+ * Connects stdio client process to an existing socket daemon.
+ */
 function startSocketProxy(socketPath: string): void {
   const socket = net.createConnection(socketPath, () => {
     process.stdin.pipe(socket)
@@ -4656,6 +4850,10 @@ function startSocketProxy(socketPath: string): void {
   })
 }
 
+/**
+ * Process entry-point mode switch:
+ * --ensure-daemon | --listen | --connect | default stdio transport.
+ */
 async function startServer(): Promise<void> {
   const args = process.argv.slice(2)
   const ensureSocketPath = parseSocketPathFromArgs(args, '--ensure-daemon')
