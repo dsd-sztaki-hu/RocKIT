@@ -65,7 +65,7 @@ export async function validateEntities(crate: Record<string, any>, baseProfile: 
         if (matchingSchema) {
           const convertedContent =
             await schemaManagerService.getConvertedProfileContent(
-              matchingSchema.path,
+              matchingSchema.files.convertedPath,
             )
           if (convertedContent) {
             const mergedProfile = await schemaManagerService.getMergedProfile(

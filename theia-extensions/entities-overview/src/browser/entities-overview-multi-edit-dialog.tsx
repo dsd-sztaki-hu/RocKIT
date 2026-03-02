@@ -1532,7 +1532,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
     for (const schema of schemas) {
       const conformsTo = schema.conformsTo?.trim()
-      const reference = schema.reference?.trim()
+      const reference = schema.aux?.reference?.trim()
       if (reference && conformsTo) {
         lookup.set(reference, conformsTo)
       }
