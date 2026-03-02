@@ -1,6 +1,7 @@
 import { MenuPath } from '@theia/core'
 import {
   ApplicationShell,
+  CompositeTreeNode,
   ContextMenuRenderer,
   NodeProps,
   TreeModel,
@@ -328,6 +329,18 @@ export class EntitiesOverviewWidget extends TreeWidget {
     this.filtersVisible = !this.filtersVisible
     this.syncFiltersVisibleBodyClass()
     this.update()
+  }
+
+  async collapseAllEntityNodes(): Promise<void> {
+    const root = this.model.root
+    if (!root || !CompositeTreeNode.is(root)) {
+      return
+    }
+    for (const child of root.children) {
+      if (ExampleTreeNode.is(child)) {
+        await this.model.collapseAll(child)
+      }
+    }
   }
 
   protected syncFiltersVisibleBodyClass(): void {

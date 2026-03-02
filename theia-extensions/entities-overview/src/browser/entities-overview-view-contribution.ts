@@ -18,6 +18,11 @@ export const ToggleEntitiesOverviewFilters: Command = {
   iconClass: codicon('search'),
 }
 
+export const CollapseAllEntitiesOverviewNodes: Command = {
+  id: 'entities-overview:collapse-all',
+  iconClass: codicon('collapse-all'),
+}
+
 /** Definition of a command to add a new child (to demonstrate context menus) */
 /*export const EntitiesOverviewTreeAddItem: Command = {
   id: 'theia-examples:treeview-example-tree-add-item-command-id',
@@ -89,14 +94,28 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
       isVisible: (widget) => this.withWidget(widget, () => true) || false,
       isToggled: () => false,
     })
+
+    commands.registerCommand(CollapseAllEntitiesOverviewNodes, {
+      execute: (widget) =>
+        this.withWidget(widget, async (view) => view.collapseAllEntityNodes()),
+      isEnabled: (widget) => this.withWidget(widget, () => true) || false,
+      isVisible: (widget) => this.withWidget(widget, () => true) || false,
+    })
   }
 
   async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
     toolbarRegistry.registerItem({
+      id: CollapseAllEntitiesOverviewNodes.id,
+      command: CollapseAllEntitiesOverviewNodes.id,
+      tooltip: 'Collapse All',
+      priority: 0,
+    })
+
+    toolbarRegistry.registerItem({
       id: ToggleEntitiesOverviewFilters.id,
       command: ToggleEntitiesOverviewFilters.id,
       tooltip: 'Show/Hide Filters',
-      priority: 0,
+      priority: 1,
     })
   }
 

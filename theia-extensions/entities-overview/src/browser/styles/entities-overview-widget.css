@@ -411,22 +411,25 @@ body.vs .entities-overview-type-select .ant-select-selection-item-remove {
   padding-top: 10px;
 }
 
-.lm-TabBar-toolbar .item > [id="entities-overview:toggle-filters"] {
+.lm-TabBar-toolbar .item > [id="entities-overview:toggle-filters"],
+.lm-TabBar-toolbar .item > [id="entities-overview:collapse-all"] {
   background-color: transparent !important;
   border-radius: 4px;
   width: calc(var(--theia-icon-size) + 4px);
   height: calc(var(--theia-icon-size) + 4px);
-  padding: 0;
-  margin: 1px 0;
+  padding: 2px;
+  margin: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  line-height: 1;
+  line-height: var(--theia-icon-size);
+  vertical-align: middle;
   box-shadow: none !important;
   outline: none;
 }
 
-.lm-TabBar-toolbar .item > [id="entities-overview:toggle-filters"]:hover {
+.lm-TabBar-toolbar .item > [id="entities-overview:toggle-filters"]:hover,
+.lm-TabBar-toolbar .item > [id="entities-overview:collapse-all"]:hover {
   background-color: transparent !important;
 }
 
