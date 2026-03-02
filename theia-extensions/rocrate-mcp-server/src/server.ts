@@ -6,6 +6,11 @@ import * as fs from 'node:fs'
 import * as net from 'node:net'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { PassThrough } from 'node:stream'
+import type { Readable, Writable } from 'node:stream'
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import {
   applyChangeSet,
   computeDelta,
@@ -25,7 +30,7 @@ import { startDashboardIfNeeded } from './dashboard/http-server'
  * rocrate-mcp-server architecture (single-file entrypoint)
  *
  * This file is intentionally self-contained. It wires together:
- * 1. JSON-RPC/MCP transport handling (stdio or socket proxy/daemon)
+ * 1. MCP transport handling via @modelcontextprotocol/sdk (stdio or socket proxy/daemon)
  * 2. Tool parameter parsing and response shaping
  * 3. RO-Crate read/write/change operations via ./core
  * 4. Profile-aware validation and @context reconciliation
@@ -33,35 +38,9 @@ import { startDashboardIfNeeded } from './dashboard/http-server'
  * 6. Optional in-process telemetry dashboard
  *
  * High-level flow:
- * transport input -> parse JSON-RPC request -> handleRequest ->
- * tools/call -> handleToolCall -> run* tool implementation ->
- * write JSON-RPC result/error
+ * MCP transport -> SDK request handlers -> handleToolCall ->
+ * run* tool implementation -> structured MCP tool result
  */
-
-type JsonRpcId = string | number | null
-
-type JsonRpcRequest = {
-  jsonrpc: '2.0'
-  id?: JsonRpcId
-  method: string
-  params?: unknown
-}
-
-type JsonRpcSuccess = {
-  jsonrpc: '2.0'
-  id: JsonRpcId
-  result: unknown
-}
-
-type JsonRpcFailure = {
-  jsonrpc: '2.0'
-  id: JsonRpcId
-  error: {
-    code: number
-    message: string
-    data?: unknown
-  }
-}
 
 type ToolDefinition = {
   name: string
@@ -235,6 +214,10 @@ type DownloadUrlParams = {
   maxChars: number
 }
 
+type McpToolTextResult = {
+  content: Array<{ type: 'text'; text: string }>
+}
+
 type DataverseUploadParams = {
   mode: AccessMode
   cratePath?: string
@@ -262,7 +245,6 @@ type DataverseDownloadParams = {
   indent: number
 }
 
-const PROTOCOL_VERSION = '2025-03-26'
 const ROCRATE_CONFORMS_TO_URL = 'https://w3id.org/ro/crate/1.1'
 const DEFAULT_SCHEMA_INDEX_FILENAME = 'metadata-schema-index.json'
 const DEFAULT_PROFILE_CONTEXT_TTL_SEC = 3600
@@ -317,6 +299,7 @@ const DEFAULT_CONTEXT_KNOWN_TERMS = new Set<string>([
   'version',
 ])
 const profileContextStore = new Map<string, ProfileContextRecord>()
+let dashboardStartAttempted = false
 
 const tools: ToolDefinition[] = [
   {
@@ -726,79 +709,6 @@ function getTelemetryCollector() {
 }
 
 /**
- * Finds the end of an MCP Content-Length header block.
- * Supports both CRLF and LF-only separators for compatibility.
- */
-function findHeaderTerminator(
-  buffer: Buffer,
-): { index: number; size: number } | undefined {
-  for (let i = 0; i <= buffer.length - 4; i += 1) {
-    if (
-      buffer[i] === 13 &&
-      buffer[i + 1] === 10 &&
-      buffer[i + 2] === 13 &&
-      buffer[i + 3] === 10
-    ) {
-      return { index: i, size: 4 }
-    }
-  }
-  for (let i = 0; i <= buffer.length - 2; i += 1) {
-    if (buffer[i] === 10 && buffer[i + 1] === 10) {
-      return { index: i, size: 2 }
-    }
-  }
-  return undefined
-}
-
-/**
- * Writes a JSON-RPC message in the requested framing mode.
- */
-function writeMessage(
-  mode: TransportMode,
-  message: JsonRpcSuccess | JsonRpcFailure,
-  output: NodeJS.WritableStream = process.stdout,
-): void {
-  const body = JSON.stringify(message)
-  if (mode === 'jsonl') {
-    output.write(`${body}\n`)
-    return
-  }
-  const payload = Buffer.from(body, 'utf8')
-  const header = Buffer.from(`Content-Length: ${payload.length}\r\n\r\n`, 'utf8')
-  output.write(Buffer.concat([header, payload]))
-}
-
-/**
- * Writes a JSON-RPC success response.
- */
-function writeResult(
-  mode: TransportMode,
-  id: JsonRpcId,
-  result: unknown,
-  output: NodeJS.WritableStream = process.stdout,
-): void {
-  writeMessage(mode, { jsonrpc: '2.0', id, result }, output)
-}
-
-/**
- * Writes a JSON-RPC error response.
- */
-function writeError(
-  mode: TransportMode,
-  id: JsonRpcId,
-  code: number,
-  message: string,
-  data?: unknown,
-  output: NodeJS.WritableStream = process.stdout,
-): void {
-  writeMessage(mode, {
-    jsonrpc: '2.0',
-    id,
-    error: { code, message, data },
-  }, output)
-}
-
-/**
  * Safely coerces unknown values to object records.
  */
 function asRecord(value: unknown): Record<string, unknown> {
@@ -817,6 +727,83 @@ function textResult(payload: unknown): {
   return {
     content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
   }
+}
+
+/**
+ * Converts legacy newline-delimited JSON-RPC framing to Content-Length framing
+ * for SDK stdio transport, while passing already-framed traffic through.
+ */
+function createSdkInputStream(input: Readable): Readable {
+  const normalized = new PassThrough()
+  let buffer = Buffer.alloc(0)
+
+  input.on('data', (chunk: Buffer) => {
+    buffer = Buffer.concat([buffer, chunk])
+    while (true) {
+      while (buffer.length > 0 && (buffer[0] === 0x0a || buffer[0] === 0x0d)) {
+        buffer = buffer.subarray(1)
+      }
+      if (buffer.length === 0) {
+        break
+      }
+
+      const preview = buffer.toString('utf8', 0, Math.min(buffer.length, 64))
+      if (/^content-length:/i.test(preview)) {
+        let headerTerminator = buffer.indexOf('\r\n\r\n')
+        let delimiterSize = 4
+        if (headerTerminator < 0) {
+          headerTerminator = buffer.indexOf('\n\n')
+          delimiterSize = 2
+        }
+        if (headerTerminator < 0) {
+          break
+        }
+        const headerText = buffer.subarray(0, headerTerminator).toString('utf8')
+        const contentLengthMatch = headerText.match(/Content-Length:\s*(\d+)/i)
+        const bodyStart = headerTerminator + delimiterSize
+        if (!contentLengthMatch) {
+          buffer = buffer.subarray(bodyStart)
+          continue
+        }
+        const contentLength = Number(contentLengthMatch[1])
+        const totalLength = bodyStart + contentLength
+        if (buffer.length < totalLength) {
+          break
+        }
+        const payload = buffer.subarray(bodyStart, totalLength)
+        normalized.write(payload)
+        normalized.write('\n')
+        buffer = buffer.subarray(totalLength)
+        continue
+      }
+
+      const newlineIndex = buffer.indexOf(0x0a)
+      if (newlineIndex < 0) {
+        break
+      }
+      const line = buffer.subarray(0, newlineIndex).toString('utf8').trim()
+      buffer = buffer.subarray(newlineIndex + 1)
+      if (line === '') {
+        continue
+      }
+      normalized.write(line)
+      normalized.write('\n')
+    }
+  })
+
+  input.on('end', () => {
+    const trailing = buffer.toString('utf8').trim()
+    if (trailing !== '') {
+      normalized.write(trailing)
+      normalized.write('\n')
+    }
+    normalized.end()
+  })
+  input.on('error', (error) => {
+    normalized.emit('error', error)
+  })
+
+  return normalized
 }
 
 /**
@@ -4020,7 +4007,7 @@ async function handleToolCall(
     sessionKey: string
     transportMode: TransportMode
   },
-): Promise<unknown> {
+): Promise<McpToolTextResult> {
   // Dashboard telemetry: track tool call start
   const collector = getTelemetryCollector()
   let telemetryId: string | undefined
@@ -4538,195 +4525,64 @@ async function handleToolCall(
 }
 
 /**
- * Main JSON-RPC request router for MCP methods.
- */
-async function handleRequest(
-  request: JsonRpcRequest,
-  mode: TransportMode,
-  output: NodeJS.WritableStream = process.stdout,
-  sessionKey = 'default',
-): Promise<void> {
-  const id = request.id ?? null
-  try {
-    if (request.method === 'initialize') {
-      const params = asRecord(request.params)
-      const requestedProtocolVersion =
-        typeof params.protocolVersion === 'string'
-          ? params.protocolVersion
-          : PROTOCOL_VERSION
-      writeResult(mode, id, {
-        protocolVersion: requestedProtocolVersion,
-        serverInfo: {
-          name: 'rocrate-mcp-server',
-          version: '0.0.0',
-        },
-        instructions:
-          'Primary artifact is ro-crate-metadata.json. Prefer RO-Crate tools over ad-hoc edits. Use update_profile_conforms_to to change profile URLs on conformsTo; apply_changes must not edit conformsTo. Treat profile scope as entity-local (only entities explicitly declaring that profile URL in conformsTo). Do not fan out profile-field edits by class unless user explicitly asks. Detect profile URLs from conformsTo on Dataset/File entities, resolve them via metadata-schema-index, and keep edits limited to profile-allowed entity types/properties.',
-        capabilities: {
-          tools: {
-            listChanged: false,
-          },
-        },
-      }, output)
-      return
-    }
-
-    if (request.method === 'notifications/initialized') {
-      if (request.id !== undefined) {
-        writeResult(mode, id, {}, output)
-      }
-      return
-    }
-    if (request.method === 'initialized') {
-      if (request.id !== undefined) {
-        writeResult(mode, id, {}, output)
-      }
-      return
-    }
-
-    if (request.method === 'ping') {
-      writeResult(mode, id, {}, output)
-      return
-    }
-
-    if (request.method === 'tools/list') {
-      writeResult(mode, id, { tools }, output)
-      return
-    }
-
-    if (request.method === 'tools/call') {
-      const params = asRecord(request.params)
-      const toolName = params.name
-      if (typeof toolName !== 'string' || toolName.trim() === '') {
-        writeError(mode, id, -32602, 'tools/call requires a tool name.', undefined, output)
-        return
-      }
-      const args = asRecord(params.arguments)
-      const result = await handleToolCall(toolName, args, {
-        sessionKey,
-        transportMode: mode,
-      })
-      writeResult(mode, id, result, output)
-      return
-    }
-
-    writeError(mode, id, -32601, `Method not found: ${request.method}`, undefined, output)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    writeError(mode, id, -32000, message, undefined, output)
-  }
-}
-
-/**
- * Parses a JSON-RPC request object from raw string payload.
- */
-function parseJsonMessage(payload: string): JsonRpcRequest | undefined {
-  const trimmed = payload.trim()
-  if (trimmed === '') {
-    return undefined
-  }
-  const parsed = JSON.parse(trimmed) as unknown
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return undefined
-  }
-  const candidate = parsed as JsonRpcRequest
-  if (candidate.jsonrpc !== '2.0' || typeof candidate.method !== 'string') {
-    return undefined
-  }
-  return candidate
-}
-
-/**
  * Runs one transport instance over provided input/output streams.
  */
-function startTransportServer(
-  input: NodeJS.ReadableStream,
-  output: NodeJS.WritableStream,
+async function startTransportServer(
+  input: Readable,
+  output: Writable,
   transportLabel: string,
-): void {
+): Promise<void> {
   const sessionKey = `${transportLabel}:${randomUUID()}`
-  let buffer = Buffer.alloc(0)
   input.resume()
   process.stderr.write(`rocrate-mcp-server: started (${transportLabel})\n`)
 
   // Start dashboard HTTP server if enabled (non-blocking, optional)
-  void (async () => {
-    try {
-      const collector = getTelemetryCollector()
-      if (collector) {
-        const dashboard = await startDashboardIfNeeded(collector)
-        if (dashboard) {
-          process.stderr.write('rocrate-mcp-server: dashboard enabled\n')
-        }
-      }
-    } catch (err) {
-      // Dashboard is optional - don't crash the MCP server if it fails
-      const errorMsg = err instanceof Error ? err.message : String(err)
-      process.stderr.write(`rocrate-mcp-server: dashboard failed to start: ${errorMsg}\n`)
+  if (!dashboardStartAttempted) {
+    dashboardStartAttempted = true
+    const collector = getTelemetryCollector()
+    if (collector) {
+      void startDashboardIfNeeded(collector)
+        .then((dashboard) => {
+          if (dashboard) {
+            process.stderr.write('rocrate-mcp-server: dashboard enabled\n')
+          }
+        })
+        .catch((err) => {
+          // Dashboard is optional - don't crash the MCP server if it fails
+          const errorMsg = err instanceof Error ? err.message : String(err)
+          process.stderr.write(`rocrate-mcp-server: dashboard failed to start: ${errorMsg}\n`)
+        })
     }
-  })()
+  }
 
-  input.on('data', (chunk: Buffer) => {
-    buffer = Buffer.concat([buffer, chunk])
+  const mcpServer = new McpServer(
+    {
+      name: 'rocrate-mcp-server',
+      version: '0.0.0',
+    },
+    {
+      capabilities: {
+        tools: {
+          listChanged: false,
+        },
+      },
+      instructions:
+        'Primary artifact is ro-crate-metadata.json. Prefer RO-Crate tools over ad-hoc edits. Use update_profile_conforms_to to change profile URLs on conformsTo; apply_changes must not edit conformsTo. Treat profile scope as entity-local (only entities explicitly declaring that profile URL in conformsTo). Do not fan out profile-field edits by class unless user explicitly asks. Detect profile URLs from conformsTo on Dataset/File entities, resolve them via metadata-schema-index, and keep edits limited to profile-allowed entity types/properties.',
+    },
+  )
+  mcpServer.server.onerror = (error) => {
+    const message = error instanceof Error ? error.message : String(error)
+    process.stderr.write(`rocrate-mcp-server: sdk error: ${message}\n`)
+  }
 
-    while (buffer.length > 0) {
-      const headerTerminator = findHeaderTerminator(buffer)
-      if (headerTerminator) {
-        const headerText = buffer.subarray(0, headerTerminator.index).toString('utf8')
-        const contentLengthMatch = headerText.match(/Content-Length:\s*(\d+)/i)
-        if (!contentLengthMatch) {
-          buffer = buffer.subarray(headerTerminator.index + headerTerminator.size)
-          continue
-        }
-        const contentLength = Number(contentLengthMatch[1])
-        const bodyStart = headerTerminator.index + headerTerminator.size
-        const totalLength = bodyStart + contentLength
-        if (buffer.length < totalLength) {
-          break
-        }
-        const body = buffer.subarray(bodyStart, totalLength).toString('utf8')
-        buffer = buffer.subarray(totalLength)
-        const request = parseJsonMessage(body)
-        if (request) {
-          process.stderr.write(`rocrate-mcp-server: request ${request.method}\n`)
-          void handleRequest(request, 'content-length', output, sessionKey)
-        }
-        continue
-      }
-
-      // Fallback: support newline-delimited JSON-RPC (some clients use plain JSON per line).
-      // Only attempt this when payload appears to start with a JSON object/array.
-      const preview = buffer.toString('utf8', 0, Math.min(buffer.length, 64)).trimStart()
-      const looksLikeJsonLine = preview.startsWith('{') || preview.startsWith('[')
-      if (!looksLikeJsonLine) {
-        // Wait for more data (likely an incomplete header).
-        break
-      }
-
-      const newlineIndex = buffer.indexOf(0x0a)
-      if (newlineIndex < 0) {
-        // Wait until we have a complete line.
-        break
-      }
-
-      const lineBuffer = buffer.subarray(0, newlineIndex)
-      buffer = buffer.subarray(newlineIndex + 1)
-      const line = lineBuffer.toString('utf8').trim()
-      if (line === '') {
-        continue
-      }
-      try {
-        const request = parseJsonMessage(line)
-        if (request) {
-          process.stderr.write(`rocrate-mcp-server: request ${request.method}\n`)
-          void handleRequest(request, 'jsonl', output, sessionKey)
-        }
-      } catch {
-        // Put data back and wait for more bytes if JSON might be incomplete.
-        buffer = Buffer.concat([lineBuffer, Buffer.from('\n', 'utf8'), buffer])
-        break
-      }
-    }
+  mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }))
+  mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const toolName = request.params.name
+    const args = asRecord(request.params.arguments)
+    return handleToolCall(toolName, args, {
+      sessionKey,
+      transportMode: 'content-length',
+    })
   })
 
   const collector = getTelemetryCollector()
@@ -4738,6 +4594,10 @@ function startTransportServer(
   input.on('end', closeSession)
   input.on('close', closeSession)
   input.on('error', closeSession)
+
+  const normalizedInput = createSdkInputStream(input)
+  const transport = new StdioServerTransport(normalizedInput, output)
+  await mcpServer.connect(transport)
 }
 
 /**
@@ -4821,7 +4681,11 @@ function startSocketDaemon(socketPath: string): void {
     }
   }
   const server = net.createServer((socket) => {
-    startTransportServer(socket, socket, `socket:${socketPath}`)
+    void startTransportServer(socket, socket, `socket:${socketPath}`).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      process.stderr.write(`rocrate-mcp-server: session failed: ${message}\n`)
+      socket.destroy()
+    })
   })
   server.on('error', (error) => {
     process.stderr.write(
@@ -4871,7 +4735,7 @@ async function startServer(): Promise<void> {
     startSocketProxy(connectSocketPath)
     return
   }
-  startTransportServer(process.stdin, process.stdout, 'stdio')
+  await startTransportServer(process.stdin, process.stdout, 'stdio')
 }
 
 void startServer()
