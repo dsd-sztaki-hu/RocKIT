@@ -480,19 +480,11 @@ async function run() {
       'get_profile_context_info tool should exist',
     )
     assert.ok(toolNames.includes('delete_profile_context'), 'delete_profile_context tool should exist')
-    assert.ok(toolNames.includes('compute_delta'), 'compute_delta tool should exist')
     assert.ok(toolNames.includes('apply_changes'), 'apply_changes tool should exist')
     assert.ok(
       toolNames.includes('update_profile_conforms_to'),
       'update_profile_conforms_to tool should exist',
     )
-
-    const deltaResponse = await request('tools/call', {
-      name: 'compute_delta',
-      arguments: { cratePath, rootPath: tempRoot },
-    })
-    const deltaPayload = JSON.parse(deltaResponse.result.content[0].text)
-    assert.ok(deltaPayload.summary.newEntities >= 2, 'Expected structural additions')
 
     const localReadSummaryResponse = await request('tools/call', {
       name: 'read_crate',
@@ -693,7 +685,7 @@ async function run() {
       /contains property not defined by @context: unlistedProperty/,
     )
 
-    await request('tools/call', {
+    const legacyAliasChangeSetResponse = await request('tools/call', {
       name: 'apply_changes',
       arguments: {
         cratePath,
@@ -703,6 +695,11 @@ async function run() {
         },
       },
     })
+    assert.ok(
+      legacyAliasChangeSetResponse.error,
+      'legacy alias keys should be rejected',
+    )
+    assert.match(legacyAliasChangeSetResponse.error.message, /unsupported keys/)
 
     const invalidChangeSetResponse = await request('tools/call', {
       name: 'apply_changes',

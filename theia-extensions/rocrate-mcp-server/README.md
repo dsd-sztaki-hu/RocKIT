@@ -40,7 +40,6 @@ dashboard instance.
   - update (with `pid`): JSON metadata POST to update existing dataset.
 - `download_rocrate_from_dataverse`: download crate JSON by PID from Dataverse ARP API.
 - `read_crate`: read crate (`local` from disk or `remote` from provided `crate` payload).
-- `compute_delta`: compute additive file/dataset delta against crate.
 - `apply_changes`: apply compact changeset; requires `write: true`.
   - `updateEntities` supports `merge` (set fields) and `unset` (remove fields).
   - `contextMode` controls auto-`@context` handling:
@@ -147,7 +146,6 @@ Notes:
 - `update_profile_conforms_to` requires `write: true` in both modes.
 - `apply_changes(write=true)` and `write_crate_atomic` only persist in local mode.
 - In remote mode, write requests return updated crate payload and do not persist files.
-- `compute_delta` in remote mode requires `workspaceEntries` (relative path list, folders ending with `/`).
 - `upload_rocrate_to_dataverse` always runs strict preflight validation:
   core RO-Crate strict checks plus profile validation with
   `profileRequiredMode=enforce_required`. Upload is blocked on any validation error.
