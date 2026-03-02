@@ -4214,7 +4214,7 @@ async function handleToolCall(
         profileResolution: constraints.resolution,
       }
       if (collector && telemetryId) {
-        collector.completeToolCallSuccess(telemetryId)
+        collector.completeToolCallSuccess(telemetryId, payload)
       }
       if (responseMode === 'full') {
         return textResult(payload)
@@ -4240,7 +4240,7 @@ async function handleToolCall(
         resolutionInputs,
       )
       if (collector && telemetryId) {
-        collector.completeToolCallSuccess(telemetryId)
+        collector.completeToolCallSuccess(telemetryId, context)
       }
       const responseMode = parseResponseMode(params, 'summary')
       if (responseMode === 'full') {
@@ -4270,7 +4270,7 @@ async function handleToolCall(
         note: 'Merge mergeContext into top-level @context alongside the default RO-Crate context URL.',
       }
       if (collector && telemetryId) {
-        collector.completeToolCallSuccess(telemetryId)
+        collector.completeToolCallSuccess(telemetryId, payload)
       }
       const responseMode = parseResponseMode(
         params,
@@ -4299,40 +4299,43 @@ async function handleToolCall(
       const mode = parseAccessMode(params)
       const includeProfileContent = params.includeProfileContent === true
       const resolutionInputs = parseProfileResolutionInputs(params)
+      const result = resolveProfileUrls([profileUrl], mode, includeProfileContent, resolutionInputs)
       if (collector && telemetryId) {
-        collector.completeToolCallSuccess(telemetryId)
+        collector.completeToolCallSuccess(telemetryId, result)
       }
-      return textResult(
-        resolveProfileUrls([profileUrl], mode, includeProfileContent, resolutionInputs),
-      )
+      return textResult(result)
     }
 
     if (toolName === 'prepare_remote_profile_payload') {
+      const result = prepareRemoteProfilePayload(params)
       if (collector && telemetryId) {
-        collector.completeToolCallSuccess(telemetryId)
+        collector.completeToolCallSuccess(telemetryId, result)
       }
-      return textResult(prepareRemoteProfilePayload(params))
+      return textResult(result)
     }
 
     if (toolName === 'create_profile_context') {
+      const result = createProfileContext(params)
       if (collector && telemetryId) {
-        collector.completeToolCallSuccess(telemetryId)
+        collector.completeToolCallSuccess(telemetryId, result)
       }
-      return textResult(createProfileContext(params))
+      return textResult(result)
     }
 
     if (toolName === 'get_profile_context_info') {
+      const result = getProfileContextInfo(params)
       if (collector && telemetryId) {
-        collector.completeToolCallSuccess(telemetryId)
+        collector.completeToolCallSuccess(telemetryId, result)
       }
-      return textResult(getProfileContextInfo(params))
+      return textResult(result)
     }
 
     if (toolName === 'delete_profile_context') {
+      const result = deleteProfileContext(params)
       if (collector && telemetryId) {
-        collector.completeToolCallSuccess(telemetryId)
+        collector.completeToolCallSuccess(telemetryId, result)
       }
-      return textResult(deleteProfileContext(params))
+      return textResult(result)
     }
 
     throw new Error(`Unknown tool: ${toolName}`)
