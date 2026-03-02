@@ -641,7 +641,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
         if (matchingSchema) {
           foundMatchingSchema = true
-          const convertedContent = await this.schemaManagerService.getConvertedProfileContent(matchingSchema.path)
+          const convertedContent = await this.schemaManagerService.getConvertedProfileContent(matchingSchema.files.convertedPath)
 
           if (convertedContent && this.localCrate) {
             const merged = await this.schemaManagerService.getMergedProfile(
@@ -749,11 +749,11 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     if (inputNames.length === 0 && profileUrl) {
       const allSchemas = await this.schemaManagerService.loadAllSchemas()
       const matchingSchema = allSchemas.find(
-        (schema) => schema.conformsTo === profileUrl || schema.reference === profileUrl,
+        (schema) => schema.conformsTo === profileUrl || schema.aux.reference === profileUrl,
       )
       if (matchingSchema) {
         const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
-          matchingSchema.path,
+          matchingSchema.files.convertedPath,
         )
         const schemaInputs = convertedContent?.classes?.Dataset?.inputs
         if (Array.isArray(schemaInputs)) {

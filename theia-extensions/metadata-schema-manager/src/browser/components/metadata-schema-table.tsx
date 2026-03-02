@@ -29,7 +29,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
     const handleSearch = (confirm: () => void) => confirm();
     const handleReset = (clearFilters: () => void) => clearFilters();
 
-    const getColumnSearchProps = (dataIndex: keyof SchemaInfo) => ({
+    const getColumnSearchProps = (dataIndex: string | string[]) => ({
         filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }: FilterDropdownProps) => (
             <div 
                 className="schema-table__filter-dropdown"
@@ -37,7 +37,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
             >
                 <Input
                     ref={searchInput}
-                    placeholder={`Search ${dataIndex}`}
+                    placeholder={`Search ${Array.isArray(dataIndex) ? dataIndex.join('.') : dataIndex}`}
                     value={selectedKeys[0]}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
                         setSelectedKeys(e.target.value ? [e.target.value] : [])
@@ -67,8 +67,12 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
         filterIcon: (filtered: boolean) => (
             <SearchIcon className={`schema-table__header-icon ${filtered ? 'schema-table__header-icon--active' : ''}`} />
         ),
-        onFilter: (value: boolean | Key, record: SchemaInfo) =>
-            (record[dataIndex] || '').toString().toLowerCase().includes(value.toString().toLowerCase()),
+        onFilter: (value: boolean | Key, record: any) => {
+            const recordValue = Array.isArray(dataIndex) 
+                ? dataIndex.reduce((obj, key) => obj?.[key], record) 
+                : record[dataIndex];
+            return (recordValue || '').toString().toLowerCase().includes(value.toString().toLowerCase());
+        },
         onFilterDropdownOpenChange: (visible: boolean) => {
             if (visible) setTimeout(() => searchInput.current?.select(), 100);
         },
@@ -104,9 +108,9 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
         },
         {
             title: 'Ref (@id)',
-            dataIndex: 'reference',
+            dataIndex: ['aux', 'reference'],
             ellipsis: true,
-            ...getColumnSearchProps('reference'),
+            ...getColumnSearchProps(['aux', 'reference']),
             render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" className="schema-table__link" onClick={e => e.stopPropagation()}>{text}</a> : ''
         },
         {
@@ -137,7 +141,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         size="small" 
                         onClick={(e) => {
                             e.stopPropagation();
-                            onDelete([record.path]);
+                            onDelete([record.id]);
                         }}
                         className="schema-table__action-btn"
                     >
@@ -206,7 +210,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                     <Table
                         dataSource={schemas}
                         columns={columns}
-                        rowKey="path"
+                        rowKey="id"
                         locale={{ emptyText: emptyState }}
                         rowSelection={activeSelectionType ? { 
                             type: activeSelectionType, 
@@ -216,11 +220,11 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         } : undefined}
                         
                         onRow={(record) => {
-                            const isSelected = selectedKeys && selectedKeys.includes(record.path);
+                            const isSelected = selectedKeys && selectedKeys.includes(record.id);
                             return {
                                 onClick: () => {
                                     if (isRowSelection) {
-                                        onSelectionChange([record.path]);
+                                        onSelectionChange([record.id]);
                                     }
                                 },
                                 className: isSelected ? 'ant-table-row-selected' : '',

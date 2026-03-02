@@ -6,7 +6,7 @@
  * 1. Centralize Application Configuration (Folder names, File names, Service IDs).
  * 2. Perform pre-start maintenance (Orphaned API Key Cleanup).
  * 3. Set Environment Variables for the Theia Backend.
- * 4. Create required folder structure.
+ * 4. Create required folder structure and base files.
  */
 
 const path = require('path');
@@ -15,6 +15,9 @@ const fs = require('fs');
 
 // --- CENTRALIZED CONFIGURATION ---
 const APP_FOLDER_NAME = '.aroma'; 
+
+// Feature: Metadata Schema Index
+const METADATA_SCHEMA_INDEX_FILENAME = 'metadata-schema-index.json';
 
 // Feature: Remote Schema Provider
 const REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME = 'remote-schema-providers.json';
@@ -98,20 +101,32 @@ class AppSetup {
             schemas: schemasRoot,
             cedarRoot: path.join(schemasRoot, 'cedar'),
             roCrateRoot: path.join(schemasRoot, 'ro-crate'),
+            schemaIndex: path.join(aromaRootPath, METADATA_SCHEMA_INDEX_FILENAME)
         };
 
         console.log(`[AppSetup] Enforcing root directory: ${paths.root}`);
 
-        // 2. Create Directories
+        // 2. Create Directories & Base Files
         try {
             if (!fs.existsSync(paths.root)) fs.mkdirSync(paths.root, { recursive: true });
             if (!fs.existsSync(paths.schemas)) fs.mkdirSync(paths.schemas, { recursive: true });
+            
             if (!fs.existsSync(paths.cedarRoot)) fs.mkdirSync(paths.cedarRoot, { recursive: true });
             if (!fs.existsSync(paths.roCrateRoot)) fs.mkdirSync(paths.roCrateRoot, { recursive: true });
 
+            // Seed the central schema index file if it doesn't exist
+            if (!fs.existsSync(paths.schemaIndex)) {
+                const defaultIndex = {
+                    profiles: [],
+                    conformsToIndex: {}
+                };
+                fs.writeFileSync(paths.schemaIndex, JSON.stringify(defaultIndex, null, 4), 'utf8');
+                console.log(`[AppSetup] Initialized empty schema index at: ${METADATA_SCHEMA_INDEX_FILENAME}`);
+            }
+
             console.log('[AppSetup] Filesystem verified.');
         } catch (error) {
-            console.error('[AppSetup] FATAL: Failed to create application directories.', error);
+            console.error('[AppSetup] FATAL: Failed to create application directories or files.', error);
             process.exit(1);
         }
 
@@ -119,6 +134,9 @@ class AppSetup {
         this._env.AROMA_ROOT_PATH = paths.root; 
         this._env.THEIA_CONFIG_DIR = paths.root;
         
+        // Metadata Schema Env Vars
+        this._env.AROMA_METADATA_SCHEMA_INDEX_FILE = METADATA_SCHEMA_INDEX_FILENAME;
+
         // Remote Schema Provider Env Vars
         this._env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME;
         this._env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE;
@@ -126,6 +144,12 @@ class AppSetup {
         // Data Repository Env Vars
         this._env.AROMA_DATA_REPOSITORY_CONFIG_FILE = DATA_REPOSITORY_CONFIG_FILENAME;
         this._env.AROMA_DATA_REPOSITORY_KEYTAR_SERVICE = DATA_REPOSITORY_KEYTAR_SERVICE;
+
+        // ARP External URI Configurations
+        this._env.ARP_PROD_PREFIX = 'https://repo.schema.researchdata.hu/templates/';
+        this._env.ARP_DEV_PREFIX = 'https://repo.cedardev.dsd.sztaki.hu/templates/';
+        this._env.ARP_W3ID_PROD = 'https://w3id.org/arp/schema/';
+        this._env.ARP_W3ID_DEV = 'https://w3id.org/arp/dev/schema/';
 
         console.log(`[AppSetup] Configuration locked: Root=${paths.root}`);
     }
