@@ -343,7 +343,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected async openRoCrateEditor(entityId: string): Promise<void> {
     const existingWidgetId = this.appStateService.getEntityEditorWidgetId(entityId)
     if (existingWidgetId) {
-      const existing = this.widgetManager.tryGetWidget(existingWidgetId)
+      const existing = this.shell.getWidgetById(existingWidgetId)
       if (existing) {
         this.appStateService.registerEntityEditor(existingWidgetId, entityId)
         this.ensureWidgetInMain(existing)
