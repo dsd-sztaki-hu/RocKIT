@@ -12,21 +12,22 @@ import {
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
+import { Disposable } from '@theia/core/lib/common'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { MetadataSchemaManager } from 'aroma2-common/lib/browser'
 import '../../src/browser/styles/entities-overview-widget.css'
-import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
-import { MultiEditDialog } from './entities-overview-multi-edit-dialog'
+import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import {
   EntitiesOverviewModel,
   ExampleTreeLeaf,
   ExampleTreeNode,
   ValidityFilter,
 } from './entities-overview-model'
+import { MultiEditDialog } from './entities-overview-multi-edit-dialog'
 
 /** Well-known constant for the context menu path */
 export const TREEVIEW_EXAMPLE_CONTEXT_MENU: MenuPath = [
@@ -86,6 +87,12 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
     // this.toDispose.push(this.toCancelNodeExpansion)
     this.addClass('entities-overview-panel')
+    this.syncFiltersVisibleBodyClass()
+    this.toDispose.push(
+      Disposable.create(() => {
+        document.body.classList.remove(this.filtersVisibleBodyClass)
+      }),
+    )
   }
 
   protected readonly openingEntities = new Set<string>()
@@ -111,6 +118,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
   protected readonly entityNameInputRef = React.createRef<HTMLInputElement>()
   protected entityNameSelection: { start: number | null; end: number | null } | undefined
   protected filtersVisible = true
+  protected readonly filtersVisibleBodyClass = 'entities-overview-filters-visible'
 
   /**
    * Enable icon rendering.
@@ -139,10 +147,9 @@ export class EntitiesOverviewWidget extends TreeWidget {
     const showInvalidIcon = isLeafInvalid || isNodeInvalid
 
     if (showInvalidIcon) {
-      const className = `${attrs.className ?? ''} entities-overview-invalid-caption`.trim()
-      const containerTitle = isLeafInvalid
-        ? 'Invalid entity'
-        : 'Contains invalid entity'
+      const className =
+        `${attrs.className ?? ''} entities-overview-invalid-caption`.trim()
+      const containerTitle = isLeafInvalid ? 'Invalid entity' : 'Contains invalid entity'
       return (
         <div {...attrs} className={className} title={containerTitle}>
           <span
@@ -183,20 +190,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
     return (
       <AntdThemeProvider themeService={this.themeService}>
         <div className="entities-overview-panel-content">
-        <div className="entities-overview-top-actions">
-          <div className="entities-overview-edit-button-wrap">
-            <Button
-              className="entities-overview-edit-button"
-              type="default"
-              onClick={() => this.openMultiEditDialog()}
-              onKeyDownCapture={(event: React.KeyboardEvent) =>
-                this.stopFilterKeyEvents(event)
-              }
-            >
-              Edit
-            </Button>
-          </div>
-        </div>
         {showFilters && (
           <div className="entities-overview-filters">
             <div className="entities-overview-filter-header">
@@ -308,9 +301,21 @@ export class EntitiesOverviewWidget extends TreeWidget {
             </div>
           </div>
         )}
+        <div className="entities-overview-edit-row">
+          <Button
+            className="entities-overview-edit-button"
+            type="default"
+            onClick={() => this.openMultiEditDialog()}
+            onKeyDownCapture={(event: React.KeyboardEvent) =>
+              this.stopFilterKeyEvents(event)
+            }
+          >
+            Edit
+          </Button>
+        </div>
         <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
       </div>
-      </AntdThemeProvider>
+    </AntdThemeProvider>
     )
   }
 
@@ -320,7 +325,12 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
   toggleFiltersVisibility(): void {
     this.filtersVisible = !this.filtersVisible
+    this.syncFiltersVisibleBodyClass()
     this.update()
+  }
+
+  protected syncFiltersVisibleBodyClass(): void {
+    document.body.classList.toggle(this.filtersVisibleBodyClass, this.filtersVisible)
   }
 
   protected override createContainerAttributes(): React.HTMLAttributes<HTMLElement> {

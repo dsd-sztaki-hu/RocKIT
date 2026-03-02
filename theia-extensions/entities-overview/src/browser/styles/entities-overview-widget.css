@@ -19,11 +19,11 @@
   height: 100%;
 }
 
-.entities-overview-top-actions {
+.entities-overview-edit-row {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  padding: 8px 12px 0;
+  justify-content: center;
+  padding: 10px 12px;
   gap: 6px;
   background: var(--theia-sideBar-background);
 }
@@ -136,35 +136,15 @@
   width: 100%;
 }
 
-.entities-overview-edit-button-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  max-width: 90px;
-  width: 90px;
-  order: 3;
-  margin-left: 0;
-  opacity: 1;
-  transform: translateY(0);
-  transition:
-    max-width 600ms ease,
-    opacity 600ms ease,
-    transform 600ms ease,
-    margin-top 600ms ease;
-}
-
-.entities-overview-filter-actions:not(.is-advanced) .entities-overview-edit-button-wrap {
-  margin-left: 6px;
-}
-
 .entities-overview-edit-button {
-  width: 100%;
-  height: 26px;
-  line-height: 24px;
-  font-size: 11px;
+  width: 70%;
+  max-width: 220px;
+  min-width: 140px;
+  height: 2.1em;
+  line-height: 2em;
+  font-size: 12px;
   font-weight: 600;
-  padding: 0 8px;
+  padding: 0 16px;
 }
 
 .entities-overview-edit-button.ant-btn {
@@ -235,21 +215,6 @@ body.hc-black .entities-overview-edit-button.ant-btn {
   width: 0;
 }
 
-.entities-overview-filter-actions.is-advanced .entities-overview-edit-button-wrap {
-  flex: 0 0 100%;
-  max-width: 100%;
-  width: 100%;
-  order: 3;
-  transform: translateY(0);
-  animation: entities-overview-edit-slide-down 420ms ease;
-}
-
-.entities-overview-filter-actions.is-advanced .entities-overview-edit-button {
-  width: 140px;
-  height: 28px;
-  line-height: 26px;
-}
-
 .entities-overview-filter-actions.is-advanced .entities-overview-advanced-button {
   width: 100%;
 }
@@ -259,40 +224,6 @@ body.hc-black .entities-overview-edit-button.ant-btn {
   max-width: 100%;
   order: 2;
   transition: max-width 1000ms ease;
-}
-
-.entities-overview-filter-actions:not(.is-advanced) .entities-overview-edit-button-wrap {
-  animation: entities-overview-edit-slide-up 240ms ease;
-}
-
-@keyframes entities-overview-edit-slide-down {
-  0% {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  45% {
-    transform: translateX(18px);
-    opacity: 0;
-  }
-  70% {
-    transform: translateY(-6px);
-    opacity: 0;
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes entities-overview-edit-slide-up {
-  0% {
-    transform: translateY(8px);
-    opacity: 0;
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 1;
-  }
 }
 
 .entities-overview-filter-actions .ant-btn {
@@ -366,8 +297,10 @@ body.hc-black .entities-overview-edit-button.ant-btn {
   align-items: center !important;
 }
 
-.entities-overview-validity-select.ant-select-single.ant-select-sm .ant-select-selection-item,
-.entities-overview-validity-select.ant-select-single.ant-select-sm .ant-select-selection-placeholder {
+.entities-overview-validity-select.ant-select-single.ant-select-sm
+  .ant-select-selection-item,
+.entities-overview-validity-select.ant-select-single.ant-select-sm
+  .ant-select-selection-placeholder {
   line-height: 30px !important;
 }
 
@@ -460,6 +393,41 @@ body.vs .entities-overview-type-select .ant-select-selection-item-remove {
   flex: 1 1 auto;
   min-height: 0;
   padding-top: 10px;
+}
+
+.lm-TabBar-toolbar .item > [id="entities-overview:toggle-filters"] {
+  background-color: transparent !important;
+  border-radius: 4px;
+  width: calc(var(--theia-icon-size) + 4px);
+  height: calc(var(--theia-icon-size) + 4px);
+  padding: 0;
+  margin: 1px 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: none !important;
+  outline: none;
+}
+
+.lm-TabBar-toolbar .item > [id="entities-overview:toggle-filters"]:hover {
+  background-color: transparent !important;
+}
+
+body.entities-overview-filters-visible
+  .lm-TabBar-toolbar
+  .item
+  > [id="entities-overview:toggle-filters"]:hover {
+  background-color: rgba(90, 90, 90, 0.5) !important;
+}
+
+body.entities-overview-filters-visible
+  .lm-TabBar-toolbar
+  .item
+  > [id="entities-overview:toggle-filters"] {
+  background-color: rgba(90, 90, 90, 0.5) !important;
+  box-shadow: none !important;
+  outline: none;
 }
 
 .entities-overview-invalid-caption {
