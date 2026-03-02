@@ -107,6 +107,12 @@ const AGENT_SPECS: AgentSpec[] = [
     executables: ['gemini', 'gemini-cli'],
     markerPaths: ['.gemini'],
   },
+  {
+    id: 'qwen',
+    menuLabel: 'Edit with Qwen',
+    executables: ['qwen-code', 'qwen'],
+    markerPaths: ['.qwen', '.gemini'],
+  },
 ]
 
 const INSTRUCTIONS_USER_SECTION_MARKER =
@@ -248,11 +254,20 @@ export class ElectronNavigatorMenuContribution
     this.terminalService.open(terminal, { mode: 'activate' })
     await terminal.start()
     await this.waitForTerminalOpen(terminal, 1000)
+    const launchArgs = this.buildAgentLaunchArgs(agentId, executable)
     try {
-      await terminal.executeCommand({ cwd, args: [executable, 'Hi!'] })
+      await terminal.executeCommand({ cwd, args: launchArgs })
     } catch {
       terminal.sendText(`${executable}\n`)
     }
+  }
+
+  protected buildAgentLaunchArgs(agentId: string, executable: string): string[] {
+    // Qwen CLI rejects positional prompts; use its interactive prompt flag instead.
+    if (agentId === 'qwen') {
+      return [executable, '--prompt-interactive', 'Hi!']
+    }
+    return [executable, 'Hi!']
   }
 
   protected async resolveDirectoryUri(uri: URI): Promise<URI> {
@@ -371,6 +386,7 @@ export class ElectronNavigatorMenuContribution
       kilo: { path: `${home}${s}.kilo${s}config.json`, kind: 'json' },
       roo: { path: `${home}${s}.roo${s}config.json`, kind: 'json' },
       gemini: { path: `${home}${s}.gemini${s}settings.json`, kind: 'json' },
+      qwen: { path: `${home}${s}.qwen${s}settings.json`, kind: 'json' },
     }
     const cfg = configs[agentId]
     return cfg ? { agentId, configPath: cfg.path, kind: cfg.kind } : undefined

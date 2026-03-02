@@ -192,6 +192,24 @@ Gemini CLI uses `mcpServers` in settings JSON (user-level `~/.gemini/settings.js
 }
 ```
 
+### Qwen Code (`~/.qwen/settings.json`)
+
+Qwen Code can use the same `mcpServers` JSON shape as Gemini-style clients.
+
+```json
+{
+  "mcpServers": {
+    "rocrate": {
+      "command": "/absolute/path/to/node",
+      "args": ["/absolute/path/to/rocrate-mcp-server/lib/server.js"],
+      "env": {
+        "ROCRATE_MCP_DEFAULT_MODE": "local"
+      }
+    }
+  }
+}
+```
+
 ### OpenCode (`~/.config/opencode/config.json`)
 
 OpenCode expects `mcp` (not `mcpServers`):
