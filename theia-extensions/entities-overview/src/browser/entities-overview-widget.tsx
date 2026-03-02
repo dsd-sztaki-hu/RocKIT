@@ -228,6 +228,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
                     { value: 'valid', label: 'Only valid' },
                     { value: 'invalid', label: 'Only invalid' },
                   ]}
+                  classNames={{ popup: { root: 'entities-overview-filter-dropdown' } }}
                   onChange={(value) =>
                     this.onValidityFilterChange(value as ValidityFilter)
                   }
@@ -244,6 +245,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
                   placeholder="All types"
                   value={selectedTypes}
                   options={availableTypes.map((type) => ({ value: type, label: type }))}
+                  classNames={{ popup: { root: 'entities-overview-filter-dropdown' } }}
                   onChange={(values) => this.onTypeFiltersChange(values)}
                   maxTagCount="responsive"
                   size="small"
