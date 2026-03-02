@@ -39,6 +39,70 @@ Important: `remote` is an RO-Crate data-access mode, **not** HTTP/SSE transport.
 - `get_profile_context_info`: inspect cached profile context metadata.
 - `delete_profile_context`: delete cached profile context.
 
+## Dashboard
+
+The RO-Crate MCP server includes a built-in web dashboard for real-time monitoring and debugging. The dashboard provides:
+
+- **Live telemetry**: Tool calls, sessions, errors, and latency metrics
+- **Session inspection**: View detailed information per MCP session
+- **Tool call details**: Inspect parameters and results (with detailed logging enabled)
+- **Error tracking**: Recent errors with timestamps and stack traces
+- **Dependency monitoring**: External service call tracking (Tavily, Dataverse)
+- **Runtime configuration**: Toggle detailed logging and adjust retention settings
+
+### Accessing the Dashboard
+
+By default, the dashboard starts automatically at `http://127.0.0.1:9393`. Open this URL in your browser to view the dashboard.
+
+### Dashboard Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ROCRATE_DASHBOARD_ENABLED` | Enable/disable dashboard | `true` (enabled) |
+| `ROCRATE_DASHBOARD_HOST` | Dashboard bind address | `127.0.0.1` |
+| `ROCRATE_DASHBOARD_PORT` | Dashboard port | `9393` |
+| `ROCRATE_DASHBOARD_AUTH_TOKEN` | Optional bearer token for authentication | (none) |
+| `ROCRATE_DASHBOARD_RETENTION_HOURS` | Data retention period | `24` |
+| `ROCRATE_DASHBOARD_DETAILED_LOGGING` | Store tool params/results | `false` |
+
+### Dashboard API Endpoints
+
+The dashboard exposes read-only APIs (plus one config write endpoint):
+
+- `GET /` - Dashboard UI
+- `GET /health` - Server health and uptime
+- `GET /metrics/summary?minutes=N` - Summary statistics
+- `GET /metrics/tools?minutes=N` - Tool-specific stats
+- `GET /sessions` - List all sessions
+- `GET /sessions/:id` - Session details with tool calls
+- `GET /errors/recent?limit=N` - Recent errors
+- `GET /dependencies` - External dependency usage
+- `GET /timeseries?interval=N&minutes=N` - Time-series data
+- `GET /tool-calls/:id` - Detailed tool call info
+- `GET /config` - Get current configuration
+- `POST /config` - Update configuration (detailed logging, retention)
+
+### Memory Management
+
+The dashboard uses bounded in-memory storage with automatic cleanup:
+
+- Max 100 sessions
+- Max 10,000 tool calls
+- Max 1,000 error events
+- Data older than retention period is automatically purged
+
+### Detailed Logging
+
+By default, tool call parameters and results are **not** stored to minimize memory usage. Enable detailed logging to inspect full request/response payloads:
+
+1. Set `ROCRATE_DASHBOARD_DETAILED_LOGGING=true` before starting the server, or
+2. Toggle it via the Settings modal in the dashboard UI
+
+With detailed logging enabled:
+- Tool parameters are truncated at 100KB
+- Results are truncated at 100KB
+- Error messages show full stack traces
+
 ## Local vs remote access mode
 
 - `mode: "local"` (default): server reads/writes `ro-crate-metadata.json` on its filesystem.
@@ -137,14 +201,27 @@ yarn workspace rocrate-mcp-server start
 
 ## Environment variables
 
+### Server Configuration
+- `ROCRATE_MCP_DEFAULT_MODE` (optional): default mode if tool arg omitted (`local` or `remote`).
+
+### External Services
 - `TAVILY_API_KEY`: Tavily key for `search`.
 - `TAVILY_API_URL` (optional): Tavily endpoint override.
 - `DATAVERSE_BASE_URL` (optional): Dataverse/ARP base URL for upload/download tools (default `http://localhost:8080`).
 - `DATAVERSE_OWNER_ID` (optional): owner ID for new uploads (default `root`).
 - `DATAVERSE_API_KEY` (optional): API key used as `X-Dataverse-key` header.
+
+### Profile Resolution
 - `AROMA_ROOT_PATH` (optional): base directory for schema index/profile files (default `~/.aroma`).
 - `AROMA_METADATA_SCHEMA_INDEX_FILE` (optional): schema index filename or absolute path.
-- `ROCRATE_MCP_DEFAULT_MODE` (optional): default mode if tool arg omitted (`local` or `remote`).
+
+### Dashboard
+- `ROCRATE_DASHBOARD_ENABLED`: Enable/disable dashboard (default: `true`).
+- `ROCRATE_DASHBOARD_HOST`: Dashboard bind address (default: `127.0.0.1`).
+- `ROCRATE_DASHBOARD_PORT`: Dashboard port (default: `9393`).
+- `ROCRATE_DASHBOARD_AUTH_TOKEN` (optional): Bearer token for dashboard authentication.
+- `ROCRATE_DASHBOARD_RETENTION_HOURS`: Data retention period in hours (default: `24`).
+- `ROCRATE_DASHBOARD_DETAILED_LOGGING`: Store tool params/results (default: `false`).
 
 ## MCP client configuration examples
 
