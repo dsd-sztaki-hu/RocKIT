@@ -22,7 +22,8 @@
     "property-selector": "0.0.0",
     "entities-overview": "0.0.0",
     "aroma2-common": "0.0.0",
-    "data-sources": "0.0.0"
+    "data-sources": "0.0.0",
+    "open-editors": "0.0.0"
   },
   "devDependencies": {
     "@theia/cli": "1.65.2",
