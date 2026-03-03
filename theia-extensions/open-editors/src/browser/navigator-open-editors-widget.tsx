@@ -33,6 +33,7 @@ import {
   Widget,
 } from '@theia/core/lib/browser'
 import { CommandService } from '@theia/core/lib/common'
+import { Disposable } from '@theia/core/lib/common/disposable'
 import { nls } from '@theia/core/lib/common/nls'
 import {
   Container,
@@ -69,6 +70,8 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
   static ID = 'aroma-open-editors-widget'
   static LABEL = nls.localizeByDefault('Open Editors')
   static CSS_CLASS = 'theia-open-editors-widget'
+  static SEARCH_VISIBLE_CLASS = 'open-editors-search-visible'
+  static BODY_SEARCH_VISIBLE_CLASS = 'open-editors-search-visible'
 
   @inject(ApplicationShell) protected readonly applicationShell: ApplicationShell
   @inject(CommandService) protected readonly commandService: CommandService
@@ -114,6 +117,12 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
     this.id = OpenEditorsWidget.ID
     this.title.label = OpenEditorsWidget.LABEL
     this.addClass(OpenEditorsWidget.CSS_CLASS)
+    this.toDispose.push(
+      Disposable.create(() =>
+        document.body.classList.remove(OpenEditorsWidget.BODY_SEARCH_VISIBLE_CLASS),
+      ),
+    )
+    this.updateSearchVisibilityClass()
     this.update()
   }
 
@@ -124,6 +133,7 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
       this.model.setSearchQuery('')
       this.detachSearchKeydownInterceptor()
     }
+    this.updateSearchVisibilityClass()
     this.update()
     if (this.searchVisible) {
       window.requestAnimationFrame(() => this.searchInputRef.current?.focus())
@@ -132,6 +142,10 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
 
   get editorWidgets(): NavigatableWidget[] {
     return this.model.editorWidgets
+  }
+
+  isSearchVisible(): boolean {
+    return this.searchVisible
   }
 
   protected override render(): React.ReactNode {
@@ -456,5 +470,15 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
       const end = Math.min(Math.max(selection.end ?? start, start), valueLength)
       input.setSelectionRange(start, end)
     })
+  }
+
+  protected updateSearchVisibilityClass(): void {
+    if (this.searchVisible) {
+      this.addClass(OpenEditorsWidget.SEARCH_VISIBLE_CLASS)
+      document.body.classList.add(OpenEditorsWidget.BODY_SEARCH_VISIBLE_CLASS)
+    } else {
+      this.removeClass(OpenEditorsWidget.SEARCH_VISIBLE_CLASS)
+      document.body.classList.remove(OpenEditorsWidget.BODY_SEARCH_VISIBLE_CLASS)
+    }
   }
 }

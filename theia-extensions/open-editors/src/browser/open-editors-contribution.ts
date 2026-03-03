@@ -82,6 +82,7 @@ export class OpenEditorsContribution
       execute: (widget) => this.withOpenEditorsWidget(widget, (openEditorsWidget) => openEditorsWidget.toggleSearch()),
       isEnabled: (widget) => this.withOpenEditorsWidget(widget, () => true),
       isVisible: (widget) => this.withOpenEditorsWidget(widget, () => true),
+      isToggled: (widget) => this.withOpenEditorsWidget(widget, (openEditorsWidget) => openEditorsWidget.isSearchVisible()),
     })
   }
 

@@ -103,23 +103,6 @@
   visibility: visible;
 }
 
-.lm-Widget.part:has(.theia-open-editors-widget)
-  .theia-view-container-part-title
-  .action-label:hover {
-  background-color: transparent;
-}
-
-.lm-Widget.part:has(.theia-sidepanel-title[title='Open Editors'])
-  .lm-TabBar-toolbar
-  .item.enabled
-  > .action-label:hover,
-.lm-Widget.part:has(.theia-sidepanel-title[title='Open Editors'])
-  .lm-TabBar-toolbar
-  .item.enabled:hover
-  > .action-label {
-  background-color: transparent !important;
-}
-
 .theia-open-editors-widget .open-editors-content {
   height: 100%;
   display: flex;
@@ -135,9 +118,56 @@
   width: 100%;
 }
 
-.lm-TabBar-toolbar .item > .open-editors-search-toolbar-icon.action-label:hover,
-.lm-TabBar-toolbar .item > .open-editors-close-all-toolbar-icon.action-label:hover {
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar
+  .item
+  > [id='open.editors.toggle.search'],
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar
+  .item
+  > [id='navigator.close.all.editors.toolbar'] {
   background-color: transparent !important;
+  border-radius: 4px;
+  width: calc(var(--theia-icon-size) + 4px);
+  height: calc(var(--theia-icon-size) + 4px);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none !important;
+  outline: none;
+}
+
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar
+  .item
+  > [id='open.editors.toggle.search']:hover,
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar
+  .item
+  > [id='navigator.close.all.editors.toolbar']:hover {
+  background-color: var(--theia-toolbar-hoverBackground) !important;
+}
+
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar
+  .item.toggled {
+  background-color: transparent !important;
+  border: none !important;
+}
+
+body.open-editors-search-visible
+  .theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar
+  .item
+  > [id='open.editors.toggle.search'] {
+  background-color: rgba(90, 90, 90, 0.5) !important;
 }
 
 .lm-Widget.part:has(.theia-sidepanel-title[title='Open Editors'])
