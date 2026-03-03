@@ -102,3 +102,20 @@
   .open-editors-inline-actions-container {
   visibility: visible;
 }
+
+.lm-Widget.part:has(.theia-open-editors-widget)
+  .theia-view-container-part-title
+  .action-label:hover {
+  background-color: transparent;
+}
+
+.lm-Widget.part:has(.theia-sidepanel-title[title='Open Editors'])
+  .lm-TabBar-toolbar
+  .item.enabled
+  > .action-label:hover,
+.lm-Widget.part:has(.theia-sidepanel-title[title='Open Editors'])
+  .lm-TabBar-toolbar
+  .item.enabled:hover
+  > .action-label {
+  background-color: transparent !important;
+}

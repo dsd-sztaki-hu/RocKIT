@@ -123,16 +123,10 @@ export class OpenEditorsContribution
 
   async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
     toolbarRegistry.registerItem({
-      id: OpenEditorsCommands.SAVE_ALL_TABS_FROM_TOOLBAR.id,
-      command: OpenEditorsCommands.SAVE_ALL_TABS_FROM_TOOLBAR.id,
-      tooltip: OpenEditorsCommands.SAVE_ALL_TABS_FROM_TOOLBAR.label,
-      priority: 0,
-    })
-    toolbarRegistry.registerItem({
       id: OpenEditorsCommands.CLOSE_ALL_TABS_FROM_TOOLBAR.id,
       command: OpenEditorsCommands.CLOSE_ALL_TABS_FROM_TOOLBAR.id,
       tooltip: OpenEditorsCommands.CLOSE_ALL_TABS_FROM_TOOLBAR.label,
-      priority: 1,
+      priority: 0,
     })
   }
 
