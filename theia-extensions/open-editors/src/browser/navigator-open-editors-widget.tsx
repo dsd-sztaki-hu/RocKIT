@@ -73,6 +73,11 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
   @inject(ApplicationShell) protected readonly applicationShell: ApplicationShell
   @inject(CommandService) protected readonly commandService: CommandService
   @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService
+  protected searchVisible = false
+  protected searchQuery = ''
+  protected readonly searchInputRef = React.createRef<HTMLInputElement>()
+  protected searchSelection: { start: number | null; end: number | null } | undefined
+  protected searchKeydownListenerAttached = false
 
   static createContainer(parent: interfaces.Container): Container {
     const child = createFileTreeContainer(parent)
@@ -112,8 +117,48 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
     this.update()
   }
 
+  toggleSearch(): void {
+    this.searchVisible = !this.searchVisible
+    if (!this.searchVisible) {
+      this.searchQuery = ''
+      this.model.setSearchQuery('')
+      this.detachSearchKeydownInterceptor()
+    }
+    this.update()
+    if (this.searchVisible) {
+      window.requestAnimationFrame(() => this.searchInputRef.current?.focus())
+    }
+  }
+
   get editorWidgets(): NavigatableWidget[] {
     return this.model.editorWidgets
+  }
+
+  protected override render(): React.ReactNode {
+    return (
+      <div className="open-editors-content">
+        {this.searchVisible && (
+          <div className="open-editors-search-container">
+            <input
+              ref={this.searchInputRef}
+              className="theia-input open-editors-search-input"
+              type="text"
+              value={this.searchQuery}
+              placeholder={nls.localizeByDefault('Search open editors')}
+              onChange={this.handleSearchInputChange}
+              onFocus={() => this.attachSearchKeydownInterceptor()}
+              onBlur={() => this.detachSearchKeydownInterceptor()}
+              onKeyDownCapture={(event) => this.stopSearchKeyEvents(event)}
+            />
+          </div>
+        )}
+        {React.createElement(
+          'div',
+          this.createContainerAttributes(),
+          this.renderTree(this.model),
+        )}
+      </div>
+    )
   }
 
   // eslint-disable-next-line no-null/no-null
@@ -325,4 +370,91 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
     return {}
   }
   override restoreState(): void {}
+
+  protected handleSearchInputChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ): void => {
+    this.searchSelection = {
+      start: event.target.selectionStart,
+      end: event.target.selectionEnd,
+    }
+    this.searchQuery = event.target.value
+    this.model.setSearchQuery(this.searchQuery)
+    this.update()
+    this.restoreInputSelection(this.searchSelection)
+  }
+
+  protected stopSearchKeyEvents(event: React.KeyboardEvent): void {
+    event.stopPropagation()
+    if (typeof event.nativeEvent.stopImmediatePropagation === 'function') {
+      event.nativeEvent.stopImmediatePropagation()
+    }
+  }
+
+  protected readonly searchGlobalKeydownCapture = (event: KeyboardEvent): void => {
+    const input = this.searchInputRef.current
+    const active = document.activeElement as HTMLElement | null
+    if (!input || !active || active !== input || event.key !== 'Delete') {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    if (typeof (event as { stopImmediatePropagation?: () => void }).stopImmediatePropagation === 'function') {
+      event.stopImmediatePropagation?.()
+    }
+    this.deleteOneCharInInput(input)
+  }
+
+  protected deleteOneCharInInput(input: HTMLInputElement): void {
+    if (input.readOnly || input.disabled) {
+      return
+    }
+    const value = input.value ?? ''
+    const start = input.selectionStart ?? value.length
+    const end = input.selectionEnd ?? value.length
+    let from = start
+    let to = end
+    if (start === end) {
+      if (start >= value.length) {
+        return
+      }
+      from = start
+      to = start + 1
+    }
+    input.setRangeText('', from, to, 'end')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+  }
+
+  protected attachSearchKeydownInterceptor(): void {
+    if (this.searchKeydownListenerAttached) {
+      return
+    }
+    window.addEventListener('keydown', this.searchGlobalKeydownCapture, true)
+    this.searchKeydownListenerAttached = true
+  }
+
+  protected detachSearchKeydownInterceptor(): void {
+    if (!this.searchKeydownListenerAttached) {
+      return
+    }
+    window.removeEventListener('keydown', this.searchGlobalKeydownCapture, true)
+    this.searchKeydownListenerAttached = false
+  }
+
+  protected restoreInputSelection(selection?: { start: number | null; end: number | null }): void {
+    if (!selection) {
+      return
+    }
+    requestAnimationFrame(() => {
+      const input = this.searchInputRef.current
+      if (!input) {
+        return
+      }
+      const valueLength = input.value.length
+      const start = Math.min(Math.max(selection.start ?? valueLength, 0), valueLength)
+      const end = Math.min(Math.max(selection.end ?? start, start), valueLength)
+      input.setSelectionRange(start, end)
+    })
+  }
 }

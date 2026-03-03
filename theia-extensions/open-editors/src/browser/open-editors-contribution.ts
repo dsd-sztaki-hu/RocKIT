@@ -77,6 +77,12 @@ export class OpenEditorsContribution
       },
       isVisible: () => false,
     })
+
+    registry.registerCommand(OpenEditorsCommands.TOGGLE_SEARCH, {
+      execute: (widget) => this.withOpenEditorsWidget(widget, (openEditorsWidget) => openEditorsWidget.toggleSearch()),
+      isEnabled: (widget) => this.withOpenEditorsWidget(widget, () => true),
+      isVisible: (widget) => this.withOpenEditorsWidget(widget, () => true),
+    })
   }
 
   override registerMenus(registry: MenuModelRegistry): void {
@@ -123,10 +129,16 @@ export class OpenEditorsContribution
 
   async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
     toolbarRegistry.registerItem({
+      id: OpenEditorsCommands.TOGGLE_SEARCH.id,
+      command: OpenEditorsCommands.TOGGLE_SEARCH.id,
+      tooltip: OpenEditorsCommands.TOGGLE_SEARCH.label,
+      priority: 0,
+    })
+    toolbarRegistry.registerItem({
       id: OpenEditorsCommands.CLOSE_ALL_TABS_FROM_TOOLBAR.id,
       command: OpenEditorsCommands.CLOSE_ALL_TABS_FROM_TOOLBAR.id,
       tooltip: OpenEditorsCommands.CLOSE_ALL_TABS_FROM_TOOLBAR.label,
-      priority: 0,
+      priority: 1,
     })
   }
 

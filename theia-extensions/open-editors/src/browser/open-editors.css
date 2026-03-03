@@ -119,3 +119,53 @@
   > .action-label {
   background-color: transparent !important;
 }
+
+.theia-open-editors-widget .open-editors-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.theia-open-editors-widget .open-editors-search-container {
+  padding: 6px;
+  border-bottom: 1px solid var(--theia-panel-border);
+}
+
+.theia-open-editors-widget .open-editors-search-input {
+  width: 100%;
+}
+
+.lm-TabBar-toolbar .item > .open-editors-search-toolbar-icon.action-label:hover,
+.lm-TabBar-toolbar .item > .open-editors-close-all-toolbar-icon.action-label:hover {
+  background-color: transparent !important;
+}
+
+.lm-Widget.part:has(.theia-sidepanel-title[title='Open Editors'])
+  .lm-TabBar-toolbar
+  .ps__rail-y,
+.lm-Widget.part:has(.theia-sidepanel-title[title='Open Editors'])
+  .lm-TabBar-toolbar
+  .ps__rail-x {
+  display: none !important;
+}
+
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar.ps
+  > .ps__rail-y,
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar.ps
+  > .ps__rail-x,
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar.ps:hover
+  > .ps__rail-y,
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar.ps:hover
+  > .ps__rail-x {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

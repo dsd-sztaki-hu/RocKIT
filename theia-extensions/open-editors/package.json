@@ -24,7 +24,6 @@
     "ts-jest": "^29.1.0"
   },
   "scripts": {
-    "prepare": "yarn run clean && yarn run build",
     "clean": "rimraf lib",
     "build": "tsc",
     "watch": "tsc -w"
