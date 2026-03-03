@@ -118,6 +118,12 @@
   width: 100%;
 }
 
+.theia-open-editors-widget .open-editors-empty-state {
+  padding: 8px 10px;
+  color: var(--theia-descriptionForeground);
+  font-size: var(--theia-ui-font-size1);
+}
+
 .theia-sidepanel-toolbar
   .theia-sidepanel-title[title='Open Editors']
   + .lm-TabBar-toolbar

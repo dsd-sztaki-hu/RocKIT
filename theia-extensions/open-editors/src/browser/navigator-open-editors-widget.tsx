@@ -116,6 +116,7 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
     super.init()
     this.id = OpenEditorsWidget.ID
     this.title.label = OpenEditorsWidget.LABEL
+    this.title.iconClass = 'fa fa-list-ul'
     this.addClass(OpenEditorsWidget.CSS_CLASS)
     this.toDispose.push(
       Disposable.create(() =>
@@ -149,6 +150,7 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
   }
 
   protected override render(): React.ReactNode {
+    const hasOpenEditors = this.model.editorWidgets.length > 0
     return (
       <div className="open-editors-content">
         {this.searchVisible && (
@@ -166,10 +168,16 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
             />
           </div>
         )}
-        {React.createElement(
-          'div',
-          this.createContainerAttributes(),
-          this.renderTree(this.model),
+        {hasOpenEditors ? (
+          React.createElement(
+            'div',
+            this.createContainerAttributes(),
+            this.renderTree(this.model),
+          )
+        ) : (
+          <div className="open-editors-empty-state">
+            {nls.localizeByDefault('No open editors.')}
+          </div>
         )}
       </div>
     )
@@ -198,8 +206,19 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
           {this.renderCaptionAffixes(node, props, 'captionSuffixes')}
         </div>
         {this.renderTailDecorations(node, props)}
-        {(this.isGroupNode(node) || this.isAreaNode(node)) &&
-          this.renderInteractables(node, props)}
+        {(this.isGroupNode(node) || this.isAreaNode(node)) && (
+          <div className="open-editors-inline-actions-container">
+            <div className="open-editors-inline-action">
+              <a
+                className="codicon codicon-close-all"
+                title={OpenEditorsCommands.CLOSE_ALL_EDITORS_IN_GROUP_FROM_ICON.label}
+                onClick={this.handleGroupActionIconClicked}
+                data-id={node.id}
+                id={OpenEditorsCommands.CLOSE_ALL_EDITORS_IN_GROUP_FROM_ICON.id}
+              />
+            </div>
+          </div>
+        )}
       </div>
     )
     return React.createElement('div', attributes, content)
@@ -260,31 +279,6 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
     )
   }
 
-  protected renderInteractables(node: OpenEditorNode, props: NodeProps): React.ReactNode {
-    return (
-      <div className="open-editors-inline-actions-container">
-        <div className="open-editors-inline-action">
-          <a
-            className="codicon codicon-save-all"
-            title={OpenEditorsCommands.SAVE_ALL_IN_GROUP_FROM_ICON.label}
-            onClick={this.handleGroupActionIconClicked}
-            data-id={node.id}
-            id={OpenEditorsCommands.SAVE_ALL_IN_GROUP_FROM_ICON.id}
-          />
-        </div>
-        <div className="open-editors-inline-action">
-          <a
-            className="codicon codicon-close-all"
-            title={OpenEditorsCommands.CLOSE_ALL_EDITORS_IN_GROUP_FROM_ICON.label}
-            onClick={this.handleGroupActionIconClicked}
-            data-id={node.id}
-            id={OpenEditorsCommands.CLOSE_ALL_EDITORS_IN_GROUP_FROM_ICON.id}
-          />
-        </div>
-      </div>
-    )
-  }
-
   protected handleGroupActionIconClicked = async (
     e: React.MouseEvent<HTMLAnchorElement>,
   ) => this.doHandleGroupActionIconClicked(e)
@@ -312,7 +306,7 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
         areaOrTabBar = groupFromTarget
       } else {
         const groupAsNum = parseInt(groupFromTarget)
-        if (!isNaN(groupAsNum)) {
+        if (!Number.isNaN(groupAsNum)) {
           areaOrTabBar = this.model.getTabBarForGroup(groupAsNum)
         }
       }
@@ -413,7 +407,10 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
     }
     event.preventDefault()
     event.stopPropagation()
-    if (typeof (event as { stopImmediatePropagation?: () => void }).stopImmediatePropagation === 'function') {
+    if (
+      typeof (event as { stopImmediatePropagation?: () => void })
+        .stopImmediatePropagation === 'function'
+    ) {
       event.stopImmediatePropagation?.()
     }
     this.deleteOneCharInInput(input)
@@ -456,7 +453,10 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
     this.searchKeydownListenerAttached = false
   }
 
-  protected restoreInputSelection(selection?: { start: number | null; end: number | null }): void {
+  protected restoreInputSelection(selection?: {
+    start: number | null
+    end: number | null
+  }): void {
     if (!selection) {
       return
     }

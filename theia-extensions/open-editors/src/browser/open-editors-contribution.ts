@@ -71,13 +71,6 @@ export class OpenEditorsContribution
       },
       isVisible: () => false,
     })
-    registry.registerCommand(OpenEditorsCommands.SAVE_ALL_IN_GROUP_FROM_ICON, {
-      execute: (tabBarOrArea: ApplicationShell.Area | TabBar<Widget>) => {
-        this.shell.saveTabs(tabBarOrArea, filterEditorWidgets)
-      },
-      isVisible: () => false,
-    })
-
     registry.registerCommand(OpenEditorsCommands.TOGGLE_SEARCH, {
       execute: (widget) => this.withOpenEditorsWidget(widget, (openEditorsWidget) => openEditorsWidget.toggleSearch()),
       isEnabled: (widget) => this.withOpenEditorsWidget(widget, () => true),
