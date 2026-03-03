@@ -9,7 +9,9 @@
     "src"
   ],
   "dependencies": {
-    "@theia/core": "1.65.2"
+    "@theia/core": "1.65.2",
+    "@theia/filesystem": "1.65.2",
+    "@theia/workspace": "1.65.2"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
@@ -22,7 +24,7 @@
     "ts-jest": "^29.1.0"
   },
   "scripts": {
-    "prepare": "npm run clean && npm run build",
+    "prepare": "yarn run clean && yarn run build",
     "clean": "rimraf lib",
     "build": "tsc",
     "watch": "tsc -w"

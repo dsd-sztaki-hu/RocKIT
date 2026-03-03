@@ -26,9 +26,6 @@ import {
     SelectableTreeNode,
     Widget,
     NavigatableWidget,
-    ApplicationShell,
-    TabBar,
-    Title,
     SHELL_TABBAR_CONTEXT_MENU,
     OpenWithService
 } from '@theia/core/lib/browser';
@@ -66,9 +63,6 @@ import { DirNode, FileNode } from '@theia/filesystem/lib/browser';
 import { FileNavigatorModel } from './navigator-model';
 import { ClipboardService } from '@theia/core/lib/browser/clipboard-service';
 import { SelectionService } from '@theia/core/lib/common/selection-service';
-import { OpenEditorsWidget } from './open-editors-widget/navigator-open-editors-widget';
-import { OpenEditorsContextMenu } from './open-editors-widget/navigator-open-editors-menus';
-import { OpenEditorsCommands } from './open-editors-widget/navigator-open-editors-commands';
 import { nls } from '@theia/core/lib/common/nls';
 import URI from '@theia/core/lib/common/uri';
 import { UriAwareCommandHandler } from '@theia/core/lib/common/uri-command-handler';
@@ -307,33 +301,6 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             isVisible: uri => this.openWithService.getHandlers(uri).length > 0,
             execute: uri => this.openWithService.openWith(uri)
         }));
-        registry.registerCommand(OpenEditorsCommands.CLOSE_ALL_TABS_FROM_TOOLBAR, {
-            execute: widget => this.withOpenEditorsWidget(widget, () => this.shell.closeMany(this.editorWidgets)),
-            isEnabled: widget => this.withOpenEditorsWidget(widget, () => true),
-            isVisible: widget => this.withOpenEditorsWidget(widget, () => true)
-        });
-        registry.registerCommand(OpenEditorsCommands.SAVE_ALL_TABS_FROM_TOOLBAR, {
-            execute: widget => this.withOpenEditorsWidget(widget, () => registry.executeCommand(CommonCommands.SAVE_ALL.id)),
-            isEnabled: widget => this.withOpenEditorsWidget(widget, () => true),
-            isVisible: widget => this.withOpenEditorsWidget(widget, () => true)
-        });
-
-        const filterEditorWidgets = (title: Title<Widget>) => {
-            const { owner } = title;
-            return NavigatableWidget.is(owner);
-        };
-        registry.registerCommand(OpenEditorsCommands.CLOSE_ALL_EDITORS_IN_GROUP_FROM_ICON, {
-            execute: (tabBarOrArea: ApplicationShell.Area | TabBar<Widget>): void => {
-                this.shell.closeTabs(tabBarOrArea, filterEditorWidgets);
-            },
-            isVisible: () => false
-        });
-        registry.registerCommand(OpenEditorsCommands.SAVE_ALL_IN_GROUP_FROM_ICON, {
-            execute: (tabBarOrArea: ApplicationShell.Area | TabBar<Widget>) => {
-                this.shell.saveTabs(tabBarOrArea, filterEditorWidgets);
-            },
-            isVisible: () => false
-        });
 
         registry.registerCommand(FileNavigatorCommands.NEW_FILE_TOOLBAR, {
             execute: (...args) => registry.executeCommand(WorkspaceCommands.NEW_FILE.id, ...args),
@@ -347,24 +314,12 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         });
     }
 
-    protected get editorWidgets(): NavigatableWidget[] {
-        const openEditorsWidget = this.widgetManager.tryGetWidget<OpenEditorsWidget>(OpenEditorsWidget.ID);
-        return openEditorsWidget?.editorWidgets ?? [];
-    }
-
     protected getSelectedFileNodes(): FileNode[] {
         return this.tryGetWidget()?.model.selectedNodes.filter(FileNode.is) || [];
     }
 
     protected withWidget<T>(widget: Widget | undefined = this.tryGetWidget(), cb: (navigator: FileNavigatorWidget) => T): T | false {
         if (widget instanceof FileNavigatorWidget && widget.id === FILE_NAVIGATOR_ID) {
-            return cb(widget);
-        }
-        return false;
-    }
-
-    protected withOpenEditorsWidget<T>(widget: Widget, cb: (navigator: OpenEditorsWidget) => T): T | false {
-        if (widget instanceof OpenEditorsWidget && widget.id === OpenEditorsWidget.ID) {
             return cb(widget);
         }
         return false;
@@ -456,45 +411,6 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             order: 'zb'
         });
 
-        // Open Editors Widget Menu Items
-        registry.registerMenuAction(OpenEditorsContextMenu.CLIPBOARD, {
-            commandId: CommonCommands.COPY_PATH.id,
-            order: 'a'
-        });
-        registry.registerMenuAction(OpenEditorsContextMenu.CLIPBOARD, {
-            commandId: WorkspaceCommands.COPY_RELATIVE_FILE_PATH.id,
-            order: 'b'
-        });
-        registry.registerMenuAction(OpenEditorsContextMenu.SAVE, {
-            commandId: CommonCommands.SAVE.id,
-            order: 'a'
-        });
-
-        registry.registerMenuAction(OpenEditorsContextMenu.COMPARE, {
-            commandId: NavigatorDiffCommands.COMPARE_FIRST.id,
-            order: 'a'
-        });
-        registry.registerMenuAction(OpenEditorsContextMenu.COMPARE, {
-            commandId: NavigatorDiffCommands.COMPARE_SECOND.id,
-            order: 'b'
-        });
-
-        registry.registerMenuAction(OpenEditorsContextMenu.MODIFICATION, {
-            commandId: CommonCommands.CLOSE_TAB.id,
-            label: nls.localizeByDefault('Close'),
-            order: 'a'
-        });
-        registry.registerMenuAction(OpenEditorsContextMenu.MODIFICATION, {
-            commandId: CommonCommands.CLOSE_OTHER_TABS.id,
-            label: nls.localizeByDefault('Close Others'),
-            order: 'b'
-        });
-        registry.registerMenuAction(OpenEditorsContextMenu.MODIFICATION, {
-            commandId: CommonCommands.CLOSE_ALL_MAIN_TABS.id,
-            label: nls.localizeByDefault('Close All'),
-            order: 'c'
-        });
-
         registry.registerMenuAction(NavigatorContextMenu.WORKSPACE, {
             commandId: FileNavigatorCommands.ADD_ROOT_FOLDER.id,
             label: WorkspaceCommands.ADD_FOLDER.label
@@ -570,19 +486,6 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             group: NavigatorMoreToolbarGroups.WORKSPACE,
         });
 
-        // Open Editors toolbar items.
-        toolbarRegistry.registerItem({
-            id: OpenEditorsCommands.SAVE_ALL_TABS_FROM_TOOLBAR.id,
-            command: OpenEditorsCommands.SAVE_ALL_TABS_FROM_TOOLBAR.id,
-            tooltip: OpenEditorsCommands.SAVE_ALL_TABS_FROM_TOOLBAR.label,
-            priority: 0,
-        });
-        toolbarRegistry.registerItem({
-            id: OpenEditorsCommands.CLOSE_ALL_TABS_FROM_TOOLBAR.id,
-            command: OpenEditorsCommands.CLOSE_ALL_TABS_FROM_TOOLBAR.id,
-            tooltip: OpenEditorsCommands.CLOSE_ALL_TABS_FROM_TOOLBAR.label,
-            priority: 1,
-        });
     }
 
     /**

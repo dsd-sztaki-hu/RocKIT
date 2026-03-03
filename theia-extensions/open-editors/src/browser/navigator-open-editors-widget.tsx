@@ -48,7 +48,7 @@ import {
   FileTreeWidget,
 } from '@theia/filesystem/lib/browser'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { AbstractNavigatorTreeWidget } from '../abstract-navigator-tree-widget'
+import { AbstractOpenEditorsTreeWidget } from './abstract-open-editors-tree-widget'
 import { OpenEditorsCommands } from './navigator-open-editors-commands'
 import { OpenEditorsTreeDecoratorService } from './navigator-open-editors-decorator-service'
 import { OPEN_EDITORS_CONTEXT_MENU } from './navigator-open-editors-menus'
@@ -65,9 +65,10 @@ export interface OpenEditorsNodeRow extends TreeWidget.NodeRow {
   node: OpenEditorNode
 }
 @injectable()
-export class OpenEditorsWidget extends AbstractNavigatorTreeWidget {
-  static ID = 'theia-open-editors-widget'
+export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
+  static ID = 'aroma-open-editors-widget'
   static LABEL = nls.localizeByDefault('Open Editors')
+  static CSS_CLASS = 'theia-open-editors-widget'
 
   @inject(ApplicationShell) protected readonly applicationShell: ApplicationShell
   @inject(CommandService) protected readonly commandService: CommandService
@@ -107,7 +108,7 @@ export class OpenEditorsWidget extends AbstractNavigatorTreeWidget {
     super.init()
     this.id = OpenEditorsWidget.ID
     this.title.label = OpenEditorsWidget.LABEL
-    this.addClass(OpenEditorsWidget.ID)
+    this.addClass(OpenEditorsWidget.CSS_CLASS)
     this.update()
   }
 
