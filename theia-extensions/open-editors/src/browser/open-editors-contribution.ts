@@ -1,5 +1,3 @@
-import { inject, injectable } from '@theia/core/shared/inversify'
-import { AbstractViewContribution } from '@theia/core/lib/browser/shell/view-contribution'
 import {
   ApplicationShell,
   CommonCommands,
@@ -8,17 +6,19 @@ import {
   Title,
   Widget,
 } from '@theia/core/lib/browser'
-import { CommandRegistry, MenuModelRegistry, Mutable } from '@theia/core/lib/common'
 import {
   RenderedToolbarAction,
   TabBarToolbarContribution,
   TabBarToolbarRegistry,
 } from '@theia/core/lib/browser/shell/tab-bar-toolbar'
-import { WorkspaceCommands } from '@theia/workspace/lib/browser'
+import { AbstractViewContribution } from '@theia/core/lib/browser/shell/view-contribution'
+import { CommandRegistry, MenuModelRegistry, Mutable } from '@theia/core/lib/common'
 import { nls } from '@theia/core/lib/common/nls'
-import { OpenEditorsWidget } from './navigator-open-editors-widget'
+import { inject, injectable } from '@theia/core/shared/inversify'
+import { WorkspaceCommands } from '@theia/workspace/lib/browser'
 import { OpenEditorsCommands } from './navigator-open-editors-commands'
 import { OpenEditorsContextMenu } from './navigator-open-editors-menus'
+import { OpenEditorsWidget } from './navigator-open-editors-widget'
 
 export const OPEN_EDITORS_TOGGLE_COMMAND_ID = 'openEditors:toggle'
 
@@ -37,7 +37,7 @@ export class OpenEditorsContribution
     super({
       widgetId: OpenEditorsWidget.ID,
       widgetName: OpenEditorsWidget.LABEL,
-      defaultWidgetOptions: { area: 'left', rank: 99 },
+      defaultWidgetOptions: { area: 'left' },
       toggleCommandId: OPEN_EDITORS_TOGGLE_COMMAND_ID,
     })
   }
@@ -47,7 +47,9 @@ export class OpenEditorsContribution
 
     registry.registerCommand(OpenEditorsCommands.CLOSE_ALL_TABS_FROM_TOOLBAR, {
       execute: (widget) =>
-        this.withOpenEditorsWidget(widget, () => this.shell.closeMany(this.editorWidgets)),
+        this.withOpenEditorsWidget(widget, () =>
+          this.shell.closeMany(this.editorWidgets),
+        ),
       isEnabled: (widget) => this.withOpenEditorsWidget(widget, () => true),
       isVisible: (widget) => this.withOpenEditorsWidget(widget, () => true),
     })
@@ -72,10 +74,16 @@ export class OpenEditorsContribution
       isVisible: () => false,
     })
     registry.registerCommand(OpenEditorsCommands.TOGGLE_SEARCH, {
-      execute: (widget) => this.withOpenEditorsWidget(widget, (openEditorsWidget) => openEditorsWidget.toggleSearch()),
+      execute: (widget) =>
+        this.withOpenEditorsWidget(widget, (openEditorsWidget) =>
+          openEditorsWidget.toggleSearch(),
+        ),
       isEnabled: (widget) => this.withOpenEditorsWidget(widget, () => true),
       isVisible: (widget) => this.withOpenEditorsWidget(widget, () => true),
-      isToggled: (widget) => this.withOpenEditorsWidget(widget, (openEditorsWidget) => openEditorsWidget.isSearchVisible()),
+      isToggled: (widget) =>
+        this.withOpenEditorsWidget(widget, (openEditorsWidget) =>
+          openEditorsWidget.isSearchVisible(),
+        ),
     })
   }
 
@@ -150,20 +158,29 @@ export class OpenEditorsContribution
     return false
   }
 
-  public registerMoreToolbarItem = (item: Mutable<RenderedToolbarAction> & { command: string }) => {
+  public registerMoreToolbarItem = (
+    item: Mutable<RenderedToolbarAction> & { command: string },
+  ) => {
     const commandId = item.command
     const id = 'open-editors.tabbar.toolbar.' + commandId
     const command = this.commandRegistry.getCommand(commandId)
-    this.commandRegistry.registerCommand({ id, iconClass: command && command.iconClass }, {
-      execute: (w, ...args) =>
-        w instanceof OpenEditorsWidget && this.commandRegistry.executeCommand(commandId, ...args),
-      isEnabled: (w, ...args) =>
-        w instanceof OpenEditorsWidget && this.commandRegistry.isEnabled(commandId, ...args),
-      isVisible: (w, ...args) =>
-        w instanceof OpenEditorsWidget && this.commandRegistry.isVisible(commandId, ...args),
-      isToggled: (w, ...args) =>
-        w instanceof OpenEditorsWidget && this.commandRegistry.isToggled(commandId, ...args),
-    })
+    this.commandRegistry.registerCommand(
+      { id, iconClass: command && command.iconClass },
+      {
+        execute: (w, ...args) =>
+          w instanceof OpenEditorsWidget &&
+          this.commandRegistry.executeCommand(commandId, ...args),
+        isEnabled: (w, ...args) =>
+          w instanceof OpenEditorsWidget &&
+          this.commandRegistry.isEnabled(commandId, ...args),
+        isVisible: (w, ...args) =>
+          w instanceof OpenEditorsWidget &&
+          this.commandRegistry.isVisible(commandId, ...args),
+        isToggled: (w, ...args) =>
+          w instanceof OpenEditorsWidget &&
+          this.commandRegistry.isToggled(commandId, ...args),
+      },
+    )
     item.command = id
     this.tabbarToolbarRegistry.registerItem(item)
   }
