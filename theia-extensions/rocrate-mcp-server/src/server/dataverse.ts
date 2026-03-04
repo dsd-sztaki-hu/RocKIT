@@ -12,6 +12,8 @@ type DataverseDeps = {
   defaultBaseUrl: string
   defaultOwnerId: string
   defaultValidatePath: string
+  rocrateConformsToUrl: string
+  externalContextCoverageUrls: Set<string>
   loadCrateFromParams: (params: Record<string, unknown>) => {
     mode: 'local' | 'remote'
     cratePath?: string
@@ -44,6 +46,99 @@ type DataverseDeps = {
  * Builds Dataverse upload/download/validation handlers and parameter parsers.
  */
 export function createDataverseHandlers(deps: DataverseDeps) {
+  /**
+   * Handles extract conformsTo urls.
+   */
+  function extractConformsToUrls(value: unknown): string[] {
+    if (!value) {
+      return []
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      return trimmed === '' ? [] : [trimmed]
+    }
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => extractConformsToUrls(item))
+    }
+    if (typeof value === 'object') {
+      const id = (value as Record<string, unknown>)['@id']
+      return extractConformsToUrls(id)
+    }
+    return []
+  }
+
+  /**
+   * Handles collect context urls.
+   */
+  function collectContextUrls(crate: RoCrate): Set<string> {
+    const urls = new Set<string>()
+    const context = crate['@context']
+    const collect = (value: unknown): void => {
+      if (typeof value === 'string' && value.trim() !== '') {
+        urls.add(value.trim())
+      }
+    }
+    if (Array.isArray(context)) {
+      for (const item of context) {
+        collect(item)
+      }
+      return urls
+    }
+    collect(context)
+    return urls
+  }
+
+  /**
+   * Handles has external context coverage.
+   */
+  function hasExternalContextCoverage(crate: RoCrate): boolean {
+    const contextUrls = collectContextUrls(crate)
+    for (const url of contextUrls) {
+      if (deps.externalContextCoverageUrls.has(url)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  /**
+   * Handles collect term usage profile scope.
+   */
+  function collectTermUsageProfileScope(
+    crate: RoCrate,
+  ): Map<string, { profiled: boolean; unprofiled: boolean }> {
+    const usage = new Map<string, { profiled: boolean; unprofiled: boolean }>()
+    const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
+    for (const entity of graph) {
+      if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+        continue
+      }
+      const types = entityTypes(entity)
+      const isDatasetOrFile = types.includes('Dataset') || types.includes('File')
+      if (!isDatasetOrFile) {
+        continue
+      }
+      const profileUrls = extractConformsToUrls(entity.conformsTo).filter(
+        (url) => url !== deps.rocrateConformsToUrl,
+      )
+      const scope: 'profiled' | 'unprofiled' =
+        profileUrls.length > 0 ? 'profiled' : 'unprofiled'
+      for (const key of Object.keys(entity)) {
+        if (key.startsWith('@')) {
+          continue
+        }
+        const current = usage.get(key) ?? { profiled: false, unprofiled: false }
+        if (scope === 'profiled') {
+          current.profiled = true
+        } else {
+          current.unprofiled = true
+        }
+        usage.set(key, current)
+      }
+    }
+    return usage
+  }
+
   /**
    * Handles read optional string param.
    */
@@ -665,9 +760,18 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       },
     )
     const contextSuggestion = deps.buildContextTermSuggestion(params.crate, constraints)
-    if (contextSuggestion.missingTerms.length > 0) {
+    const externalContextCoverage = hasExternalContextCoverage(params.crate)
+    const termUsageByScope = collectTermUsageProfileScope(params.crate)
+    const blockingMissingTerms = contextSuggestion.missingTerms.filter((term) => {
+      if (!externalContextCoverage) {
+        return true
+      }
+      const usage = termUsageByScope.get(term)
+      return !!usage?.profiled || !usage?.unprofiled
+    })
+    if (blockingMissingTerms.length > 0) {
       throw new Error(
-        `Upload blocked by @context coverage. Missing mappings for used term(s): ${contextSuggestion.missingTerms.join(', ')}. Use suggest_context_terms and mergeContext before upload.`,
+        `Upload blocked by @context coverage. Missing mappings for used term(s): ${blockingMissingTerms.join(', ')}. Use suggest_context_terms and mergeContext before upload.`,
       )
     }
     const dataversePreflight = await validateRoCrateViaDataverse(

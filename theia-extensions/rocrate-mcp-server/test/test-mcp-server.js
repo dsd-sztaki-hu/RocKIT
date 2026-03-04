@@ -85,6 +85,9 @@ async function startMockWebToolsServer(profileUrl) {
     'dateModified',
     'subject',
   ])
+  const externalCoverageContextUrls = new Set([
+    'https://w3id.org/ro/crate/1.1/context',
+  ])
 
   function collectUsedTerms(crate) {
     const used = new Set()
@@ -121,6 +124,24 @@ async function startMockWebToolsServer(profileUrl) {
     }
     collect(ctx)
     return declared
+  }
+
+  function collectContextUrls(crate) {
+    const urls = new Set()
+    const ctx = crate ? crate['@context'] : undefined
+    const collect = (item) => {
+      if (typeof item === 'string' && item.trim() !== '') {
+        urls.add(item.trim())
+      }
+    }
+    if (Array.isArray(ctx)) {
+      for (const item of ctx) {
+        collect(item)
+      }
+      return urls
+    }
+    collect(ctx)
+    return urls
   }
 
   const server = http.createServer((req, res) => {
@@ -175,8 +196,15 @@ async function startMockWebToolsServer(profileUrl) {
         }
         const used = collectUsedTerms(crate)
         const declared = collectDeclaredTerms(crate)
+        const contextUrls = collectContextUrls(crate)
+        const hasExternalCoverage = Array.from(contextUrls).some((url) =>
+          externalCoverageContextUrls.has(url),
+        )
         const missing = Array.from(used).filter(
-          (term) => !declared.has(term) && !defaultContextKnownTerms.has(term),
+          (term) =>
+            !hasExternalCoverage &&
+            !declared.has(term) &&
+            !defaultContextKnownTerms.has(term),
         )
         if (missing.length > 0) {
           const details = {
@@ -677,12 +705,8 @@ async function run() {
       },
     })
     assert.ok(
-      unprofiledUnknownPropertyResponse.error,
-      'unprofiled Dataset/File should reject properties not defined in @context',
-    )
-    assert.match(
-      unprofiledUnknownPropertyResponse.error.message,
-      /contains property not defined by @context: unlistedProperty/,
+      unprofiledUnknownPropertyResponse.result,
+      'unprofiled Dataset/File should allow properties covered by external @context URLs',
     )
 
     const legacyAliasChangeSetResponse = await request('tools/call', {
@@ -760,6 +784,10 @@ async function run() {
         ownerId: 'root',
       },
     })
+    assert.ok(
+      uploadDataverseResponse.result,
+      `upload_rocrate_to_dataverse failed unexpectedly: ${JSON.stringify(uploadDataverseResponse)}`,
+    )
     const uploadDataversePayload = JSON.parse(uploadDataverseResponse.result.content[0].text)
     assert.equal(uploadDataversePayload.mode, 'local')
     assert.equal(uploadDataversePayload.writeApplied, false)

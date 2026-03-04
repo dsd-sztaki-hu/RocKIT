@@ -344,6 +344,152 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
+    name: 'list_schema_registry',
+    description:
+      'List persisted ontology schema registry entries used by ontology query tools.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['local', 'remote'] },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'register_schema',
+    description:
+      'Register or update one ontology schema source entry in the persisted schema registry.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['local', 'remote'] },
+        id: { type: 'string' },
+        displayName: { type: 'string' },
+        matchesUrls: { type: 'array', items: { type: 'string' } },
+        schemaUrl: { type: 'string' },
+        activeOnSpec: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['id', 'displayName', 'matchesUrls', 'schemaUrl'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_types',
+    description:
+      'List distilled ontology class/type candidates available from shared context+schema catalog.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['local', 'remote'] },
+        cratePath: { type: 'string' },
+        crate: { type: 'object' },
+        search: { type: 'string' },
+        offset: { type: 'number' },
+        limit: { type: 'number' },
+        eagerLoadSchemas: { type: 'boolean' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'suggest_types',
+    description:
+      'Suggest best matching ontology types for a free-text query using shared catalog ranking.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['local', 'remote'] },
+        cratePath: { type: 'string' },
+        crate: { type: 'object' },
+        query: { type: 'string' },
+        limit: { type: 'number' },
+        eagerLoadSchemas: { type: 'boolean' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
+      },
+      required: ['query'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'get_type_details',
+    description:
+      'Get details for one ontology type (label/comment/parents/property count).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['local', 'remote'] },
+        cratePath: { type: 'string' },
+        crate: { type: 'object' },
+        typeId: { type: 'string' },
+        eagerLoadSchemas: { type: 'boolean' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
+      },
+      required: ['typeId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_properties_for_type',
+    description:
+      'List distilled properties for a given type, optionally including inherited properties.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['local', 'remote'] },
+        cratePath: { type: 'string' },
+        crate: { type: 'object' },
+        typeId: { type: 'string' },
+        includeInherited: { type: 'boolean' },
+        search: { type: 'string' },
+        offset: { type: 'number' },
+        limit: { type: 'number' },
+        eagerLoadSchemas: { type: 'boolean' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
+      },
+      required: ['typeId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'suggest_properties',
+    description:
+      'Suggest best matching properties for a query constrained by one or more type IDs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['local', 'remote'] },
+        cratePath: { type: 'string' },
+        crate: { type: 'object' },
+        typeIds: { type: 'array', items: { type: 'string' } },
+        query: { type: 'string' },
+        limit: { type: 'number' },
+        eagerLoadSchemas: { type: 'boolean' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
+      },
+      required: ['typeIds', 'query'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'get_property_details',
+    description:
+      'Get details for one ontology property (label/comment/domain/range).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['local', 'remote'] },
+        cratePath: { type: 'string' },
+        crate: { type: 'object' },
+        propertyId: { type: 'string' },
+        eagerLoadSchemas: { type: 'boolean' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
+      },
+      required: ['propertyId'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'resolve_profile_schema',
     description:
       'Resolve profile URL to profile records and converted profile file paths via metadata-schema-index.',

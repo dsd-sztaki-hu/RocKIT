@@ -41,6 +41,15 @@ const elements = {
   cancelSettingsBtn: document.getElementById('cancelSettingsBtn'),
   closeSettingsModal: document.getElementById('closeSettingsModal'),
   settingsMessage: document.getElementById('settingsMessage'),
+  schemaRegistryTableBody: document.querySelector('#schemaRegistryTable tbody'),
+  schemaIdInput: document.getElementById('schemaIdInput'),
+  schemaDisplayNameInput: document.getElementById('schemaDisplayNameInput'),
+  schemaUrlInput: document.getElementById('schemaUrlInput'),
+  schemaMatchesInput: document.getElementById('schemaMatchesInput'),
+  schemaSpecsInput: document.getElementById('schemaSpecsInput'),
+  addSchemaBtn: document.getElementById('addSchemaBtn'),
+  reloadSchemaBtn: document.getElementById('reloadSchemaBtn'),
+  schemaRegistryMessage: document.getElementById('schemaRegistryMessage'),
 };
 
 // API Helpers
@@ -74,6 +83,42 @@ async function postAPI(endpoint, data) {
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+async function putAPI(endpoint, data) {
+  const url = `${API_BASE}${endpoint}`;
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+async function deleteAPI(endpoint) {
+  const url = `${API_BASE}${endpoint}`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `HTTP ${response.status}: ${response.statusText}`);
   }
 
   return response.json();
@@ -520,8 +565,123 @@ function showSettingsMessage(message, type) {
   }, 3000);
 }
 
+function showSchemaRegistryMessage(message, type) {
+  elements.schemaRegistryMessage.textContent = message;
+  elements.schemaRegistryMessage.className = `settings-message ${type}`;
+  elements.schemaRegistryMessage.classList.remove('hidden');
+
+  setTimeout(() => {
+    elements.schemaRegistryMessage.classList.add('hidden');
+  }, 3000);
+}
+
+function splitCsv(input) {
+  return (input || '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+}
+
+async function loadSchemaRegistry() {
+  try {
+    const data = await fetchAPI('/schema-registry?mode=local');
+    const schemas = data.schemas || [];
+    if (schemas.length === 0) {
+      elements.schemaRegistryTableBody.innerHTML = '<tr><td colspan="6" class="empty">No schemas registered</td></tr>';
+      return;
+    }
+
+    elements.schemaRegistryTableBody.innerHTML = schemas.map((entry) => `
+      <tr>
+        <td><code>${escapeHtml(entry.id)}</code></td>
+        <td>${escapeHtml(entry.displayName)}</td>
+        <td><code>${escapeHtml(entry.schemaUrl)}</code></td>
+        <td>${escapeHtml((entry.matchesUrls || []).join(', '))}</td>
+        <td>${escapeHtml((entry.activeOnSpec || []).join(', '))}</td>
+        <td>
+          <button class="btn btn-sm" onclick='editSchema(${JSON.stringify(entry.id)})'>Edit</button>
+          <button class="btn btn-sm" onclick='deleteSchema(${JSON.stringify(entry.id)})'>Delete</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    elements.schemaRegistryTableBody.innerHTML = `<tr><td colspan="6" class="text-danger">Failed to load schema registry: ${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+async function addOrReplaceSchema() {
+  const id = (elements.schemaIdInput.value || '').trim();
+  const displayName = (elements.schemaDisplayNameInput.value || '').trim();
+  const schemaUrl = (elements.schemaUrlInput.value || '').trim();
+  const matchesUrls = splitCsv(elements.schemaMatchesInput.value);
+  const activeOnSpec = splitCsv(elements.schemaSpecsInput.value);
+
+  if (!id || !displayName || !schemaUrl || matchesUrls.length === 0) {
+    showSchemaRegistryMessage('id, displayName, schemaUrl and matchesUrls are required.', 'error');
+    return;
+  }
+
+  const payload = {
+    mode: 'local',
+    id,
+    displayName,
+    schemaUrl,
+    matchesUrls,
+  };
+  if (activeOnSpec.length > 0) {
+    payload.activeOnSpec = activeOnSpec;
+  }
+
+  try {
+    const existing = await fetchAPI('/schema-registry?mode=local');
+    const exists = (existing.schemas || []).some((entry) => entry.id === id);
+    if (exists) {
+      await putAPI(`/schema-registry/${encodeURIComponent(id)}`, payload);
+      showSchemaRegistryMessage('Schema updated.', 'success');
+    } else {
+      await postAPI('/schema-registry', payload);
+      showSchemaRegistryMessage('Schema added.', 'success');
+    }
+    await loadSchemaRegistry();
+  } catch (err) {
+    showSchemaRegistryMessage(`Failed to save schema: ${err.message}`, 'error');
+  }
+}
+
+async function editSchema(id) {
+  try {
+    const data = await fetchAPI('/schema-registry?mode=local');
+    const entry = (data.schemas || []).find((item) => item.id === id);
+    if (!entry) {
+      showSchemaRegistryMessage(`Schema not found: ${id}`, 'error');
+      return;
+    }
+    elements.schemaIdInput.value = entry.id || '';
+    elements.schemaDisplayNameInput.value = entry.displayName || '';
+    elements.schemaUrlInput.value = entry.schemaUrl || '';
+    elements.schemaMatchesInput.value = (entry.matchesUrls || []).join(', ');
+    elements.schemaSpecsInput.value = (entry.activeOnSpec || []).join(', ');
+  } catch (err) {
+    showSchemaRegistryMessage(`Failed to load schema for edit: ${err.message}`, 'error');
+  }
+}
+
+async function deleteSchema(id) {
+  if (!window.confirm(`Delete schema '${id}'?`)) {
+    return;
+  }
+  try {
+    await deleteAPI(`/schema-registry/${encodeURIComponent(id)}?mode=local`);
+    showSchemaRegistryMessage('Schema deleted.', 'success');
+    await loadSchemaRegistry();
+  } catch (err) {
+    showSchemaRegistryMessage(`Failed to delete schema: ${err.message}`, 'error');
+  }
+}
+
 function openSettings() {
   loadSettings();
+  loadSchemaRegistry();
   elements.settingsModal.classList.remove('hidden');
   elements.settingsMessage.classList.add('hidden');
 }
@@ -648,6 +808,14 @@ if (elements.settingsModal) {
   });
 }
 
+if (elements.addSchemaBtn) {
+  elements.addSchemaBtn.addEventListener('click', addOrReplaceSchema);
+}
+
+if (elements.reloadSchemaBtn) {
+  elements.reloadSchemaBtn.addEventListener('click', loadSchemaRegistry);
+}
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     closeOpenModals();
@@ -657,6 +825,8 @@ document.addEventListener('keydown', (e) => {
 // Make viewSession and viewToolCall available globally
 window.viewSession = viewSession;
 window.viewToolCall = viewToolCall;
+window.editSchema = editSchema;
+window.deleteSchema = deleteSchema;
 
 // Initial load
 refreshAll();

@@ -8,6 +8,11 @@ import * as path from 'node:path'
 import * as fs from 'node:fs'
 import type { TelemetryCollector } from './collector'
 import type { DashboardConfig } from './types'
+import type {
+  SchemaRegistryEntry,
+  RegisterSchemaInput,
+  UpdateSchemaInput,
+} from '../server/schema-registry-store'
 import {
   calculateSummaryStats,
   calculateToolStats,
@@ -26,6 +31,23 @@ import {
 declare const __dirname: string
 
 const STATIC_DIR = __dirname
+type AccessMode = 'local' | 'remote'
+
+type SchemaRegistryStore = {
+  list: (mode: AccessMode) => { storage: unknown; schemas: SchemaRegistryEntry[] }
+  register: (
+    mode: AccessMode,
+    input: RegisterSchemaInput,
+  ) => { storage: unknown; schemas: SchemaRegistryEntry[] }
+  update: (
+    mode: AccessMode,
+    input: UpdateSchemaInput,
+  ) => { storage: unknown; schemas: SchemaRegistryEntry[] }
+  remove: (
+    mode: AccessMode,
+    id: string,
+  ) => { storage: unknown; schemas: SchemaRegistryEntry[] }
+}
 
 /**
  * Response helper for JSON responses
@@ -34,8 +56,8 @@ function sendJson(res: http.ServerResponse, data: unknown, status = 200): void {
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
   })
   res.end(JSON.stringify(data))
 }
@@ -107,12 +129,48 @@ function validateAuth(
 }
 
 /**
+ * Parses request JSON body and enforces object payload shape.
+ */
+async function parseJsonObjectBody(
+  req: http.IncomingMessage,
+): Promise<Record<string, unknown>> {
+  let body = ''
+  for await (const chunk of req) {
+    body += chunk.toString()
+  }
+
+  if (body.trim() === '') {
+    return {}
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(body)
+  } catch {
+    throw new Error('Invalid JSON')
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Invalid request body')
+  }
+  return parsed as Record<string, unknown>
+}
+
+/**
+ * Parses schema-registry mode from request query/body.
+ */
+function parseMode(value: unknown): AccessMode {
+  return value === 'remote' ? 'remote' : 'local'
+}
+
+/**
  * API response handlers
  */
 class DashboardApiHandlers {
   constructor(
     private readonly collector: TelemetryCollector,
     private readonly config: DashboardConfig,
+    private readonly schemaRegistry: SchemaRegistryStore,
   ) {}
 
   /**
@@ -434,6 +492,120 @@ class DashboardApiHandlers {
   }
 
   /**
+   * GET /schema-registry - List schema registry entries.
+   */
+  schemaRegistryList(req: http.IncomingMessage, res: http.ServerResponse): void {
+    const query = parseQuery(req.url || '')
+    const mode = parseMode(query.mode)
+    const listing = this.schemaRegistry.list(mode)
+    sendJson(res, {
+      mode,
+      storage: listing.storage,
+      count: listing.schemas.length,
+      schemas: listing.schemas,
+    })
+  }
+
+  /**
+   * POST /schema-registry - Register or replace one schema entry.
+   */
+  async schemaRegistryRegister(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    try {
+      const body = await parseJsonObjectBody(req)
+      const mode = parseMode(body.mode)
+      const result = this.schemaRegistry.register(mode, {
+        id: typeof body.id === 'string' ? body.id : '',
+        displayName: typeof body.displayName === 'string' ? body.displayName : '',
+        matchesUrls: Array.isArray(body.matchesUrls) ? body.matchesUrls : [],
+        schemaUrl: typeof body.schemaUrl === 'string' ? body.schemaUrl : '',
+        activeOnSpec: Array.isArray(body.activeOnSpec) ? body.activeOnSpec : undefined,
+      })
+      sendJson(res, {
+        success: true,
+        mode,
+        storage: result.storage,
+        count: result.schemas.length,
+        schemas: result.schemas,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: message }, 400)
+    }
+  }
+
+  /**
+   * PUT /schema-registry/:id - Update one existing schema entry.
+   */
+  async schemaRegistryUpdate(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    const urlPath = req.url || ''
+    const match = urlPath.match(/^\/schema-registry\/([^/?]+)$/)
+    if (!match) {
+      sendJson(res, { error: 'Invalid schema ID' }, 400)
+      return
+    }
+
+    try {
+      const body = await parseJsonObjectBody(req)
+      const mode = parseMode(body.mode)
+      const result = this.schemaRegistry.update(mode, {
+        id: decodeURIComponent(match[1]),
+        displayName:
+          typeof body.displayName === 'string' ? body.displayName : undefined,
+        matchesUrls: Array.isArray(body.matchesUrls) ? body.matchesUrls : undefined,
+        schemaUrl: typeof body.schemaUrl === 'string' ? body.schemaUrl : undefined,
+        activeOnSpec: Array.isArray(body.activeOnSpec) ? body.activeOnSpec : undefined,
+      })
+      sendJson(res, {
+        success: true,
+        mode,
+        storage: result.storage,
+        count: result.schemas.length,
+        schemas: result.schemas,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: message }, 400)
+    }
+  }
+
+  /**
+   * DELETE /schema-registry/:id - Remove one schema entry.
+   */
+  async schemaRegistryRemove(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    const urlPath = req.url || ''
+    const match = urlPath.match(/^\/schema-registry\/([^/?]+)(?:\?(.*))?$/)
+    if (!match) {
+      sendJson(res, { error: 'Invalid schema ID' }, 400)
+      return
+    }
+
+    try {
+      const parsed = new URL(req.url || '/', 'http://dashboard.local')
+      const mode = parseMode(parsed.searchParams.get('mode') || undefined)
+      const result = this.schemaRegistry.remove(mode, decodeURIComponent(match[1]))
+      sendJson(res, {
+        success: true,
+        mode,
+        storage: result.storage,
+        count: result.schemas.length,
+        schemas: result.schemas,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: message }, 400)
+    }
+  }
+
+  /**
    * GET / - Serve the dashboard HTML
    */
   serveIndex(req: http.IncomingMessage, res: http.ServerResponse): void {
@@ -482,9 +654,10 @@ export class DashboardHttpServer {
   constructor(
     collector: TelemetryCollector,
     config: DashboardConfig,
+    schemaRegistry: SchemaRegistryStore,
   ) {
     this.config = config
-    this.apiHandlers = new DashboardApiHandlers(collector, config)
+    this.apiHandlers = new DashboardApiHandlers(collector, config, schemaRegistry)
   }
 
   /**
@@ -497,8 +670,8 @@ export class DashboardHttpServer {
         if (req.method === 'OPTIONS') {
           res.writeHead(200, {
             'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Authorization',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Authorization, Content-Type',
           })
           res.end()
           return
@@ -551,6 +724,33 @@ export class DashboardHttpServer {
       }
       if (method === 'POST') {
         void this.apiHandlers.updateConfig(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    // Schema registry endpoints
+    if (urlPath === '/schema-registry') {
+      if (method === 'GET') {
+        this.apiHandlers.schemaRegistryList(req, res)
+        return
+      }
+      if (method === 'POST') {
+        void this.apiHandlers.schemaRegistryRegister(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    if (urlPath.startsWith('/schema-registry/') && urlPath !== '/schema-registry') {
+      if (method === 'PUT') {
+        void this.apiHandlers.schemaRegistryUpdate(req, res)
+        return
+      }
+      if (method === 'DELETE') {
+        void this.apiHandlers.schemaRegistryRemove(req, res)
         return
       }
       sendJson(res, { error: 'Method not allowed' }, 405)
@@ -655,6 +855,7 @@ export function parseDashboardConfig(): DashboardConfig {
  */
 export async function startDashboardIfNeeded(
   collector: TelemetryCollector,
+  schemaRegistry: SchemaRegistryStore,
 ): Promise<DashboardHttpServer | null> {
   const config = parseDashboardConfig()
 
@@ -667,7 +868,7 @@ export async function startDashboardIfNeeded(
     return null
   }
 
-  const server = new DashboardHttpServer(collector, config)
+  const server = new DashboardHttpServer(collector, config, schemaRegistry)
 
   try {
     await server.start()
