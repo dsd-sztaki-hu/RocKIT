@@ -252,6 +252,12 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
             isVisible: widget => this.withWidget(widget, () => this.workspaceService.opened)
         });
+        registry.registerCommand(FileNavigatorCommands.TOGGLE_SEARCH, {
+            execute: widget => this.withWidget(widget, navigator => navigator.toggleSearch()),
+            isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
+            isVisible: widget => this.withWidget(widget, () => this.workspaceService.opened),
+            isToggled: widget => this.withWidget(widget, navigator => navigator.isSearchVisible())
+        });
         registry.registerCommand(FileNavigatorCommands.REFRESH_NAVIGATOR, {
             execute: widget => this.withWidget(widget, () => this.refreshWorkspace()),
             isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
@@ -448,42 +454,16 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
 
     async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
         toolbarRegistry.registerItem({
-            id: FileNavigatorCommands.NEW_FILE_TOOLBAR.id,
-            command: FileNavigatorCommands.NEW_FILE_TOOLBAR.id,
-            tooltip: nls.localizeByDefault('New File...'),
+            id: FileNavigatorCommands.TOGGLE_SEARCH.id,
+            command: FileNavigatorCommands.TOGGLE_SEARCH.id,
+            tooltip: FileNavigatorCommands.TOGGLE_SEARCH.label,
             priority: 0,
-        });
-        toolbarRegistry.registerItem({
-            id: FileNavigatorCommands.NEW_FOLDER_TOOLBAR.id,
-            command: FileNavigatorCommands.NEW_FOLDER_TOOLBAR.id,
-            tooltip: nls.localizeByDefault('New Folder...'),
-            priority: 1,
-        });
-        toolbarRegistry.registerItem({
-            id: FileNavigatorCommands.REFRESH_NAVIGATOR.id,
-            command: FileNavigatorCommands.REFRESH_NAVIGATOR.id,
-            tooltip: nls.localizeByDefault('Refresh Explorer'),
-            priority: 2,
         });
         toolbarRegistry.registerItem({
             id: FileNavigatorCommands.COLLAPSE_ALL.id,
             command: FileNavigatorCommands.COLLAPSE_ALL.id,
             tooltip: nls.localizeByDefault('Collapse All'),
-            priority: 3,
-        });
-
-        // More (...) toolbar items.
-        this.registerMoreToolbarItem({
-            id: FileNavigatorCommands.TOGGLE_AUTO_REVEAL.id,
-            command: FileNavigatorCommands.TOGGLE_AUTO_REVEAL.id,
-            tooltip: FileNavigatorCommands.TOGGLE_AUTO_REVEAL.label,
-            group: NavigatorMoreToolbarGroups.TOOLS,
-        });
-        this.registerMoreToolbarItem({
-            id: WorkspaceCommands.ADD_FOLDER.id,
-            command: WorkspaceCommands.ADD_FOLDER.id,
-            tooltip: WorkspaceCommands.ADD_FOLDER.label,
-            group: NavigatorMoreToolbarGroups.WORKSPACE,
+            priority: 1,
         });
 
     }
