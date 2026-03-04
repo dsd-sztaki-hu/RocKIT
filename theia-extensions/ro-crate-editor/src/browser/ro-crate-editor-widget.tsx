@@ -7,7 +7,13 @@ import { Emitter } from '@theia/core/lib/common/event'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { RoCrateHtmlGenerator, MetadataSchemaManager, SchemaValidatorManager, SchemaValidator } from 'aroma2-common/lib/browser';
+import {
+  RoCrateHtmlGenerator,
+  MetadataSchemaManager,
+  SchemaValidatorManager,
+  SchemaValidator,
+  type ValidationError,
+} from 'aroma2-common/lib/browser';
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 
@@ -76,26 +82,103 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected lastSelectionStart?: number
   protected lastSelectionEnd?: number
   protected lastAppliedConformsTo: string[] = []
+
+  protected validationTimer?: ReturnType<typeof setTimeout>
+  protected validationRun = 0
+
+  protected normalizeValidationErrors(errors: ValidationError[] | undefined): ValidationError[] {
+    if (!errors || errors.length === 0) {
+      return []
+    }
+
+    const seen = new Set<string>()
+    const result: ValidationError[] = []
+
+    for (const error of errors) {
+      if (!error) {
+        continue
+      }
+      const key = [
+        error.entityId ?? '',
+        error.entityType ?? '',
+        error.fieldName ?? '',
+        error.fieldLabel ?? '',
+        error.errorCode ?? '',
+        error.error ?? '',
+        error.path ?? '',
+      ].join('|')
+
+      if (seen.has(key)) {
+        continue
+      }
+
+      seen.add(key)
+      result.push(error)
+    }
+
+    return result
+  }
+
   protected async validateCurrentCrate(): Promise<void> {
+    const run = ++this.validationRun
+
+    if (this.validationTimer) {
+      clearTimeout(this.validationTimer)
+    }
+
+    this.validationTimer = setTimeout(() => {
+      this.validationTimer = undefined
+
+      const idle: any = (globalThis as any).requestIdleCallback
+      if (typeof idle === 'function') {
+        idle(
+          () => {
+            void this.performCrateValidation(run)
+          },
+          { timeout: 1500 },
+        )
+        return
+      }
+
+      void this.performCrateValidation(run)
+    }, 500)
+  }
+
+  protected async performCrateValidation(run: number): Promise<void> {
     const crate = this.localCrate ?? this.appStateService.roCrate
     const baseProfile = this.baseProfile
     const profile = this.localProfile
     const completeProfile = this.localCompleteProfile
 
-    this.appStateService.validationErrors = []
-
     if (!crate || !Array.isArray(crate['@graph']) || !baseProfile || !profile || !completeProfile) {
+      if (run === this.validationRun) {
+        this.appStateService.validationErrors = []
+      }
       return
     }
 
-    const baseProfileClone = JSON.parse(JSON.stringify(baseProfile))
-    const validationErrors = await this.schemaValidator.validateEntities(
-      crate,
-      baseProfileClone,
-      profile,
-      completeProfile,
-    )
-    this.appStateService.validationErrors = validationErrors
+    if (run === this.validationRun) {
+      this.appStateService.validationErrors = []
+    }
+
+    let validationErrors: ValidationError[] | undefined
+    try {
+      validationErrors = await this.schemaValidator.validateEntities(
+        crate,
+        baseProfile,
+        profile,
+        completeProfile,
+      )
+    } catch (error) {
+      console.warn('RoCrateEditorWidget: validation failed', error)
+      validationErrors = []
+    }
+
+    if (run !== this.validationRun) {
+      return
+    }
+
+    this.appStateService.validationErrors = this.normalizeValidationErrors(validationErrors)
   }
 
   constructor() {
@@ -313,9 +396,14 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       return
     }
     const entityId = this.assignedEntityId ?? this.localSelectedEntityId ?? './'
-    this.appStateService.updateState({
-      openSchemaSelectorWindow: true,
-      schemaSelectorContext: { widgetId: this.id, entityId },
+
+    this.appStateService.updateState({ openSchemaSelectorWindow: false })
+
+    queueMicrotask(() => {
+      this.appStateService.updateState({
+        openSchemaSelectorWindow: true,
+        schemaSelectorContext: { widgetId: this.id, entityId },
+      })
     })
   }
 
@@ -631,19 +719,17 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         return
       }
 
-      const allSchemas = await this.schemaManagerService.loadAllSchemas()
+      const profileList = this.appStateService.profileList
 
       let updateProfile = JSON.parse(JSON.stringify(baseProfile))
       let didUpdateProfile = false
-      let foundMatchingSchema = false
+      let foundMatchingProfile = false
       for (const conformsToUrl of conformsTos) {
-        const matchingSchema = allSchemas.find((schema) => schema.conformsTo === conformsToUrl)
+        const convertedContent = profileList?.[conformsToUrl]
 
-        if (matchingSchema) {
-          foundMatchingSchema = true
-          const convertedContent = await this.schemaManagerService.getConvertedProfileContent(matchingSchema.path)
-
-          if (convertedContent && this.localCrate) {
+        if (convertedContent) {
+          foundMatchingProfile = true
+          if (this.localCrate) {
             const merged = await this.schemaManagerService.getMergedProfile(
               this.localCrate!,
               convertedContent,
@@ -655,10 +741,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             this.updateEntityConformsTo(entityId, conformsToUrl)
           }
         } else {
-          console.warn(`No schema found for conformsTo URL: ${conformsToUrl}`)
+          console.warn(`No profile found in state for conformsTo URL: ${conformsToUrl}`)
         }
       }
-      if (didUpdateProfile || !foundMatchingSchema) {
+      if (didUpdateProfile || !foundMatchingProfile) {
         this.localProfile = updateProfile
         this.profileRevision += 1
       }

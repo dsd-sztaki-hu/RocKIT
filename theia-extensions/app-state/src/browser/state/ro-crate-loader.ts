@@ -87,6 +87,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     await this.syncRoCrateFromWorkspace()
 
     // ensure completeProfile reflects current crate (restored or loaded)
+    await this.refreshProfileList(this.appStateService.roCrate)
     await this.refreshCompleteProfile(this.appStateService.roCrate)
     this.watchSchemaChanges()
 
@@ -112,6 +113,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       // If we previously had roots, then this is a real "workspace closed" case => clear state.
       if (this.hadWorkspaceRoots) {
         this.updateState(undefined, false)
+        await this.refreshProfileList(undefined)
         await this.refreshCompleteProfile(undefined)
       }
       // Otherwise: startup / not ready yet => DO NOT touch restored state.
@@ -132,10 +134,12 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         try {
           const crate = await this.loadRoCrateWithNormalization(roCrateUri)
           this.updateState(crate, false)
+          await this.refreshProfileList(crate)
           await this.refreshCompleteProfile(crate)
         } catch (parseError) {
           console.error('Parsing error: ', parseError)
           this.updateState(undefined, true)
+          await this.refreshProfileList(undefined)
           await this.refreshCompleteProfile(undefined)
           void this.promptForCrateRecovery(rootUri, true)
         }
@@ -144,10 +148,12 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
       // crate json missing
       this.updateState(undefined, false)
+      await this.refreshProfileList(undefined)
       await this.refreshCompleteProfile(undefined)
       void this.promptForCrateRecovery(rootUri, false)
     } catch (error) {
       this.updateState(undefined, true)
+      await this.refreshProfileList(undefined)
       await this.refreshCompleteProfile(undefined)
     }
   }
@@ -183,9 +189,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     try {
       const crate = await this.loadRoCrateWithNormalization(roCrateUri)
       this.updateState(crate, false)
+      await this.refreshProfileList(crate)
       await this.refreshCompleteProfile(crate)
     } catch (error) {
       this.updateState(undefined, true)
+      await this.refreshProfileList(undefined)
       await this.refreshCompleteProfile(undefined)
     }
   }
@@ -238,6 +246,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
                 // update application state and profile
                 this.updateState(converted, false)
                 try {
+                  await this.refreshProfileList(converted)
                   await this.refreshCompleteProfile(converted)
                 } catch (err) {
                   console.error('Error refreshing complete profile after conversion', err)
@@ -270,6 +279,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
               const converted = await this.readRoCrateJson(metadataUri)
               this.updateState(converted, false)
               try {
+                await this.refreshProfileList(converted)
                 await this.refreshCompleteProfile(converted)
               } catch (err) {
                 console.error('Error refreshing complete profile after conversion', err)
@@ -465,6 +475,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     try {
       const crate = await this.loadRoCrateWithNormalization(metadataUri)
       this.updateState(crate, false)
+      await this.refreshProfileList(crate)
       await this.refreshCompleteProfile(crate)
     } catch (error) {
       console.error('Failed to reload RO-Crate after external change:', error)
@@ -501,32 +512,32 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     const baseProfile =
       this.cloneProfile(this.initialProfileTemplate) ?? this.createEmptyProfile()
 
-    const conformsToIds = this.extractAllConformsToIds(crate)
-    if (conformsToIds.length === 0) {
+    const profileList = this.appStateService.profileList
+    if (!profileList || Object.keys(profileList).length === 0) {
       this.appStateService.completeProfile = baseProfile
       return
     }
 
-    const allSchemas = await this.schemaManagerService.loadAllSchemas()
     let mergedProfile = baseProfile
 
-    for (const conformsToUrl of conformsToIds) {
-      const matchingSchema = allSchemas.find(
-        (schema) => schema.conformsTo === conformsToUrl,
-      )
-      if (!matchingSchema) continue
-
-      const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
-        matchingSchema.path,
-      )
-
-      if (convertedContent) {
-        mergedProfile = await this.schemaManagerService.getMergedProfile(
-          crate,
-          convertedContent,
-          mergedProfile,
-          conformsToUrl,
-        )
+    for (const [conformsToUrlRaw, convertedContent] of Object.entries(profileList)) {
+      const conformsToUrl = (conformsToUrlRaw ?? '').trim()
+      if (!conformsToUrl) {
+        continue
+      }
+      try {
+        if (convertedContent) {
+          mergedProfile = await this.schemaManagerService.getMergedProfile(
+            crate,
+            convertedContent,
+            mergedProfile,
+            conformsToUrl,
+          )
+        } else {
+          console.warn('Invalid profile content for conformsTo URL:', conformsToUrl)
+        }
+      } catch (error) {
+        console.warn('Failed to merge profile for conformsTo URL:', conformsToUrl, error)
       }
     }
 
@@ -535,8 +546,53 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
   protected watchSchemaChanges(): void {
     this.schemaManagerService.onDidChangeSchemas(() => {
+      void this.refreshProfileList(this.appStateService.roCrate)
       void this.refreshCompleteProfile(this.appStateService.roCrate)
     })
+  }
+
+  protected async refreshProfileList(
+    crate: Record<string, any> | undefined,
+  ): Promise<void> {
+    if (!crate) {
+      this.appStateService.profileList = undefined
+      return
+    }
+
+    const conformsToIds = this.extractAllConformsToIds(crate)
+    if (conformsToIds.length === 0) {
+      this.appStateService.profileList = undefined
+      return
+    }
+
+    const allSchemas = await this.schemaManagerService.loadAllSchemas()
+    const profileMap: Record<string, any> = {}
+
+    for (const conformsToUrl of conformsToIds) {
+      const matchingSchema = allSchemas.find(
+        (schema) => schema.conformsTo === conformsToUrl,
+      )
+      if (!matchingSchema) {
+        console.warn('No schema found for conformsTo URL:', conformsToUrl)
+        continue
+      }
+      try {
+        const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
+          matchingSchema.path,
+        )
+        if (convertedContent) {
+          profileMap[conformsToUrl] = convertedContent
+        } else {
+          console.warn('Invalid profile content for conformsTo URL:', conformsToUrl)
+        }
+      } catch (error) {
+        console.warn('Failed to load profile for conformsTo URL:', conformsToUrl, error)
+      }
+    }
+
+    this.appStateService.updateState((prev) => ({
+      profileList: Object.keys(profileMap).length ? profileMap : undefined,
+    }))
   }
 
   protected extractAllConformsToIds(crate: Record<string, any>): string[] {
