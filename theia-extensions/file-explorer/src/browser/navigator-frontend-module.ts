@@ -37,6 +37,7 @@ import { FileNavigatorFilter } from './navigator-filter'
 import {
   NavigatorLayoutVersion3Migration,
   NavigatorLayoutVersion5Migration,
+  NavigatorLayoutVersion6Migration,
 } from './navigator-layout-migrations'
 import { NavigatorSymlinkDecorator } from './navigator-symlink-decorator'
 import { FILE_NAVIGATOR_ID, FileNavigatorWidget } from './navigator-widget'
@@ -71,6 +72,9 @@ export default new ContainerModule((bind) => {
     .inSingletonScope()
   bind(ApplicationShellLayoutMigration)
     .to(NavigatorLayoutVersion5Migration)
+    .inSingletonScope()
+  bind(ApplicationShellLayoutMigration)
+    .to(NavigatorLayoutVersion6Migration)
     .inSingletonScope()
 
   bind(NavigatorDiff).toSelf().inSingletonScope()
