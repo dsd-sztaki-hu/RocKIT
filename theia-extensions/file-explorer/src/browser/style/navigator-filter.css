@@ -160,8 +160,9 @@
 .navigator-rocrate-select .ant-select-selector {
   background: var(--theia-input-background) !important;
   border-color: var(--theia-ui-border) !important;
-  padding-top: 2px !important;
-  padding-bottom: 2px !important;
+  min-height: 32px !important;
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
 }
 
 .navigator-rocrate-select .ant-select-selection-item {
@@ -174,6 +175,32 @@
 
 .navigator-rocrate-select .ant-select-arrow {
   color: var(--theia-ui-font-color2);
+}
+
+.navigator-filter-dropdown {
+  background: var(--theia-menu-background);
+  border: 1px solid var(--theia-ui-border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.navigator-filter-dropdown .ant-select-item {
+  color: var(--theia-menu-foreground);
+}
+
+.navigator-filter-dropdown
+  .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background: rgba(127, 127, 127, 0.14);
+}
+
+.navigator-filter-dropdown
+  .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background: var(--theia-selection-background);
+}
+
+.navigator-filter-dropdown
+  .ant-select-item-option-selected:not(.ant-select-item-option-disabled)
+  .ant-select-item-option-content {
+  color: var(--theia-selection-foreground, var(--theia-ui-font-color1));
 }
 
 .navigator-filter-panel .theia-TreeContainer {

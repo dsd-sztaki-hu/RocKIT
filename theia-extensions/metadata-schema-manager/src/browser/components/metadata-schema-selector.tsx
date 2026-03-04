@@ -70,7 +70,6 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
             this.messageService.error('Failed to open schema selector dialog.', { timeout: MSG_TIMEOUT });
         } finally {
             this.isDialogVisible = false;
-            // Clean up state and context when dialog closes, ensuring we don't leave stale data
             this.appStateService.updateState({ 
                 openSchemaSelectorWindow: false, 
                 schemaSelectorContext: undefined 
@@ -89,7 +88,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
             }
 
             if (crate && Array.isArray(crate['@graph'])) {
-                const w3id = schema.conformsTo ? this.schemaManagerService.deriveConformsToFromId(schema.reference) : '';
+                const w3id = schema.conformsTo ? this.schemaManagerService.deriveConformsToFromId(schema.aux.reference) : '';
                 
                 if (w3id) {
                     const updatedGraph = (crate['@graph'] as any[]).map(entry => {
@@ -223,7 +222,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
     }, [service, loadData]);
 
     const handleSelectionChange = (keys: React.Key[]) => {
-        const found = schemas.find(s => s.path === keys[0]);
+        const found = schemas.find(s => s.id === keys[0]);
         setSelectedSchema(found);
     };
 
@@ -289,7 +288,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                     schemas={schemas}
                     isLoading={isLoading}
                     selectionType="row"
-                    selectedKeys={selectedSchema ? [selectedSchema.path] : []}
+                    selectedKeys={selectedSchema ? [selectedSchema.id] : []}
                     onSelectionChange={handleSelectionChange}
                 />
             </div>

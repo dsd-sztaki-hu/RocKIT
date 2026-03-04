@@ -578,7 +578,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       }
       try {
         const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
-          matchingSchema.path,
+          matchingSchema.files.convertedPath,
         )
         if (convertedContent) {
           profileMap[conformsToUrl] = convertedContent

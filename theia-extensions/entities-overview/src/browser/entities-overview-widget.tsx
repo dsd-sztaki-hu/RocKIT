@@ -1,6 +1,7 @@
 import { MenuPath } from '@theia/core'
 import {
   ApplicationShell,
+  CompositeTreeNode,
   ContextMenuRenderer,
   NodeProps,
   TreeModel,
@@ -12,21 +13,22 @@ import {
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
+import { Disposable } from '@theia/core/lib/common'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { MetadataSchemaManager } from 'aroma2-common/lib/browser'
 import '../../src/browser/styles/entities-overview-widget.css'
-import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
-import { MultiEditDialog } from './entities-overview-multi-edit-dialog'
+import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import {
   EntitiesOverviewModel,
   ExampleTreeLeaf,
   ExampleTreeNode,
   ValidityFilter,
 } from './entities-overview-model'
+import { MultiEditDialog } from './entities-overview-multi-edit-dialog'
 
 /** Well-known constant for the context menu path */
 export const TREEVIEW_EXAMPLE_CONTEXT_MENU: MenuPath = [
@@ -59,7 +61,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
   /** The ID of the view */
   static readonly ID = 'theia-examples:treeview-example-view'
   /** The label of the view */
-  static readonly LABEL = 'Entities Overview'
+  static readonly LABEL = 'Entities'
 
   /** Used in Drag & Drop code to remember and cancel deferred expansion of hovered nodes */
   // protected readonly toCancelNodeExpansion = new DisposableCollection()
@@ -86,6 +88,12 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
     // this.toDispose.push(this.toCancelNodeExpansion)
     this.addClass('entities-overview-panel')
+    this.syncFiltersVisibleBodyClass()
+    this.toDispose.push(
+      Disposable.create(() => {
+        document.body.classList.remove(this.filtersVisibleBodyClass)
+      }),
+    )
   }
 
   protected readonly openingEntities = new Set<string>()
@@ -110,6 +118,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
   protected filterMode: 'simple' | 'advanced' = 'simple'
   protected readonly entityNameInputRef = React.createRef<HTMLInputElement>()
   protected entityNameSelection: { start: number | null; end: number | null } | undefined
+  protected filtersVisible = true
+  protected readonly filtersVisibleBodyClass = 'entities-overview-filters-visible'
 
   /**
    * Enable icon rendering.
@@ -138,10 +148,9 @@ export class EntitiesOverviewWidget extends TreeWidget {
     const showInvalidIcon = isLeafInvalid || isNodeInvalid
 
     if (showInvalidIcon) {
-      const className = `${attrs.className ?? ''} entities-overview-invalid-caption`.trim()
-      const containerTitle = isLeafInvalid
-        ? 'Invalid entity'
-        : 'Contains invalid entity'
+      const className =
+        `${attrs.className ?? ''} entities-overview-invalid-caption`.trim()
+      const containerTitle = isLeafInvalid ? 'Invalid entity' : 'Contains invalid entity'
       return (
         <div {...attrs} className={className} title={containerTitle}>
           <span
@@ -178,133 +187,164 @@ export class EntitiesOverviewWidget extends TreeWidget {
     const activeFilters = this.getActiveFilters()
     const selectedTypes = this.normalizeSelectedTypes(availableTypes, activeFilters)
     const isAdvanced = this.filterMode === 'advanced'
+    const showFilters = this.filtersVisible
     return (
       <AntdThemeProvider themeService={this.themeService}>
         <div className="entities-overview-panel-content">
-        <div className="entities-overview-filters">
-          <div className="entities-overview-filter-header">
-            <span className="entities-overview-filter-title">Filters</span>
-            <div className="entities-overview-filter-toggle">
-              <Button.Group size="small">
-                <Button
-                  type={this.filterMode === 'simple' ? 'primary' : 'default'}
-                  onClick={() => this.setFilterMode('simple')}
-                >
-                  Simple
-                </Button>
-                <Button
-                  type={this.filterMode === 'advanced' ? 'primary' : 'default'}
-                  onClick={() => this.setFilterMode('advanced')}
-                >
-                  Advanced
-                </Button>
-              </Button.Group>
-            </div>
-          </div>
-          <div
-            className={`entities-overview-filter-fields${isAdvanced ? ' is-hidden' : ''}`}
-            aria-hidden={isAdvanced}
-          >
-            <label className="entities-overview-filter-row">
-              <span className="entities-overview-filter-label">Entity name</span>
-              <input
-                className="entities-overview-filter-input"
-                type="text"
-                placeholder="Search entity name"
-                ref={this.entityNameInputRef}
-                value={activeFilters.entityNameFilter}
-                onChange={(event) => this.onEntityNameFilterChange(event)}
-                onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}
-              />
-            </label>
-            <label className="entities-overview-filter-row">
-              <span className="entities-overview-filter-label">Validity</span>
-              <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
-                <Select
-                  className="entities-overview-validity-select"
-                  value={activeFilters.validityFilter}
-                  options={[
-                    { value: 'all', label: 'All entities' },
-                    { value: 'valid', label: 'Only valid' },
-                    { value: 'invalid', label: 'Only invalid' },
-                  ]}
-                  onChange={(value) =>
-                    this.onValidityFilterChange(value as ValidityFilter)
-                  }
-                  size="small"
-                />
-              </div>
-            </label>
-            <div className="entities-overview-filter-row">
-              <span className="entities-overview-filter-label">Entity type</span>
-              <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
-                <Select
-                  className="entities-overview-type-select"
-                  mode="multiple"
-                  placeholder="All types"
-                  value={selectedTypes}
-                  options={availableTypes.map((type) => ({ value: type, label: type }))}
-                  onChange={(values) => this.onTypeFiltersChange(values)}
-                  maxTagCount="responsive"
-                  size="small"
-                  disabled={availableTypes.length === 0}
-                />
+        <div
+          className={`entities-overview-filters${showFilters ? '' : ' is-hidden'}`}
+          aria-hidden={!showFilters}
+        >
+            <div className="entities-overview-filter-header">
+              <div className="entities-overview-filter-toggle">
+                <Button.Group size="small">
+                  <Button
+                    type={this.filterMode === 'simple' ? 'primary' : 'default'}
+                    onClick={() => this.setFilterMode('simple')}
+                  >
+                    Simple
+                  </Button>
+                  <Button
+                    type={this.filterMode === 'advanced' ? 'primary' : 'default'}
+                    onClick={() => this.setFilterMode('advanced')}
+                  >
+                    Advanced
+                  </Button>
+                </Button.Group>
               </div>
             </div>
-          </div>
-          <div
-            className={`entities-overview-filter-actions${isAdvanced ? ' is-advanced' : ''}`}
-          >
             <div
-              className={`entities-overview-advanced-button-wrap${
-                isAdvanced ? ' is-visible' : ''
-              }`}
+              className={`entities-overview-filter-fields${isAdvanced ? ' is-hidden' : ''}`}
+              aria-hidden={isAdvanced}
             >
+              <label className="entities-overview-filter-row">
+                <span className="entities-overview-filter-label">Entity name</span>
+                <input
+                  className="entities-overview-filter-input"
+                  type="text"
+                  placeholder="Search entity name"
+                  ref={this.entityNameInputRef}
+                  value={activeFilters.entityNameFilter}
+                  onChange={(event) => this.onEntityNameFilterChange(event)}
+                  onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}
+                />
+              </label>
+              <label className="entities-overview-filter-row">
+                <span className="entities-overview-filter-label">Validity</span>
+                <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
+                  <Select
+                    className="entities-overview-validity-select"
+                    value={activeFilters.validityFilter}
+                    options={[
+                      { value: 'all', label: 'All entities' },
+                      { value: 'valid', label: 'Only valid' },
+                      { value: 'invalid', label: 'Only invalid' },
+                    ]}
+                    classNames={{ popup: { root: 'entities-overview-filter-dropdown' } }}
+                    onChange={(value) =>
+                      this.onValidityFilterChange(value as ValidityFilter)
+                    }
+                    size="small"
+                  />
+                </div>
+              </label>
+              <div className="entities-overview-filter-row">
+                <span className="entities-overview-filter-label">Entity type</span>
+                <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
+                  <Select
+                    className="entities-overview-type-select"
+                    mode="multiple"
+                    placeholder="All types"
+                    value={selectedTypes}
+                    options={availableTypes.map((type) => ({ value: type, label: type }))}
+                    classNames={{ popup: { root: 'entities-overview-filter-dropdown' } }}
+                    onChange={(values) => this.onTypeFiltersChange(values)}
+                    maxTagCount="responsive"
+                    size="small"
+                    disabled={availableTypes.length === 0}
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              className={`entities-overview-filter-actions${isAdvanced ? ' is-advanced' : ''}`}
+            >
+              <div
+                className={`entities-overview-advanced-button-wrap${
+                  isAdvanced ? ' is-visible' : ''
+                }`}
+              >
+                <Button
+                  className="entities-overview-advanced-button"
+                  type="default"
+                  onClick={() => this.openAdvancedDialog()}
+                  onKeyDownCapture={(event: React.KeyboardEvent) =>
+                    this.stopFilterKeyEvents(event)
+                  }
+                >
+                  Advanced filters
+                </Button>
+              </div>
               <Button
-                className="entities-overview-advanced-button"
-                type="default"
-                onClick={() => this.openAdvancedDialog()}
+                className="entities-overview-filter-clear"
+                danger
+                ghost
+                disabled={
+                  activeFilters.entityNameFilter.trim() === '' &&
+                  selectedTypes.length === 0 &&
+                  activeFilters.validityFilter === 'all'
+                }
+                onClick={() => this.clearFilters()}
                 onKeyDownCapture={(event: React.KeyboardEvent) =>
                   this.stopFilterKeyEvents(event)
                 }
               >
-                Advanced filters
+                Clear filters
               </Button>
             </div>
-            <div className="entities-overview-edit-button-wrap">
-              <Button
-                className="entities-overview-edit-button"
-                type="default"
-                onClick={() => this.openMultiEditDialog()}
-                onKeyDownCapture={(event: React.KeyboardEvent) =>
-                  this.stopFilterKeyEvents(event)
-                }
-              >
-                Edit
-              </Button>
-            </div>
-            <Button
-              className="entities-overview-filter-clear"
-              danger
-              ghost
-              disabled={
-                activeFilters.entityNameFilter.trim() === '' &&
-                selectedTypes.length === 0 &&
-                activeFilters.validityFilter === 'all'
-              }
-              onClick={() => this.clearFilters()}
-              onKeyDownCapture={(event: React.KeyboardEvent) =>
-                this.stopFilterKeyEvents(event)
-              }
-            >
-              Clear filters
-            </Button>
           </div>
+        <div className="entities-overview-edit-row">
+          <Button
+            className="entities-overview-edit-button"
+            type="default"
+            onClick={() => this.openMultiEditDialog()}
+            onKeyDownCapture={(event: React.KeyboardEvent) =>
+              this.stopFilterKeyEvents(event)
+            }
+          >
+            Edit
+          </Button>
         </div>
         <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
       </div>
-      </AntdThemeProvider>
+    </AntdThemeProvider>
     )
+  }
+
+  isFiltersVisible(): boolean {
+    return this.filtersVisible
+  }
+
+  toggleFiltersVisibility(): void {
+    this.filtersVisible = !this.filtersVisible
+    this.syncFiltersVisibleBodyClass()
+    this.update()
+  }
+
+  async collapseAllEntityNodes(): Promise<void> {
+    const root = this.model.root
+    if (!root || !CompositeTreeNode.is(root)) {
+      return
+    }
+    for (const child of root.children) {
+      if (ExampleTreeNode.is(child)) {
+        await this.model.collapseAll(child)
+      }
+    }
+  }
+
+  protected syncFiltersVisibleBodyClass(): void {
+    document.body.classList.toggle(this.filtersVisibleBodyClass, this.filtersVisible)
   }
 
   protected override createContainerAttributes(): React.HTMLAttributes<HTMLElement> {

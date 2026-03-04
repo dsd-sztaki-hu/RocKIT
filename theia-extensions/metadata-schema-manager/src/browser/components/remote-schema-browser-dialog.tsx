@@ -142,7 +142,7 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
             }));
 
             schemaManagerService.loadAllSchemas().then(schemas => {
-                const ids = schemas.map(s => s.reference);
+                const ids = schemas.map(s => s.aux.reference);
                 setExistingIds(ids);
             });
         }

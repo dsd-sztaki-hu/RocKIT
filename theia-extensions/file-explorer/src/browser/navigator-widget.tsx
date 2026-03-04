@@ -232,6 +232,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
                         label: 'Missing RO-Crate description',
                       },
                     ]}
+                    classNames={{ popup: { root: 'navigator-filter-dropdown' } }}
                     onChange={(value) =>
                       this.onRoCrateFilterChange(
                         value as FileNavigatorFilter.RoCrateFilter,

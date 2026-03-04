@@ -421,26 +421,29 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         const tree = this.tree as EntitiesOverviewTree
         const updated: TreeNode[] = []
         for (const entityId of entityIds) {
-            const node = this.findLeafByEntityId(entityId)
-            if (!node) {
+            const nodes = this.findLeavesByEntityId(entityId)
+            if (nodes.length === 0) {
                 continue
             }
-            node.data.selected = this.selectedEntityIds.has(entityId)
-            updated.push(node)
+            for (const node of nodes) {
+                node.data.selected = this.selectedEntityIds.has(entityId)
+                updated.push(node)
+            }
         }
         if (updated.length > 0) {
             tree.notifyUpdated(updated)
         }
     }
 
-    private findLeafByEntityId(entityId: string): ExampleTreeLeaf | undefined {
+    private findLeavesByEntityId(entityId: string): ExampleTreeLeaf[] {
         const root = this.tree.root
-        if (!root) return undefined
+        if (!root) return []
+        const matches: ExampleTreeLeaf[] = []
         for (const node of new DepthFirstTreeIterator(root)) {
             if (ExampleTreeLeaf.is(node) && node.data.entityId === entityId) {
-                return node
+                matches.push(node)
             }
         }
-        return undefined
+        return matches
     }
 }
