@@ -1,5 +1,6 @@
 import { bindContributionProvider } from '@theia/core';
 import { bindViewContribution, createTreeContainer, LabelProviderContribution, WidgetFactory } from '@theia/core/lib/browser';
+import { TabBarToolbarContribution } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { Container, ContainerModule, interfaces } from '@theia/core/shared/inversify';
 import { EntitiesOverviewDecorationService, TreeviewExampleDecorator } from './decorator/entities-overview-decoration-service';
 import { EntitiesOverviewDecorator } from './decorator/entities-overview-decorator';
@@ -15,6 +16,7 @@ import { EntitiesOverviewTreeItemFactory } from './entities-overview-tree-item-f
  */
 export default new ContainerModule(bind => {
     bindViewContribution(bind, EntitiesOverviewViewContribution);
+    bind(TabBarToolbarContribution).toService(EntitiesOverviewViewContribution);
 
     bind(WidgetFactory).toDynamicValue(ctx => ({
         id: EntitiesOverviewWidget.ID,
