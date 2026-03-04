@@ -117,6 +117,7 @@ export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
     this.id = OpenEditorsWidget.ID
     this.title.label = OpenEditorsWidget.LABEL
     this.title.iconClass = 'fa fa-list-ul'
+    this.title.closable = true
     this.addClass(OpenEditorsWidget.CSS_CLASS)
     this.toDispose.push(
       Disposable.create(() =>
