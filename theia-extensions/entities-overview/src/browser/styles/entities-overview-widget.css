@@ -31,6 +31,7 @@
 .entities-overview-filters {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   gap: 6px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--theia-ui-border);
