@@ -37,8 +37,8 @@ import { DirNode, FileStatNode, FileStatNodeData } from '@theia/filesystem/lib/b
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { DataSourceService } from 'data-sources/lib/browser/data-source-service'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
+import { DataSourceService } from 'data-sources/lib/browser/data-source-service'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
 import { FileNavigatorFilter } from './navigator-filter'
@@ -51,7 +51,7 @@ import {
 } from './navigator-tree'
 
 export const FILE_NAVIGATOR_ID = 'files'
-export const LABEL = nls.localizeByDefault('No Folder Opened')
+export const LABEL = nls.localizeByDefault('Workspace')
 export const CLASS = 'theia-Files'
 
 @injectable()
@@ -137,20 +137,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   protected override doUpdateRows(): void {
     super.doUpdateRows()
     this.title.label = LABEL
-    if (WorkspaceNode.is(this.model.root)) {
-      if (this.model.root.name === WorkspaceNode.name) {
-        const rootNode = this.model.root.children[0]
-        if (WorkspaceRootNode.is(rootNode)) {
-          this.title.label = this.toNodeName(rootNode)
-          this.title.caption = this.labelProvider.getLongName(rootNode.uri)
-        }
-      } else {
-        this.title.label = this.toNodeName(this.model.root)
-        this.title.caption = this.title.label
-      }
-    } else {
-      this.title.caption = this.title.label
-    }
+    this.title.caption = LABEL
   }
 
   override getContainerTreeNode(): TreeNode | undefined {
@@ -165,12 +152,11 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   }
 
   protected override renderTree(model: TreeModel): React.ReactNode {
-        if (this.model.root && this.isEmptyMultiRootWorkspace(model)) {
-            return this.renderEmptyMultiRootWorkspace()
-        }
-        return super.renderTree(model)
+    if (this.model.root && this.isEmptyMultiRootWorkspace(model)) {
+      return this.renderEmptyMultiRootWorkspace()
     }
-
+    return super.renderTree(model)
+  }
 
   protected override render(): React.ReactNode {
     const hasActiveFilters =
@@ -183,7 +169,9 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       </div>
     ) : (
       <div className="navigator-filter-panel">
-        <div className={`navigator-filter-content ${this.searchVisible ? 'expanded' : 'collapsed'}`}>
+        <div
+          className={`navigator-filter-content ${this.searchVisible ? 'expanded' : 'collapsed'}`}
+        >
           <div className="navigator-filter-fields">
             <label className="navigator-filter-row">
               <span className="navigator-filter-label">File name</span>
@@ -216,9 +204,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
                   ]}
                   classNames={{ popup: { root: 'navigator-filter-dropdown' } }}
                   onChange={(value) =>
-                    this.onRoCrateFilterChange(
-                      value as FileNavigatorFilter.RoCrateFilter,
-                    )
+                    this.onRoCrateFilterChange(value as FileNavigatorFilter.RoCrateFilter)
                   }
                   size="small"
                 />
@@ -470,6 +456,17 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     return attributes
   }
 
+  protected override getPaddingLeft(node: TreeNode, props: NodeProps): number {
+    if (NavigatorHeaderNode.is(node)) {
+      return 5
+    }
+    return super.getPaddingLeft(node, props)
+  }
+
+  protected override getDepthPadding(depth: number): number {
+    return Math.max(0, super.getDepthPadding(depth) - 10)
+  }
+
   private containsNotInRoCrate(node: TreeNode): boolean {
     if (FileStatNode.is(node) && this.shouldHighlightFile(node)) {
       return true
@@ -505,11 +502,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
     // A directory entity only describes that directory node.
     // Descendant files still need their own explicit entities.
-    if (DirNode.is(node) && directories.has(relativePath)) {
-      return false
-    }
-
-    return true
+    return !(DirNode.is(node) && directories.has(relativePath))
   }
 
   private getNodeWorkspaceRelativePath(node: FileStatNode): string | undefined {
@@ -835,7 +828,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     }
 
     const roots = selected.filter(
-      (node): node is FileStatNode => FileStatNode.is(node) && this.isNavigatorRootNode(node),
+      (node): node is FileStatNode =>
+        FileStatNode.is(node) && this.isNavigatorRootNode(node),
     )
     if (!roots.length) {
       return

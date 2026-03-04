@@ -234,7 +234,8 @@ body.navigator-search-visible
   position: relative;
   padding-top: 10px;
   padding-bottom: 6px;
-  padding-left: 10px;
+  padding-left: 0;
+  border-bottom: 1px solid var(--theia-ui-border);
 }
 
 .navigator-filter-panel
@@ -246,15 +247,7 @@ body.navigator-search-visible
 .navigator-filter-panel
   .theia-TreeNode.navigator-header-node
   .theia-TreeNodeContent::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 1px;
-  background: var(--theia-ui-border);
-  transform: translateY(-50%);
-  opacity: 0.9;
+  display: none;
 }
 
 
@@ -264,8 +257,9 @@ body.navigator-search-visible
   .theia-TreeNodeLabel {
   position: relative;
   z-index: 1;
-  padding: 0 8px;
-  background: var(--theia-sideBar-background);
+  padding: 0;
+  background: transparent;
+  text-align: left;
 }
 
 .navigator-filter-panel .theia-TreeNode.navigator-data-source-root {

@@ -27,7 +27,7 @@ import { nls } from '@theia/core/lib/common/nls';
 
 export const EXPLORER_VIEW_CONTAINER_ID = 'explorer-view-container';
 export const EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS: ViewContainerTitleOptions = {
-    label: nls.localizeByDefault('Explorer'),
+    label: nls.localizeByDefault('Workspace'),
     iconClass: codicon('files'),
     closeable: true
 };
