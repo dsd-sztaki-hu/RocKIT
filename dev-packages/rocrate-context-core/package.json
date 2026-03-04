@@ -1,0 +1,24 @@
+{
+  "name": "rocrate-context-core",
+  "version": "0.1.0",
+  "description": "Shared RO-Crate context and schema graph core for Aroma and MCP",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rimraf lib tsconfig.tsbuildinfo",
+    "watch": "tsc -b -w",
+    "test": "yarn build && node --test test/*.test.js"
+  },
+  "dependencies": {
+    "zod": "^4.0.10"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.0",
+    "typescript": "~5.4.5"
+  }
+}
