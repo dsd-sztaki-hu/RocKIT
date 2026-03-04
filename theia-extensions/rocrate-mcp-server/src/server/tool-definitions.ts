@@ -244,7 +244,7 @@ export const tools: ToolDefinition[] = [
   {
     name: 'validate_crate',
     description:
-      'Validate crate structure and references. local mode loads crate from disk; remote mode validates provided crate payload.',
+      'Validate crate structure and references. Includes profile-conformance checks and value-set (enum) violations/hints from active profiles. local mode loads crate from disk; remote mode validates provided crate payload.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -265,11 +265,6 @@ export const tools: ToolDefinition[] = [
         },
         schemaIndex: { type: 'object' },
         profileContents: { type: 'object' },
-        responseMode: {
-          type: 'string',
-          enum: ['summary', 'full'],
-          description: 'summary returns compact report; full returns full validation payload.',
-        },
       },
       additionalProperties: false,
     },

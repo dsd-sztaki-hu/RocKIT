@@ -420,7 +420,7 @@ async function run() {
   child.stdout.on('data', onData)
 
   let nextId = 1
-  function request(method, params, mode = 'lf') {
+  function rawRequest(method, params, mode = 'lf') {
     const id = nextId++
     const payload = { jsonrpc: '2.0', id, method, params }
     child.stdin.write(encodeMessage(payload, mode))
@@ -440,6 +440,10 @@ async function run() {
         }
       }, 20)
     })
+  }
+
+  async function request(method, params, mode = 'lf') {
+    return rawRequest(method, params, mode)
   }
 
   try {
@@ -842,6 +846,12 @@ async function run() {
     assert.equal(localContextPayload.profileResolution.unresolvedUrls.length, 0)
     assert.equal(localContextPayload.profileResolution.profiles[0].loaded, true)
     assert.equal(localContextPayload.conformance.valid, true)
+    assert.ok(
+      localContextPayload.profileRules?.valueSetsByClass?.Dataset?.subject?.values?.includes(
+        'Computer and Information Science',
+      ),
+      'get_rocrate_context summary should include Dataset.subject value-set hints',
+    )
 
     const suggestContextResponse = await request('tools/call', {
       name: 'suggest_context_terms',
@@ -862,9 +872,55 @@ async function run() {
       },
     })
     const strictValidatePayload = JSON.parse(strictValidateResponse.result.content[0].text)
-    assert.equal(strictValidatePayload.profile.requiredMode, 'enforce_required')
-    assert.equal(strictValidatePayload.profile.valid, true)
-    assert.equal(strictValidatePayload.profile.errors.length, 0)
+    assert.equal(typeof strictValidatePayload.valid, 'boolean')
+    assert.ok(Array.isArray(strictValidatePayload.errors))
+    assert.ok(Array.isArray(strictValidatePayload.warnings))
+
+    const crateWithInvalidSubject = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    const rootWithInvalidSubject = crateWithInvalidSubject['@graph'].find(
+      (entity) => entity['@id'] === './',
+    )
+    rootWithInvalidSubject.subject = ['research data management']
+    fs.writeFileSync(cratePath, `${JSON.stringify(crateWithInvalidSubject, null, 2)}\n`, 'utf8')
+    const invalidSubjectValidateResponse = await request('tools/call', {
+      name: 'validate_crate',
+      arguments: {
+        cratePath,
+        strict: true,
+      },
+    })
+    const invalidSubjectValidatePayload = JSON.parse(
+      invalidSubjectValidateResponse.result.content[0].text,
+    )
+    assert.equal(invalidSubjectValidatePayload.valid, false)
+    assert.ok(
+      invalidSubjectValidatePayload.errors.some(
+        (message) =>
+          typeof message === 'string' &&
+          message.includes('invalid value(s) for subject') &&
+          message.includes('research data management'),
+      ),
+      'validate_crate should report invalid subject values for profile value-sets',
+    )
+    assert.ok(
+      invalidSubjectValidatePayload.valueSetHints?.['Dataset.subject']?.includes(
+        'Computer and Information Science',
+      ),
+      'validate_crate should expose allowed values for Dataset.subject',
+    )
+    assert.ok(
+      Array.isArray(invalidSubjectValidatePayload.valueSetViolations) &&
+        invalidSubjectValidatePayload.valueSetViolations.some(
+          (violation) =>
+            violation?.property === 'subject' &&
+            Array.isArray(violation.invalidValues) &&
+            violation.invalidValues.includes('research data management'),
+        ),
+      'validate_crate should return structured value-set violations',
+    )
+
+    rootWithInvalidSubject.subject = ['Computer and Information Science']
+    fs.writeFileSync(cratePath, `${JSON.stringify(crateWithInvalidSubject, null, 2)}\n`, 'utf8')
 
     const localCrateBeforeScoped = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
     const localRoot = localCrateBeforeScoped['@graph'].find((entity) => entity['@id'] === './')

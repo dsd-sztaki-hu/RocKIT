@@ -23,18 +23,34 @@ type DispatcherDeps = {
   textResult: (payload: unknown) => McpToolTextResult
   parseDownloadUrlParams: (params: Record<string, unknown>) => unknown
   runDownloadUrl: (params: unknown) => Promise<unknown>
-  parseDataverseUploadParams: (params: Record<string, unknown>) => { responseMode: 'summary' | 'full' }
+  parseDataverseUploadParams: (params: Record<string, unknown>) => {
+    responseMode: 'summary' | 'full'
+  }
   runDataverseUpload: (params: unknown) => Promise<Record<string, unknown>>
-  summarizeDataverseUploadPayload: (payload: Record<string, unknown>) => Record<string, unknown>
-  parseDataverseDownloadParams: (params: Record<string, unknown>) => { responseMode: 'summary' | 'full' }
+  summarizeDataverseUploadPayload: (
+    payload: Record<string, unknown>,
+  ) => Record<string, unknown>
+  parseDataverseDownloadParams: (params: Record<string, unknown>) => {
+    responseMode: 'summary' | 'full'
+  }
   runDataverseDownload: (params: unknown) => Promise<Record<string, unknown>>
-  summarizeDataverseDownloadPayload: (payload: Record<string, unknown>) => Record<string, unknown>
-  loadCrateFromParams: (params: Record<string, unknown>) => { mode: 'local' | 'remote'; crate: any; cratePath?: string }
+  summarizeDataverseDownloadPayload: (
+    payload: Record<string, unknown>,
+  ) => Record<string, unknown>
+  loadCrateFromParams: (params: Record<string, unknown>) => {
+    mode: 'local' | 'remote'
+    crate: any
+    cratePath?: string
+  }
   parseResponseMode: (
     params: Record<string, unknown>,
     defaultMode?: 'summary' | 'full',
   ) => 'summary' | 'full'
-  summarizeCratePayload: (crate: any, mode: 'local' | 'remote', cratePath?: string) => Record<string, unknown>
+  summarizeCratePayload: (
+    crate: any,
+    mode: 'local' | 'remote',
+    cratePath?: string,
+  ) => Record<string, unknown>
   resolveCratePath: () => string
   ensureCratePath: (inputPath?: unknown) => string
   parseProfileResolutionInputs: (params: Record<string, unknown>) => unknown
@@ -49,8 +65,16 @@ type DispatcherDeps = {
   normalizeChangeSet: (input: unknown) => unknown
   detectProfileChangeTargets: (crate: any, changeSet: unknown) => string[]
   applyChangeSet: (crate: any, changeSet: unknown) => any
-  buildProfileConstraints: (crate: any, mode: 'local' | 'remote', resolutionInputs: unknown) => any
-  applyContextModePatch: (crate: any, constraints: any, contextMode: unknown) => { crate: any; report: unknown }
+  buildProfileConstraints: (
+    crate: any,
+    mode: 'local' | 'remote',
+    resolutionInputs: unknown,
+  ) => any
+  applyContextModePatch: (
+    crate: any,
+    constraints: any,
+    contextMode: unknown,
+  ) => { crate: any; report: unknown }
   ensureProfileConformanceOrThrow: (
     crate: any,
     mode: 'local' | 'remote',
@@ -64,19 +88,33 @@ type DispatcherDeps = {
     changeSet: any,
     constraints: any,
   ) => Record<string, unknown>
-  readProfileConformsToUpdateOps: (params: Record<string, unknown>) => { add: string[]; remove: string[]; set?: string[] }
+  readProfileConformsToUpdateOps: (params: Record<string, unknown>) => {
+    add: string[]
+    remove: string[]
+    set?: string[]
+  }
   updateProfileConformsTo: (
     crate: any,
     entityId: string,
     ops: { add: string[]; remove: string[]; set?: string[] },
-  ) => { previousUrls: string[]; addedUrls: string[]; removedUrls: string[]; finalUrls: string[] }
+  ) => {
+    previousUrls: string[]
+    addedUrls: string[]
+    removedUrls: string[]
+    finalUrls: string[]
+  }
   validateCrate: (crate: any, options: { strict: boolean }) => any
   validateCrateAgainstProfileConstraints: (
     crate: any,
     constraints: any,
     options: { requiredMode: 'allow_missing' | 'enforce_required' },
-  ) => { valid: boolean; errors: unknown[]; warnings: unknown[] }
-  summarizeValidationPayload: (payload: Record<string, unknown>) => Record<string, unknown>
+  ) => {
+    valid: boolean
+    errors: unknown[]
+    warnings: unknown[]
+    valueSetHints?: Record<string, unknown>
+    valueSetViolations?: unknown[]
+  }
   parseAccessMode: (params: Record<string, unknown>) => 'local' | 'remote'
   asRoCrate: (value: unknown) => any
   summarizeProfileResolution: (resolution: unknown) => Record<string, unknown>
@@ -103,7 +141,9 @@ type DispatcherDeps = {
     includeProfileContent: boolean,
     resolutionInputs: unknown,
   ) => unknown
-  prepareRemoteProfilePayload: (params: Record<string, unknown>) => Record<string, unknown>
+  prepareRemoteProfilePayload: (
+    params: Record<string, unknown>,
+  ) => Record<string, unknown>
   createProfileContext: (params: Record<string, unknown>) => Record<string, unknown>
   getProfileContextInfo: (params: Record<string, unknown>) => Record<string, unknown>
   deleteProfileContext: (params: Record<string, unknown>) => Record<string, unknown>
@@ -146,7 +186,6 @@ export function createToolDispatcher(deps: DispatcherDeps) {
     updateProfileConformsTo,
     validateCrate,
     validateCrateAgainstProfileConstraints,
-    summarizeValidationPayload,
     parseAccessMode,
     asRoCrate,
     summarizeProfileResolution,
@@ -232,7 +271,9 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         if (responseMode === 'full') {
           return textResult(loaded.crate)
         }
-        return textResult(summarizeCratePayload(loaded.crate, loaded.mode, loaded.cratePath))
+        return textResult(
+          summarizeCratePayload(loaded.crate, loaded.mode, loaded.cratePath),
+        )
       }
 
       if (toolName === 'apply_changes') {
@@ -246,7 +287,10 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         const profileRequiredMode = parseProfileRequiredMode(params, 'allow_missing')
         const contextMode = parseContextMode(params, 'auto_reconcile')
         const normalizedChangeSet = normalizeChangeSet(params.changeSet)
-        const profileChangeTargets = detectProfileChangeTargets(loaded.crate, normalizedChangeSet)
+        const profileChangeTargets = detectProfileChangeTargets(
+          loaded.crate,
+          normalizedChangeSet,
+        )
         if (profileChangeTargets.length > 0) {
           throw new Error(
             `conformsTo update blocked in apply_changes for Dataset/File entity IDs: ${profileChangeTargets.join(', ')}. Use update_profile_conforms_to.`,
@@ -257,7 +301,11 @@ export function createToolDispatcher(deps: DispatcherDeps) {
           params,
           loaded.mode === 'remote' ? 'full' : 'summary',
         )
-        const preConstraints = buildProfileConstraints(changed, loaded.mode, resolutionInputs)
+        const preConstraints = buildProfileConstraints(
+          changed,
+          loaded.mode,
+          resolutionInputs,
+        )
         const contextPatched = applyContextModePatch(changed, preConstraints, contextMode)
         const updated = contextPatched.crate
         const constraints = ensureProfileConformanceOrThrow(
@@ -288,7 +336,12 @@ export function createToolDispatcher(deps: DispatcherDeps) {
             return textResult(payload)
           }
           return textResult(
-            summarizeApplyChangesPayload(payload, updated, normalizedChangeSet, constraints),
+            summarizeApplyChangesPayload(
+              payload,
+              updated,
+              normalizedChangeSet,
+              constraints,
+            ),
           )
         }
         if (loaded.mode === 'remote') {
@@ -309,7 +362,12 @@ export function createToolDispatcher(deps: DispatcherDeps) {
             return textResult(payload)
           }
           return textResult(
-            summarizeApplyChangesPayload(payload, updated, normalizedChangeSet, constraints),
+            summarizeApplyChangesPayload(
+              payload,
+              updated,
+              normalizedChangeSet,
+              constraints,
+            ),
           )
         }
         throw new Error(`Unsupported mode for apply_changes: ${loaded.mode}`)
@@ -328,11 +386,8 @@ export function createToolDispatcher(deps: DispatcherDeps) {
             : './'
         const ops = readProfileConformsToUpdateOps(params)
 
-        const { previousUrls, addedUrls, removedUrls, finalUrls } = updateProfileConformsTo(
-          loaded.crate,
-          entityId,
-          ops,
-        )
+        const { previousUrls, addedUrls, removedUrls, finalUrls } =
+          updateProfileConformsTo(loaded.crate, entityId, ops)
         const responseMode = parseResponseMode(
           params,
           loaded.mode === 'remote' ? 'full' : 'summary',
@@ -437,29 +492,45 @@ export function createToolDispatcher(deps: DispatcherDeps) {
             requiredMode: profileRequiredMode,
           },
         )
+        const coreErrors = Array.isArray(report.errors) ? report.errors : []
+        const coreWarnings = Array.isArray(report.warnings) ? report.warnings : []
+        const profileErrors = Array.isArray(profileValidation.errors)
+          ? profileValidation.errors
+          : []
+        const profileWarnings = Array.isArray(profileValidation.warnings)
+          ? profileValidation.warnings
+          : []
+        const errors = [...coreErrors, ...profileErrors]
+        const warnings = [...coreWarnings, ...profileWarnings]
         const payload = {
-          ...report,
-          profile: {
-            valid: profileValidation.valid,
-            errors: profileValidation.errors,
-            warnings: profileValidation.warnings,
-            requiredMode: profileRequiredMode,
-            resolution: constraints.resolution,
+          valid: report.valid === true && profileValidation.valid === true,
+          summary: {
+            errors: errors.length,
+            warnings: warnings.length,
           },
+          errors,
+          warnings,
+          valueSetHints:
+            profileValidation.valueSetHints &&
+            typeof profileValidation.valueSetHints === 'object'
+              ? profileValidation.valueSetHints
+              : {},
+          valueSetViolations: Array.isArray(profileValidation.valueSetViolations)
+            ? profileValidation.valueSetViolations
+            : [],
         }
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, payload)
         }
-        const responseMode = parseResponseMode(params, 'summary')
-        if (responseMode === 'full') {
-          return textResult(payload)
-        }
-        return textResult(summarizeValidationPayload(payload))
+        return textResult(payload)
       }
 
       if (toolName === 'write_crate_atomic') {
         const mode = parseAccessMode(params)
-        const responseMode = parseResponseMode(params, mode === 'remote' ? 'full' : 'summary')
+        const responseMode = parseResponseMode(
+          params,
+          mode === 'remote' ? 'full' : 'summary',
+        )
         const resolutionInputs = parseProfileResolutionInputs(params)
         const profileRequiredMode = parseProfileRequiredMode(params, 'allow_missing')
         const crateParam = params.crate
@@ -598,7 +669,12 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         const mode = parseAccessMode(params)
         const includeProfileContent = params.includeProfileContent === true
         const resolutionInputs = parseProfileResolutionInputs(params)
-        const result = resolveProfileUrls([profileUrl], mode, includeProfileContent, resolutionInputs)
+        const result = resolveProfileUrls(
+          [profileUrl],
+          mode,
+          includeProfileContent,
+          resolutionInputs,
+        )
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, result)
         }

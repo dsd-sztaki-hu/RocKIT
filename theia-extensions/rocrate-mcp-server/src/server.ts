@@ -306,7 +306,6 @@ const {
 const {
   summarizeProfileResolution,
   summarizeCratePayload,
-  summarizeValidationPayload,
   summarizeRoCrateContext,
   summarizeApplyChangesPayload,
   summarizeDataverseUploadPayload,
@@ -409,6 +408,18 @@ function buildRoCrateContext(
           .sort((a, b) => a[0].localeCompare(b[0]))
           .map(([className, props]) => [className, Array.from(props).sort()]),
       ),
+      valueSetsByClass: Object.fromEntries(
+        Array.from(constraints.valueSetsByClass.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([className, propertyValueSets]) => [
+            className,
+            Object.fromEntries(
+              Array.from(propertyValueSets.entries())
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([propertyName, values]) => [propertyName, Array.from(values).sort()]),
+            ),
+          ]),
+      ),
     },
     conformance: validation,
     instructions: [
@@ -455,7 +466,6 @@ const handleToolCall = createToolDispatcher({
   updateProfileConformsTo,
   validateCrate,
   validateCrateAgainstProfileConstraints,
-  summarizeValidationPayload,
   parseAccessMode,
   asRoCrate,
   summarizeProfileResolution,

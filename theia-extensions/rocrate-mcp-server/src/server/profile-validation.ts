@@ -82,6 +82,45 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
   }
 
   /**
+   * Handles extract value sets from class inputs.
+   *
+   * Supports profile inputs that declare explicit enumerated choices in `values`.
+   */
+  function extractValueSetsFromClass(profileClass: unknown): Map<string, Set<string>> {
+    const valueSets = new Map<string, Set<string>>()
+    if (!profileClass || typeof profileClass !== 'object' || Array.isArray(profileClass)) {
+      return valueSets
+    }
+    const inputs = (profileClass as Record<string, unknown>).inputs
+    if (!Array.isArray(inputs)) {
+      return valueSets
+    }
+    for (const input of inputs) {
+      if (!input || typeof input !== 'object' || Array.isArray(input)) {
+        continue
+      }
+      const inputRecord = input as Record<string, unknown>
+      const name = typeof inputRecord.name === 'string' ? inputRecord.name.trim() : ''
+      if (name === '') {
+        continue
+      }
+      const values = inputRecord.values
+      if (!Array.isArray(values) || values.length === 0) {
+        continue
+      }
+      const normalizedValues = values
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry !== '')
+      if (normalizedValues.length === 0) {
+        continue
+      }
+      valueSets.set(name, new Set<string>(normalizedValues))
+    }
+    return valueSets
+  }
+
+  /**
    * Resolves active profile URLs, then aggregates class/property rules.
    *
    * The result includes both:
@@ -100,6 +139,7 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
     const allowedClasses = new Set<string>()
     const allowedPropertiesByClass = new Map<string, Set<string>>()
     const requiredPropertiesByClass = new Map<string, Set<string>>()
+    const valueSetsByClass = new Map<string, Map<string, Set<string>>>()
 
     for (const profile of resolution.profiles) {
       if (!profile.loaded || !profile.profile || !profile.conformsTo) {
@@ -113,6 +153,7 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
         allowedClasses: new Set<string>(),
         allowedPropertiesByClass: new Map<string, Set<string>>(),
         requiredPropertiesByClass: new Map<string, Set<string>>(),
+        valueSetsByClass: new Map<string, Map<string, Set<string>>>(),
       }
 
       for (const [className, classValue] of Object.entries(
@@ -144,6 +185,20 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
           globalRequired.add(propertyName)
         }
         requiredPropertiesByClass.set(trimmedClassName, globalRequired)
+
+        const classValueSets = extractValueSetsFromClass(classValue)
+        profileRuleSet.valueSetsByClass.set(trimmedClassName, classValueSets)
+
+        const globalClassValueSets =
+          valueSetsByClass.get(trimmedClassName) ?? new Map<string, Set<string>>()
+        for (const [propertyName, values] of classValueSets.entries()) {
+          const globalValues = globalClassValueSets.get(propertyName) ?? new Set<string>()
+          for (const value of values) {
+            globalValues.add(value)
+          }
+          globalClassValueSets.set(propertyName, globalValues)
+        }
+        valueSetsByClass.set(trimmedClassName, globalClassValueSets)
       }
 
       const existing = rulesByProfileUrl.get(profile.conformsTo)
@@ -167,6 +222,18 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
           }
           existing.requiredPropertiesByClass.set(className, current)
         }
+        for (const [className, classValueSets] of profileRuleSet.valueSetsByClass.entries()) {
+          const currentClassValueSets =
+            existing.valueSetsByClass.get(className) ?? new Map<string, Set<string>>()
+          for (const [propertyName, values] of classValueSets.entries()) {
+            const currentValues = currentClassValueSets.get(propertyName) ?? new Set<string>()
+            for (const value of values) {
+              currentValues.add(value)
+            }
+            currentClassValueSets.set(propertyName, currentValues)
+          }
+          existing.valueSetsByClass.set(className, currentClassValueSets)
+        }
       }
     }
 
@@ -176,6 +243,7 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
       allowedClasses,
       allowedPropertiesByClass,
       requiredPropertiesByClass,
+      valueSetsByClass,
     }
   }
 
@@ -241,9 +309,29 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
     crate: RoCrate,
     constraints: ProfileConstraints,
     options: { requiredMode: ProfileRequiredMode } = { requiredMode: 'allow_missing' },
-  ): { valid: boolean; errors: string[]; warnings: string[] } {
+  ): {
+    valid: boolean
+    errors: string[]
+    warnings: string[]
+    valueSetHints: Record<string, string[]>
+    valueSetViolations: Array<{
+      entityId: string
+      entityType: string
+      property: string
+      invalidValues: string[]
+      allowedValues: string[]
+    }>
+  } {
     const errors: string[] = []
     const warnings = [...constraints.resolution.warnings]
+    const valueSetHints = new Map<string, Set<string>>()
+    const valueSetViolations: Array<{
+      entityId: string
+      entityType: string
+      property: string
+      invalidValues: string[]
+      allowedValues: string[]
+    }> = []
     const hasAnyProfileTargets = constraints.resolution.profileUrls.length > 0
     if (hasAnyProfileTargets && constraints.resolution.unresolvedUrls.length > 0) {
       const message = `No schema profile mapping found for conformsTo URL(s): ${constraints.resolution.unresolvedUrls.join(', ')}`
@@ -271,7 +359,13 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
       }
     }
     if (errors.length > 0) {
-      return { valid: false, errors, warnings }
+      return {
+        valid: false,
+        errors,
+        warnings,
+        valueSetHints: {},
+        valueSetViolations: [],
+      }
     }
 
     const declaredContextTerms = deps.collectDeclaredContextTerms(crate)
@@ -283,6 +377,7 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
         allowedClasses: new Set<string>(),
         allowedPropertiesByClass: new Map<string, Set<string>>(),
         requiredPropertiesByClass: new Map<string, Set<string>>(),
+        valueSetsByClass: new Map<string, Map<string, Set<string>>>(),
       }
       for (const profileUrl of profileUrls) {
         const ruleSet = constraints.rulesByProfileUrl.get(profileUrl)
@@ -306,8 +401,31 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
           }
           merged.requiredPropertiesByClass.set(className, current)
         }
+        for (const [className, classValueSets] of ruleSet.valueSetsByClass.entries()) {
+          const currentClassValueSets =
+            merged.valueSetsByClass.get(className) ?? new Map<string, Set<string>>()
+          for (const [propertyName, values] of classValueSets.entries()) {
+            const currentValues = currentClassValueSets.get(propertyName) ?? new Set<string>()
+            for (const value of values) {
+              currentValues.add(value)
+            }
+            currentClassValueSets.set(propertyName, currentValues)
+          }
+          merged.valueSetsByClass.set(className, currentClassValueSets)
+        }
       }
       return merged
+    }
+
+    const collectStringValues = (value: unknown): string[] => {
+      if (typeof value === 'string') {
+        const trimmed = value.trim()
+        return trimmed === '' ? [] : [trimmed]
+      }
+      if (Array.isArray(value)) {
+        return value.flatMap((entry) => collectStringValues(entry))
+      }
+      return []
     }
 
     const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
@@ -374,6 +492,47 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
         errors.push(`Entity ${entityId} contains disallowed property: ${key}`)
       }
 
+      const valueSetsByProperty = new Map<string, Set<string>>()
+      for (const entityType of types) {
+        const classValueSets = entityRules.valueSetsByClass.get(entityType)
+        if (!classValueSets) {
+          continue
+        }
+        for (const [propertyName, values] of classValueSets.entries()) {
+          const mergedValues = valueSetsByProperty.get(propertyName) ?? new Set<string>()
+          for (const value of values) {
+            mergedValues.add(value)
+          }
+          valueSetsByProperty.set(propertyName, mergedValues)
+        }
+      }
+      for (const [propertyName, allowedValuesSet] of valueSetsByProperty.entries()) {
+        const allowedValues = Array.from(allowedValuesSet).sort()
+        if (allowedValues.length === 0) {
+          continue
+        }
+        const hintKey = `${types[0] ?? 'Entity'}.${propertyName}`
+        valueSetHints.set(hintKey, new Set<string>(allowedValues))
+        const currentValue = entity[propertyName]
+        const currentValues = collectStringValues(currentValue)
+        if (currentValues.length === 0) {
+          continue
+        }
+        const invalidValues = currentValues.filter((value) => !allowedValuesSet.has(value))
+        if (invalidValues.length > 0) {
+          errors.push(
+            `Entity ${entityId} has invalid value(s) for ${propertyName}: ${invalidValues.join(', ')}. Allowed values: ${allowedValues.join(', ')}`,
+          )
+          valueSetViolations.push({
+            entityId,
+            entityType: types[0] ?? 'Entity',
+            property: propertyName,
+            invalidValues: Array.from(new Set(invalidValues)).sort(),
+            allowedValues,
+          })
+        }
+      }
+
       const nameValue = entity.name
       const hasName = hasMeaningfulValue(nameValue)
       if (!hasName) {
@@ -430,6 +589,12 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
       valid: errors.length === 0,
       errors,
       warnings,
+      valueSetHints: Object.fromEntries(
+        Array.from(valueSetHints.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([key, values]) => [key, Array.from(values).sort()]),
+      ),
+      valueSetViolations,
     }
   }
 

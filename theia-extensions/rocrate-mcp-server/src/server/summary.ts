@@ -343,6 +343,45 @@ export function createSummaryHelpers(deps: SummaryDeps) {
           ]
         }),
     )
+    const valueSetsByClassRaw =
+      profileRules.valueSetsByClass &&
+      typeof profileRules.valueSetsByClass === 'object' &&
+      !Array.isArray(profileRules.valueSetsByClass)
+        ? (profileRules.valueSetsByClass as Record<string, unknown>)
+        : {}
+    const valueSetsByClass = Object.fromEntries(
+      Object.entries(valueSetsByClassRaw)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([className, propertySetsRaw]) => {
+          const propertySets =
+            propertySetsRaw &&
+            typeof propertySetsRaw === 'object' &&
+            !Array.isArray(propertySetsRaw)
+              ? (propertySetsRaw as Record<string, unknown>)
+              : {}
+          return [
+            className,
+            Object.fromEntries(
+              Object.entries(propertySets)
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([propertyName, valuesRaw]) => {
+                  const values = Array.isArray(valuesRaw)
+                    ? valuesRaw.filter((item): item is string => typeof item === 'string')
+                    : []
+                  const summary = summarizeStringArray(values.sort())
+                  return [
+                    propertyName,
+                    {
+                      values: summary.items,
+                      valueCount: summary.total,
+                      valuesTruncated: summary.truncated,
+                    },
+                  ]
+                }),
+            ),
+          ]
+        }),
+    )
 
     return {
       mode: context.mode,
@@ -357,6 +396,7 @@ export function createSummaryHelpers(deps: SummaryDeps) {
         allowedClassCount: allowedClasses.length,
         allowedClasses: summarizeStringArray(allowedClasses).items,
         allowedPropertiesByClass,
+        valueSetsByClass,
       },
       profileTargetsByUrl,
       conformance: {
