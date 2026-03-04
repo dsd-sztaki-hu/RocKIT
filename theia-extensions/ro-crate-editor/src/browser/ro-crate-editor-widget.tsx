@@ -833,20 +833,37 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     if (inputNames.length === 0 && profileUrl) {
-      const allSchemas = await this.schemaManagerService.loadAllSchemas()
-      const matchingSchema = allSchemas.find(
-        (schema) => schema.conformsTo === profileUrl || schema.aux.reference === profileUrl,
-      )
-      if (matchingSchema) {
-        const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
-          matchingSchema.files.convertedPath,
-        )
-        const schemaInputs = convertedContent?.classes?.Dataset?.inputs
-        if (Array.isArray(schemaInputs)) {
-          for (const input of schemaInputs) {
-            if (input?.name) {
-              inputNames.push(input.name)
-            }
+      const profileList = this.appStateService.profileList
+      const trimmedProfileUrl = typeof profileUrl === 'string' ? profileUrl.trim() : ''
+
+      let convertedContent: any | undefined =
+        trimmedProfileUrl && profileList ? (profileList as any)[trimmedProfileUrl] : undefined
+
+      if (!convertedContent && trimmedProfileUrl && profileList) {
+        const match = Object.entries(profileList as any).find(([key, value]) => {
+          const trimmedKey = typeof key === 'string' ? key.trim() : ''
+          if (trimmedKey && trimmedKey === trimmedProfileUrl) {
+            return true
+          }
+          const conformsTo = (value as any)?.conformsTo
+          const auxRef = (value as any)?.aux?.reference
+          return (
+            (typeof conformsTo === 'string' && conformsTo.trim() === trimmedProfileUrl) ||
+            (typeof auxRef === 'string' && auxRef.trim() === trimmedProfileUrl)
+          )
+        })
+        convertedContent = match?.[1] as any
+      }
+
+      const schemaInputs =
+        convertedContent?.classes?.[entityType]?.inputs ??
+        convertedContent?.classes?.Dataset?.inputs ??
+        convertedContent?.classes?.File?.inputs
+
+      if (Array.isArray(schemaInputs)) {
+        for (const input of schemaInputs) {
+          if (input?.name) {
+            inputNames.push(input.name)
           }
         }
       }
