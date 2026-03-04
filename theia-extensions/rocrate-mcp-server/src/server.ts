@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { randomUUID } from 'node:crypto'
+import * as path from 'node:path'
 import {
   applyChangeSet,
   normalizeCrate,
@@ -21,6 +22,11 @@ import { createProfileValidationHelpers } from './server/profile-validation'
 import { createProfileResolutionHelpers } from './server/profile-resolution'
 import { createCrateOpsHelpers } from './server/crate-ops'
 import { createWebHandlers } from './server/web'
+import { createOntologyHelpers } from './server/ontology'
+import {
+  createSchemaRegistryStore,
+  type SchemaRegistryEntry,
+} from './server/schema-registry-store'
 import type {
   AccessMode,
   ProfileResolutionInputs,
@@ -99,6 +105,9 @@ const DEFAULT_CONTEXT_KNOWN_TERMS = new Set<string>([
   'temporalCoverage',
   'spatialCoverage',
   'version',
+])
+const EXTERNAL_CONTEXT_COVERAGE_URLS = new Set<string>([
+  'https://w3id.org/ro/crate/1.1/context',
 ])
 const profileContext = createProfileContextStore({
   defaultTtlSec: DEFAULT_PROFILE_CONTEXT_TTL_SEC,
@@ -332,6 +341,7 @@ const {
 } = createProfileValidationHelpers({
   baseAllowedProperties: BASE_ALLOWED_PROPERTIES,
   defaultContextKnownTerms: DEFAULT_CONTEXT_KNOWN_TERMS,
+  externalContextCoverageUrls: EXTERNAL_CONTEXT_COVERAGE_URLS,
   rocrateConformsToUrl: ROCRATE_CONFORMS_TO_URL,
   entityTypes,
   extractConformsToUrls,
@@ -350,6 +360,8 @@ const {
   defaultBaseUrl: DEFAULT_DATAVERSE_BASE_URL,
   defaultOwnerId: DEFAULT_DATAVERSE_OWNER_ID,
   defaultValidatePath: DEFAULT_DATAVERSE_VALIDATE_PATH,
+  rocrateConformsToUrl: ROCRATE_CONFORMS_TO_URL,
+  externalContextCoverageUrls: EXTERNAL_CONTEXT_COVERAGE_URLS,
   loadCrateFromParams,
   parseAccessMode,
   ensureCratePath,
@@ -360,6 +372,81 @@ const {
   buildContextTermSuggestion,
   uniqueStrings,
 })
+
+const { runOntologyTool } = createOntologyHelpers()
+
+/**
+ * Loads default schema registry entries from the shared ontology package.
+ */
+function loadDefaultRegistrySchemas(): SchemaRegistryEntry[] {
+  const modulePath = path.resolve(
+    __dirname,
+    '../../../dev-packages/rocrate-context-core/lib/index.js',
+  )
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const loaded = require(modulePath) as {
+    DEFAULT_REGISTERED_SCHEMAS?: SchemaRegistryEntry[]
+  }
+  const defaults = loaded.DEFAULT_REGISTERED_SCHEMAS
+  if (!Array.isArray(defaults)) {
+    throw new Error(
+      `Failed to load DEFAULT_REGISTERED_SCHEMAS from ${modulePath}. Build rocrate-context-core first.`,
+    )
+  }
+  return defaults
+}
+
+const schemaRegistryStore = createSchemaRegistryStore({
+  defaultSchemas: loadDefaultRegistrySchemas,
+})
+
+/**
+ * Reads access mode for schema-registry operations.
+ */
+function parseSchemaRegistryMode(params: Record<string, unknown>): AccessMode {
+  return parseAccessMode(params)
+}
+
+/**
+ * Lists persisted schema registry entries.
+ */
+function listSchemaRegistry(params: Record<string, unknown>): Record<string, unknown> {
+  const mode = parseSchemaRegistryMode(params)
+  const listing = schemaRegistryStore.list(mode)
+  return {
+    mode,
+    storage: listing.storage,
+    count: listing.schemas.length,
+    schemas: listing.schemas,
+  }
+}
+
+/**
+ * Registers one schema entry in persisted registry storage.
+ */
+function registerSchemaRegistry(params: Record<string, unknown>): Record<string, unknown> {
+  const mode = parseSchemaRegistryMode(params)
+  const result = schemaRegistryStore.register(mode, {
+    id: typeof params.id === 'string' ? params.id : '',
+    displayName: typeof params.displayName === 'string' ? params.displayName : '',
+    matchesUrls: Array.isArray(params.matchesUrls) ? params.matchesUrls : [],
+    schemaUrl: typeof params.schemaUrl === 'string' ? params.schemaUrl : '',
+    activeOnSpec: Array.isArray(params.activeOnSpec) ? params.activeOnSpec : undefined,
+  })
+  return {
+    mode,
+    storage: result.storage,
+    count: result.schemas.length,
+    schemas: result.schemas,
+  }
+}
+
+/**
+ * Exposes schema registry entries for ontology query tools.
+ */
+function getRegisteredSchemasForMode(mode: AccessMode): SchemaRegistryEntry[] {
+  return schemaRegistryStore.list(mode).schemas
+}
 
 /**
  * Resolves base aroma directory for schema index/profile artifacts.
@@ -477,6 +564,10 @@ const handleToolCall = createToolDispatcher({
   createProfileContext,
   getProfileContextInfo,
   deleteProfileContext,
+  listSchemaRegistry,
+  registerSchemaRegistry,
+  runOntologyTool,
+  getRegisteredSchemasForMode,
 })
 
 /**
@@ -495,7 +586,7 @@ async function startServer(): Promise<void> {
       if (!collector) {
         return
       }
-      void startDashboardIfNeeded(collector)
+      void startDashboardIfNeeded(collector, schemaRegistryStore)
         .then((dashboard) => {
           if (dashboard) {
             process.stderr.write('rocrate-mcp-server: dashboard enabled\n')

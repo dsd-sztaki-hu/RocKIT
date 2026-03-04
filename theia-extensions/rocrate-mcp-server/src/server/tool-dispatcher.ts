@@ -1,4 +1,5 @@
 import type { McpToolTextResult, TransportMode } from './types'
+import type { SchemaRegistryEntry } from './schema-registry-store'
 
 type ToolCallTelemetryContext = {
   sessionKey: string
@@ -147,6 +148,15 @@ type DispatcherDeps = {
   createProfileContext: (params: Record<string, unknown>) => Record<string, unknown>
   getProfileContextInfo: (params: Record<string, unknown>) => Record<string, unknown>
   deleteProfileContext: (params: Record<string, unknown>) => Record<string, unknown>
+  listSchemaRegistry: (params: Record<string, unknown>) => Record<string, unknown>
+  registerSchemaRegistry: (params: Record<string, unknown>) => Record<string, unknown>
+  runOntologyTool: (
+    toolName: string,
+    loaded: { mode: 'local' | 'remote'; crate: any; cratePath?: string },
+    params: Record<string, unknown>,
+    registeredSchemas: SchemaRegistryEntry[],
+  ) => Promise<Record<string, unknown> | null>
+  getRegisteredSchemasForMode: (mode: 'local' | 'remote') => SchemaRegistryEntry[]
 }
 
 /**
@@ -197,6 +207,10 @@ export function createToolDispatcher(deps: DispatcherDeps) {
     createProfileContext,
     getProfileContextInfo,
     deleteProfileContext,
+    listSchemaRegistry,
+    registerSchemaRegistry,
+    runOntologyTool,
+    getRegisteredSchemasForMode,
   } = deps
 
   return async function handleToolCall(
@@ -660,6 +674,38 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         })
       }
 
+      if (
+        toolName === 'list_types' ||
+        toolName === 'suggest_types' ||
+        toolName === 'get_type_details' ||
+        toolName === 'list_properties_for_type' ||
+        toolName === 'suggest_properties' ||
+        toolName === 'get_property_details'
+      ) {
+        const loaded = loadCrateFromParams(params)
+        const registeredSchemas = getRegisteredSchemasForMode(loaded.mode)
+        const payload = await runOntologyTool(
+          toolName,
+          loaded,
+          params,
+          registeredSchemas,
+        )
+        if (!payload) {
+          throw new Error(`Ontology tool handler returned no payload for tool ${toolName}`)
+        }
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, payload)
+        }
+        const responseMode = parseResponseMode(
+          params,
+          loaded.mode === 'remote' ? 'full' : 'summary',
+        )
+        if (responseMode === 'full') {
+          return textResult(payload)
+        }
+        return textResult(payload)
+      }
+
       if (toolName === 'resolve_profile_schema') {
         const profileUrl =
           typeof params.profileUrl === 'string' ? params.profileUrl.trim() : ''
@@ -707,6 +753,22 @@ export function createToolDispatcher(deps: DispatcherDeps) {
 
       if (toolName === 'delete_profile_context') {
         const result = deleteProfileContext(params)
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
+      }
+
+      if (toolName === 'list_schema_registry') {
+        const result = listSchemaRegistry(params)
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
+      }
+
+      if (toolName === 'register_schema') {
+        const result = registerSchemaRegistry(params)
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, result)
         }

@@ -11,6 +11,7 @@ import type {
 type ProfileValidationDeps = {
   baseAllowedProperties: Set<string>
   defaultContextKnownTerms: Set<string>
+  externalContextCoverageUrls: Set<string>
   rocrateConformsToUrl: string
   entityTypes: (entity: RoCrateEntity) => string[]
   extractConformsToUrls: (value: unknown) => string[]
@@ -33,6 +34,78 @@ type ProfileValidationDeps = {
  * against those constraints (types, allowed properties, required properties).
  */
 export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
+  /**
+   * Handles collect context urls.
+   */
+  function collectContextUrls(crate: RoCrate): Set<string> {
+    const urls = new Set<string>()
+    const context = crate['@context']
+    const collect = (value: unknown): void => {
+      if (typeof value === 'string' && value.trim() !== '') {
+        urls.add(value.trim())
+      }
+    }
+    if (Array.isArray(context)) {
+      for (const item of context) {
+        collect(item)
+      }
+      return urls
+    }
+    collect(context)
+    return urls
+  }
+
+  /**
+   * Handles has external context coverage.
+   */
+  function hasExternalContextCoverage(crate: RoCrate): boolean {
+    const contextUrls = collectContextUrls(crate)
+    for (const url of contextUrls) {
+      if (deps.externalContextCoverageUrls.has(url)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  /**
+   * Handles collect term usage profile scope.
+   */
+  function collectTermUsageProfileScope(
+    crate: RoCrate,
+  ): Map<string, { profiled: boolean; unprofiled: boolean }> {
+    const usage = new Map<string, { profiled: boolean; unprofiled: boolean }>()
+    const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
+    for (const entity of graph) {
+      if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+        continue
+      }
+      const types = deps.entityTypes(entity)
+      const isDatasetOrFile = types.includes('Dataset') || types.includes('File')
+      if (!isDatasetOrFile) {
+        continue
+      }
+      const profileUrls = deps.extractConformsToUrls(entity.conformsTo).filter(
+        (url) => url !== deps.rocrateConformsToUrl,
+      )
+      const scope: 'profiled' | 'unprofiled' =
+        profileUrls.length > 0 ? 'profiled' : 'unprofiled'
+      for (const key of Object.keys(entity)) {
+        if (key.startsWith('@')) {
+          continue
+        }
+        const current = usage.get(key) ?? { profiled: false, unprofiled: false }
+        if (scope === 'profiled') {
+          current.profiled = true
+        } else {
+          current.unprofiled = true
+        }
+        usage.set(key, current)
+      }
+    }
+    return usage
+  }
+
   /**
    * Handles extract allowed properties from class.
    */
@@ -369,8 +442,12 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
     }
 
     const declaredContextTerms = deps.collectDeclaredContextTerms(crate)
+    const externalContextCoverage = hasExternalContextCoverage(crate)
+    const termUsageByScope = collectTermUsageProfileScope(crate)
     const isKnownContextTerm = (term: string): boolean =>
-      declaredContextTerms.has(term) || deps.defaultContextKnownTerms.has(term)
+      declaredContextTerms.has(term) ||
+      deps.defaultContextKnownTerms.has(term) ||
+      externalContextCoverage
 
     const mergeRuleSets = (profileUrls: string[]): ProfileRuleSet => {
       const merged: ProfileRuleSet = {
@@ -445,14 +522,16 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
       const entityId = typeof entity['@id'] === 'string' ? entity['@id'] : '<unknown>'
 
       if (entityProfileUrls.length === 0) {
-        for (const key of Object.keys(entity)) {
-          if (key.startsWith('@')) {
-            continue
-          }
-          if (!isKnownContextTerm(key)) {
-            errors.push(
-              `Entity ${entityId} contains property not defined by @context: ${key}`,
-            )
+        if (!externalContextCoverage) {
+          for (const key of Object.keys(entity)) {
+            if (key.startsWith('@')) {
+              continue
+            }
+            if (!isKnownContextTerm(key)) {
+              errors.push(
+                `Entity ${entityId} contains property not defined by @context: ${key}`,
+              )
+            }
           }
         }
         continue
@@ -577,6 +656,10 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
 
     const contextSuggestion = deps.buildContextTermSuggestion(crate, constraints)
     for (const term of contextSuggestion.missingTerms) {
+      const usage = termUsageByScope.get(term)
+      if (externalContextCoverage && usage && !usage.profiled && usage.unprofiled) {
+        continue
+      }
       errors.push(`Missing @context mapping for used term: ${term}`)
     }
     for (const term of contextSuggestion.unknownTerms) {

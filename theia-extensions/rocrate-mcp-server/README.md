@@ -53,11 +53,35 @@ dashboard instance.
 - `write_crate_atomic`: atomic write in local mode.
 - `get_rocrate_context`: summary context including profile resolution hints.
 - `suggest_context_terms`: suggest `mergeContext` mappings for used-but-undeclared terms.
+- `list_schema_registry`: list persisted ontology schema registry entries.
+- `register_schema`: add or replace one ontology schema registry entry.
+- `list_types`: list distilled ontology type candidates from shared context+schema catalog.
+- `suggest_types`: suggest matching ontology types for a free-text query.
+- `get_type_details`: fetch details for one type (parents, comment, property count).
+- `list_properties_for_type`: list properties for one type (optional inherited expansion).
+- `suggest_properties`: suggest matching properties for query + selected type(s).
+- `get_property_details`: fetch details for one property (domain/range/comment).
 - `resolve_profile_schema`: resolve one profile URL via schema index/profile inputs.
 - `prepare_remote_profile_payload`: build `schemaIndex` + `profileContents` payload for remote calls.
 - `create_profile_context`: cache profile payload server-side; returns `profileContextId`.
 - `get_profile_context_info`: inspect cached profile context metadata.
 - `delete_profile_context`: delete cached profile context.
+
+## Shared ontology core dependency
+
+Ontology query/suggestion tools are backed by the shared library:
+
+- `dev-packages/rocrate-context-core`
+
+Current server integration loads:
+
+- `dev-packages/rocrate-context-core/lib/index.js`
+
+So before running `rocrate-mcp-server`, build the shared lib at least once:
+
+```bash
+./node_modules/.bin/tsc -p dev-packages/rocrate-context-core/tsconfig.json
+```
 
 ## Dashboard
 
@@ -106,6 +130,10 @@ The dashboard exposes read-only APIs (plus one config write endpoint):
 - `GET /tool-calls/:id` - Detailed tool call info
 - `GET /config` - Get current configuration
 - `POST /config` - Update configuration (detailed logging, retention)
+- `GET /schema-registry?mode=local|remote` - List schema registry entries
+- `POST /schema-registry` - Register/replace schema entry
+- `PUT /schema-registry/:id` - Update schema entry
+- `DELETE /schema-registry/:id?mode=local|remote` - Remove schema entry
 
 ### Memory Management
 
@@ -223,6 +251,13 @@ yarn workspace rocrate-mcp-server test
 yarn workspace rocrate-mcp-server start
 ```
 
+Recommended first-time build order:
+
+```bash
+./node_modules/.bin/tsc -p dev-packages/rocrate-context-core/tsconfig.json
+yarn workspace rocrate-mcp-server build
+```
+
 ### Run modes
 
 Direct stdio server:
@@ -259,6 +294,7 @@ node /absolute/path/to/rocrate-mcp-server/lib/server.js --connect /Users/<you>/.
 ### Profile Resolution
 - `AROMA_ROOT_PATH` (optional): base directory for schema index/profile files (default `~/.aroma`).
 - `AROMA_METADATA_SCHEMA_INDEX_FILE` (optional): schema index filename or absolute path.
+- `ROCRATE_REMOTE_SCHEMA_REGISTRY_DIR` (optional): remote-mode schema registry directory (default `~/.aroma/schema-registry-remote`).
 
 ### Dashboard
 - `ROCRATE_DASHBOARD_ENABLED`: Enable/disable dashboard (default: `true`).

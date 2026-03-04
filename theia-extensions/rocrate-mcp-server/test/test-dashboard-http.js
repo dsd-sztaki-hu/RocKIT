@@ -44,6 +44,33 @@ async function testHttpServer() {
     host: '127.0.0.1',
     port,
     retentionHours: 1,
+  }, {
+    _schemas: [],
+    _storage: { mode: 'local', directory: '/tmp/test', filePath: '/tmp/test/registry.json' },
+    list() {
+      return { storage: this._storage, schemas: [...this._schemas] }
+    },
+    register(mode, input) {
+      this._schemas = this._schemas.filter((entry) => entry.id !== input.id)
+      this._schemas.push({
+        id: input.id,
+        displayName: input.displayName,
+        matchesUrls: input.matchesUrls,
+        schemaUrl: input.schemaUrl,
+        activeOnSpec: input.activeOnSpec || ['v1.1.3', 'v1.2.0'],
+      })
+      return { storage: this._storage, schemas: [...this._schemas] }
+    },
+    update(mode, input) {
+      const idx = this._schemas.findIndex((entry) => entry.id === input.id)
+      if (idx < 0) throw new Error('Schema not found')
+      this._schemas[idx] = { ...this._schemas[idx], ...input }
+      return { storage: this._storage, schemas: [...this._schemas] }
+    },
+    remove(mode, id) {
+      this._schemas = this._schemas.filter((entry) => entry.id !== id)
+      return { storage: this._storage, schemas: [...this._schemas] }
+    },
   })
 
   await dashboard.start()
@@ -75,6 +102,39 @@ async function testHttpServer() {
         req.destroy()
         reject(new Error('Request timeout'))
       })
+    })
+
+  const requestWithBody = (method, reqPath, bodyObj) =>
+    new Promise((resolve, reject) => {
+      const body = bodyObj ? JSON.stringify(bodyObj) : ''
+      const req = http.request(
+        {
+          hostname: '127.0.0.1',
+          port,
+          path: reqPath,
+          method,
+          headers: {
+            'content-type': 'application/json',
+            'content-length': Buffer.byteLength(body),
+          },
+        },
+        (res) => {
+          let data = ''
+          res.on('data', (chunk) => {
+            data += chunk
+          })
+          res.on('end', () => {
+            resolve({ status: res.statusCode, headers: res.headers, data })
+          })
+        },
+      )
+      req.on('error', reject)
+      req.setTimeout(5000, () => {
+        req.destroy()
+        reject(new Error('Request timeout'))
+      })
+      req.write(body)
+      req.end()
     })
 
   try {
@@ -137,6 +197,35 @@ async function testHttpServer() {
 
     const tavily = depsData.dependencies.find((d) => d.dependency === 'tavily')
     assert.strictEqual(tavily !== undefined, true)
+
+    // Test schema registry endpoints
+    console.log('  Testing /schema-registry endpoints...')
+    const listBefore = await get('/schema-registry')
+    assert.strictEqual(listBefore.status, 200)
+    const listBeforeData = JSON.parse(listBefore.data)
+    assert.strictEqual(Array.isArray(listBeforeData.schemas), true)
+
+    const registerResp = await requestWithBody('POST', '/schema-registry', {
+      mode: 'local',
+      id: 'example',
+      displayName: 'Example Schema',
+      matchesUrls: ['https://example.org/'],
+      schemaUrl: 'https://example.org/schema.jsonld',
+    })
+    assert.strictEqual(registerResp.status, 200)
+
+    const updateResp = await requestWithBody('PUT', '/schema-registry/example', {
+      mode: 'local',
+      displayName: 'Example Schema Updated',
+    })
+    assert.strictEqual(updateResp.status, 200)
+
+    const deleteResp = await requestWithBody(
+      'DELETE',
+      '/schema-registry/example?mode=local',
+      {},
+    )
+    assert.strictEqual(deleteResp.status, 200)
 
     // Test CORS headers
     console.log('  Testing CORS headers...')
@@ -204,6 +293,11 @@ async function testAuth() {
     port,
     authToken: 'test-token-123',
     retentionHours: 1,
+  }, {
+    list: () => ({ storage: {}, schemas: [] }),
+    register: () => ({ storage: {}, schemas: [] }),
+    update: () => ({ storage: {}, schemas: [] }),
+    remove: () => ({ storage: {}, schemas: [] }),
   })
 
   await dashboard.start()
