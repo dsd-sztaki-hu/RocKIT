@@ -430,7 +430,7 @@ body.vs .entities-overview-type-select .ant-select-selection-item-remove {
 
 .lm-TabBar-toolbar .item > [id="entities-overview:toggle-filters"]:hover,
 .lm-TabBar-toolbar .item > [id="entities-overview:collapse-all"]:hover {
-  background-color: transparent !important;
+  background-color: var(--theia-toolbar-hoverBackground) !important;
 }
 
 body.entities-overview-filters-visible

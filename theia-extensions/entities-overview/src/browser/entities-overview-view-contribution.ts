@@ -105,16 +105,16 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
 
   async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
     toolbarRegistry.registerItem({
-      id: CollapseAllEntitiesOverviewNodes.id,
-      command: CollapseAllEntitiesOverviewNodes.id,
-      tooltip: 'Collapse All',
+      id: ToggleEntitiesOverviewFilters.id,
+      command: ToggleEntitiesOverviewFilters.id,
+      tooltip: 'Show/Hide Filters',
       priority: 0,
     })
 
     toolbarRegistry.registerItem({
-      id: ToggleEntitiesOverviewFilters.id,
-      command: ToggleEntitiesOverviewFilters.id,
-      tooltip: 'Show/Hide Filters',
+      id: CollapseAllEntitiesOverviewNodes.id,
+      command: CollapseAllEntitiesOverviewNodes.id,
+      tooltip: 'Collapse All',
       priority: 1,
     })
   }
