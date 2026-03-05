@@ -39,6 +39,20 @@ function main() {
   const report = core.validateCrate(updated, { strict: true })
   assert.equal(report.summary.errors, 0, 'Expected no validation errors')
 
+  const withDanglingReference = core.applyChangeSet(updated, {
+    updateEntities: [{ '@id': './', merge: { author: [{ '@id': '#author-missing' }] } }],
+  })
+  const danglingReport = core.validateCrate(withDanglingReference, { strict: true })
+  assert.ok(
+    danglingReport.errors.some(
+      (issue) =>
+        issue.code === 'dangling_reference' &&
+        typeof issue.message === 'string' &&
+        issue.message.includes('#author-missing'),
+    ),
+    'Expected dangling local references to be reported as validation errors',
+  )
+
   const withExtraField = core.applyChangeSet(updated, {
     updateEntities: [{ '@id': './', merge: { datePublished: '2026-01-01T00:00:00Z' } }],
   })

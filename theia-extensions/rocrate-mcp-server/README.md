@@ -40,8 +40,13 @@ dashboard instance.
   - update (with `pid`): JSON metadata POST to update existing dataset.
 - `download_rocrate_from_dataverse`: download crate JSON by PID from Dataverse ARP API.
 - `read_crate`: read crate (`local` from disk or `remote` from provided `crate` payload).
-- `apply_changes`: apply compact changeset; requires `write: true`.
+- `apply_changes`: apply compact changeset.
+  - Local mode persists by default.
+  - Use `dryRun: true` to preview without writing.
   - `updateEntities` supports `merge` (set fields) and `unset` (remove fields).
+  - `updateEntities` targets must already exist in `@graph`; missing IDs are rejected.
+  - Destructive changes require `confirmDestructive: true` after explicit user approval:
+    `removeEntities`, `removeHasPart`, `updateEntities.unset`, `setRootFields.hasPart`.
   - `contextMode` controls auto-`@context` handling:
     - `strict`: no automatic context edits.
     - `auto_add`: add missing profile-derived term mappings only.
@@ -51,6 +56,8 @@ dashboard instance.
 - `update_profile_conforms_to`: update `conformsTo` profile URLs on one Dataset/File entity using `add`/`remove`/`set`; requires `write: true`.
 - `validate_crate`: RO-Crate + profile-aware validation.
 - `write_crate_atomic`: atomic write in local mode.
+  - Supports `contextMode` (`strict` | `auto_add` | `auto_reconcile`) like `apply_changes`.
+  - Default `contextMode` is `auto_reconcile`.
 - `get_rocrate_context`: summary context including profile resolution hints.
 - `suggest_context_terms`: suggest `mergeContext` mappings for used-but-undeclared terms.
 - `list_schema_registry`: list persisted ontology schema registry entries.
@@ -163,7 +170,9 @@ With detailed logging enabled:
 
 Notes:
 
-- `apply_changes` requires `write: true` in both modes.
+- `apply_changes` writes by default in local mode (unless `dryRun: true`).
+- `validate_crate` reports dangling local `@id` references as errors across
+  entity-reference properties (not only `hasPart`).
 - Profile enforcement is entity-local for `Dataset`/`File` entities:
   - If entity has profile `conformsTo` URL(s), only profile-allowed types and
     properties are accepted.
@@ -172,7 +181,7 @@ Notes:
 - `apply_changes` always blocks direct `conformsTo` edits on `Dataset`/`File`
   entities. Use `update_profile_conforms_to` instead.
 - `update_profile_conforms_to` requires `write: true` in both modes.
-- `apply_changes(write=true)` and `write_crate_atomic` only persist in local mode.
+- `apply_changes(dryRun=false)` and `write_crate_atomic` only persist in local mode.
 - In remote mode, write requests return updated crate payload and do not persist files.
 - `upload_rocrate_to_dataverse` always runs strict preflight validation:
   core RO-Crate strict checks plus profile validation with

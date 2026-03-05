@@ -176,7 +176,7 @@ export const tools: ToolDefinition[] = [
   {
     name: 'apply_changes',
     description:
-      'Apply compact change-set to crate. Requires write=true for explicit write intent. cratePath must be the ro-crate-metadata.json location to write to in local mode; in remote mode, cratePath is ignored and crate payload is required.',
+      'Apply compact change-set to crate. By default, local mode persists changes. Set dryRun=true to preview without writing. cratePath must be the ro-crate-metadata.json location to write to in local mode; in remote mode, cratePath is ignored and crate payload is required.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -188,10 +188,19 @@ export const tools: ToolDefinition[] = [
         },
         crate: { type: 'object' },
         changeSet: CHANGE_SET_INPUT_SCHEMA,
+        dryRun: {
+          type: 'boolean',
+          description:
+            'If true, computes and validates changes but does not persist in local mode. Default false.',
+        },
         write: {
           type: 'boolean',
-          enum: [true],
-          description: 'Must be true. Explicit write intent is required.',
+          description: 'Deprecated compatibility flag. Ignored.',
+        },
+        confirmDestructive: {
+          type: 'boolean',
+          description:
+            'Required for destructive edits (removeEntities, removeHasPart, updateEntities.unset, or setRootFields.hasPart). Must be true only with explicit user approval.',
         },
         indent: { type: 'number' },
         profileContextId: { type: 'string' },
@@ -215,7 +224,7 @@ export const tools: ToolDefinition[] = [
           description: 'summary returns compact output; full returns full payload/crate.',
         },
       },
-      required: ['changeSet', 'write'],
+      required: ['changeSet'],
       additionalProperties: false,
     },
   },
@@ -271,7 +280,8 @@ export const tools: ToolDefinition[] = [
   },
   {
     name: 'write_crate_atomic',
-    description: 'Atomically write crate JSON to disk at cratePath.',
+    description:
+      'Atomically write crate JSON to disk at cratePath. Applies contextMode auto context reconciliation before profile validation (default auto_reconcile).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -289,6 +299,12 @@ export const tools: ToolDefinition[] = [
           enum: ['allow_missing', 'enforce_required'],
           description:
             'allow_missing keeps required-field gaps as warnings; enforce_required fails on missing required profile fields.',
+        },
+        contextMode: {
+          type: 'string',
+          enum: ['strict', 'auto_add', 'auto_reconcile'],
+          description:
+            'strict: no auto context edits; auto_add: add missing mappings; auto_reconcile: also fix mapping conflicts.',
         },
         schemaIndex: { type: 'object' },
         profileContents: { type: 'object' },

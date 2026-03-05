@@ -42,13 +42,13 @@
     "src"
   ],
   "scripts": {
-    "build": "node scripts/generate-agents-template.js && theiaext build && node scripts/copy-css.js",
+    "build": "node scripts/generate-agents-template.js && node scripts/generate-agent-docs-bundle.js && theiaext build && node scripts/copy-css.js",
     "postbuild": "rimraf tsconfig.tsbuildinfo",
     "clean": "theiaext clean",
-    "compile": "node scripts/generate-agents-template.js && theiaext compile",
+    "compile": "node scripts/generate-agents-template.js && node scripts/generate-agent-docs-bundle.js && theiaext compile",
     "lint": "theiaext lint",
     "test": "theiaext test",
-    "watch": "node scripts/generate-agents-template.js && tsc -b -w --preserveWatchOutput"
+    "watch": "node scripts/generate-agents-template.js && node scripts/generate-agent-docs-bundle.js && tsc -b -w --preserveWatchOutput"
   },
   "devDependencies": {
     "@theia/ext-scripts": "1.65.2",

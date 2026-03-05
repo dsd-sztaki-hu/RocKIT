@@ -65,6 +65,7 @@ type DispatcherDeps = {
   ) => 'strict' | 'auto_add' | 'auto_reconcile'
   normalizeChangeSet: (input: unknown) => unknown
   detectProfileChangeTargets: (crate: any, changeSet: unknown) => string[]
+  collectMissingUpdateEntityIds: (crate: any, changeSet: unknown) => string[]
   applyChangeSet: (crate: any, changeSet: unknown) => any
   buildProfileConstraints: (
     crate: any,
@@ -186,6 +187,7 @@ export function createToolDispatcher(deps: DispatcherDeps) {
     parseContextMode,
     normalizeChangeSet,
     detectProfileChangeTargets,
+    collectMissingUpdateEntityIds,
     applyChangeSet,
     buildProfileConstraints,
     applyContextModePatch,
@@ -212,6 +214,58 @@ export function createToolDispatcher(deps: DispatcherDeps) {
     runOntologyTool,
     getRegisteredSchemasForMode,
   } = deps
+
+  function collectDestructiveChangeReasons(changeSet: unknown): string[] {
+    if (!changeSet || typeof changeSet !== 'object' || Array.isArray(changeSet)) {
+      return []
+    }
+    const record = changeSet as Record<string, unknown>
+    const reasons: string[] = []
+
+    const removeEntities = Array.isArray(record.removeEntities)
+      ? record.removeEntities.filter((item): item is string => typeof item === 'string')
+      : []
+    if (removeEntities.length > 0) {
+      reasons.push(`removeEntities(${removeEntities.length})`)
+    }
+
+    const removeHasPart = Array.isArray(record.removeHasPart)
+      ? record.removeHasPart
+      : []
+    if (removeHasPart.length > 0) {
+      reasons.push(`removeHasPart(${removeHasPart.length})`)
+    }
+
+    const updates = Array.isArray(record.updateEntities)
+      ? record.updateEntities
+      : []
+    let unsetCount = 0
+    for (const update of updates) {
+      if (!update || typeof update !== 'object' || Array.isArray(update)) {
+        continue
+      }
+      const unsetRaw = (update as Record<string, unknown>).unset
+      const unset = Array.isArray(unsetRaw)
+        ? unsetRaw.filter((item): item is string => typeof item === 'string')
+        : []
+      unsetCount += unset.length
+    }
+    if (unsetCount > 0) {
+      reasons.push(`updateEntities.unset(${unsetCount})`)
+    }
+
+    const setRootFields =
+      record.setRootFields &&
+      typeof record.setRootFields === 'object' &&
+      !Array.isArray(record.setRootFields)
+        ? (record.setRootFields as Record<string, unknown>)
+        : undefined
+    if (setRootFields && Object.prototype.hasOwnProperty.call(setRootFields, 'hasPart')) {
+      reasons.push('setRootFields.hasPart')
+    }
+
+    return reasons
+  }
 
   return async function handleToolCall(
     toolName: string,
@@ -291,16 +345,21 @@ export function createToolDispatcher(deps: DispatcherDeps) {
       }
 
       if (toolName === 'apply_changes') {
-        if (params.write !== true) {
-          throw new Error(
-            'apply_changes requires write=true. Use explicit write intent for all apply_changes calls.',
-          )
-        }
         const loaded = loadCrateFromParams(params)
+        const dryRun = params.dryRun === true
         const resolutionInputs = parseProfileResolutionInputs(params)
         const profileRequiredMode = parseProfileRequiredMode(params, 'allow_missing')
         const contextMode = parseContextMode(params, 'auto_reconcile')
         const normalizedChangeSet = normalizeChangeSet(params.changeSet)
+        const missingUpdateTargets = collectMissingUpdateEntityIds(
+          loaded.crate,
+          normalizedChangeSet,
+        )
+        if (missingUpdateTargets.length > 0) {
+          throw new Error(
+            `apply_changes updateEntities target(s) not found in @graph: ${missingUpdateTargets.join(', ')}. Add entities first via addEntities or correct the IDs.`,
+          )
+        }
         const profileChangeTargets = detectProfileChangeTargets(
           loaded.crate,
           normalizedChangeSet,
@@ -308,6 +367,16 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         if (profileChangeTargets.length > 0) {
           throw new Error(
             `conformsTo update blocked in apply_changes for Dataset/File entity IDs: ${profileChangeTargets.join(', ')}. Use update_profile_conforms_to.`,
+          )
+        }
+        const destructiveReasons = collectDestructiveChangeReasons(normalizedChangeSet)
+        if (
+          destructiveReasons.length > 0 &&
+          !dryRun &&
+          params.confirmDestructive !== true
+        ) {
+          throw new Error(
+            `Destructive apply_changes blocked (${destructiveReasons.join(', ')}). Re-run only after explicit user approval with confirmDestructive=true.`,
           )
         }
         const changed = applyChangeSet(loaded.crate, normalizedChangeSet)
@@ -331,17 +400,23 @@ export function createToolDispatcher(deps: DispatcherDeps) {
           },
         )
         if (loaded.mode === 'local') {
+          const cratePath = loaded.cratePath ?? resolveCratePath()
           const indent = typeof params.indent === 'number' ? params.indent : 2
-          writeCrateAtomic(loaded.cratePath ?? resolveCratePath(), updated, indent)
+          if (!dryRun) {
+            writeCrateAtomic(cratePath, updated, indent)
+          }
           const payload = {
             crate: updated,
             mode: loaded.mode,
-            writeApplied: true,
-            cratePath: loaded.cratePath ?? resolveCratePath(),
+            writeApplied: dryRun ? false : true,
+            cratePath,
             profileRequiredMode,
             contextMode,
             contextPatchReport: contextPatched.report,
             profileResolution: constraints.resolution,
+            note: dryRun
+              ? 'Dry-run mode: no file was written. Re-run with dryRun=false (default) to persist.'
+              : undefined,
           }
           if (collector && telemetryId) {
             collector.completeToolCallSuccess(telemetryId, payload)
@@ -547,13 +622,21 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         )
         const resolutionInputs = parseProfileResolutionInputs(params)
         const profileRequiredMode = parseProfileRequiredMode(params, 'allow_missing')
+        const contextMode = parseContextMode(params, 'auto_reconcile')
         const crateParam = params.crate
         if (!crateParam || typeof crateParam !== 'object' || Array.isArray(crateParam)) {
           throw new Error('write_crate_atomic requires crate object.')
         }
         const crate = asRoCrate(crateParam)
-        const constraints = ensureProfileConformanceOrThrow(
+        const preConstraints = buildProfileConstraints(
           crate,
+          mode,
+          resolutionInputs,
+        )
+        const contextPatched = applyContextModePatch(crate, preConstraints, contextMode)
+        const updated = contextPatched.crate
+        const constraints = ensureProfileConformanceOrThrow(
+          updated,
           mode,
           resolutionInputs,
           {
@@ -565,8 +648,10 @@ export function createToolDispatcher(deps: DispatcherDeps) {
             ok: true,
             mode: 'remote',
             writeApplied: false,
-            crate,
+            crate: updated,
             profileRequiredMode,
+            contextMode,
+            contextPatchReport: contextPatched.report,
             profileResolution: constraints.resolution,
             note: 'Remote mode does not persist files. Use returned crate payload.',
           }
@@ -581,20 +666,23 @@ export function createToolDispatcher(deps: DispatcherDeps) {
             mode: payload.mode,
             writeApplied: payload.writeApplied,
             profileRequiredMode: payload.profileRequiredMode,
+            contextMode: payload.contextMode,
             profileResolution: summarizeProfileResolution(constraints.resolution),
-            crateSummary: summarizeCratePayload(crate, mode),
+            crateSummary: summarizeCratePayload(updated, mode),
             note: payload.note,
           })
         }
         const cratePath = ensureCratePath(params.cratePath)
         const indent = typeof params.indent === 'number' ? params.indent : 2
-        writeCrateAtomic(cratePath, crate, indent)
+        writeCrateAtomic(cratePath, updated, indent)
         const payload = {
           ok: true,
           mode: 'local',
           writeApplied: true,
           cratePath,
           profileRequiredMode,
+          contextMode,
+          contextPatchReport: contextPatched.report,
           profileResolution: constraints.resolution,
         }
         if (collector && telemetryId) {
@@ -609,8 +697,9 @@ export function createToolDispatcher(deps: DispatcherDeps) {
           writeApplied: payload.writeApplied,
           cratePath: payload.cratePath,
           profileRequiredMode: payload.profileRequiredMode,
+          contextMode: payload.contextMode,
           profileResolution: summarizeProfileResolution(constraints.resolution),
-          crateSummary: summarizeCratePayload(crate, mode, cratePath),
+          crateSummary: summarizeCratePayload(updated, mode, cratePath),
         })
       }
 

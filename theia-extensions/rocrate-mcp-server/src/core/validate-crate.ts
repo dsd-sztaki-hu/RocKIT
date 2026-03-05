@@ -24,25 +24,25 @@ function isExternalReference(referenceId: string): boolean {
   )
 }
 
-function extractHasPart(entity: RoCrateEntity): string[] {
-  const raw = entity.hasPart
-  if (Array.isArray(raw)) {
-    return raw
-      .map((item) =>
-        item && typeof item === 'object'
-          ? (item as Record<string, unknown>)['@id']
-          : undefined,
-      )
-      .filter((item): item is string => typeof item === 'string')
+function extractReferenceIds(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => extractReferenceIds(item))
   }
-  if (
-    raw &&
-    typeof raw === 'object' &&
-    typeof (raw as Record<string, unknown>)['@id'] === 'string'
-  ) {
-    return [(raw as Record<string, string>)['@id']]
+  if (!value || typeof value !== 'object') {
+    return []
   }
-  return []
+  const record = value as Record<string, unknown>
+  const refs: string[] = []
+  if (typeof record['@id'] === 'string') {
+    refs.push(record['@id'])
+  }
+  for (const [key, entry] of Object.entries(record)) {
+    if (key === '@id') {
+      continue
+    }
+    refs.push(...extractReferenceIds(entry))
+  }
+  return refs
 }
 
 export function validateCrate(
@@ -178,19 +178,31 @@ export function validateCrate(
       })
       continue
     }
-    const refs = extractHasPart(entity)
-    for (const refId of refs) {
-      if (entitiesById.has(refId)) {
+
+    const seen = new Set<string>()
+    for (const [property, value] of Object.entries(entity)) {
+      if (property.startsWith('@')) {
         continue
       }
-      if (isExternalReference(refId)) {
-        continue
+      const refs = extractReferenceIds(value)
+      for (const refId of refs) {
+        if (entitiesById.has(refId)) {
+          continue
+        }
+        if (isExternalReference(refId)) {
+          continue
+        }
+        const key = `${property}|${refId}`
+        if (seen.has(key)) {
+          continue
+        }
+        seen.add(key)
+        errors.push({
+          code: 'dangling_reference',
+          message: `${property} references missing local entity: ${refId}`,
+          path: `${entityId}.${property}`,
+        })
       }
-      warnings.push({
-        code: 'dangling_reference',
-        message: `hasPart references missing local entity: ${refId}`,
-        path: `${entityId}.hasPart`,
-      })
     }
   }
 

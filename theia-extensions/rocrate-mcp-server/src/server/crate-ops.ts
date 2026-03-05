@@ -318,6 +318,45 @@ export function createCrateOpsHelpers(deps: CrateOpsDeps) {
     return Array.from(targets).sort((a, b) => a.localeCompare(b))
   }
 
+  /**
+   * Returns update target IDs from `updateEntities` that are missing from @graph.
+   *
+   * This prevents silent no-op updates when callers accidentally reference
+   * entities that do not exist in the crate.
+   */
+  function collectMissingUpdateEntityIds(
+    baseCrate: RoCrate,
+    changeSet: RoCrateChangeSet,
+  ): string[] {
+    const graph = Array.isArray(baseCrate['@graph']) ? baseCrate['@graph'] : []
+    const existingIds = new Set<string>()
+    for (const entity of graph) {
+      if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+        continue
+      }
+      const entityId = typeof entity['@id'] === 'string' ? entity['@id'] : undefined
+      if (entityId) {
+        existingIds.add(entityId)
+      }
+    }
+
+    const missing = new Set<string>()
+    const updates = Array.isArray(changeSet.updateEntities) ? changeSet.updateEntities : []
+    for (const update of updates) {
+      if (!update || typeof update !== 'object' || Array.isArray(update)) {
+        continue
+      }
+      const entityId = typeof update['@id'] === 'string' ? update['@id'] : undefined
+      if (!entityId) {
+        continue
+      }
+      if (!existingIds.has(entityId)) {
+        missing.add(entityId)
+      }
+    }
+    return Array.from(missing).sort((a, b) => a.localeCompare(b))
+  }
+
   return {
     ensureCratePath,
     parseAccessMode,
@@ -329,5 +368,6 @@ export function createCrateOpsHelpers(deps: CrateOpsDeps) {
     readProfileConformsToUpdateOps,
     updateProfileConformsTo,
     detectProfileChangeTargets,
+    collectMissingUpdateEntityIds,
   }
 }

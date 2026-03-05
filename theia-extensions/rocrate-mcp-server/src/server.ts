@@ -284,6 +284,7 @@ const {
   readProfileConformsToUpdateOps,
   updateProfileConformsTo,
   detectProfileChangeTargets,
+  collectMissingUpdateEntityIds,
 } = createCrateOpsHelpers({
   changeSetAllowedKeys: CHANGE_SET_ALLOWED_KEYS,
   resolveCratePath,
@@ -543,6 +544,7 @@ const handleToolCall = createToolDispatcher({
   parseContextMode,
   normalizeChangeSet,
   detectProfileChangeTargets,
+  collectMissingUpdateEntityIds,
   applyChangeSet,
   buildProfileConstraints,
   applyContextModePatch,
@@ -577,7 +579,7 @@ async function startServer(): Promise<void> {
   await startServerWithTransports({
     tools,
     instructions:
-      'Primary artifact is ro-crate-metadata.json. Prefer RO-Crate tools over ad-hoc edits. Use update_profile_conforms_to to change profile URLs on conformsTo; apply_changes must not edit conformsTo. Treat profile scope as entity-local (only entities explicitly declaring that profile URL in conformsTo). Do not fan out profile-field edits by class unless user explicitly asks. Detect profile URLs from conformsTo on Dataset/File entities, resolve them via metadata-schema-index, and keep edits limited to profile-allowed entity types/properties.',
+      'Primary artifact is ro-crate-metadata.json. Prefer RO-Crate tools over ad-hoc edits. First step before edits is get_rocrate_context to discover active profile constraints; do not start with web search. Use update_profile_conforms_to to change profile URLs on conformsTo; apply_changes must not edit conformsTo. apply_changes writes by default; set dryRun=true to preview without persisting. Treat profile scope as entity-local (only entities explicitly declaring that profile URL in conformsTo). Do not fan out profile-field edits by class unless user explicitly asks. Detect profile URLs from conformsTo on Dataset/File entities, resolve them via metadata-schema-index, and keep edits limited to profile-allowed entity types/properties. Every entity should have a human-friendly name and new entity IDs must be descriptive and unique. Do not invent factual metadata unless the user explicitly asks for examples. Destructive apply_changes operations require explicit user approval and confirmDestructive=true. write_crate_atomic also supports contextMode auto context reconciliation (default auto_reconcile).',
     asRecord,
     handleToolCall,
     getTelemetryCollector,

@@ -659,6 +659,7 @@ async function run() {
       arguments: {
         cratePath,
         write: true,
+        confirmDestructive: true,
         changeSet: {
           updateEntities: [{ '@id': './', unset: ['temporaryField'] }],
         },
@@ -742,17 +743,97 @@ async function run() {
     assert.ok(invalidChangeSetResponse.error, 'unsupported changeset key should fail')
     assert.match(invalidChangeSetResponse.error.message, /unsupported keys/)
 
-    const missingWriteResponse = await request('tools/call', {
+    const missingUpdateTargetResponse = await request('tools/call', {
       name: 'apply_changes',
       arguments: {
         cratePath,
         changeSet: {
-          updateEntities: [{ '@id': './', merge: { name: 'Missing write should fail' } }],
+          updateEntities: [{ '@id': '#entity-does-not-exist', merge: { name: 'No-op' } }],
         },
       },
     })
-    assert.ok(missingWriteResponse.error, 'apply_changes without write should fail')
-    assert.match(missingWriteResponse.error.message, /requires write=true/)
+    assert.ok(
+      missingUpdateTargetResponse.error,
+      'apply_changes should fail when updateEntities target does not exist',
+    )
+    assert.match(
+      missingUpdateTargetResponse.error.message,
+      /updateEntities target\(s\) not found in @graph/,
+    )
+
+    const destructiveWithoutConfirmResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        changeSet: {
+          removeEntities: ['file://./unprofiled/'],
+        },
+      },
+    })
+    assert.ok(
+      destructiveWithoutConfirmResponse.error,
+      'destructive apply_changes should require explicit confirmation flag',
+    )
+    assert.match(
+      destructiveWithoutConfirmResponse.error.message,
+      /Destructive apply_changes blocked/,
+    )
+
+    const destructiveWithConfirmResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        confirmDestructive: true,
+        changeSet: {
+          removeEntities: ['file://./unprofiled/'],
+        },
+      },
+    })
+    assert.ok(
+      destructiveWithConfirmResponse.result,
+      'destructive apply_changes should succeed when explicitly confirmed',
+    )
+
+    const noWriteResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        changeSet: {
+          updateEntities: [{ '@id': './', merge: { name: 'No-write default should persist' } }],
+        },
+      },
+    })
+    assert.ok(noWriteResponse.result, 'apply_changes without write should succeed')
+    const noWritePayload = JSON.parse(noWriteResponse.result.content[0].text)
+    assert.equal(noWritePayload.writeApplied, true, 'default local apply should persist')
+
+    const beforeDryRunCrate = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    const beforeDryRunRoot = beforeDryRunCrate['@graph'].find((entity) => entity['@id'] === './')
+    const beforeDryRunName = beforeDryRunRoot?.name
+
+    const dryRunResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        dryRun: true,
+        changeSet: {
+          updateEntities: [{ '@id': './', merge: { name: 'Dry run should not persist' } }],
+        },
+      },
+    })
+    assert.ok(dryRunResponse.result, 'dryRun apply_changes should succeed')
+    const dryRunPayload = JSON.parse(dryRunResponse.result.content[0].text)
+    assert.equal(dryRunPayload.writeApplied, false, 'dryRun must not persist local changes')
+
+    const afterDryRunCrate = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    const afterDryRunRoot = afterDryRunCrate['@graph'].find((entity) => entity['@id'] === './')
+    assert.equal(
+      afterDryRunRoot?.name,
+      beforeDryRunName,
+      'dryRun must leave on-disk crate unchanged',
+    )
 
     const downloadResponse = await request('tools/call', {
       name: 'download_url',
@@ -1365,6 +1446,51 @@ async function run() {
     const remoteWritePayload = JSON.parse(remoteWriteResponse.result.content[0].text)
     assert.equal(remoteWritePayload.mode, 'remote')
     assert.equal(remoteWritePayload.writeApplied, false)
+
+    const remoteWriteAutoContextResponse = await request('tools/call', {
+      name: 'write_crate_atomic',
+      arguments: {
+        mode: 'remote',
+        profileContextId,
+        responseMode: 'full',
+        crate: {
+          '@context': 'https://w3id.org/ro/crate/1.1/context',
+          '@graph': [
+            {
+              '@id': './',
+              '@type': 'Dataset',
+              name: 'Context patch target',
+              title: 'Context patch target',
+              customTerm: 'value-needing-context',
+              conformsTo: [{ '@id': profileUrl }],
+            },
+            {
+              '@id': 'ro-crate-metadata.json',
+              '@type': 'CreativeWork',
+              name: 'RO-Crate Metadata',
+              conformsTo: { '@id': 'https://w3id.org/ro/crate/1.1' },
+              about: { '@id': './' },
+            },
+          ],
+        },
+      },
+    })
+    assert.ok(remoteWriteAutoContextResponse.result, 'write_crate_atomic should auto-patch context')
+    const remoteWriteAutoContextPayload = JSON.parse(
+      remoteWriteAutoContextResponse.result.content[0].text,
+    )
+    assert.equal(remoteWriteAutoContextPayload.ok, true)
+    const remotePatchedContext = remoteWriteAutoContextPayload.crate['@context']
+    const remotePatchedContextObject = Array.isArray(remotePatchedContext)
+      ? remotePatchedContext.find(
+          (item) => item && typeof item === 'object' && !Array.isArray(item),
+        )
+      : undefined
+    assert.equal(
+      remotePatchedContextObject?.customTerm,
+      'https://example.org/vocab/customTerm',
+      'write_crate_atomic should add missing customTerm @context mapping',
+    )
 
     const deleteProfileContextResponse = await request('tools/call', {
       name: 'delete_profile_context',
