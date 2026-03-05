@@ -61,7 +61,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected crateSubscription?: Disposable
   protected completeProfileSubscription?: Disposable
   protected eirceiaSubscription?: Disposable
-  protected dirtySubscription?: Disposable
   protected schemasSubscription?: Disposable
 
   protected localCrate: Record<string, any> | undefined
@@ -76,6 +75,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected lastSelectionStart?: number
   protected lastSelectionEnd?: number
   protected lastAppliedConformsTo: string[] = []
+  protected baselineEntityId?: string
+  protected baselineEntitySnapshot?: string
   protected async validateCurrentCrate(): Promise<void> {
     const crate = this.localCrate ?? this.appStateService.roCrate
     const baseProfile = this.baseProfile
@@ -176,11 +177,12 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     this.localProfile = this.baseProfile ? JSON.parse(JSON.stringify(this.baseProfile)) : this.baseProfile
     console.log("baseProfile", this.baseProfile)
     console.log("localCompleteProfile", this.localCompleteProfile)
-    this.setDirtyState(this.appStateService.dirty)
+    this.setDirtyState(false)
 
     this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
       async (crate) => {
         this.localCrate = crate
+        this.ensureEntityBaselineInitialized(crate)
         console.log('crate update')
         this.updateTitleLabel()
         const entityId = this.assignedEntityId ?? this.localSelectedEntityId ?? './'
@@ -194,14 +196,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       this.localCompleteProfile = profile
       this.updateTitleLabel()
     })
-    this.dirtySubscription = this.appStateService.onDidChangeSelector((s) => s.dirty)(
-      (dirty) => {
-        this.setDirtyState(dirty)
-      },
-    )
-
-
-
     this.eirceiaSubscription = this.appStateService.onDidChangeSelector((s) => s.EIRCEIA)(
       async (mapping) => {
         const storedEntityId = mapping?.[this.id]
@@ -222,6 +216,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         const prev = this.assignedEntityId
         this.assignedEntityId = trimmed
         this.localSelectedEntityId = trimmed
+        this.captureEntityBaseline(trimmed, this.localCrate ?? this.appStateService.roCrate)
         console.log('RoCrateEditorWidget: entityId updated from app-state', {
           widget: this.id,
           prev,
@@ -266,17 +261,20 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     console.log('saveData', saveData)
     const crate = saveData && (saveData as any).crate ? (saveData as any).crate : saveData
     const currentCrate = this.appStateService.roCrate
-    if (this.areCratesEquivalent(currentCrate, crate)) {
-      return
+    const hasCrateChanged = !this.areCratesEquivalent(currentCrate, crate)
+    if (hasCrateChanged) {
+      this.appStateService.roCrate = crate
+      this.localCrate = crate
     }
-    this.appStateService.roCrate = crate
-    this.localCrate = crate
+    this.updateDirtyStateForCurrentEntity(crate)
 
     await this.validateCurrentCrate()
 
-    const isDirty = this.appStateService.isRoCrateDirty(crate)
-    this.appStateService.dirty = isDirty
-    this.onContentChangedEmitter.fire()
+    if (hasCrateChanged) {
+      const isDirty = this.appStateService.isRoCrateDirty(crate)
+      this.appStateService.dirty = isDirty
+      this.onContentChangedEmitter.fire()
+    }
   }
 
   protected areCratesEquivalent(
@@ -333,6 +331,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     const prevId = this.assignedEntityId
     this.assignedEntityId = nextId
     this.localSelectedEntityId = nextId
+    this.captureEntityBaseline(nextId, this.localCrate ?? this.appStateService.roCrate)
     this.updateTitleLabel()
     this.update()
     console.log('RoCrateEditorWidget: entityId set from navigation', {
@@ -488,9 +487,69 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     const prev = this.assignedEntityId
     this.assignedEntityId = entityId
     this.localSelectedEntityId = entityId
+    this.captureEntityBaseline(entityId, this.localCrate ?? this.appStateService.roCrate)
     this.appStateService.registerEntityEditor(this.id, entityId)
     console.log('Assigned entity to widget', { widget: this.id, prev, next: entityId })
     this.updateTitleLabel()
+  }
+
+  protected ensureEntityBaselineInitialized(
+    crate: Record<string, any> | undefined,
+  ): void {
+    const entityId = this.assignedEntityId ?? this.localSelectedEntityId
+    if (!entityId) {
+      return
+    }
+    if (this.baselineEntityId === entityId && this.baselineEntitySnapshot !== undefined) {
+      return
+    }
+    this.captureEntityBaseline(entityId, crate)
+  }
+
+  protected captureEntityBaseline(
+    entityId: string,
+    crate: Record<string, any> | undefined,
+  ): void {
+    this.baselineEntityId = entityId
+    this.baselineEntitySnapshot = this.serializeEntitySnapshot(entityId, crate)
+    this.setDirtyState(false)
+  }
+
+  protected updateDirtyStateForCurrentEntity(
+    crate: Record<string, any> | undefined,
+  ): void {
+    const entityId = this.assignedEntityId ?? this.localSelectedEntityId
+    if (!entityId) {
+      this.setDirtyState(false)
+      return
+    }
+    if (this.baselineEntityId !== entityId) {
+      this.captureEntityBaseline(entityId, crate)
+      return
+    }
+    const currentSnapshot = this.serializeEntitySnapshot(entityId, crate)
+    const isDirtyForEntity = currentSnapshot !== this.baselineEntitySnapshot
+    this.setDirtyState(isDirtyForEntity)
+  }
+
+  protected serializeEntitySnapshot(
+    entityId: string,
+    crate: Record<string, any> | undefined,
+  ): string | undefined {
+    if (!crate || !Array.isArray(crate['@graph'])) {
+      return undefined
+    }
+    const entity = (crate['@graph'] as Record<string, unknown>[]).find(
+      (entry) => entry && String(entry['@id']) === entityId,
+    )
+    if (!entity) {
+      return undefined
+    }
+    try {
+      return JSON.stringify(this.toStableComparableValue(entity))
+    } catch {
+      return undefined
+    }
   }
 
   protected updateTitleLabel(): void {
@@ -940,7 +999,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     this.crateSubscription?.dispose()
     this.completeProfileSubscription?.dispose()
     this.eirceiaSubscription?.dispose()
-    this.dirtySubscription?.dispose()
     this.schemasSubscription?.dispose()
     this.node.removeEventListener('focusin', this.handleFocusIn, true)
     this.onDirtyChangedEmitter.dispose()
