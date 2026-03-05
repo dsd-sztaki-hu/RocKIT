@@ -227,6 +227,7 @@ export class EntitiesOverviewModel extends TreeModelImpl {
 
     // branch: multi-select tracked independently from tree selection
     private readonly selectedEntityIds = new Set<string>()
+    private lastSelectedEntityId: string | undefined
 
     getSelectedEntityIds(): string[] {
         return Array.from(this.selectedEntityIds)
@@ -253,6 +254,7 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         if (this.selectedEntityIds.size === 0) return
         const ids = Array.from(this.selectedEntityIds)
         this.selectedEntityIds.clear()
+        this.lastSelectedEntityId = undefined
         this.updateLeafSelection(ids)
     }
 
@@ -264,16 +266,57 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         const previous = Array.from(this.selectedEntityIds)
         this.selectedEntityIds.clear()
         this.selectedEntityIds.add(entityId)
+        this.lastSelectedEntityId = entityId
         this.updateLeafSelection([...previous, entityId])
     }
 
     toggleSelection(entityId: string): void {
         if (this.selectedEntityIds.has(entityId)) {
             this.selectedEntityIds.delete(entityId)
+            if (this.lastSelectedEntityId === entityId) {
+                this.lastSelectedEntityId = this.getSelectedEntityIds().slice(-1)[0]
+            }
         } else {
             this.selectedEntityIds.add(entityId)
+            this.lastSelectedEntityId = entityId
         }
         this.updateLeafSelection([entityId])
+    }
+
+    selectRangeTo(entityId: string): void {
+        const visibleEntityIds = this.getVisibleEntityIds()
+        const clickedIndex = visibleEntityIds.indexOf(entityId)
+        if (clickedIndex < 0) {
+            return
+        }
+
+        const anchorId = this.lastSelectedEntityId
+        const anchorIndex = anchorId ? visibleEntityIds.indexOf(anchorId) : -1
+
+        if (!anchorId || anchorIndex < 0) {
+            if (!this.selectedEntityIds.has(entityId)) {
+                this.selectedEntityIds.add(entityId)
+                this.updateLeafSelection([entityId])
+            }
+            this.lastSelectedEntityId = entityId
+            return
+        }
+
+        const start = Math.min(anchorIndex, clickedIndex)
+        const end = Math.max(anchorIndex, clickedIndex)
+        const rangeIds = visibleEntityIds.slice(start, end + 1)
+        const changed: string[] = []
+        for (const id of rangeIds) {
+            if (!this.selectedEntityIds.has(id)) {
+                this.selectedEntityIds.add(id)
+                changed.push(id)
+            }
+        }
+
+        this.lastSelectedEntityId = entityId
+        if (changed.length > 0) {
+            this.updateLeafSelection(changed)
+        }
     }
 
     @postConstruct()
