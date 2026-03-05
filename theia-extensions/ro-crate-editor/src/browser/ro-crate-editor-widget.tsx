@@ -66,6 +66,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
   protected crateSubscription?: Disposable
   protected completeProfileSubscription?: Disposable
+  protected profileListSubscription?: Disposable
   protected eirceiaSubscription?: Disposable
   protected dirtySubscription?: Disposable
   protected schemasSubscription?: Disposable
@@ -81,6 +82,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected lastFocusedElement?: HTMLElement
   protected lastSelectionStart?: number
   protected lastSelectionEnd?: number
+  protected lastAppliedEntityId?: string
+  protected lastAppliedCrate: Record<string, any> | undefined
+  protected lastAppliedProfileList: Record<string, any> | undefined
   protected lastAppliedConformsTo: string[] = []
 
   protected validationTimer?: ReturnType<typeof setTimeout>
@@ -277,6 +281,21 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       this.localCompleteProfile = profile
       this.updateTitleLabel()
     })
+
+    this.profileListSubscription = this.appStateService.onDidChangeSelector(
+      (s) => s.profileList,
+    )(async () => {
+      if (this.isRefreshingProfile) {
+        this.pendingSchemasRefresh = true
+        return
+      }
+      if (!this.baseProfile || !this.localCrate) {
+        return
+      }
+      const entityId = this.assignedEntityId ?? this.localSelectedEntityId ?? './'
+      await this.updateProfileWithEntitySchemas(this.baseProfile, entityId)
+    })
+
     this.dirtySubscription = this.appStateService.onDidChangeSelector((s) => s.dirty)(
       (dirty) => {
         this.setDirtyState(dirty)
@@ -698,28 +717,40 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       }
 
       const entityType = Array.isArray(entity["@type"]) ? entity["@type"][0] : entity["@type"]
+      const profileList = this.appStateService.profileList
+
       if (entityType !== 'Dataset' && entityType !== 'File') {
         this.localProfile = JSON.parse(JSON.stringify(this.localCompleteProfile))
         this.profileRevision += 1
+        this.lastAppliedEntityId = entityId
+        this.lastAppliedConformsTo = []
+        this.lastAppliedCrate = this.localCrate
+        this.lastAppliedProfileList = profileList
         this.update()
         return
       }
 
       const conformsTos = this.computeConformsToIdsForSelectedEntity(entityId)
 
-      if (this.isSameStringSet(this.lastAppliedConformsTo, conformsTos)) {
+      if (
+        this.lastAppliedEntityId === entityId &&
+        this.isSameStringSet(this.lastAppliedConformsTo, conformsTos) &&
+        this.lastAppliedCrate === this.localCrate &&
+        this.lastAppliedProfileList === profileList
+      ) {
         return
       }
 
       if (!conformsTos || conformsTos.length === 0) {
         this.localProfile = JSON.parse(JSON.stringify(baseProfile))
         this.profileRevision += 1
+        this.lastAppliedEntityId = entityId
         this.lastAppliedConformsTo = []
+        this.lastAppliedCrate = this.localCrate
+        this.lastAppliedProfileList = profileList
         this.update()
         return
       }
-
-      const profileList = this.appStateService.profileList
 
       let updateProfile = JSON.parse(JSON.stringify(baseProfile))
       let didUpdateProfile = false
@@ -748,7 +779,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         this.localProfile = updateProfile
         this.profileRevision += 1
       }
+      this.lastAppliedEntityId = entityId
       this.lastAppliedConformsTo = conformsTos.slice()
+      this.lastAppliedCrate = this.localCrate
+      this.lastAppliedProfileList = profileList
       this.update()
     } finally {
       await this.validateCurrentCrate()
@@ -1002,6 +1036,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     this.unregisterFromAppState()
     this.crateSubscription?.dispose()
     this.completeProfileSubscription?.dispose()
+    this.profileListSubscription?.dispose()
     this.eirceiaSubscription?.dispose()
     this.dirtySubscription?.dispose()
     this.schemasSubscription?.dispose()
