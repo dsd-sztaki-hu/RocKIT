@@ -3,6 +3,7 @@ import * as React from '@theia/core/shared/react'
 import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import type { MetadataSchemaManager, SchemaInfo } from 'aroma2-common/lib/browser'
+
 import dayjs = require('dayjs')
 
 type BulkOperator = 'add' | 'remove' | 'set' | 'unset'
@@ -43,7 +44,7 @@ interface OperationRow {
 interface EntitySummary {
   id: string
   name: string
-  typeLabel: string
+  type: string | string[]
 }
 
 interface ExecutionSummary {
@@ -275,17 +276,22 @@ export class MultiEditDialog extends ReactDialog<string> {
           entry && typeof entry === 'object' && String(entry['@id']) === entityId,
       )
       if (!entity) {
-        result.push({ id: entityId, name: entityId, typeLabel: 'Unknown' })
+        result.push({ id: entityId, name: entityId, type: 'Unknown' })
         continue
       }
-      const typeName = this.getEntityTypeName(entity) ?? 'Unknown'
-      const localizedType =
-        profile?.localisation?.[typeName] ?? profile?.classes?.[typeName]?.label
+      const typeNames = this.getEntityTypeNames(entity)
+      const localizedTypes = typeNames.length
+        ? typeNames.map((typeName) => {
+            const localized =
+              profile?.localisation?.[typeName] ?? profile?.classes?.[typeName]?.label
+            return String(localized ?? typeName)
+          })
+        : ['Unknown']
       const displayName = this.getEntityDisplayName(entity)
       result.push({
         id: entityId,
         name: displayName,
-        typeLabel: String(localizedType ?? typeName),
+        type: localizedTypes.length > 1 ? localizedTypes : localizedTypes[0],
       })
     }
     return result
@@ -309,8 +315,8 @@ export class MultiEditDialog extends ReactDialog<string> {
       if (!id || !selected.has(String(id))) {
         continue
       }
-      const typeName = this.getEntityTypeName(entity)
-      if (typeName) {
+      const typeNames = this.getEntityTypeNames(entity)
+      for (const typeName of typeNames) {
         types.add(typeName)
       }
     }
@@ -344,9 +350,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       if (!classDef) {
         continue
       }
-      const classLabel = String(
-        localisation[className] ?? classDef.label ?? className,
-      )
+      const classLabel = String(localisation[className] ?? classDef.label ?? className)
       const inputs = Array.isArray(classDef.inputs)
         ? (classDef.inputs as Record<string, any>[])
         : []
@@ -624,14 +628,26 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   /**
-   * Resolves a primary entity type from @type.
+   * Resolves a primary entity type from @type. (entities can have multiple types, but this declares a primary type which is the first type of the entity)
    * @param entity Entity object.
    * @returns Preferred type name or undefined.
    * @protected
    */
   protected getEntityTypeName(entity: Record<string, any>): string | undefined {
+    return this.getEntityTypeNames(entity)[0]
+  }
+
+  /**
+   * Resolves all non-CreativeWork type names from an entity @type declaration.
+   * @param entity Entity object.
+   * @returns Ordered, de-duplicated type names.
+   * @protected
+   */
+  protected getEntityTypeNames(entity: Record<string, any>): string[] {
     const raw = entity?.['@type']
     const candidates = Array.isArray(raw) ? raw : raw ? [raw] : []
+    const names: string[] = []
+    const seen = new Set<string>()
 
     for (const candidate of candidates) {
       const value = String(candidate).trim()
@@ -639,16 +655,23 @@ export class MultiEditDialog extends ReactDialog<string> {
         continue
       }
       const tail = this.toTypeTail(value)
-      if (tail !== 'CreativeWork') {
-        return tail
+      if (!tail || tail === 'CreativeWork' || seen.has(tail)) {
+        continue
       }
+      seen.add(tail)
+      names.push(tail)
+    }
+
+    if (names.length > 0) {
+      return names
     }
 
     if (candidates.length > 0) {
-      return this.toTypeTail(String(candidates[0]))
+      const fallback = this.toTypeTail(String(candidates[0]))
+      return fallback ? [fallback] : []
     }
 
-    return undefined
+    return []
   }
 
   /**
@@ -862,7 +885,11 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   // Update a specific row value and persist back to the operation.
-  protected setOperationMultiTextValue = (id: string, valueIndex: number, value: string) => {
+  protected setOperationMultiTextValue = (
+    id: string,
+    valueIndex: number,
+    value: string,
+  ) => {
     const row = this.operations.find((operation) => operation.id === id)
     if (!row) {
       return
@@ -996,7 +1023,9 @@ export class MultiEditDialog extends ReactDialog<string> {
               this.setOperationMultiTextValue(
                 row.id,
                 valueIndex,
-                Array.isArray(dateString) ? dateString[0] ?? '' : String(dateString ?? ''),
+                Array.isArray(dateString)
+                  ? (dateString[0] ?? '')
+                  : String(dateString ?? ''),
               )
             }
             format="YYYY-MM-DD"
@@ -1731,7 +1760,9 @@ export class MultiEditDialog extends ReactDialog<string> {
           onChange={(_, dateString) =>
             this.setOperationValue(
               row.id,
-              Array.isArray(dateString) ? dateString[0] ?? '' : String(dateString ?? ''),
+              Array.isArray(dateString)
+                ? (dateString[0] ?? '')
+                : String(dateString ?? ''),
             )
           }
           format="YYYY-MM-DD"
@@ -1780,11 +1811,7 @@ export class MultiEditDialog extends ReactDialog<string> {
           this.setOperationValue(row.id, event.target.value)
         }
         placeholder="Enter value"
-        type={
-          field.valueKind === 'number'
-            ? 'number'
-            : 'text'
-        }
+        type={field.valueKind === 'number' ? 'number' : 'text'}
       />
     )
   }
@@ -2460,7 +2487,11 @@ export class MultiEditDialog extends ReactDialog<string> {
                     {filteredEntities.map((entity) => (
                       <tr key={entity.id} title={entity.id}>
                         <td>{entity.name}</td>
-                        <td>{entity.typeLabel}</td>
+                        <td>
+                          {Array.isArray(entity.type)
+                            ? entity.type.join(', ')
+                            : entity.type}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
