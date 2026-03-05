@@ -265,6 +265,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected handleSaveCrate = async (saveData: any) => {
     console.log('saveData', saveData)
     const crate = saveData && (saveData as any).crate ? (saveData as any).crate : saveData
+    const currentCrate = this.appStateService.roCrate
+    if (this.areCratesEquivalent(currentCrate, crate)) {
+      return
+    }
     this.appStateService.roCrate = crate
     this.localCrate = crate
 
@@ -273,6 +277,42 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     const isDirty = this.appStateService.isRoCrateDirty(crate)
     this.appStateService.dirty = isDirty
     this.onContentChangedEmitter.fire()
+  }
+
+  protected areCratesEquivalent(
+    a: Record<string, any> | undefined,
+    b: Record<string, any> | undefined,
+  ): boolean {
+    if (a === b) {
+      return true
+    }
+    if (!a || !b) {
+      return false
+    }
+    try {
+      return (
+        JSON.stringify(this.toStableComparableValue(a)) ===
+        JSON.stringify(this.toStableComparableValue(b))
+      )
+    } catch {
+      return false
+    }
+  }
+
+  protected toStableComparableValue(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((entry) => this.toStableComparableValue(entry))
+    }
+    if (value && typeof value === 'object') {
+      const obj = value as Record<string, unknown>
+      const sortedKeys = Object.keys(obj).sort((left, right) => left.localeCompare(right))
+      const normalized: Record<string, unknown> = {}
+      for (const key of sortedKeys) {
+        normalized[key] = this.toStableComparableValue(obj[key])
+      }
+      return normalized
+    }
+    return value
   }
 
   protected handleNavigation = (entity: NavigationEntity): void => {
