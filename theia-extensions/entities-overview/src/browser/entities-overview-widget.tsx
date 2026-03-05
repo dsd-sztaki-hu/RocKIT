@@ -200,10 +200,10 @@ export class EntitiesOverviewWidget extends TreeWidget {
     return (
       <AntdThemeProvider themeService={this.themeService}>
         <div className="entities-overview-panel-content">
-        <div
-          className={`entities-overview-filters${showFilters ? '' : ' is-hidden'}`}
-          aria-hidden={!showFilters}
-        >
+          <div
+            className={`entities-overview-filters${showFilters ? '' : ' is-hidden'}`}
+            aria-hidden={!showFilters}
+          >
             <div className="entities-overview-filter-header">
               <div className="entities-overview-filter-toggle">
                 <Button.Group size="small">
@@ -312,21 +312,21 @@ export class EntitiesOverviewWidget extends TreeWidget {
               </Button>
             </div>
           </div>
-        <div className="entities-overview-edit-row">
-          <Button
-            className="entities-overview-edit-button"
-            type="default"
-            onClick={() => this.openMultiEditDialog()}
-            onKeyDownCapture={(event: React.KeyboardEvent) =>
-              this.stopFilterKeyEvents(event)
-            }
-          >
-            Edit
-          </Button>
+          <div className="entities-overview-edit-row">
+            <Button
+              className="entities-overview-edit-button"
+              type="default"
+              onClick={() => this.openMultiEditDialog()}
+              onKeyDownCapture={(event: React.KeyboardEvent) =>
+                this.stopFilterKeyEvents(event)
+              }
+            >
+              Edit
+            </Button>
+          </div>
+          <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
         </div>
-        <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
-      </div>
-    </AntdThemeProvider>
+      </AntdThemeProvider>
     )
   }
 
@@ -515,17 +515,18 @@ export class EntitiesOverviewWidget extends TreeWidget {
       return
     }
     const forceNewWindow = options?.forceNewWindow === true
-    if (this.openingEntities.has(entityId)) {
+    // Keep deduplication for regular open/focus flow, but allow repeated Alt+click
+    // to open multiple windows for the same entity without waiting for initialization.
+    const dedupeByEntity = !forceNewWindow
+    if (dedupeByEntity && this.openingEntities.has(entityId)) {
       return
     }
-    this.openingEntities.add(entityId)
+    if (dedupeByEntity) {
+      this.openingEntities.add(entityId)
+    }
     const prevSelected = this.appStateService.selectedEntityId
     if (prevSelected !== entityId) {
       this.appStateService.selectedEntityId = entityId
-      console.log('EntitiesOverviewWidget: selectedEntityId updated', {
-        prev: prevSelected,
-        next: entityId,
-      })
     }
     try {
       if (!forceNewWindow) {
@@ -555,13 +556,20 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
       const addOptions: {
         area: 'main'
-        mode?: 'split-right'
+        mode?: 'split-right' | 'tab-after'
         ref?: Widget
       } = { area: 'main' }
       const referenceEditor = this.getPreferredRoCrateEditorWidget()
       if (referenceEditor) {
-        addOptions.mode = 'split-right'
-        addOptions.ref = referenceEditor
+        if (forceNewWindow) {
+          const rightmostInRecentContainer =
+            this.getRightmostWidgetInSameTabBar(referenceEditor) ?? referenceEditor
+          addOptions.mode = 'tab-after'
+          addOptions.ref = rightmostInRecentContainer
+        } else {
+          addOptions.mode = 'split-right'
+          addOptions.ref = referenceEditor
+        }
       }
 
       await this.shell.addWidget(widget, addOptions)
@@ -571,7 +579,9 @@ export class EntitiesOverviewWidget extends TreeWidget {
     } catch (error) {
       console.error('EntitiesOverviewWidget: failed to open editor', { entityId, error })
     } finally {
-      this.openingEntities.delete(entityId)
+      if (dedupeByEntity) {
+        this.openingEntities.delete(entityId)
+      }
     }
   }
 
@@ -628,6 +638,14 @@ export class EntitiesOverviewWidget extends TreeWidget {
     }
 
     return undefined
+  }
+
+  protected getRightmostWidgetInSameTabBar(widget: Widget): Widget | undefined {
+    const tabBar = this.shell.getTabBarFor(widget)
+    if (!tabBar || tabBar.titles.length === 0) {
+      return undefined
+    }
+    return tabBar.titles[tabBar.titles.length - 1].owner
   }
 
   protected onEntityNameFilterChange(event: React.ChangeEvent<HTMLInputElement>): void {
