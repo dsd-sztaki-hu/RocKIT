@@ -8,6 +8,10 @@ import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import CircularProgress from '@mui/material/CircularProgress';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import ReplayIcon from '@mui/icons-material/Replay';
 import { IconButton, Tooltip } from '@mui/material';
 
 import type { SchemaInfo, SchemaTableProps } from '../types';
@@ -18,6 +22,9 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
     isLoading, 
     onSelectionChange, 
     onDelete,
+    onRetry,
+    allowDeleteValidSchemas = true,
+    disableInvalidRows = false,
     selectionType = 'checkbox',
     selectedKeys = [] 
 }) => {
@@ -80,10 +87,53 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
 
     const columns: TableColumnsType<SchemaInfo> = [
         {
-            title: 'Schema Name',
+            title: 'Name',
             dataIndex: 'name',
-            sorter: (a, b) => a.name.localeCompare(b.name),
+            sorter: (a, b) => {
+                const aPriority = (a.status === 'ok' || !a.status) ? 1 : 0;
+                const bPriority = (b.status === 'ok' || !b.status) ? 1 : 0;
+                if (aPriority !== bPriority) return aPriority - bPriority;
+                return a.name.localeCompare(b.name);
+            },
             ...getColumnSearchProps('name'),
+        },
+        {
+            title: 'Status',
+            dataIndex: 'status',
+            width: 130,
+            sorter: (a, b) => {
+                const getVal = (s: string) => s === 'failed' ? 2 : (s === 'ok' || !s) ? 3 : 1; 
+                return getVal(a.status || 'ok') - getVal(b.status || 'ok');
+            },
+            render: (text: string, record: SchemaInfo) => {
+                const status = text || 'ok';
+                if (status === 'downloading' || status === 'processing') {
+                    return (
+                        <Tooltip title={record.statusMessage || 'Processing...'} placement="right">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--theia-focusBorder)' }}>
+                                <CircularProgress size={14} color="inherit" />
+                                <span style={{ fontSize: '12px' }}>{status === 'downloading' ? 'Downloading' : 'Processing'}</span>
+                            </div>
+                        </Tooltip>
+                    );
+                } else if (status === 'failed') {
+                    return (
+                        <Tooltip title={record.statusMessage || 'Failed'} placement="right">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--theia-errorForeground)' }}>
+                                <ErrorOutlineIcon style={{ fontSize: '16px' }} />
+                                <span style={{ fontSize: '12px' }}>Failed</span>
+                            </div>
+                        </Tooltip>
+                    );
+                } else {
+                    return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4caf50' }}>
+                            <CheckCircleIcon style={{ fontSize: '16px' }} />
+                            <span style={{ fontSize: '12px' }}>Ready</span>
+                        </div>
+                    );
+                }
+            }
         },
         {
             title: 'Version',
@@ -119,42 +169,61 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
             ellipsis: true,
             ...getColumnSearchProps('conformsTo'),
             render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" className="schema-table__link" onClick={e => e.stopPropagation()}>{text}</a> : ''
-        },
-        {
-            title: 'Download URL',
-            dataIndex: 'downloadUrl',
-            ellipsis: true,
-            ...getColumnSearchProps('downloadUrl'),
-            render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" className="schema-table__link" onClick={e => e.stopPropagation()}>{text}</a> : ''
         }
     ];
 
-    if (onDelete) {
+    if (onDelete || onRetry) {
         columns.push({
             title: 'Action',
             key: 'action',
-            width: 70,
+            width: 90,
             align: 'center',
-            render: (_, record) => (
-                <Tooltip title="Delete Schema" classes={{ tooltip: 'schema-table__tooltip' }}>
-                    <IconButton 
-                        size="small" 
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete([record.id]);
-                        }}
-                        className="schema-table__action-btn"
-                    >
-                        <DeleteOutlineIcon className="schema-table__delete-icon" />
-                    </IconButton>
-                </Tooltip>
-            ),
+            render: (_, record) => {
+                const isTransient = record.status === 'downloading' || record.status === 'processing' || record.status === 'failed';
+                const isOk = record.status === 'ok' || !record.status;
+                
+                if (isOk && !allowDeleteValidSchemas) {
+                    return null; // Ensure the Selector window stays safe
+                }
+
+                return (
+                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                        {record.status === 'failed' && onRetry && (
+                            <Tooltip title="Retry" classes={{ tooltip: 'schema-table__tooltip' }} placement="top">
+                                <IconButton 
+                                    size="small" 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onRetry(record.id);
+                                    }}
+                                    className="schema-table__action-btn"
+                                >
+                                    <ReplayIcon className="schema-table__retry-icon" fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                        )}
+                        {onDelete && (
+                            <Tooltip title={isTransient ? 'Abort / Remove' : 'Delete Schema'} classes={{ tooltip: 'schema-table__tooltip' }} placement="top">
+                                <IconButton 
+                                    size="small" 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete([record.id]);
+                                    }}
+                                    className="schema-table__action-btn"
+                                >
+                                    <DeleteOutlineIcon className="schema-table__delete-icon" />
+                                </IconButton>
+                            </Tooltip>
+                        )}
+                    </div>
+                );
+            }
         });
     }
 
     const activeSelectionType = isRowSelection ? undefined : selectionType;
 
-    // Custom Empty State Element
     const emptyState = (
         <div className="schema-table__empty-state">
             <AccountTreeIcon className="schema-table__empty-icon" />
@@ -216,18 +285,36 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                             type: activeSelectionType, 
                             selectedRowKeys: selectedKeys,
                             onChange: onSelectionChange,
-                            columnWidth: 40
+                            columnWidth: 40,
+                            // Only apply the disabled logic if the component explicitly asks for it
+                            getCheckboxProps: disableInvalidRows ? (record) => ({
+                                disabled: record.status !== 'ok' && record.status !== undefined,
+                            }) : undefined
                         } : undefined}
                         
                         onRow={(record) => {
                             const isSelected = selectedKeys && selectedKeys.includes(record.id);
+                            const isInvalid = record.status !== 'ok' && record.status !== undefined;
+                            const isInteractionDisabled = disableInvalidRows && isInvalid;
+                            
                             return {
                                 onClick: () => {
+                                    if (isInteractionDisabled) return;
+                                    
                                     if (isRowSelection) {
                                         onSelectionChange([record.id]);
+                                    } else {
+                                        // Allow clicking anywhere on the row to toggle the checkbox
+                                        const newKeys = isSelected 
+                                            ? selectedKeys.filter(k => k !== record.id)
+                                            : [...selectedKeys, record.id];
+                                        onSelectionChange(newKeys);
                                     }
                                 },
                                 className: isSelected ? 'ant-table-row-selected' : '',
+                                style: isInteractionDisabled 
+                                    ? { cursor: 'not-allowed', opacity: 0.8 } 
+                                    : { cursor: 'pointer' } // explicitly show it's clickable
                             };
                         }}
                         

@@ -219,6 +219,20 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
         setSelectedSchema(found);
     };
 
+    const handleRefresh = () => {
+        service.clearFailedPendingSchemas();
+        loadData();
+    };
+
+    const handleDeleteTransient = async (ids: string[]) => {
+        try {
+            const count = await service.deleteSchemas(ids);
+            if (count > 0) msg.info(`Aborted/Removed ${count} task(s).`, { timeout: MSG_TIMEOUT });
+        } catch (e) {
+            msg.error('Failed to remove task.', { timeout: MSG_TIMEOUT });
+        }
+    };
+
     const handleImportFile = async () => {
         const uris = await fileDialog.showOpenDialog({ 
             title: 'Import', filters: { 'JSON': ['json'] }, canSelectFiles: true, canSelectMany: true 
@@ -242,8 +256,10 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
             try {
                 const name = await service.importFromUrl(url, p);
                 msg.info(`Successfully imported: ${name}`, { timeout: MSG_TIMEOUT });
-            } catch (e) {
-                msg.error(`Error: ${e instanceof Error ? e.message : e}`, { timeout: MSG_TIMEOUT });
+            } catch (e: any) {
+                if (e.message !== 'Aborted') {
+                    msg.error(`Error: ${e instanceof Error ? e.message : e}`, { timeout: MSG_TIMEOUT });
+                }
             } finally { p.cancel(); }
         });
     };
@@ -272,7 +288,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                 onImportFile={handleImportFile} 
                 onImportUrl={handleOpenImportUrl} 
                 onBrowse={handleBrowseRemote}
-                onRefresh={loadData}
+                onRefresh={handleRefresh}
                 onConfigureProviders={handleOpenProviderList}
             />
             
@@ -283,6 +299,9 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                     selectionType="row"
                     selectedKeys={selectedSchema ? [selectedSchema.id] : []}
                     onSelectionChange={handleSelectionChange}
+                    allowDeleteValidSchemas={false}
+                    onDelete={handleDeleteTransient}
+                    onRetry={(id) => service.retrySchema(id)}
                 />
             </div>
             
@@ -292,7 +311,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                 <div className="schema-selector__info">
                     {selectedSchema ? (
                         <>
-                            <Tooltip title="Deselect" PopperProps={{ style: { zIndex: 99999 } }}>
+                            <Tooltip title="Deselect" placement="top" classes={{ tooltip: 'schema-table__tooltip' }}>
                                 <IconButton 
                                     size="small" 
                                     onClick={() => setSelectedSchema(undefined)} 
@@ -307,7 +326,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                         </>
                     ) : (
                         <span className="schema-selector__placeholder">
-                            Click a row to select a schema.
+                            Click a valid row to select a schema.
                         </span>
                     )}
                 </div>
