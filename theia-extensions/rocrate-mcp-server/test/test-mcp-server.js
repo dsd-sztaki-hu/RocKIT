@@ -743,6 +743,25 @@ async function run() {
     assert.ok(invalidChangeSetResponse.error, 'unsupported changeset key should fail')
     assert.match(invalidChangeSetResponse.error.message, /unsupported keys/)
 
+    const misplacedTopLevelArgsInChangeSetResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        changeSet: {
+          mode: 'local',
+          responseMode: 'summary',
+        },
+      },
+    })
+    assert.ok(
+      misplacedTopLevelArgsInChangeSetResponse.error,
+      'misplaced top-level args inside changeSet should fail',
+    )
+    assert.match(
+      misplacedTopLevelArgsInChangeSetResponse.error.message,
+      /You likely nested top-level params inside changeSet; move them to tool arguments\./,
+    )
+
     const missingUpdateTargetResponse = await request('tools/call', {
       name: 'apply_changes',
       arguments: {

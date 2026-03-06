@@ -111,10 +111,25 @@ export function createCrateOpsHelpers(deps: CrateOpsDeps) {
       (key) => !deps.changeSetAllowedKeys.has(key),
     )
     if (unknownKeys.length > 0) {
+      const misplacedToolArgKeys = [
+        'mode',
+        'cratePath',
+        'responseMode',
+        'confirmDestructive',
+        'dryRun',
+        'indent',
+        'write',
+      ]
+      const likelyNestedTopLevelParams = unknownKeys.some((key) =>
+        misplacedToolArgKeys.includes(key),
+      )
+      const nestingHint = likelyNestedTopLevelParams
+        ? ' You likely nested top-level params inside changeSet; move them to tool arguments.'
+        : ''
       throw new Error(
         `apply_changes changeSet has unsupported keys: ${unknownKeys.join(
           ', ',
-        )}. Supported keys: ${Array.from(deps.changeSetAllowedKeys).join(', ')}`,
+        )}. Supported keys: ${Array.from(deps.changeSetAllowedKeys).join(', ')}.${nestingHint}`,
       )
     }
 
