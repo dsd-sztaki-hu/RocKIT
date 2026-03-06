@@ -38,52 +38,76 @@ export type ValidationError = {
     return Array.from(new Set(ids))
   }
 
-export async function validateEntities(crate: Record<string, any>, baseProfile: Record<string, any>, profile: Record<string, any>, completeProfile: Record<string, any>, schemaManagerService: MetadataSchemaManager) {
+export async function validateEntities(
+  crate: Record<string, any>,
+  baseProfile: Record<string, any>,
+  profile: Record<string, any>,
+  completeProfile: Record<string, any>,
+  profileList: Record<string, any> | undefined,
+  schemaManagerService: MetadataSchemaManager,
+) {
   if (!crate || !Array.isArray(crate["@graph"])) {
     return undefined
   }
 
-  let validationErrors: any[] = []
+  const clone = (value: any) => {
+    const sc: any = (globalThis as any).structuredClone
+    if (typeof sc === 'function') {
+      return sc(value)
+    }
+    return JSON.parse(JSON.stringify(value))
+  }
 
-  const entities: any = Object.values(crate["@graph"])
+  const profileCache = new Map<string, Record<string, any>>()
+  const validationErrors: ValidationError[] = []
+  const graph = crate["@graph"] as any[]
 
-  for (const entity of entities) {
-    let updatedProfile = JSON.parse(JSON.stringify(baseProfile))
+  for (const entity of graph) {
+    if (!entity || typeof entity !== 'object') {
+      continue
+    }
 
     const entityType = Array.isArray(entity["@type"]) ? entity["@type"][0] : entity["@type"]
-    if (entityType == "Dataset" || entityType == "File") {
-      // TODO get merged profile for entity
-      // Probably need a global get profile for entity fn that gets the entity id as a parameter and returns the profile
-      // To find this entity easier, we also need to make findEntity global
-      const conformsToIds = extractConformsToIds(entity)
-      
-      const allSchemas = await schemaManagerService.loadAllSchemas()
-      for (const conformsToUrl of conformsToIds) {
-        const matchingSchema = allSchemas.find(
-          (schema) => schema.conformsTo === conformsToUrl
-        )
-        if (matchingSchema) {
-          const convertedContent =
-            await schemaManagerService.getConvertedProfileContent(
-              matchingSchema.files.convertedPath,
-            )
-          if (convertedContent) {
-            const mergedProfile = await schemaManagerService.getMergedProfile(
+
+    let profileForEntity: Record<string, any>
+
+    if (entityType === "Dataset" || entityType === "File") {
+      const conformsToIds = extractConformsToIds(entity).slice().sort()
+      const cacheKey = `${entityType}|${conformsToIds.join('|')}`
+
+      const cached = profileCache.get(cacheKey)
+      if (cached) {
+        profileForEntity = cached
+      } else {
+        let updatedProfile = clone(baseProfile)
+        for (const conformsToUrl of conformsToIds) {
+          const convertedContent = profileList?.[conformsToUrl]
+          if (!convertedContent) {
+            console.warn('No profile found in state for conformsTo URL:', conformsToUrl)
+            continue
+          }
+          try {
+            updatedProfile = await schemaManagerService.getMergedProfile(
               crate,
               convertedContent,
               updatedProfile,
               conformsToUrl,
             )
-            updatedProfile = JSON.parse(JSON.stringify(mergedProfile))
+          } catch (error) {
+            console.warn('Failed to merge profile for conformsTo URL:', conformsToUrl, error)
           }
         }
+        profileForEntity = updatedProfile
+        profileCache.set(cacheKey, profileForEntity)
       }
     } else {
-      updatedProfile = JSON.parse(JSON.stringify(completeProfile))
+      profileForEntity = completeProfile
     }
 
-    const errors = validate(entity, updatedProfile)
-    validationErrors = validationErrors.concat(errors)
+    const errors = validate(entity, profileForEntity)
+    if (errors.length) {
+      validationErrors.push(...errors)
+    }
   }
 
   if (validationErrors.length !== 0) {
@@ -97,21 +121,31 @@ export function validate(entity: Record<string, any>, profile: Record<string, an
 
   let errors: ValidationError[] = []
 
-  const profileClass = profile!.classes[entity["@type"]]
+  const entityType = Array.isArray(entity["@type"]) ? entity["@type"][0] : entity["@type"]
+  const profileClass = entityType ? profile?.classes?.[entityType] : undefined
 
   if (profileClass && profileClass.inputs) {
     for (const input of profileClass.inputs) {
       const { name, required, multiple, type, values } = input
       const localizedName = input.label ? input.label : name
 
-      if (required) {
-        const fieldValue = entity[name]
+      const rawFieldValue = entity[name]
+      const fieldValue =
+        !multiple && Array.isArray(rawFieldValue) && type?.[0] === 'URL'
+          ? rawFieldValue[0]
+          : rawFieldValue
 
-        if (fieldValue === undefined || fieldValue.length === 0) {
+      if (required) {
+        if (
+          fieldValue === undefined ||
+          fieldValue === null ||
+          (typeof fieldValue === 'string' && fieldValue.trim().length === 0) ||
+          (Array.isArray(fieldValue) && fieldValue.length === 0)
+        ) {
           errors.push({
             path: `$.@graph[${entity["@id"]}].${name}`,
             entityId: `${entity["@id"]}`,
-            entityType: `${entity["@type"]}`,
+            entityType: `${entityType}`,
             fieldName: `${name}`,
             fieldLabel: `${localizedName}`,
             error: "Required value not set",
@@ -122,25 +156,17 @@ export function validate(entity: Record<string, any>, profile: Record<string, an
       }
 
       if (!multiple) {
-        const fieldValue = entity[name]
-
-        if (Array.isArray(fieldValue)) {
-          // TODO: HUUUUGE TODO AS IT WAS REQUESTED, remove this if branch after the bug with duplicated values is solved
-          // this error occurs for other URLs too if they aren't multiple
-          if (type[0] === "URL") {
-            entity[name] = fieldValue[0]
-          } else {
-            errors.push({
-              path: `$.@graph[${entity["@id"]}].${name}`,
-              entityId: `${entity["@id"]}`,
-              entityType: `${entity["@type"]}`,
-              fieldName: `${name}`,
-              fieldLabel: `${localizedName}`,
-              error: "Multiple value set",
-              error_hu: "Többszörös érték van beállítva",
-              errorCode: "SINGLE_VALUE_REQUIRED"
-            }) 
-          }
+        if (Array.isArray(rawFieldValue) && type?.[0] !== 'URL') {
+          errors.push({
+            path: `$.@graph[${entity["@id"]}].${name}`,
+            entityId: `${entity["@id"]}`,
+            entityType: `${entityType}`,
+            fieldName: `${name}`,
+            fieldLabel: `${localizedName}`,
+            error: "Multiple value set",
+            error_hu: "Többszörös érték van beállítva",
+            errorCode: "SINGLE_VALUE_REQUIRED"
+          }) 
         }
       }
 

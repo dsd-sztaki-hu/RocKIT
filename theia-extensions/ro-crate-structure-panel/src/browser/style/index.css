@@ -19,6 +19,13 @@
     color: var(--theia-ui-font-color1);
 }
 
+.dataset-panel .ant-tree .ant-tree-node-content-wrapper,
+.dataset-panel .ant-tree .ant-tree-title,
+.dataset-panel [data-entity-id] {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
 .ro-crate-structure-invalid-icon {
     display: inline-flex;
     align-items: center;

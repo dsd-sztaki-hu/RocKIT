@@ -8,6 +8,7 @@ import {
   TreeNode,
   TreeProps,
   TreeWidget,
+  Widget,
   WidgetManager,
 } from '@theia/core/lib/browser'
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
@@ -94,6 +95,13 @@ export class EntitiesOverviewWidget extends TreeWidget {
         document.body.classList.remove(this.filtersVisibleBodyClass)
       }),
     )
+    this.toDispose.push(
+      this.shell.onDidChangeCurrentWidget(({ newValue }) => {
+        if (newValue && this.isRoCrateEditorWidget(newValue)) {
+          this.markEditorFocused(newValue.id)
+        }
+      }),
+    )
   }
 
   protected readonly openingEntities = new Set<string>()
@@ -120,6 +128,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
   protected entityNameSelection: { start: number | null; end: number | null } | undefined
   protected filtersVisible = true
   protected readonly filtersVisibleBodyClass = 'entities-overview-filters-visible'
+  protected readonly editorFocusOrder: string[] = []
 
   /**
    * Enable icon rendering.
@@ -191,10 +200,10 @@ export class EntitiesOverviewWidget extends TreeWidget {
     return (
       <AntdThemeProvider themeService={this.themeService}>
         <div className="entities-overview-panel-content">
-        <div
-          className={`entities-overview-filters${showFilters ? '' : ' is-hidden'}`}
-          aria-hidden={!showFilters}
-        >
+          <div
+            className={`entities-overview-filters${showFilters ? '' : ' is-hidden'}`}
+            aria-hidden={!showFilters}
+          >
             <div className="entities-overview-filter-header">
               <div className="entities-overview-filter-toggle">
                 <Button.Group size="small">
@@ -303,21 +312,21 @@ export class EntitiesOverviewWidget extends TreeWidget {
               </Button>
             </div>
           </div>
-        <div className="entities-overview-edit-row">
-          <Button
-            className="entities-overview-edit-button"
-            type="default"
-            onClick={() => this.openMultiEditDialog()}
-            onKeyDownCapture={(event: React.KeyboardEvent) =>
-              this.stopFilterKeyEvents(event)
-            }
-          >
-            Edit
-          </Button>
+          <div className="entities-overview-edit-row">
+            <Button
+              className="entities-overview-edit-button"
+              type="default"
+              onClick={() => this.openMultiEditDialog()}
+              onKeyDownCapture={(event: React.KeyboardEvent) =>
+                this.stopFilterKeyEvents(event)
+              }
+            >
+              Edit
+            </Button>
+          </div>
+          <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
         </div>
-        <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
-      </div>
-    </AntdThemeProvider>
+      </AntdThemeProvider>
     )
   }
 
@@ -439,12 +448,12 @@ export class EntitiesOverviewWidget extends TreeWidget {
     return {
       ...super.createNodeAttributes(node, props),
       onClick: (event) => this.handleNodeClick(node, event),
+      onDoubleClick: (event) => this.handleNodeDoubleClick(node, event),
     }
   }
 
   /**
    * Handle click events on tree nodes.
-   * For leaf nodes, this will log the name to the console.
    *
    * @param node the clicked node
    */
@@ -455,44 +464,87 @@ export class EntitiesOverviewWidget extends TreeWidget {
     }
     if (ExampleTreeLeaf.is(node)) {
       const entityId = node.data.entityId
-      if (entityId && (event.ctrlKey || event.metaKey)) {
-        event.stopPropagation()
-        event.preventDefault()
-        this.model.toggleSelection(entityId)
-        return
-      }
-
       if (!entityId) {
         console.warn('EntitiesOverviewWidget: missing entityId for selection')
         return
       }
-      void this.openRoCrateEditorForEntity(entityId)
+      event.stopPropagation()
+      event.preventDefault()
+      if (event.shiftKey) {
+        this.model.selectRangeTo(entityId)
+        return
+      }
+      if (event.ctrlKey || event.metaKey) {
+        this.model.toggleSelection(entityId)
+        return
+      }
+      this.model.selectSingle(entityId)
+      if (event.altKey) {
+        void this.openRoCrateEditorForEntity(entityId, { forceNewWindow: true })
+      }
     }
   }
 
-  protected async openRoCrateEditorForEntity(entityId: string): Promise<void> {
+  protected handleNodeDoubleClick(
+    node: TreeNode,
+    event: React.MouseEvent<HTMLElement>,
+  ): void {
+    if (!ExampleTreeLeaf.is(node)) {
+      return
+    }
+    const entityId = node.data.entityId
+    if (!entityId) {
+      console.warn('EntitiesOverviewWidget: missing entityId for open')
+      return
+    }
+    event.stopPropagation()
+    event.preventDefault()
+    if (event.altKey || event.shiftKey) {
+      return
+    }
+    this.model.selectSingle(entityId)
+    void this.openRoCrateEditorForEntity(entityId)
+  }
+
+  protected async openRoCrateEditorForEntity(
+    entityId: string,
+    options?: { forceNewWindow?: boolean },
+  ): Promise<void> {
     if (!entityId) {
       console.warn('EntitiesOverviewWidget: attempted to open editor without entityId')
       return
     }
-    if (this.openingEntities.has(entityId)) {
+    const forceNewWindow = options?.forceNewWindow === true
+    // Keep deduplication for regular open/focus flow, but allow repeated Alt+click
+    // to open multiple windows for the same entity without waiting for initialization.
+    const dedupeByEntity = !forceNewWindow
+    if (dedupeByEntity && this.openingEntities.has(entityId)) {
       return
     }
-    this.openingEntities.add(entityId)
+    if (dedupeByEntity) {
+      this.openingEntities.add(entityId)
+    }
     const prevSelected = this.appStateService.selectedEntityId
     if (prevSelected !== entityId) {
       this.appStateService.selectedEntityId = entityId
-      console.log('EntitiesOverviewWidget: selectedEntityId updated', {
-        prev: prevSelected,
-        next: entityId,
-      })
     }
     try {
-      const existingWidgetId = this.findWidgetIdForEntity(entityId)
-      if (existingWidgetId) {
-        this.appStateService.registerEntityEditor(existingWidgetId, entityId)
-        await this.shell.activateWidget(existingWidgetId)
-        return
+      if (!forceNewWindow) {
+        const existingWidgetId = this.findWidgetIdForEntity(entityId)
+        if (existingWidgetId) {
+          this.appStateService.registerEntityEditor(existingWidgetId, entityId)
+          await this.shell.activateWidget(existingWidgetId)
+          this.markEditorFocused(existingWidgetId)
+          return
+        }
+
+        const lastFocusedEditor = this.getPreferredRoCrateEditorWidget()
+        if (lastFocusedEditor) {
+          this.appStateService.registerEntityEditor(lastFocusedEditor.id, entityId)
+          await this.shell.activateWidget(lastFocusedEditor.id)
+          this.markEditorFocused(lastFocusedEditor.id)
+          return
+        }
       }
 
       const instanceId = `${RoCrateEditorWidget.ID}:${Math.random().toString(36).slice(2)}`
@@ -502,18 +554,98 @@ export class EntitiesOverviewWidget extends TreeWidget {
         entityId,
       })
 
-      await this.shell.addWidget(widget, { area: 'main' })
+      const addOptions: {
+        area: 'main'
+        mode?: 'split-right' | 'tab-after'
+        ref?: Widget
+      } = { area: 'main' }
+      const referenceEditor = this.getPreferredRoCrateEditorWidget()
+      if (referenceEditor) {
+        if (forceNewWindow) {
+          const rightmostInRecentContainer =
+            this.getRightmostWidgetInSameTabBar(referenceEditor) ?? referenceEditor
+          addOptions.mode = 'tab-after'
+          addOptions.ref = rightmostInRecentContainer
+        } else {
+          addOptions.mode = 'split-right'
+          addOptions.ref = referenceEditor
+        }
+      }
+
+      await this.shell.addWidget(widget, addOptions)
       this.appStateService.registerEntityEditor(widget.id, entityId)
       await this.shell.activateWidget(widget.id)
+      this.markEditorFocused(widget.id)
     } catch (error) {
       console.error('EntitiesOverviewWidget: failed to open editor', { entityId, error })
     } finally {
-      this.openingEntities.delete(entityId)
+      if (dedupeByEntity) {
+        this.openingEntities.delete(entityId)
+      }
     }
   }
 
   protected findWidgetIdForEntity(entityId: string): string | undefined {
-    return this.appStateService.getEntityEditorWidgetId(entityId)
+    const mapping = this.appStateService.EIRCEIA ?? {}
+    const matchingIds = Object.entries(mapping)
+      .filter(([, mappedEntityId]) => mappedEntityId === entityId)
+      .map(([widgetId]) => widgetId)
+      .filter((widgetId) => Boolean(this.shell.getWidgetById(widgetId)))
+    if (matchingIds.length === 0) {
+      return undefined
+    }
+
+    for (let index = this.editorFocusOrder.length - 1; index >= 0; index -= 1) {
+      const widgetId = this.editorFocusOrder[index]
+      if (matchingIds.includes(widgetId)) {
+        return widgetId
+      }
+    }
+    return matchingIds[0]
+  }
+
+  protected isRoCrateEditorWidget(widget: Widget): boolean {
+    return widget.id.startsWith(RoCrateEditorWidget.ID)
+  }
+
+  protected markEditorFocused(widgetId: string): void {
+    const index = this.editorFocusOrder.indexOf(widgetId)
+    if (index >= 0) {
+      this.editorFocusOrder.splice(index, 1)
+    }
+    this.editorFocusOrder.push(widgetId)
+  }
+
+  protected getPreferredRoCrateEditorWidget(): Widget | undefined {
+    for (let index = this.editorFocusOrder.length - 1; index >= 0; index -= 1) {
+      const widgetId = this.editorFocusOrder[index]
+      const widget = this.shell.getWidgetById(widgetId)
+      if (widget && this.isRoCrateEditorWidget(widget)) {
+        return widget
+      }
+      this.editorFocusOrder.splice(index, 1)
+    }
+
+    const active = this.shell.activeWidget ?? this.shell.currentWidget
+    if (active && this.isRoCrateEditorWidget(active)) {
+      return active
+    }
+
+    for (const widget of this.shell.getWidgets('main')) {
+      if (this.isRoCrateEditorWidget(widget)) {
+        return widget
+      }
+    }
+
+    return undefined
+  }
+
+  protected getRightmostWidgetInSameTabBar(widget: Widget): Widget | undefined {
+    const tabBar = this.shell.getTabBarFor(widget)
+    if (!tabBar || tabBar.titles.length === 0) {
+      return undefined
+    }
+    return tabBar.titles[tabBar.titles.length - 1].owner
   }
 
   protected onEntityNameFilterChange(event: React.ChangeEvent<HTMLInputElement>): void {

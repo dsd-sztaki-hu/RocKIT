@@ -59,6 +59,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
   protected crateSubscription?: Disposable
   protected validationSubscription?: Disposable
+  protected shellFocusSubscription?: Disposable
 
   constructor() {
     super()
@@ -94,6 +95,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       this.invalidEntityIds = next
       this.update()
     })
+    this.shellFocusSubscription = this.shell.onDidChangeCurrentWidget(({ newValue }) => {
+      if (newValue && this.isRoCrateEditorWidget(newValue)) {
+        this.markEditorFocused(newValue.id)
+      }
+    })
 
     this.update()
   }
@@ -123,6 +129,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected invalidEntityIds = new Set<string>()
   protected selectedEntityIds = new Set<string>()
   protected selectedKeys: React.Key[] = []
+  protected lastSelectedEntityId: string | undefined
+  protected readonly editorFocusOrder: string[] = []
+  protected readonly openingEntities = new Set<string>()
 
   protected readonly handleGlobalDragEnd = (_event: DragEvent): void => {
     this.setDropTargetDatasetId(undefined)
@@ -304,7 +313,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     } as TreeDataNode & { entityId: string; entityType: string }
   }
 
-  // Multi-select behavior (Ctrl/Cmd toggles), single select opens editor
+  // Windows Explorer-like selection behavior:
+  // - single click: single select
+  // - ctrl/cmd+click: toggle specific row
+  // - shift+click: additive range selection across visible rows
   protected handleTreeSelect = (_keys: React.Key[], info: any): void => {
     const entityId = info.node?.entityId
     if (!entityId) {
@@ -312,78 +324,280 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
 
     const event = info?.nativeEvent as MouseEvent | undefined
-    const isMultiSelect = Boolean(event?.ctrlKey || event?.metaKey)
     const nodeKey = info.node?.key as React.Key | undefined
 
-    if (isMultiSelect) {
-      if (this.selectedEntityIds.has(entityId)) {
-        this.selectedEntityIds.delete(entityId)
+    if (event?.shiftKey) {
+      this.selectRange(entityId, nodeKey)
+    } else if (event?.ctrlKey || event?.metaKey) {
+      this.toggleSelection(entityId, nodeKey)
+    } else {
+      this.selectSingle(entityId, nodeKey)
+    }
+
+    if (event?.altKey) {
+      void this.openRoCrateEditor(entityId, { forceNewWindow: true })
+      return
+    }
+  }
+
+  protected handleEntityDoubleClick(entityId: string, event: React.MouseEvent): void {
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.altKey || event.shiftKey) {
+      return
+    }
+    const nodeKey = this.getNodeKeyForEntity(entityId)
+    this.selectSingle(entityId, nodeKey)
+    void this.openRoCrateEditor(entityId)
+  }
+
+  protected selectSingle(entityId: string, nodeKey?: React.Key): void {
+    this.selectedEntityIds = new Set([entityId])
+    this.selectedKeys = nodeKey !== undefined ? [nodeKey] : []
+    this.lastSelectedEntityId = entityId
+    this.update()
+  }
+
+  protected toggleSelection(entityId: string, nodeKey?: React.Key): void {
+    if (this.selectedEntityIds.has(entityId)) {
+      this.selectedEntityIds.delete(entityId)
+      if (this.lastSelectedEntityId === entityId) {
+        this.lastSelectedEntityId = Array.from(this.selectedEntityIds.values()).slice(-1)[0]
+      }
+    } else {
+      this.selectedEntityIds.add(entityId)
+      this.lastSelectedEntityId = entityId
+    }
+
+    if (nodeKey !== undefined) {
+      if (this.selectedKeys.includes(nodeKey)) {
+        this.selectedKeys = this.selectedKeys.filter((key) => key !== nodeKey)
       } else {
+        this.selectedKeys = [...this.selectedKeys, nodeKey]
+      }
+    }
+
+    this.update()
+  }
+
+  protected selectRange(entityId: string, nodeKey?: React.Key): void {
+    const visibleRows = this.getVisibleEntityRows()
+    const clickedIndex = visibleRows.findIndex((row) => row.entityId === entityId)
+    if (clickedIndex < 0) {
+      if (!this.selectedEntityIds.has(entityId)) {
         this.selectedEntityIds.add(entityId)
       }
-
-      if (nodeKey !== undefined) {
-        if (this.selectedKeys.includes(nodeKey)) {
-          this.selectedKeys = this.selectedKeys.filter((key) => key !== nodeKey)
-        } else {
-          this.selectedKeys = [...this.selectedKeys, nodeKey]
-        }
+      if (nodeKey !== undefined && !this.selectedKeys.includes(nodeKey)) {
+        this.selectedKeys = [...this.selectedKeys, nodeKey]
       }
-
+      this.lastSelectedEntityId = entityId
       this.update()
       return
     }
 
-    this.selectedEntityIds = new Set([entityId])
-    this.selectedKeys = nodeKey !== undefined ? [nodeKey] : []
-    this.appStateService.selectedEntityId = entityId
-    void this.openRoCrateEditor(entityId)
-  }
-
-  protected async openRoCrateEditor(entityId: string): Promise<void> {
-    const existingWidgetId = this.appStateService.getEntityEditorWidgetId(entityId)
-    if (existingWidgetId) {
-      const existing = this.shell.getWidgetById(existingWidgetId)
-      if (existing) {
-        this.appStateService.registerEntityEditor(existingWidgetId, entityId)
-        this.ensureWidgetInMain(existing)
-        await this.shell.activateWidget(existing.id)
-        return
+    const anchorId = this.lastSelectedEntityId
+    const anchorIndex = anchorId
+      ? visibleRows.findIndex((row) => row.entityId === anchorId)
+      : -1
+    if (!anchorId || anchorIndex < 0) {
+      if (!this.selectedEntityIds.has(entityId)) {
+        this.selectedEntityIds.add(entityId)
       }
-    }
-
-    const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
-      instance: entityId,
-      entityId,
-    })
-
-    const mainRef = this.findMainEditorWidget()
-    await this.shell.addWidget(widget, {
-      area: 'main',
-      ref: mainRef,
-      mode: mainRef ? 'tab-after' : undefined,
-    })
-
-    this.appStateService.registerEntityEditor(widget.id, entityId)
-    await this.shell.activateWidget(widget.id)
-  }
-
-  protected ensureWidgetInMain(widget: unknown): void {
-    const mainWidgets = this.shell.getWidgets('main')
-    if (mainWidgets.includes(widget as any)) {
+      if (nodeKey !== undefined && !this.selectedKeys.includes(nodeKey)) {
+        this.selectedKeys = [...this.selectedKeys, nodeKey]
+      }
+      this.lastSelectedEntityId = entityId
+      this.update()
       return
     }
-    this.shell.addWidget(widget as any, { area: 'main' })
+
+    const start = Math.min(anchorIndex, clickedIndex)
+    const end = Math.max(anchorIndex, clickedIndex)
+    const range = visibleRows.slice(start, end + 1)
+    for (const row of range) {
+      this.selectedEntityIds.add(row.entityId)
+      if (!this.selectedKeys.includes(row.nodeKey)) {
+        this.selectedKeys = [...this.selectedKeys, row.nodeKey]
+      }
+    }
+    this.lastSelectedEntityId = entityId
+    this.update()
   }
 
-  protected findMainEditorWidget(): Widget | undefined {
+  protected getVisibleEntityRows(): Array<{ entityId: string; nodeKey: React.Key }> {
+    const container = this.containerRef.current
+    if (!container) {
+      return []
+    }
+    const elements = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-entity-id][data-node-key]'),
+    )
+    const rows: Array<{ entityId: string; nodeKey: React.Key }> = []
+    const seen = new Set<string>()
+    for (const element of elements) {
+      const entityId = element.getAttribute('data-entity-id')
+      const nodeKey = element.getAttribute('data-node-key')
+      if (!entityId || !nodeKey) {
+        continue
+      }
+      if (seen.has(entityId)) {
+        continue
+      }
+      seen.add(entityId)
+      rows.push({ entityId, nodeKey })
+    }
+    return rows
+  }
+
+  protected getNodeKeyForEntity(entityId: string): React.Key | undefined {
+    const row = this.getVisibleEntityRows().find((value) => value.entityId === entityId)
+    return row?.nodeKey
+  }
+
+  protected async openRoCrateEditor(
+    entityId: string,
+    options?: { forceNewWindow?: boolean },
+  ): Promise<void> {
+    if (!entityId) {
+      return
+    }
+    const forceNewWindow = options?.forceNewWindow === true
+    const dedupeByEntity = !forceNewWindow
+    if (dedupeByEntity && this.openingEntities.has(entityId)) {
+      return
+    }
+    if (dedupeByEntity) {
+      this.openingEntities.add(entityId)
+    }
+
+    const prevSelected = this.appStateService.selectedEntityId
+    if (prevSelected !== entityId) {
+      this.appStateService.selectedEntityId = entityId
+    }
+    try {
+      if (!forceNewWindow) {
+        const existingWidgetId = this.findWidgetIdForEntity(entityId)
+        if (existingWidgetId) {
+          const existing = this.shell.getWidgetById(existingWidgetId)
+          if (existing) {
+            this.ensureWidgetInMain(existing)
+            this.appStateService.registerEntityEditor(existingWidgetId, entityId)
+            await this.shell.activateWidget(existing.id)
+            this.markEditorFocused(existing.id)
+            return
+          }
+        }
+
+        const lastFocusedEditor = this.getPreferredRoCrateEditorWidget()
+        if (lastFocusedEditor) {
+          this.ensureWidgetInMain(lastFocusedEditor)
+          this.appStateService.registerEntityEditor(lastFocusedEditor.id, entityId)
+          await this.shell.activateWidget(lastFocusedEditor.id)
+          this.markEditorFocused(lastFocusedEditor.id)
+          return
+        }
+      }
+
+      const instanceId = `${RoCrateEditorWidget.ID}:${Math.random().toString(36).slice(2)}`
+      const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
+        instanceId,
+        entityId,
+      })
+
+      const addOptions: {
+        area: 'main'
+        mode?: 'split-right' | 'tab-after'
+        ref?: Widget
+      } = { area: 'main' }
+      const referenceEditor = this.getPreferredRoCrateEditorWidget()
+      if (referenceEditor) {
+        if (forceNewWindow) {
+          addOptions.mode = 'tab-after'
+          addOptions.ref =
+            this.getRightmostWidgetInSameTabBar(referenceEditor) ?? referenceEditor
+        } else {
+          addOptions.mode = 'split-right'
+          addOptions.ref = referenceEditor
+        }
+      }
+
+      await this.shell.addWidget(widget, addOptions)
+      this.appStateService.registerEntityEditor(widget.id, entityId)
+      await this.shell.activateWidget(widget.id)
+      this.markEditorFocused(widget.id)
+    } finally {
+      if (dedupeByEntity) {
+        this.openingEntities.delete(entityId)
+      }
+    }
+  }
+
+  protected findWidgetIdForEntity(entityId: string): string | undefined {
+    const mapping = this.appStateService.EIRCEIA ?? {}
+    const matchingIds = Object.entries(mapping)
+      .filter(([, mappedEntityId]) => mappedEntityId === entityId)
+      .map(([widgetId]) => widgetId)
+      .filter((widgetId) => Boolean(this.shell.getWidgetById(widgetId)))
+    if (matchingIds.length === 0) {
+      return undefined
+    }
+
+    for (let index = this.editorFocusOrder.length - 1; index >= 0; index -= 1) {
+      const widgetId = this.editorFocusOrder[index]
+      if (matchingIds.includes(widgetId)) {
+        return widgetId
+      }
+    }
+    return matchingIds[0]
+  }
+
+  protected ensureWidgetInMain(widget: Widget): void {
     const mainWidgets = this.shell.getWidgets('main')
-    for (const widget of mainWidgets) {
-      if (widget.id?.startsWith(RoCrateEditorWidget.ID)) {
+    if (mainWidgets.includes(widget)) {
+      return
+    }
+    this.shell.addWidget(widget, { area: 'main' })
+  }
+
+  protected isRoCrateEditorWidget(widget: Widget): boolean {
+    return widget.id.startsWith(RoCrateEditorWidget.ID)
+  }
+
+  protected markEditorFocused(widgetId: string): void {
+    const index = this.editorFocusOrder.indexOf(widgetId)
+    if (index >= 0) {
+      this.editorFocusOrder.splice(index, 1)
+    }
+    this.editorFocusOrder.push(widgetId)
+  }
+
+  protected getPreferredRoCrateEditorWidget(): Widget | undefined {
+    for (let index = this.editorFocusOrder.length - 1; index >= 0; index -= 1) {
+      const widgetId = this.editorFocusOrder[index]
+      const widget = this.shell.getWidgetById(widgetId)
+      if (widget && this.isRoCrateEditorWidget(widget)) {
+        return widget
+      }
+      this.editorFocusOrder.splice(index, 1)
+    }
+    const active = this.shell.activeWidget ?? this.shell.currentWidget
+    if (active && this.isRoCrateEditorWidget(active)) {
+      return active
+    }
+    for (const widget of this.shell.getWidgets('main')) {
+      if (this.isRoCrateEditorWidget(widget)) {
         return widget
       }
     }
     return undefined
+  }
+
+  protected getRightmostWidgetInSameTabBar(widget: Widget): Widget | undefined {
+    const tabBar = this.shell.getTabBarFor(widget)
+    if (!tabBar || tabBar.titles.length === 0) {
+      return undefined
+    }
+    return tabBar.titles[tabBar.titles.length - 1].owner
   }
 
   onAfterAttach(msg: any): void {
@@ -464,6 +678,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           }
           this.selectedEntityIds.clear()
           this.selectedKeys = []
+          this.lastSelectedEntityId = undefined
           this.update()
         }}
         onDragOver={(event) => this.handleDragOver(event)}
@@ -538,7 +753,14 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                         : 'none',
                   }}
                   data-entity-id={entityId}
+                  data-node-key={String(item.key)}
                   title=""
+                  onDoubleClick={(event) => {
+                    if (!entityId) {
+                      return
+                    }
+                    this.handleEntityDoubleClick(entityId, event)
+                  }}
                 >
                   {icon}
                   {isInvalid && (
@@ -1183,5 +1405,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     super.dispose()
     this.crateSubscription?.dispose()
     this.validationSubscription?.dispose()
+    this.shellFocusSubscription?.dispose()
   }
 }

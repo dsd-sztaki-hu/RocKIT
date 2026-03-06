@@ -33,6 +33,7 @@ export const defaultAppState = {
   openSchemaSelectorWindow: false,
   schemaSelectorContext: undefined as SchemaSelectorContext | undefined,
   completeProfile: undefined as Record<string, any> | undefined,
+  profileList: undefined as Record<string, any> | undefined,
   validationErrors: undefined as ValidationError[] | undefined,
 }
 
