@@ -5,7 +5,7 @@ import {
   CommonMenus,
   WidgetManager,
 } from '@theia/core/lib/browser'
-import { Command, CommandRegistry } from '@theia/core/lib/common/command'
+import { Command, CommandRegistry, CommandService } from '@theia/core/lib/common/command'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
@@ -33,6 +33,7 @@ export class RoCrateEditorContribution extends AbstractViewContribution<RoCrateE
   @inject(FileService) protected readonly fileService!: FileService
   @inject(RoCrateHtmlGenerator)
   protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator
+  @inject(CommandService) protected readonly commandService!: CommandService
 
   constructor(
     @inject(WidgetManager) protected readonly widgetManager: WidgetManager,
@@ -75,6 +76,7 @@ export class RoCrateEditorContribution extends AbstractViewContribution<RoCrateE
           this.workspaceService,
           this.fileService,
           this.roCrateHtmlGenerator,
+          this.commandService,
           !!this.appStateService.roCrate,
         )
         await dialog.open()
