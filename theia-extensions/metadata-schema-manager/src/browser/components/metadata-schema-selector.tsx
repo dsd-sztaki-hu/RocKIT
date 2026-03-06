@@ -36,13 +36,19 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
     private isDialogVisible = false;
 
     onStart(): void {
+        const maybeOpen = (isOpen: boolean) => {
+            if (isOpen && !this.isDialogVisible) {
+                void this.openDialog();
+            }
+        };
+
         this.appStateService.onDidChangeSelector(state => state.openSchemaSelectorWindow)(
             (isOpen) => {
-                if (isOpen && !this.isDialogVisible) {
-                    this.openDialog();
-                }
+                maybeOpen(Boolean(isOpen));
             }
         );
+
+        maybeOpen(Boolean(this.appStateService.getState().openSchemaSelectorWindow));
     }
 
     protected async openDialog(): Promise<void> {
@@ -61,6 +67,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
             }
         } catch (err) {
             console.error("Failed to open selector dialog:", err);
+            this.messageService.error('Failed to open schema selector dialog.', { timeout: MSG_TIMEOUT });
         } finally {
             this.isDialogVisible = false;
             this.appStateService.updateState({ 
