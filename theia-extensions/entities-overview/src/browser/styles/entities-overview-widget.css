@@ -31,6 +31,7 @@
 .entities-overview-filters {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   gap: 6px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--theia-ui-border);
@@ -430,7 +431,7 @@ body.vs .entities-overview-type-select .ant-select-selection-item-remove {
 
 .lm-TabBar-toolbar .item > [id="entities-overview:toggle-filters"]:hover,
 .lm-TabBar-toolbar .item > [id="entities-overview:collapse-all"]:hover {
-  background-color: transparent !important;
+  background-color: var(--theia-toolbar-hoverBackground) !important;
 }
 
 body.entities-overview-filters-visible

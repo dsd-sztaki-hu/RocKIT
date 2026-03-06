@@ -23,12 +23,11 @@ import {
     WidgetManager
 } from '@theia/core/lib/browser';
 import { FILE_NAVIGATOR_ID } from './navigator-widget';
-import { OpenEditorsWidget } from './open-editors-widget/navigator-open-editors-widget';
 import { nls } from '@theia/core/lib/common/nls';
 
 export const EXPLORER_VIEW_CONTAINER_ID = 'explorer-view-container';
 export const EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS: ViewContainerTitleOptions = {
-    label: nls.localizeByDefault('Explorer'),
+    label: nls.localizeByDefault('Workspace'),
     iconClass: codicon('files'),
     closeable: true
 };
@@ -40,19 +39,11 @@ export class NavigatorWidgetFactory implements WidgetFactory {
 
     readonly id = NavigatorWidgetFactory.ID;
 
-    protected openEditorsWidgetOptions: ViewContainer.Factory.WidgetOptions = {
-        order: 0,
-        canHide: true,
-        initiallyCollapsed: true,
-        // this property currently has no effect (https://github.com/eclipse-theia/theia/issues/7755)
-        weight: 20
-    };
-
     protected fileNavigatorWidgetOptions: ViewContainer.Factory.WidgetOptions = {
         order: 1,
         canHide: false,
         initiallyCollapsed: false,
-        weight: 80,
+        weight: 100,
         disableDraggingToOtherContainers: true
     };
 
@@ -66,10 +57,8 @@ export class NavigatorWidgetFactory implements WidgetFactory {
             progressLocationId: 'explorer'
         });
         viewContainer.setTitleOptions(EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS);
-        const openEditorsWidget = await this.widgetManager.getOrCreateWidget(OpenEditorsWidget.ID);
         const navigatorWidget = await this.widgetManager.getOrCreateWidget(FILE_NAVIGATOR_ID);
         viewContainer.addWidget(navigatorWidget, this.fileNavigatorWidgetOptions);
-        viewContainer.addWidget(openEditorsWidget, this.openEditorsWidgetOptions);
         return viewContainer;
     }
 }

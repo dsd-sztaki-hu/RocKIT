@@ -44,6 +44,12 @@ export namespace FileNavigatorCommands {
         label: 'Collapse Folders in Explorer',
         iconClass: codicon('collapse-all')
     });
+    export const TOGGLE_SEARCH = Command.toDefaultLocalizedCommand({
+        id: 'navigator.toggle.search',
+        category: CommonCommands.FILE_CATEGORY,
+        label: 'Search Explorer',
+        iconClass: codicon('search')
+    });
     export const ADD_ROOT_FOLDER: Command = {
         id: 'navigator.addRootFolder'
     };

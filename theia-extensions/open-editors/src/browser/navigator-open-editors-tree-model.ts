@@ -50,6 +50,7 @@ export namespace OpenEditorNode {
 export class OpenEditorsModel extends FileTreeModel {
   static GROUP_NODE_ID_PREFIX = 'group-node'
   static AREA_NODE_ID_PREFIX = 'area-node'
+  protected searchQuery = ''
 
   @inject(ApplicationShell) protected readonly applicationShell: ApplicationShell
   @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService
@@ -127,6 +128,11 @@ export class OpenEditorsModel extends FileTreeModel {
   protected async initializeRoot(): Promise<void> {
     await this.updateOpenWidgets()
     this.fireChanged()
+  }
+
+  setSearchQuery(query: string): void {
+    this.searchQuery = this.normalizeForSearch(query.trim())
+    this.updateOpenWidgets()
   }
 
   protected updateOpenWidgets = debounce(this.doUpdateOpenWidgets, 250)
@@ -252,6 +258,9 @@ export class OpenEditorsModel extends FileTreeModel {
           if (!fileStat) {
             continue
           }
+          if (!this.matchesSearch(widget, fileStat)) {
+            continue
+          }
           const openEditorNode: OpenEditorNode = {
             id: widget.id,
             fileStat,
@@ -274,6 +283,9 @@ export class OpenEditorsModel extends FileTreeModel {
         }
       }
       // If widgets are only in the main area and in a single tabbar, then don't show area node
+      if (areaNode.children.length === 0) {
+        continue
+      }
       if (widgetsByArea.size === 1 && widgetsByArea.has('main') && area === 'main') {
         areaNode.children.forEach((child) => CompositeTreeNode.addChild(rootNode, child))
       } else {
@@ -312,5 +324,39 @@ export class OpenEditorsModel extends FileTreeModel {
     } else if (FileNode.is(node)) {
       open(this.openerService, node.uri)
     }
+  }
+
+  protected matchesSearch(widget: NavigatableWidget, fileStat: FileStat): boolean {
+    if (!this.searchQuery) {
+      return true
+    }
+    const entityNameFromLabel = this.extractEntityName(widget.title.label)
+    const entityNameFromCaption = this.extractEntityName(widget.title.caption)
+    const candidates = [
+      entityNameFromLabel,
+      entityNameFromCaption,
+    ]
+      .filter((candidate): candidate is string => !!candidate)
+      .map((candidate) => this.normalizeForSearch(candidate))
+    return candidates.some((candidate) => candidate.includes(this.searchQuery))
+  }
+
+  protected extractEntityName(value?: string): string | undefined {
+    if (!value) {
+      return undefined
+    }
+    const delimiter = ' - '
+    const index = value.indexOf(delimiter)
+    if (index >= 0) {
+      return value.substring(index + delimiter.length).trim()
+    }
+    return undefined
+  }
+
+  protected normalizeForSearch(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
   }
 }

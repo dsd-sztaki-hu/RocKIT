@@ -37,8 +37,8 @@ import { DirNode, FileStatNode, FileStatNodeData } from '@theia/filesystem/lib/b
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { DataSourceService } from 'data-sources/lib/browser/data-source-service'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
+import { DataSourceService } from 'data-sources/lib/browser/data-source-service'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
 import { FileNavigatorFilter } from './navigator-filter'
@@ -51,11 +51,14 @@ import {
 } from './navigator-tree'
 
 export const FILE_NAVIGATOR_ID = 'files'
-export const LABEL = nls.localizeByDefault('No Folder Opened')
+export const LABEL = nls.localizeByDefault('Workspace')
 export const CLASS = 'theia-Files'
 
 @injectable()
 export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
+  static SEARCH_VISIBLE_CLASS = 'navigator-search-visible'
+  static BODY_SEARCH_VISIBLE_CLASS = 'navigator-search-visible'
+
   @inject(CommandService) protected readonly commandService: CommandService
   @inject(NavigatorContextKeyService)
   protected readonly contextKeyService: NavigatorContextKeyService
@@ -73,8 +76,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     roCrateFilter: 'all',
   }
 
-  // collapsible filters (from main)
-  protected filtersExpanded: boolean = true
+  protected searchVisible = false
   protected readonly fileNameInputRef = React.createRef<HTMLInputElement>()
   protected fileNameSelection: { start: number | null; end: number | null } | undefined
   protected filterKeydownListenerAttached = false
@@ -125,25 +127,17 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     this.toDispose.push({
       dispose: () => this.detachFilterKeydownInterceptor(),
     })
+    this.toDispose.push({
+      dispose: () =>
+        document.body.classList.remove(FileNavigatorWidget.BODY_SEARCH_VISIBLE_CLASS),
+    })
+    this.updateSearchVisibilityClass()
   }
 
   protected override doUpdateRows(): void {
     super.doUpdateRows()
     this.title.label = LABEL
-    if (WorkspaceNode.is(this.model.root)) {
-      if (this.model.root.name === WorkspaceNode.name) {
-        const rootNode = this.model.root.children[0]
-        if (WorkspaceRootNode.is(rootNode)) {
-          this.title.label = this.toNodeName(rootNode)
-          this.title.caption = this.labelProvider.getLongName(rootNode.uri)
-        }
-      } else {
-        this.title.label = this.toNodeName(this.model.root)
-        this.title.caption = this.title.label
-      }
-    } else {
-      this.title.caption = this.title.label
-    }
+    this.title.caption = LABEL
   }
 
   override getContainerTreeNode(): TreeNode | undefined {
@@ -158,12 +152,11 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   }
 
   protected override renderTree(model: TreeModel): React.ReactNode {
-        if (this.model.root && this.isEmptyMultiRootWorkspace(model)) {
-            return this.renderEmptyMultiRootWorkspace()
-        }
-        return super.renderTree(model)
+    if (this.model.root && this.isEmptyMultiRootWorkspace(model)) {
+      return this.renderEmptyMultiRootWorkspace()
     }
-
+    return super.renderTree(model)
+  }
 
   protected override render(): React.ReactNode {
     const hasActiveFilters =
@@ -177,88 +170,62 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     ) : (
       <div className="navigator-filter-panel">
         <div
-          className={`navigator-filters ${
-            this.filtersExpanded ? 'expanded' : 'collapsed'
-          }`}
+          className={`navigator-filter-content ${this.searchVisible ? 'expanded' : 'collapsed'}`}
         >
-          <div
-            className="navigator-filter-header"
-            role="button"
-            tabIndex={0}
-            onClick={() => this.toggleFiltersExpanded()}
-            onKeyDown={(event) => this.handleFilterHeaderKeyDown(event)}
-          >
-            <span
-              className={`navigator-filter-toggle codicon codicon-chevron-right ${
-                this.filtersExpanded ? 'expanded' : 'collapsed'
-              }`}
-              aria-hidden="true"
-            />
-            <span className="navigator-filter-title">Filters</span>
+          <div className="navigator-filter-fields">
+            <label className="navigator-filter-row">
+              <span className="navigator-filter-label">File name</span>
+              <input
+                className="navigator-filter-input"
+                type="text"
+                placeholder="Search file name"
+                ref={this.fileNameInputRef}
+                value={this.filters.fileNameFilter}
+                onChange={(event) => this.onFileNameFilterChange(event)}
+                onFocus={() => this.attachFilterKeydownInterceptor()}
+                onBlur={() => this.detachFilterKeydownInterceptor()}
+                onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}
+              />
+            </label>
+
+            <label className="navigator-filter-row">
+              <span className="navigator-filter-label">RO-Crate descriptions</span>
+              <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
+                <Select
+                  className="navigator-rocrate-select"
+                  value={this.filters.roCrateFilter}
+                  options={[
+                    { value: 'all', label: 'All files' },
+                    { value: 'with-description', label: 'With RO-Crate description' },
+                    {
+                      value: 'without-description',
+                      label: 'Missing RO-Crate description',
+                    },
+                  ]}
+                  classNames={{ popup: { root: 'navigator-filter-dropdown' } }}
+                  onChange={(value) =>
+                    this.onRoCrateFilterChange(value as FileNavigatorFilter.RoCrateFilter)
+                  }
+                  size="small"
+                />
+              </div>
+            </label>
           </div>
 
-          <div
-            className={`navigator-filter-content ${
-              this.filtersExpanded ? 'expanded' : 'collapsed'
-            }`}
-          >
-            <div className="navigator-filter-fields">
-              <label className="navigator-filter-row">
-                <span className="navigator-filter-label">File name</span>
-                <input
-                  className="navigator-filter-input"
-                  type="text"
-                  placeholder="Search file name"
-                  ref={this.fileNameInputRef}
-                  value={this.filters.fileNameFilter}
-                  onChange={(event) => this.onFileNameFilterChange(event)}
-                  onFocus={() => this.attachFilterKeydownInterceptor()}
-                  onBlur={() => this.detachFilterKeydownInterceptor()}
-                  onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}
-                />
-              </label>
-
-              <label className="navigator-filter-row">
-                <span className="navigator-filter-label">RO-Crate descriptions</span>
-                <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
-                  <Select
-                    className="navigator-rocrate-select"
-                    value={this.filters.roCrateFilter}
-                    options={[
-                      { value: 'all', label: 'All files' },
-                      { value: 'with-description', label: 'With RO-Crate description' },
-                      {
-                        value: 'without-description',
-                        label: 'Missing RO-Crate description',
-                      },
-                    ]}
-                    classNames={{ popup: { root: 'navigator-filter-dropdown' } }}
-                    onChange={(value) =>
-                      this.onRoCrateFilterChange(
-                        value as FileNavigatorFilter.RoCrateFilter,
-                      )
-                    }
-                    size="small"
-                  />
-                </div>
-              </label>
-            </div>
-
-            <div className="navigator-filter-actions">
-              <Button
-                className="navigator-filter-clear"
-                danger
-                ghost
-                block
-                disabled={!hasActiveFilters}
-                onClick={() => this.clearFilters()}
-                onKeyDownCapture={(event: React.KeyboardEvent) =>
-                  this.stopFilterKeyEvents(event)
-                }
-              >
-                Clear filters
-              </Button>
-            </div>
+          <div className="navigator-filter-actions">
+            <Button
+              className="navigator-filter-clear"
+              danger
+              ghost
+              block
+              disabled={!hasActiveFilters}
+              onClick={() => this.clearFilters()}
+              onKeyDownCapture={(event: React.KeyboardEvent) =>
+                this.stopFilterKeyEvents(event)
+              }
+            >
+              Clear filters
+            </Button>
           </div>
         </div>
 
@@ -489,6 +456,17 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     return attributes
   }
 
+  protected override getPaddingLeft(node: TreeNode, props: NodeProps): number {
+    if (NavigatorHeaderNode.is(node)) {
+      return 5
+    }
+    return super.getPaddingLeft(node, props)
+  }
+
+  protected override getDepthPadding(depth: number): number {
+    return Math.max(0, super.getDepthPadding(depth) - 10)
+  }
+
   private containsNotInRoCrate(node: TreeNode): boolean {
     if (FileStatNode.is(node) && this.shouldHighlightFile(node)) {
       return true
@@ -524,11 +502,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
     // A directory entity only describes that directory node.
     // Descendant files still need their own explicit entities.
-    if (DirNode.is(node) && directories.has(relativePath)) {
-      return false
-    }
-
-    return true
+    return !(DirNode.is(node) && directories.has(relativePath))
   }
 
   private getNodeWorkspaceRelativePath(node: FileStatNode): string | undefined {
@@ -727,15 +701,26 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     this.filterKeydownListenerAttached = false
   }
 
-  protected toggleFiltersExpanded(): void {
-    this.filtersExpanded = !this.filtersExpanded
-    this.update()
+  isSearchVisible(): boolean {
+    return this.searchVisible
   }
 
-  protected handleFilterHeaderKeyDown(event: React.KeyboardEvent): void {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      this.toggleFiltersExpanded()
+  toggleSearch(): void {
+    this.searchVisible = !this.searchVisible
+    this.updateSearchVisibilityClass()
+    this.update()
+    if (this.searchVisible) {
+      window.requestAnimationFrame(() => this.fileNameInputRef.current?.focus())
+    }
+  }
+
+  protected updateSearchVisibilityClass(): void {
+    if (this.searchVisible) {
+      this.addClass(FileNavigatorWidget.SEARCH_VISIBLE_CLASS)
+      document.body.classList.add(FileNavigatorWidget.BODY_SEARCH_VISIBLE_CLASS)
+    } else {
+      this.removeClass(FileNavigatorWidget.SEARCH_VISIBLE_CLASS)
+      document.body.classList.remove(FileNavigatorWidget.BODY_SEARCH_VISIBLE_CLASS)
     }
   }
 
@@ -843,7 +828,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     }
 
     const roots = selected.filter(
-      (node): node is FileStatNode => FileStatNode.is(node) && this.isNavigatorRootNode(node),
+      (node): node is FileStatNode =>
+        FileStatNode.is(node) && this.isNavigatorRootNode(node),
     )
     if (!roots.length) {
       return

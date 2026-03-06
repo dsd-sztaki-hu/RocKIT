@@ -102,3 +102,106 @@
   .open-editors-inline-actions-container {
   visibility: visible;
 }
+
+.theia-open-editors-widget .open-editors-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.theia-open-editors-widget .open-editors-search-container {
+  padding: 6px;
+  border-bottom: 1px solid var(--theia-panel-border);
+}
+
+.theia-open-editors-widget .open-editors-search-input {
+  width: 100%;
+}
+
+.theia-open-editors-widget .open-editors-empty-state {
+  padding: 8px 10px;
+  color: var(--theia-descriptionForeground);
+  font-size: var(--theia-ui-font-size1);
+}
+
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar
+  .item
+  > [id='open.editors.toggle.search'],
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar
+  .item
+  > [id='navigator.close.all.editors.toolbar'] {
+  background-color: transparent !important;
+  border-radius: 4px;
+  width: calc(var(--theia-icon-size) + 4px);
+  height: calc(var(--theia-icon-size) + 4px);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none !important;
+  outline: none;
+}
+
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar
+  .item
+  > [id='open.editors.toggle.search']:hover,
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar
+  .item
+  > [id='navigator.close.all.editors.toolbar']:hover {
+  background-color: var(--theia-toolbar-hoverBackground) !important;
+}
+
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar
+  .item.toggled {
+  background-color: transparent !important;
+  border: none !important;
+}
+
+body.open-editors-search-visible
+  .theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar
+  .item
+  > [id='open.editors.toggle.search'] {
+  background-color: rgba(90, 90, 90, 0.5) !important;
+}
+
+.lm-Widget.part:has(.theia-sidepanel-title[title='Open Editors'])
+  .lm-TabBar-toolbar
+  .ps__rail-y,
+.lm-Widget.part:has(.theia-sidepanel-title[title='Open Editors'])
+  .lm-TabBar-toolbar
+  .ps__rail-x {
+  display: none !important;
+}
+
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar.ps
+  > .ps__rail-y,
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar.ps
+  > .ps__rail-x,
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar.ps:hover
+  > .ps__rail-y,
+.theia-sidepanel-toolbar
+  .theia-sidepanel-title[title='Open Editors']
+  + .lm-TabBar-toolbar.ps:hover
+  > .ps__rail-x {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
