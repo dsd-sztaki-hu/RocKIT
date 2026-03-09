@@ -1,4 +1,5 @@
 import { MetadataSchemaManager } from "aroma2-common/lib/browser";
+import type { AppState } from 'app-state/lib/browser/state/app-state';
 
 
 export type ValidationError = {
@@ -43,7 +44,7 @@ export async function validateEntities(
   baseProfile: Record<string, any>,
   profile: Record<string, any>,
   completeProfile: Record<string, any>,
-  profileList: Record<string, any> | undefined,
+  profileList: AppState['profileList'],
   schemaManagerService: MetadataSchemaManager,
 ) {
   if (!crate || !Array.isArray(crate["@graph"])) {
@@ -81,7 +82,9 @@ export async function validateEntities(
       } else {
         let updatedProfile = clone(baseProfile)
         for (const conformsToUrl of conformsToIds) {
-          const convertedContent = profileList?.[conformsToUrl]
+          const convertedContent = profileList?.find(
+            (p: any) => (p?.id ?? '').trim() === conformsToUrl.trim(),
+          )?.content
           if (!convertedContent) {
             console.warn('No profile found in state for conformsTo URL:', conformsToUrl)
             continue

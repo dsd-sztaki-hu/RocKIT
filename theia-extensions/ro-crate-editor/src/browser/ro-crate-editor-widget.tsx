@@ -2,7 +2,7 @@ import type { Navigatable } from '@theia/core/lib/browser'
 import type { SaveOptions } from '@theia/core/lib/browser/saveable'
 import { SaveReason, setDirty } from '@theia/core/lib/browser/saveable'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
-import { CommandService } from '@theia/core/lib/common'
+import { CommandService, MessageService } from '@theia/core/lib/common'
 import { Emitter } from '@theia/core/lib/common/event'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -50,6 +50,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   @inject(CommandService)
   protected readonly commandService: CommandService
 
+  @inject(MessageService)
+  protected readonly messageService: MessageService
+
   @inject(FileService)
   protected readonly fileService: FileService
 
@@ -78,6 +81,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected isRefreshingProfile = false
   protected pendingSchemasRefresh = false
   protected profileRevision = 0
+  protected lastSeenProfileListSize = 0
   protected lastFocusedElement?: HTMLElement
   protected lastSelectionStart?: number
   protected lastSelectionEnd?: number
@@ -278,6 +282,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     console.log('baseProfile', this.baseProfile)
     console.log('localCompleteProfile', this.localCompleteProfile)
     this.setDirtyState(false)
+    this.lastSeenProfileListSize = Array.isArray(this.appStateService.profileList)
+      ? this.appStateService.profileList.length
+      : 0
 
     this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
       async (crate) => {
@@ -300,7 +307,15 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
     this.profileListSubscription = this.appStateService.onDidChangeSelector(
       (s) => s.profileList,
-    )(async () => {
+    )(async (profileList) => {
+      const nextSize = Array.isArray(profileList) ? profileList.length : 0
+      const isAddingProfile = nextSize > this.lastSeenProfileListSize
+      this.lastSeenProfileListSize = nextSize
+
+      if (isAddingProfile) {
+        this.messageService.info('Adding profile…', { timeout: 10000 })
+      }
+
       if (this.isRefreshingProfile) {
         this.pendingSchemasRefresh = true
         return
@@ -309,7 +324,18 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         return
       }
       const entityId = this.assignedEntityId ?? this.localSelectedEntityId ?? './'
-      await this.updateProfileWithEntitySchemas(this.baseProfile, entityId)
+
+      try {
+        await this.updateProfileWithEntitySchemas(this.baseProfile, entityId)
+        if (isAddingProfile) {
+          this.messageService.info('Profile added.', { timeout: 5000 })
+        }
+      } catch (error) {
+        if (isAddingProfile) {
+          this.messageService.error('Failed to add profile.', { timeout: 7000 })
+        }
+        throw error
+      }
     })
 
     this.eirceiaSubscription = this.appStateService.onDidChangeSelector((s) => s.EIRCEIA)(
@@ -495,65 +521,74 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       return
     }
 
-    const targetUrl = typeof profileUrl === 'string' ? profileUrl.trim() : ''
-    const crate = this.appStateService.roCrate ?? this.localCrate
-    if (!crate || !targetUrl) {
-      return
+    this.messageService.info('Removing profile…', { timeout: 10000 })
+
+    try {
+      const targetUrl = typeof profileUrl === 'string' ? profileUrl.trim() : ''
+      const crate = this.appStateService.roCrate ?? this.localCrate
+      if (!crate || !targetUrl) {
+        return
+      }
+      const graph = Array.isArray(crate['@graph']) ? (crate['@graph'] as any[]) : []
+      const index = graph.findIndex(
+        (e) => e && typeof e === 'object' && String(e['@id']) === entityId,
+      )
+      if (index < 0) {
+        return
+      }
+
+      const entity = { ...graph[index] }
+      const value: any = entity.conformsTo
+      const matches = (v: any) => {
+        if (!v) return false
+        if (typeof v === 'string') return v.trim() === targetUrl
+        const idVal = (v as any)['@id'] ?? (v as any).id
+        return typeof idVal === 'string' && idVal.trim() === targetUrl
+      }
+
+      let updatedConformsTo: any
+      if (Array.isArray(value)) {
+        updatedConformsTo = value.filter((v) => !matches(v))
+      } else {
+        updatedConformsTo = matches(value) ? undefined : value
+      }
+
+      if (
+        !updatedConformsTo ||
+        (Array.isArray(updatedConformsTo) && updatedConformsTo.length === 0)
+      ) {
+        delete (entity as any).conformsTo
+      } else {
+        ;(entity as any).conformsTo = updatedConformsTo
+      }
+
+      const updatedGraph = [...graph]
+      updatedGraph[index] = entity
+      const updatedCrate = { ...crate, '@graph': updatedGraph }
+
+      this.appStateService.roCrate = updatedCrate
+      this.localCrate = updatedCrate
+
+      const schemaName = this.schemaManagerService.nameWithoutMetadataSuffix(
+        payload?.tab?.name,
+      )
+      const profile = this.localProfile
+      await this.removeSchemaMetadata(
+        updatedCrate,
+        entityId,
+        schemaName,
+        profile,
+        targetUrl,
+      )
+      await this.handleSaveCrate(updatedCrate)
+      this.update()
+      await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId)
+
+      this.messageService.info('Profile removed.', { timeout: 5000 })
+    } catch (error) {
+      this.messageService.error('Failed to remove profile.', { timeout: 7000 })
+      throw error
     }
-    const graph = Array.isArray(crate['@graph']) ? (crate['@graph'] as any[]) : []
-    const index = graph.findIndex(
-      (e) => e && typeof e === 'object' && String(e['@id']) === entityId,
-    )
-    if (index < 0) {
-      return
-    }
-
-    const entity = { ...graph[index] }
-    const value: any = entity.conformsTo
-    const matches = (v: any) => {
-      if (!v) return false
-      if (typeof v === 'string') return v.trim() === targetUrl
-      const idVal = (v as any)['@id'] ?? (v as any).id
-      return typeof idVal === 'string' && idVal.trim() === targetUrl
-    }
-
-    let updatedConformsTo: any
-    if (Array.isArray(value)) {
-      updatedConformsTo = value.filter((v) => !matches(v))
-    } else {
-      updatedConformsTo = matches(value) ? undefined : value
-    }
-
-    if (
-      !updatedConformsTo ||
-      (Array.isArray(updatedConformsTo) && updatedConformsTo.length === 0)
-    ) {
-      delete (entity as any).conformsTo
-    } else {
-      ;(entity as any).conformsTo = updatedConformsTo
-    }
-
-    const updatedGraph = [...graph]
-    updatedGraph[index] = entity
-    const updatedCrate = { ...crate, '@graph': updatedGraph }
-
-    this.appStateService.roCrate = updatedCrate
-    this.localCrate = updatedCrate
-
-    const schemaName = this.schemaManagerService.nameWithoutMetadataSuffix(
-      payload?.tab?.name,
-    )
-    const profile = this.localProfile
-    await this.removeSchemaMetadata(
-      updatedCrate,
-      entityId,
-      schemaName,
-      profile,
-      targetUrl,
-    )
-    await this.handleSaveCrate(updatedCrate)
-    this.update()
-    await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId)
   }
 
   render(): React.ReactNode {
@@ -892,7 +927,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       let foundMatchingProfile = false
 
       for (const conformsToUrl of conformsTos) {
-        const convertedContent = profileList?.[conformsToUrl]
+        const convertedContent = profileList?.find(
+          (p: any) => (p?.id ?? '').trim() === conformsToUrl.trim(),
+        )?.content
 
         if (convertedContent) {
           foundMatchingProfile = true
@@ -1014,23 +1051,22 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
       let convertedContent: any | undefined =
         trimmedProfileUrl && profileList
-          ? (profileList as any)[trimmedProfileUrl]
+          ? profileList.find(
+              (p: any) => (p?.id ?? '').trim() === trimmedProfileUrl,
+            )?.content
           : undefined
 
       if (!convertedContent && trimmedProfileUrl && profileList) {
-        const match = Object.entries(profileList as any).find(([key, value]) => {
-          const trimmedKey = typeof key === 'string' ? key.trim() : ''
-          if (trimmedKey && trimmedKey === trimmedProfileUrl) {
-            return true
-          }
-          const conformsTo = (value as any)?.conformsTo
-          const auxRef = (value as any)?.aux?.reference
+        const match = profileList.find((p: any) => {
+          const value: any = p?.content as any
+          const conformsTo = value?.conformsTo
+          const auxRef = value?.aux?.reference
           return (
             (typeof conformsTo === 'string' && conformsTo.trim() === trimmedProfileUrl) ||
             (typeof auxRef === 'string' && auxRef.trim() === trimmedProfileUrl)
           )
         })
-        convertedContent = match?.[1] as any
+        convertedContent = match?.content as any
       }
 
       const schemaInputs =

@@ -16,6 +16,12 @@ export type SchemaSelectorContext = {
   entityId: string
 }
 
+export type ProfileListItem = {
+  id: string
+  content: Record<string, any>
+  flag: string
+}
+
 // Define the default application state. This defines the shape of the state and initial values.
 export const defaultAppState = {
   roCrate: undefined as Record<string, any> | undefined,
@@ -33,7 +39,7 @@ export const defaultAppState = {
   openSchemaSelectorWindow: false,
   schemaSelectorContext: undefined as SchemaSelectorContext | undefined,
   completeProfile: undefined as Record<string, any> | undefined,
-  profileList: undefined as Record<string, any> | undefined,
+  profileList: undefined as ProfileListItem[] | undefined,
   validationErrors: undefined as ValidationError[] | undefined,
 }
 

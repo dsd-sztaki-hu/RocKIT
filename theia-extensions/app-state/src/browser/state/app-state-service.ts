@@ -304,7 +304,8 @@ export class AppStateService {
   getProfileByConformsTo(id: string): Record<string, any> | undefined {
     const key = typeof id === 'string' ? id.trim() : ''
     if (!key) return undefined
-    return this.getState().profileList?.[key]
+    return this.getState().profileList?.find((p) => (p?.id ?? '').trim() === key)
+      ?.content
   }
 
   get validationErrors(): AppState['validationErrors'] {
