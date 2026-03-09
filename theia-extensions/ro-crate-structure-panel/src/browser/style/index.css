@@ -1,200 +1,207 @@
 #widget-container h2 {
-    color: var(--theia-ui-font-color1);
-    font-size: 12px;
-    font-weight: 400;
-    padding: 10px;
-    text-transform: uppercase;
+  color: var(--theia-ui-font-color1);
+  font-size: 12px;
+  font-weight: 400;
+  padding: 10px;
+  text-transform: uppercase;
 }
 
 .dataset-panel .ant-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
-    background: rgba(24, 144, 255, 0.35);
-    border: 1px solid rgba(24, 144, 255, 0.65);
+  background: rgba(24, 144, 255, 0.35);
+  border: 1px solid rgba(24, 144, 255, 0.65);
 }
 
 .dataset-panel .ant-tree .ant-tree-node-content-wrapper.ant-tree-node-selected:hover {
-    background: rgba(24, 144, 255, 0.45);
+  background: rgba(24, 144, 255, 0.45);
 }
 
 .dataset-panel .ant-tree .ant-tree-node-content-wrapper.ant-tree-node-selected > span {
-    color: var(--theia-ui-font-color1);
+  color: var(--theia-ui-font-color1);
 }
 
 .dataset-panel .ant-tree .ant-tree-node-content-wrapper,
 .dataset-panel .ant-tree .ant-tree-title,
 .dataset-panel [data-entity-id] {
-    user-select: none;
-    -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Keep the structure tree integrated with panel background in both light/dark themes. */
+.dataset-panel .ant-tree,
+.dataset-panel .ant-tree .ant-tree-list,
+.dataset-panel .ant-tree .ant-tree-list-holder {
+  background: transparent !important;
 }
 
 .ro-crate-structure-invalid-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    margin-right: 4px;
-    color: #d32f2f;
-    line-height: 18px;
-    font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 4px;
+  color: #d32f2f;
+  line-height: 18px;
+  font-size: 16px;
 }
 
 .ro-crate-structure-panel-body {
-    position: relative;
+  position: relative;
 }
 
 .ro-crate-structure-validation-strip {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
-    margin: 0 0 8px;
-    border: 1px solid rgba(211, 47, 47, 0.35);
-    border-radius: 10px;
-    background: rgba(211, 47, 47, 0.08);
-    color: var(--theia-ui-font-color1);
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    max-height: 0;
-    opacity: 0;
-    transform: translateY(-6px);
-    overflow: hidden;
-    pointer-events: none;
-    transition:
-        max-height 260ms ease,
-        opacity 260ms ease,
-        transform 260ms ease,
-        margin-bottom 260ms ease;
-    margin-bottom: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  margin: 0 0 8px;
+  border: 1px solid rgba(211, 47, 47, 0.35);
+  border-radius: 10px;
+  background: rgba(211, 47, 47, 0.08);
+  color: var(--theia-ui-font-color1);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    max-height 260ms ease,
+    opacity 260ms ease,
+    transform 260ms ease,
+    margin-bottom 260ms ease;
+  margin-bottom: 0;
 }
 
 .ro-crate-structure-validation-strip.is-visible {
-    max-height: 28px;
-    opacity: 1;
-    transform: translateY(0);
-    margin-bottom: 8px;
-    pointer-events: auto;
+  max-height: 28px;
+  opacity: 1;
+  transform: translateY(0);
+  margin-bottom: 8px;
+  pointer-events: auto;
 }
 
 .ro-crate-structure-validation-strip:hover {
-    background: rgba(211, 47, 47, 0.14);
-    border-color: rgba(211, 47, 47, 0.55);
+  background: rgba(211, 47, 47, 0.14);
+  border-color: rgba(211, 47, 47, 0.55);
 }
 
 .ro-crate-structure-validation-strip:focus-visible {
-    outline: 2px solid rgba(211, 47, 47, 0.6);
-    outline-offset: 2px;
+  outline: 2px solid rgba(211, 47, 47, 0.6);
+  outline-offset: 2px;
 }
 
 .ro-crate-structure-validation-icon {
-    font-size: 12px;
+  font-size: 12px;
 }
 
 .ro-crate-structure-validation-text {
-    white-space: nowrap;
+  white-space: nowrap;
 }
 
 .ro-crate-validation-dialog-body {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    max-height: 70vh;
-    min-width: 520px;
-    width: 60vw;
-    max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 70vh;
+  min-width: 520px;
+  width: 60vw;
+  max-width: 760px;
 }
 
 .ro-crate-validation-dialog-info {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    background: rgba(24, 144, 255, 0.12);
-    color: var(--theia-ui-font-color1);
-    font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(24, 144, 255, 0.12);
+  color: var(--theia-ui-font-color1);
+  font-size: 12px;
 }
 
 .ro-crate-validation-dialog-info-text {
-    flex: 1 1 auto;
+  flex: 1 1 auto;
 }
 
 .ro-crate-validation-dialog-info-button {
-    border: none;
-    border-radius: 6px;
-    background: rgba(24, 144, 255, 0.25);
-    color: var(--theia-ui-font-color1);
-    padding: 4px 10px;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  background: rgba(24, 144, 255, 0.25);
+  color: var(--theia-ui-font-color1);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .ro-crate-validation-dialog-info-button:hover {
-    background: rgba(24, 144, 255, 0.35);
+  background: rgba(24, 144, 255, 0.35);
 }
 
 .ro-crate-validation-dialog-info-button:focus-visible {
-    outline: 2px solid rgba(24, 144, 255, 0.6);
-    outline-offset: 2px;
+  outline: 2px solid rgba(24, 144, 255, 0.6);
+  outline-offset: 2px;
 }
 
 .ro-crate-validation-dialog-empty {
-    margin: 0;
-    color: var(--theia-ui-font-color2);
+  margin: 0;
+  color: var(--theia-ui-font-color2);
 }
 
 .ro-crate-validation-dialog-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    overflow: auto;
-    padding-right: 4px;
-    max-height: 55vh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  padding-right: 4px;
+  max-height: 55vh;
 }
 
 .ro-crate-validation-dialog-item {
-    text-align: left;
-    border: none;
-    background: rgba(211, 47, 47, 0.2);
-    color: var(--theia-ui-font-color1);
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 12px;
-    line-height: 1.4;
-    cursor: pointer;
+  text-align: left;
+  border: none;
+  background: rgba(211, 47, 47, 0.2);
+  color: var(--theia-ui-font-color1);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
 }
 
 .ro-crate-validation-dialog-item:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .ro-crate-validation-dialog-item:hover {
-    background: rgba(211, 47, 47, 0.32);
+  background: rgba(211, 47, 47, 0.32);
 }
 
 .ro-crate-validation-dialog-item-type {
-    font-weight: 600;
+  font-weight: 600;
 }
 
 .ro-crate-validation-dialog-item-id {
-    font-weight: 400;
+  font-weight: 400;
 }
 
 .dataset-panel .ant-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
-    background: rgba(24, 144, 255, 0.35);
-    border: 1px solid rgba(24, 144, 255, 0.65);
+  background: rgba(24, 144, 255, 0.35);
+  border: 1px solid rgba(24, 144, 255, 0.65);
 }
 
 .dataset-panel .ant-tree .ant-tree-node-content-wrapper.ant-tree-node-selected:hover {
-    background: rgba(24, 144, 255, 0.45);
+  background: rgba(24, 144, 255, 0.45);
 }
 
 .dataset-panel .ant-tree .ant-tree-node-content-wrapper.ant-tree-node-selected > span {
-    color: var(--theia-ui-font-color1);
+  color: var(--theia-ui-font-color1);
 }
