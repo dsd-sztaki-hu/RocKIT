@@ -66,6 +66,43 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         if (newCrate) this.checkAndDownloadSchemas(newCrate);
       }
     );
+
+    // Watch for profileList changes to map the initial empty flags
+    this.appStateService.onDidChangeSelector((state: any) => state.profileList)(
+      (newList) => {
+        if (newList) this.syncProfileListFlags(newList);
+      }
+    );
+
+    // Keep flags synced whenever internal schema states change (e.g., downloading -> ok)
+    this.onDidChangeSchemas(() => {
+      const state = this.appStateService.getState() as any;
+      if (state.profileList) {
+        this.syncProfileListFlags(state.profileList);
+      }
+    });
+  }
+
+  private async syncProfileListFlags(profileList: any[]): Promise<void> {
+    if (!Array.isArray(profileList) || profileList.length === 0) return;
+
+    const schemas = await this.loadAllSchemas();
+    let isChanged = false;
+
+    const updatedProfileList = profileList.map(profile => {
+      const matchedSchema = schemas.find(s => s.conformsTo === profile.id);
+      const newFlag = matchedSchema ? (matchedSchema.status || 'ok') : 'missing';
+
+      if (profile.flag !== newFlag) {
+        isChanged = true;
+        return { ...profile, flag: newFlag }; // Preserve content, only patch flag
+      }
+      return profile;
+    });
+
+    if (isChanged) {
+      this.appStateService.updateState({ profileList: updatedProfileList } as any);
+    }
   }
 
   private async loadEnvVariables() {
