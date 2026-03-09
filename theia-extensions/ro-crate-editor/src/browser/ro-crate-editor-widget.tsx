@@ -609,16 +609,13 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   }
 
   async save(options?: SaveOptions): Promise<void> {
-    const reason = options?.saveReason
-    if (reason === SaveReason.AfterDelay || reason === SaveReason.FocusChange) {
+    try {
       await this.validateCurrentCrate()
       await this.persistRoCrateToDisk()
-      return
-    }
-    try {
-      await this.commandService.executeCommand('ro-crate.save')
     } catch (error) {
-      console.error('Failed to save RO-Crate via command:', error)
+      const reasonLabel =
+        options?.saveReason !== undefined ? SaveReason[options.saveReason] : 'manual'
+      console.error(`Failed to save RO-Crate editor (${reasonLabel}):`, error)
     }
   }
 
