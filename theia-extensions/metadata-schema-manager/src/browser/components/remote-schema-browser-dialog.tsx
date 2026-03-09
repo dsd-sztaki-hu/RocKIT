@@ -44,8 +44,11 @@ export class RemoteSchemaBrowserContribution implements FrontendApplicationContr
     protected async handleDownload(templateId: string, provider: RemoteSchemaProviderConfig): Promise<void> {
         try {
             await this.schemaManagerService.downloadRemoteSchema(templateId, provider);
-        } catch (error) {
-            console.error("Download failed", error);
+        } catch (error: any) {
+            // Avoid logging if the user actively aborted the process.
+            if (error.message !== 'Aborted') {
+                console.error("Download failed", error);
+            }
         }
     }
 }
