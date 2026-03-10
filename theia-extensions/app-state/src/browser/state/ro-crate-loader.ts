@@ -727,6 +727,17 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       )
       if (!matchingSchema) {
         console.warn('No schema found for conformsTo URL:', conformsToUrl)
+        
+        // If conformsToUrl contains the substring "schema"
+        if (conformsToUrl.includes('schema')) {
+          // Add an empty entry with a "missing" flag to indicate the profile is missing
+          profileListItems.push({
+            id: conformsToUrl,
+            content: undefined,
+            flag: 'missing',
+          })
+        }
+
         continue
       }
       try {
