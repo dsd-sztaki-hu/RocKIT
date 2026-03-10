@@ -202,6 +202,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     super()
     this.addClass('rocrate-editor')
     this.title.closable = true
+    this.title.iconClass = 'fa fa-pencil-square-o'
     this.node.tabIndex = 0
   }
 
@@ -283,6 +284,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       async (crate) => {
         this.localCrate = crate
         this.ensureEntityBaselineInitialized(crate)
+        const selectorContext = this.appStateService.schemaSelectorContext
+        if (selectorContext?.widgetId === this.id) {
+          this.updateDirtyStateForCurrentEntity(crate)
+        }
         console.log('crate update')
         this.updateTitleLabel()
         const entityId = this.assignedEntityId ?? this.localSelectedEntityId ?? './'
@@ -605,16 +610,13 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   }
 
   async save(options?: SaveOptions): Promise<void> {
-    const reason = options?.saveReason
-    if (reason === SaveReason.AfterDelay || reason === SaveReason.FocusChange) {
+    try {
       await this.validateCurrentCrate()
       await this.persistRoCrateToDisk()
-      return
-    }
-    try {
-      await this.commandService.executeCommand('ro-crate.save')
     } catch (error) {
-      console.error('Failed to save RO-Crate via command:', error)
+      const reasonLabel =
+        options?.saveReason !== undefined ? SaveReason[options.saveReason] : 'manual'
+      console.error(`Failed to save RO-Crate editor (${reasonLabel}):`, error)
     }
   }
 
@@ -684,10 +686,78 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       return undefined
     }
     try {
-      return JSON.stringify(this.toStableComparableValue(entity))
+      return JSON.stringify(this.toStableEntityComparableValue(entity))
     } catch {
       return undefined
     }
+  }
+
+  protected toStableEntityComparableValue(
+    value: unknown,
+    parentKey?: string,
+  ): unknown {
+    if (parentKey === 'conformsTo') {
+      const refs = this.normalizeReferenceArray(value)
+      if (refs.length === 0) {
+        return undefined
+      }
+      return refs.sort((a, b) => a['@id'].localeCompare(b['@id']))
+    }
+
+    if (Array.isArray(value)) {
+      const normalized = value
+        .map((entry) => this.toStableEntityComparableValue(entry, parentKey))
+        .filter((entry) => entry !== undefined)
+
+      if (parentKey === '@type' && normalized.every((entry) => typeof entry === 'string')) {
+        return [...(normalized as string[])].sort((a, b) => a.localeCompare(b))
+      }
+
+      return normalized
+    }
+
+    if (value && typeof value === 'object') {
+      const obj = value as Record<string, unknown>
+      const sortedKeys = Object.keys(obj).sort((left, right) => left.localeCompare(right))
+      const normalized: Record<string, unknown> = {}
+      for (const key of sortedKeys) {
+        const normalizedValue = this.toStableEntityComparableValue(obj[key], key)
+        if (normalizedValue !== undefined) {
+          normalized[key] = normalizedValue
+        }
+      }
+      return normalized
+    }
+
+    return value
+  }
+
+  protected normalizeReferenceArray(value: unknown): Array<{ '@id': string }> {
+    if (!value) {
+      return []
+    }
+    const raw = Array.isArray(value) ? value : [value]
+    const refs: Array<{ '@id': string }> = []
+    const seen = new Set<string>()
+    for (const entry of raw) {
+      let id: string | undefined
+      if (typeof entry === 'string') {
+        const trimmed = entry.trim()
+        id = trimmed || undefined
+      } else if (entry && typeof entry === 'object') {
+        const rawId = (entry as any)['@id'] ?? (entry as any).id
+        if (typeof rawId === 'string') {
+          const trimmed = rawId.trim()
+          id = trimmed || undefined
+        }
+      }
+      if (!id || seen.has(id)) {
+        continue
+      }
+      seen.add(id)
+      refs.push({ '@id': id })
+    }
+    return refs
   }
 
   protected updateTitleLabel(): void {

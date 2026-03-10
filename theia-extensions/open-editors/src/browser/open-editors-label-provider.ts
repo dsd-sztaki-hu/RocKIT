@@ -24,9 +24,13 @@ export class OpenEditorsLabelProvider implements LabelProviderContribution {
 
   getIcon(node: OpenEditorNode): string {
     if (node.uri.scheme === 'rocrate') {
-      return node.widget.title.iconClass || this.labelProvider.getIcon(node.fileStat)
+      return (
+        node.widget.title.iconClass ||
+        this.labelProvider.getIcon(node.fileStat) ||
+        'fa fa-pencil-square-o'
+      )
     }
-    return this.labelProvider.getIcon(node.fileStat)
+    return this.labelProvider.getIcon(node.fileStat) || 'fa fa-file-text-o'
   }
 
   getDescription(node: OpenEditorNode): string {
