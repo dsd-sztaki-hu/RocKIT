@@ -634,7 +634,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       ? this.appStateService.profileList
       : []
 
-    const prevById = new Map<string, { id: string; content: Record<string, any>; flag: string }>()
+    const prevById = new Map<
+      string,
+      { id: string; content: Record<string, any> | undefined; flag: string }
+    >()
     for (const item of prevList as any[]) {
       const id = typeof item?.id === 'string' ? item.id.trim() : ''
       if (id) {
@@ -643,7 +646,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     }
 
     const missingIds: string[] = []
-    const nextList: Array<{ id: string; content: Record<string, any>; flag: string }> = []
+    const nextList: Array<{
+      id: string
+      content: Record<string, any> | undefined
+      flag: string
+    }> = []
 
     for (const id of nextUnique) {
       const existing = prevById.get(id)
@@ -708,7 +715,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     }
 
     const allSchemas = await this.schemaManagerService.loadAllSchemas()
-    const profileListItems: Array<{ id: string; content: Record<string, any>; flag: string }> = []
+    const profileListItems: Array<{
+      id: string
+      content: Record<string, any> | undefined
+      flag: string
+    }> = []
 
     for (const conformsToUrl of conformsToIds) {
       const matchingSchema = allSchemas.find(

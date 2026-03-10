@@ -18,7 +18,7 @@ export type SchemaSelectorContext = {
 
 export type ProfileListItem = {
   id: string
-  content: Record<string, any>
+  content: Record<string, any> | undefined
   flag: string
 }
 

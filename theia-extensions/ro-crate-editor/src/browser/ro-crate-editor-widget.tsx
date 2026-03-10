@@ -81,7 +81,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected isRefreshingProfile = false
   protected pendingSchemasRefresh = false
   protected profileRevision = 0
-  protected lastSeenProfileListSize = 0
+  protected lastSeenNonMissingProfileCount = 0
   protected lastFocusedElement?: HTMLElement
   protected lastSelectionStart?: number
   protected lastSelectionEnd?: number
@@ -282,8 +282,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     console.log('baseProfile', this.baseProfile)
     console.log('localCompleteProfile', this.localCompleteProfile)
     this.setDirtyState(false)
-    this.lastSeenProfileListSize = Array.isArray(this.appStateService.profileList)
-      ? this.appStateService.profileList.length
+    this.lastSeenNonMissingProfileCount = Array.isArray(this.appStateService.profileList)
+      ? this.appStateService.profileList.filter((p: any) => (p as any)?.flag !== 'missing')
+          .length
       : 0
 
     this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
@@ -308,9 +309,12 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     this.profileListSubscription = this.appStateService.onDidChangeSelector(
       (s) => s.profileList,
     )(async (profileList) => {
-      const nextSize = Array.isArray(profileList) ? profileList.length : 0
-      const isAddingProfile = nextSize > this.lastSeenProfileListSize
-      this.lastSeenProfileListSize = nextSize
+      const nextList = Array.isArray(profileList) ? profileList : []
+      const nextNonMissingCount = nextList.filter(
+        (p: any) => (p as any)?.flag !== 'missing',
+      ).length
+      const isAddingProfile = nextNonMissingCount > this.lastSeenNonMissingProfileCount
+      this.lastSeenNonMissingProfileCount = nextNonMissingCount
 
       if (isAddingProfile) {
         this.messageService.info('Adding profile…', { timeout: 10000 })
@@ -945,6 +949,23 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             this.updateEntityConformsTo(entityId, conformsToUrl)
           }
         } else {
+          const id = typeof conformsToUrl === 'string' ? conformsToUrl.trim() : ''
+          if (id) {
+            const hasEntry = Array.isArray(profileList)
+              ? profileList.some((p: any) => (p?.id ?? '').trim() === id)
+              : false
+
+            if (!hasEntry) {
+              const prev = Array.isArray(this.appStateService.profileList)
+                ? this.appStateService.profileList
+                : []
+              this.appStateService.profileList = [
+                ...prev,
+                { id, content: undefined, flag: 'missing' } as any,
+              ]
+            }
+          }
+
           console.warn(`No profile found in state for conformsTo URL: ${conformsToUrl}`)
         }
       }
