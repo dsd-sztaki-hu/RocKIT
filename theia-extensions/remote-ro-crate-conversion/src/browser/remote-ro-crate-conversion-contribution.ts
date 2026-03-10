@@ -19,7 +19,7 @@ export const RemoteRoCrateConversionCommand: Command = {
   label: 'ROC Remote to Locale Conversion',
 }
 
-type EntityKind = 'File' | 'Dataset' | 'CreativeWork' | 'Other'
+type EntityKind = 'File' | 'Dataset' | 'Other'
 
 @injectable()
 export class RemoteRoCrateConversionCommandContribution implements CommandContribution {
@@ -158,9 +158,9 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
 
       const kind = this.getEntityKind(entry)
 
-      // For File + CreativeWork: move old @id into url
+      // For File: move old @id into url
       // For Dataset: DO NOT move the old id into url (per your requirement)
-      if (kind === 'File' || kind === 'CreativeWork') {
+      if (kind === 'File') {
         this.pushIntoUrl(entry, oldIdTrim)
       } else if (kind === 'Dataset') {
         datasetsSkippedUrlMove++
@@ -188,8 +188,7 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
   }
 
   /**
-   * Only convert entities of type File / Dataset / CreativeWork
-   * (ro-crate-metadata.json is often CreativeWork)
+   * Only convert entities of type File / Dataset.
    */
   private getEntityKind(entry: Record<string, any>): EntityKind {
     const t = entry['@type']
@@ -202,7 +201,6 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
 
     if (types.includes('File')) return 'File'
     if (types.includes('Dataset')) return 'Dataset'
-    if (types.includes('CreativeWork')) return 'CreativeWork'
     return 'Other'
   }
 

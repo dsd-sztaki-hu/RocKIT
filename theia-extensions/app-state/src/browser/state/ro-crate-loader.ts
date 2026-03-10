@@ -323,7 +323,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
           : []
 
       const relevant = types.some(
-        (t) => t === 'File' || t === 'Dataset' || t === 'CreativeWork',
+        (t) => t === 'File' || t === 'Dataset',
       )
       if (!relevant) continue
 
