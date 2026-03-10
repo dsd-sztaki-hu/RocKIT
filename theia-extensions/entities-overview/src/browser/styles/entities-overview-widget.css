@@ -479,6 +479,59 @@ body.entities-overview-filters-visible
   position: relative;
 }
 
+.entities-overview-advanced-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 920px;
+  max-width: 92vw;
+  min-height: 45vh;
+  max-height: 90vh;
+  overflow: auto;
+  position: relative;
+}
+
+.entities-overview-advanced-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--theia-ui-border);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--theia-editorWidget-background);
+}
+
+.entities-overview-advanced-group.is-root {
+  border-style: solid;
+}
+
+.entities-overview-advanced-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.entities-overview-advanced-group-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.entities-overview-advanced-group-children {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 12px;
+  border-left: 1px solid var(--theia-ui-border);
+}
+
+.entities-overview-advanced-rule-row {
+  margin: 0;
+}
+
 .entities-overview-edit-modal-title {
   font-weight: 600;
   margin: 0;
