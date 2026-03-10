@@ -202,6 +202,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     super()
     this.addClass('rocrate-editor')
     this.title.closable = true
+    this.title.iconClass = 'fa fa-pencil-square-o'
     this.node.tabIndex = 0
   }
 
