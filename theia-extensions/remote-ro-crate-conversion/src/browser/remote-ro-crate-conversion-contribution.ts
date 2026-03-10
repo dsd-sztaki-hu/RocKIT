@@ -83,6 +83,13 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
       return
     }
 
+    if (!this.isArpRepositoryCrate(json)) {
+      this.messageService.info(
+        'ID localization is only supported for ARP Data Repository RO-Crates.',
+      )
+      return
+    }
+
     // PASS 1: build oldId -> newId mapping (so we can update references everywhere)
     const idMap = new Map<string, string>()
     let skippedRootDataset = 0
@@ -197,6 +204,35 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
     if (types.includes('Dataset')) return 'Dataset'
     if (types.includes('CreativeWork')) return 'CreativeWork'
     return 'Other'
+  }
+
+  private isArpRepositoryCrate(crate: Record<string, any>): boolean {
+    const rootDataset = this.getRootDataset(crate)
+    const arpPid =
+      rootDataset && typeof rootDataset['@arpPid'] === 'string'
+        ? rootDataset['@arpPid'].trim()
+        : ''
+    return Boolean(arpPid)
+  }
+
+  private getRootDataset(crate: Record<string, any>): Record<string, any> | undefined {
+    const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+    return graph.find((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return false
+      }
+
+      const id = typeof entry['@id'] === 'string' ? entry['@id'].trim() : ''
+      const rawType = entry['@type']
+      const types: string[] =
+        typeof rawType === 'string'
+          ? [rawType]
+          : Array.isArray(rawType)
+            ? rawType.filter((x): x is string => typeof x === 'string')
+            : []
+
+      return (id === './' || id === '.') && types.includes('Dataset')
+    })
   }
 
   /**

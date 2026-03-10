@@ -307,6 +307,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
   }
 
   private needsIdConversion(crate: Record<string, any>): boolean {
+    if (!this.isArpRepositoryCrate(crate)) {
+      return false
+    }
+
     const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
     for (const entry of graph) {
       if (!entry || typeof entry !== 'object') continue
@@ -337,6 +341,34 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       }
     }
     return false
+  }
+
+  private isArpRepositoryCrate(crate: Record<string, any>): boolean {
+    const rootDataset = this.getRootDataset(crate)
+    const arpPid =
+      rootDataset && typeof rootDataset['@arpPid'] === 'string'
+        ? rootDataset['@arpPid'].trim()
+        : ''
+    return Boolean(arpPid)
+  }
+
+  private getRootDataset(crate: Record<string, any>): Record<string, any> | undefined {
+    const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+    return graph.find((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return false
+      }
+
+      const id = typeof (entry as any)['@id'] === 'string' ? (entry as any)['@id'].trim() : ''
+      const rawType = (entry as any)['@type']
+      const types: string[] = Array.isArray(rawType)
+        ? rawType.filter((t): t is string => typeof t === 'string')
+        : typeof rawType === 'string'
+          ? [rawType]
+          : []
+
+      return (id === './' || id === '.') && types.includes('Dataset')
+    }) as Record<string, any> | undefined
   }
 
   // ---- main update + profile merge logic ----
