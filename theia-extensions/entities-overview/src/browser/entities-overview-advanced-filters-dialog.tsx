@@ -52,17 +52,13 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     const selectedSchemaIds =
       initial?.selectedSchemaIds.filter((schemaId) => availableSchemaIds.has(schemaId)) ??
       []
-    const fallbackSchemaIds =
-      selectedSchemaIds.length > 0
-        ? selectedSchemaIds
-        : this.catalog.schemas.map((schema) => schema.id)
 
     const root = initial?.root ? this.cloneGroup(initial.root) : this.createGroup(false)
     if (root.children.length === 0) {
       root.children.push(this.createRule())
     }
     return {
-      selectedSchemaIds: [...fallbackSchemaIds],
+      selectedSchemaIds: [...selectedSchemaIds],
       root,
     }
   }

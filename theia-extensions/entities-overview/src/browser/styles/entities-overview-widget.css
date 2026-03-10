@@ -489,20 +489,29 @@ body.entities-overview-filters-visible
   max-height: 90vh;
   overflow: auto;
   position: relative;
+  padding-right: 2px;
 }
 
 .entities-overview-advanced-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  border: 1px solid var(--theia-ui-border);
+  gap: 10px;
+  border: 1px solid rgba(127, 127, 127, 0.55);
   border-radius: 8px;
-  padding: 8px;
+  padding: 10px;
   background: var(--theia-editorWidget-background);
+  box-shadow: none;
 }
 
 .entities-overview-advanced-group.is-root {
   border-style: solid;
+  border-color: rgba(127, 127, 127, 0.45);
+}
+
+.entities-overview-advanced-group:not(.is-root) {
+  margin-left: 8px;
+  background: var(--theia-input-background);
+  border-color: rgba(127, 127, 127, 0.72);
 }
 
 .entities-overview-advanced-group-header {
@@ -523,13 +532,13 @@ body.entities-overview-filters-visible
 .entities-overview-advanced-group-children {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-left: 12px;
-  border-left: 1px solid var(--theia-ui-border);
+  gap: 10px;
+  padding-left: 2px;
 }
 
 .entities-overview-advanced-rule-row {
   margin: 0;
+  border-color: rgba(127, 127, 127, 0.45);
 }
 
 .entities-overview-edit-modal-title {
