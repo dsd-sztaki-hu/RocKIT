@@ -307,7 +307,8 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
   }
 
   private needsIdConversion(crate: Record<string, any>): boolean {
-    if (!this.isArpRepositoryCrate(crate)) {
+    const arpPid = this.getRootArpPid(crate)
+    if (!arpPid) {
       return false
     }
 
@@ -329,27 +330,38 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
       const id =
         typeof (entry as any)['@id'] === 'string' ? (entry as any)['@id'].trim() : ''
-
-      if (!id) return true
+      if (!id) {
+        continue
+      }
 
       if (types.includes('Dataset') && (id === './' || id === '.')) {
         continue
       }
 
-      if (!id.startsWith('file://./')) {
+      if (this.isArpLocalEntityId(id, arpPid)) {
         return true
       }
     }
     return false
   }
 
-  private isArpRepositoryCrate(crate: Record<string, any>): boolean {
+  private getRootArpPid(crate: Record<string, any>): string | undefined {
     const rootDataset = this.getRootDataset(crate)
     const arpPid =
       rootDataset && typeof rootDataset['@arpPid'] === 'string'
         ? rootDataset['@arpPid'].trim()
         : ''
-    return Boolean(arpPid)
+    return arpPid || undefined
+  }
+
+  private isArpLocalEntityId(id: string, arpPid: string): boolean {
+    const trimmedId = id.trim()
+    if (!trimmedId || !arpPid) {
+      return false
+    }
+
+    const prefix = `https://w3id.org/arp/ro-id/${arpPid}/file/`
+    return trimmedId.startsWith(prefix) && trimmedId.length > prefix.length
   }
 
   private getRootDataset(crate: Record<string, any>): Record<string, any> | undefined {

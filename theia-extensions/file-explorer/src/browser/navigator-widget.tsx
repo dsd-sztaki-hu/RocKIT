@@ -533,6 +533,18 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         continue
       }
 
+      const rawType = (entry as any)['@type']
+      const types: string[] = Array.isArray(rawType)
+        ? rawType.filter((t): t is string => typeof t === 'string')
+        : typeof rawType === 'string'
+          ? [rawType]
+          : []
+
+      const relevant = types.some((t) => t === 'File' || t === 'Dataset')
+      if (!relevant) {
+        continue
+      }
+
       const rawId =
         typeof (entry as any)['@id'] === 'string' ? (entry as any)['@id'].trim() : ''
       if (!rawId) {
@@ -564,10 +576,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
     const isDirectory = candidate.endsWith('/')
 
-    if (candidate.startsWith('file://./')) {
-      candidate = candidate.slice('file://./'.length)
-    } else if (candidate.startsWith('file://')) {
-      candidate = candidate.slice('file://'.length)
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(candidate)) {
+      return undefined
     }
 
     if (candidate.startsWith('./')) {

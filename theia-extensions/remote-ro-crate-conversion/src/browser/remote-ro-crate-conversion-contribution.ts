@@ -83,7 +83,8 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
       return
     }
 
-    if (!this.isArpRepositoryCrate(json)) {
+    const arpPid = this.getRootArpPid(json)
+    if (!arpPid) {
       this.messageService.info(
         'ID localization is only supported for ARP Data Repository RO-Crates.',
       )
@@ -92,10 +93,12 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
 
     // PASS 1: build oldId -> newId mapping (so we can update references everywhere)
     const idMap = new Map<string, string>()
+    const nextIds = new Set<string>()
     let skippedRootDataset = 0
     let skippedNoId = 0
     let skippedNonConvertibleType = 0
-    let skippedCouldNotDerivePath = 0
+    let skippedNonLocalEntity = 0
+    let skippedMissingName = 0
 
     for (const entry of graph) {
       if (!entry || typeof entry !== 'object') continue
@@ -120,22 +123,48 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
         continue
       }
 
-      const relPath =
-        this.computeRelativePathFromDirectoryLabelAndName(entry) ??
-        this.deriveRelativePathFromOldId(oldIdTrim)
-
-      if (!relPath) {
-        skippedCouldNotDerivePath++
+      if (!this.isArpLocalEntityId(oldIdTrim, arpPid)) {
+        skippedNonLocalEntity++
         continue
       }
 
-      const newId = `file://./${relPath}`
+      const relPath = this.computeRelativePathFromDirectoryLabelAndName(entry)
+
+      if (!relPath) {
+        skippedMissingName++
+        continue
+      }
+
+      const newId = relPath
+      const conflictingEntry = graph.find((candidate) => {
+        if (!candidate || typeof candidate !== 'object') {
+          return false
+        }
+        const candidateId =
+          typeof candidate['@id'] === 'string' ? candidate['@id'].trim() : ''
+        if (!candidateId || candidateId === oldIdTrim) {
+          return false
+        }
+        if (idMap.has(candidateId)) {
+          return false
+        }
+        return candidateId === newId
+      })
+
+      if (nextIds.has(newId) || conflictingEntry) {
+        this.messageService.error(
+          `ID localization cannot continue because the generated local path '${newId}' would not be unique.`,
+        )
+        return
+      }
+
+      nextIds.add(newId)
       idMap.set(oldIdTrim, newId)
     }
 
     if (idMap.size === 0) {
       this.messageService.info(
-        `No entities were eligible for conversion. (Skipped root dataset: ${skippedRootDataset}, missing @id: ${skippedNoId}, non-convertible type: ${skippedNonConvertibleType}, could-not-derive-path: ${skippedCouldNotDerivePath})`,
+        `No entities were eligible for conversion. (Skipped root dataset: ${skippedRootDataset}, missing @id: ${skippedNoId}, non-convertible type: ${skippedNonConvertibleType}, non-local id: ${skippedNonLocalEntity}, missing name/path metadata: ${skippedMissingName})`,
       )
       return
     }
@@ -204,13 +233,23 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
     return 'Other'
   }
 
-  private isArpRepositoryCrate(crate: Record<string, any>): boolean {
+  private getRootArpPid(crate: Record<string, any>): string | undefined {
     const rootDataset = this.getRootDataset(crate)
     const arpPid =
       rootDataset && typeof rootDataset['@arpPid'] === 'string'
         ? rootDataset['@arpPid'].trim()
         : ''
-    return Boolean(arpPid)
+    return arpPid || undefined
+  }
+
+  private isArpLocalEntityId(id: string, arpPid: string): boolean {
+    const trimmedId = id.trim()
+    if (!trimmedId || !arpPid) {
+      return false
+    }
+
+    const prefix = `https://w3id.org/arp/ro-id/${arpPid}/file/`
+    return trimmedId.startsWith(prefix) && trimmedId.length > prefix.length
   }
 
   private getRootDataset(crate: Record<string, any>): Record<string, any> | undefined {
@@ -234,9 +273,7 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
   }
 
   /**
-   * Preferred path source: directoryLabel + name
-   * - If directoryLabel missing, uses name only.
-   * - Keeps trailing "/" if name has it.
+   * Localized path source: directoryLabel + "/" + name, or name only.
    */
   private computeRelativePathFromDirectoryLabelAndName(
     entry: Record<string, any>,
@@ -255,30 +292,6 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
     const nameNoLead = name.startsWith('/') ? name.slice(1) : name
 
     return this.normalizeRelPath(`${dirNoTrail}/${nameNoLead}`)
-  }
-
-  /**
-   * Fallback: derive relative path from old @id
-   * Handles:
-   * - "elsokonyvtar/"
-   * - "./path/file.txt"
-   * - "file://./path/file.txt"
-   */
-  private deriveRelativePathFromOldId(oldIdRaw: string): string | undefined {
-    const oldId = oldIdRaw.trim()
-    if (!oldId) return undefined
-
-    let s = oldId
-
-    if (s.startsWith('file://./')) s = s.slice('file://./'.length)
-    else if (s.startsWith('file://')) s = s.slice('file://'.length)
-
-    if (s.startsWith('./')) s = s.slice(2)
-
-    s = s.trim()
-    if (!s) return undefined
-
-    return this.normalizeRelPath(s)
   }
 
   private normalizeRelPath(p: string): string {
