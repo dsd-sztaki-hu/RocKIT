@@ -292,6 +292,21 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     })
   }
 
+  protected override handleEnter(event: KeyboardEvent): boolean | void {
+    const target = event.target
+    if (target instanceof HTMLElement) {
+      const isFormControlContext =
+        Boolean(target.closest('.ant-select')) ||
+        Boolean(target.closest('.ant-select-dropdown')) ||
+        Boolean(target.closest('.ant-input')) ||
+        target.tagName.toLowerCase() === 'input'
+      if (isFormControlContext) {
+        return false
+      }
+    }
+    return super.handleEnter(event)
+  }
+
   protected removeNode(nodeId: string): void {
     if (nodeId === this.draft.root.id) {
       return
