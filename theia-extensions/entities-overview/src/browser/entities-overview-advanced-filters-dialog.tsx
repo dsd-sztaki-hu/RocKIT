@@ -101,6 +101,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
   }
 
   protected renderGroup(group: AdvancedFilterGroupNode, isRoot: boolean): React.ReactNode {
+    const canChooseConjunction = group.children.length > 1
     return (
       <div className={`entities-overview-advanced-group${isRoot ? ' is-root' : ''}`}>
         <div className="entities-overview-advanced-group-header">
@@ -114,12 +115,14 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
             <Button
               type={group.combinator === 'and' ? 'primary' : 'default'}
               onClick={() => this.setGroupCombinator(group.id, 'and')}
+              disabled={!canChooseConjunction}
             >
               And
             </Button>
             <Button
               type={group.combinator === 'or' ? 'primary' : 'default'}
               onClick={() => this.setGroupCombinator(group.id, 'or')}
+              disabled={!canChooseConjunction}
             >
               Or
             </Button>
