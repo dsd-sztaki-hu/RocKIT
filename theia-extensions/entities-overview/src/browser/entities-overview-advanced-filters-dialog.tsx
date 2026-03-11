@@ -137,7 +137,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
             {!isRoot && (
               <button
                 type="button"
-                className="entities-overview-edit-modal-remove"
+                className="entities-overview-edit-modal-remove entities-overview-advanced-group-remove"
                 title="Remove group"
                 aria-label="Remove group"
                 onClick={() => this.removeNode(group.id)}
@@ -203,7 +203,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           style={{ width: 130 }}
           options={OPERATOR_OPTIONS}
         />
-        <div className="entities-overview-edit-modal-value">
+        <div className="entities-overview-edit-modal-value entities-overview-advanced-rule-value">
           {OPERATORS_WITHOUT_VALUE.has(rule.operator) ? (
             <span className="entities-overview-edit-modal-no-value">
               No value required
@@ -218,10 +218,10 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
             />
           )}
         </div>
-        <div className="entities-overview-edit-modal-row-actions">
+        <div className="entities-overview-edit-modal-row-actions entities-overview-advanced-rule-actions">
           <button
             type="button"
-            className="entities-overview-edit-modal-remove"
+            className="entities-overview-edit-modal-remove entities-overview-advanced-rule-remove"
             title="Remove rule"
             aria-label="Remove rule"
             onClick={() => this.removeNode(rule.id)}
