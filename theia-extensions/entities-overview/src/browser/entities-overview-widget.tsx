@@ -31,6 +31,7 @@ import {
 import { AdvancedFiltersDialog } from './entities-overview-advanced-filters-dialog'
 import {
   AdvancedEntityMatcher,
+  ALL_ENTITY_TYPES_OPTION,
   AdvancedFilterState,
   buildAdvancedEntityMatcher,
   buildAdvancedFilterCatalog,
@@ -191,7 +192,11 @@ export class EntitiesOverviewWidget extends TreeWidget {
       activeFilters.entityNameFilter.trim() === '' &&
       selectedTypes.length === 0 &&
       activeFilters.validityFilter === 'all'
-    const isAdvancedClearDisabled = !this.advancedEntityMatcher
+    const isAdvancedClearDisabled =
+      !this.advancedEntityMatcher &&
+      this.advancedFilters.selectedTypeFilters.length === 0 &&
+      this.advancedFilters.entityNameFilter.trim() === '' &&
+      this.advancedFilters.validityFilter === 'all'
     return (
       <AntdThemeProvider themeService={this.themeService}>
         <div className="entities-overview-panel-content">
@@ -719,10 +724,19 @@ export class EntitiesOverviewWidget extends TreeWidget {
   protected async openAdvancedDialog(): Promise<void> {
     const profile = this.appStateService.completeProfile ?? this.appStateService.profile
     const catalog = buildAdvancedFilterCatalog(this.appStateService.roCrate, profile)
-    const dialog = new AdvancedFiltersDialog(catalog, this.advancedFilterState)
+    const availableTypes = this.model.getAvailableTypes()
+    const dialog = new AdvancedFiltersDialog(
+      catalog,
+      this.advancedFilterState,
+      availableTypes,
+    )
     const result = await dialog.open()
     if (result) {
       this.advancedFilterState = result
+      this.advancedFilters.selectedTypeFilters =
+        result.selectedEntityType === ALL_ENTITY_TYPES_OPTION
+          ? []
+          : [result.selectedEntityType]
       this.advancedEntityMatcher = buildAdvancedEntityMatcher(result, catalog)
       this.advancedRuleCount = countActiveAdvancedRules(result, catalog)
       this.applyAdvancedFilters()

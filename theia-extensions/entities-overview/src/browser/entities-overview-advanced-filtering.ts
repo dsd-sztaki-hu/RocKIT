@@ -42,7 +42,10 @@ export interface AdvancedFilterGroupNode {
 
 export type AdvancedFilterNode = AdvancedFilterRuleNode | AdvancedFilterGroupNode
 
+export const ALL_ENTITY_TYPES_OPTION = '__all__'
+
 export interface AdvancedFilterState {
+  selectedEntityType: string
   selectedSchemaIds: string[]
   root: AdvancedFilterGroupNode
 }
@@ -151,6 +154,7 @@ export function buildAdvancedFilterCatalog(
 
 export function cloneAdvancedFilterState(state: AdvancedFilterState): AdvancedFilterState {
   return {
+    selectedEntityType: state.selectedEntityType,
     selectedSchemaIds: [...state.selectedSchemaIds],
     root: cloneGroup(state.root),
   }
@@ -219,6 +223,7 @@ function sanitizeState(
   }
 
   return {
+    selectedEntityType: state.selectedEntityType,
     selectedSchemaIds,
     root,
   }

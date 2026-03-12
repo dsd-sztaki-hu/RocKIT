@@ -2,6 +2,7 @@ import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import * as React from '@theia/core/shared/react'
 import { Alert, Button, Input, Select } from 'antd'
 import {
+  ALL_ENTITY_TYPES_OPTION,
   AdvancedFilterCatalog,
   AdvancedFilterGroupNode,
   AdvancedFilterRuleNode,
@@ -33,6 +34,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
   constructor(
     protected readonly catalog: AdvancedFilterCatalog,
     initialState?: AdvancedFilterState,
+    protected readonly entityTypeOptions: string[] = [],
   ) {
     super({ title: 'Advanced filters' })
     this.fieldsByKey = new Map(
@@ -49,15 +51,22 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
 
   protected initializeState(initial?: AdvancedFilterState): AdvancedFilterState {
     const availableSchemaIds = new Set(this.catalog.schemas.map((schema) => schema.id))
+    const availableEntityTypes = new Set(this.entityTypeOptions)
     const selectedSchemaIds =
       initial?.selectedSchemaIds.filter((schemaId) => availableSchemaIds.has(schemaId)) ??
       []
+    const selectedEntityType =
+      initial?.selectedEntityType &&
+      availableEntityTypes.has(initial.selectedEntityType)
+        ? initial.selectedEntityType
+        : ALL_ENTITY_TYPES_OPTION
 
     const root = initial?.root ? this.cloneGroup(initial.root) : this.createGroup(false)
     if (root.children.length === 0) {
       root.children.push(this.createRule())
     }
     return {
+      selectedEntityType,
       selectedSchemaIds: [...selectedSchemaIds],
       root,
     }
@@ -68,6 +77,25 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
 
     return (
       <div className="entities-overview-advanced-modal-body">
+        <div className="entities-overview-edit-modal-section">
+          <span className="entities-overview-edit-modal-label">Entity type</span>
+          <Select
+            value={this.draft.selectedEntityType}
+            options={[
+              { value: ALL_ENTITY_TYPES_OPTION, label: 'All' },
+              ...this.entityTypeOptions.map((typeLabel) => ({
+                value: typeLabel,
+                label: typeLabel,
+              })),
+            ]}
+            onChange={(value) => this.onEntityTypeSelectionChange(String(value))}
+            placeholder="All"
+            getPopupContainer={() => document.body}
+            classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
+            styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
+            style={{ width: '100%' }}
+          />
+        </div>
         <div className="entities-overview-edit-modal-section">
           <span className="entities-overview-edit-modal-label">Select schemas</span>
           <Select
@@ -240,6 +268,11 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
 
   protected onSchemaSelectionChange(schemaIds: string[]): void {
     this.draft.selectedSchemaIds = [...schemaIds]
+    this.update()
+  }
+
+  protected onEntityTypeSelectionChange(entityType: string): void {
+    this.draft.selectedEntityType = entityType
     this.update()
   }
 
