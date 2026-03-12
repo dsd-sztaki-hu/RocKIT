@@ -8,6 +8,8 @@ import {
   AdvancedFilterRuleNode,
   AdvancedFilterState,
   AdvancedRuleOperator,
+  decodeAdvancedRuleValues,
+  encodeAdvancedRuleValues,
   cloneAdvancedFilterState,
 } from './entities-overview-advanced-filtering'
 
@@ -27,6 +29,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     string,
     AdvancedFilterCatalog['fields'][number]
   >
+  protected readonly graph: Record<string, unknown>[]
+  protected readonly graphById = new Map<string, Record<string, unknown>>()
+  protected readonly ruleSearch = new Map<string, string>()
 
   protected draft: AdvancedFilterState
   protected idCounter = 0
@@ -35,11 +40,21 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     protected readonly catalog: AdvancedFilterCatalog,
     initialState?: AdvancedFilterState,
     protected readonly entityTypeOptions: string[] = [],
+    crate?: Record<string, unknown>,
   ) {
     super({ title: 'Advanced filters' })
     this.fieldsByKey = new Map(
       this.catalog.fields.map((field) => [field.key, field] as const),
     )
+    this.graph = Array.isArray(crate?.['@graph'])
+      ? (crate['@graph'] as Record<string, unknown>[])
+      : []
+    for (const entity of this.graph) {
+      const id = entity['@id']
+      if (typeof id === 'string' && id.trim().length > 0) {
+        this.graphById.set(id, entity)
+      }
+    }
     this.draft = this.initializeState(initialState)
     this.appendCloseButton('Close')
     this.appendAcceptButton('Apply')
@@ -237,13 +252,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
               No value required
             </span>
           ) : (
-            <Input
-              value={rule.value}
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                this.setRuleValue(rule.id, event.target.value)
-              }
-              placeholder="Enter string"
-            />
+            this.renderRuleValueEditor(rule, selectedField)
           )}
         </div>
         <div className="entities-overview-edit-modal-row-actions entities-overview-advanced-rule-actions">
@@ -308,6 +317,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
       rule.fieldKey = fieldKey
       rule.value = ''
     })
+    this.ruleSearch.delete(ruleId)
   }
 
   protected setRuleOperator(ruleId: string, operator: AdvancedRuleOperator): void {
@@ -315,6 +325,11 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
       rule.operator = operator
       if (OPERATORS_WITHOUT_VALUE.has(operator)) {
         rule.value = ''
+        return
+      }
+      const values = decodeAdvancedRuleValues(rule.value)
+      if (values.length > 1 && !this.supportsMultiObjectSelection(operator)) {
+        rule.value = values[0]
       }
     })
   }
@@ -351,7 +366,273 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     if (this.draft.root.children.length === 0) {
       this.draft.root.children.push(this.createRule())
     }
+    this.ruleSearch.clear()
     this.update()
+  }
+
+  protected renderRuleValueEditor(
+    rule: AdvancedFilterRuleNode,
+    field: AdvancedFilterCatalog['fields'][number] | undefined,
+  ): React.ReactNode {
+    if (!field) {
+      return <Input disabled placeholder="Select field first" />
+    }
+
+    if (field.expectsObjectValue) {
+      return this.renderObjectValueEditor(rule, field)
+    }
+
+    return (
+      <Input
+        value={rule.value}
+        onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+          this.setRuleValue(rule.id, event.target.value)
+        }
+        placeholder="Enter string"
+      />
+    )
+  }
+
+  protected renderObjectValueEditor(
+    rule: AdvancedFilterRuleNode,
+    field: AdvancedFilterCatalog['fields'][number],
+  ): React.ReactNode {
+    const searchText = this.ruleSearch.get(rule.id) ?? ''
+    const options = this.getExistingObjectOptions(field, searchText)
+    const isMultiSelect = this.supportsMultiObjectSelection(rule.operator)
+    const selectedValues = decodeAdvancedRuleValues(rule.value)
+    const selectedValue = isMultiSelect
+      ? selectedValues
+      : selectedValues[0] ?? undefined
+    return (
+      <Select
+        className="entities-overview-advanced-object-select"
+        value={selectedValue}
+        onChange={(value) => {
+          if (Array.isArray(value)) {
+            const stringValues = value.map((item) => String(item))
+            this.setRuleValue(rule.id, encodeAdvancedRuleValues(stringValues))
+            return
+          }
+          this.setRuleValue(
+            rule.id,
+            encodeAdvancedRuleValues([String(value ?? '')]),
+          )
+        }}
+        showSearch
+        onSearch={(value: string) => this.setRuleSearch(rule.id, value)}
+        filterOption={false}
+        allowClear
+        mode={isMultiSelect ? 'multiple' : undefined}
+        maxTagCount={isMultiSelect ? 'responsive' : undefined}
+        placeholder={
+          options.length > 0
+            ? isMultiSelect
+              ? 'Select one or more existing objects'
+              : 'Search existing objects'
+            : 'No existing object values found'
+        }
+        getPopupContainer={() => document.body}
+        classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
+        styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
+        options={options}
+        notFoundContent={
+          <span className="entities-overview-entity-no-data">No matches</span>
+        }
+      />
+    )
+  }
+
+  protected supportsMultiObjectSelection(operator: AdvancedRuleOperator): boolean {
+    return (
+      operator === 'equal' ||
+      operator === 'not_equal' ||
+      operator === 'contains' ||
+      operator === 'not_contains'
+    )
+  }
+
+  protected setRuleSearch(ruleId: string, value: string): void {
+    this.ruleSearch.set(ruleId, value)
+    this.update()
+  }
+
+  protected getExistingObjectOptions(
+    field: AdvancedFilterCatalog['fields'][number],
+    searchText: string,
+  ): { value: string; label: React.ReactNode; title?: string }[] {
+    const normalizedSearch = searchText.trim().toLowerCase()
+    const uniqueValues = new Map<
+      string,
+      { label: React.ReactNode; title: string; searchIndex: string }
+    >()
+
+    for (const entity of this.graph) {
+      if (!this.entitySupportsField(entity, field)) {
+        continue
+      }
+      const rawFieldValue = entity[field.propertyName]
+      for (const objectValue of this.extractObjectValues(rawFieldValue)) {
+        const comparable = this.toComparableObjectValue(objectValue)
+        if (!comparable || uniqueValues.has(comparable)) {
+          continue
+        }
+        const descriptor = this.describeObjectOption(objectValue, comparable)
+        uniqueValues.set(comparable, descriptor)
+      }
+    }
+
+    return Array.from(uniqueValues.entries())
+      .filter(([, descriptor]) => {
+        if (!normalizedSearch) {
+          return true
+        }
+        return descriptor.searchIndex.includes(normalizedSearch)
+      })
+      .sort(([, a], [, b]) => a.title.localeCompare(b.title))
+      .map(([value, descriptor]) => ({
+        value,
+        label: descriptor.label,
+        title: descriptor.title,
+      }))
+  }
+
+  protected entitySupportsField(
+    entity: Record<string, unknown>,
+    field: AdvancedFilterCatalog['fields'][number],
+  ): boolean {
+    if (field.supportedClasses.length === 0) {
+      return true
+    }
+    return this.getEntityTypeNames(entity).some((typeName) =>
+      field.supportedClasses.includes(typeName),
+    )
+  }
+
+  protected getEntityTypeNames(entity: Record<string, unknown>): string[] {
+    const rawType = entity['@type']
+    const candidates = Array.isArray(rawType) ? rawType : rawType ? [rawType] : []
+    const names: string[] = []
+    const seen = new Set<string>()
+    for (const candidate of candidates) {
+      const typeName = this.toTypeTail(String(candidate))
+      if (!typeName || typeName === 'CreativeWork' || seen.has(typeName)) {
+        continue
+      }
+      seen.add(typeName)
+      names.push(typeName)
+    }
+    return names
+  }
+
+  protected toTypeTail(typeName: string): string {
+    const trimmed = typeName.trim()
+    if (!trimmed) {
+      return ''
+    }
+    const slashIndex = trimmed.lastIndexOf('/')
+    const hashIndex = trimmed.lastIndexOf('#')
+    const cut = Math.max(slashIndex, hashIndex)
+    if (cut < 0) {
+      return trimmed
+    }
+    return trimmed.slice(cut + 1)
+  }
+
+  protected extractObjectValues(value: unknown): Record<string, unknown>[] {
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => this.extractObjectValues(item))
+    }
+    if (value && typeof value === 'object') {
+      return [value as Record<string, unknown>]
+    }
+    return []
+  }
+
+  protected toComparableObjectValue(value: Record<string, unknown>): string {
+    if (typeof value['@id'] === 'string' && value['@id'].trim().length > 0) {
+      return value['@id'].trim()
+    }
+    if (value['@value'] !== undefined && value['@value'] !== null) {
+      return String(value['@value']).trim()
+    }
+    if (typeof value.name === 'string' && value.name.trim().length > 0) {
+      return value.name.trim()
+    }
+    return this.stableStringify(value)
+  }
+
+  protected stableStringify(value: unknown): string {
+    if (value === null || value === undefined) {
+      return ''
+    }
+    if (Array.isArray(value)) {
+      return `[${value.map((item) => this.stableStringify(item)).join(',')}]`
+    }
+    if (typeof value !== 'object') {
+      return JSON.stringify(value)
+    }
+    const objectValue = value as Record<string, unknown>
+    const keys = Object.keys(objectValue).sort((a, b) => a.localeCompare(b))
+    return `{${keys
+      .map((key) => `${JSON.stringify(key)}:${this.stableStringify(objectValue[key])}`)
+      .join(',')}}`
+  }
+
+  protected describeObjectOption(
+    value: Record<string, unknown>,
+    comparableValue: string,
+  ): { label: React.ReactNode; title: string; searchIndex: string } {
+    const idValue =
+      typeof value['@id'] === 'string' && value['@id'].trim().length > 0
+        ? value['@id'].trim()
+        : undefined
+    if (idValue) {
+      const referencedEntity = this.graphById.get(idValue)
+      if (referencedEntity) {
+        const rawType = this.getEntityTypeNames(referencedEntity)[0] ?? 'Entity'
+        const typeLabel = this.formatTypeLabel(rawType)
+        const displayName = this.getEntityDisplayName(referencedEntity)
+        const searchIndex = `${displayName} ${idValue} ${typeLabel}`.toLowerCase()
+        return {
+          label: (
+            <span className="entities-overview-entity-option">
+              <span className="entities-overview-entity-option-type">{typeLabel}</span>
+              <span className="entities-overview-entity-option-name">{displayName}</span>
+            </span>
+          ),
+          title: idValue,
+          searchIndex,
+        }
+      }
+    }
+
+    const textValue = comparableValue || this.stableStringify(value)
+    const display = textValue || '(empty object)'
+    return {
+      label: (
+        <span className="entities-overview-entity-option">
+          <span className="entities-overview-entity-option-type">Object</span>
+          <span className="entities-overview-entity-option-name">{display}</span>
+        </span>
+      ),
+      title: display,
+      searchIndex: display.toLowerCase(),
+    }
+  }
+
+  protected getEntityDisplayName(entity: Record<string, unknown>): string {
+    const value = entity.name ?? entity.title ?? entity.label ?? entity['@id']
+    const text = String(value ?? '').trim()
+    return text.length > 0 ? text : '(unnamed)'
+  }
+
+  protected formatTypeLabel(typeName: string): string {
+    const tail = this.toTypeTail(typeName)
+    if (!tail) {
+      return 'Entity'
+    }
+    return tail.charAt(0).toUpperCase() + tail.slice(1)
   }
 
   protected updateGroup(

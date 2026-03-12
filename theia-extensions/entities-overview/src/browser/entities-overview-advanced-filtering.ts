@@ -22,6 +22,8 @@ export interface AdvancedFieldDefinition {
   propertyName: string
   help?: string
   supportedClasses: string[]
+  entityTypes: string[]
+  expectsObjectValue: boolean
 }
 
 export interface AdvancedFilterRuleNode {
@@ -65,6 +67,7 @@ interface SchemaMeta {
 }
 
 const OPERATORS_WITHOUT_VALUE = new Set<AdvancedRuleOperator>(['is_null', 'is_not_null'])
+const MULTI_VALUE_PREFIX = '__advanced_multi__:'
 
 /**
  * Builds advanced-filter field/schema catalog using the same profile layout grouping
@@ -102,6 +105,8 @@ export function buildAdvancedFilterCatalog(
       if (!propertyName) {
         continue
       }
+      const entityTypes = extractEntityTypes(input, classes)
+      const expectsObjectValue = resolveExpectsObjectValue(input, classes, entityTypes)
 
       const schemaMeta = resolveSchemaMeta(layout, getFieldGroup(input))
       if (schemaMeta.selectable && !schemasById.has(schemaMeta.id)) {
@@ -123,6 +128,12 @@ export function buildAdvancedFilterCatalog(
         const supported = new Set(existing.supportedClasses)
         supported.add(className)
         existing.supportedClasses = Array.from(supported.values())
+        const mergedEntityTypes = new Set(existing.entityTypes)
+        for (const typeName of entityTypes) {
+          mergedEntityTypes.add(typeName)
+        }
+        existing.entityTypes = Array.from(mergedEntityTypes.values())
+        existing.expectsObjectValue = existing.expectsObjectValue || expectsObjectValue
         continue
       }
 
@@ -134,6 +145,8 @@ export function buildAdvancedFilterCatalog(
         propertyName,
         help: typeof input?.help === 'string' ? input.help : undefined,
         supportedClasses: [className],
+        entityTypes,
+        expectsObjectValue,
       })
     }
   }
@@ -260,7 +273,7 @@ function sanitizeGroup(
       })
       continue
     }
-    if (!child.value.trim()) {
+    if (decodeAdvancedRuleValues(child.value).length === 0) {
       continue
     }
     children.push({
@@ -317,7 +330,10 @@ function evaluateRule(
   const values = getComparableValues(entity, field)
   const hasValue = values.length > 0
   const normalizedValues = values.map((value) => value.toLocaleLowerCase())
-  const query = rule.value.trim().toLocaleLowerCase()
+  const queries = decodeAdvancedRuleValues(rule.value).map((value) =>
+    value.toLocaleLowerCase(),
+  )
+  const query = queries[0] ?? ''
 
   switch (rule.operator) {
     case 'is_null':
@@ -325,12 +341,34 @@ function evaluateRule(
     case 'is_not_null':
       return hasValue
     case 'equal':
+      if (field.expectsObjectValue) {
+        return hasExactValueSetMatch(normalizedValues, queries)
+      }
+      if (queries.length > 1) {
+        return queries.every((value) => normalizedValues.includes(value))
+      }
       return normalizedValues.some((value) => value === query)
     case 'not_equal':
+      if (field.expectsObjectValue) {
+        return !hasExactValueSetMatch(normalizedValues, queries)
+      }
+      if (queries.length > 1) {
+        return !queries.every((value) => normalizedValues.includes(value))
+      }
       return normalizedValues.every((value) => value !== query)
     case 'contains':
+      if (queries.length > 1) {
+        return queries.every((queryValue) =>
+          normalizedValues.some((value) => value.includes(queryValue)),
+        )
+      }
       return normalizedValues.some((value) => value.includes(query))
     case 'not_contains':
+      if (queries.length > 1) {
+        return queries.every((queryValue) =>
+          normalizedValues.every((value) => !value.includes(queryValue)),
+        )
+      }
       return normalizedValues.every((value) => !value.includes(query))
     default:
       return false
@@ -372,7 +410,8 @@ function flattenComparableValues(rawValue: unknown): string[] {
     if (typeof asObj.name === 'string' && asObj.name.trim()) {
       return [asObj.name.trim()]
     }
-    return []
+    const stable = stableStringify(asObj)
+    return stable ? [stable] : []
   }
 
   const value = String(rawValue).trim()
@@ -488,11 +527,152 @@ function normalizeSchemaId(label: string): string {
   return label.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
+function hasExactValueSetMatch(values: string[], queries: string[]): boolean {
+  const valueSet = new Set(values.map((value) => value.trim()).filter(Boolean))
+  const querySet = new Set(queries.map((query) => query.trim()).filter(Boolean))
+  if (valueSet.size !== querySet.size) {
+    return false
+  }
+  for (const queryValue of querySet) {
+    if (!valueSet.has(queryValue)) {
+      return false
+    }
+  }
+  return true
+}
+
+export function encodeAdvancedRuleValues(values: string[]): string {
+  const normalized = values
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+  if (normalized.length === 0) {
+    return ''
+  }
+  if (normalized.length === 1) {
+    return normalized[0]
+  }
+  return `${MULTI_VALUE_PREFIX}${JSON.stringify(normalized)}`
+}
+
+export function decodeAdvancedRuleValues(rawValue: string): string[] {
+  const value = String(rawValue ?? '').trim()
+  if (!value) {
+    return []
+  }
+  if (!value.startsWith(MULTI_VALUE_PREFIX)) {
+    return [value]
+  }
+
+  const payload = value.slice(MULTI_VALUE_PREFIX.length)
+  try {
+    const parsed = JSON.parse(payload)
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+    return parsed
+      .map((item) => String(item ?? '').trim())
+      .filter((item) => item.length > 0)
+  } catch {
+    return []
+  }
+}
+
+function extractEntityTypes(
+  input: Record<string, unknown>,
+  classes: Record<string, unknown>,
+): string[] {
+  const rawType = input.type
+  const typeValues = Array.isArray(rawType) ? rawType : rawType ? [rawType] : []
+  const entityTypes = new Set<string>()
+  for (const typeValue of typeValues) {
+    const tail = toTypeTail(String(typeValue))
+    const classDef = tail ? asRecord(classes[tail]) : undefined
+    if (tail && classDef && Array.isArray(classDef.inputs)) {
+      entityTypes.add(tail)
+    }
+  }
+  return Array.from(entityTypes.values())
+}
+
+function resolveExpectsObjectValue(
+  input: Record<string, unknown>,
+  classes: Record<string, unknown>,
+  entityTypes: string[],
+): boolean {
+  if (entityTypes.length > 0) {
+    return true
+  }
+
+  if (Array.isArray(input.values) && input.values.length > 0) {
+    return false
+  }
+
+  const rawType = input.type
+  const typeValues = Array.isArray(rawType) ? rawType : rawType ? [rawType] : []
+  if (typeValues.length === 0) {
+    return false
+  }
+
+  for (const typeValue of typeValues) {
+    const raw = String(typeValue).trim()
+    if (!raw) {
+      continue
+    }
+    const tail = toTypeTail(raw)
+    if (tail && classes[tail]) {
+      return true
+    }
+    if (!isScalarType(raw)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function isScalarType(typeName: string): boolean {
+  const normalized = typeName.toLowerCase()
+  return (
+    normalized.includes('string') ||
+    normalized.includes('token') ||
+    normalized.includes('langstring') ||
+    normalized.includes('uri') ||
+    normalized.includes('int') ||
+    normalized.includes('integer') ||
+    normalized.includes('float') ||
+    normalized.includes('double') ||
+    normalized.includes('decimal') ||
+    normalized.includes('number') ||
+    normalized.includes('boolean') ||
+    normalized.includes('date') ||
+    normalized.includes('time')
+  )
+}
+
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>
   }
   return undefined
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || value === undefined) {
+    return ''
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`
+  }
+  if (typeof value !== 'object') {
+    return JSON.stringify(value)
+  }
+
+  const objectValue = value as Record<string, unknown>
+  const keys = Object.keys(objectValue).sort((a, b) => a.localeCompare(b))
+  const entries = keys.map(
+    (key) => `${JSON.stringify(key)}:${stableStringify(objectValue[key])}`,
+  )
+  return `{${entries.join(',')}}`
 }
 
 function cloneGroup(group: AdvancedFilterGroupNode): AdvancedFilterGroupNode {

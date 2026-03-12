@@ -1027,6 +1027,36 @@ body.entities-overview-filters-visible
   font-size: 10px;
 }
 
+.entities-overview-advanced-rule-value
+  .entities-overview-advanced-object-select.ant-select
+  .ant-select-selector {
+  height: 36px !important;
+  min-height: 36px !important;
+  display: flex;
+  align-items: center;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.entities-overview-advanced-rule-value
+  .entities-overview-advanced-object-select.ant-select-multiple
+  .ant-select-selection-overflow {
+  align-items: center;
+  row-gap: 0;
+}
+
+.entities-overview-advanced-rule-value
+  .entities-overview-advanced-object-select.ant-select-multiple
+  .ant-select-selection-search {
+  align-self: center;
+}
+
+.entities-overview-advanced-rule-value
+  .entities-overview-advanced-object-select.ant-select-multiple
+  .ant-select-selection-search-input {
+  height: 30px !important;
+}
+
 .entities-overview-entity-tag {
   display: inline-flex;
   align-items: center;

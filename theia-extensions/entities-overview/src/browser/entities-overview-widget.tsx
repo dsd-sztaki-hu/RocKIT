@@ -729,6 +729,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
       catalog,
       this.advancedFilterState,
       availableTypes,
+      this.appStateService.roCrate,
     )
     const result = await dialog.open()
     if (result) {
