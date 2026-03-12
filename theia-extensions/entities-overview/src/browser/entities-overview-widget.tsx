@@ -738,7 +738,11 @@ export class EntitiesOverviewWidget extends TreeWidget {
         result.selectedEntityType === ALL_ENTITY_TYPES_OPTION
           ? []
           : [result.selectedEntityType]
-      this.advancedEntityMatcher = buildAdvancedEntityMatcher(result, catalog)
+      this.advancedEntityMatcher = buildAdvancedEntityMatcher(
+        result,
+        catalog,
+        this.appStateService.roCrate,
+      )
       this.advancedRuleCount = countActiveAdvancedRules(result, catalog)
       this.applyAdvancedFilters()
     }

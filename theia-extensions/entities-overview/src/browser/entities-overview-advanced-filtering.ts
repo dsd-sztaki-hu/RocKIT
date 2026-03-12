@@ -7,6 +7,7 @@ export type AdvancedRuleOperator =
   | 'not_contains'
   | 'is_null'
   | 'is_not_null'
+  | 'fields'
 
 export interface AdvancedSchemaOption {
   id: string
@@ -24,6 +25,7 @@ export interface AdvancedFieldDefinition {
   supportedClasses: string[]
   entityTypes: string[]
   expectsObjectValue: boolean
+  objectSubfields: AdvancedFieldDefinition[]
 }
 
 export interface AdvancedFilterRuleNode {
@@ -32,6 +34,8 @@ export interface AdvancedFilterRuleNode {
   fieldKey?: string
   operator: AdvancedRuleOperator
   value: string
+  fieldsMode?: 'all' | 'any'
+  fieldsRoot?: AdvancedFilterGroupNode
 }
 
 export interface AdvancedFilterGroupNode {
@@ -107,6 +111,9 @@ export function buildAdvancedFilterCatalog(
       }
       const entityTypes = extractEntityTypes(input, classes)
       const expectsObjectValue = resolveExpectsObjectValue(input, classes, entityTypes)
+      const objectSubfields = expectsObjectValue
+        ? buildObjectSubfields(entityTypes, classes)
+        : []
 
       const schemaMeta = resolveSchemaMeta(layout, getFieldGroup(input))
       if (schemaMeta.selectable && !schemasById.has(schemaMeta.id)) {
@@ -134,6 +141,17 @@ export function buildAdvancedFilterCatalog(
         }
         existing.entityTypes = Array.from(mergedEntityTypes.values())
         existing.expectsObjectValue = existing.expectsObjectValue || expectsObjectValue
+        const mergedSubfields = new Map(
+          existing.objectSubfields.map((subfield) => [subfield.key, subfield] as const),
+        )
+        for (const subfield of objectSubfields) {
+          if (!mergedSubfields.has(subfield.key)) {
+            mergedSubfields.set(subfield.key, subfield)
+          }
+        }
+        existing.objectSubfields = Array.from(mergedSubfields.values()).sort((a, b) =>
+          a.label.localeCompare(b.label),
+        )
         continue
       }
 
@@ -147,6 +165,7 @@ export function buildAdvancedFilterCatalog(
         supportedClasses: [className],
         entityTypes,
         expectsObjectValue,
+        objectSubfields,
       })
     }
   }
@@ -180,7 +199,10 @@ export function countActiveAdvancedRules(
   if (!state) {
     return 0
   }
-  const sanitized = sanitizeState(state, catalog)
+  const fieldsByKey = new Map(
+    catalog.fields.map((field) => [field.key, field] as const),
+  )
+  const sanitized = sanitizeState(state, catalog, fieldsByKey)
   if (!sanitized) {
     return 0
   }
@@ -190,28 +212,45 @@ export function countActiveAdvancedRules(
 export function buildAdvancedEntityMatcher(
   state: AdvancedFilterState | undefined,
   catalog: AdvancedFilterCatalog,
+  crate?: Record<string, unknown>,
 ): AdvancedEntityMatcher | undefined {
   if (!state) {
     return undefined
   }
 
-  const sanitized = sanitizeState(state, catalog)
+  const fieldsByKey = new Map(
+    catalog.fields.map((field) => [field.key, field] as const),
+  )
+
+  const sanitized = sanitizeState(state, catalog, fieldsByKey)
   if (!sanitized || sanitized.root.children.length === 0) {
     return undefined
   }
 
-  const fieldsByKey = new Map(
+  const activeFieldsByKey = new Map(
     catalog.fields
       .filter((field) => sanitized.selectedSchemaIds.includes(field.schemaId))
       .map((field) => [field.key, field] as const),
   )
 
-  return (entity) => evaluateGroup(entity, sanitized.root, fieldsByKey)
+  const entityById = new Map<string, Record<string, unknown>>()
+  const graph = Array.isArray(crate?.['@graph'])
+    ? (crate?.['@graph'] as Record<string, unknown>[])
+    : []
+  for (const graphEntity of graph) {
+    const id = graphEntity['@id']
+    if (typeof id === 'string' && id.trim().length > 0) {
+      entityById.set(id, graphEntity)
+    }
+  }
+
+  return (entity) => evaluateGroup(entity, sanitized.root, activeFieldsByKey, entityById)
 }
 
 function sanitizeState(
   state: AdvancedFilterState,
   catalog: AdvancedFilterCatalog,
+  fieldsByKey: Map<string, AdvancedFieldDefinition>,
 ): AdvancedFilterState | undefined {
   const schemaIds = new Set(catalog.schemas.map((schema) => schema.id))
   const selectedSchemaIds = state.selectedSchemaIds.filter((schemaId) =>
@@ -230,7 +269,7 @@ function sanitizeState(
     return undefined
   }
 
-  const root = sanitizeGroup(state.root, allowedFieldIds)
+  const root = sanitizeGroup(state.root, allowedFieldIds, fieldsByKey)
   if (!root || root.children.length === 0) {
     return undefined
   }
@@ -245,6 +284,7 @@ function sanitizeState(
 function sanitizeGroup(
   group: AdvancedFilterGroupNode | undefined,
   allowedFieldIds: Set<string>,
+  fieldsByKey: Map<string, AdvancedFieldDefinition>,
 ): AdvancedFilterGroupNode | undefined {
   if (!group || group.kind !== 'group') {
     return undefined
@@ -253,7 +293,7 @@ function sanitizeGroup(
   const children: AdvancedFilterNode[] = []
   for (const child of group.children) {
     if (child.kind === 'group') {
-      const sanitizedGroup = sanitizeGroup(child, allowedFieldIds)
+      const sanitizedGroup = sanitizeGroup(child, allowedFieldIds, fieldsByKey)
       if (sanitizedGroup && sanitizedGroup.children.length > 0) {
         children.push(sanitizedGroup)
       }
@@ -263,6 +303,37 @@ function sanitizeGroup(
     if (!child.fieldKey || !allowedFieldIds.has(child.fieldKey)) {
       continue
     }
+    const field = fieldsByKey.get(child.fieldKey)
+    if (!field) {
+      continue
+    }
+    if (child.operator === 'fields') {
+      if (!field.expectsObjectValue || field.objectSubfields.length === 0) {
+        continue
+      }
+      const subfieldIds = new Set(field.objectSubfields.map((item) => item.key))
+      const subfieldsByKey = new Map(
+        field.objectSubfields.map((item) => [item.key, item] as const),
+      )
+      const sanitizedFieldsRoot = sanitizeGroup(
+        child.fieldsRoot,
+        subfieldIds,
+        subfieldsByKey,
+      )
+      if (!sanitizedFieldsRoot || sanitizedFieldsRoot.children.length === 0) {
+        continue
+      }
+      children.push({
+        id: child.id,
+        kind: 'rule',
+        fieldKey: child.fieldKey,
+        operator: 'fields',
+        value: '',
+        fieldsMode: 'all',
+        fieldsRoot: sanitizedFieldsRoot,
+      })
+      continue
+    }
     if (OPERATORS_WITHOUT_VALUE.has(child.operator)) {
       children.push({
         id: child.id,
@@ -270,6 +341,8 @@ function sanitizeGroup(
         fieldKey: child.fieldKey,
         operator: child.operator,
         value: '',
+        fieldsMode: undefined,
+        fieldsRoot: undefined,
       })
       continue
     }
@@ -282,6 +355,8 @@ function sanitizeGroup(
       fieldKey: child.fieldKey,
       operator: child.operator,
       value: child.value,
+      fieldsMode: undefined,
+      fieldsRoot: undefined,
     })
   }
 
@@ -298,15 +373,16 @@ function evaluateGroup(
   entity: Record<string, unknown>,
   group: AdvancedFilterGroupNode,
   fieldsByKey: Map<string, AdvancedFieldDefinition>,
+  entityById: Map<string, Record<string, unknown>>,
 ): boolean {
   if (group.children.length === 0) {
     return true
   }
   const results = group.children.map((child) => {
     if (child.kind === 'group') {
-      return evaluateGroup(entity, child, fieldsByKey)
+      return evaluateGroup(entity, child, fieldsByKey, entityById)
     }
-    return evaluateRule(entity, child, fieldsByKey)
+    return evaluateRule(entity, child, fieldsByKey, entityById)
   })
 
   const value =
@@ -318,6 +394,7 @@ function evaluateRule(
   entity: Record<string, unknown>,
   rule: AdvancedFilterRuleNode,
   fieldsByKey: Map<string, AdvancedFieldDefinition>,
+  entityById: Map<string, Record<string, unknown>>,
 ): boolean {
   if (!rule.fieldKey) {
     return false
@@ -325,6 +402,22 @@ function evaluateRule(
   const field = fieldsByKey.get(rule.fieldKey)
   if (!field) {
     return false
+  }
+  if (rule.operator === 'fields') {
+    if (!rule.fieldsRoot || field.objectSubfields.length === 0) {
+      return false
+    }
+    const nestedFieldsByKey = new Map(
+      field.objectSubfields.map((subfield) => [subfield.key, subfield] as const),
+    )
+    const objectEntities = resolveObjectEntities(entity[field.propertyName], entityById)
+    if (objectEntities.length === 0) {
+      return false
+    }
+    const results = objectEntities.map((item) =>
+      evaluateGroup(item, rule.fieldsRoot!, nestedFieldsByKey, entityById),
+    )
+    return results.every(Boolean)
   }
 
   const values = getComparableValues(entity, field)
@@ -416,6 +509,30 @@ function flattenComparableValues(rawValue: unknown): string[] {
 
   const value = String(rawValue).trim()
   return value ? [value] : []
+}
+
+function resolveObjectEntities(
+  rawValue: unknown,
+  entityById: Map<string, Record<string, unknown>>,
+): Record<string, unknown>[] {
+  if (rawValue === null || rawValue === undefined) {
+    return []
+  }
+  if (Array.isArray(rawValue)) {
+    return rawValue.flatMap((item) => resolveObjectEntities(item, entityById))
+  }
+  if (typeof rawValue === 'object') {
+    const asObj = rawValue as Record<string, unknown>
+    if (typeof asObj['@id'] === 'string') {
+      const idValue = asObj['@id'].trim()
+      const resolved = idValue ? entityById.get(idValue) : undefined
+      if (resolved) {
+        return [resolved]
+      }
+    }
+    return [asObj]
+  }
+  return []
 }
 
 function collectEntityTypes(
@@ -594,6 +711,48 @@ function extractEntityTypes(
   return Array.from(entityTypes.values())
 }
 
+function buildObjectSubfields(
+  entityTypes: string[],
+  classes: Record<string, unknown>,
+): AdvancedFieldDefinition[] {
+  const subfieldsByKey = new Map<string, AdvancedFieldDefinition>()
+  for (const entityType of entityTypes) {
+    const classDef = asRecord(classes[entityType])
+    if (!classDef) {
+      continue
+    }
+    const inputs = Array.isArray(classDef.inputs)
+      ? (classDef.inputs as Record<string, unknown>[])
+      : []
+    for (const input of inputs) {
+      const propertyName =
+        typeof input?.name === 'string' ? String(input.name).trim() : ''
+      if (!propertyName) {
+        continue
+      }
+      const key = `${entityType}::${propertyName}`
+      if (subfieldsByKey.has(key)) {
+        continue
+      }
+      subfieldsByKey.set(key, {
+        key,
+        label: String(input?.label ?? propertyName),
+        schemaId: '__object_fields__',
+        schemaLabel: entityType,
+        propertyName,
+        help: typeof input?.help === 'string' ? input.help : undefined,
+        supportedClasses: [],
+        entityTypes: [],
+        expectsObjectValue: false,
+        objectSubfields: [],
+      })
+    }
+  }
+  return Array.from(subfieldsByKey.values()).sort((a, b) =>
+    a.label.localeCompare(b.label),
+  )
+}
+
 function resolveExpectsObjectValue(
   input: Record<string, unknown>,
   classes: Record<string, unknown>,
@@ -633,6 +792,10 @@ function resolveExpectsObjectValue(
 function isScalarType(typeName: string): boolean {
   const normalized = typeName.toLowerCase()
   return (
+    normalized === 'text' ||
+    normalized === 'textarea' ||
+    normalized === 'select' ||
+    normalized === 'url' ||
     normalized.includes('string') ||
     normalized.includes('token') ||
     normalized.includes('langstring') ||
@@ -690,6 +853,8 @@ function cloneGroup(group: AdvancedFilterGroupNode): AdvancedFilterGroupNode {
             fieldKey: child.fieldKey,
             operator: child.operator,
             value: child.value,
+            fieldsMode: child.fieldsMode,
+            fieldsRoot: child.fieldsRoot ? cloneGroup(child.fieldsRoot) : undefined,
           },
     ),
   }
@@ -702,6 +867,9 @@ function countRules(group: AdvancedFilterGroupNode): number {
       count += countRules(child)
     } else {
       count += 1
+      if (child.fieldsRoot) {
+        count += countRules(child.fieldsRoot)
+      }
     }
   }
   return count

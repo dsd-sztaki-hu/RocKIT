@@ -13,13 +13,18 @@ import {
   cloneAdvancedFilterState,
 } from './entities-overview-advanced-filtering'
 
-const OPERATOR_OPTIONS: { value: AdvancedRuleOperator; label: string }[] = [
+const BASE_OPERATOR_OPTIONS: { value: AdvancedRuleOperator; label: string }[] = [
   { value: 'equal', label: '==' },
   { value: 'not_equal', label: '!=' },
   { value: 'contains', label: 'Contains' },
   { value: 'not_contains', label: 'Not contains' },
   { value: 'is_null', label: 'Is null' },
   { value: 'is_not_null', label: 'Is not null' },
+]
+
+const OBJECT_OPERATOR_OPTIONS: { value: AdvancedRuleOperator; label: string }[] = [
+  ...BASE_OPERATOR_OPTIONS,
+  { value: 'fields', label: 'Fields' },
 ]
 
 const OPERATORS_WITHOUT_VALUE = new Set<AdvancedRuleOperator>(['is_null', 'is_not_null'])
@@ -222,6 +227,10 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
       })
     }
 
+    if (rule.operator === 'fields' && selectedField?.expectsObjectValue) {
+      return this.renderFieldsRule(rule, selectedField, visibleFields)
+    }
+
     return (
       <div className="entities-overview-edit-modal-row entities-overview-advanced-rule-row">
         <Select
@@ -244,10 +253,12 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           getPopupContainer={() => document.body}
           classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
           style={{ width: 130 }}
-          options={OPERATOR_OPTIONS}
+          options={this.getOperatorOptions(selectedField, false)}
         />
         <div className="entities-overview-edit-modal-value entities-overview-advanced-rule-value">
-          {OPERATORS_WITHOUT_VALUE.has(rule.operator) ? (
+          {rule.operator === 'fields' && selectedField?.expectsObjectValue ? (
+            this.renderFieldsOperatorEditor(rule, selectedField)
+          ) : OPERATORS_WITHOUT_VALUE.has(rule.operator) ? (
             <span className="entities-overview-edit-modal-no-value">
               No value required
             </span>
@@ -313,20 +324,55 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
   }
 
   protected setRuleField(ruleId: string, fieldKey: string): void {
-    this.updateRule(ruleId, (rule) => {
-      rule.fieldKey = fieldKey
-      rule.value = ''
-    })
+    const rule = this.findRule(this.draft.root, ruleId)
+    if (!rule) {
+      return
+    }
+    const selectedField = this.fieldsByKey.get(fieldKey)
+    const keepFieldsMode = rule.operator === 'fields' && Boolean(selectedField?.expectsObjectValue)
+    rule.fieldKey = fieldKey
+    rule.value = ''
+    if (keepFieldsMode) {
+      rule.operator = 'fields'
+      rule.fieldsMode = 'all'
+      rule.fieldsRoot = this.createGroup(true)
+    } else {
+      rule.operator = 'equal'
+      rule.fieldsMode = undefined
+      rule.fieldsRoot = undefined
+    }
+
+    if (selectedField?.expectsObjectValue && !keepFieldsMode) {
+      this.wrapRuleIntoOwnGroup(ruleId)
+    }
     this.ruleSearch.delete(ruleId)
+    this.update()
   }
 
   protected setRuleOperator(ruleId: string, operator: AdvancedRuleOperator): void {
     this.updateRule(ruleId, (rule) => {
+      if (operator === 'fields') {
+        const selectedField = rule.fieldKey ? this.fieldsByKey.get(rule.fieldKey) : undefined
+        if (!selectedField?.expectsObjectValue) {
+          return
+        }
+        rule.operator = 'fields'
+        rule.value = ''
+        rule.fieldsMode = 'all'
+        if (!rule.fieldsRoot) {
+          rule.fieldsRoot = this.createGroup(true)
+        }
+        return
+      }
       rule.operator = operator
       if (OPERATORS_WITHOUT_VALUE.has(operator)) {
         rule.value = ''
+        rule.fieldsMode = undefined
+        rule.fieldsRoot = undefined
         return
       }
+      rule.fieldsMode = undefined
+      rule.fieldsRoot = undefined
       const values = decodeAdvancedRuleValues(rule.value)
       if (values.length > 1 && !this.supportsMultiObjectSelection(operator)) {
         rule.value = values[0]
@@ -368,6 +414,29 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     }
     this.ruleSearch.clear()
     this.update()
+  }
+
+  protected wrapRuleIntoOwnGroup(ruleId: string): void {
+    const parent = this.findParentGroup(this.draft.root, ruleId)
+    if (!parent) {
+      return
+    }
+    const index = parent.children.findIndex(
+      (child) => child.kind === 'rule' && child.id === ruleId,
+    )
+    if (index < 0) {
+      return
+    }
+    if (parent !== this.draft.root && parent.children.length === 1) {
+      return
+    }
+    const ruleNode = parent.children[index]
+    if (ruleNode.kind !== 'rule') {
+      return
+    }
+    const wrappedGroup = this.createGroup(false)
+    wrappedGroup.children.push(ruleNode)
+    parent.children.splice(index, 1, wrappedGroup)
   }
 
   protected renderRuleValueEditor(
@@ -450,6 +519,349 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
       operator === 'contains' ||
       operator === 'not_contains'
     )
+  }
+
+  protected getOperatorOptions(
+    field: AdvancedFilterCatalog['fields'][number] | undefined,
+    isSubRule: boolean,
+  ): { value: AdvancedRuleOperator; label: string }[] {
+    if (isSubRule) {
+      return BASE_OPERATOR_OPTIONS
+    }
+    return field?.expectsObjectValue ? OBJECT_OPERATOR_OPTIONS : BASE_OPERATOR_OPTIONS
+  }
+
+  protected renderFieldsRule(
+    rule: AdvancedFilterRuleNode,
+    field: AdvancedFilterCatalog['fields'][number],
+    visibleFields: AdvancedFilterCatalog['fields'],
+  ): React.ReactNode {
+    const fieldsRoot = rule.fieldsRoot ?? this.createGroup(true)
+    const propertyOptions = visibleFields
+      .map((item) => ({
+        value: item.key,
+        label: `${item.label} - ${item.schemaLabel}`,
+        title: item.help ?? item.label,
+      }))
+
+    return (
+      <div className="entities-overview-advanced-fields-rule">
+        {this.renderFieldsGroup(
+          rule.id,
+          fieldsRoot,
+          true,
+          field.objectSubfields,
+          propertyOptions,
+          rule.fieldKey,
+        )}
+      </div>
+    )
+  }
+
+  protected renderFieldsOperatorEditor(
+    rule: AdvancedFilterRuleNode,
+    field: AdvancedFilterCatalog['fields'][number],
+  ): React.ReactNode {
+    const fieldsRoot = rule.fieldsRoot
+    if (!fieldsRoot || field.objectSubfields.length === 0) {
+      return (
+        <span className="entities-overview-edit-modal-no-value">
+          No subfields available
+        </span>
+      )
+    }
+    return (
+      <div className="entities-overview-advanced-fields-editor">
+        {this.renderFieldsGroup(rule.id, fieldsRoot, true, field.objectSubfields)}
+      </div>
+    )
+  }
+
+  protected renderFieldsGroup(
+    parentRuleId: string,
+    group: AdvancedFilterGroupNode,
+    isRoot: boolean,
+    subfields: AdvancedFilterCatalog['fields'],
+    rootPropertyOptions?: { value: string; label: string; title?: string }[],
+    rootPropertyValue?: string,
+  ): React.ReactNode {
+    const canChooseConjunction = group.children.length > 1
+    return (
+      <div className={`entities-overview-advanced-group${isRoot ? ' is-root' : ''}`}>
+        <div className="entities-overview-advanced-group-header">
+          <div className="entities-overview-advanced-fields-header-left">
+            <Button.Group size="small">
+              <Button
+                type={group.not ? 'primary' : 'default'}
+                onClick={() => this.setFieldsGroupNot(parentRuleId, group.id, !group.not)}
+              >
+                Not
+              </Button>
+              <Button
+                type={group.combinator === 'and' ? 'primary' : 'default'}
+                onClick={() => this.setFieldsGroupCombinator(parentRuleId, group.id, 'and')}
+                disabled={!canChooseConjunction}
+              >
+                And
+              </Button>
+              <Button
+                type={group.combinator === 'or' ? 'primary' : 'default'}
+                onClick={() => this.setFieldsGroupCombinator(parentRuleId, group.id, 'or')}
+                disabled={!canChooseConjunction}
+              >
+                Or
+              </Button>
+            </Button.Group>
+            {isRoot && rootPropertyOptions && (
+              <Select
+                value={rootPropertyValue}
+                onChange={(value) => this.setRuleField(parentRuleId, String(value))}
+                placeholder="Select property"
+                getPopupContainer={() => document.body}
+                classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
+                styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
+                className="entities-overview-advanced-fields-property-select"
+                showSearch
+                optionFilterProp="label"
+                options={rootPropertyOptions}
+              />
+            )}
+          </div>
+          <div className="entities-overview-advanced-group-actions">
+            <Button size="small" onClick={() => this.addSubRule(parentRuleId, group.id)}>
+              + Add rule
+            </Button>
+            <Button size="small" onClick={() => this.addSubGroup(parentRuleId, group.id)}>
+              + Add group
+            </Button>
+            {!isRoot && (
+              <button
+                type="button"
+                className="entities-overview-edit-modal-remove entities-overview-advanced-group-remove"
+                title="Remove group"
+                aria-label="Remove group"
+                onClick={() => this.removeSubNode(parentRuleId, group.id)}
+              >
+                <span className="codicon codicon-trash" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="entities-overview-advanced-group-children">
+          {group.children.map((child) =>
+            child.kind === 'group' ? (
+              <div key={child.id}>
+                {this.renderFieldsGroup(
+                  parentRuleId,
+                  child,
+                  false,
+                  subfields,
+                  undefined,
+                  undefined,
+                )}
+              </div>
+            ) : (
+              <div key={child.id}>{this.renderSubRule(parentRuleId, child, subfields)}</div>
+            ),
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  protected renderSubRule(
+    parentRuleId: string,
+    rule: AdvancedFilterRuleNode,
+    subfields: AdvancedFilterCatalog['fields'],
+  ): React.ReactNode {
+    const selectedField = rule.fieldKey
+      ? subfields.find((item) => item.key === rule.fieldKey)
+      : undefined
+    const fieldOptions = subfields.map((field) => ({
+      value: field.key,
+      label: field.label,
+      title: field.help ?? field.label,
+    }))
+
+    return (
+      <div className="entities-overview-edit-modal-row entities-overview-advanced-rule-row">
+        <Select
+          value={rule.fieldKey}
+          onChange={(value) =>
+            this.setSubRuleField(parentRuleId, rule.id, String(value))
+          }
+          placeholder="Select field"
+          getPopupContainer={() => document.body}
+          classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
+          styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
+          style={{ width: '42%' }}
+          showSearch
+          optionFilterProp="label"
+          options={fieldOptions}
+        />
+        <Select
+          value={rule.operator}
+          onChange={(value) =>
+            this.setSubRuleOperator(parentRuleId, rule.id, value as AdvancedRuleOperator)
+          }
+          getPopupContainer={() => document.body}
+          classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
+          style={{ width: 130 }}
+          options={this.getOperatorOptions(selectedField, true)}
+        />
+        <div className="entities-overview-edit-modal-value entities-overview-advanced-rule-value">
+          {OPERATORS_WITHOUT_VALUE.has(rule.operator) ? (
+            <span className="entities-overview-edit-modal-no-value">
+              No value required
+            </span>
+          ) : (
+            <Input
+              value={rule.value}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                this.setSubRuleValue(parentRuleId, rule.id, event.target.value)
+              }
+              placeholder="Enter string"
+            />
+          )}
+        </div>
+        <div className="entities-overview-edit-modal-row-actions entities-overview-advanced-rule-actions">
+          <button
+            type="button"
+            className="entities-overview-edit-modal-remove entities-overview-advanced-rule-remove"
+            title="Remove rule"
+            aria-label="Remove rule"
+            onClick={() => this.removeSubNode(parentRuleId, rule.id)}
+          >
+            <span className="codicon codicon-trash" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  protected addSubRule(parentRuleId: string, groupId: string): void {
+    this.updateFieldsGroup(parentRuleId, groupId, (group) => {
+      group.children.push(this.createRule())
+    })
+  }
+
+  protected addSubGroup(parentRuleId: string, groupId: string): void {
+    this.updateFieldsGroup(parentRuleId, groupId, (group) => {
+      group.children.push(this.createGroup(true))
+    })
+  }
+
+  protected setSubRuleField(
+    parentRuleId: string,
+    subRuleId: string,
+    fieldKey: string,
+  ): void {
+    this.updateFieldsRule(parentRuleId, subRuleId, (rule) => {
+      rule.fieldKey = fieldKey
+      rule.value = ''
+      rule.operator = 'equal'
+    })
+  }
+
+  protected setSubRuleOperator(
+    parentRuleId: string,
+    subRuleId: string,
+    operator: AdvancedRuleOperator,
+  ): void {
+    if (operator === 'fields') {
+      return
+    }
+    this.updateFieldsRule(parentRuleId, subRuleId, (rule) => {
+      rule.operator = operator
+      if (OPERATORS_WITHOUT_VALUE.has(operator)) {
+        rule.value = ''
+      }
+    })
+  }
+
+  protected setSubRuleValue(
+    parentRuleId: string,
+    subRuleId: string,
+    value: string,
+  ): void {
+    this.updateFieldsRule(parentRuleId, subRuleId, (rule) => {
+      rule.value = value
+    })
+  }
+
+  protected setFieldsGroupNot(
+    parentRuleId: string,
+    groupId: string,
+    not: boolean,
+  ): void {
+    this.updateFieldsGroup(parentRuleId, groupId, (group) => {
+      group.not = not
+    })
+  }
+
+  protected setFieldsGroupCombinator(
+    parentRuleId: string,
+    groupId: string,
+    combinator: AdvancedFilterGroupNode['combinator'],
+  ): void {
+    this.updateFieldsGroup(parentRuleId, groupId, (group) => {
+      group.combinator = combinator
+    })
+  }
+
+  protected removeSubNode(parentRuleId: string, nodeId: string): void {
+    const parentRule = this.findRule(this.draft.root, parentRuleId)
+    if (!parentRule?.fieldsRoot) {
+      return
+    }
+    if (parentRule.fieldsRoot.id === nodeId) {
+      return
+    }
+    const removed = this.removeNodeFromGroup(parentRule.fieldsRoot, nodeId)
+    if (!removed) {
+      return
+    }
+    if (parentRule.fieldsRoot.children.length === 0) {
+      parentRule.fieldsRoot.children.push(this.createRule())
+    }
+    this.update()
+  }
+
+  protected updateFieldsGroup(
+    parentRuleId: string,
+    groupId: string,
+    callback: (group: AdvancedFilterGroupNode) => void,
+  ): void {
+    const parentRule = this.findRule(this.draft.root, parentRuleId)
+    if (!parentRule) {
+      return
+    }
+    if (!parentRule.fieldsRoot) {
+      parentRule.fieldsRoot = this.createGroup(true)
+    }
+    const group = this.findGroup(parentRule.fieldsRoot, groupId)
+    if (!group) {
+      return
+    }
+    callback(group)
+    this.update()
+  }
+
+  protected updateFieldsRule(
+    parentRuleId: string,
+    subRuleId: string,
+    callback: (rule: AdvancedFilterRuleNode) => void,
+  ): void {
+    const parentRule = this.findRule(this.draft.root, parentRuleId)
+    if (!parentRule?.fieldsRoot) {
+      return
+    }
+    const subRule = this.findRule(parentRule.fieldsRoot, subRuleId)
+    if (!subRule) {
+      return
+    }
+    callback(subRule)
+    this.update()
   }
 
   protected setRuleSearch(ruleId: string, value: string): void {
@@ -678,6 +1090,25 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     return undefined
   }
 
+  protected findParentGroup(
+    group: AdvancedFilterGroupNode,
+    nodeId: string,
+  ): AdvancedFilterGroupNode | undefined {
+    if (group.children.some((child) => child.id === nodeId)) {
+      return group
+    }
+    for (const child of group.children) {
+      if (child.kind !== 'group') {
+        continue
+      }
+      const match = this.findParentGroup(child, nodeId)
+      if (match) {
+        return match
+      }
+    }
+    return undefined
+  }
+
   protected findRule(
     group: AdvancedFilterGroupNode,
     ruleId: string,
@@ -751,10 +1182,19 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
               id: child.id || this.nextNodeId('rule'),
               kind: 'rule',
               fieldKey: child.fieldKey,
-              operator: OPERATOR_OPTIONS.some((item) => item.value === child.operator)
-                ? child.operator
-                : 'equal',
+              operator:
+                child.operator === 'fields' ||
+                BASE_OPERATOR_OPTIONS.some((item) => item.value === child.operator)
+                  ? child.operator
+                  : 'equal',
               value: String(child.value ?? ''),
+              fieldsMode: child.fieldsMode === 'any' ? 'any' : 'all',
+              fieldsRoot:
+                child.operator === 'fields'
+                  ? child.fieldsRoot
+                    ? this.cloneGroup(child.fieldsRoot)
+                    : this.createGroup(true)
+                  : undefined,
             },
       ),
     }

@@ -514,6 +514,12 @@ body.entities-overview-filters-visible
   border-color: rgba(127, 127, 127, 0.72);
 }
 
+.entities-overview-advanced-fields-rule > .entities-overview-advanced-group.is-root {
+  margin-left: 8px;
+  background: var(--theia-input-background);
+  border-color: rgba(127, 127, 127, 0.72);
+}
+
 .entities-overview-advanced-group-header {
   display: flex;
   align-items: center;
@@ -584,6 +590,31 @@ body.entities-overview-filters-visible
   align-items: center;
   min-height: 36px;
   width: 100%;
+}
+
+.entities-overview-advanced-fields-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.entities-overview-advanced-fields-rule {
+  width: 100%;
+}
+
+.entities-overview-advanced-fields-header-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.entities-overview-advanced-fields-property-select {
+  min-width: 280px;
+  max-width: 520px;
+  flex: 1 1 auto;
 }
 
 .entities-overview-advanced-rule-row .entities-overview-advanced-rule-actions {
