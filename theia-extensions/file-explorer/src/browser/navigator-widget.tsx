@@ -34,6 +34,7 @@ import { Message } from '@theia/core/shared/@lumino/messaging'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { DirNode, FileStatNode, FileStatNodeData } from '@theia/filesystem/lib/browser'
+import { FileSearchService } from '@theia/file-search/lib/common/file-search-service'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
@@ -67,6 +68,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   @inject(FileNavigatorFilter) protected readonly fileNavigatorFilter: FileNavigatorFilter
   @inject(DataSourceService) protected readonly dataSourceService: DataSourceService
   @inject(ThemeService) protected readonly themeService: ThemeService
+  @inject(FileSearchService) protected readonly fileSearchService: FileSearchService
 
   protected readonly filters: {
     fileNameFilter: string
@@ -81,6 +83,13 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   protected fileNameSelection: { start: number | null; end: number | null } | undefined
   protected filterKeydownListenerAttached = false
   protected suppressRootSelection = false
+  protected roCratePathIndex: { files: Set<string>; directories: Set<string> } = {
+    files: new Set(),
+    directories: new Set(),
+  }
+  protected orphanFilePaths = new Set<string>()
+  protected orphanDirectoryPaths = new Set<string>()
+  protected orphanScanToken = 0
 
   constructor(
     @inject(TreeProps) props: TreeProps,
@@ -117,10 +126,13 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       }),
       // refresh when crate changes (highlighting depends on it)
       this.appStateService.onDidChangeSelector((state) => state.roCrate)((_) => {
+        this.roCratePathIndex = this.buildRoCrateEntityPathIndex(this.appStateService.roCrate)
+        void this.refreshOrphanHighlights()
         void this.model.refresh()
         this.update()
       }),
       this.workspaceService.onWorkspaceChanged(() => {
+        void this.refreshOrphanHighlights()
         void this.model.refresh()
       }),
     ])
@@ -131,6 +143,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       dispose: () =>
         document.body.classList.remove(FileNavigatorWidget.BODY_SEARCH_VISIBLE_CLASS),
     })
+    this.roCratePathIndex = this.buildRoCrateEntityPathIndex(this.appStateService.roCrate)
+    void this.refreshOrphanHighlights()
     this.updateSearchVisibilityClass()
   }
 
@@ -468,10 +482,19 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   }
 
   private containsNotInRoCrate(node: TreeNode): boolean {
-    if (FileStatNode.is(node) && this.shouldHighlightFile(node)) {
+    if (!DirNode.is(node)) {
+      if (FileStatNode.is(node) && this.shouldHighlightFile(node)) {
+        return true
+      }
+      return false
+    }
+
+    const relativePath = this.getNodeWorkspaceRelativePath(node)
+    if (relativePath && this.orphanDirectoryPaths.has(relativePath)) {
       return true
     }
 
+    // Fallback for stale caches: preserve previous recursive behavior for loaded children.
     if (CompositeTreeNode.is(node) && node.children) {
       for (const child of node.children) {
         if (this.containsNotInRoCrate(child)) {
@@ -486,7 +509,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
    * Highlight files NOT present in RO-Crate by workspace-relative path.
    */
   private shouldHighlightFile(node: FileStatNode): boolean {
-    const { files, directories } = this.getRoCrateEntityPathIndex()
+    const { files, directories } = this.roCratePathIndex
     if (files.size === 0 && directories.size === 0) {
       return false
     }
@@ -494,6 +517,16 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     const relativePath = this.getNodeWorkspaceRelativePath(node)
     if (!relativePath) {
       return false
+    }
+
+    // The workspace-root metadata file is part of RO-Crate infrastructure and should
+    // never be treated as an orphan marker in the root listing.
+    if (relativePath === 'ro-crate-metadata.json') {
+      return false
+    }
+
+    if (!DirNode.is(node)) {
+      return this.orphanFilePaths.has(relativePath)
     }
 
     if (files.has(relativePath)) {
@@ -518,8 +551,9 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     return normalized ? normalized.toLowerCase() : undefined
   }
 
-  private getRoCrateEntityPathIndex(): { files: Set<string>; directories: Set<string> } {
-    const crate = this.appStateService.roCrate
+  private buildRoCrateEntityPathIndex(
+    crate: Record<string, any> | undefined,
+  ): { files: Set<string>; directories: Set<string> } {
     if (!crate) {
       return { files: new Set(), directories: new Set() }
     }
@@ -530,6 +564,18 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
     for (const entry of graph) {
       if (!entry || typeof entry !== 'object') {
+        continue
+      }
+
+      const rawType = (entry as any)['@type']
+      const types: string[] = Array.isArray(rawType)
+        ? rawType.filter((t): t is string => typeof t === 'string')
+        : typeof rawType === 'string'
+          ? [rawType]
+          : []
+
+      const relevant = types.some((t) => t === 'File' || t === 'Dataset')
+      if (!relevant) {
         continue
       }
 
@@ -564,10 +610,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
     const isDirectory = candidate.endsWith('/')
 
-    if (candidate.startsWith('file://./')) {
-      candidate = candidate.slice('file://./'.length)
-    } else if (candidate.startsWith('file://')) {
-      candidate = candidate.slice('file://'.length)
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(candidate)) {
+      return undefined
     }
 
     if (candidate.startsWith('./')) {
@@ -604,6 +648,76 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       normalized = normalized.slice(0, -1)
     }
     return normalized
+  }
+
+  private async refreshOrphanHighlights(): Promise<void> {
+    const token = ++this.orphanScanToken
+
+    const { files, directories } = this.roCratePathIndex
+    if (files.size === 0 && directories.size === 0) {
+      this.orphanFilePaths.clear()
+      this.orphanDirectoryPaths.clear()
+      this.update()
+      return
+    }
+
+    const roots = this.workspaceService.tryGetRoots()
+    const rootUri = roots?.[0]?.resource
+    if (!rootUri) {
+      return
+    }
+
+    let allFileUris: string[]
+    try {
+      allFileUris = await this.fileSearchService.find('', {
+        rootUris: [rootUri.toString()],
+      })
+    } catch (error) {
+      console.warn('Failed to refresh orphan file highlights:', error)
+      return
+    }
+
+    if (token !== this.orphanScanToken) {
+      return
+    }
+
+    const nextOrphanFiles = new Set<string>()
+    const nextOrphanDirectories = new Set<string>()
+
+    for (const fileUriRaw of allFileUris) {
+      let relativeRaw: string | undefined
+      try {
+        const relativePath = rootUri.relative(new URI(fileUriRaw))
+        relativeRaw = relativePath?.toString()
+      } catch {
+        continue
+      }
+      if (!relativeRaw) {
+        continue
+      }
+
+      const normalized = this.normalizeRelativePath(relativeRaw.toString()).toLowerCase()
+      if (!normalized) {
+        continue
+      }
+
+      if (files.has(normalized)) {
+        continue
+      }
+
+      nextOrphanFiles.add(normalized)
+
+      const segments = normalized.split('/').filter(Boolean)
+      if (segments.length > 1) {
+        for (let i = 1; i < segments.length; i++) {
+          nextOrphanDirectories.add(segments.slice(0, i).join('/'))
+        }
+      }
+    }
+
+    this.orphanFilePaths = nextOrphanFiles
+    this.orphanDirectoryPaths = nextOrphanDirectories
+    this.update()
   }
 
   // --- filter wiring (kept simple, but with selection restore + event stop) ---
