@@ -329,7 +329,7 @@ function sanitizeGroup(
         fieldKey: child.fieldKey,
         operator: 'fields',
         value: '',
-        fieldsMode: 'all',
+        fieldsMode: 'any',
         fieldsRoot: sanitizedFieldsRoot,
       })
       continue
@@ -417,7 +417,7 @@ function evaluateRule(
     const results = objectEntities.map((item) =>
       evaluateGroup(item, rule.fieldsRoot!, nestedFieldsByKey, entityById),
     )
-    return results.every(Boolean)
+    return results.some(Boolean)
   }
 
   const values = getComparableValues(entity, field)

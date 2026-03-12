@@ -339,7 +339,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     rule.value = ''
     if (keepFieldsMode) {
       rule.operator = 'fields'
-      rule.fieldsMode = 'all'
+      rule.fieldsMode = 'any'
       rule.fieldsRoot = this.createGroup(true)
     } else {
       rule.operator = 'equal'
@@ -363,7 +363,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
         }
         rule.operator = 'fields'
         rule.value = ''
-        rule.fieldsMode = 'all'
+        rule.fieldsMode = 'any'
         if (!rule.fieldsRoot) {
           rule.fieldsRoot = this.createGroup(true)
         }
