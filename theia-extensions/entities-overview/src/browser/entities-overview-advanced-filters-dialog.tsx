@@ -149,6 +149,11 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
   }
 
   protected renderGroup(group: AdvancedFilterGroupNode, isRoot: boolean): React.ReactNode {
+    const transformedFieldsRule = this.getTransformedFieldsRule(group)
+    if (transformedFieldsRule) {
+      return this.renderTransformedFieldsGroup(group, isRoot, transformedFieldsRule)
+    }
+
     const canChooseConjunction = group.children.length > 1
     return (
       <div className={`entities-overview-advanced-group${isRoot ? ' is-root' : ''}`}>
@@ -554,6 +559,134 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           propertyOptions,
           rule.fieldKey,
         )}
+      </div>
+    )
+  }
+
+  protected getTransformedFieldsRule(
+    group: AdvancedFilterGroupNode,
+  ): {
+    rule: AdvancedFilterRuleNode
+    field: AdvancedFilterCatalog['fields'][number]
+    fieldsRoot: AdvancedFilterGroupNode
+  } | undefined {
+    if (group.children.length !== 1) {
+      return undefined
+    }
+    const onlyChild = group.children[0]
+    if (onlyChild.kind !== 'rule' || onlyChild.operator !== 'fields') {
+      return undefined
+    }
+    const field = onlyChild.fieldKey ? this.fieldsByKey.get(onlyChild.fieldKey) : undefined
+    if (!field?.expectsObjectValue || !onlyChild.fieldsRoot) {
+      return undefined
+    }
+    return {
+      rule: onlyChild,
+      field,
+      fieldsRoot: onlyChild.fieldsRoot,
+    }
+  }
+
+  protected renderTransformedFieldsGroup(
+    group: AdvancedFilterGroupNode,
+    isRoot: boolean,
+    transformed: {
+      rule: AdvancedFilterRuleNode
+      field: AdvancedFilterCatalog['fields'][number]
+      fieldsRoot: AdvancedFilterGroupNode
+    },
+  ): React.ReactNode {
+    const { rule, field, fieldsRoot } = transformed
+    const visibleFields = this.getVisibleFields()
+    const propertyOptions = visibleFields.map((item) => ({
+      value: item.key,
+      label: `${item.label} - ${item.schemaLabel}`,
+      title: item.help ?? item.label,
+    }))
+    const canChooseConjunction = fieldsRoot.children.length > 1
+
+    return (
+      <div className={`entities-overview-advanced-group${isRoot ? ' is-root' : ''}`}>
+        <div className="entities-overview-advanced-group-header">
+          <div className="entities-overview-advanced-fields-header-left">
+            <Button.Group size="small">
+              <Button
+                type={fieldsRoot.not ? 'primary' : 'default'}
+                onClick={() => this.setFieldsGroupNot(rule.id, fieldsRoot.id, !fieldsRoot.not)}
+              >
+                Not
+              </Button>
+              <Button
+                type={fieldsRoot.combinator === 'and' ? 'primary' : 'default'}
+                onClick={() =>
+                  this.setFieldsGroupCombinator(rule.id, fieldsRoot.id, 'and')
+                }
+                disabled={!canChooseConjunction}
+              >
+                And
+              </Button>
+              <Button
+                type={fieldsRoot.combinator === 'or' ? 'primary' : 'default'}
+                onClick={() =>
+                  this.setFieldsGroupCombinator(rule.id, fieldsRoot.id, 'or')
+                }
+                disabled={!canChooseConjunction}
+              >
+                Or
+              </Button>
+            </Button.Group>
+            <Select
+              value={rule.fieldKey}
+              onChange={(value) => this.setRuleField(rule.id, String(value))}
+              placeholder="Select property"
+              getPopupContainer={() => document.body}
+              classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
+              styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
+              className="entities-overview-advanced-fields-property-select"
+              showSearch
+              optionFilterProp="label"
+              options={propertyOptions}
+            />
+          </div>
+          <div className="entities-overview-advanced-group-actions">
+            <Button size="small" onClick={() => this.addSubRule(rule.id, fieldsRoot.id)}>
+              + Add rule
+            </Button>
+            <Button size="small" onClick={() => this.addSubGroup(rule.id, fieldsRoot.id)}>
+              + Add group
+            </Button>
+            {!isRoot && (
+              <button
+                type="button"
+                className="entities-overview-edit-modal-remove entities-overview-advanced-group-remove"
+                title="Remove group"
+                aria-label="Remove group"
+                onClick={() => this.removeNode(group.id)}
+              >
+                <span className="codicon codicon-trash" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="entities-overview-advanced-group-children">
+          {fieldsRoot.children.map((child) =>
+            child.kind === 'group' ? (
+              <div key={child.id}>
+                {this.renderFieldsGroup(
+                  rule.id,
+                  child,
+                  false,
+                  field.objectSubfields,
+                  undefined,
+                  undefined,
+                )}
+              </div>
+            ) : (
+              <div key={child.id}>{this.renderSubRule(rule.id, child, field.objectSubfields)}</div>
+            ),
+          )}
+        </div>
       </div>
     )
   }
