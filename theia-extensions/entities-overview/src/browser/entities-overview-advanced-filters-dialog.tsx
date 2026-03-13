@@ -89,6 +89,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     return cloneAdvancedFilterState(this.draft)
   }
 
+  /**
+   * Initializes dialog state from persisted filters and available options.
+   */
   protected initializeState(initial?: AdvancedFilterState): AdvancedFilterState {
     const availableSchemaIds = new Set(this.catalog.schemas.map((schema) => schema.id))
     const availableEntityTypes = new Set(this.entityTypeOptions)
@@ -112,6 +115,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     }
   }
 
+  /**
+   * Renders the dialog shell with top-level selectors and the rule tree.
+   */
   protected render(): React.ReactNode {
     const visibleFields = this.getVisibleFields()
 
@@ -168,6 +174,10 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     )
   }
 
+  /**
+   * Renders one logical group (Not/And/Or + children).
+   * Auto-transforms single `fields` groups into the compact object-fields layout.
+   */
   protected renderGroup(group: AdvancedFilterGroupNode, isRoot: boolean): React.ReactNode {
     const transformedFieldsRule = this.getTransformedFieldsRule(group)
     if (transformedFieldsRule) {
@@ -233,6 +243,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     )
   }
 
+  /**
+   * Renders one rule row in the main query tree.
+   */
   protected renderRule(rule: AdvancedFilterRuleNode): React.ReactNode {
     const visibleFields = this.getVisibleFields()
     const selectedField = rule.fieldKey ? this.fieldsByKey.get(rule.fieldKey) : undefined
@@ -348,6 +361,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     })
   }
 
+  /**
+   * Handles property selection in one rule and resets rule-specific state accordingly.
+   */
   protected setRuleField(ruleId: string, fieldKey: string): void {
     const rule = this.findRule(this.draft.root, ruleId)
     if (!rule) {
@@ -374,6 +390,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     this.update()
   }
 
+  /**
+   * Handles operator changes and normalizes value payload for the selected operator type.
+   */
   protected setRuleOperator(ruleId: string, operator: AdvancedRuleOperator): void {
     this.updateRule(ruleId, (rule) => {
       const selectedField = rule.fieldKey ? this.fieldsByKey.get(rule.fieldKey) : undefined
@@ -474,6 +493,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     parent.children.splice(index, 1, wrappedGroup)
   }
 
+  /**
+   * Chooses the value editor by field type (object/date/text).
+   */
   protected renderRuleValueEditor(
     rule: AdvancedFilterRuleNode,
     field: AdvancedFilterCatalog['fields'][number] | undefined,
@@ -502,6 +524,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     )
   }
 
+  /**
+   * Renders existing object-reference selector for object-valued fields.
+   */
   protected renderObjectValueEditor(
     rule: AdvancedFilterRuleNode,
     field: AdvancedFilterCatalog['fields'][number],
@@ -575,6 +600,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     return RANGE_OPERATORS.has(operator)
   }
 
+  /**
+   * Renders date editors for scalar date rules (single date and range variants).
+   */
   protected renderDateValueEditor(
     rawValue: string,
     operator: AdvancedRuleOperator,
@@ -643,6 +671,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     return field?.expectsObjectValue ? OBJECT_OPERATOR_OPTIONS : BASE_OPERATOR_OPTIONS
   }
 
+  /**
+   * Renders object `fields` mode entry point for one main rule.
+   */
   protected renderFieldsRule(
     rule: AdvancedFilterRuleNode,
     field: AdvancedFilterCatalog['fields'][number],
@@ -817,6 +848,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     )
   }
 
+  /**
+   * Renders nested groups inside object `fields` mode.
+   */
   protected renderFieldsGroup(
     parentRuleId: string,
     group: AdvancedFilterGroupNode,
@@ -909,6 +943,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     )
   }
 
+  /**
+   * Renders one sub-rule inside object `fields` mode.
+   */
   protected renderSubRule(
     parentRuleId: string,
     rule: AdvancedFilterRuleNode,
@@ -1426,6 +1463,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     return `${prefix}-${this.idCounter}-${Math.random().toString(36).slice(2, 8)}`
   }
 
+  /**
+   * Clones persisted tree data into a fully normalized in-memory structure.
+   */
   protected cloneGroup(group: AdvancedFilterGroupNode): AdvancedFilterGroupNode {
     return {
       id: group.id || this.nextNodeId('group'),

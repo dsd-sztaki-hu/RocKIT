@@ -211,6 +211,10 @@ export function cloneAdvancedFilterState(state: AdvancedFilterState): AdvancedFi
   }
 }
 
+/**
+ * Counts active, valid rules in the current advanced-filter state.
+ * Rules removed by sanitization are not counted.
+ */
 export function countActiveAdvancedRules(
   state: AdvancedFilterState | undefined,
   catalog: AdvancedFilterCatalog,
@@ -228,6 +232,10 @@ export function countActiveAdvancedRules(
   return countRules(sanitized.root)
 }
 
+/**
+ * Builds the predicate used by the entities overview tree.
+ * Returns `undefined` when the advanced query is empty/invalid after sanitization.
+ */
 export function buildAdvancedEntityMatcher(
   state: AdvancedFilterState | undefined,
   catalog: AdvancedFilterCatalog,
@@ -266,6 +274,9 @@ export function buildAdvancedEntityMatcher(
   return (entity) => evaluateGroup(entity, sanitized.root, activeFieldsByKey, entityById)
 }
 
+/**
+ * Keeps only selected schemas/fields and drops invalid branches from the query tree.
+ */
 function sanitizeState(
   state: AdvancedFilterState,
   catalog: AdvancedFilterCatalog,
@@ -300,6 +311,10 @@ function sanitizeState(
   }
 }
 
+/**
+ * Recursively validates one group and its descendants.
+ * This normalizes operators and removes incomplete rules.
+ */
 function sanitizeGroup(
   group: AdvancedFilterGroupNode | undefined,
   allowedFieldIds: Set<string>,
@@ -397,6 +412,9 @@ function sanitizeGroup(
   }
 }
 
+/**
+ * Evaluates one group against an entity, honoring group combinator and `not`.
+ */
 function evaluateGroup(
   entity: Record<string, unknown>,
   group: AdvancedFilterGroupNode,
@@ -418,6 +436,10 @@ function evaluateGroup(
   return group.not ? !value : value
 }
 
+/**
+ * Evaluates one rule against one entity.
+ * Supports scalar operators and object `fields` operator.
+ */
 function evaluateRule(
   entity: Record<string, unknown>,
   rule: AdvancedFilterRuleNode,
@@ -506,6 +528,9 @@ function evaluateRule(
   }
 }
 
+/**
+ * Evaluates date/date-time operators using normalized calendar-day keys.
+ */
 function evaluateDateRule(
   values: string[],
   operator: Extract<
@@ -560,6 +585,9 @@ function evaluateDateRule(
   }
 }
 
+/**
+ * Resolves and flattens values of one property into comparable strings.
+ */
 function getComparableValues(
   entity: Record<string, unknown>,
   field: AdvancedFieldDefinition,
@@ -627,6 +655,9 @@ function resolveObjectEntities(
   return []
 }
 
+/**
+ * Collects entity types present in the current crate and known by the profile.
+ */
 function collectEntityTypes(
   crate: Record<string, unknown> | undefined,
   classes: Record<string, unknown>,
@@ -803,6 +834,9 @@ function extractEntityTypes(
   return Array.from(entityTypes.values())
 }
 
+/**
+ * Builds selectable subfields for object-valued properties (e.g. Author -> Name/Affiliation).
+ */
 function buildObjectSubfields(
   entityTypes: string[],
   classes: Record<string, unknown>,
@@ -846,6 +880,9 @@ function buildObjectSubfields(
   )
 }
 
+/**
+ * Determines whether a field value is an object/reference rather than a scalar.
+ */
 function resolveExpectsObjectValue(
   input: Record<string, unknown>,
   classes: Record<string, unknown>,
@@ -882,6 +919,9 @@ function resolveExpectsObjectValue(
   return false
 }
 
+/**
+ * Classifies scalar value handling in the advanced UI/evaluator.
+ */
 function resolveValueKind(
   input: Record<string, unknown>,
   expectsObjectValue: boolean,
