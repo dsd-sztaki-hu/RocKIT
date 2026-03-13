@@ -1,6 +1,7 @@
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import * as React from '@theia/core/shared/react'
-import { Alert, Button, Input, Select } from 'antd'
+import { Alert, Button, DatePicker, Input, Select } from 'antd'
+import dayjs = require('dayjs')
 import {
   ALL_ENTITY_TYPES_OPTION,
   AdvancedFilterCatalog,
@@ -22,12 +23,31 @@ const BASE_OPERATOR_OPTIONS: { value: AdvancedRuleOperator; label: string }[] = 
   { value: 'is_not_null', label: 'Is not null' },
 ]
 
+const DATE_OPERATOR_OPTIONS: { value: AdvancedRuleOperator; label: string }[] = [
+  { value: 'equal', label: '==' },
+  { value: 'not_equal', label: '!=' },
+  { value: 'lt', label: '<' },
+  { value: 'lte', label: '<=' },
+  { value: 'gt', label: '>' },
+  { value: 'gte', label: '>=' },
+  { value: 'between', label: 'Between' },
+  { value: 'not_between', label: 'Not between' },
+  { value: 'is_null', label: 'Is null' },
+  { value: 'is_not_null', label: 'Is not null' },
+]
+
 const OBJECT_OPERATOR_OPTIONS: { value: AdvancedRuleOperator; label: string }[] = [
   ...BASE_OPERATOR_OPTIONS,
   { value: 'fields', label: 'Fields' },
 ]
 
 const OPERATORS_WITHOUT_VALUE = new Set<AdvancedRuleOperator>(['is_null', 'is_not_null'])
+const RANGE_OPERATORS = new Set<AdvancedRuleOperator>(['between', 'not_between'])
+const KNOWN_OPERATORS = new Set<AdvancedRuleOperator>([
+  ...BASE_OPERATOR_OPTIONS.map((item) => item.value),
+  ...DATE_OPERATOR_OPTIONS.map((item) => item.value),
+  'fields',
+])
 
 export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
   protected readonly fieldsByKey: Map<
@@ -356,8 +376,8 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
 
   protected setRuleOperator(ruleId: string, operator: AdvancedRuleOperator): void {
     this.updateRule(ruleId, (rule) => {
+      const selectedField = rule.fieldKey ? this.fieldsByKey.get(rule.fieldKey) : undefined
       if (operator === 'fields') {
-        const selectedField = rule.fieldKey ? this.fieldsByKey.get(rule.fieldKey) : undefined
         if (!selectedField?.expectsObjectValue) {
           return
         }
@@ -379,7 +399,15 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
       rule.fieldsMode = undefined
       rule.fieldsRoot = undefined
       const values = decodeAdvancedRuleValues(rule.value)
-      if (values.length > 1 && !this.supportsMultiObjectSelection(operator)) {
+      if (this.isRangeOperator(operator)) {
+        if (values.length >= 2) {
+          rule.value = encodeAdvancedRuleValues([values[0], values[1]])
+        } else {
+          rule.value = ''
+        }
+        return
+      }
+      if (values.length > 1 && !this.supportsRuleMultiValue(selectedField, operator)) {
         rule.value = values[0]
       }
     })
@@ -397,6 +425,8 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
       const isFormControlContext =
         Boolean(target.closest('.ant-select')) ||
         Boolean(target.closest('.ant-select-dropdown')) ||
+        Boolean(target.closest('.ant-picker')) ||
+        Boolean(target.closest('.ant-picker-dropdown')) ||
         Boolean(target.closest('.ant-input')) ||
         target.tagName.toLowerCase() === 'input'
       if (isFormControlContext) {
@@ -454,6 +484,11 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
 
     if (field.expectsObjectValue) {
       return this.renderObjectValueEditor(rule, field)
+    }
+    if (field.valueKind === 'date') {
+      return this.renderDateValueEditor(rule.value, rule.operator, (value) =>
+        this.setRuleValue(rule.id, value),
+      )
     }
 
     return (
@@ -526,10 +561,82 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     )
   }
 
+  protected supportsRuleMultiValue(
+    field: AdvancedFilterCatalog['fields'][number] | undefined,
+    operator: AdvancedRuleOperator,
+  ): boolean {
+    if (this.isRangeOperator(operator)) {
+      return true
+    }
+    return Boolean(field?.expectsObjectValue) && this.supportsMultiObjectSelection(operator)
+  }
+
+  protected isRangeOperator(operator: AdvancedRuleOperator): boolean {
+    return RANGE_OPERATORS.has(operator)
+  }
+
+  protected renderDateValueEditor(
+    rawValue: string,
+    operator: AdvancedRuleOperator,
+    onValueChange: (value: string) => void,
+  ): React.ReactNode {
+    if (this.isRangeOperator(operator)) {
+      const values = decodeAdvancedRuleValues(rawValue)
+      const startParsed = values[0]?.trim() ? dayjs(values[0].trim()) : null
+      const endParsed = values[1]?.trim() ? dayjs(values[1].trim()) : null
+      const startValue = startParsed?.isValid() ? startParsed : null
+      const endValue = endParsed?.isValid() ? endParsed : null
+      const rangeValue = startValue || endValue ? [startValue, endValue] : null
+      return (
+        <DatePicker.RangePicker
+          value={rangeValue as [dayjs.Dayjs | null, dayjs.Dayjs | null] | null}
+          onChange={(_, dateStrings) => {
+            const normalized = (Array.isArray(dateStrings) ? dateStrings : [])
+              .map((item) => String(item ?? '').trim())
+              .filter((item) => item.length > 0)
+            onValueChange(
+              normalized.length > 0 ? encodeAdvancedRuleValues(normalized) : '',
+            )
+          }}
+          format="YYYY-MM-DD"
+          placeholder={['Enter date from...', 'Enter date to']}
+          style={{ width: '100%' }}
+          allowClear
+          getPopupContainer={() => document.body}
+          popupClassName="entities-overview-edit-modal-date-popup"
+        />
+      )
+    }
+
+    const parsed = rawValue.trim().length > 0 ? dayjs(rawValue.trim()) : null
+    const pickerValue = parsed && parsed.isValid() ? parsed : null
+    return (
+      <DatePicker
+        value={pickerValue}
+        onChange={(_, dateString) =>
+          onValueChange(
+            Array.isArray(dateString)
+              ? String(dateString[0] ?? '')
+              : String(dateString ?? ''),
+          )
+        }
+        format="YYYY-MM-DD"
+        placeholder="Enter date"
+        style={{ width: '100%' }}
+        allowClear
+        getPopupContainer={() => document.body}
+        popupClassName="entities-overview-edit-modal-date-popup"
+      />
+    )
+  }
+
   protected getOperatorOptions(
     field: AdvancedFilterCatalog['fields'][number] | undefined,
     isSubRule: boolean,
   ): { value: AdvancedRuleOperator; label: string }[] {
+    if (field?.valueKind === 'date') {
+      return DATE_OPERATOR_OPTIONS
+    }
     if (isSubRule) {
       return BASE_OPERATOR_OPTIONS
     }
@@ -847,6 +954,10 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
             <span className="entities-overview-edit-modal-no-value">
               No value required
             </span>
+          ) : selectedField?.valueKind === 'date' ? (
+            this.renderDateValueEditor(rule.value, rule.operator, (value) =>
+              this.setSubRuleValue(parentRuleId, rule.id, value),
+            )
           ) : (
             <Input
               value={rule.value}
@@ -908,6 +1019,19 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
       rule.operator = operator
       if (OPERATORS_WITHOUT_VALUE.has(operator)) {
         rule.value = ''
+        return
+      }
+      const values = decodeAdvancedRuleValues(rule.value)
+      if (this.isRangeOperator(operator)) {
+        if (values.length >= 2) {
+          rule.value = encodeAdvancedRuleValues([values[0], values[1]])
+        } else {
+          rule.value = ''
+        }
+        return
+      }
+      if (values.length > 1) {
+        rule.value = values[0] ?? ''
       }
     })
   }
@@ -1316,10 +1440,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
               kind: 'rule',
               fieldKey: child.fieldKey,
               operator:
-                child.operator === 'fields' ||
-                BASE_OPERATOR_OPTIONS.some((item) => item.value === child.operator)
-                  ? child.operator
-                  : 'equal',
+                KNOWN_OPERATORS.has(child.operator) ? child.operator : 'equal',
               value: String(child.value ?? ''),
               fieldsMode: child.fieldsMode === 'any' ? 'any' : 'all',
               fieldsRoot:

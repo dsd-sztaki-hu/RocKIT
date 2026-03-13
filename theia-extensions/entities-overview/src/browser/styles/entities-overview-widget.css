@@ -876,6 +876,18 @@ body.entities-overview-filters-visible
   width: 100%;
 }
 
+.entities-overview-edit-modal-value .ant-picker {
+  min-height: 36px;
+  height: 36px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+}
+
+.entities-overview-edit-modal-value .ant-picker .ant-picker-input > input {
+  height: 100%;
+}
+
 .entities-overview-edit-modal-value .ant-input {
   height: 36px !important;
   min-height: 36px !important;

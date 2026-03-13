@@ -5,6 +5,12 @@ export type AdvancedRuleOperator =
   | 'not_equal'
   | 'contains'
   | 'not_contains'
+  | 'lt'
+  | 'lte'
+  | 'gt'
+  | 'gte'
+  | 'between'
+  | 'not_between'
   | 'is_null'
   | 'is_not_null'
   | 'fields'
@@ -25,6 +31,7 @@ export interface AdvancedFieldDefinition {
   supportedClasses: string[]
   entityTypes: string[]
   expectsObjectValue: boolean
+  valueKind: 'text' | 'date'
   objectSubfields: AdvancedFieldDefinition[]
 }
 
@@ -72,6 +79,13 @@ interface SchemaMeta {
 
 const OPERATORS_WITHOUT_VALUE = new Set<AdvancedRuleOperator>(['is_null', 'is_not_null'])
 const MULTI_VALUE_PREFIX = '__advanced_multi__:'
+const DATE_ORDER_OPERATORS = new Set<AdvancedRuleOperator>([
+  'lt',
+  'lte',
+  'gt',
+  'gte',
+])
+const DATE_RANGE_OPERATORS = new Set<AdvancedRuleOperator>(['between', 'not_between'])
 
 /**
  * Builds advanced-filter field/schema catalog using the same profile layout grouping
@@ -111,6 +125,7 @@ export function buildAdvancedFilterCatalog(
       }
       const entityTypes = extractEntityTypes(input, classes)
       const expectsObjectValue = resolveExpectsObjectValue(input, classes, entityTypes)
+      const valueKind = resolveValueKind(input, expectsObjectValue)
       const objectSubfields = expectsObjectValue
         ? buildObjectSubfields(entityTypes, classes)
         : []
@@ -141,6 +156,9 @@ export function buildAdvancedFilterCatalog(
         }
         existing.entityTypes = Array.from(mergedEntityTypes.values())
         existing.expectsObjectValue = existing.expectsObjectValue || expectsObjectValue
+        if (existing.valueKind !== 'date' && valueKind === 'date') {
+          existing.valueKind = 'date'
+        }
         const mergedSubfields = new Map(
           existing.objectSubfields.map((subfield) => [subfield.key, subfield] as const),
         )
@@ -165,6 +183,7 @@ export function buildAdvancedFilterCatalog(
         supportedClasses: [className],
         entityTypes,
         expectsObjectValue,
+        valueKind,
         objectSubfields,
       })
     }
@@ -346,7 +365,15 @@ function sanitizeGroup(
       })
       continue
     }
-    if (decodeAdvancedRuleValues(child.value).length === 0) {
+    const decodedValues = decodeAdvancedRuleValues(child.value)
+    if (isDateOrderingOperator(child.operator) && field.valueKind !== 'date') {
+      continue
+    }
+    if (isRangeOperator(child.operator)) {
+      if (field.valueKind !== 'date' || decodedValues.length < 2) {
+        continue
+      }
+    } else if (decodedValues.length === 0) {
       continue
     }
     children.push({
@@ -422,6 +449,9 @@ function evaluateRule(
 
   const values = getComparableValues(entity, field)
   const hasValue = values.length > 0
+  if (field.valueKind === 'date' && isDateComparableOperator(rule.operator)) {
+    return evaluateDateRule(values, rule.operator, rule.value)
+  }
   const normalizedValues = values.map((value) => value.toLocaleLowerCase())
   const queries = decodeAdvancedRuleValues(rule.value).map((value) =>
     value.toLocaleLowerCase(),
@@ -463,8 +493,63 @@ function evaluateRule(
         )
       }
       return normalizedValues.every((value) => !value.includes(query))
+    case 'lt':
+    case 'lte':
+    case 'gt':
+    case 'gte':
+    case 'between':
+    case 'not_between':
+      return false
     default:
       return false
+  }
+}
+
+function evaluateDateRule(
+  values: string[],
+  operator: Extract<
+    AdvancedRuleOperator,
+    'equal' | 'not_equal' | 'lt' | 'lte' | 'gt' | 'gte' | 'between' | 'not_between'
+  >,
+  rawValue: string,
+): boolean {
+  const dateValues = values
+    .map((value) => toDateDayKey(value))
+    .filter((value): value is number => value !== undefined)
+  const queryDates = decodeAdvancedRuleValues(rawValue)
+    .map((value) => toDateDayKey(value))
+    .filter((value): value is number => value !== undefined)
+  const queryDate = queryDates[0]
+
+  switch (operator) {
+    case 'equal':
+      return queryDate !== undefined && dateValues.some((value) => value === queryDate)
+    case 'not_equal':
+      return queryDate !== undefined && dateValues.every((value) => value !== queryDate)
+    case 'lt':
+      return queryDate !== undefined && dateValues.some((value) => value < queryDate)
+    case 'lte':
+      return queryDate !== undefined && dateValues.some((value) => value <= queryDate)
+    case 'gt':
+      return queryDate !== undefined && dateValues.some((value) => value > queryDate)
+    case 'gte':
+      return queryDate !== undefined && dateValues.some((value) => value >= queryDate)
+    case 'between':
+    case 'not_between': {
+      if (queryDates.length < 2) {
+        return false
+      }
+      const [rangeStart, rangeEnd] =
+        queryDates[0] <= queryDates[1]
+          ? [queryDates[0], queryDates[1]]
+          : [queryDates[1], queryDates[0]]
+      if (operator === 'between') {
+        return dateValues.some(
+          (value) => value >= rangeStart && value <= rangeEnd,
+        )
+      }
+      return dateValues.every((value) => value < rangeStart || value > rangeEnd)
+    }
   }
 }
 
@@ -744,6 +829,7 @@ function buildObjectSubfields(
         supportedClasses: [],
         entityTypes: [],
         expectsObjectValue: false,
+        valueKind: resolveValueKind(input, false),
         objectSubfields: [],
       })
     }
@@ -789,6 +875,41 @@ function resolveExpectsObjectValue(
   return false
 }
 
+function resolveValueKind(
+  input: Record<string, unknown>,
+  expectsObjectValue: boolean,
+): 'text' | 'date' {
+  if (expectsObjectValue) {
+    return 'text'
+  }
+  if (Array.isArray(input.values) && input.values.length > 0) {
+    return 'text'
+  }
+
+  const rawType = input.type
+  const typeValues = Array.isArray(rawType) ? rawType : rawType ? [rawType] : []
+  for (const typeValue of typeValues) {
+    if (isDateType(String(typeValue))) {
+      return 'date'
+    }
+  }
+  return 'text'
+}
+
+function isDateType(typeName: string): boolean {
+  const normalized = typeName.trim().toLowerCase()
+  if (!normalized) {
+    return false
+  }
+  return (
+    normalized === 'date' ||
+    normalized === 'datetime' ||
+    normalized.includes('#date') ||
+    normalized.endsWith('/date') ||
+    normalized.includes('datetime')
+  )
+}
+
 function isScalarType(typeName: string): boolean {
   const normalized = typeName.toLowerCase()
   return (
@@ -809,6 +930,75 @@ function isScalarType(typeName: string): boolean {
     normalized.includes('boolean') ||
     normalized.includes('date') ||
     normalized.includes('time')
+  )
+}
+
+function isDateOrderingOperator(
+  operator: AdvancedRuleOperator,
+): operator is 'lt' | 'lte' | 'gt' | 'gte' {
+  return DATE_ORDER_OPERATORS.has(operator)
+}
+
+function isRangeOperator(
+  operator: AdvancedRuleOperator,
+): operator is 'between' | 'not_between' {
+  return DATE_RANGE_OPERATORS.has(operator)
+}
+
+function isDateComparableOperator(
+  operator: AdvancedRuleOperator,
+): operator is
+  | 'equal'
+  | 'not_equal'
+  | 'lt'
+  | 'lte'
+  | 'gt'
+  | 'gte'
+  | 'between'
+  | 'not_between' {
+  return (
+    operator === 'equal' ||
+    operator === 'not_equal' ||
+    isDateOrderingOperator(operator) ||
+    isRangeOperator(operator)
+  )
+}
+
+function toDateDayKey(rawValue: string): number | undefined {
+  const value = String(rawValue ?? '').trim()
+  if (!value) {
+    return undefined
+  }
+
+  // For ISO-like strings, compare by the explicit calendar date part, not timezone-shifted UTC date.
+  const datePrefixMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/)
+  if (datePrefixMatch) {
+    const year = Number(datePrefixMatch[1])
+    const month = Number(datePrefixMatch[2])
+    const day = Number(datePrefixMatch[3])
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+      return undefined
+    }
+    const parsed = new Date(Date.UTC(year, month - 1, day))
+    if (
+      parsed.getUTCFullYear() !== year ||
+      parsed.getUTCMonth() !== month - 1 ||
+      parsed.getUTCDate() !== day
+    ) {
+      return undefined
+    }
+    return parsed.getTime()
+  }
+
+  const parsedMs = Date.parse(value)
+  if (!Number.isFinite(parsedMs)) {
+    return undefined
+  }
+  const parsedDate = new Date(parsedMs)
+  return Date.UTC(
+    parsedDate.getUTCFullYear(),
+    parsedDate.getUTCMonth(),
+    parsedDate.getUTCDate(),
   )
 }
 
