@@ -307,6 +307,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
   }
 
   private needsIdConversion(crate: Record<string, any>): boolean {
+    const arpPid = this.getRootArpPid(crate)
+    if (!arpPid) {
+      return false
+    }
+
     const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
     for (const entry of graph) {
       if (!entry || typeof entry !== 'object') continue
@@ -319,24 +324,63 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
           : []
 
       const relevant = types.some(
-        (t) => t === 'File' || t === 'Dataset' || t === 'CreativeWork',
+        (t) => t === 'File' || t === 'Dataset',
       )
       if (!relevant) continue
 
       const id =
         typeof (entry as any)['@id'] === 'string' ? (entry as any)['@id'].trim() : ''
-
-      if (!id) return true
+      if (!id) {
+        continue
+      }
 
       if (types.includes('Dataset') && (id === './' || id === '.')) {
         continue
       }
 
-      if (!id.startsWith('file://./')) {
+      if (this.isArpLocalEntityId(id, arpPid)) {
         return true
       }
     }
     return false
+  }
+
+  private getRootArpPid(crate: Record<string, any>): string | undefined {
+    const rootDataset = this.getRootDataset(crate)
+    const arpPid =
+      rootDataset && typeof rootDataset['@arpPid'] === 'string'
+        ? rootDataset['@arpPid'].trim()
+        : ''
+    return arpPid || undefined
+  }
+
+  private isArpLocalEntityId(id: string, arpPid: string): boolean {
+    const trimmedId = id.trim()
+    if (!trimmedId || !arpPid) {
+      return false
+    }
+
+    const prefix = `https://w3id.org/arp/ro-id/${arpPid}/file/`
+    return trimmedId.startsWith(prefix) && trimmedId.length > prefix.length
+  }
+
+  private getRootDataset(crate: Record<string, any>): Record<string, any> | undefined {
+    const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+    return graph.find((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return false
+      }
+
+      const id = typeof (entry as any)['@id'] === 'string' ? (entry as any)['@id'].trim() : ''
+      const rawType = (entry as any)['@type']
+      const types: string[] = Array.isArray(rawType)
+        ? rawType.filter((t): t is string => typeof t === 'string')
+        : typeof rawType === 'string'
+          ? [rawType]
+          : []
+
+      return (id === './' || id === '.') && types.includes('Dataset')
+    }) as Record<string, any> | undefined
   }
 
   // ---- main update + profile merge logic ----

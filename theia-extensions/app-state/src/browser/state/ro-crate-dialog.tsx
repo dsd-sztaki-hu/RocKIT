@@ -241,7 +241,7 @@ export class ROCrateDialog extends ReactDialog<string> {
     if (isDirectory && !combined.endsWith('/')) {
       combined = `${combined}/`
     }
-    return `file://./${combined}`
+    return combined
   }
 
   private normalizeRelativePathForId(path: string): string {
