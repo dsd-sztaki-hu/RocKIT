@@ -60,6 +60,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
   protected pendingExternalCheck?: ReturnType<typeof setTimeout>
   protected lastKnownMetadataJson?: string
 
+  protected pendingAppStateProfileRefresh?: ReturnType<typeof setTimeout>
+  protected pendingAppStateProfileRefreshCrate?: Record<string, any>
+  protected lastObservedConformsToKey = ''
+
   /**
    * Critical: lets us distinguish between:
    * - "startup: roots not ready yet" (do NOT wipe restored state)
@@ -90,6 +94,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     await this.refreshProfileList(this.appStateService.roCrate)
     await this.refreshCompleteProfile(this.appStateService.roCrate)
     this.watchSchemaChanges()
+    this.watchAppStateCrateChanges()
 
     // Re-sync when workspace changes
     this.workspaceService.onWorkspaceChanged(() => {
@@ -389,6 +394,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     content: Record<string, any> | undefined,
     isInvalid: boolean,
   ): void {
+    this.lastObservedConformsToKey = this.buildConformsToKey(content)
     this.appStateService.roCrate = content
     this.appStateService.isROCrateInvalid = isInvalid
     this.appStateService.setRoCrateSnapshot(content)
@@ -558,18 +564,21 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       this.cloneProfile(this.initialProfileTemplate) ?? this.createEmptyProfile()
 
     const profileList = this.appStateService.profileList
-    if (!profileList || Object.keys(profileList).length === 0) {
+    if (!profileList || profileList.length === 0) {
       this.appStateService.completeProfile = baseProfile
       return
     }
 
     let mergedProfile = baseProfile
 
-    for (const [conformsToUrlRaw, convertedContent] of Object.entries(profileList)) {
-      const conformsToUrl = (conformsToUrlRaw ?? '').trim()
+    for (const entry of profileList) {
+      const conformsToUrl = (entry?.id ?? '').trim()
       if (!conformsToUrl) {
         continue
       }
+
+      const convertedContent = entry?.content
+
       try {
         if (convertedContent) {
           mergedProfile = await this.schemaManagerService.getMergedProfile(
@@ -596,6 +605,145 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     })
   }
 
+  protected watchAppStateCrateChanges(): void {
+    this.appStateService.onDidChangeSelector((s) => s.roCrate)((crate) => {
+      this.handleAppStateCrateChange(crate)
+    })
+  }
+
+  protected handleAppStateCrateChange(crate: Record<string, any> | undefined): void {
+    const nextKey = this.buildConformsToKey(crate)
+    if (nextKey === this.lastObservedConformsToKey) {
+      return
+    }
+
+    this.lastObservedConformsToKey = nextKey
+
+    this.pendingAppStateProfileRefreshCrate = crate
+
+    if (this.pendingAppStateProfileRefresh) {
+      clearTimeout(this.pendingAppStateProfileRefresh)
+    }
+
+    this.pendingAppStateProfileRefresh = setTimeout(() => {
+      this.pendingAppStateProfileRefresh = undefined
+      const next = this.pendingAppStateProfileRefreshCrate
+      void (async () => {
+        try {
+          await this.updateProfileListIncrementally(next)
+          await this.refreshCompleteProfile(next)
+        } catch (error) {
+          console.error(
+            'Failed to refresh profile list after RO-Crate change in AppState',
+            error,
+          )
+        }
+      })()
+    }, 200)
+  }
+
+  protected buildConformsToKey(crate: Record<string, any> | undefined): string {
+    if (!crate) {
+      return ''
+    }
+
+    const ids = this.extractAllConformsToIds(crate)
+      .map((id) => (typeof id === 'string' ? id.trim() : ''))
+      .filter((id) => id.length !== 0)
+      .sort()
+
+    return ids.join('|')
+  }
+
+  protected async updateProfileListIncrementally(
+    crate: Record<string, any> | undefined,
+  ): Promise<void> {
+    if (!crate) {
+      this.appStateService.profileList = undefined
+      return
+    }
+
+    const nextIds = this.extractAllConformsToIds(crate)
+      .map((id) => (typeof id === 'string' ? id.trim() : ''))
+      .filter((id) => id.length !== 0)
+
+    const nextUnique = Array.from(new Set(nextIds)).sort()
+
+    if (nextUnique.length === 0) {
+      this.appStateService.profileList = undefined
+      return
+    }
+
+    const prevList = Array.isArray(this.appStateService.profileList)
+      ? this.appStateService.profileList
+      : []
+
+    const prevById = new Map<
+      string,
+      { id: string; content: Record<string, any> | undefined; flag: string }
+    >()
+    for (const item of prevList as any[]) {
+      const id = typeof item?.id === 'string' ? item.id.trim() : ''
+      if (id) {
+        prevById.set(id, item)
+      }
+    }
+
+    const missingIds: string[] = []
+    const nextList: Array<{
+      id: string
+      content: Record<string, any> | undefined
+      flag: string
+    }> = []
+
+    for (const id of nextUnique) {
+      const existing = prevById.get(id)
+      if (existing?.content) {
+        nextList.push({
+          id,
+          content: existing.content,
+          flag: typeof (existing as any).flag === 'string' ? (existing as any).flag : '',
+        })
+        continue
+      }
+      missingIds.push(id)
+    }
+
+    if (missingIds.length !== 0) {
+      const allSchemas = await this.schemaManagerService.loadAllSchemas()
+
+      for (const id of missingIds) {
+        const matchingSchema = allSchemas.find(
+          (schema) => (schema?.conformsTo ?? '').trim() === id,
+        )
+        if (!matchingSchema) {
+          console.warn('No schema found for conformsTo URL:', id)
+          continue
+        }
+        try {
+          const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
+            matchingSchema.files.convertedPath,
+          )
+          if (convertedContent) {
+            nextList.push({
+              id,
+              content: convertedContent,
+              flag: '',
+            })
+          } else {
+            console.warn('Invalid profile content for conformsTo URL:', id)
+          }
+        } catch (error) {
+          console.warn('Failed to load profile for conformsTo URL:', id, error)
+        }
+      }
+    }
+
+    this.appStateService.updateState((prev) => ({
+      profileList: nextList.length ? nextList : undefined,
+    }))
+  }
+
   protected async refreshProfileList(
     crate: Record<string, any> | undefined,
   ): Promise<void> {
@@ -611,7 +759,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     }
 
     const allSchemas = await this.schemaManagerService.loadAllSchemas()
-    const profileMap: Record<string, any> = {}
+    const profileListItems: Array<{
+      id: string
+      content: Record<string, any> | undefined
+      flag: string
+    }> = []
 
     for (const conformsToUrl of conformsToIds) {
       const matchingSchema = allSchemas.find(
@@ -619,6 +771,17 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       )
       if (!matchingSchema) {
         console.warn('No schema found for conformsTo URL:', conformsToUrl)
+        
+        // If conformsToUrl contains the substring "schema"
+        if (conformsToUrl.includes('schema')) {
+          // Add an empty entry with a "missing" flag to indicate the profile is missing
+          profileListItems.push({
+            id: conformsToUrl,
+            content: undefined,
+            flag: 'missing',
+          })
+        }
+
         continue
       }
       try {
@@ -626,7 +789,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
           matchingSchema.files.convertedPath,
         )
         if (convertedContent) {
-          profileMap[conformsToUrl] = convertedContent
+          profileListItems.push({
+            id: conformsToUrl,
+            content: convertedContent,
+            flag: '',
+          })
         } else {
           console.warn('Invalid profile content for conformsTo URL:', conformsToUrl)
         }
@@ -636,7 +803,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     }
 
     this.appStateService.updateState((prev) => ({
-      profileList: Object.keys(profileMap).length ? profileMap : undefined,
+      profileList: profileListItems.length ? profileListItems : undefined,
     }))
   }
 

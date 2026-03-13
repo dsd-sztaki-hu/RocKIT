@@ -41,11 +41,9 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   private isChecking = false;
   private indexMutex: Promise<void> = Promise.resolve();
 
-  // Transient state for UI
   private pendingSchemas = new Map<string, SchemaInfo>();
   private abortControllers = new Map<string, AbortController>();
 
-  // Default Configuration Fallbacks (overridden dynamically via env vars)
   private arpProdPrefix = 'https://repo.schema.researchdata.hu/templates/';
   private arpDevPrefix = 'https://repo.cedardev.dsd.sztaki.hu/templates/';
   private arpW3idProd = 'https://w3id.org/arp/schema/';
@@ -66,6 +64,55 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         if (newCrate) this.checkAndDownloadSchemas(newCrate);
       }
     );
+
+    this.appStateService.onDidChangeSelector((state: any) => state.profileList)(
+      (newList) => {
+        if (newList) this.syncProfileListFlags(newList);
+      }
+    );
+
+    this.onDidChangeSchemas(() => {
+      const state = this.appStateService.getState() as any;
+      if (state.profileList) {
+        this.syncProfileListFlags(state.profileList);
+      }
+    });
+  }
+
+  private async syncProfileListFlags(profileList: any[]): Promise<void> {
+    if (!Array.isArray(profileList) || profileList.length === 0) return;
+
+    const schemas = await this.loadAllSchemas();
+    let isChanged = false;
+    let hasMissingSchemas = false;
+
+    const updatedProfileList = profileList.map(profile => {
+      const matchedSchema = schemas.find(s => s.conformsTo === profile.id || s.aux.reference === profile.id);
+      const newFlag = matchedSchema ? (matchedSchema.status || 'ok') : 'missing';
+
+      if (newFlag === 'missing') {
+        hasMissingSchemas = true;
+      }
+
+      if (profile.flag !== newFlag) {
+        isChanged = true;
+        return { ...profile, flag: newFlag };
+      }
+      return profile;
+    });
+
+    if (isChanged) {
+      this.appStateService.updateState({ profileList: updatedProfileList } as any);
+    }
+
+    if (hasMissingSchemas && !this.isChecking) {
+      const currentCrate = this.appStateService.roCrate;
+      if (currentCrate) {
+        this.checkAndDownloadSchemas(currentCrate).catch(err => {
+          console.error('[SchemaManager] Background schema recovery failed:', err);
+        });
+      }
+    }
   }
 
   private async loadEnvVariables() {
@@ -228,8 +275,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     }
   }
 
-  // --- TRANSIENT STATE MANAGEMENT ---
-
   public clearFailedPendingSchemas(): void {
     for (const [id, schema] of this.pendingSchemas.entries()) {
       if (schema.status === 'failed') {
@@ -293,8 +338,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       }
     }
   }
-
-  // --- API METHODS ---
 
   public async browseRemoteSchemas(provider: RemoteSchemaProviderConfig): Promise<void> {
     this.onOpenRemoteBrowserEmitter.fire(provider);
@@ -992,7 +1035,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     return count;
   }
 
-  // Legacy methods below, please dont change without consulting the original author
+  // Below here are legacy methods, please dont change without consulting with the team
   public async getMergedProfile(crate: Record<string, any>, newProfile: Record<string, any>, profile: Record<string, any>, profileUrl?: string) {
     const entities: any = Object.values(crate["@graph"]).filter((entity: any) => entity["@type"] != "CreativeWork")
     for (const entity of entities) {
