@@ -8,6 +8,45 @@ Please install all necessary [prerequisites](https://github.com/eclipse-theia/th
 3. yarn build:electron
 4. yarn start:electron
 
+## Working on `recrate` (vendored in `dev-packages/recrate`)
+
+### One-time setup
+
+If `recrate` is checked in as a git submodule, initialize it after cloning:
+
+    git submodule update --init --recursive
+
+Install workspace dependencies from the repo root:
+
+    yarn
+
+### Build / run / test `recrate`
+
+From the repo root you can use the convenience scripts:
+
+    yarn recrate:build
+    yarn recrate:dev
+    yarn recrate:test
+
+Notes:
+- `@arpproject/recrate` exports built artifacts from `dist/`, so `recrate:build` must be run at least once after fresh installs.
+- Even if the upstream `recrate` project uses npm, running it via `yarn workspace` works fine in this monorepo because Yarn workspaces manage the dependencies.
+
+### Publish a new `recrate` version to npm
+
+Publishing is still done from inside the `recrate` package directory, but you can run it from the repo root:
+
+    yarn recrate:publish
+
+Typical release flow:
+1. Commit and push changes in `dev-packages/recrate` to the upstream git repository.
+2. Bump the version in `dev-packages/recrate/package.json`.
+3. Run `yarn recrate:publish` (requires npm authentication).
+4. Commit the updated submodule pointer in this repository (so this repo points at the released commit).
+
+Authentication note:
+- If your company GitLab uses AAI/SSO for the web UI, git operations typically use SSH keys or tokens. For submodules, SSH URLs are usually the most reliable.
+
 
 ## Developing with the Electron example
 

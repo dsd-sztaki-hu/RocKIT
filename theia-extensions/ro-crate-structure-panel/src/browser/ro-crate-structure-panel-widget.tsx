@@ -1128,6 +1128,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       const { isDirectory, fileUri } = await this.resolveDroppedEntryInfo(relPath, sourceUri)
       const baseNewId = this.toFileEntityId(normalizedRelPath, sourceUri)
       const baseWorkspaceId = this.toFileEntityId(normalizedRelPath, undefined)
+      const legacyWorkspaceId = this.toLegacyWorkspaceFileEntityId(normalizedRelPath)
       const newId = isDirectory ? this.toDatasetEntityId(baseNewId) : baseNewId
       const workspaceId = isDirectory
         ? this.toDatasetEntityId(baseWorkspaceId)
@@ -1141,6 +1142,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         sourceUri?.toString(),
         sourceUri ? this.formatAbsoluteFileUri(sourceUri) : undefined,
         workspaceId,
+        legacyWorkspaceId,
+        isDirectory ? this.toDatasetEntityId(legacyWorkspaceId) : undefined,
         ...(isDirectory ? this.getDatasetIdVariants(baseWorkspaceId) : []),
       ].filter((value): value is string => Boolean(value))
 
@@ -1280,23 +1283,21 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     if (sourceUri && !this.isWorkspaceUri(sourceUri)) {
       return this.formatAbsoluteFileUri(sourceUri)
     }
+    return relPath
+  }
+
+  protected toLegacyWorkspaceFileEntityId(relPath: string): string {
     return `file://./${relPath}`
   }
 
   protected toDatasetEntityId(entityId: string): string {
-    if (!entityId.startsWith('file:')) {
-      return entityId
-    }
-    return entityId.endsWith('/') ? entityId : `${entityId}/`
+    return entityId
   }
 
   protected getDatasetIdVariants(entityId: string): string[] {
-    if (!entityId.startsWith('file:')) {
-      return [entityId]
-    }
     const withSlash = entityId.endsWith('/') ? entityId : `${entityId}/`
     const withoutSlash = withSlash.endsWith('/') ? withSlash.slice(0, -1) : withSlash
-    return Array.from(new Set([withSlash, withoutSlash]))
+    return Array.from(new Set([entityId, withSlash, withoutSlash]))
   }
 
   protected formatAbsoluteFileUri(uri: URI): string {
