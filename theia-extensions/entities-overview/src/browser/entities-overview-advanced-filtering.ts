@@ -370,7 +370,8 @@ function sanitizeGroup(
       continue
     }
     if (isRangeOperator(child.operator)) {
-      if (field.valueKind !== 'date' || decodedValues.length < 2) {
+      const rangeValues = decodeDateQueryValues(child.value)
+      if (field.valueKind !== 'date' || rangeValues.length < 2) {
         continue
       }
     } else if (decodedValues.length === 0) {
@@ -519,7 +520,13 @@ function evaluateDateRule(
   const queryDates = decodeAdvancedRuleValues(rawValue)
     .map((value) => toDateDayKey(value))
     .filter((value): value is number => value !== undefined)
-  const queryDate = queryDates[0]
+  const normalizedQueryDates =
+    queryDates.length >= 2
+      ? queryDates
+      : decodeDateQueryValues(rawValue)
+    .map((value) => toDateDayKey(value))
+    .filter((value): value is number => value !== undefined)
+  const queryDate = normalizedQueryDates[0]
 
   switch (operator) {
     case 'equal':
@@ -536,13 +543,13 @@ function evaluateDateRule(
       return queryDate !== undefined && dateValues.some((value) => value >= queryDate)
     case 'between':
     case 'not_between': {
-      if (queryDates.length < 2) {
+      if (normalizedQueryDates.length < 2) {
         return false
       }
       const [rangeStart, rangeEnd] =
-        queryDates[0] <= queryDates[1]
-          ? [queryDates[0], queryDates[1]]
-          : [queryDates[1], queryDates[0]]
+        normalizedQueryDates[0] <= normalizedQueryDates[1]
+          ? [normalizedQueryDates[0], normalizedQueryDates[1]]
+          : [normalizedQueryDates[1], normalizedQueryDates[0]]
       if (operator === 'between') {
         return dateValues.some(
           (value) => value >= rangeStart && value <= rangeEnd,
@@ -964,26 +971,40 @@ function isDateComparableOperator(
   )
 }
 
+function decodeDateQueryValues(rawValue: string): string[] {
+  const decoded = decodeAdvancedRuleValues(rawValue)
+  if (decoded.length >= 2) {
+    return decoded
+  }
+
+  const fallbackMatches = String(rawValue ?? '').match(/\d{4}-\d{2}-\d{2}/g)
+  if (fallbackMatches && fallbackMatches.length >= 2) {
+    return [fallbackMatches[0], fallbackMatches[1]]
+  }
+
+  return decoded
+}
+
 function toDateDayKey(rawValue: string): number | undefined {
   const value = String(rawValue ?? '').trim()
   if (!value) {
     return undefined
   }
 
-  // For ISO-like strings, compare by the explicit calendar date part, not timezone-shifted UTC date.
-  const datePrefixMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/)
-  if (datePrefixMatch) {
-    const year = Number(datePrefixMatch[1])
-    const month = Number(datePrefixMatch[2])
-    const day = Number(datePrefixMatch[3])
+  // Date-only values should be treated as explicit calendar dates.
+  const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (dateOnlyMatch) {
+    const year = Number(dateOnlyMatch[1])
+    const month = Number(dateOnlyMatch[2])
+    const day = Number(dateOnlyMatch[3])
     if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
       return undefined
     }
-    const parsed = new Date(Date.UTC(year, month - 1, day))
+    const parsed = new Date(year, month - 1, day)
     if (
-      parsed.getUTCFullYear() !== year ||
-      parsed.getUTCMonth() !== month - 1 ||
-      parsed.getUTCDate() !== day
+      parsed.getFullYear() !== year ||
+      parsed.getMonth() !== month - 1 ||
+      parsed.getDate() !== day
     ) {
       return undefined
     }
@@ -994,12 +1015,13 @@ function toDateDayKey(rawValue: string): number | undefined {
   if (!Number.isFinite(parsedMs)) {
     return undefined
   }
+  // Date-time values should be matched by the user's local calendar day.
   const parsedDate = new Date(parsedMs)
-  return Date.UTC(
-    parsedDate.getUTCFullYear(),
-    parsedDate.getUTCMonth(),
-    parsedDate.getUTCDate(),
-  )
+  return new Date(
+    parsedDate.getFullYear(),
+    parsedDate.getMonth(),
+    parsedDate.getDate(),
+  ).getTime()
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
