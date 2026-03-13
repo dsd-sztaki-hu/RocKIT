@@ -22,7 +22,11 @@
     "format": "biome format .",
     "format:fix": "biome format --write .",
     "check": "biome check .",
-    "check:fix": "biome check --write ."
+    "check:fix": "biome check --write .",
+    "recrate:dev": "yarn workspace @arpproject/recrate start",
+    "recrate:build": "yarn workspace @arpproject/recrate build",
+    "recrate:test": "yarn workspace @arpproject/recrate test",
+    "recrate:publish": "yarn workspace @arpproject/recrate build && (cd dev-packages/recrate && npm publish)"
   },
   "devDependencies": {
     "lerna": "2.4.0",
@@ -38,5 +42,10 @@
   "dependencies": {
     "generator-theia-extension": "^0.1.47",
     "dotenv": "17.2.3"
+  },
+  "resolutions": {
+    "@types/minimatch": "3.0.5",
+    "@types/react": "18.3.27",
+    "@types/react-dom": "18.3.7"
   }
 }
