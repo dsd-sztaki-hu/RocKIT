@@ -398,32 +398,11 @@ export class MultiEditDialog extends ReactDialog<string> {
           entityTypes,
         }
 
-        const dedupeKey = `${schemaMeta.id}::${propertyName}::${field.label}`
-        const existingField = fieldsByKey.get(dedupeKey)
-        if (!existingField) {
-          fieldsByKey.set(dedupeKey, field)
-        } else {
-          const supported = new Set(existingField.supportedClasses ?? [])
-          supported.add(className)
-          existingField.supportedClasses = Array.from(supported.values())
-          const mergedEntityTypes = new Set(existingField.entityTypes)
-          for (const typeName of field.entityTypes) {
-            mergedEntityTypes.add(typeName)
-          }
-          existingField.entityTypes = Array.from(mergedEntityTypes.values())
-          if (field.multiple) {
-            existingField.multiple = true
-          }
-          if (field.selectValues.length > 0) {
-            const mergedValues = new Set(existingField.selectValues)
-            for (const value of field.selectValues) {
-              mergedValues.add(value)
-            }
-            existingField.selectValues = Array.from(mergedValues.values())
-          }
-        }
+        this.upsertFieldDefinition(fieldsByKey, field)
       }
     }
+
+    this.addSchemaProfileFields(fieldsByKey, schemasById)
 
     const fields = Array.from(fieldsByKey.values())
     fields.sort((a, b) => {
@@ -439,6 +418,145 @@ export class MultiEditDialog extends ReactDialog<string> {
     )
 
     return { fields, schemas }
+  }
+
+  /**
+   * Builds and appends fields from crate-level schema profiles (profileList entries).
+   * These fields are applicable to all selected entities when their schema is selected.
+   * @param fieldsByKey Mutable field map.
+   * @param schemasById Mutable schema map.
+   * @returns void
+   * @protected
+   */
+  protected addSchemaProfileFields(
+    fieldsByKey: Map<string, FieldDefinition>,
+    schemasById: Map<string, SchemaOption>,
+  ): void {
+    const profileList = Array.isArray(this.appStateService.profileList)
+      ? this.appStateService.profileList
+      : []
+    const allowedSchemaUrls = new Set(this.extractConformsToUrlsFromCrate())
+
+    for (const entry of profileList) {
+      const schemaUrl = typeof entry?.id === 'string' ? entry.id.trim() : ''
+      if (!schemaUrl || !allowedSchemaUrls.has(schemaUrl)) {
+        continue
+      }
+
+      const schemaLabel = this.resolveSchemaLabelFromProfileEntry(entry, schemaUrl)
+      const schemaId = this.normalizeSchemaId(schemaLabel)
+      if (!schemaId) {
+        continue
+      }
+
+      if (!schemasById.has(schemaId)) {
+        schemasById.set(schemaId, { id: schemaId, label: schemaLabel, url: schemaUrl })
+      }
+      this.schemaUrlsById.set(schemaId, schemaUrl)
+
+      const schemaProfile = entry?.content
+      const schemaClasses =
+        schemaProfile && typeof schemaProfile === 'object'
+          ? ((schemaProfile.classes as Record<string, any> | undefined) ?? {})
+          : {}
+      const datasetClass = schemaClasses.Dataset
+      const schemaInputs = Array.isArray(datasetClass?.inputs)
+        ? (datasetClass.inputs as Record<string, any>[])
+        : []
+      if (schemaInputs.length === 0) {
+        continue
+      }
+
+      const schemaLayouts = Array.isArray(schemaProfile?.layouts)
+        ? (schemaProfile.layouts as Record<string, any>[])
+        : []
+      const datasetLayout = this.findLayoutForClass(schemaLayouts, 'Dataset')
+
+      for (const input of schemaInputs) {
+        const propertyName = typeof input?.name === 'string' ? input.name.trim() : ''
+        if (!propertyName) {
+          continue
+        }
+
+        const relationshipTypes = this.extractEntityTypes(input, schemaClasses)
+        const groupName = this.getFieldGroup(input)
+        const schemaMeta = this.resolveSchemaMeta(datasetLayout, groupName)
+        const field: FieldDefinition = {
+          key: `schema::${schemaId}::${propertyName}`,
+          className: '__any__',
+          classLabel: 'Any',
+          supportedClasses: [],
+          schemaId,
+          schemaLabel,
+          schemaGroupName: schemaMeta.label || schemaLabel,
+          schemaUrl,
+          propertyName,
+          label: String(input.label ?? propertyName),
+          help: typeof input.help === 'string' ? input.help : undefined,
+          multiple: this.parseBoolean(input.multiple),
+          valueKind: this.resolveValueKind(input, schemaClasses, relationshipTypes),
+          selectValues: Array.isArray(input.values)
+            ? input.values
+                .map((value) => String(value))
+                .filter((value) => value.trim().length > 0)
+            : [],
+          entityTypes: relationshipTypes,
+          appliesToAll: true,
+        }
+
+        this.upsertFieldDefinition(fieldsByKey, field)
+      }
+    }
+  }
+
+  /**
+   * Inserts or merges one field into the deduplicated field map.
+   * @param fieldsByKey Mutable field map.
+   * @param field Candidate field.
+   * @returns void
+   * @protected
+   */
+  protected upsertFieldDefinition(
+    fieldsByKey: Map<string, FieldDefinition>,
+    field: FieldDefinition,
+  ): void {
+    const dedupeKey = `${field.schemaId}::${field.propertyName}::${field.label}`
+    const existingField = fieldsByKey.get(dedupeKey)
+    if (!existingField) {
+      fieldsByKey.set(dedupeKey, field)
+      return
+    }
+
+    const supported = new Set(existingField.supportedClasses ?? [])
+    for (const className of field.supportedClasses ?? []) {
+      if (className && className.trim().length > 0) {
+        supported.add(className)
+      }
+    }
+    existingField.supportedClasses = Array.from(supported.values())
+
+    const mergedEntityTypes = new Set(existingField.entityTypes)
+    for (const typeName of field.entityTypes) {
+      mergedEntityTypes.add(typeName)
+    }
+    existingField.entityTypes = Array.from(mergedEntityTypes.values())
+
+    if (field.multiple) {
+      existingField.multiple = true
+    }
+    if (field.appliesToAll) {
+      existingField.appliesToAll = true
+    }
+    if (!existingField.schemaUrl && field.schemaUrl) {
+      existingField.schemaUrl = field.schemaUrl
+    }
+    if (field.selectValues.length > 0) {
+      const mergedValues = new Set(existingField.selectValues)
+      for (const value of field.selectValues) {
+        mergedValues.add(value)
+      }
+      existingField.selectValues = Array.from(mergedValues.values())
+    }
   }
 
   /**
