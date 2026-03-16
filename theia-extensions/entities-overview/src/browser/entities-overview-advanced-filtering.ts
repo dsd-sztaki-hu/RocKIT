@@ -592,14 +592,6 @@ function getComparableValues(
   entity: Record<string, unknown>,
   field: AdvancedFieldDefinition,
 ): string[] {
-  const applicable =
-    field.supportedClasses.length === 0 ||
-    getEntityTypeNames(entity).some((typeName) =>
-      field.supportedClasses.includes(typeName),
-    )
-  if (!applicable) {
-    return []
-  }
   return flattenComparableValues(entity[field.propertyName])
 }
 
