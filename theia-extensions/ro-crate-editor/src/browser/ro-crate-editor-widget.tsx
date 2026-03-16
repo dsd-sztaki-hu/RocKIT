@@ -284,8 +284,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     console.log('localCompleteProfile', this.localCompleteProfile)
     this.setDirtyState(false)
     this.lastSeenNonMissingProfileCount = Array.isArray(this.appStateService.profileList)
-      ? this.appStateService.profileList.filter((p: any) => (p as any)?.flag !== 'missing')
-          .length
+      ? this.appStateService.profileList.filter(
+          (p: any) => (p as any)?.flag !== 'missing',
+        ).length
       : 0
 
     this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
@@ -603,8 +604,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   render(): React.ReactNode {
     return (
       <div style={{ padding: '1rem' }}>
-        <h3>Panel ID:</h3>
-        <pre>{this.instanceId}</pre>
         <DescriboCrateBuilderWrapper
           crate={this.localCrate}
           profile={this.localProfile}
@@ -731,10 +730,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
   }
 
-  protected toStableEntityComparableValue(
-    value: unknown,
-    parentKey?: string,
-  ): unknown {
+  protected toStableEntityComparableValue(value: unknown, parentKey?: string): unknown {
     if (parentKey === 'conformsTo') {
       const refs = this.normalizeReferenceArray(value)
       if (refs.length === 0) {
@@ -748,7 +744,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         .map((entry) => this.toStableEntityComparableValue(entry, parentKey))
         .filter((entry) => entry !== undefined)
 
-      if (parentKey === '@type' && normalized.every((entry) => typeof entry === 'string')) {
+      if (
+        parentKey === '@type' &&
+        normalized.every((entry) => typeof entry === 'string')
+      ) {
         return [...(normalized as string[])].sort((a, b) => a.localeCompare(b))
       }
 
@@ -1142,9 +1141,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
       let convertedContent: any | undefined =
         trimmedProfileUrl && profileList
-          ? profileList.find(
-              (p: any) => (p?.id ?? '').trim() === trimmedProfileUrl,
-            )?.content
+          ? profileList.find((p: any) => (p?.id ?? '').trim() === trimmedProfileUrl)
+              ?.content
           : undefined
 
       if (!convertedContent && trimmedProfileUrl && profileList) {
