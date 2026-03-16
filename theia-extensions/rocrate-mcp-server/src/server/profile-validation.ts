@@ -565,6 +565,9 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
         }
       }
       for (const key of Object.keys(entity)) {
+        if (key.startsWith('@')) {
+          continue
+        }
         if (allowedProperties.has(key)) {
           continue
         }

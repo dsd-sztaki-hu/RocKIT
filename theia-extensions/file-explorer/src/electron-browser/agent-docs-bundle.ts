@@ -22,6 +22,7 @@ export const AGENT_DOCS_BUNDLE: Record<string, string> = {
 4. \`validate_crate\` and capture summary.
 5. Call out remaining warnings with recommended fixes.
 6. State whether crate is publication-ready (\`enforce_required\`).
+7. Give a final summary of data added or updated, use table format when possible.
 `,
   'entity-quality-and-id-rules.md': `# Entity Quality and ID Rules
 
@@ -59,6 +60,7 @@ These rules are mandatory for RO-Crate metadata quality.
 
 Always follow this sequence when curating RO-Crate metadata:
 
+0. Use MCP \`rocrate\` tools for metadata edits and validation. Do not edit JSON directly.
 1. Call \`get_rocrate_context\` before any edit.
 2. Read active profile constraints from \`profileRules.allowedPropertiesByClass\`.
 3. If constraints are missing or unclear, call \`resolve_profile_schema\`.
@@ -85,16 +87,17 @@ Default behavior is additive.
 2. Prefer one scoped \`apply_changes\` step at a time over giant writes.
 3. Keep entity IDs stable unless user asks to refactor them.
 4. Never edit \`ro-crate-metadata.json\` directly; use MCP tools.
-5. Destructive \`apply_changes\` operations must include \`confirmDestructive=true\`:
+5. Destructive \`apply_changes\` operations are allowed only when explicitly requested by user and must include \`confirmDestructive=true\`:
    - \`removeEntities\`
    - \`removeHasPart\`
    - \`updateEntities.unset\`
    - \`setRootFields.hasPart\`
-6. Never change \`conformsTo\` via \`apply_changes\`; use \`update_profile_conforms_to(write=true)\` only when user explicitly asks.
-7. Preserve descriptor integrity:
+6. \`apply_changes\` persists by default in local mode. Use \`dryRun=true\` for preview-only execution.
+7. Never change \`conformsTo\` via \`apply_changes\`; use \`update_profile_conforms_to(write=true)\` only when user explicitly asks.
+8. Preserve descriptor integrity:
    - \`ro-crate-metadata.json\` \`about\` link
    - root dataset identity and core graph consistency
-8. In remote mode, remind that writes are not persisted unless client saves returned payload.
+9. In remote mode, remind that writes are not persisted unless client saves returned payload.
 `,
   'search-and-evidence.md': `# Search and Evidence
 
@@ -117,10 +120,11 @@ Run validation after every meaningful edit set.
    - \`validate_crate(profileRequiredMode=allow_missing)\`
 2. Before publication or Dataverse upload:
    - \`validate_crate(profileRequiredMode=enforce_required)\`
-3. Report both:
+3. After writes, always run \`read_crate\` to verify intended changes are present.
+4. Report both:
    - core RO-Crate validation status
    - profile validation status
-4. Resolve all errors before declaring the crate publication-ready.
-5. Warnings are allowed temporarily, but enumerate them and propose fixes.
+5. Resolve all errors before declaring the crate publication-ready.
+6. Warnings are allowed temporarily, but enumerate them and propose fixes.
 `
 }

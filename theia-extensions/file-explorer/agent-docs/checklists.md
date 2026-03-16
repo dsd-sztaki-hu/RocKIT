@@ -16,3 +16,4 @@
 4. `validate_crate` and capture summary.
 5. Call out remaining warnings with recommended fixes.
 6. State whether crate is publication-ready (`enforce_required`).
+7. Give a final summary of data added or updated, use table format when possible.
