@@ -60,11 +60,14 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected async loadSchemas(): Promise<void> {
         this.isLoading = true
-        this.selectedSchemaKeys = []
+        const currentSelection = [...this.selectedSchemaKeys];
         this.update()
 
         try {
             this.schemas = await this.schemaManagerService.loadAllSchemas()
+            this.selectedSchemaKeys = currentSelection.filter(key => 
+                this.schemas.some(s => s.id === key)
+            );
         } catch (err) {
             this.messageService.error(
                 `Error loading schemas: ${err instanceof Error ? err.message : String(err)}`,
@@ -84,10 +87,15 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected async deleteSchemas(ids: string[]): Promise<void> {
         if (ids.length === 0) return
 
-        const dialog = new DeleteConfirmationDialog(ids.length)
-        const confirmed = await dialog.open()
+        const hasPersistedItems = this.schemas
+            .filter(s => ids.includes(s.id))
+            .some(s => s.status === 'ok');
 
-        if (!confirmed) return
+        if (hasPersistedItems) {
+            const dialog = new DeleteConfirmationDialog(ids.length)
+            const confirmed = await dialog.open()
+            if (!confirmed) return
+        }
 
         this.isLoading = true
         this.update()
@@ -95,7 +103,8 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         try {
             const deletedCount = await this.schemaManagerService.deleteSchemas(ids)
             if (deletedCount > 0) {
-                this.messageService.info(`Deleted ${deletedCount} schema(s).`, { timeout: MSG_TIMEOUT })
+                const message = hasPersistedItems ? `Deleted ${deletedCount} schema(s).` : `Aborted ${deletedCount} task(s).`;
+                this.messageService.info(message, { timeout: MSG_TIMEOUT })
             }
         } catch (err) {
             console.error('Failed to delete schemas:', err)
@@ -161,11 +170,13 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                 try {
                     const schemaName = await this.schemaManagerService.importFromUrl(url, progress)
                     this.messageService.info(`Successfully imported: ${schemaName}`, { timeout: MSG_TIMEOUT })
-                } catch (error) {
-                    this.messageService.error(
-                        `Import Failed: ${error instanceof Error ? error.message : String(error)}`,
-                        { timeout: MSG_TIMEOUT },
-                    )
+                } catch (error: any) {
+                    if (error.message !== 'Aborted') {
+                        this.messageService.error(
+                            `Import Failed: ${error instanceof Error ? error.message : String(error)}`,
+                            { timeout: MSG_TIMEOUT },
+                        )
+                    }
                 } finally {
                     progress.cancel()
                 }
@@ -173,6 +184,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     }
 
     protected async refreshSchemas(): Promise<void> {
+        this.schemaManagerService.clearFailedPendingSchemas();
         await this.loadSchemas()
     }
 
@@ -235,8 +247,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                             isLoading={this.isLoading}
                             selectionType="checkbox"
                             selectedKeys={this.selectedSchemaKeys}
+                            allowDeleteValidSchemas={true}
                             onSelectionChange={this.onSelectionChange}
                             onDelete={(ids) => this.deleteSchemas(ids)}
+                            onRetry={(id) => this.schemaManagerService.retrySchema(id)}
                         />
                     </div>
 

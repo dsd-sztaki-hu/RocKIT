@@ -4,6 +4,7 @@
   "description": "Theia - Navigator Extension",
   "dependencies": {
     "@theia/core": "1.65.2",
+    "@theia/file-search": "1.65.2",
     "@theia/filesystem": "1.65.2",
     "@theia/terminal": "1.65.2",
     "@theia/workspace": "1.65.2",

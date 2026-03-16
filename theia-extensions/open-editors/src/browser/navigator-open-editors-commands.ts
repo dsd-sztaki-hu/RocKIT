@@ -22,7 +22,7 @@ export namespace OpenEditorsCommands {
         id: 'navigator.close.all.editors.toolbar',
         category: CommonCommands.FILE_CATEGORY,
         label: 'Close All Editors',
-        iconClass: 'codicon codicon-close-all'
+        iconClass: 'codicon codicon-close-all open-editors-close-all-toolbar-icon'
     });
 
     export const SAVE_ALL_TABS_FROM_TOOLBAR = Command.toDefaultLocalizedCommand({
@@ -44,5 +44,12 @@ export namespace OpenEditorsCommands {
         category: CommonCommands.FILE_CATEGORY,
         label: 'Save All in Group',
         iconClass: 'codicon codicon-save-all'
+    });
+
+    export const TOGGLE_SEARCH = Command.toDefaultLocalizedCommand({
+        id: 'open.editors.toggle.search',
+        category: CommonCommands.VIEW_CATEGORY,
+        label: 'Search Open Editors',
+        iconClass: 'codicon codicon-search open-editors-search-toolbar-icon'
     });
 }

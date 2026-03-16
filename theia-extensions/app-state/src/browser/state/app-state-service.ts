@@ -21,6 +21,11 @@ export class AppStateService {
   private readonly store = new SimpleStateStore<AppState>(cloneDefaultAppState())
   private roCrateSnapshot?: string
 
+  private readonly persistIntervalMs = 5000
+  private lastPersistAt = 0
+  private persistTimeout: number | undefined
+  private latestStateForPersist: AppState | undefined
+
   @inject(StorageService)
   protected readonly storageService!: StorageService
 
@@ -41,13 +46,12 @@ export class AppStateService {
       .getData<AppState>(STORAGE_KEY)
       .then((stored) => {
         if (stored) {
-          const { roCrate, profile, selectedEntityId, schemaSelectorContext, ...restStored } = stored
+          const { roCrate, profile, selectedEntityId, schemaSelectorContext, profileList, ...restStored } = stored
           this.store.setState({
             ...cloneDefaultAppState(),
             ...(restStored as any), // Only restore other properties
           })
-          console.log('Stored state loaded:', stored)
-          console.log('Current state after restoration:', this.store.getState())
+
         }
         this._resolveReady()
       })
@@ -58,9 +62,37 @@ export class AppStateService {
 
     // persist on every change
     this.onDidChangeState(({ current }) => {
-      console.log('Persisting state to localStorage:', current)
-      this.storageService.setData(STORAGE_KEY, current)
+      this.latestStateForPersist = current
+
+      const now = Date.now()
+      const elapsed = now - this.lastPersistAt
+
+      if (this.persistTimeout === undefined && elapsed >= this.persistIntervalMs) {
+        this.flushPersist()
+        return
+      }
+
+      if (this.persistTimeout !== undefined) {
+        return
+      }
+
+      const delay = Math.max(this.persistIntervalMs - elapsed, 0)
+      this.persistTimeout = window.setTimeout(() => {
+        this.persistTimeout = undefined
+        this.flushPersist()
+      }, delay)
     })
+  }
+
+  private flushPersist(): void {
+    const state = this.latestStateForPersist
+    if (!state) {
+      return
+    }
+
+    this.lastPersistAt = Date.now()
+    console.log('Persisting state to localStorage')
+    this.storageService.setData(STORAGE_KEY, state)
   }
 
   get ready(): Promise<void> {
@@ -151,16 +183,13 @@ export class AppStateService {
     return this.getState().profile
   }
   set profile(value: AppState['profile']) {
-    console.log('AppStateService: Setting profile to:', value)
     this.updateState({ profile: value })
   }
 
   get selectedEntityId(): AppState['selectedEntityId'] {
-    console.log('Getting selectedEntityId:', this.getState().selectedEntityId)
     return this.getState().selectedEntityId
   }
   set selectedEntityId(value: AppState['selectedEntityId']) {
-    console.log('Setting selectedEntityId:', value)
     this.resetProfileToInitial()
     this.updateState({ selectedEntityId: value })
   }
@@ -263,8 +292,20 @@ export class AppStateService {
     return this.getState().completeProfile
   }
   set completeProfile(value: AppState['completeProfile']) {
-    console.log('AppStateService: Setting completeProfile to:', value)
     this.updateState({ completeProfile: value })
+  }
+
+  get profileList(): AppState['profileList'] {
+    return this.getState().profileList
+  }
+  set profileList(value: AppState['profileList']) {
+    this.updateState({ profileList: value })
+  }
+  getProfileByConformsTo(id: string): Record<string, any> | undefined {
+    const key = typeof id === 'string' ? id.trim() : ''
+    if (!key) return undefined
+    return this.getState().profileList?.find((p) => (p?.id ?? '').trim() === key)
+      ?.content
   }
 
   get validationErrors(): AppState['validationErrors'] {

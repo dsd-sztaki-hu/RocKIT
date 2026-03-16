@@ -1,8 +1,10 @@
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import * as React from '@theia/core/shared/react'
-import { Alert, Button, Input, Select, Switch } from 'antd'
+import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import type { MetadataSchemaManager, SchemaInfo } from 'aroma2-common/lib/browser'
+
+import dayjs = require('dayjs')
 
 type BulkOperator = 'add' | 'remove' | 'set' | 'unset'
 type FieldValueKind = 'text' | 'number' | 'date' | 'select' | 'json' | 'entity'
@@ -42,7 +44,7 @@ interface OperationRow {
 interface EntitySummary {
   id: string
   name: string
-  typeLabel: string
+  type: string | string[]
 }
 
 interface ExecutionSummary {
@@ -181,6 +183,10 @@ export class MultiEditDialog extends ReactDialog<string> {
   protected isExecuting = false
   protected profileData?: Record<string, any>
   protected readonly operationSearch = new Map<string, string>()
+  protected readonly pendingMultiTextSelection = new Map<
+    string,
+    { start: number; end: number }
+  >()
 
   constructor(
     private readonly entityIds: string[],
@@ -270,17 +276,22 @@ export class MultiEditDialog extends ReactDialog<string> {
           entry && typeof entry === 'object' && String(entry['@id']) === entityId,
       )
       if (!entity) {
-        result.push({ id: entityId, name: entityId, typeLabel: 'Unknown' })
+        result.push({ id: entityId, name: entityId, type: 'Unknown' })
         continue
       }
-      const typeName = this.getEntityTypeName(entity) ?? 'Unknown'
-      const localizedType =
-        profile?.localisation?.[typeName] ?? profile?.classes?.[typeName]?.label
+      const typeNames = this.getEntityTypeNames(entity)
+      const localizedTypes = typeNames.length
+        ? typeNames.map((typeName) => {
+            const localized =
+              profile?.localisation?.[typeName] ?? profile?.classes?.[typeName]?.label
+            return String(localized ?? typeName)
+          })
+        : ['Unknown']
       const displayName = this.getEntityDisplayName(entity)
       result.push({
         id: entityId,
         name: displayName,
-        typeLabel: String(localizedType ?? typeName),
+        type: localizedTypes.length > 1 ? localizedTypes : localizedTypes[0],
       })
     }
     return result
@@ -304,8 +315,8 @@ export class MultiEditDialog extends ReactDialog<string> {
       if (!id || !selected.has(String(id))) {
         continue
       }
-      const typeName = this.getEntityTypeName(entity)
-      if (typeName) {
+      const typeNames = this.getEntityTypeNames(entity)
+      for (const typeName of typeNames) {
         types.add(typeName)
       }
     }
@@ -339,9 +350,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       if (!classDef) {
         continue
       }
-      const classLabel = String(
-        localisation[className] ?? classDef.label ?? className,
-      )
+      const classLabel = String(localisation[className] ?? classDef.label ?? className)
       const inputs = Array.isArray(classDef.inputs)
         ? (classDef.inputs as Record<string, any>[])
         : []
@@ -619,14 +628,26 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   /**
-   * Resolves a primary entity type from @type.
+   * Resolves a primary entity type from @type. (entities can have multiple types, but this declares a primary type which is the first type of the entity)
    * @param entity Entity object.
    * @returns Preferred type name or undefined.
    * @protected
    */
   protected getEntityTypeName(entity: Record<string, any>): string | undefined {
+    return this.getEntityTypeNames(entity)[0]
+  }
+
+  /**
+   * Resolves all non-CreativeWork type names from an entity @type declaration.
+   * @param entity Entity object.
+   * @returns Ordered, de-duplicated type names.
+   * @protected
+   */
+  protected getEntityTypeNames(entity: Record<string, any>): string[] {
     const raw = entity?.['@type']
     const candidates = Array.isArray(raw) ? raw : raw ? [raw] : []
+    const names: string[] = []
+    const seen = new Set<string>()
 
     for (const candidate of candidates) {
       const value = String(candidate).trim()
@@ -634,16 +655,23 @@ export class MultiEditDialog extends ReactDialog<string> {
         continue
       }
       const tail = this.toTypeTail(value)
-      if (tail !== 'CreativeWork') {
-        return tail
+      if (!tail || tail === 'CreativeWork' || seen.has(tail)) {
+        continue
       }
+      seen.add(tail)
+      names.push(tail)
+    }
+
+    if (names.length > 0) {
+      return names
     }
 
     if (candidates.length > 0) {
-      return this.toTypeTail(String(candidates[0]))
+      const fallback = this.toTypeTail(String(candidates[0]))
+      return fallback ? [fallback] : []
     }
 
-    return undefined
+    return []
   }
 
   /**
@@ -847,6 +875,184 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
   }
 
+  // Split stored multi-value text into editable rows (newline-delimited).
+  protected getEditableMultiTextValues(rawValue: string): string[] {
+    const normalized = rawValue.replace(/\r\n/g, '\n')
+    if (normalized.length === 0) {
+      return ['']
+    }
+    return normalized.split('\n')
+  }
+
+  // Update a specific row value and persist back to the operation.
+  protected setOperationMultiTextValue = (
+    id: string,
+    valueIndex: number,
+    value: string,
+  ) => {
+    const row = this.operations.find((operation) => operation.id === id)
+    if (!row) {
+      return
+    }
+    const values = this.getEditableMultiTextValues(row.value)
+    while (values.length <= valueIndex) {
+      values.push('')
+    }
+    values[valueIndex] = value
+    row.value = values.join('\n')
+    this.update()
+  }
+
+  // Track selection before update so caret position survives re-render.
+  protected setOperationMultiTextValueFromEvent = (
+    id: string,
+    valueIndex: number,
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const input = event.target
+    const selectionStart = input.selectionStart
+    const selectionEnd = input.selectionEnd
+    const key = this.getMultiTextValueKey(id, valueIndex)
+    if (selectionStart !== null && selectionEnd !== null) {
+      this.pendingMultiTextSelection.set(key, {
+        start: selectionStart,
+        end: selectionEnd,
+      })
+    }
+    this.setOperationMultiTextValue(id, valueIndex, input.value)
+    requestAnimationFrame(() => this.restorePendingMultiTextSelection(key))
+  }
+
+  // Stable key used to track selection across re-renders.
+  protected getMultiTextValueKey(operationId: string, valueIndex: number): string {
+    return `${operationId}::${valueIndex}`
+  }
+
+  // DOM id for locating the input after re-render.
+  protected getMultiTextInputId(operationId: string, valueIndex: number): string {
+    const key = this.getMultiTextValueKey(operationId, valueIndex)
+    return `multi-text-${key.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+  }
+
+  // Restore a previously captured caret selection for a specific input.
+  protected restorePendingMultiTextSelection(key: string): void {
+    const pending = this.pendingMultiTextSelection.get(key)
+    if (!pending) {
+      return
+    }
+    const [operationId, rawIndex] = key.split('::')
+    const valueIndex = Number(rawIndex)
+    if (!operationId || !Number.isFinite(valueIndex)) {
+      this.pendingMultiTextSelection.delete(key)
+      return
+    }
+    const inputId = this.getMultiTextInputId(operationId, valueIndex)
+    const input = document.getElementById(inputId) as HTMLInputElement | null
+    if (!input) {
+      return
+    }
+    try {
+      input.focus()
+      input.setSelectionRange(pending.start, pending.end)
+    } catch {
+      // no-op for unsupported input types/browsers
+    }
+    this.pendingMultiTextSelection.delete(key)
+  }
+
+  // Append a blank row for multi-value inputs.
+  protected addOperationMultiTextValue = (id: string) => {
+    const row = this.operations.find((operation) => operation.id === id)
+    if (!row) {
+      return
+    }
+    const values = this.getEditableMultiTextValues(row.value)
+    values.push('')
+    row.value = values.join('\n')
+    this.update()
+  }
+
+  // Remove a specific row and keep at least one empty entry.
+  protected removeOperationMultiTextValue = (id: string, valueIndex: number) => {
+    const row = this.operations.find((operation) => operation.id === id)
+    if (!row) {
+      return
+    }
+    const values = this.getEditableMultiTextValues(row.value)
+    if (valueIndex < 0 || valueIndex >= values.length) {
+      return
+    }
+    values.splice(valueIndex, 1)
+    if (values.length === 0) {
+      values.push('')
+    }
+    row.value = values.join('\n')
+    this.update()
+  }
+
+  // Render a single multi-value row input based on field type.
+  protected renderMultiValueScalarInput(
+    row: OperationRow,
+    field: FieldDefinition,
+    value: string,
+    valueIndex: number,
+    disableRemove: boolean,
+  ): React.ReactNode {
+    const removeButton = (
+      <button
+        type="button"
+        className="entities-overview-edit-modal-multi-text-suffix-remove"
+        title="Remove value"
+        aria-label="Remove value"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => this.removeOperationMultiTextValue(row.id, valueIndex)}
+        disabled={disableRemove}
+      >
+        <span className="codicon codicon-trash" aria-hidden="true" />
+      </button>
+    )
+
+    if (field.valueKind === 'date') {
+      const parsed = value.trim().length > 0 ? dayjs(value) : null
+      const pickerValue = parsed && parsed.isValid() ? parsed : null
+      return (
+        <div className="entities-overview-edit-modal-multi-text-date-wrap">
+          <DatePicker
+            value={pickerValue}
+            onChange={(_, dateString) =>
+              this.setOperationMultiTextValue(
+                row.id,
+                valueIndex,
+                Array.isArray(dateString)
+                  ? (dateString[0] ?? '')
+                  : String(dateString ?? ''),
+              )
+            }
+            format="YYYY-MM-DD"
+            placeholder="Pick a date"
+            style={{ width: '100%' }}
+            getPopupContainer={() => document.body}
+            popupClassName="entities-overview-edit-modal-date-popup"
+          />
+          {removeButton}
+        </div>
+      )
+    }
+
+    return (
+      <Input
+        id={this.getMultiTextInputId(row.id, valueIndex)}
+        value={value}
+        onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+          this.setOperationMultiTextValueFromEvent(row.id, valueIndex, event)
+        }
+        placeholder="Enter value"
+        type={field.valueKind === 'number' ? 'number' : 'text'}
+        suffix={removeButton}
+      />
+    )
+  }
+
   /**
    * Validates the full multi-edit setup.
    * @returns List of validation messages.
@@ -911,34 +1117,54 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected validateValue(field: FieldDefinition, rawValue: string): string | undefined {
+    const tokens = this.splitMultiValue(rawValue, field)
+    if (tokens.length === 0) {
+      return `value must be selected for ${field.label}.`
+    }
+
     if (field.valueKind === 'entity') {
-      const trimmed = rawValue.trim()
-      if (trimmed.length === 0) {
-        return `value must be selected for ${field.label}.`
-      }
-      if (this.isCreateToken(trimmed)) {
-        return undefined
-      }
       const graph = this.getGraph()
-      const exists = graph.some((entry) => entry && String(entry['@id']) === trimmed)
-      if (!exists) {
-        return `selected entity does not exist for ${field.label}.`
+      for (const token of tokens) {
+        if (!token) {
+          return `value must be selected for ${field.label}.`
+        }
+        if (this.isCreateToken(token)) {
+          continue
+        }
+        const exists = graph.some((entry) => entry && String(entry['@id']) === token)
+        if (!exists) {
+          return `selected entity does not exist for ${field.label}.`
+        }
       }
       return undefined
     }
 
     if (field.valueKind === 'number') {
-      const numberValue = Number(rawValue)
-      if (!Number.isFinite(numberValue)) {
-        return `value must be a number for ${field.label}.`
+      for (const token of tokens) {
+        const numberValue = Number(token)
+        if (!Number.isFinite(numberValue)) {
+          return `value must be a number for ${field.label}.`
+        }
       }
     }
 
     if (field.valueKind === 'json') {
       try {
-        JSON.parse(rawValue)
+        const parsed = JSON.parse(rawValue)
+        if (field.multiple && !Array.isArray(parsed)) {
+          return `value must be a JSON array for ${field.label}.`
+        }
       } catch {
         return `value must be valid JSON for ${field.label}.`
+      }
+    }
+
+    if (field.valueKind === 'select' && field.selectValues.length > 0) {
+      const allowed = new Set(field.selectValues.map((value) => value.trim()))
+      for (const token of tokens) {
+        if (!allowed.has(token)) {
+          return `value must be one of the allowed options for ${field.label}.`
+        }
       }
     }
 
@@ -953,16 +1179,19 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected parseValue(field: FieldDefinition, rawValue: string): unknown {
+    const tokens = this.splitMultiValue(rawValue, field)
     if (field.valueKind === 'number') {
-      return Number(rawValue)
+      const values = tokens.map((token) => Number(token))
+      return field.multiple ? values : values[0]
     }
     if (field.valueKind === 'json') {
       return JSON.parse(rawValue)
     }
     if (field.valueKind === 'entity') {
-      return { '@id': rawValue.trim() }
+      const values = tokens.map((token) => ({ '@id': token.trim() }))
+      return field.multiple ? values : values[0]
     }
-    return rawValue
+    return field.multiple ? tokens : tokens[0]
   }
 
   /**
@@ -1123,8 +1352,9 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
 
     if (operator === 'set') {
-      const nextValue =
-        field.multiple && !Array.isArray(parsedValue) ? [parsedValue] : parsedValue
+      const nextValue = field.multiple
+        ? this.normalizeParsedValues(parsedValue)
+        : parsedValue
       if (this.areValuesEqual(entity[propertyName], nextValue)) {
         return false
       }
@@ -1139,16 +1369,27 @@ export class MultiEditDialog extends ReactDialog<string> {
     const existingValues = this.toArray(entity[propertyName])
 
     if (operator === 'add') {
-      if (this.arrayContains(existingValues, parsedValue)) {
+      const valuesToAdd = this.normalizeParsedValues(parsedValue)
+      let changed = false
+      for (const value of valuesToAdd) {
+        if (this.arrayContains(existingValues, value)) {
+          continue
+        }
+        existingValues.push(value)
+        changed = true
+      }
+      if (!changed) {
         return false
       }
-      entity[propertyName] = [...existingValues, parsedValue]
+      entity[propertyName] = [...existingValues]
       return true
     }
 
     if (operator === 'remove') {
+      const valuesToRemove = this.normalizeParsedValues(parsedValue)
       const filtered = existingValues.filter(
-        (value) => !this.areValuesEqual(value, parsedValue),
+        (value) =>
+          !valuesToRemove.some((candidate) => this.areValuesEqual(value, candidate)),
       )
       if (filtered.length === existingValues.length) {
         return false
@@ -1178,6 +1419,29 @@ export class MultiEditDialog extends ReactDialog<string> {
       return [...value]
     }
     return [value]
+  }
+
+  protected normalizeParsedValues(value: unknown): unknown[] {
+    if (value === undefined || value === null) {
+      return []
+    }
+    if (Array.isArray(value)) {
+      return value
+    }
+    return [value]
+  }
+
+  protected splitMultiValue(rawValue: string, field: FieldDefinition): string[] {
+    const trimmed = rawValue.trim()
+    if (!field.multiple) {
+      return trimmed ? [trimmed] : []
+    }
+    const separatorPattern = field.valueKind === 'text' ? /\r?\n+/ : /[\n;,]+/
+    const parts = trimmed
+      .split(separatorPattern)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0)
+    return parts
   }
 
   /**
@@ -1296,7 +1560,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         continue
       }
       if (field.valueKind === 'entity') {
-        const resolved = this.resolveEntityValue(field, rawValue, graph)
+        const resolved = this.resolveEntityValues(field, rawValue, graph)
         if (resolved) {
           resolvedValues.set(operation.id, resolved)
         }
@@ -1442,20 +1706,29 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
 
     if (field.valueKind === 'select' && field.selectValues.length > 0) {
+      const isMulti = field.multiple
+      const multiValue = isMulti ? this.splitMultiValue(row.value, field) : undefined
       return (
         <Select
-          value={row.value || undefined}
-          onChange={(value) => this.setOperationValue(row.id, String(value ?? ''))}
-          getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
+          value={isMulti ? multiValue : row.value || undefined}
+          onChange={(value) => {
+            if (Array.isArray(value)) {
+              this.setOperationValue(row.id, value.join(', '))
+              return
+            }
+            this.setOperationValue(row.id, String(value ?? ''))
+          }}
+          getPopupContainer={() => document.body}
           classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
           styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
+          mode={isMulti ? 'multiple' : undefined}
           options={field.selectValues.map((option) => ({
             label: option,
             value: option,
           }))}
           showSearch
           allowClear
-          placeholder="Select value"
+          placeholder={isMulti ? 'Select one or more values' : 'Select value'}
           style={{ width: '100%' }}
         />
       )
@@ -1478,6 +1751,59 @@ export class MultiEditDialog extends ReactDialog<string> {
       )
     }
 
+    if (field.valueKind === 'date') {
+      const parsed = row.value.trim().length > 0 ? dayjs(row.value) : null
+      const pickerValue = parsed && parsed.isValid() ? parsed : null
+      return (
+        <DatePicker
+          value={pickerValue}
+          onChange={(_, dateString) =>
+            this.setOperationValue(
+              row.id,
+              Array.isArray(dateString)
+                ? (dateString[0] ?? '')
+                : String(dateString ?? ''),
+            )
+          }
+          format="YYYY-MM-DD"
+          placeholder="Pick a date"
+          style={{ width: '100%' }}
+          getPopupContainer={() => document.body}
+          popupClassName="entities-overview-edit-modal-date-popup"
+          allowClear
+        />
+      )
+    }
+
+    if (field.multiple) {
+      const values = this.getEditableMultiTextValues(row.value)
+      return (
+        <div className="entities-overview-edit-modal-multi-text">
+          {values.map((value, valueIndex) => (
+            <div
+              className="entities-overview-edit-modal-multi-text-row"
+              key={`${row.id}-value-${valueIndex}`}
+            >
+              {this.renderMultiValueScalarInput(
+                row,
+                field,
+                value,
+                valueIndex,
+                values.length === 1 && values[0].trim().length === 0,
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            className="entities-overview-edit-modal-multi-text-add"
+            onClick={() => this.addOperationMultiTextValue(row.id)}
+          >
+            <span className="codicon codicon-add" aria-hidden="true" /> Add value
+          </button>
+        </div>
+      )
+    }
+
     return (
       <Input
         value={row.value}
@@ -1485,13 +1811,7 @@ export class MultiEditDialog extends ReactDialog<string> {
           this.setOperationValue(row.id, event.target.value)
         }
         placeholder="Enter value"
-        type={
-          field.valueKind === 'number'
-            ? 'number'
-            : field.valueKind === 'date'
-              ? 'date'
-              : 'text'
-        }
+        type={field.valueKind === 'number' ? 'number' : 'text'}
       />
     )
   }
@@ -1593,18 +1913,27 @@ export class MultiEditDialog extends ReactDialog<string> {
     const searchText = this.operationSearch.get(row.id) ?? ''
     const allowCreate = row.operator === 'set' || row.operator === 'add'
     const options = this.getEntityOptions(field, searchText, allowCreate)
+    const isMulti = field.multiple
     return (
       <Select
-        value={row.value || undefined}
-        onChange={(value) => this.setOperationValue(row.id, String(value ?? ''))}
+        value={this.getEntityValueInputValue(row, field, isMulti)}
+        onChange={(value) => {
+          if (Array.isArray(value)) {
+            this.setOperationValue(row.id, value.join(', '))
+            return
+          }
+          this.setOperationValue(row.id, String(value ?? ''))
+        }}
         showSearch
         onSearch={(value: string) => this.setOperationSearch(row.id, value)}
         filterOption={false}
         allowClear
-        placeholder="Select or create entity"
-        getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
+        placeholder={isMulti ? 'Select or create entities' : 'Select or create entity'}
+        getPopupContainer={() => document.body}
         classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
         styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
+        mode={isMulti ? 'multiple' : undefined}
+        tagRender={(props) => this.renderEntityTag(props)}
         options={options}
         notFoundContent={
           <span className="entities-overview-entity-no-data">No matches</span>
@@ -1815,6 +2144,74 @@ export class MultiEditDialog extends ReactDialog<string> {
     return { '@id': createdId }
   }
 
+  protected resolveEntityValues(
+    field: FieldDefinition,
+    rawValue: string,
+    graph: Record<string, any>[],
+  ): unknown {
+    const tokens = this.splitMultiValue(rawValue, field)
+    const resolved = tokens.map((token) => this.resolveEntityValue(field, token, graph))
+    return field.multiple ? resolved : resolved[0]
+  }
+
+  protected getEntityValueInputValue(
+    row: OperationRow,
+    field: FieldDefinition,
+    isMulti: boolean,
+  ): string[] | string | undefined {
+    if (isMulti) {
+      return this.splitMultiValue(row.value, field)
+    }
+    return row.value || undefined
+  }
+
+  protected renderEntityTag(props: any): React.ReactElement {
+    const { label, value, closable, onClose } = props
+    const stringValue = String(value ?? '')
+    const isCreate = this.isCreateToken(stringValue)
+    const createToken = isCreate ? this.parseCreateToken(stringValue) : undefined
+    const renderedLabel = createToken
+      ? `Create new ${createToken.entityType}: ${createToken.label}`
+      : label
+    return (
+      <span
+        className={`entities-overview-entity-tag${isCreate ? ' is-create' : ''}`}
+        onMouseDown={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+        }}
+      >
+        <span className="entities-overview-entity-tag-label">
+          {isCreate && (
+            <span className="entities-overview-entity-tag-plus">
+              <span className="entities-overview-entity-tag-plus-glyph">+</span>
+            </span>
+          )}
+          {renderedLabel}
+        </span>
+        {closable && (
+          <span
+            className="entities-overview-entity-tag-close"
+            onMouseDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onClose()
+            }}
+            role="button"
+            tabIndex={-1}
+            aria-label="Remove"
+          >
+            ×
+          </span>
+        )}
+      </span>
+    )
+  }
+
   /**
    * Creates a new entity from a create token and adds it to the graph.
    * @param field Field definition.
@@ -1901,7 +2298,7 @@ export class MultiEditDialog extends ReactDialog<string> {
                 value={row.fieldKey}
                 onChange={(value) => this.setOperationField(row.id, String(value))}
                 placeholder="Select property"
-                getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
+                getPopupContainer={() => document.body}
                 classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
                 styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
                 style={{ width: '38%' }}
@@ -1918,7 +2315,7 @@ export class MultiEditDialog extends ReactDialog<string> {
                 onChange={(value) =>
                   this.setOperationOperator(row.id, value as BulkOperator)
                 }
-                getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
+                getPopupContainer={() => document.body}
                 classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
                 styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
                 style={{ width: 110 }}
@@ -2090,7 +2487,11 @@ export class MultiEditDialog extends ReactDialog<string> {
                     {filteredEntities.map((entity) => (
                       <tr key={entity.id} title={entity.id}>
                         <td>{entity.name}</td>
-                        <td>{entity.typeLabel}</td>
+                        <td>
+                          {Array.isArray(entity.type)
+                            ? entity.type.join(', ')
+                            : entity.type}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -2111,7 +2512,7 @@ export class MultiEditDialog extends ReactDialog<string> {
             }))}
             onChange={this.onSchemaSelectionChange}
             placeholder="Select schemas"
-            getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
+            getPopupContainer={() => document.body}
             classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
             styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
             style={{ width: '100%' }}

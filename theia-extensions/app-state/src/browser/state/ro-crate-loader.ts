@@ -60,6 +60,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
   protected pendingExternalCheck?: ReturnType<typeof setTimeout>
   protected lastKnownMetadataJson?: string
 
+  protected pendingAppStateProfileRefresh?: ReturnType<typeof setTimeout>
+  protected pendingAppStateProfileRefreshCrate?: Record<string, any>
+  protected lastObservedConformsToKey = ''
+
   /**
    * Critical: lets us distinguish between:
    * - "startup: roots not ready yet" (do NOT wipe restored state)
@@ -87,8 +91,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     await this.syncRoCrateFromWorkspace()
 
     // ensure completeProfile reflects current crate (restored or loaded)
+    await this.refreshProfileList(this.appStateService.roCrate)
     await this.refreshCompleteProfile(this.appStateService.roCrate)
     this.watchSchemaChanges()
+    this.watchAppStateCrateChanges()
 
     // Re-sync when workspace changes
     this.workspaceService.onWorkspaceChanged(() => {
@@ -112,6 +118,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       // If we previously had roots, then this is a real "workspace closed" case => clear state.
       if (this.hadWorkspaceRoots) {
         this.updateState(undefined, false)
+        await this.refreshProfileList(undefined)
         await this.refreshCompleteProfile(undefined)
       }
       // Otherwise: startup / not ready yet => DO NOT touch restored state.
@@ -132,10 +139,12 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         try {
           const crate = await this.loadRoCrateWithNormalization(roCrateUri)
           this.updateState(crate, false)
+          await this.refreshProfileList(crate)
           await this.refreshCompleteProfile(crate)
         } catch (parseError) {
           console.error('Parsing error: ', parseError)
           this.updateState(undefined, true)
+          await this.refreshProfileList(undefined)
           await this.refreshCompleteProfile(undefined)
           void this.promptForCrateRecovery(rootUri, true)
         }
@@ -144,10 +153,12 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
       // crate json missing
       this.updateState(undefined, false)
+      await this.refreshProfileList(undefined)
       await this.refreshCompleteProfile(undefined)
       void this.promptForCrateRecovery(rootUri, false)
     } catch (error) {
       this.updateState(undefined, true)
+      await this.refreshProfileList(undefined)
       await this.refreshCompleteProfile(undefined)
     }
   }
@@ -160,6 +171,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       this.workspaceService,
       this.fileService,
       this.roCrateHtmlGenerator,
+      this.commandService,
       jsonExists,
     )
     await dialog.open()
@@ -183,9 +195,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     try {
       const crate = await this.loadRoCrateWithNormalization(roCrateUri)
       this.updateState(crate, false)
+      await this.refreshProfileList(crate)
       await this.refreshCompleteProfile(crate)
     } catch (error) {
       this.updateState(undefined, true)
+      await this.refreshProfileList(undefined)
       await this.refreshCompleteProfile(undefined)
     }
   }
@@ -238,6 +252,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
                 // update application state and profile
                 this.updateState(converted, false)
                 try {
+                  await this.refreshProfileList(converted)
                   await this.refreshCompleteProfile(converted)
                 } catch (err) {
                   console.error('Error refreshing complete profile after conversion', err)
@@ -270,6 +285,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
               const converted = await this.readRoCrateJson(metadataUri)
               this.updateState(converted, false)
               try {
+                await this.refreshProfileList(converted)
                 await this.refreshCompleteProfile(converted)
               } catch (err) {
                 console.error('Error refreshing complete profile after conversion', err)
@@ -296,6 +312,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
   }
 
   private needsIdConversion(crate: Record<string, any>): boolean {
+    const arpPid = this.getRootArpPid(crate)
+    if (!arpPid) {
+      return false
+    }
+
     const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
     for (const entry of graph) {
       if (!entry || typeof entry !== 'object') continue
@@ -308,24 +329,63 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
           : []
 
       const relevant = types.some(
-        (t) => t === 'File' || t === 'Dataset' || t === 'CreativeWork',
+        (t) => t === 'File' || t === 'Dataset',
       )
       if (!relevant) continue
 
       const id =
         typeof (entry as any)['@id'] === 'string' ? (entry as any)['@id'].trim() : ''
-
-      if (!id) return true
+      if (!id) {
+        continue
+      }
 
       if (types.includes('Dataset') && (id === './' || id === '.')) {
         continue
       }
 
-      if (!id.startsWith('file://./')) {
+      if (this.isArpLocalEntityId(id, arpPid)) {
         return true
       }
     }
     return false
+  }
+
+  private getRootArpPid(crate: Record<string, any>): string | undefined {
+    const rootDataset = this.getRootDataset(crate)
+    const arpPid =
+      rootDataset && typeof rootDataset['@arpPid'] === 'string'
+        ? rootDataset['@arpPid'].trim()
+        : ''
+    return arpPid || undefined
+  }
+
+  private isArpLocalEntityId(id: string, arpPid: string): boolean {
+    const trimmedId = id.trim()
+    if (!trimmedId || !arpPid) {
+      return false
+    }
+
+    const prefix = `https://w3id.org/arp/ro-id/${arpPid}/file/`
+    return trimmedId.startsWith(prefix) && trimmedId.length > prefix.length
+  }
+
+  private getRootDataset(crate: Record<string, any>): Record<string, any> | undefined {
+    const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+    return graph.find((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return false
+      }
+
+      const id = typeof (entry as any)['@id'] === 'string' ? (entry as any)['@id'].trim() : ''
+      const rawType = (entry as any)['@type']
+      const types: string[] = Array.isArray(rawType)
+        ? rawType.filter((t): t is string => typeof t === 'string')
+        : typeof rawType === 'string'
+          ? [rawType]
+          : []
+
+      return (id === './' || id === '.') && types.includes('Dataset')
+    }) as Record<string, any> | undefined
   }
 
   // ---- main update + profile merge logic ----
@@ -334,6 +394,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     content: Record<string, any> | undefined,
     isInvalid: boolean,
   ): void {
+    this.lastObservedConformsToKey = this.buildConformsToKey(content)
     this.appStateService.roCrate = content
     this.appStateService.isROCrateInvalid = isInvalid
     this.appStateService.setRoCrateSnapshot(content)
@@ -465,6 +526,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     try {
       const crate = await this.loadRoCrateWithNormalization(metadataUri)
       this.updateState(crate, false)
+      await this.refreshProfileList(crate)
       await this.refreshCompleteProfile(crate)
     } catch (error) {
       console.error('Failed to reload RO-Crate after external change:', error)
@@ -501,32 +563,35 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     const baseProfile =
       this.cloneProfile(this.initialProfileTemplate) ?? this.createEmptyProfile()
 
-    const conformsToIds = this.extractAllConformsToIds(crate)
-    if (conformsToIds.length === 0) {
+    const profileList = this.appStateService.profileList
+    if (!profileList || profileList.length === 0) {
       this.appStateService.completeProfile = baseProfile
       return
     }
 
-    const allSchemas = await this.schemaManagerService.loadAllSchemas()
     let mergedProfile = baseProfile
 
-    for (const conformsToUrl of conformsToIds) {
-      const matchingSchema = allSchemas.find(
-        (schema) => schema.conformsTo === conformsToUrl,
-      )
-      if (!matchingSchema) continue
+    for (const entry of profileList) {
+      const conformsToUrl = (entry?.id ?? '').trim()
+      if (!conformsToUrl) {
+        continue
+      }
 
-      const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
-        matchingSchema.files.convertedPath,
-      )
+      const convertedContent = entry?.content
 
-      if (convertedContent) {
-        mergedProfile = await this.schemaManagerService.getMergedProfile(
-          crate,
-          convertedContent,
-          mergedProfile,
-          conformsToUrl,
-        )
+      try {
+        if (convertedContent) {
+          mergedProfile = await this.schemaManagerService.getMergedProfile(
+            crate,
+            convertedContent,
+            mergedProfile,
+            conformsToUrl,
+          )
+        } else {
+          console.warn('Invalid profile content for conformsTo URL:', conformsToUrl)
+        }
+      } catch (error) {
+        console.warn('Failed to merge profile for conformsTo URL:', conformsToUrl, error)
       }
     }
 
@@ -535,8 +600,211 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
   protected watchSchemaChanges(): void {
     this.schemaManagerService.onDidChangeSchemas(() => {
+      void this.refreshProfileList(this.appStateService.roCrate)
       void this.refreshCompleteProfile(this.appStateService.roCrate)
     })
+  }
+
+  protected watchAppStateCrateChanges(): void {
+    this.appStateService.onDidChangeSelector((s) => s.roCrate)((crate) => {
+      this.handleAppStateCrateChange(crate)
+    })
+  }
+
+  protected handleAppStateCrateChange(crate: Record<string, any> | undefined): void {
+    const nextKey = this.buildConformsToKey(crate)
+    if (nextKey === this.lastObservedConformsToKey) {
+      return
+    }
+
+    this.lastObservedConformsToKey = nextKey
+
+    this.pendingAppStateProfileRefreshCrate = crate
+
+    if (this.pendingAppStateProfileRefresh) {
+      clearTimeout(this.pendingAppStateProfileRefresh)
+    }
+
+    this.pendingAppStateProfileRefresh = setTimeout(() => {
+      this.pendingAppStateProfileRefresh = undefined
+      const next = this.pendingAppStateProfileRefreshCrate
+      void (async () => {
+        try {
+          await this.updateProfileListIncrementally(next)
+          await this.refreshCompleteProfile(next)
+        } catch (error) {
+          console.error(
+            'Failed to refresh profile list after RO-Crate change in AppState',
+            error,
+          )
+        }
+      })()
+    }, 200)
+  }
+
+  protected buildConformsToKey(crate: Record<string, any> | undefined): string {
+    if (!crate) {
+      return ''
+    }
+
+    const ids = this.extractAllConformsToIds(crate)
+      .map((id) => (typeof id === 'string' ? id.trim() : ''))
+      .filter((id) => id.length !== 0)
+      .sort()
+
+    return ids.join('|')
+  }
+
+  protected async updateProfileListIncrementally(
+    crate: Record<string, any> | undefined,
+  ): Promise<void> {
+    if (!crate) {
+      this.appStateService.profileList = undefined
+      return
+    }
+
+    const nextIds = this.extractAllConformsToIds(crate)
+      .map((id) => (typeof id === 'string' ? id.trim() : ''))
+      .filter((id) => id.length !== 0)
+
+    const nextUnique = Array.from(new Set(nextIds)).sort()
+
+    if (nextUnique.length === 0) {
+      this.appStateService.profileList = undefined
+      return
+    }
+
+    const prevList = Array.isArray(this.appStateService.profileList)
+      ? this.appStateService.profileList
+      : []
+
+    const prevById = new Map<
+      string,
+      { id: string; content: Record<string, any> | undefined; flag: string }
+    >()
+    for (const item of prevList as any[]) {
+      const id = typeof item?.id === 'string' ? item.id.trim() : ''
+      if (id) {
+        prevById.set(id, item)
+      }
+    }
+
+    const missingIds: string[] = []
+    const nextList: Array<{
+      id: string
+      content: Record<string, any> | undefined
+      flag: string
+    }> = []
+
+    for (const id of nextUnique) {
+      const existing = prevById.get(id)
+      if (existing?.content) {
+        nextList.push({
+          id,
+          content: existing.content,
+          flag: typeof (existing as any).flag === 'string' ? (existing as any).flag : '',
+        })
+        continue
+      }
+      missingIds.push(id)
+    }
+
+    if (missingIds.length !== 0) {
+      const allSchemas = await this.schemaManagerService.loadAllSchemas()
+
+      for (const id of missingIds) {
+        const matchingSchema = allSchemas.find(
+          (schema) => (schema?.conformsTo ?? '').trim() === id,
+        )
+        if (!matchingSchema) {
+          console.warn('No schema found for conformsTo URL:', id)
+          continue
+        }
+        try {
+          const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
+            matchingSchema.files.convertedPath,
+          )
+          if (convertedContent) {
+            nextList.push({
+              id,
+              content: convertedContent,
+              flag: '',
+            })
+          } else {
+            console.warn('Invalid profile content for conformsTo URL:', id)
+          }
+        } catch (error) {
+          console.warn('Failed to load profile for conformsTo URL:', id, error)
+        }
+      }
+    }
+
+    this.appStateService.updateState((prev) => ({
+      profileList: nextList.length ? nextList : undefined,
+    }))
+  }
+
+  protected async refreshProfileList(
+    crate: Record<string, any> | undefined,
+  ): Promise<void> {
+    if (!crate) {
+      this.appStateService.profileList = undefined
+      return
+    }
+
+    const conformsToIds = this.extractAllConformsToIds(crate)
+    if (conformsToIds.length === 0) {
+      this.appStateService.profileList = undefined
+      return
+    }
+
+    const allSchemas = await this.schemaManagerService.loadAllSchemas()
+    const profileListItems: Array<{
+      id: string
+      content: Record<string, any> | undefined
+      flag: string
+    }> = []
+
+    for (const conformsToUrl of conformsToIds) {
+      const matchingSchema = allSchemas.find(
+        (schema) => schema.conformsTo === conformsToUrl,
+      )
+      if (!matchingSchema) {
+        console.warn('No schema found for conformsTo URL:', conformsToUrl)
+        
+        // If conformsToUrl contains the substring "schema"
+        if (conformsToUrl.includes('schema')) {
+          // Add an empty entry with a "missing" flag to indicate the profile is missing
+          profileListItems.push({
+            id: conformsToUrl,
+            content: undefined,
+            flag: 'missing',
+          })
+        }
+
+        continue
+      }
+      try {
+        const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
+          matchingSchema.files.convertedPath,
+        )
+        if (convertedContent) {
+          profileListItems.push({
+            id: conformsToUrl,
+            content: convertedContent,
+            flag: '',
+          })
+        } else {
+          console.warn('Invalid profile content for conformsTo URL:', conformsToUrl)
+        }
+      } catch (error) {
+        console.warn('Failed to load profile for conformsTo URL:', conformsToUrl, error)
+      }
+    }
+
+    this.appStateService.updateState((prev) => ({
+      profileList: profileListItems.length ? profileListItems : undefined,
+    }))
   }
 
   protected extractAllConformsToIds(crate: Record<string, any>): string[] {

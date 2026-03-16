@@ -1,19 +1,25 @@
+import { CommandService } from '@theia/core/lib/common/command'
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import type { URI } from '@theia/core/lib/common/uri'
 import { injectable } from '@theia/core/shared/inversify'
 import type { FileService } from '@theia/filesystem/lib/browser/file-service'
+import { WorkspaceCommands } from '@theia/workspace/lib/browser'
 import type { WorkspaceService } from '@theia/workspace/lib/browser'
 import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 import * as mime from 'mime-types'
 import type * as React from 'react'
 import SparkMD5 from 'spark-md5'
+import { Message } from '@lumino/messaging'
 
 @injectable()
 export class ROCrateDialog extends ReactDialog<string> {
+  protected closeRoCrateButton?: HTMLButtonElement
+
   constructor(
     protected readonly workspaceService: WorkspaceService,
     protected readonly fileService: FileService,
     protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator,
+    protected readonly commandService: CommandService,
     protected readonly jsonExists: boolean = true,
   ) {
     super({
@@ -25,7 +31,7 @@ export class ROCrateDialog extends ReactDialog<string> {
     this.appendAcceptButton(
       this.jsonExists ? 'Generate valid JSON file' : 'Generate JSON file',
     )
-    this.appendCloseButton('Close Workspace')
+    this.closeRoCrateButton = this.appendButton('Close RO-Crate', false)
   }
 
   get value(): string {
@@ -81,8 +87,17 @@ export class ROCrateDialog extends ReactDialog<string> {
   }
 
   protected async dismiss(): Promise<void> {
-    await this.workspaceService.close()
+    await this.commandService.executeCommand(WorkspaceCommands.CLOSE.id)
     super.close()
+  }
+
+  protected override onAfterAttach(msg: Message): void {
+    super.onAfterAttach(msg)
+    if (this.closeRoCrateButton) {
+      this.addAction(this.closeRoCrateButton, () => {
+        void this.dismiss()
+      }, 'click')
+    }
   }
 
   private async scanAndBuildEntities(
@@ -240,7 +255,7 @@ export class ROCrateDialog extends ReactDialog<string> {
     if (isDirectory && !combined.endsWith('/')) {
       combined = `${combined}/`
     }
-    return `file://./${combined}`
+    return combined
   }
 
   private normalizeRelativePathForId(path: string): string {

@@ -33,6 +33,7 @@ import {
   Widget,
 } from '@theia/core/lib/browser'
 import { CommandService } from '@theia/core/lib/common'
+import { Disposable } from '@theia/core/lib/common/disposable'
 import { nls } from '@theia/core/lib/common/nls'
 import {
   Container,
@@ -48,7 +49,7 @@ import {
   FileTreeWidget,
 } from '@theia/filesystem/lib/browser'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { AbstractNavigatorTreeWidget } from '../abstract-navigator-tree-widget'
+import { AbstractOpenEditorsTreeWidget } from './abstract-open-editors-tree-widget'
 import { OpenEditorsCommands } from './navigator-open-editors-commands'
 import { OpenEditorsTreeDecoratorService } from './navigator-open-editors-decorator-service'
 import { OPEN_EDITORS_CONTEXT_MENU } from './navigator-open-editors-menus'
@@ -65,13 +66,21 @@ export interface OpenEditorsNodeRow extends TreeWidget.NodeRow {
   node: OpenEditorNode
 }
 @injectable()
-export class OpenEditorsWidget extends AbstractNavigatorTreeWidget {
-  static ID = 'theia-open-editors-widget'
+export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
+  static ID = 'aroma-open-editors-widget'
   static LABEL = nls.localizeByDefault('Open Editors')
+  static CSS_CLASS = 'theia-open-editors-widget'
+  static SEARCH_VISIBLE_CLASS = 'open-editors-search-visible'
+  static BODY_SEARCH_VISIBLE_CLASS = 'open-editors-search-visible'
 
   @inject(ApplicationShell) protected readonly applicationShell: ApplicationShell
   @inject(CommandService) protected readonly commandService: CommandService
   @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService
+  protected searchVisible = false
+  protected searchQuery = ''
+  protected readonly searchInputRef = React.createRef<HTMLInputElement>()
+  protected searchSelection: { start: number | null; end: number | null } | undefined
+  protected searchKeydownListenerAttached = false
 
   static createContainer(parent: interfaces.Container): Container {
     const child = createFileTreeContainer(parent)
@@ -107,12 +116,72 @@ export class OpenEditorsWidget extends AbstractNavigatorTreeWidget {
     super.init()
     this.id = OpenEditorsWidget.ID
     this.title.label = OpenEditorsWidget.LABEL
-    this.addClass(OpenEditorsWidget.ID)
+    this.title.iconClass = 'fa fa-list-ul'
+    this.title.closable = true
+    this.addClass(OpenEditorsWidget.CSS_CLASS)
+    this.toDispose.push(
+      Disposable.create(() =>
+        document.body.classList.remove(OpenEditorsWidget.BODY_SEARCH_VISIBLE_CLASS),
+      ),
+    )
+    this.updateSearchVisibilityClass()
     this.update()
+  }
+
+  toggleSearch(): void {
+    this.searchVisible = !this.searchVisible
+    if (!this.searchVisible) {
+      this.searchQuery = ''
+      this.model.setSearchQuery('')
+      this.detachSearchKeydownInterceptor()
+    }
+    this.updateSearchVisibilityClass()
+    this.update()
+    if (this.searchVisible) {
+      window.requestAnimationFrame(() => this.searchInputRef.current?.focus())
+    }
   }
 
   get editorWidgets(): NavigatableWidget[] {
     return this.model.editorWidgets
+  }
+
+  isSearchVisible(): boolean {
+    return this.searchVisible
+  }
+
+  protected override render(): React.ReactNode {
+    const hasOpenEditors = this.model.editorWidgets.length > 0
+    return (
+      <div className="open-editors-content">
+        {this.searchVisible && (
+          <div className="open-editors-search-container">
+            <input
+              ref={this.searchInputRef}
+              className="theia-input open-editors-search-input"
+              type="text"
+              value={this.searchQuery}
+              placeholder={nls.localizeByDefault('Search open editors')}
+              onChange={this.handleSearchInputChange}
+              onFocus={() => this.attachSearchKeydownInterceptor()}
+              onBlur={() => this.detachSearchKeydownInterceptor()}
+              onKeyDownCapture={(event) => this.stopSearchKeyEvents(event)}
+            />
+          </div>
+        )}
+        {hasOpenEditors ? (
+          React.createElement(
+            'div',
+            this.createContainerAttributes(),
+            this.renderTree(this.model),
+          )
+        ) : (
+          <div className="open-editors-empty-state">
+            {nls.localizeByDefault('No open editors.')}
+          </div>
+        )}
+      </div>
+    )
   }
 
   // eslint-disable-next-line no-null/no-null
@@ -138,8 +207,19 @@ export class OpenEditorsWidget extends AbstractNavigatorTreeWidget {
           {this.renderCaptionAffixes(node, props, 'captionSuffixes')}
         </div>
         {this.renderTailDecorations(node, props)}
-        {(this.isGroupNode(node) || this.isAreaNode(node)) &&
-          this.renderInteractables(node, props)}
+        {(this.isGroupNode(node) || this.isAreaNode(node)) && (
+          <div className="open-editors-inline-actions-container">
+            <div className="open-editors-inline-action">
+              <a
+                className="codicon codicon-close-all"
+                title={OpenEditorsCommands.CLOSE_ALL_EDITORS_IN_GROUP_FROM_ICON.label}
+                onClick={this.handleGroupActionIconClicked}
+                data-id={node.id}
+                id={OpenEditorsCommands.CLOSE_ALL_EDITORS_IN_GROUP_FROM_ICON.id}
+              />
+            </div>
+          </div>
+        )}
       </div>
     )
     return React.createElement('div', attributes, content)
@@ -200,31 +280,6 @@ export class OpenEditorsWidget extends AbstractNavigatorTreeWidget {
     )
   }
 
-  protected renderInteractables(node: OpenEditorNode, props: NodeProps): React.ReactNode {
-    return (
-      <div className="open-editors-inline-actions-container">
-        <div className="open-editors-inline-action">
-          <a
-            className="codicon codicon-save-all"
-            title={OpenEditorsCommands.SAVE_ALL_IN_GROUP_FROM_ICON.label}
-            onClick={this.handleGroupActionIconClicked}
-            data-id={node.id}
-            id={OpenEditorsCommands.SAVE_ALL_IN_GROUP_FROM_ICON.id}
-          />
-        </div>
-        <div className="open-editors-inline-action">
-          <a
-            className="codicon codicon-close-all"
-            title={OpenEditorsCommands.CLOSE_ALL_EDITORS_IN_GROUP_FROM_ICON.label}
-            onClick={this.handleGroupActionIconClicked}
-            data-id={node.id}
-            id={OpenEditorsCommands.CLOSE_ALL_EDITORS_IN_GROUP_FROM_ICON.id}
-          />
-        </div>
-      </div>
-    )
-  }
-
   protected handleGroupActionIconClicked = async (
     e: React.MouseEvent<HTMLAnchorElement>,
   ) => this.doHandleGroupActionIconClicked(e)
@@ -252,7 +307,7 @@ export class OpenEditorsWidget extends AbstractNavigatorTreeWidget {
         areaOrTabBar = groupFromTarget
       } else {
         const groupAsNum = parseInt(groupFromTarget)
-        if (!isNaN(groupAsNum)) {
+        if (!Number.isNaN(groupAsNum)) {
           areaOrTabBar = this.model.getTabBarForGroup(groupAsNum)
         }
       }
@@ -324,4 +379,107 @@ export class OpenEditorsWidget extends AbstractNavigatorTreeWidget {
     return {}
   }
   override restoreState(): void {}
+
+  protected handleSearchInputChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ): void => {
+    this.searchSelection = {
+      start: event.target.selectionStart,
+      end: event.target.selectionEnd,
+    }
+    this.searchQuery = event.target.value
+    this.model.setSearchQuery(this.searchQuery)
+    this.update()
+    this.restoreInputSelection(this.searchSelection)
+  }
+
+  protected stopSearchKeyEvents(event: React.KeyboardEvent): void {
+    event.stopPropagation()
+    if (typeof event.nativeEvent.stopImmediatePropagation === 'function') {
+      event.nativeEvent.stopImmediatePropagation()
+    }
+  }
+
+  protected readonly searchGlobalKeydownCapture = (event: KeyboardEvent): void => {
+    const input = this.searchInputRef.current
+    const active = document.activeElement as HTMLElement | null
+    if (!input || !active || active !== input || event.key !== 'Delete') {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    if (
+      typeof (event as { stopImmediatePropagation?: () => void })
+        .stopImmediatePropagation === 'function'
+    ) {
+      event.stopImmediatePropagation?.()
+    }
+    this.deleteOneCharInInput(input)
+  }
+
+  protected deleteOneCharInInput(input: HTMLInputElement): void {
+    if (input.readOnly || input.disabled) {
+      return
+    }
+    const value = input.value ?? ''
+    const start = input.selectionStart ?? value.length
+    const end = input.selectionEnd ?? value.length
+    let from = start
+    let to = end
+    if (start === end) {
+      if (start >= value.length) {
+        return
+      }
+      from = start
+      to = start + 1
+    }
+    input.setRangeText('', from, to, 'end')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+  }
+
+  protected attachSearchKeydownInterceptor(): void {
+    if (this.searchKeydownListenerAttached) {
+      return
+    }
+    window.addEventListener('keydown', this.searchGlobalKeydownCapture, true)
+    this.searchKeydownListenerAttached = true
+  }
+
+  protected detachSearchKeydownInterceptor(): void {
+    if (!this.searchKeydownListenerAttached) {
+      return
+    }
+    window.removeEventListener('keydown', this.searchGlobalKeydownCapture, true)
+    this.searchKeydownListenerAttached = false
+  }
+
+  protected restoreInputSelection(selection?: {
+    start: number | null
+    end: number | null
+  }): void {
+    if (!selection) {
+      return
+    }
+    requestAnimationFrame(() => {
+      const input = this.searchInputRef.current
+      if (!input) {
+        return
+      }
+      const valueLength = input.value.length
+      const start = Math.min(Math.max(selection.start ?? valueLength, 0), valueLength)
+      const end = Math.min(Math.max(selection.end ?? start, start), valueLength)
+      input.setSelectionRange(start, end)
+    })
+  }
+
+  protected updateSearchVisibilityClass(): void {
+    if (this.searchVisible) {
+      this.addClass(OpenEditorsWidget.SEARCH_VISIBLE_CLASS)
+      document.body.classList.add(OpenEditorsWidget.BODY_SEARCH_VISIBLE_CLASS)
+    } else {
+      this.removeClass(OpenEditorsWidget.SEARCH_VISIBLE_CLASS)
+      document.body.classList.remove(OpenEditorsWidget.BODY_SEARCH_VISIBLE_CLASS)
+    }
+  }
 }

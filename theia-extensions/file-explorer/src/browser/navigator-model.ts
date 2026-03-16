@@ -151,7 +151,7 @@ export class FileNavigatorModel extends FileTreeModel {
 
         const useGrouping = dataSourceUris.length > 0;
         const workspaceHeader = useGrouping
-            ? NavigatorHeaderNode.create('workspace', 'Workspace', workspaceNode)
+            ? NavigatorHeaderNode.create('workspace', 'RO-Crate Container', workspaceNode)
             : undefined;
         const dataSourceHeader = useGrouping
             ? NavigatorHeaderNode.create('data-source', 'Data Sources', workspaceNode)

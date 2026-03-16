@@ -63,3 +63,38 @@ export class NavigatorLayoutVersion5Migration implements ApplicationShellLayoutM
         return undefined;
     }
 }
+
+@injectable()
+export class NavigatorLayoutVersion6Migration implements ApplicationShellLayoutMigration {
+    readonly layoutVersion = 6.0;
+    onWillInflateWidget(desc: WidgetDescription): WidgetDescription | undefined {
+        if (desc.constructionOptions.factoryId !== EXPLORER_VIEW_CONTAINER_ID) {
+            return undefined;
+        }
+
+        if (typeof desc.innerWidgetState === 'string') {
+            desc.innerWidgetState = desc.innerWidgetState.replace(
+                /"label":"Explorer"/g,
+                `"label":"${EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS.label}"`
+            );
+            desc.innerWidgetState = desc.innerWidgetState.replace(
+                /"caption":"Explorer"/g,
+                `"caption":"${EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS.label}"`
+            );
+            return desc;
+        }
+
+        if (desc.innerWidgetState && typeof desc.innerWidgetState === 'object') {
+            const state = desc.innerWidgetState as {
+                title?: { label?: string; caption?: string };
+            };
+            if (state.title) {
+                state.title.label = EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS.label;
+                state.title.caption = EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS.label;
+            }
+            return desc;
+        }
+
+        return undefined;
+    }
+}

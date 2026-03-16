@@ -1,32 +1,35 @@
 import { MenuPath } from '@theia/core'
 import {
   ApplicationShell,
+  CompositeTreeNode,
   ContextMenuRenderer,
   NodeProps,
   TreeModel,
   TreeNode,
   TreeProps,
   TreeWidget,
+  Widget,
   WidgetManager,
 } from '@theia/core/lib/browser'
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
+import { Disposable } from '@theia/core/lib/common'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { MetadataSchemaManager } from 'aroma2-common/lib/browser'
 import '../../src/browser/styles/entities-overview-widget.css'
-import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
-import { MultiEditDialog } from './entities-overview-multi-edit-dialog'
+import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import {
   EntitiesOverviewModel,
   ExampleTreeLeaf,
   ExampleTreeNode,
   ValidityFilter,
 } from './entities-overview-model'
+import { MultiEditDialog } from './entities-overview-multi-edit-dialog'
 
 /** Well-known constant for the context menu path */
 export const TREEVIEW_EXAMPLE_CONTEXT_MENU: MenuPath = [
@@ -59,7 +62,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
   /** The ID of the view */
   static readonly ID = 'theia-examples:treeview-example-view'
   /** The label of the view */
-  static readonly LABEL = 'Entities Overview'
+  static readonly LABEL = 'Entities'
 
   /** Used in Drag & Drop code to remember and cancel deferred expansion of hovered nodes */
   // protected readonly toCancelNodeExpansion = new DisposableCollection()
@@ -86,6 +89,19 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
     // this.toDispose.push(this.toCancelNodeExpansion)
     this.addClass('entities-overview-panel')
+    this.syncFiltersVisibleBodyClass()
+    this.toDispose.push(
+      Disposable.create(() => {
+        document.body.classList.remove(this.filtersVisibleBodyClass)
+      }),
+    )
+    this.toDispose.push(
+      this.shell.onDidChangeCurrentWidget(({ newValue }) => {
+        if (newValue && this.isRoCrateEditorWidget(newValue)) {
+          this.markEditorFocused(newValue.id)
+        }
+      }),
+    )
   }
 
   protected readonly openingEntities = new Set<string>()
@@ -110,6 +126,9 @@ export class EntitiesOverviewWidget extends TreeWidget {
   protected filterMode: 'simple' | 'advanced' = 'simple'
   protected readonly entityNameInputRef = React.createRef<HTMLInputElement>()
   protected entityNameSelection: { start: number | null; end: number | null } | undefined
+  protected filtersVisible = true
+  protected readonly filtersVisibleBodyClass = 'entities-overview-filters-visible'
+  protected readonly editorFocusOrder: string[] = []
 
   /**
    * Enable icon rendering.
@@ -138,10 +157,9 @@ export class EntitiesOverviewWidget extends TreeWidget {
     const showInvalidIcon = isLeafInvalid || isNodeInvalid
 
     if (showInvalidIcon) {
-      const className = `${attrs.className ?? ''} entities-overview-invalid-caption`.trim()
-      const containerTitle = isLeafInvalid
-        ? 'Invalid entity'
-        : 'Contains invalid entity'
+      const className =
+        `${attrs.className ?? ''} entities-overview-invalid-caption`.trim()
+      const containerTitle = isLeafInvalid ? 'Invalid entity' : 'Contains invalid entity'
       return (
         <div {...attrs} className={className} title={containerTitle}>
           <span
@@ -178,135 +196,164 @@ export class EntitiesOverviewWidget extends TreeWidget {
     const activeFilters = this.getActiveFilters()
     const selectedTypes = this.normalizeSelectedTypes(availableTypes, activeFilters)
     const isAdvanced = this.filterMode === 'advanced'
+    const showFilters = this.filtersVisible
     return (
       <AntdThemeProvider themeService={this.themeService}>
         <div className="entities-overview-panel-content">
-        <div className="entities-overview-filters">
-          <div className="entities-overview-filter-header">
-            <span className="entities-overview-filter-title">Filters</span>
-            <div className="entities-overview-filter-toggle">
-              <Button.Group size="small">
-                <Button
-                  type={this.filterMode === 'simple' ? 'primary' : 'default'}
-                  onClick={() => this.setFilterMode('simple')}
-                >
-                  Simple
-                </Button>
-                <Button
-                  type={this.filterMode === 'advanced' ? 'primary' : 'default'}
-                  onClick={() => this.setFilterMode('advanced')}
-                >
-                  Advanced
-                </Button>
-              </Button.Group>
-            </div>
-          </div>
           <div
-            className={`entities-overview-filter-fields${isAdvanced ? ' is-hidden' : ''}`}
-            aria-hidden={isAdvanced}
+            className={`entities-overview-filters${showFilters ? '' : ' is-hidden'}`}
+            aria-hidden={!showFilters}
           >
-            <label className="entities-overview-filter-row">
-              <span className="entities-overview-filter-label">Entity name</span>
-              <input
-                className="entities-overview-filter-input"
-                type="text"
-                placeholder="Search entity name"
-                ref={this.entityNameInputRef}
-                value={activeFilters.entityNameFilter}
-                onChange={(event) => this.onEntityNameFilterChange(event)}
-                onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}
-              />
-            </label>
-            <label className="entities-overview-filter-row">
-              <span className="entities-overview-filter-label">Validity</span>
-              <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
-                <Select
-                  className="entities-overview-validity-select"
-                  value={activeFilters.validityFilter}
-                  options={[
-                    { value: 'all', label: 'All entities' },
-                    { value: 'valid', label: 'Only valid' },
-                    { value: 'invalid', label: 'Only invalid' },
-                  ]}
-                  classNames={{ popup: { root: 'entities-overview-filter-dropdown' } }}
-                  onChange={(value) =>
-                    this.onValidityFilterChange(value as ValidityFilter)
-                  }
-                  size="small"
-                />
-              </div>
-            </label>
-            <div className="entities-overview-filter-row">
-              <span className="entities-overview-filter-label">Entity type</span>
-              <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
-                <Select
-                  className="entities-overview-type-select"
-                  mode="multiple"
-                  placeholder="All types"
-                  value={selectedTypes}
-                  options={availableTypes.map((type) => ({ value: type, label: type }))}
-                  classNames={{ popup: { root: 'entities-overview-filter-dropdown' } }}
-                  onChange={(values) => this.onTypeFiltersChange(values)}
-                  maxTagCount="responsive"
-                  size="small"
-                  disabled={availableTypes.length === 0}
-                />
+            <div className="entities-overview-filter-header">
+              <div className="entities-overview-filter-toggle">
+                <Button.Group size="small">
+                  <Button
+                    type={this.filterMode === 'simple' ? 'primary' : 'default'}
+                    onClick={() => this.setFilterMode('simple')}
+                  >
+                    Simple
+                  </Button>
+                  <Button
+                    type={this.filterMode === 'advanced' ? 'primary' : 'default'}
+                    onClick={() => this.setFilterMode('advanced')}
+                  >
+                    Advanced
+                  </Button>
+                </Button.Group>
               </div>
             </div>
-          </div>
-          <div
-            className={`entities-overview-filter-actions${isAdvanced ? ' is-advanced' : ''}`}
-          >
             <div
-              className={`entities-overview-advanced-button-wrap${
-                isAdvanced ? ' is-visible' : ''
-              }`}
+              className={`entities-overview-filter-fields${isAdvanced ? ' is-hidden' : ''}`}
+              aria-hidden={isAdvanced}
             >
+              <label className="entities-overview-filter-row">
+                <span className="entities-overview-filter-label">Entity name</span>
+                <input
+                  className="entities-overview-filter-input"
+                  type="text"
+                  placeholder="Search entity name"
+                  ref={this.entityNameInputRef}
+                  value={activeFilters.entityNameFilter}
+                  onChange={(event) => this.onEntityNameFilterChange(event)}
+                  onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}
+                />
+              </label>
+              <label className="entities-overview-filter-row">
+                <span className="entities-overview-filter-label">Validity</span>
+                <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
+                  <Select
+                    className="entities-overview-validity-select"
+                    value={activeFilters.validityFilter}
+                    options={[
+                      { value: 'all', label: 'All entities' },
+                      { value: 'valid', label: 'Only valid' },
+                      { value: 'invalid', label: 'Only invalid' },
+                    ]}
+                    classNames={{ popup: { root: 'entities-overview-filter-dropdown' } }}
+                    onChange={(value) =>
+                      this.onValidityFilterChange(value as ValidityFilter)
+                    }
+                    size="small"
+                  />
+                </div>
+              </label>
+              <div className="entities-overview-filter-row">
+                <span className="entities-overview-filter-label">Entity type</span>
+                <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
+                  <Select
+                    className="entities-overview-type-select"
+                    mode="multiple"
+                    placeholder="All types"
+                    value={selectedTypes}
+                    options={availableTypes.map((type) => ({ value: type, label: type }))}
+                    classNames={{ popup: { root: 'entities-overview-filter-dropdown' } }}
+                    onChange={(values) => this.onTypeFiltersChange(values)}
+                    maxTagCount="responsive"
+                    size="small"
+                    disabled={availableTypes.length === 0}
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              className={`entities-overview-filter-actions${isAdvanced ? ' is-advanced' : ''}`}
+            >
+              <div
+                className={`entities-overview-advanced-button-wrap${
+                  isAdvanced ? ' is-visible' : ''
+                }`}
+              >
+                <Button
+                  className="entities-overview-advanced-button"
+                  type="default"
+                  onClick={() => this.openAdvancedDialog()}
+                  onKeyDownCapture={(event: React.KeyboardEvent) =>
+                    this.stopFilterKeyEvents(event)
+                  }
+                >
+                  Advanced filters
+                </Button>
+              </div>
               <Button
-                className="entities-overview-advanced-button"
-                type="default"
-                onClick={() => this.openAdvancedDialog()}
+                className="entities-overview-filter-clear"
+                danger
+                ghost
+                disabled={
+                  activeFilters.entityNameFilter.trim() === '' &&
+                  selectedTypes.length === 0 &&
+                  activeFilters.validityFilter === 'all'
+                }
+                onClick={() => this.clearFilters()}
                 onKeyDownCapture={(event: React.KeyboardEvent) =>
                   this.stopFilterKeyEvents(event)
                 }
               >
-                Advanced filters
+                Clear filters
               </Button>
             </div>
-            <div className="entities-overview-edit-button-wrap">
-              <Button
-                className="entities-overview-edit-button"
-                type="default"
-                onClick={() => this.openMultiEditDialog()}
-                onKeyDownCapture={(event: React.KeyboardEvent) =>
-                  this.stopFilterKeyEvents(event)
-                }
-              >
-                Edit
-              </Button>
-            </div>
+          </div>
+          <div className="entities-overview-edit-row">
             <Button
-              className="entities-overview-filter-clear"
-              danger
-              ghost
-              disabled={
-                activeFilters.entityNameFilter.trim() === '' &&
-                selectedTypes.length === 0 &&
-                activeFilters.validityFilter === 'all'
-              }
-              onClick={() => this.clearFilters()}
+              className="entities-overview-edit-button"
+              type="default"
+              onClick={() => this.openMultiEditDialog()}
               onKeyDownCapture={(event: React.KeyboardEvent) =>
                 this.stopFilterKeyEvents(event)
               }
             >
-              Clear filters
+              Edit
             </Button>
           </div>
+          <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
         </div>
-        <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
-      </div>
       </AntdThemeProvider>
     )
+  }
+
+  isFiltersVisible(): boolean {
+    return this.filtersVisible
+  }
+
+  toggleFiltersVisibility(): void {
+    this.filtersVisible = !this.filtersVisible
+    this.syncFiltersVisibleBodyClass()
+    this.update()
+  }
+
+  async collapseAllEntityNodes(): Promise<void> {
+    const root = this.model.root
+    if (!root || !CompositeTreeNode.is(root)) {
+      return
+    }
+    for (const child of root.children) {
+      if (ExampleTreeNode.is(child)) {
+        await this.model.collapseAll(child)
+      }
+    }
+  }
+
+  protected syncFiltersVisibleBodyClass(): void {
+    document.body.classList.toggle(this.filtersVisibleBodyClass, this.filtersVisible)
   }
 
   protected override createContainerAttributes(): React.HTMLAttributes<HTMLElement> {
@@ -401,12 +448,12 @@ export class EntitiesOverviewWidget extends TreeWidget {
     return {
       ...super.createNodeAttributes(node, props),
       onClick: (event) => this.handleNodeClick(node, event),
+      onDoubleClick: (event) => this.handleNodeDoubleClick(node, event),
     }
   }
 
   /**
    * Handle click events on tree nodes.
-   * For leaf nodes, this will log the name to the console.
    *
    * @param node the clicked node
    */
@@ -417,44 +464,87 @@ export class EntitiesOverviewWidget extends TreeWidget {
     }
     if (ExampleTreeLeaf.is(node)) {
       const entityId = node.data.entityId
-      if (entityId && (event.ctrlKey || event.metaKey)) {
-        event.stopPropagation()
-        event.preventDefault()
-        this.model.toggleSelection(entityId)
-        return
-      }
-
       if (!entityId) {
         console.warn('EntitiesOverviewWidget: missing entityId for selection')
         return
       }
-      void this.openRoCrateEditorForEntity(entityId)
+      event.stopPropagation()
+      event.preventDefault()
+      if (event.shiftKey) {
+        this.model.selectRangeTo(entityId)
+        return
+      }
+      if (event.ctrlKey || event.metaKey) {
+        this.model.toggleSelection(entityId)
+        return
+      }
+      this.model.selectSingle(entityId)
+      if (event.altKey) {
+        void this.openRoCrateEditorForEntity(entityId, { forceNewWindow: true })
+      }
     }
   }
 
-  protected async openRoCrateEditorForEntity(entityId: string): Promise<void> {
+  protected handleNodeDoubleClick(
+    node: TreeNode,
+    event: React.MouseEvent<HTMLElement>,
+  ): void {
+    if (!ExampleTreeLeaf.is(node)) {
+      return
+    }
+    const entityId = node.data.entityId
+    if (!entityId) {
+      console.warn('EntitiesOverviewWidget: missing entityId for open')
+      return
+    }
+    event.stopPropagation()
+    event.preventDefault()
+    if (event.altKey || event.shiftKey) {
+      return
+    }
+    this.model.selectSingle(entityId)
+    void this.openRoCrateEditorForEntity(entityId)
+  }
+
+  protected async openRoCrateEditorForEntity(
+    entityId: string,
+    options?: { forceNewWindow?: boolean },
+  ): Promise<void> {
     if (!entityId) {
       console.warn('EntitiesOverviewWidget: attempted to open editor without entityId')
       return
     }
-    if (this.openingEntities.has(entityId)) {
+    const forceNewWindow = options?.forceNewWindow === true
+    // Keep deduplication for regular open/focus flow, but allow repeated Alt+click
+    // to open multiple windows for the same entity without waiting for initialization.
+    const dedupeByEntity = !forceNewWindow
+    if (dedupeByEntity && this.openingEntities.has(entityId)) {
       return
     }
-    this.openingEntities.add(entityId)
+    if (dedupeByEntity) {
+      this.openingEntities.add(entityId)
+    }
     const prevSelected = this.appStateService.selectedEntityId
     if (prevSelected !== entityId) {
       this.appStateService.selectedEntityId = entityId
-      console.log('EntitiesOverviewWidget: selectedEntityId updated', {
-        prev: prevSelected,
-        next: entityId,
-      })
     }
     try {
-      const existingWidgetId = this.findWidgetIdForEntity(entityId)
-      if (existingWidgetId) {
-        this.appStateService.registerEntityEditor(existingWidgetId, entityId)
-        await this.shell.activateWidget(existingWidgetId)
-        return
+      if (!forceNewWindow) {
+        const existingWidgetId = this.findWidgetIdForEntity(entityId)
+        if (existingWidgetId) {
+          this.appStateService.registerEntityEditor(existingWidgetId, entityId)
+          await this.shell.activateWidget(existingWidgetId)
+          this.markEditorFocused(existingWidgetId)
+          return
+        }
+
+        const lastFocusedEditor = this.getPreferredRoCrateEditorWidget()
+        if (lastFocusedEditor) {
+          this.appStateService.registerEntityEditor(lastFocusedEditor.id, entityId)
+          await this.shell.activateWidget(lastFocusedEditor.id)
+          this.markEditorFocused(lastFocusedEditor.id)
+          return
+        }
       }
 
       const instanceId = `${RoCrateEditorWidget.ID}:${Math.random().toString(36).slice(2)}`
@@ -464,18 +554,98 @@ export class EntitiesOverviewWidget extends TreeWidget {
         entityId,
       })
 
-      await this.shell.addWidget(widget, { area: 'main' })
+      const addOptions: {
+        area: 'main'
+        mode?: 'split-right' | 'tab-after'
+        ref?: Widget
+      } = { area: 'main' }
+      const referenceEditor = this.getPreferredRoCrateEditorWidget()
+      if (referenceEditor) {
+        if (forceNewWindow) {
+          const rightmostInRecentContainer =
+            this.getRightmostWidgetInSameTabBar(referenceEditor) ?? referenceEditor
+          addOptions.mode = 'tab-after'
+          addOptions.ref = rightmostInRecentContainer
+        } else {
+          addOptions.mode = 'split-right'
+          addOptions.ref = referenceEditor
+        }
+      }
+
+      await this.shell.addWidget(widget, addOptions)
       this.appStateService.registerEntityEditor(widget.id, entityId)
       await this.shell.activateWidget(widget.id)
+      this.markEditorFocused(widget.id)
     } catch (error) {
       console.error('EntitiesOverviewWidget: failed to open editor', { entityId, error })
     } finally {
-      this.openingEntities.delete(entityId)
+      if (dedupeByEntity) {
+        this.openingEntities.delete(entityId)
+      }
     }
   }
 
   protected findWidgetIdForEntity(entityId: string): string | undefined {
-    return this.appStateService.getEntityEditorWidgetId(entityId)
+    const mapping = this.appStateService.EIRCEIA ?? {}
+    const matchingIds = Object.entries(mapping)
+      .filter(([, mappedEntityId]) => mappedEntityId === entityId)
+      .map(([widgetId]) => widgetId)
+      .filter((widgetId) => Boolean(this.shell.getWidgetById(widgetId)))
+    if (matchingIds.length === 0) {
+      return undefined
+    }
+
+    for (let index = this.editorFocusOrder.length - 1; index >= 0; index -= 1) {
+      const widgetId = this.editorFocusOrder[index]
+      if (matchingIds.includes(widgetId)) {
+        return widgetId
+      }
+    }
+    return matchingIds[0]
+  }
+
+  protected isRoCrateEditorWidget(widget: Widget): boolean {
+    return widget.id.startsWith(RoCrateEditorWidget.ID)
+  }
+
+  protected markEditorFocused(widgetId: string): void {
+    const index = this.editorFocusOrder.indexOf(widgetId)
+    if (index >= 0) {
+      this.editorFocusOrder.splice(index, 1)
+    }
+    this.editorFocusOrder.push(widgetId)
+  }
+
+  protected getPreferredRoCrateEditorWidget(): Widget | undefined {
+    for (let index = this.editorFocusOrder.length - 1; index >= 0; index -= 1) {
+      const widgetId = this.editorFocusOrder[index]
+      const widget = this.shell.getWidgetById(widgetId)
+      if (widget && this.isRoCrateEditorWidget(widget)) {
+        return widget
+      }
+      this.editorFocusOrder.splice(index, 1)
+    }
+
+    const active = this.shell.activeWidget ?? this.shell.currentWidget
+    if (active && this.isRoCrateEditorWidget(active)) {
+      return active
+    }
+
+    for (const widget of this.shell.getWidgets('main')) {
+      if (this.isRoCrateEditorWidget(widget)) {
+        return widget
+      }
+    }
+
+    return undefined
+  }
+
+  protected getRightmostWidgetInSameTabBar(widget: Widget): Widget | undefined {
+    const tabBar = this.shell.getTabBarFor(widget)
+    if (!tabBar || tabBar.titles.length === 0) {
+      return undefined
+    }
+    return tabBar.titles[tabBar.titles.length - 1].owner
   }
 
   protected onEntityNameFilterChange(event: React.ChangeEvent<HTMLInputElement>): void {

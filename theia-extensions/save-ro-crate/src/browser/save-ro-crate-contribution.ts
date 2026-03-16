@@ -60,7 +60,7 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
 
   private async handleSaveKeybinding(): Promise<void> {
     if (this.isRoCrateEditorFocused()) {
-      await this.doSave()
+      await this.saveCurrentEditor()
       return
     }
     await this.saveCurrentEditor()
@@ -89,7 +89,7 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
   }
 
   private async saveCurrentEditor(): Promise<void> {
-    const widget = this.shell.currentWidget
+    const widget = this.shell.activeWidget || this.shell.currentWidget
     if (!widget) {
       return
     }
@@ -97,6 +97,11 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
   }
 
   private async doSave(): Promise<void> {
+    if (this.isRoCrateEditorFocused()) {
+      await this.saveCurrentEditor()
+      return
+    }
+
     const roots = this.workspaceService.tryGetRoots()
     if (!roots || roots.length === 0) return
 
