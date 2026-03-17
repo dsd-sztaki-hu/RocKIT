@@ -234,7 +234,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       this.fieldsByKey.set(field.key, field)
     }
 
-    this.schemaOptions = schemas
+    this.schemaOptions = this.mergeSchemaOptions(schemas)
     this.selectedSchemaIds = new Set()
 
     if (this.operations.length === 0) {
@@ -398,32 +398,11 @@ export class MultiEditDialog extends ReactDialog<string> {
           entityTypes,
         }
 
-        const dedupeKey = `${schemaMeta.id}::${propertyName}::${field.label}`
-        const existingField = fieldsByKey.get(dedupeKey)
-        if (!existingField) {
-          fieldsByKey.set(dedupeKey, field)
-        } else {
-          const supported = new Set(existingField.supportedClasses ?? [])
-          supported.add(className)
-          existingField.supportedClasses = Array.from(supported.values())
-          const mergedEntityTypes = new Set(existingField.entityTypes)
-          for (const typeName of field.entityTypes) {
-            mergedEntityTypes.add(typeName)
-          }
-          existingField.entityTypes = Array.from(mergedEntityTypes.values())
-          if (field.multiple) {
-            existingField.multiple = true
-          }
-          if (field.selectValues.length > 0) {
-            const mergedValues = new Set(existingField.selectValues)
-            for (const value of field.selectValues) {
-              mergedValues.add(value)
-            }
-            existingField.selectValues = Array.from(mergedValues.values())
-          }
-        }
+        this.upsertFieldDefinition(fieldsByKey, field)
       }
     }
+
+    this.addSchemaProfileFields(fieldsByKey, schemasById)
 
     const fields = Array.from(fieldsByKey.values())
     fields.sort((a, b) => {
@@ -439,6 +418,317 @@ export class MultiEditDialog extends ReactDialog<string> {
     )
 
     return { fields, schemas }
+  }
+
+  /**
+   * Builds and appends fields from crate-level schema profiles (profileList entries).
+   * These fields are applicable to all selected entities when their schema is selected.
+   * @param fieldsByKey Mutable field map.
+   * @param schemasById Mutable schema map.
+   * @returns void
+   * @protected
+   */
+  protected addSchemaProfileFields(
+    fieldsByKey: Map<string, FieldDefinition>,
+    schemasById: Map<string, SchemaOption>,
+  ): void {
+    const profileList = Array.isArray(this.appStateService.profileList)
+      ? this.appStateService.profileList
+      : []
+    const allowedSchemaUrls = new Set(this.extractConformsToUrlsFromCrate())
+
+    for (const entry of profileList) {
+      const schemaUrl = typeof entry?.id === 'string' ? entry.id.trim() : ''
+      if (!schemaUrl || !allowedSchemaUrls.has(schemaUrl)) {
+        continue
+      }
+
+      const schemaLabel = this.resolveSchemaLabelFromProfileEntry(entry, schemaUrl)
+      const schemaId = this.normalizeSchemaId(schemaLabel)
+      if (!schemaId) {
+        continue
+      }
+
+      if (!schemasById.has(schemaId)) {
+        schemasById.set(schemaId, { id: schemaId, label: schemaLabel, url: schemaUrl })
+      }
+      this.schemaUrlsById.set(schemaId, schemaUrl)
+
+      const schemaProfile = entry?.content
+      const schemaClasses =
+        schemaProfile && typeof schemaProfile === 'object'
+          ? ((schemaProfile.classes as Record<string, any> | undefined) ?? {})
+          : {}
+      const datasetClass = schemaClasses.Dataset
+      const schemaInputs = Array.isArray(datasetClass?.inputs)
+        ? (datasetClass.inputs as Record<string, any>[])
+        : []
+      if (schemaInputs.length === 0) {
+        continue
+      }
+
+      const schemaLayouts = Array.isArray(schemaProfile?.layouts)
+        ? (schemaProfile.layouts as Record<string, any>[])
+        : []
+      const datasetLayout = this.findLayoutForClass(schemaLayouts, 'Dataset')
+
+      for (const input of schemaInputs) {
+        const propertyName = typeof input?.name === 'string' ? input.name.trim() : ''
+        if (!propertyName) {
+          continue
+        }
+
+        const relationshipTypes = this.extractEntityTypes(input, schemaClasses)
+        const groupName = this.getFieldGroup(input)
+        const schemaMeta = this.resolveSchemaMeta(datasetLayout, groupName)
+        const field: FieldDefinition = {
+          key: `schema::${schemaId}::${propertyName}`,
+          className: '__any__',
+          classLabel: 'Any',
+          supportedClasses: [],
+          schemaId,
+          schemaLabel,
+          schemaGroupName: schemaMeta.label || schemaLabel,
+          schemaUrl,
+          propertyName,
+          label: String(input.label ?? propertyName),
+          help: typeof input.help === 'string' ? input.help : undefined,
+          multiple: this.parseBoolean(input.multiple),
+          valueKind: this.resolveValueKind(input, schemaClasses, relationshipTypes),
+          selectValues: Array.isArray(input.values)
+            ? input.values
+                .map((value) => String(value))
+                .filter((value) => value.trim().length > 0)
+            : [],
+          entityTypes: relationshipTypes,
+          appliesToAll: true,
+        }
+
+        this.upsertFieldDefinition(fieldsByKey, field)
+      }
+    }
+  }
+
+  /**
+   * Inserts or merges one field into the deduplicated field map.
+   * @param fieldsByKey Mutable field map.
+   * @param field Candidate field.
+   * @returns void
+   * @protected
+   */
+  protected upsertFieldDefinition(
+    fieldsByKey: Map<string, FieldDefinition>,
+    field: FieldDefinition,
+  ): void {
+    const dedupeKey = `${field.schemaId}::${field.propertyName}::${field.label}`
+    const existingField = fieldsByKey.get(dedupeKey)
+    if (!existingField) {
+      fieldsByKey.set(dedupeKey, field)
+      return
+    }
+
+    const supported = new Set(existingField.supportedClasses ?? [])
+    for (const className of field.supportedClasses ?? []) {
+      if (className && className.trim().length > 0) {
+        supported.add(className)
+      }
+    }
+    existingField.supportedClasses = Array.from(supported.values())
+
+    const mergedEntityTypes = new Set(existingField.entityTypes)
+    for (const typeName of field.entityTypes) {
+      mergedEntityTypes.add(typeName)
+    }
+    existingField.entityTypes = Array.from(mergedEntityTypes.values())
+
+    if (field.multiple) {
+      existingField.multiple = true
+    }
+    if (field.appliesToAll) {
+      existingField.appliesToAll = true
+    }
+    if (!existingField.schemaUrl && field.schemaUrl) {
+      existingField.schemaUrl = field.schemaUrl
+    }
+    if (field.selectValues.length > 0) {
+      const mergedValues = new Set(existingField.selectValues)
+      for (const value of field.selectValues) {
+        mergedValues.add(value)
+      }
+      existingField.selectValues = Array.from(mergedValues.values())
+    }
+  }
+
+  /**
+   * Merges field-derived schema options with schemas detected in the currently opened RO-Crate.
+   * @param baseSchemas Schema options derived from selected entity type fields.
+   * @returns Deduplicated, sorted schema options.
+   * @protected
+   */
+  protected mergeSchemaOptions(baseSchemas: SchemaOption[]): SchemaOption[] {
+    const merged = new Map<string, SchemaOption>()
+    for (const schema of baseSchemas) {
+      merged.set(schema.id, schema)
+    }
+
+    const crateSchemas = this.collectSchemaOptionsFromCrate()
+    for (const schema of crateSchemas) {
+      const existing = merged.get(schema.id)
+      if (!existing) {
+        merged.set(schema.id, schema)
+        continue
+      }
+      if (!existing.url && schema.url) {
+        merged.set(schema.id, { ...existing, url: schema.url })
+      }
+    }
+
+    return Array.from(merged.values()).sort((a, b) => a.label.localeCompare(b.label))
+  }
+
+  /**
+   * Collects schema options from app-state profile list (all schemas referenced in the opened crate).
+   * @returns Schema options mapped from crate-level schema entries.
+   * @protected
+   */
+  protected collectSchemaOptionsFromCrate(): SchemaOption[] {
+    const optionsById = new Map<string, SchemaOption>()
+    const knownUrls = new Set<string>()
+    const nonMetadataSchemaUrls = new Set(this.extractConformsToUrlsFromCrate())
+    const profileList = Array.isArray(this.appStateService.profileList)
+      ? this.appStateService.profileList
+      : []
+
+    for (const entry of profileList) {
+      const schemaUrl = typeof entry?.id === 'string' ? entry.id.trim() : ''
+      if (!schemaUrl || !nonMetadataSchemaUrls.has(schemaUrl)) {
+        continue
+      }
+      const label = this.resolveSchemaLabelFromProfileEntry(entry, schemaUrl)
+      const id = this.normalizeSchemaId(label)
+      if (!id) {
+        continue
+      }
+
+      const current = optionsById.get(id)
+      if (!current) {
+        optionsById.set(id, { id, label, url: schemaUrl })
+      } else if (!current.url) {
+        optionsById.set(id, { ...current, url: schemaUrl })
+      }
+
+      knownUrls.add(schemaUrl)
+      this.schemaUrlsById.set(id, schemaUrl)
+    }
+
+    for (const schemaUrl of nonMetadataSchemaUrls) {
+      if (!schemaUrl || knownUrls.has(schemaUrl)) {
+        continue
+      }
+      const id = this.normalizeSchemaId(schemaUrl)
+      if (!id || optionsById.has(id)) {
+        continue
+      }
+      optionsById.set(id, { id, label: schemaUrl, url: schemaUrl })
+      this.schemaUrlsById.set(id, schemaUrl)
+    }
+
+    return Array.from(optionsById.values())
+  }
+
+  /**
+   * Extracts unique conformsTo URLs from the currently opened RO-Crate graph.
+   * @returns Ordered list of unique schema URLs.
+   * @protected
+   */
+  protected extractConformsToUrlsFromCrate(): string[] {
+    const crate = this.appStateService.roCrate
+    const graph = Array.isArray(crate?.['@graph'])
+      ? (crate['@graph'] as Record<string, any>[])
+      : []
+    const urls = new Set<string>()
+
+    const append = (value: unknown): void => {
+      if (!value) {
+        return
+      }
+      if (typeof value === 'string') {
+        const normalized = value.trim()
+        if (normalized.length > 0) {
+          urls.add(normalized)
+        }
+        return
+      }
+      if (typeof value === 'object') {
+        const candidate = (value as Record<string, any>)['@id'] ?? (value as Record<string, any>).id
+        if (typeof candidate === 'string') {
+          const normalized = candidate.trim()
+          if (normalized.length > 0) {
+            urls.add(normalized)
+          }
+        }
+      }
+    }
+
+    for (const entity of graph) {
+      if (this.isMetadataDescriptorEntity(entity)) {
+        continue
+      }
+      const conformsTo = entity?.conformsTo
+      if (Array.isArray(conformsTo)) {
+        for (const value of conformsTo) {
+          append(value)
+        }
+      } else {
+        append(conformsTo)
+      }
+    }
+
+    return Array.from(urls.values()).sort((a, b) => a.localeCompare(b))
+  }
+
+  /**
+   * Checks whether an entity is the RO-Crate metadata descriptor.
+   * @param entity Candidate graph entity.
+   * @returns True when entity id points to ro-crate-metadata.json.
+   * @protected
+   */
+  protected isMetadataDescriptorEntity(entity: Record<string, any>): boolean {
+    const rawId = typeof entity?.['@id'] === 'string' ? entity['@id'].trim() : ''
+    if (!rawId) {
+      return false
+    }
+    const normalized = rawId.replace(/\\/g, '/').replace(/^\.\/+/, '').toLowerCase()
+    return normalized === 'ro-crate-metadata.json' || normalized.endsWith('/ro-crate-metadata.json')
+  }
+
+  /**
+   * Resolves a readable schema label from a profile list entry.
+   * @param entry Profile list item from app state.
+   * @param fallback Fallback label when profile metadata is unavailable.
+   * @returns Best-effort schema label.
+   * @protected
+   */
+  protected resolveSchemaLabelFromProfileEntry(
+    entry: { content?: Record<string, any> | undefined },
+    fallback: string,
+  ): string {
+    const rawName =
+      typeof entry?.content?.metadata?.name === 'string'
+        ? entry.content.metadata.name.trim()
+        : ''
+
+    if (rawName.length > 0) {
+      if (this.schemaManagerService) {
+        const normalized = this.schemaManagerService.nameWithoutMetadataSuffix(rawName)
+        if (normalized && normalized.trim().length > 0) {
+          return normalized.trim()
+        }
+      }
+      return rawName
+    }
+
+    return fallback
   }
 
   /**

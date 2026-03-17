@@ -479,6 +479,184 @@ body.entities-overview-filters-visible
   position: relative;
 }
 
+.entities-overview-advanced-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 920px;
+  max-width: 92vw;
+  min-height: 45vh;
+  max-height: 90vh;
+  overflow: auto;
+  position: relative;
+  padding-right: 2px;
+}
+
+.entities-overview-advanced-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid rgba(127, 127, 127, 0.55);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--theia-editorWidget-background);
+  box-shadow: none;
+}
+
+.entities-overview-advanced-group.is-root {
+  border-style: solid;
+  border-color: rgba(127, 127, 127, 0.45);
+}
+
+.entities-overview-advanced-group:not(.is-root) {
+  margin-left: 8px;
+  background: var(--theia-input-background);
+  border-color: rgba(127, 127, 127, 0.72);
+}
+
+.entities-overview-advanced-fields-rule > .entities-overview-advanced-group.is-root {
+  margin-left: 8px;
+  background: var(--theia-input-background);
+  border-color: rgba(127, 127, 127, 0.72);
+}
+
+.entities-overview-advanced-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.entities-overview-advanced-group-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.entities-overview-advanced-group
+  .entities-overview-edit-modal-remove.entities-overview-advanced-group-remove {
+  width: 0;
+  min-width: 0;
+  height: 28px;
+  padding: 0;
+  border-width: 0;
+  opacity: 0;
+  margin-left: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateX(4px);
+  transition:
+    width 180ms ease,
+    border-width 160ms ease,
+    opacity 150ms ease,
+    margin-left 180ms ease,
+    transform 180ms ease;
+}
+
+.entities-overview-advanced-group:hover
+  .entities-overview-edit-modal-remove.entities-overview-advanced-group-remove,
+.entities-overview-advanced-group:focus-within
+  .entities-overview-edit-modal-remove.entities-overview-advanced-group-remove {
+  width: 28px;
+  border-width: 1px;
+  opacity: 1;
+  margin-left: 2px;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.entities-overview-advanced-group-children {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 2px;
+}
+
+.entities-overview-advanced-rule-row {
+  margin: 0;
+  border-color: rgba(127, 127, 127, 0.45);
+}
+
+.entities-overview-advanced-rule-value {
+  transition:
+    min-width 180ms ease,
+    flex-basis 180ms ease;
+}
+
+.entities-overview-advanced-rule-value .entities-overview-edit-modal-no-value {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  width: 100%;
+}
+
+.entities-overview-advanced-fields-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.entities-overview-advanced-fields-rule {
+  width: 100%;
+}
+
+.entities-overview-advanced-fields-header-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.entities-overview-advanced-fields-property-select {
+  min-width: 280px;
+  max-width: 520px;
+  flex: 1 1 auto;
+}
+
+.entities-overview-advanced-rule-row .entities-overview-advanced-rule-actions {
+  flex: 0 0 0;
+  width: 0;
+  min-width: 0;
+  max-width: 0;
+  margin-left: 0;
+  margin-top: 0;
+  align-self: center;
+  justify-content: center;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateX(4px);
+  transition:
+    flex-basis 180ms ease,
+    width 180ms ease,
+    max-width 180ms ease,
+    margin-left 180ms ease,
+    opacity 150ms ease,
+    transform 180ms ease;
+}
+
+.entities-overview-advanced-rule-remove {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+}
+
+.entities-overview-advanced-rule-row:hover .entities-overview-advanced-rule-actions,
+.entities-overview-advanced-rule-row:focus-within .entities-overview-advanced-rule-actions {
+  flex-basis: 28px;
+  width: 28px;
+  max-width: 28px;
+  margin-left: 8px;
+  margin-top: 0;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
 .entities-overview-edit-modal-title {
   font-weight: 600;
   margin: 0;
@@ -698,6 +876,18 @@ body.entities-overview-filters-visible
   width: 100%;
 }
 
+.entities-overview-edit-modal-value .ant-picker {
+  min-height: 36px;
+  height: 36px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+}
+
+.entities-overview-edit-modal-value .ant-picker .ant-picker-input > input {
+  height: 100%;
+}
+
 .entities-overview-edit-modal-value .ant-input {
   height: 36px !important;
   min-height: 36px !important;
@@ -835,8 +1025,30 @@ body.entities-overview-filters-visible
 }
 
 .entities-overview-edit-modal-value .ant-select-multiple .ant-select-selector {
-  min-height: 26px;
-  padding: 3px 8px;
+  height: 36px !important;
+  min-height: 36px !important;
+  display: flex;
+  align-items: center;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.entities-overview-edit-modal-value .ant-select-multiple .ant-select-selection-overflow {
+  align-items: center;
+  row-gap: 0;
+}
+
+.entities-overview-edit-modal-value .ant-select-multiple .ant-select-selection-overflow-item {
+  display: flex;
+  align-items: center;
+}
+
+.entities-overview-edit-modal-value .ant-select-multiple .ant-select-selection-search {
+  align-self: center;
+}
+
+.entities-overview-edit-modal-value .ant-select-multiple .ant-select-selection-search-input {
+  height: 30px !important;
 }
 
 .entities-overview-edit-modal-value
@@ -848,6 +1060,8 @@ body.entities-overview-filters-visible
 .entities-overview-edit-modal-value .ant-select-multiple .ant-select-selection-item {
   display: inline-flex;
   align-items: center;
+  margin-top: 0;
+  margin-bottom: 0;
   max-width: 360px;
   margin-inline-end: 6px;
 }
@@ -878,6 +1092,36 @@ body.entities-overview-filters-visible
   width: 14px;
   height: 14px;
   font-size: 10px;
+}
+
+.entities-overview-advanced-rule-value
+  .entities-overview-advanced-object-select.ant-select
+  .ant-select-selector {
+  height: 36px !important;
+  min-height: 36px !important;
+  display: flex;
+  align-items: center;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.entities-overview-advanced-rule-value
+  .entities-overview-advanced-object-select.ant-select-multiple
+  .ant-select-selection-overflow {
+  align-items: center;
+  row-gap: 0;
+}
+
+.entities-overview-advanced-rule-value
+  .entities-overview-advanced-object-select.ant-select-multiple
+  .ant-select-selection-search {
+  align-self: center;
+}
+
+.entities-overview-advanced-rule-value
+  .entities-overview-advanced-object-select.ant-select-multiple
+  .ant-select-selection-search-input {
+  height: 30px !important;
 }
 
 .entities-overview-entity-tag {

@@ -14,6 +14,8 @@ import {
 } from './entities-overview-tree-item-factory'
 import { EntitiesOverviewTree } from './entities-overview-tree'
 
+export type EntityMatcher = (entity: Record<string, unknown>) => boolean
+
 function formatTypeLabel(rawType: string): string {
     const trimmed = rawType.trim()
     if (!trimmed) {
@@ -108,6 +110,7 @@ function createEntitiesData(
     validityFilter: ValidityFilter,
     invalidEntityIds: Set<string>,
     selectedEntityIds: Set<string>,
+    advancedEntityMatcher?: EntityMatcher,
 ): Item[] {
     const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
     const byType = new Map<string, { label: string; items: Item[] }>()
@@ -120,6 +123,9 @@ function createEntitiesData(
             continue
         }
         if (hasType(entry, 'CreativeWork')) {
+            continue
+        }
+        if (advancedEntityMatcher && !advancedEntityMatcher(entry)) {
             continue
         }
 
@@ -224,6 +230,7 @@ export class EntitiesOverviewModel extends TreeModelImpl {
     private entityNameFilter = ''
     private entityTypeFilters: string[] = []
     private validityFilter: ValidityFilter = 'all'
+    private advancedEntityMatcher: EntityMatcher | undefined
 
     // branch: multi-select tracked independently from tree selection
     private readonly selectedEntityIds = new Set<string>()
@@ -368,6 +375,14 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         this.refreshFilteredTree()
     }
 
+    setAdvancedEntityMatcher(matcher: EntityMatcher | undefined): void {
+        if (this.advancedEntityMatcher === matcher) {
+            return
+        }
+        this.advancedEntityMatcher = matcher
+        this.refreshFilteredTree()
+    }
+
     getAvailableTypes(): string[] {
         return getAvailableTypes(this.currentCrate, this.appStateService.completeProfile)
     }
@@ -391,7 +406,8 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         const shouldExpand = Boolean(
             this.entityNameFilter.trim() ||
             this.entityTypeFilters.length > 0 ||
-            this.validityFilter !== 'all',
+            this.validityFilter !== 'all' ||
+            this.advancedEntityMatcher,
         )
 
         const invalidEntityIds = new Set(
@@ -410,6 +426,7 @@ export class EntitiesOverviewModel extends TreeModelImpl {
             this.validityFilter,
             invalidEntityIds,
             selected,
+            this.advancedEntityMatcher,
         )
             .map((item) => this.buildTreeNode(item, root, existingNodes, shouldExpand))
             .forEach((node) => CompositeTreeNode.addChild(root, node))
