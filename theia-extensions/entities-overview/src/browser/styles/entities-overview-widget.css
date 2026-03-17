@@ -1025,8 +1025,30 @@ body.entities-overview-filters-visible
 }
 
 .entities-overview-edit-modal-value .ant-select-multiple .ant-select-selector {
-  min-height: 26px;
-  padding: 3px 8px;
+  height: 36px !important;
+  min-height: 36px !important;
+  display: flex;
+  align-items: center;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.entities-overview-edit-modal-value .ant-select-multiple .ant-select-selection-overflow {
+  align-items: center;
+  row-gap: 0;
+}
+
+.entities-overview-edit-modal-value .ant-select-multiple .ant-select-selection-overflow-item {
+  display: flex;
+  align-items: center;
+}
+
+.entities-overview-edit-modal-value .ant-select-multiple .ant-select-selection-search {
+  align-self: center;
+}
+
+.entities-overview-edit-modal-value .ant-select-multiple .ant-select-selection-search-input {
+  height: 30px !important;
 }
 
 .entities-overview-edit-modal-value
@@ -1038,6 +1060,8 @@ body.entities-overview-filters-visible
 .entities-overview-edit-modal-value .ant-select-multiple .ant-select-selection-item {
   display: inline-flex;
   align-items: center;
+  margin-top: 0;
+  margin-bottom: 0;
   max-width: 360px;
   margin-inline-end: 6px;
 }
