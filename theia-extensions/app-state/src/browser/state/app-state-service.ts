@@ -43,15 +43,23 @@ export class AppStateService {
   protected init(): void {
     // restore persisted state if available (fire-and-forget to keep binding synchronous)
     this.storageService
-      .getData<AppState>(STORAGE_KEY)
+      .getData<Partial<AppState>>(STORAGE_KEY)
       .then((stored) => {
         if (stored) {
-          const { roCrate, profile, selectedEntityId, schemaSelectorContext, profileList, ...restStored } = stored
+          const {
+            roCrate,
+            profile,
+            selectedEntityId,
+            schemaSelectorContext,
+            profileList,
+            completeProfile,
+            validationErrors,
+            ...restStored
+          } = stored as AppState
           this.store.setState({
             ...cloneDefaultAppState(),
             ...(restStored as any), // Only restore other properties
           })
-
         }
         this._resolveReady()
       })
@@ -91,8 +99,28 @@ export class AppStateService {
     }
 
     this.lastPersistAt = Date.now()
-    console.log('Persisting state to localStorage')
-    this.storageService.setData(STORAGE_KEY, state)
+    const persistable = this.toPersistableState(state)
+    void this.storageService.setData(STORAGE_KEY, persistable).catch((error) => {
+      console.warn('Failed to persist app state to browser storage:', error)
+    })
+  }
+
+  /**
+   * Keeps persisted browser storage small to avoid quota errors on large RO-Crates.
+   * Runtime-heavy data is intentionally excluded and reloaded from files/services.
+   */
+  private toPersistableState(state: AppState): Partial<AppState> {
+    const {
+      roCrate,
+      profile,
+      completeProfile,
+      profileList,
+      selectedEntityId,
+      schemaSelectorContext,
+      validationErrors,
+      ...persistable
+    } = state
+    return persistable
   }
 
   get ready(): Promise<void> {
@@ -304,15 +332,13 @@ export class AppStateService {
   getProfileByConformsTo(id: string): Record<string, any> | undefined {
     const key = typeof id === 'string' ? id.trim() : ''
     if (!key) return undefined
-    return this.getState().profileList?.find((p) => (p?.id ?? '').trim() === key)
-      ?.content
+    return this.getState().profileList?.find((p) => (p?.id ?? '').trim() === key)?.content
   }
 
   get validationErrors(): AppState['validationErrors'] {
-      return this.getState().validationErrors;
+    return this.getState().validationErrors
   }
   set validationErrors(value: AppState['validationErrors']) {
-      this.updateState({ validationErrors: value });
+    this.updateState({ validationErrors: value })
   }
-
 }
