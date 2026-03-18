@@ -24,7 +24,8 @@ export class AppStateService {
   private readonly persistIntervalMs = 5000
   private lastPersistAt = 0
   private persistTimeout: number | undefined
-  private latestStateForPersist: AppState | undefined
+  private latestPersistableForPersist: Partial<AppState> | undefined
+  private lastPersistableSignature: string | undefined
 
   @inject(StorageService)
   protected readonly storageService!: StorageService
@@ -70,7 +71,14 @@ export class AppStateService {
 
     // persist on every change
     this.onDidChangeState(({ current }) => {
-      this.latestStateForPersist = current
+      const persistable = this.toPersistableState(current)
+      const signature = this.toPersistableSignature(persistable)
+      if (signature === this.lastPersistableSignature) {
+        return
+      }
+
+      this.lastPersistableSignature = signature
+      this.latestPersistableForPersist = persistable
 
       const now = Date.now()
       const elapsed = now - this.lastPersistAt
@@ -93,16 +101,57 @@ export class AppStateService {
   }
 
   private flushPersist(): void {
-    const state = this.latestStateForPersist
-    if (!state) {
+    const persistable = this.latestPersistableForPersist
+    if (!persistable) {
       return
     }
 
     this.lastPersistAt = Date.now()
-    const persistable = this.toPersistableState(state)
-    void this.storageService.setData(STORAGE_KEY, persistable).catch((error) => {
-      console.warn('Failed to persist app state to browser storage:', error)
-    })
+    const persistStart = this.nowMs()
+    const payloadBytes = this.estimateJsonSizeBytes(persistable)
+    void this.storageService
+      .setData(STORAGE_KEY, persistable)
+      .then(() => {
+        const durationMs = Number((this.nowMs() - persistStart).toFixed(2))
+        console.info('[app-state:perf] persist', {
+          durationMs,
+          payloadBytes,
+          persistedKeys: Object.keys(persistable).length,
+        })
+      })
+      .catch((error) => {
+        console.warn('Failed to persist app state to browser storage:', error)
+      })
+  }
+
+  private toPersistableSignature(state: Partial<AppState>): string {
+    try {
+      return JSON.stringify(state)
+    } catch {
+      return `${Date.now()}`
+    }
+  }
+
+  private nowMs(): number {
+    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+      return performance.now()
+    }
+    return Date.now()
+  }
+
+  private estimateJsonSizeBytes(value: unknown): number | undefined {
+    try {
+      const json = JSON.stringify(value)
+      if (typeof json !== 'string') {
+        return undefined
+      }
+      if (typeof TextEncoder !== 'undefined') {
+        return new TextEncoder().encode(json).length
+      }
+      return json.length
+    } catch {
+      return undefined
+    }
   }
 
   /**
