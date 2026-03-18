@@ -63,19 +63,6 @@ interface ExecutionSummary {
   errors: string[]
 }
 
-interface MultiEditPerformanceSnapshot {
-  selectedEntityCount: number
-  operationCount: number
-  graphEntityCount: number
-  cloneGraphMs: number
-  buildSchemaLookupMs: number
-  parseValuesMs: number
-  applyOperationsMs: number
-  totalMs: number
-  heapUsedMbBefore?: number
-  heapUsedMbAfter?: number
-}
-
 interface SchemaMeta {
   id: string
   label: string
@@ -1827,31 +1814,6 @@ export class MultiEditDialog extends ReactDialog<string> {
     return JSON.parse(JSON.stringify(entity))
   }
 
-  protected nowMs(): number {
-    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-      return performance.now()
-    }
-    return Date.now()
-  }
-
-  protected getHeapUsedMb(): number | undefined {
-    const perf: any = typeof performance !== 'undefined' ? performance : undefined
-    const bytes =
-      perf &&
-      perf.memory &&
-      typeof perf.memory.usedJSHeapSize === 'number'
-        ? perf.memory.usedJSHeapSize
-        : undefined
-    if (typeof bytes !== 'number') {
-      return undefined
-    }
-    return Number((bytes / (1024 * 1024)).toFixed(2))
-  }
-
-  protected logRunPerformance(snapshot: MultiEditPerformanceSnapshot): void {
-    console.info('[multi-edit:perf]', snapshot)
-  }
-
   /**
    * Executes schema attachment and value updates for all selected entities.
    * @returns Promise resolved when execution summary is updated.
@@ -1892,11 +1854,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.executionSummary = undefined
     this.update()
 
-    const runStart = this.nowMs()
-    const heapUsedMbBefore = this.getHeapUsedMb()
-
     const selectedEntitySet = new Set(this.entityIds)
-    const cloneStart = this.nowMs()
     const sourceGraph = currentCrate['@graph'] as Record<string, any>[]
     const graph = [...sourceGraph]
     const indexByEntityId = new Map<string, number>()
@@ -1908,13 +1866,9 @@ export class MultiEditDialog extends ReactDialog<string> {
       }
       indexByEntityId.set(id, index)
     }
-    const cloneGraphMs = this.nowMs() - cloneStart
 
-    const lookupStart = this.nowMs()
     const conformsLookup = await this.buildSchemaConformsLookup()
-    const buildSchemaLookupMs = this.nowMs() - lookupStart
 
-    const parseValuesStart = this.nowMs()
     const preparedOperations: PreparedOperation[] = []
     for (let rowIndex = 0; rowIndex < this.operations.length; rowIndex += 1) {
       const operation = this.operations[rowIndex]
@@ -1948,14 +1902,12 @@ export class MultiEditDialog extends ReactDialog<string> {
 
       preparedOperations.push(prepared)
     }
-    const parseValuesMs = this.nowMs() - parseValuesStart
 
     let processedEntities = 0
     let updatedEntities = 0
     let appliedOperations = 0
     let skippedOperations = 0
     const errors: string[] = []
-    const applyOperationsStart = this.nowMs()
 
     for (const entityId of selectedEntitySet) {
       const index = indexByEntityId.get(entityId)
@@ -2045,7 +1997,6 @@ export class MultiEditDialog extends ReactDialog<string> {
       this.appStateService.roCrate = updatedCrate
       this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
     }
-    const applyOperationsMs = this.nowMs() - applyOperationsStart
 
     this.executionSummary = {
       processedEntities,
@@ -2057,21 +2008,6 @@ export class MultiEditDialog extends ReactDialog<string> {
 
     this.isExecuting = false
     this.update()
-
-    const totalMs = this.nowMs() - runStart
-    const heapUsedMbAfter = this.getHeapUsedMb()
-    this.logRunPerformance({
-      selectedEntityCount: selectedEntitySet.size,
-      operationCount: this.operations.length,
-      graphEntityCount: graph.length,
-      cloneGraphMs: Number(cloneGraphMs.toFixed(2)),
-      buildSchemaLookupMs: Number(buildSchemaLookupMs.toFixed(2)),
-      parseValuesMs: Number(parseValuesMs.toFixed(2)),
-      applyOperationsMs: Number(applyOperationsMs.toFixed(2)),
-      totalMs: Number(totalMs.toFixed(2)),
-      heapUsedMbBefore,
-      heapUsedMbAfter,
-    })
   }
 
   /**

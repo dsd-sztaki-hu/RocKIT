@@ -107,21 +107,9 @@ export class AppStateService {
     }
 
     this.lastPersistAt = Date.now()
-    const persistStart = this.nowMs()
-    const payloadBytes = this.estimateJsonSizeBytes(persistable)
-    void this.storageService
-      .setData(STORAGE_KEY, persistable)
-      .then(() => {
-        const durationMs = Number((this.nowMs() - persistStart).toFixed(2))
-        console.info('[app-state:perf] persist', {
-          durationMs,
-          payloadBytes,
-          persistedKeys: Object.keys(persistable).length,
-        })
-      })
-      .catch((error) => {
-        console.warn('Failed to persist app state to browser storage:', error)
-      })
+    void this.storageService.setData(STORAGE_KEY, persistable).catch((error) => {
+      console.warn('Failed to persist app state to browser storage:', error)
+    })
   }
 
   private toPersistableSignature(state: Partial<AppState>): string {
@@ -129,28 +117,6 @@ export class AppStateService {
       return JSON.stringify(state)
     } catch {
       return `${Date.now()}`
-    }
-  }
-
-  private nowMs(): number {
-    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-      return performance.now()
-    }
-    return Date.now()
-  }
-
-  private estimateJsonSizeBytes(value: unknown): number | undefined {
-    try {
-      const json = JSON.stringify(value)
-      if (typeof json !== 'string') {
-        return undefined
-      }
-      if (typeof TextEncoder !== 'undefined') {
-        return new TextEncoder().encode(json).length
-      }
-      return json.length
-    } catch {
-      return undefined
     }
   }
 
