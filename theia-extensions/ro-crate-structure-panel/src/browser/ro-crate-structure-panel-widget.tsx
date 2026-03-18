@@ -41,6 +41,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   static readonly ID = 'dataset-panel:widget'
 
   protected instanceId: string = ''
+  protected renderPerfSeq = 0
+  protected cachedCrateRef: Record<string, any> | undefined
+  protected cachedRoot: CrateNode | undefined
+  protected cachedTreeData: TreeDataNode[] | undefined
 
   @inject(AppStateService)
   protected readonly appStateService: AppStateService
@@ -79,7 +83,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     this.title.label = `RO-Crate Structure panel (${this.instanceId})`
 
     this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
-      (_) => this.update(),
+      (_) => {
+        this.invalidateTreeCache()
+        this.update()
+      },
     )
 
     this.invalidEntityIds = this.buildInvalidEntityIdSet(
@@ -143,6 +150,19 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
   protected MemoTooltip: React.ComponentType<any> = React.memo(Tooltip as any)
 
+  protected nowMs(): number {
+    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+      return performance.now()
+    }
+    return Date.now()
+  }
+
+  protected invalidateTreeCache(): void {
+    this.cachedCrateRef = undefined
+    this.cachedRoot = undefined
+    this.cachedTreeData = undefined
+  }
+
   public async openEditFromContextMenu(): Promise<void> {
     const entityIds = this.getEntityIdsForMultiEdit()
     const dialog = new MultiEditDialog(entityIds, this.appStateService)
@@ -152,8 +172,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected getEntityIdsForMultiEdit(): string[] {
     const crate = this.appStateService.roCrate
     const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
-    const selectedIds =
-      this.selectedEntityIds.size > 0 ? Array.from(this.selectedEntityIds.values()) : []
+    const selectedIds = this.selectedEntityIds
 
     const selectedEditableIds: string[] = []
     const allFileIds: string[] = []
@@ -170,7 +189,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       if (this.entityHasType(entity, 'Dataset')) {
         allDatasetIds.push(id)
       }
-      if (selectedIds.includes(id)) {
+      if (selectedIds.has(id)) {
         if (this.entityHasType(entity, 'Dataset') || this.entityHasType(entity, 'File')) {
           selectedEditableIds.push(id)
         }
@@ -644,9 +663,37 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   }
 
   render(): React.ReactNode {
+    const renderStartedAt = this.nowMs()
+    const seq = ++this.renderPerfSeq
     const crateToUse = this.appStateService.roCrate
-    const { root } = this.buildCrateTree(crateToUse)
-    const treeData = root ? [this.crateNodeToTreeData(root)] : []
+    const graphEntityCount = Array.isArray(crateToUse?.['@graph'])
+      ? crateToUse['@graph'].length
+      : 0
+
+    let root: CrateNode | undefined
+    let treeData: TreeDataNode[] = []
+    let buildCrateTreeMs = 0
+    let buildTreeDataMs = 0
+    let cacheHit = false
+
+    if (crateToUse === this.cachedCrateRef && this.cachedTreeData) {
+      cacheHit = true
+      root = this.cachedRoot
+      treeData = this.cachedTreeData
+    } else {
+      const buildCrateTreeStartedAt = this.nowMs()
+      const built = this.buildCrateTree(crateToUse)
+      root = built.root
+      buildCrateTreeMs = this.nowMs() - buildCrateTreeStartedAt
+
+      const treeDataStartedAt = this.nowMs()
+      treeData = root ? [this.crateNodeToTreeData(root)] : []
+      buildTreeDataMs = this.nowMs() - treeDataStartedAt
+
+      this.cachedCrateRef = crateToUse
+      this.cachedRoot = root
+      this.cachedTreeData = treeData
+    }
 
     if (this.expandedKeys.length === 0 && treeData.length) {
       const rootKey = treeData[0].key as string
@@ -780,9 +827,25 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       </div>
     )
 
-    return (
+    const result = (
       <AntdThemeProvider themeService={this.themeService}>{content}</AntdThemeProvider>
     )
+
+    const totalMs = this.nowMs() - renderStartedAt
+    console.info('[ro-crate-structure-panel:perf] render', {
+      seq,
+      totalMs: Number(totalMs.toFixed(2)),
+      graphEntityCount,
+      selectedEntityCount: this.selectedEntityIds.size,
+      invalidEntityCount: this.invalidEntityIds.size,
+      buildCrateTreeMs: Number(buildCrateTreeMs.toFixed(2)),
+      buildTreeDataMs: Number(buildTreeDataMs.toFixed(2)),
+      cacheHit,
+      rootPresent: Boolean(root),
+      treeNodeCount: treeData.length,
+    })
+
+    return result
   }
 
   protected handleDragOver(event: React.DragEvent): void {
