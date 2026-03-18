@@ -646,7 +646,8 @@ body.entities-overview-filters-visible
 }
 
 .entities-overview-advanced-rule-row:hover .entities-overview-advanced-rule-actions,
-.entities-overview-advanced-rule-row:focus-within .entities-overview-advanced-rule-actions {
+.entities-overview-advanced-rule-row:focus-within
+  .entities-overview-advanced-rule-actions {
   flex-basis: 28px;
   width: 28px;
   max-width: 28px;
@@ -858,6 +859,10 @@ body.entities-overview-filters-visible
 
 .entities-overview-edit-modal-row-order {
   width: 24px;
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   font-size: 12px;
   font-weight: 700;
@@ -1038,7 +1043,9 @@ body.entities-overview-filters-visible
   row-gap: 0;
 }
 
-.entities-overview-edit-modal-value .ant-select-multiple .ant-select-selection-overflow-item {
+.entities-overview-edit-modal-value
+  .ant-select-multiple
+  .ant-select-selection-overflow-item {
   display: flex;
   align-items: center;
 }
@@ -1047,7 +1054,9 @@ body.entities-overview-filters-visible
   align-self: center;
 }
 
-.entities-overview-edit-modal-value .ant-select-multiple .ant-select-selection-search-input {
+.entities-overview-edit-modal-value
+  .ant-select-multiple
+  .ant-select-selection-search-input {
   height: 30px !important;
 }
 
