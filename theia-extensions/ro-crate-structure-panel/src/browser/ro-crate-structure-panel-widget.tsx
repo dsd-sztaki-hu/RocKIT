@@ -128,6 +128,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
   protected expandedKeys: string[] = []
   protected containerRef: React.RefObject<HTMLDivElement> = React.createRef()
+  protected treeViewportRef: React.RefObject<HTMLDivElement> = React.createRef()
   protected treeHeight: number = 400
   protected dropTargetDatasetId?: string
   protected globalDragListenersAttached = false
@@ -631,13 +632,22 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   }
 
   protected computeHeightAndUpdate(): void {
-    const el = this.containerRef?.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const style = window.getComputedStyle(el)
-    const topPad = parseFloat(style.paddingTop || '0')
-    const bottomPad = parseFloat(style.paddingBottom || '0')
-    const h = Math.max(0, Math.floor(rect.height - topPad - bottomPad))
+    const viewportEl = this.treeViewportRef?.current
+    const containerEl = this.containerRef?.current
+    if (!viewportEl && !containerEl) {
+      return
+    }
+
+    const h = viewportEl
+      ? Math.max(0, Math.floor(viewportEl.getBoundingClientRect().height))
+      : (() => {
+          const rect = containerEl!.getBoundingClientRect()
+          const style = window.getComputedStyle(containerEl!)
+          const topPad = parseFloat(style.paddingTop || '0')
+          const bottomPad = parseFloat(style.paddingBottom || '0')
+          return Math.max(0, Math.floor(rect.height - topPad - bottomPad))
+        })()
+
     if (h !== this.treeHeight) {
       this.treeHeight = h
       this.update()
@@ -711,6 +721,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           paddingTop: '6px',
           width: '100%',
           height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
           boxSizing: 'border-box',
           overflowX: 'auto',
           overflowY: 'hidden',
@@ -750,80 +763,83 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           </span>
         </button>
 
-        <Tree
-          style={{ minWidth: '100%' }}
-          treeData={treeData}
-          height={this.treeHeight}
-          showIcon
-          multiple
-          selectedKeys={this.selectedKeys}
-          defaultExpandedKeys={['./']}
-          onSelect={this.handleTreeSelect}
-          // expandedKeys={this.expandedKeys}
-          // onExpand={(keys) => { this.expandedKeys = keys as string[]; this.update(); }}
-          titleRender={(item) => {
-            const title = item.title as React.ReactNode
-            const displayName =
-              (item as any).displayName ?? (typeof title === 'string' ? title : '')
-            const entityId = (item as any).entityId as string | undefined
-            const isInvalid = Boolean(entityId && this.invalidEntityIds.has(entityId))
-            const isFolder = Array.isArray(item.children) && item.children.length > 0
-            const isExpanded = this.expandedKeys.includes(item.key as string)
-            const icon = isFolder ? (
-              isExpanded ? (
-                <FolderOpenOutlined />
+        <div ref={this.treeViewportRef} className="ro-crate-structure-tree-viewport">
+          <Tree
+            className="ro-crate-structure-tree"
+            style={{ minWidth: '100%' }}
+            treeData={treeData}
+            height={this.treeHeight}
+            showIcon
+            multiple
+            selectedKeys={this.selectedKeys}
+            defaultExpandedKeys={['./']}
+            onSelect={this.handleTreeSelect}
+            // expandedKeys={this.expandedKeys}
+            // onExpand={(keys) => { this.expandedKeys = keys as string[]; this.update(); }}
+            titleRender={(item) => {
+              const title = item.title as React.ReactNode
+              const displayName =
+                (item as any).displayName ?? (typeof title === 'string' ? title : '')
+              const entityId = (item as any).entityId as string | undefined
+              const isInvalid = Boolean(entityId && this.invalidEntityIds.has(entityId))
+              const isFolder = Array.isArray(item.children) && item.children.length > 0
+              const isExpanded = this.expandedKeys.includes(item.key as string)
+              const icon = isFolder ? (
+                isExpanded ? (
+                  <FolderOpenOutlined />
+                ) : (
+                  <FolderOutlined />
+                )
               ) : (
-                <FolderOutlined />
+                <FileOutlined />
               )
-            ) : (
-              <FileOutlined />
-            )
-            const isDatasetNode = (item as any).entityType === 'Dataset'
+              const isDatasetNode = (item as any).entityType === 'Dataset'
 
-            return (
-              <this.MemoTooltip title={entityId ?? displayName} placement="right">
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '2px 4px',
-                    borderRadius: 4,
-                    background:
-                      isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
-                        ? 'rgba(24, 144, 255, 0.14)'
-                        : 'transparent',
-                    outline: 'none',
-                    boxShadow:
-                      isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
-                        ? '0 0 8px rgba(24, 144, 255, 0.35)'
-                        : 'none',
-                  }}
-                  data-entity-id={entityId}
-                  data-node-key={String(item.key)}
-                  title=""
-                  onDoubleClick={(event) => {
-                    if (!entityId) {
-                      return
-                    }
-                    this.handleEntityDoubleClick(entityId, event)
-                  }}
-                >
-                  {icon}
-                  {isInvalid && (
-                    <span
-                      className="ro-crate-structure-invalid-icon fa fa-exclamation-triangle"
-                      role="img"
-                      aria-label="Invalid entity"
-                      title="Invalid entity"
-                    />
-                  )}
-                  {displayName}
-                </span>
-              </this.MemoTooltip>
-            )
-          }}
-        />
+              return (
+                <this.MemoTooltip title={entityId ?? displayName} placement="right">
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '2px 4px',
+                      borderRadius: 4,
+                      background:
+                        isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
+                          ? 'rgba(24, 144, 255, 0.14)'
+                          : 'transparent',
+                      outline: 'none',
+                      boxShadow:
+                        isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
+                          ? '0 0 8px rgba(24, 144, 255, 0.35)'
+                          : 'none',
+                    }}
+                    data-entity-id={entityId}
+                    data-node-key={String(item.key)}
+                    title=""
+                    onDoubleClick={(event) => {
+                      if (!entityId) {
+                        return
+                      }
+                      this.handleEntityDoubleClick(entityId, event)
+                    }}
+                  >
+                    {icon}
+                    {isInvalid && (
+                      <span
+                        className="ro-crate-structure-invalid-icon fa fa-exclamation-triangle"
+                        role="img"
+                        aria-label="Invalid entity"
+                        title="Invalid entity"
+                      />
+                    )}
+                    {displayName}
+                  </span>
+                </this.MemoTooltip>
+              )
+            }}
+          />
+        </div>
       </div>
     )
 

@@ -49,6 +49,16 @@
   position: relative;
 }
 
+.ro-crate-structure-tree-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dataset-panel .ro-crate-structure-tree .ant-tree-list-holder {
+  overflow-y: scroll !important;
+  scrollbar-gutter: stable;
+}
+
 .ro-crate-structure-validation-strip {
   position: sticky;
   top: 0;
