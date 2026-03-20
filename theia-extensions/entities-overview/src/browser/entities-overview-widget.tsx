@@ -77,6 +77,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
     // this.toDispose.push(this.toCancelNodeExpansion)
     this.addClass('entities-overview-panel')
+    this.filtersVisible = this.appStateService.entitiesOverviewFiltersVisible
     this.syncFiltersVisibleBodyClass()
     this.toDispose.push(
       Disposable.create(() => {
@@ -334,6 +335,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
   toggleFiltersVisibility(): void {
     this.filtersVisible = !this.filtersVisible
+    this.appStateService.entitiesOverviewFiltersVisible = this.filtersVisible
     this.syncFiltersVisibleBodyClass()
     this.update()
   }

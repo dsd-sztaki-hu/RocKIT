@@ -315,4 +315,18 @@ export class AppStateService {
       this.updateState({ validationErrors: value });
   }
 
+  get fileExplorerFiltersVisible(): AppState['fileExplorerFiltersVisible'] {
+    return this.getState().fileExplorerFiltersVisible
+  }
+  set fileExplorerFiltersVisible(value: AppState['fileExplorerFiltersVisible']) {
+    this.updateState({ fileExplorerFiltersVisible: value })
+  }
+
+  get entitiesOverviewFiltersVisible(): AppState['entitiesOverviewFiltersVisible'] {
+    return this.getState().entitiesOverviewFiltersVisible
+  }
+  set entitiesOverviewFiltersVisible(value: AppState['entitiesOverviewFiltersVisible']) {
+    this.updateState({ entitiesOverviewFiltersVisible: value })
+  }
+
 }
