@@ -41,6 +41,8 @@ export const defaultAppState = {
   completeProfile: undefined as Record<string, any> | undefined,
   profileList: undefined as ProfileListItem[] | undefined,
   validationErrors: undefined as ValidationError[] | undefined,
+  fileExplorerFiltersVisible: false,
+  entitiesOverviewFiltersVisible: true,
 }
 
 export type AppState = typeof defaultAppState

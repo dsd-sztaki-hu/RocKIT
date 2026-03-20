@@ -104,6 +104,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   @postConstruct()
   protected override init(): void {
     super.init()
+    this.searchVisible = this.appStateService.fileExplorerFiltersVisible
 
     const dataset = {
       ...this.title.dataset,
@@ -821,6 +822,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
   toggleSearch(): void {
     this.searchVisible = !this.searchVisible
+    this.appStateService.fileExplorerFiltersVisible = this.searchVisible
     this.updateSearchVisibilityClass()
     this.update()
     if (this.searchVisible) {

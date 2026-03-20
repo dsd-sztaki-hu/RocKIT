@@ -92,7 +92,8 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
         this.withWidget(widget, (view) => view.toggleFiltersVisibility()),
       isEnabled: (widget) => this.withWidget(widget, () => true) || false,
       isVisible: (widget) => this.withWidget(widget, () => true) || false,
-      isToggled: () => false,
+      isToggled: (widget) =>
+        this.withWidget(widget, (view) => view.isFiltersVisible()) || false,
     })
 
     commands.registerCommand(CollapseAllEntitiesOverviewNodes, {
