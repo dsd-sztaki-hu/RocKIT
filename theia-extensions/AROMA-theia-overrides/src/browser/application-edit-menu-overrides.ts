@@ -2,8 +2,10 @@ import {
   ApplicationShell,
   CommonCommands,
   CommonMenus,
+  FrontendApplication,
   FrontendApplicationContribution,
 } from '@theia/core/lib/browser'
+import { ElectronMainMenuFactory } from '@theia/core/lib/electron-browser/menu/electron-main-menu-factory'
 import {
   Command,
   CommandContribution,
@@ -13,11 +15,13 @@ import {
   MenuContribution,
   MenuModelRegistry,
 } from '@theia/core/lib/common'
-import { inject, injectable } from '@theia/core/shared/inversify'
+import { inject, injectable, optional } from '@theia/core/shared/inversify'
 
 const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager'
 const FILE_NAVIGATOR_WIDGET_ID = 'files'
+const FILE_NAVIGATOR_VIEW_CONTAINER_ID = 'explorer-view-container'
 const RO_CRATE_EDITOR_WIDGET_ID_PREFIX = 'rocrate-editor-widget'
+const REMOTE_RO_CRATE_CONVERSION_COMMAND_ID = 'RemoteRoCrateConversion.command'
 
 type EditCommandScope = 'all' | 'clipboard'
 
@@ -48,7 +52,13 @@ export class ApplicationEditMenuOverrides
   @inject(CommandRegistry)
   protected readonly commandRegistry: CommandRegistry
 
+  @inject(ElectronMainMenuFactory)
+  @optional()
+  protected readonly electronMainMenuFactory?: ElectronMainMenuFactory
+
   protected readonly onDidChangeEditEnablementEmitter = new Emitter<void>()
+  protected lastInteractionWidgetId: string | undefined
+  protected menuRefreshScheduled = false
 
   protected readonly proxies: readonly EditCommandProxy[] = [
     {
@@ -113,13 +123,57 @@ export class ApplicationEditMenuOverrides
       order: '3',
       scope: 'all',
     },
+    {
+      proxy: {
+        id: 'aroma.edit.remote-ro-crate-conversion.proxy',
+        label: 'ROC Remote to Locale Conversion',
+      },
+      targetCommandId: REMOTE_RO_CRATE_CONVERSION_COMMAND_ID,
+      menuPath: [...CommonMenus.EDIT, '9_remote_ro_crate_conversion'],
+      order: 'zzzz',
+      scope: 'all',
+    },
   ]
 
   onStart(): void {
     this.replaceEditMenuActions()
-    this.shell.onDidChangeCurrentWidget(() =>
-      this.onDidChangeEditEnablementEmitter.fire(),
+    this.triggerMainMenuRefresh('onStart')
+    this.lastInteractionWidgetId = this.getPrimaryWidgetId()
+    window.setTimeout(() => this.replaceEditMenuActions(), 0)
+    window.setTimeout(() => this.replaceEditMenuActions(), 500)
+    this.shell.onDidChangeCurrentWidget(({ newValue }) => {
+      if (newValue?.id) {
+        this.lastInteractionWidgetId = newValue.id
+      }
+      this.onDidChangeEditEnablementEmitter.fire()
+      this.triggerMainMenuRefresh('shell.onDidChangeCurrentWidget')
+    })
+    this.shell.onDidChangeActiveWidget(({ newValue }) => {
+      if (newValue?.id) {
+        this.lastInteractionWidgetId = newValue.id
+      }
+      this.onDidChangeEditEnablementEmitter.fire()
+      this.triggerMainMenuRefresh('shell.onDidChangeActiveWidget')
+    })
+    document.addEventListener(
+      'focusin',
+      (event) => {
+        this.updateLastInteractionWidgetId('focusin', event.target)
+      },
+      true,
     )
+    document.addEventListener(
+      'mousedown',
+      (event) => {
+        this.updateLastInteractionWidgetId('mousedown', event.target)
+      },
+      true,
+    )
+  }
+
+  onDidInitializeLayout(_app: FrontendApplication): void {
+    this.replaceEditMenuActions()
+    this.triggerMainMenuRefresh('onDidInitializeLayout')
   }
 
   registerCommands(commands: CommandRegistry): void {
@@ -157,18 +211,106 @@ export class ApplicationEditMenuOverrides
   }
 
   protected isMetadataSchemaManagerFocused(): boolean {
-    const active = this.shell.activeWidget ?? this.shell.currentWidget
-    return active?.id === METADATA_SCHEMA_MANAGER_WIDGET_ID
+    return (
+      this.getWidgetIdsForContextCheck().some((id) =>
+        id.startsWith(METADATA_SCHEMA_MANAGER_WIDGET_ID),
+      ) ||
+      this.getWidgetLabelsForContextCheck().some((label) =>
+        label.includes('Metadata Schema Manager'),
+      )
+    )
   }
 
   protected isFileExplorerFocused(): boolean {
-    const active = this.shell.activeWidget ?? this.shell.currentWidget
-    return active?.id === FILE_NAVIGATOR_WIDGET_ID
+    return this.getWidgetIdsForContextCheck().some(
+      (id) =>
+        id === FILE_NAVIGATOR_WIDGET_ID ||
+        id === FILE_NAVIGATOR_VIEW_CONTAINER_ID ||
+        id.startsWith(FILE_NAVIGATOR_VIEW_CONTAINER_ID),
+    )
   }
 
   protected isRoCrateEditorFocused(): boolean {
-    const active = this.shell.activeWidget ?? this.shell.currentWidget
-    return Boolean(active?.id?.startsWith(RO_CRATE_EDITOR_WIDGET_ID_PREFIX))
+    return (
+      this.getWidgetIdsForContextCheck().some((id) =>
+        id.startsWith(RO_CRATE_EDITOR_WIDGET_ID_PREFIX),
+      ) ||
+      this.getWidgetLabelsForContextCheck().some((label) =>
+        label.startsWith('RO-Crate Editor'),
+      )
+    )
+  }
+
+  protected getPrimaryWidgetId(): string | undefined {
+    return this.shell.currentWidget?.id ?? this.shell.activeWidget?.id
+  }
+
+  protected getWidgetIdsForContextCheck(): string[] {
+    const ids = new Set<string>()
+    const currentId = this.shell.currentWidget?.id
+    const activeId = this.shell.activeWidget?.id
+
+    if (currentId) {
+      ids.add(currentId)
+    }
+    if (activeId) {
+      ids.add(activeId)
+    }
+    if (this.lastInteractionWidgetId) {
+      ids.add(this.lastInteractionWidgetId)
+    }
+
+    return Array.from(ids)
+  }
+
+  protected getWidgetLabelsForContextCheck(): string[] {
+    const labels = new Set<string>()
+    const currentLabel = this.shell.currentWidget?.title?.label
+    const activeLabel = this.shell.activeWidget?.title?.label
+    if (currentLabel) {
+      labels.add(currentLabel)
+    }
+    if (activeLabel) {
+      labels.add(activeLabel)
+    }
+    return Array.from(labels)
+  }
+
+  protected updateLastInteractionWidgetId(
+    source: 'focusin' | 'mousedown',
+    target: EventTarget | null,
+  ): void {
+    if (!(target instanceof HTMLElement)) {
+      return
+    }
+
+    const widgetId = this.resolveWidgetIdFromTarget(target)
+    if (widgetId) {
+      this.lastInteractionWidgetId = widgetId
+      this.onDidChangeEditEnablementEmitter.fire()
+      this.triggerMainMenuRefresh(`dom.${source}`)
+    }
+  }
+
+  protected resolveWidgetIdFromTarget(target: HTMLElement): string | undefined {
+    const widgetElement = target.closest('.p-Widget') as HTMLElement | null
+    if (widgetElement?.id) {
+      return widgetElement.id
+    }
+    if (target.closest('.metadata-schema-manager-widget')) {
+      return METADATA_SCHEMA_MANAGER_WIDGET_ID
+    }
+    if (target.closest('.rocrate-editor')) {
+      return `${RO_CRATE_EDITOR_WIDGET_ID_PREFIX}:dom`
+    }
+    if (
+      target.closest('.theia-Files') ||
+      target.closest(`#${FILE_NAVIGATOR_WIDGET_ID}`) ||
+      target.closest(`#${FILE_NAVIGATOR_VIEW_CONTAINER_ID}`)
+    ) {
+      return FILE_NAVIGATOR_WIDGET_ID
+    }
+    return undefined
   }
 
   protected replaceEditMenuActions(): void {
@@ -181,5 +323,21 @@ export class ApplicationEditMenuOverrides
         order: proxy.order,
       })
     }
+    this.triggerMainMenuRefresh('replaceEditMenuActions')
+  }
+
+  protected triggerMainMenuRefresh(_reason: string): void {
+    if (!this.electronMainMenuFactory || this.menuRefreshScheduled) {
+      return
+    }
+    this.menuRefreshScheduled = true
+    window.setTimeout(() => {
+      this.menuRefreshScheduled = false
+      try {
+        this.electronMainMenuFactory?.doSetMenuBar()
+      } catch {
+        // no-op
+      }
+    }, 0)
   }
 }
