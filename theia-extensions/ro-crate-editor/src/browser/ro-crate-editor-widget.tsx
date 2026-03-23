@@ -399,11 +399,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       await this.updateProfileWithEntitySchemas(this.baseProfile, entityId)
     })
 
-    const initialEntity = this.localSelectedEntityId ?? options.entityId
-
-    if (initialEntity) {
-      this.assignEntity(initialEntity)
-    }
+    const initialEntity = this.resolveInitialEntityId(options.entityId)
+    this.assignEntity(initialEntity)
 
     if (this.baseProfile && this.localCrate && Array.isArray(this.localCrate['@graph'])) {
       const entityId = this.getActiveEntityId()
@@ -476,6 +473,23 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
   protected getActiveEntityId(): string | undefined {
     return this.assignedEntityId ?? this.localSelectedEntityId
+  }
+
+  protected resolveInitialEntityId(optionEntityId?: string): string {
+    const fromState =
+      typeof this.localSelectedEntityId === 'string'
+        ? this.localSelectedEntityId.trim()
+        : ''
+    if (fromState) {
+      return fromState
+    }
+
+    const fromOption = typeof optionEntityId === 'string' ? optionEntityId.trim() : ''
+    if (fromOption) {
+      return fromOption
+    }
+
+    return './'
   }
 
   protected handleNavigation = (entity: NavigationEntity): void => {
