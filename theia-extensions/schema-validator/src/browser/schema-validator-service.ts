@@ -11,14 +11,10 @@ export class SchemaValidatorService implements SchemaValidator {
   async validateEntities(
     crate: Record<string, any>,
     baseProfile: Record<string, any>,
-    profile: Record<string, any>,
-    completeProfile: Record<string, any>
   ): Promise<ValidationError[] | undefined> {
     return validateEntities(
       crate,
       baseProfile,
-      profile,
-      completeProfile,
       this.appStateService.profileList,
       this.schemaManagerService,
     );

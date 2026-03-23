@@ -42,8 +42,6 @@ export type ValidationError = {
 export async function validateEntities(
   crate: Record<string, any>,
   baseProfile: Record<string, any>,
-  profile: Record<string, any>,
-  completeProfile: Record<string, any>,
   profileList: AppState['profileList'],
   schemaManagerService: MetadataSchemaManager,
 ) {
@@ -69,12 +67,15 @@ export async function validateEntities(
     }
 
     const entityType = Array.isArray(entity["@type"]) ? entity["@type"][0] : entity["@type"]
+    const normalizedEntityType =
+      typeof entityType === 'string' ? entityType.trim().toLowerCase() : ''
 
     let profileForEntity: Record<string, any>
 
-    if (entityType === "Dataset" || entityType === "File") {
-      const conformsToIds = extractConformsToIds(entity).slice().sort()
-      const cacheKey = `${entityType}|${conformsToIds.join('|')}`
+    const conformsToIds = extractConformsToIds(entity).slice().sort()
+
+    if (conformsToIds.length > 0) {
+      const cacheKey = `${normalizedEntityType}|${conformsToIds.join('|')}`
 
       const cached = profileCache.get(cacheKey)
       if (cached) {
@@ -104,7 +105,7 @@ export async function validateEntities(
         profileCache.set(cacheKey, profileForEntity)
       }
     } else {
-      profileForEntity = completeProfile
+      profileForEntity = baseProfile
     }
 
     const errors = validate(entity, profileForEntity)
