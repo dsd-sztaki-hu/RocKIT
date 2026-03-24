@@ -99,6 +99,15 @@ export interface RoCratePatchOperation {
    * Creation timestamp (`Date.now()` milliseconds).
    */
   timestamp: number
+  /**
+   * Approximate bytes for alternative package-based diff representations.
+   */
+  alternativeDiffBytes?: {
+    /**
+     * Estimated bytes if stored as git-like text patch via the `diff` package.
+     */
+    gitLikeTextPatch: number
+  }
 }
 
 /**
@@ -161,6 +170,18 @@ export interface RoCrateHistoryDebugSnapshot {
    */
   totalHistoryBytes: number
   /**
+   * Estimated bytes of undo operations if represented as git-like text patches.
+   */
+  undoGitLikePatchBytes: number
+  /**
+   * Estimated bytes of redo operations if represented as git-like text patches.
+   */
+  redoGitLikePatchBytes: number
+  /**
+   * Estimated bytes of all operations if represented as git-like text patches.
+   */
+  totalGitLikePatchBytes: number
+  /**
    * Tail of undo stack (bounded by `maxOperations`) for inspection.
    */
   undoStack: RoCrateHistoryOperation[]
@@ -184,6 +205,17 @@ type TransactionContext = {
 type EntitySnapshot = {
   index: number
   entity: Record<string, any>
+}
+
+type JsDiffModule = {
+  createTwoFilesPatch: (
+    oldFileName: string,
+    newFileName: string,
+    oldStr: string,
+    newStr: string,
+    oldHeader?: string,
+    newHeader?: string,
+  ) => string
 }
 
 /**
@@ -229,6 +261,8 @@ export class RoCrateHistoryService {
     const undoStackBytes = this.estimateSerializedBytes(this.undoStack)
     const redoStackBytes = this.estimateSerializedBytes(this.redoStack)
     const transactionStackBytes = this.estimateSerializedBytes(this.transactionStack)
+    const undoGitLikePatchBytes = this.sumGitLikePatchBytes(this.undoStack)
+    const redoGitLikePatchBytes = this.sumGitLikePatchBytes(this.redoStack)
 
     return {
       undoCount: this.undoStack.length,
@@ -238,6 +272,9 @@ export class RoCrateHistoryService {
       redoStackBytes,
       transactionStackBytes,
       totalHistoryBytes: undoStackBytes + redoStackBytes + transactionStackBytes,
+      undoGitLikePatchBytes,
+      redoGitLikePatchBytes,
+      totalGitLikePatchBytes: undoGitLikePatchBytes + redoGitLikePatchBytes,
       undoStack: this.cloneValue(this.undoStack.slice(undoStart)),
       redoStack: this.cloneValue(this.redoStack.slice(redoStart)),
     }
@@ -507,6 +544,9 @@ export class RoCrateHistoryService {
       rootPatches,
       entityPatches,
       timestamp: Date.now(),
+      alternativeDiffBytes: {
+        gitLikeTextPatch: this.estimateGitLikeTextPatchBytes(before, after),
+      },
     }
   }
 
@@ -702,6 +742,49 @@ export class RoCrateHistoryService {
     try {
       const serialized = JSON.stringify(value)
       return serialized ? serialized.length * 2 : 0
+    } catch {
+      return 0
+    }
+  }
+
+  /**
+   * Recursively sums stored git-like patch estimates for a list of operations.
+   */
+  protected sumGitLikePatchBytes(operations: RoCrateHistoryOperation[]): number {
+    let total = 0
+    for (const operation of operations) {
+      if (operation.kind === 'patch') {
+        total += operation.alternativeDiffBytes?.gitLikeTextPatch ?? 0
+      } else {
+        total += this.sumGitLikePatchBytes(operation.operations)
+      }
+    }
+    return total
+  }
+
+  /**
+   * Estimates bytes for a package-based git-like textual patch representation.
+   *
+   * Uses the installed `diff` package (`createTwoFilesPatch`) as a baseline
+   * alternative to entity patches. This is for size comparison only.
+   */
+  protected estimateGitLikeTextPatchBytes(
+    before: Record<string, any>,
+    after: Record<string, any>,
+  ): number {
+    try {
+      const jsDiff = require('diff') as JsDiffModule
+
+      const beforeText = JSON.stringify(before, null, 2)
+      const afterText = JSON.stringify(after, null, 2)
+      const patch = jsDiff.createTwoFilesPatch(
+        'ro-crate-before.json',
+        'ro-crate-after.json',
+        beforeText,
+        afterText,
+      )
+
+      return patch.length * 2
     } catch {
       return 0
     }
