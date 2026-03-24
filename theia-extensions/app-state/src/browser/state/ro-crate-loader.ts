@@ -16,6 +16,7 @@ import {
   type ROCrateExternalChangeActionValue,
 } from '../../common/app-state-preferences'
 import { AppStateService } from './app-state-service'
+import { RoCrateHistoryService } from './ro-crate-history-service'
 import { ROCrateDialog } from './ro-crate-dialog'
 import { RoCrateIdConversionDialog } from './ro-crate-id-conversion-dialog'
 
@@ -27,6 +28,9 @@ const REMOTE_RO_CRATE_CONVERSION_COMMAND_ID = 'RemoteRoCrateConversion.command'
 export class RoCrateLoaderContribution implements FrontendApplicationContribution {
   @inject(AppStateService)
   protected readonly appStateService: AppStateService
+
+  @inject(RoCrateHistoryService)
+  protected readonly roCrateHistoryService: RoCrateHistoryService
 
   @inject(WorkspaceService)
   protected readonly workspaceService: WorkspaceService
@@ -394,6 +398,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     content: Record<string, any> | undefined,
     isInvalid: boolean,
   ): void {
+    this.roCrateHistoryService.clear()
     this.lastObservedConformsToKey = this.buildConformsToKey(content)
     this.appStateService.roCrate = content
     this.appStateService.isROCrateInvalid = isInvalid

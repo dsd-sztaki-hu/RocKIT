@@ -14,6 +14,7 @@ import { WorkspaceService } from '@theia/workspace/lib/browser'
 import type { TreeDataNode } from 'antd'
 import { Tooltip, Tree } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { MultiEditDialog } from 'entities-overview/lib/browser/entities-overview-multi-edit-dialog'
 import { inject, injectable } from 'inversify'
@@ -44,6 +45,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
   @inject(AppStateService)
   protected readonly appStateService: AppStateService
+  @inject(RoCrateHistoryService)
+  protected readonly roCrateHistoryService: RoCrateHistoryService
   @inject(WidgetManager)
   protected readonly widgetManager: WidgetManager
   @inject(ApplicationShell)
@@ -145,7 +148,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
   public async openEditFromContextMenu(): Promise<void> {
     const entityIds = this.getEntityIdsForMultiEdit()
-    const dialog = new MultiEditDialog(entityIds, this.appStateService)
+    const dialog = new MultiEditDialog(
+      entityIds,
+      this.appStateService,
+      undefined,
+      this.roCrateHistoryService,
+    )
     await dialog.open()
   }
 
@@ -880,7 +888,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       uniqueDroppedFiles,
     )
 
-    this.appStateService.roCrate = updatedCrate
+    this.roCrateHistoryService.applyRoCrateChange(updatedCrate, {
+      label: 'Add dropped files to RO-Crate',
+    })
     this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
     this.update()
   }
