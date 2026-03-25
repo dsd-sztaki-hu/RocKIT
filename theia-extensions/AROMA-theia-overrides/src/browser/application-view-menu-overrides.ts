@@ -15,6 +15,11 @@ type ViewMenuItem = {
 export class ApplicationViewMenuOverrides
   implements FrontendApplicationContribution
 {
+  protected readonly viewWidgetsMenuPath = [
+    ...CommonMenus.VIEW,
+    '0_before_primary_widgets',
+  ]
+
   @inject(MenuModelRegistry)
   protected readonly menuRegistry: MenuModelRegistry
 
@@ -79,7 +84,7 @@ export class ApplicationViewMenuOverrides
     }
 
     for (const item of this.topViewItems) {
-      this.menuRegistry.registerMenuAction(CommonMenus.VIEW_PRIMARY, {
+      this.menuRegistry.registerMenuAction(this.viewWidgetsMenuPath, {
         commandId: item.commandId,
         label: item.label,
         order: item.order,
