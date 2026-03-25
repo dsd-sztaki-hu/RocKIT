@@ -217,16 +217,10 @@ function AppStatePanelView({ historyService }: { historyService: RoCrateHistoryS
           <strong>{historySnapshot.transactionDepth}</strong>
         </div>
         <div style={{ marginBottom: 8 }}>
-          memory (approx): <strong>{formatBytes(historySnapshot.totalHistoryBytes)}</strong> | undo:{' '}
-          <strong>{formatBytes(historySnapshot.undoStackBytes)}</strong> | redo:{' '}
-          <strong>{formatBytes(historySnapshot.redoStackBytes)}</strong> | tx:{' '}
-          <strong>{formatBytes(historySnapshot.transactionStackBytes)}</strong>
-        </div>
-        <div style={{ marginBottom: 8 }}>
-          package diff baseline (git-like, approx):{' '}
-          <strong>{formatBytes(historySnapshot.totalGitLikePatchBytes)}</strong> | undo:{' '}
-          <strong>{formatBytes(historySnapshot.undoGitLikePatchBytes)}</strong> | redo:{' '}
-          <strong>{formatBytes(historySnapshot.redoGitLikePatchBytes)}</strong>
+          rfc6902 patch bytes (approx, forward+backward):{' '}
+          <strong>{formatBytes(historySnapshot.totalPatchBytes)}</strong> | undo-forward:{' '}
+          <strong>{formatBytes(historySnapshot.undoPatchBytes)}</strong> | redo-forward:{' '}
+          <strong>{formatBytes(historySnapshot.redoPatchBytes)}</strong>
         </div>
         <JsonNode
           value={historySnapshot}
