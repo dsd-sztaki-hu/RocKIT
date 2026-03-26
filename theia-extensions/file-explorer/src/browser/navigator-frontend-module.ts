@@ -42,10 +42,14 @@ import {
 import { NavigatorSymlinkDecorator } from './navigator-symlink-decorator'
 import { FILE_NAVIGATOR_ID, FileNavigatorWidget } from './navigator-widget'
 import { NavigatorWidgetFactory } from './navigator-widget-factory'
+import { RoCrateIgnoredFilesService } from './ro-crate-ignored-files-service'
+import { RoCrateDescriptionOperationsService } from './ro-crate-description-operations-service'
 
 export default new ContainerModule((bind) => {
   bindFileNavigatorPreferences(bind)
   bind(FileNavigatorFilter).toSelf().inSingletonScope()
+  bind(RoCrateIgnoredFilesService).toSelf().inSingletonScope()
+  bind(RoCrateDescriptionOperationsService).toSelf().inSingletonScope()
 
   bind(NavigatorContextKeyService).toSelf().inSingletonScope()
 

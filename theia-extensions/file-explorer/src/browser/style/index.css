@@ -52,6 +52,18 @@
     color: white;
 }
 
+.omitted-from-ro-crate {
+    opacity: 0.55;
+}
+
+.theia-TreeNode.omitted-from-ro-crate,
+.theia-TreeNode.omitted-from-ro-crate .theia-TreeNodeInfo,
+.theia-TreeNode.omitted-from-ro-crate .theia-TreeNodeSegment,
+.theia-TreeNode.omitted-from-ro-crate .theia-ExpansionToggle,
+.theia-TreeNode.omitted-from-ro-crate .theia-caption-suffix {
+    color: var(--theia-menu-inactiveForeground, var(--theia-descriptionForeground)) !important;
+}
+
 .theia-ExpansionToggle.codicon-chevron-down {
     transition: transform 0.2s ease-in-out;
 }

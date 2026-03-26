@@ -64,6 +64,14 @@ export namespace FileNavigatorCommands {
     export const OPEN_WITH: Command = {
         id: 'navigator.openWith',
     };
+    export const INCLUDE_IN_RO_CRATE_DESCRIPTION: Command = {
+        id: 'navigator.includeInRoCrateDescription',
+        label: 'Include in RO-Crate Description'
+    };
+    export const OMIT_FROM_RO_CRATE_DESCRIPTION: Command = {
+        id: 'navigator.omitFromRoCrateDescription',
+        label: 'Omit from RO-Crate Description'
+    };
     export const NEW_FILE_TOOLBAR: Command = {
         id: `${WorkspaceCommands.NEW_FILE.id}.toolbar`,
         iconClass: codicon('new-file')

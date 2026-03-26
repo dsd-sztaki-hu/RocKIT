@@ -11,6 +11,16 @@ import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 import SparkMD5 from 'spark-md5'
 import { Message } from '@lumino/messaging'
 
+const AROMA_IGNORE_DIR = '.aroma'
+const AROMA_IGNORE_FILE = 'ignored.txt'
+const DEFAULT_IGNORED_ENTRIES = [
+  'ro-crate-preview.html',
+  'ro-crate-metadata.json',
+  'AGENTS.md',
+  'CLAUDE.md',
+  '.aroma/',
+] as const
+
 @injectable()
 export class ROCrateDialog extends ReactDialog<string> {
   protected closeRoCrateButton?: HTMLButtonElement
@@ -161,6 +171,8 @@ export class ROCrateDialog extends ReactDialog<string> {
     }
 
     const rootUri = roots[0].resource
+    await this.ensureDefaultIgnoredEntries(rootUri)
+
     const graph: any[] = []
     const rootHasPart: { '@id': string }[] = []
 
@@ -190,6 +202,9 @@ export class ROCrateDialog extends ReactDialog<string> {
         if (
           child.name === 'ro-crate-metadata.json' ||
           child.name === 'ro-crate-preview.html' ||
+          child.name === 'AGENTS.md' ||
+          child.name === 'CLAUDE.md' ||
+          child.name === '.aroma' ||
           child.name.startsWith('.')
         ) {
           continue
@@ -212,6 +227,91 @@ export class ROCrateDialog extends ReactDialog<string> {
 
     const htmlContent = this.roCrateHtmlGenerator.generate(roCrate)
     await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+  }
+
+  protected async ensureDefaultIgnoredEntries(rootUri: URI): Promise<void> {
+    const aromaUri = rootUri.resolve(AROMA_IGNORE_DIR)
+    if (!(await this.fileService.exists(aromaUri))) {
+      await this.fileService.createFolder(aromaUri)
+    }
+
+    const ignoredUri = aromaUri.resolve(AROMA_IGNORE_FILE)
+    if (!(await this.fileService.exists(ignoredUri))) {
+      await this.fileService.create(ignoredUri, '', { overwrite: true })
+    }
+
+    const currentEntries = await this.readIgnoredEntries(ignoredUri)
+    const nextEntries = this.withDefaultIgnoredEntries(currentEntries)
+
+    if (!this.sameEntries(currentEntries, nextEntries)) {
+      const payload = nextEntries.join('\n')
+      await this.fileService.create(ignoredUri, payload ? `${payload}\n` : '', {
+        overwrite: true,
+      })
+    }
+  }
+
+  protected async readIgnoredEntries(ignoreFileUri: URI): Promise<string[]> {
+    try {
+      const content = await this.fileService.read(ignoreFileUri)
+      const text = `${content.value ?? ''}`
+      return text
+        .split(/\r?\n/g)
+        .map((line) => this.normalizeIgnoredEntry(line))
+        .filter((line): line is string => Boolean(line))
+    } catch {
+      return []
+    }
+  }
+
+  protected normalizeIgnoredEntry(value: string): string | undefined {
+    const trimmed = (value || '').trim()
+    if (!trimmed || trimmed.startsWith('#')) {
+      return undefined
+    }
+
+    const negated = trimmed.startsWith('!')
+    let normalized = negated ? trimmed.slice(1) : trimmed
+    normalized = normalized.replace(/\\/g, '/')
+    normalized = normalized.replace(/^\.\//, '')
+    normalized = normalized.replace(/^\/+/, '')
+    normalized = normalized.replace(/\/{2,}/g, '/')
+
+    const isDirectory = normalized.endsWith('/')
+    if (isDirectory) {
+      normalized = normalized.replace(/\/+$/, '')
+    }
+    if (!normalized) {
+      return undefined
+    }
+
+    return `${negated ? '!' : ''}${normalized}${isDirectory ? '/' : ''}`.toLowerCase()
+  }
+
+  protected withDefaultIgnoredEntries(entries: string[]): string[] {
+    const defaults = DEFAULT_IGNORED_ENTRIES.map((entry) =>
+      this.normalizeIgnoredEntry(entry),
+    ).filter((entry): entry is string => Boolean(entry))
+    const existingPositive = new Set(
+      entries.filter((entry) => !entry.startsWith('!')),
+    )
+    const missingDefaults = defaults.filter((entry) => !existingPositive.has(entry))
+    if (!missingDefaults.length) {
+      return entries
+    }
+    return [...missingDefaults, ...entries]
+  }
+
+  protected sameEntries(a: readonly string[], b: readonly string[]): boolean {
+    if (a.length !== b.length) {
+      return false
+    }
+    for (let index = 0; index < a.length; index += 1) {
+      if (a[index] !== b[index]) {
+        return false
+      }
+    }
+    return true
   }
 
   private splitDirectoryInfo(relativePath: string): { directoryLabel: string; name: string } {
