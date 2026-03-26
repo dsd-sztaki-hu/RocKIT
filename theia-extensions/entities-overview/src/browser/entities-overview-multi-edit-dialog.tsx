@@ -2,6 +2,7 @@ import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import * as React from '@theia/core/shared/react'
 import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import type { MetadataSchemaManager, SchemaInfo } from 'aroma2-common/lib/browser'
 
 import dayjs = require('dayjs')
@@ -192,6 +193,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     private readonly entityIds: string[],
     private readonly appStateService: AppStateService,
     private readonly schemaManagerService?: MetadataSchemaManager,
+    private readonly roCrateHistoryService?: RoCrateHistoryService,
   ) {
     super({ title: 'Multi Edit' })
     this.startButton = this.appendButton('Start multi-edit', true)
@@ -1946,7 +1948,9 @@ export class MultiEditDialog extends ReactDialog<string> {
         ...currentCrate,
         '@graph': graph,
       }
-      this.appStateService.roCrate = updatedCrate
+      this.roCrateHistoryService?.applyRoCrateChange(updatedCrate, {
+        label: 'Apply multi-edit changes',
+      }) ?? (this.appStateService.roCrate = updatedCrate)
       this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
     }
 

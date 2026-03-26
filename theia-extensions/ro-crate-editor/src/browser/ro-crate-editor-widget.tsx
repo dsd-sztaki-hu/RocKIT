@@ -21,6 +21,7 @@ import '@arpproject/recrate/style.css'
 import { Message } from '@lumino/messaging'
 import type { Disposable } from '@theia/core'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 
 import { DescriboCrateBuilderWrapper } from './recrate-wrapper'
 
@@ -46,6 +47,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
   @inject(AppStateService)
   protected readonly appStateService: AppStateService
+
+  @inject(RoCrateHistoryService)
+  protected readonly roCrateHistoryService: RoCrateHistoryService
 
   @inject(CommandService)
   protected readonly commandService: CommandService
@@ -412,14 +416,14 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     await this.validateCurrentCrate()
   }
 
-  protected handleSaveCrate = async (saveData: any) => {
+  protected handleSaveCrate = async (saveData: any, label = 'Edit RO-Crate') => {
     console.log('saveData', saveData)
     const crate = saveData && (saveData as any).crate ? (saveData as any).crate : saveData
     const currentCrate = this.appStateService.roCrate
     const hasCrateChanged = !this.areCratesEquivalent(currentCrate, crate)
 
     if (hasCrateChanged) {
-      this.appStateService.roCrate = crate
+      this.roCrateHistoryService.applyRoCrateChange(crate, { label })
       this.localCrate = crate
     } else {
       this.localCrate = crate
@@ -576,9 +580,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       updatedGraph[index] = entity
       const updatedCrate = { ...crate, '@graph': updatedGraph }
 
-      this.appStateService.roCrate = updatedCrate
-      this.localCrate = updatedCrate
-
       const schemaName = this.schemaManagerService.nameWithoutMetadataSuffix(
         payload?.tab?.name,
       )
@@ -590,7 +591,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         profile,
         targetUrl,
       )
-      await this.handleSaveCrate(updatedCrate)
+      await this.handleSaveCrate(updatedCrate, 'Remove profile')
       this.update()
       await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId)
 
@@ -1074,10 +1075,11 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   }
 
   protected updateEntityConformsTo(entityId: string, conformsToUrl: string) {
-    const crate = this.appStateService.roCrate ?? this.localCrate
-    if (!crate || !entityId || !conformsToUrl) {
+    const sourceCrate = this.appStateService.roCrate ?? this.localCrate
+    if (!sourceCrate || !entityId || !conformsToUrl) {
       return
     }
+    const crate = this.cloneRoCrate(sourceCrate)
     const entity = this.findEntity(crate, entityId)
     if (!entity) {
       return
@@ -1105,7 +1107,15 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     conformsToField.push({ '@id': trimmedConformsToUrl })
     entity.conformsTo = conformsToField
 
-    void this.handleSaveCrate(crate)
+    void this.handleSaveCrate(crate, 'Update profile association')
+  }
+
+  protected cloneRoCrate(crate: Record<string, any>): Record<string, any> {
+    try {
+      return JSON.parse(JSON.stringify(crate))
+    } catch {
+      return { ...crate }
+    }
   }
 
   protected async removeSchemaMetadata(

@@ -13,6 +13,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import { IconButton, Tooltip } from '@mui/material';
 
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
+import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service';
 import { SchemaManagerService } from '../services/metadata-schema-manager-service';
 import { MetadataSchemaTable } from './metadata-schema-table';
 import { MetadataSchemaToolbar } from './metadata-schema-toolbar';
@@ -27,6 +28,7 @@ const MSG_TIMEOUT = 5000;
 @injectable()
 export class MetadataSchemaSelectorContribution implements FrontendApplicationContribution {
     @inject(AppStateService) protected readonly appStateService!: AppStateService;
+    @inject(RoCrateHistoryService) protected readonly roCrateHistoryService!: RoCrateHistoryService;
     @inject(SchemaManagerService) protected readonly schemaManagerService!: SchemaManagerService;
     @inject(FileDialogService) protected readonly fileDialogService!: FileDialogService;
     @inject(MessageService) protected readonly messageService!: MessageService;
@@ -106,7 +108,10 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
                         return { ...entry, conformsTo: next };
                     });
                     
-                    this.appStateService.roCrate = { ...crate, '@graph': updatedGraph } as any;
+                    this.roCrateHistoryService.applyRoCrateChange(
+                        { ...crate, '@graph': updatedGraph } as any,
+                        { label: 'Associate schema with entity' }
+                    );
                 }
             }
 
