@@ -16,6 +16,7 @@ import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { FileDownloadService } from '@theia/filesystem/lib/common/download/file-download'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
+import { minimatch, MinimatchOptions } from 'minimatch'
 import { ExportRoCrateDialog, ExportRoCrateMode } from './export-ro-crate-dialog'
 
 export const ExportRoCrateCommand: Command = {
@@ -23,8 +24,29 @@ export const ExportRoCrateCommand: Command = {
   label: 'Export RO-Crate',
 }
 
+interface IgnoreRule {
+  negated: boolean
+  pattern: string
+  directoryOnly: boolean
+  isGlob: boolean
+}
+
 @injectable()
 export class ExportRoCrateCommandContribution implements CommandContribution {
+  protected static readonly IGNORE_DIR = '.aroma'
+  protected static readonly IGNORE_FILE = 'ignored.txt'
+  protected static readonly DEFAULT_IGNORED_ENTRIES = [
+    'ro-crate-preview.html',
+    'ro-crate-metadata.json',
+    'AGENTS.md',
+    'CLAUDE.md',
+    '.aroma/',
+  ] as const
+  protected static readonly FORCED_NORMAL_EXPORT_FILES = new Set([
+    'ro-crate-metadata.json',
+    'ro-crate-preview.html',
+  ])
+
   @inject(MessageService)
   protected readonly messageService!: MessageService
 
@@ -81,7 +103,8 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     for (const root of roots) {
       const rootUri = root.resource
       const prefix = multiRoot ? `${rootUri.path.base}/` : ''
-      await this.addDirectoryToZip(zip, rootUri, rootUri, prefix)
+      const shouldOmit = await this.createIgnoreMatcher(rootUri)
+      await this.addDirectoryToZip(zip, rootUri, rootUri, prefix, shouldOmit)
     }
 
     try {
@@ -103,6 +126,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     dirUri: URI,
     rootUri: URI,
     prefix: string,
+    shouldOmit: (relativePath: string, isDirectory: boolean) => boolean,
   ): Promise<void> {
     // biome-ignore lint/suspicious/noImplicitAnyLet: <explanation>
     let stat
@@ -114,16 +138,25 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     }
 
     if (!stat.isDirectory) {
-      await this.addFileToZip(zip, dirUri, rootUri, prefix)
+      await this.addFileToZip(zip, dirUri, rootUri, prefix, shouldOmit)
+      return
+    }
+
+    const relativeDir = this.toRelativePath(rootUri, dirUri)
+    if (
+      relativeDir &&
+      shouldOmit(relativeDir, true) &&
+      !this.isForcedNormalExportFile(relativeDir)
+    ) {
       return
     }
 
     const children = stat.children ?? []
     for (const child of children) {
       if (child.isDirectory) {
-        await this.addDirectoryToZip(zip, child.resource, rootUri, prefix)
+        await this.addDirectoryToZip(zip, child.resource, rootUri, prefix, shouldOmit)
       } else {
-        await this.addFileToZip(zip, child.resource, rootUri, prefix)
+        await this.addFileToZip(zip, child.resource, rootUri, prefix, shouldOmit)
       }
     }
   }
@@ -133,19 +166,177 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     fileUri: URI,
     rootUri: URI,
     prefix: string,
+    shouldOmit: (relativePath: string, isDirectory: boolean) => boolean,
   ): Promise<void> {
-    const relative = rootUri.relative(fileUri)
-    if (!relative) {
+    const relativePath = this.toRelativePath(rootUri, fileUri)
+    if (!relativePath) {
+      return
+    }
+
+    if (shouldOmit(relativePath, false) && !this.isForcedNormalExportFile(relativePath)) {
       return
     }
 
     try {
       const content = await this.fileService.readFile(fileUri)
-      const entryPath = `${prefix}${relative.toString().replace(/\\/g, '/')}`
+      const entryPath = `${prefix}${relativePath}`
       zip.file(entryPath, content.value.buffer)
     } catch (error) {
       console.warn('Skipping unreadable file', fileUri.toString(), error)
     }
+  }
+
+  protected toRelativePath(rootUri: URI, resourceUri: URI): string | undefined {
+    const relative = rootUri.relative(resourceUri)
+    if (!relative) {
+      return undefined
+    }
+    return relative.toString().replace(/\\/g, '/').replace(/^\/+/, '')
+  }
+
+  protected isForcedNormalExportFile(relativePath: string): boolean {
+    const normalized = relativePath
+      .replace(/\\/g, '/')
+      .replace(/^\/+/, '')
+      .toLowerCase()
+    return ExportRoCrateCommandContribution.FORCED_NORMAL_EXPORT_FILES.has(normalized)
+  }
+
+  protected async createIgnoreMatcher(
+    rootUri: URI,
+  ): Promise<(relativePath: string, isDirectory: boolean) => boolean> {
+    const ignoredUri = rootUri
+      .resolve(ExportRoCrateCommandContribution.IGNORE_DIR)
+      .resolve(ExportRoCrateCommandContribution.IGNORE_FILE)
+    const diskEntries = await this.readIgnoreEntries(ignoredUri)
+    const entries = this.withDefaultIgnoreEntries(diskEntries)
+    const rules = this.toIgnoreRules(entries)
+
+    return (relativePath: string, _isDirectory: boolean): boolean => {
+      const normalized = this.normalizeIgnorePath(relativePath)
+      if (!normalized) {
+        return false
+      }
+      return this.isIgnoredByRules(rules, normalized)
+    }
+  }
+
+  protected async readIgnoreEntries(ignoreFileUri: URI): Promise<string[]> {
+    try {
+      const content = await this.fileService.read(ignoreFileUri)
+      const text = `${content.value ?? ''}`
+      return text
+        .split(/\r?\n/g)
+        .map((line) => this.normalizeIgnoreEntry(line))
+        .filter((line): line is string => Boolean(line))
+    } catch {
+      return []
+    }
+  }
+
+  protected withDefaultIgnoreEntries(entries: readonly string[]): string[] {
+    const defaults = ExportRoCrateCommandContribution.DEFAULT_IGNORED_ENTRIES.map((entry) =>
+      this.normalizeIgnoreEntry(entry),
+    ).filter((entry): entry is string => Boolean(entry))
+    const existingPositive = new Set(entries.filter((entry) => !entry.startsWith('!')))
+    const missingDefaults = defaults.filter((entry) => !existingPositive.has(entry))
+    if (!missingDefaults.length) {
+      return [...entries]
+    }
+    return [...missingDefaults, ...entries]
+  }
+
+  protected normalizeIgnoreEntry(value: string): string | undefined {
+    const trimmed = (value || '').trim()
+    if (!trimmed || trimmed.startsWith('#')) {
+      return undefined
+    }
+
+    const negated = trimmed.startsWith('!')
+    let normalized = negated ? trimmed.slice(1) : trimmed
+    normalized = normalized.replace(/\\/g, '/')
+    normalized = normalized.replace(/^\.\//, '')
+    normalized = normalized.replace(/^\/+/, '')
+    normalized = normalized.replace(/\/{2,}/g, '/')
+    const isDirectory = normalized.endsWith('/')
+    if (isDirectory) {
+      normalized = normalized.replace(/\/+$/, '')
+    }
+    if (!normalized) {
+      return undefined
+    }
+    return `${negated ? '!' : ''}${normalized}${isDirectory ? '/' : ''}`.toLowerCase()
+  }
+
+  protected normalizeIgnorePath(path: string): string | undefined {
+    let normalized = (path || '').replace(/\\/g, '/').trim()
+    normalized = normalized.replace(/^\.\//, '')
+    normalized = normalized.replace(/^\/+/, '')
+    normalized = normalized.replace(/\/{2,}/g, '/')
+    normalized = normalized.replace(/\/+$/, '')
+    if (!normalized) {
+      return undefined
+    }
+    return normalized.toLowerCase()
+  }
+
+  protected toIgnoreRules(entries: readonly string[]): IgnoreRule[] {
+    const rules: IgnoreRule[] = []
+    for (const entry of entries) {
+      const negated = entry.startsWith('!')
+      const ruleBody = negated ? entry.slice(1) : entry
+      const directoryOnly = ruleBody.endsWith('/')
+      const pattern = directoryOnly ? ruleBody.slice(0, -1) : ruleBody
+      if (!pattern) {
+        continue
+      }
+      rules.push({
+        negated,
+        pattern,
+        directoryOnly,
+        isGlob: /[*?[\]{}]/.test(pattern),
+      })
+    }
+    return rules
+  }
+
+  protected isIgnoredByRules(rules: readonly IgnoreRule[], relativePath: string): boolean {
+    let ignored = false
+    for (const rule of rules) {
+      if (this.matchesIgnoreRule(rule, relativePath)) {
+        ignored = !rule.negated
+      }
+    }
+    return ignored
+  }
+
+  protected matchesIgnoreRule(rule: IgnoreRule, relativePath: string): boolean {
+    if (!rule.isGlob) {
+      if (rule.directoryOnly) {
+        return (
+          relativePath === rule.pattern ||
+          relativePath.startsWith(`${rule.pattern}/`)
+        )
+      }
+      return relativePath === rule.pattern
+    }
+
+    const options: MinimatchOptions = {
+      dot: true,
+      nocase: true,
+      windowsPathsNoEscape: true,
+      matchBase: !rule.pattern.includes('/'),
+    }
+    if (rule.directoryOnly) {
+      if (minimatch(relativePath, rule.pattern, options)) {
+        return true
+      }
+      return minimatch(relativePath, `${rule.pattern}/**`, {
+        ...options,
+        matchBase: false,
+      })
+    }
+    return minimatch(relativePath, rule.pattern, options)
   }
 
   protected getWorkspaceRoot(): URI | undefined {

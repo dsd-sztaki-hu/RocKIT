@@ -10,7 +10,8 @@
   ],
   "dependencies": {
     "@theia/core": "1.65.2",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "minimatch": "^10.0.3"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
