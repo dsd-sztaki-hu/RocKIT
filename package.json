@@ -5,7 +5,7 @@
     "npm": ">=8"
   },
   "scripts": {
-    "build:extensions": "lerna run build --stream --sort --skip-nx-cache",
+    "build:extensions": "yarn run recrate:build && lerna run build --stream --sort --skip-nx-cache --ignore @arpproject/recrate",
     "build:browser": "yarn run build:extensions && yarn workspace browser-app run bundle",
     "build:electron": "yarn run build:extensions && yarn workspace electron-app run bundle",
     "prepare": "lerna run prepare",
