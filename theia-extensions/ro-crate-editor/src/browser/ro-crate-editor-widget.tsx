@@ -625,7 +625,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     return (
       <div style={{ padding: '1rem' }}>
         <DescriboCrateBuilderWrapper
-          key={this.getActiveEntityId() ?? 'unresolved-entity'}
           crate={this.localCrate}
           profile={this.localProfile}
           entityId={this.getActiveEntityId()}
@@ -966,7 +965,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     entityId: string,
   ) {
     const crateAtStart = this.localCrate
-    const profileRevisionAtStart = this.profileRevision
+    let didMergeProfileForValidation = false
 
     if (this.isRefreshingProfile) {
       this.pendingSchemasRefresh = true
@@ -1061,7 +1060,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
       if (didUpdateProfile || !foundMatchingProfile) {
         this.localProfile = updateProfile
-        this.profileRevision += 1
+        if (didUpdateProfile) {
+          this.profileRevision += 1
+          didMergeProfileForValidation = true
+        }
       }
 
       this.lastAppliedEntityId = entityId
@@ -1071,7 +1073,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       this.update()
     } finally {
       const shouldValidate =
-        crateAtStart !== this.localCrate || profileRevisionAtStart !== this.profileRevision
+        crateAtStart !== this.localCrate || didMergeProfileForValidation
 
       if (shouldValidate) {
         await this.validateCurrentCrate()

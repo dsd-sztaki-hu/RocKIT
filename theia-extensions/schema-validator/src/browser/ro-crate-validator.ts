@@ -60,6 +60,15 @@ export async function validateEntities(
   const profileCache = new Map<string, Record<string, any>>()
   const validationErrors: ValidationError[] = []
   const graph = crate["@graph"] as any[]
+  const profileById = new Map<string, any>()
+  for (const profileEntry of profileList ?? []) {
+    const id = typeof profileEntry?.id === 'string' ? profileEntry.id.trim() : ''
+    if (!id) {
+      continue
+    }
+    profileById.set(id, profileEntry?.content)
+  }
+  const warnedMissingProfileUrls = new Set<string>()
 
   for (const entity of graph) {
     if (!entity || typeof entity !== 'object') {
@@ -83,11 +92,13 @@ export async function validateEntities(
       } else {
         let updatedProfile = clone(baseProfile)
         for (const conformsToUrl of conformsToIds) {
-          const convertedContent = profileList?.find(
-            (p: any) => (p?.id ?? '').trim() === conformsToUrl.trim(),
-          )?.content
+          const normalizedConformsToUrl = conformsToUrl.trim()
+          const convertedContent = profileById.get(normalizedConformsToUrl)
           if (!convertedContent) {
-            console.warn('No profile found in state for conformsTo URL:', conformsToUrl)
+            if (!warnedMissingProfileUrls.has(normalizedConformsToUrl)) {
+              warnedMissingProfileUrls.add(normalizedConformsToUrl)
+              console.warn('No profile found in state for conformsTo URL:', normalizedConformsToUrl)
+            }
             continue
           }
           try {
