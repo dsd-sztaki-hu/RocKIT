@@ -381,9 +381,10 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
 @injectable()
 export class RemoteRoCrateConversionMenuContribution implements MenuContribution {
   registerMenus(menus: MenuModelRegistry): void {
-    menus.registerMenuAction(CommonMenus.FILE, {
+    menus.registerMenuAction([...CommonMenus.EDIT, '9_remote_ro_crate_conversion'], {
       commandId: RemoteRoCrateConversionCommand.id,
       label: RemoteRoCrateConversionCommand.label,
+      order: 'zzzz',
     })
   }
 }
