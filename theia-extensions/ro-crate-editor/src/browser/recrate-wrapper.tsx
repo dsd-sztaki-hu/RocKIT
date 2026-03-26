@@ -21,6 +21,7 @@ export const DescriboCrateBuilderWrapper = ({
   onOpenSchemaManager: (requested: boolean) => void
   onRemoveProfile: (tabData: any) => void
 }) => {
+  const [loading, setLoading] = React.useState<boolean>(false)
   const containerRef = React.useRef<HTMLDivElement>(null)
   React.useEffect(() => {
     requestAnimationFrame(() => {
@@ -31,6 +32,14 @@ export const DescriboCrateBuilderWrapper = ({
       window.scrollTo({ top: 0, behavior: 'auto' })
     })
   }, [entityId])
+
+  React.useEffect(() => {
+    if (loading) {
+      if (entityId) {
+        setLoading(false)
+      }
+    }
+  }, [entityId, loading])
 
   const handleNavigationWrapper = React.useCallback(
     (entity: any) => {
@@ -63,7 +72,7 @@ export const DescriboCrateBuilderWrapper = ({
         profile={profile}
         onAddNewProfileRequest={handleAddNewProfileRequest}
         onRemoveProfile={onRemoveProfile}
-        entityId={currentEntityId}
+        entityId={entityId}
         onSaveCrate={onSaveCrate}
         onNavigation={handleNavigationWrapper}
         onWarning={(w: any) => console.log('warning', w)}
