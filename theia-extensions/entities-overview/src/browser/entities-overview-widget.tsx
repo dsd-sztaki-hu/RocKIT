@@ -311,7 +311,10 @@ export class EntitiesOverviewWidget extends TreeWidget {
               </Button>
             </div>
           </div>
-          <div className="entities-overview-edit-row">
+          <div
+            className="entities-overview-edit-row"
+            onClick={(event) => this.handleEditRowClick(event)}
+          >
             <Button
               className="entities-overview-edit-button"
               type="default"
@@ -504,6 +507,14 @@ export class EntitiesOverviewWidget extends TreeWidget {
     }
     this.model.selectSingle(entityId)
     void this.openRoCrateEditorForEntity(entityId)
+  }
+
+  protected handleEditRowClick(event: React.MouseEvent<HTMLElement>): void {
+    const target = event.target as HTMLElement | null
+    if (target?.closest('.entities-overview-edit-button')) {
+      return
+    }
+    this.model.clearSelection()
   }
 
   protected async openRoCrateEditorForEntity(
