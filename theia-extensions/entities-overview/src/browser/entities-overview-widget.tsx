@@ -67,6 +67,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
     @inject(ThemeService) private readonly themeService: ThemeService,
   ) {
     super(props, model, contextMenuRenderer)
+    this.shouldScrollToRow = false
 
     // set the general properties for the view
     this.id = EntitiesOverviewWidget.ID
@@ -181,6 +182,12 @@ export class EntitiesOverviewWidget extends TreeWidget {
       }
     }
     return false
+  }
+
+  protected override scrollToSelected(): void {
+    // Selection visuals in this widget are driven by entity ids rather than the tree model
+    // selection service. The base implementation scrolls to the first selected DOM row,
+    // which can jump the viewport unexpectedly for large/virtualized lists.
   }
 
   protected override render(): React.ReactNode {
