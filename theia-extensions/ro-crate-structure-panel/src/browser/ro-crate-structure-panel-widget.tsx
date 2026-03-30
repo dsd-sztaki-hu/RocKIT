@@ -336,7 +336,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   // Windows Explorer-like selection behavior:
   // - single click: single select
   // - ctrl/cmd+click: toggle specific row
-  // - shift+click: additive range selection across visible rows
+  // - shift+click: additive range selection across expanded rows
   protected handleTreeSelect = (_keys: React.Key[], info: any): void => {
     const entityId = info.node?.entityId
     if (!entityId) {
@@ -445,33 +445,67 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   }
 
   protected getVisibleEntityRows(): Array<{ entityId: string; nodeKey: React.Key }> {
-    const container = this.containerRef.current
-    if (!container) {
-      return []
-    }
-    const elements = Array.from(
-      container.querySelectorAll<HTMLElement>('[data-entity-id][data-node-key]'),
-    )
+    const treeData = this.getCurrentTreeData()
     const rows: Array<{ entityId: string; nodeKey: React.Key }> = []
     const seen = new Set<string>()
-    for (const element of elements) {
-      const entityId = element.getAttribute('data-entity-id')
-      const nodeKey = element.getAttribute('data-node-key')
-      if (!entityId || !nodeKey) {
-        continue
+
+    const expanded = new Set(this.expandedKeys.map((key) => String(key)))
+    const visit = (node: TreeDataNode): void => {
+      const typedNode = node as TreeDataNode & {
+        entityId?: string
+        children?: TreeDataNode[]
       }
-      if (seen.has(entityId)) {
-        continue
+      const entityId = typedNode.entityId
+      const nodeKey = node.key
+
+      if (entityId && nodeKey !== undefined && !seen.has(entityId)) {
+        seen.add(entityId)
+        rows.push({ entityId, nodeKey })
       }
-      seen.add(entityId)
-      rows.push({ entityId, nodeKey })
+
+      const children = typedNode.children ?? []
+      if (!children.length) {
+        return
+      }
+      if (!expanded.has(String(node.key))) {
+        return
+      }
+      for (const child of children) {
+        visit(child)
+      }
     }
+    for (const rootNode of treeData) {
+      visit(rootNode)
+    }
+
     return rows
   }
 
   protected getNodeKeyForEntity(entityId: string): React.Key | undefined {
     const row = this.getVisibleEntityRows().find((value) => value.entityId === entityId)
     return row?.nodeKey
+  }
+
+  protected getCurrentTreeData(): TreeDataNode[] {
+    const crate = this.appStateService.roCrate
+    if (crate === this.cachedCrateRef && this.cachedTreeData) {
+      return this.cachedTreeData
+    }
+
+    const built = this.buildCrateTree(crate)
+    const treeData = built.root ? [this.crateNodeToTreeData(built.root)] : []
+    this.cachedCrateRef = crate
+    this.cachedRoot = built.root
+    this.cachedTreeData = treeData
+    if (this.expandedKeys.length === 0 && treeData.length > 0) {
+      this.expandedKeys = [String(treeData[0].key)]
+    }
+    return treeData
+  }
+
+  protected handleTreeExpand = (keys: React.Key[]): void => {
+    this.expandedKeys = keys.map((key) => String(key))
+    this.update()
   }
 
   protected async openRoCrateEditor(
@@ -772,10 +806,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             showIcon
             multiple
             selectedKeys={this.selectedKeys}
-            defaultExpandedKeys={['./']}
+            expandedKeys={this.expandedKeys}
+            onExpand={this.handleTreeExpand}
             onSelect={this.handleTreeSelect}
-            // expandedKeys={this.expandedKeys}
-            // onExpand={(keys) => { this.expandedKeys = keys as string[]; this.update(); }}
             titleRender={(item) => {
               const title = item.title as React.ReactNode
               const displayName =
@@ -783,7 +816,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
               const entityId = (item as any).entityId as string | undefined
               const isInvalid = Boolean(entityId && this.invalidEntityIds.has(entityId))
               const isFolder = Array.isArray(item.children) && item.children.length > 0
-              const isExpanded = this.expandedKeys.includes(item.key as string)
+              const isExpanded = this.expandedKeys.includes(String(item.key))
               const icon = isFolder ? (
                 isExpanded ? (
                   <FolderOpenOutlined />
