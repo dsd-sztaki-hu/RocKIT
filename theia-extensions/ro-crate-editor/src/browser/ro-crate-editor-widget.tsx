@@ -414,6 +414,20 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
   protected handleSaveCrate = async (saveData: any) => {
     const crate = saveData && (saveData as any).crate ? (saveData as any).crate : saveData
+    const savedEntityId =
+      typeof (saveData as any)?.entityId === 'string'
+        ? (saveData as any).entityId.trim()
+        : ''
+
+    if (savedEntityId) {
+      this.assignedEntityId = savedEntityId
+      this.localSelectedEntityId = savedEntityId
+      if (this.id) {
+        this.appStateService.registerEntityEditor(this.id, savedEntityId)
+      }
+      this.updateTitleLabel()
+    }
+
     const currentCrate = this.appStateService.roCrate
     const hasCrateChanged = !this.areCratesEquivalent(currentCrate, crate)
 
@@ -424,7 +438,40 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       this.localCrate = crate
     }
 
+    const graph = Array.isArray(crate?.['@graph']) ? (crate['@graph'] as Record<string, any>[]) : []
+    const activeEntityId = this.getActiveEntityId()
+    const hasActiveEntity =
+      !!activeEntityId &&
+      graph.some((entry) => entry && typeof entry === 'object' && String(entry['@id']) === activeEntityId)
+
+    if (!hasActiveEntity) {
+      const fallbackEntityId =
+        (savedEntityId &&
+          graph.some((entry) => entry && typeof entry === 'object' && String(entry['@id']) === savedEntityId)
+          ? savedEntityId
+          : undefined) ??
+        (graph.some((entry) => entry && typeof entry === 'object' && String(entry['@id']) === './')
+          ? './'
+          : typeof graph[0]?.['@id'] === 'string'
+            ? String(graph[0]['@id'])
+            : undefined)
+
+      if (fallbackEntityId) {
+        this.assignedEntityId = fallbackEntityId
+        this.localSelectedEntityId = fallbackEntityId
+        if (this.id) {
+          this.appStateService.registerEntityEditor(this.id, fallbackEntityId)
+        }
+        this.updateTitleLabel()
+      }
+    }
+
     this.updateDirtyStateForCurrentEntity(crate)
+
+    const profileEntityId = this.getActiveEntityId()
+    if (this.baseProfile && profileEntityId) {
+      await this.updateProfileWithEntitySchemas(this.baseProfile, profileEntityId)
+    }
 
     await this.validateCurrentCrate()
 
@@ -433,6 +480,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       this.appStateService.dirty = isDirty
       this.onContentChangedEmitter.fire()
     }
+
+    this.update()
   }
 
   protected areCratesEquivalent(
