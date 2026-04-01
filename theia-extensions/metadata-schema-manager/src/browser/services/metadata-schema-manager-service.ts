@@ -1037,13 +1037,55 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
   // Below here are legacy methods, please dont change without consulting with the team
   public async getMergedProfile(crate: Record<string, any>, newProfile: Record<string, any>, profile: Record<string, any>, profileUrl?: string) {
-    const entities: any = Object.values(crate["@graph"]).filter((entity: any) => entity["@type"] != "CreativeWork")
-    for (const entity of entities) {
+    const graph = Array.isArray(crate?.["@graph"]) ? crate["@graph"] : []
+    const normalizedProfileUrl = typeof profileUrl === 'string' ? profileUrl.trim() : ''
+    const targetClassNames = new Set<string>()
+
+    for (const entity of graph) {
+      if (!entity || typeof entity !== 'object') {
+        continue
+      }
+
       const entityType = Array.isArray(entity["@type"]) ? entity["@type"][0] : entity["@type"]
-      const conformsTos = entity['conformsTo'] ? (Array.isArray(entity['conformsTo']) ? entity['conformsTo'] : [entity['conformsTo']]) : undefined;
-      if (!conformsTos) { continue }
+      if (!entityType || entityType === 'CreativeWork') {
+        continue
+      }
+
+      const rawConformsTo = entity['conformsTo']
+      const conformsTos = rawConformsTo
+        ? (Array.isArray(rawConformsTo) ? rawConformsTo : [rawConformsTo])
+        : []
+      if (conformsTos.length === 0) {
+        continue
+      }
+
+      if (normalizedProfileUrl) {
+        const hasMatchingConformsTo = conformsTos.some((value: any) => {
+          if (typeof value === 'string') {
+            return value.trim() === normalizedProfileUrl
+          }
+          if (value && typeof value === 'object') {
+            const idValue = (value as any)['@id'] ?? (value as any).id
+            return typeof idValue === 'string' && idValue.trim() === normalizedProfileUrl
+          }
+          return false
+        })
+        if (!hasMatchingConformsTo) {
+          continue
+        }
+      }
+
+      targetClassNames.add(String(entityType))
+    }
+
+    for (const className of targetClassNames) {
       try {
-        this.addProfileToClass(newProfile, entityType, profile, profileUrl)
+        this.addProfileToClass(
+          newProfile,
+          className,
+          profile,
+          normalizedProfileUrl || undefined,
+        )
       } catch (error) {
         console.error(error)
         throw error
@@ -1057,7 +1099,9 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       console.warn('Invalid profileToAdd structure:', profileToAdd);
       return;
     }
-    const inputs = profileToAdd.classes.Dataset.inputs
+    const datasetInputs = Array.isArray(profileToAdd.classes.Dataset.inputs)
+      ? profileToAdd.classes.Dataset.inputs
+      : []
     let theClass = rootProfile.classes[className]
     if (!theClass) {
       theClass = { inputs: [] }
@@ -1067,8 +1111,23 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     let name = this.nameWithoutMetadataSuffix(profileToAdd.metadata.name)
     let desc: string | null = profileToAdd.metadata.description
     if (name == this.nameWithoutMetadataSuffix(desc)) { desc = null }
-    profileToAdd.classes["Dataset"].inputs.forEach((input: Record<string, any>) => input.group = name)
-    theClass.inputs = [...theClass.inputs, ...inputs]
+    const groupedInputs = datasetInputs.map((input: Record<string, any>) => ({
+      ...input,
+      group: name ?? input.group,
+    }))
+    const existingInputs = Array.isArray(theClass.inputs) ? theClass.inputs : []
+    const inputKey = (input: Record<string, any>) =>
+      `${String(input?.name ?? '')}|${String(input?.group ?? '')}|${JSON.stringify(input?.type ?? '')}`
+    const seenInputKeys = new Set(existingInputs.map((input: Record<string, any>) => inputKey(input)))
+    for (const input of groupedInputs) {
+      const key = inputKey(input)
+      if (seenInputKeys.has(key)) {
+        continue
+      }
+      existingInputs.push(input)
+      seenInputKeys.add(key)
+    }
+    theClass.inputs = existingInputs
     let layouts = rootProfile.layouts
     if (!layouts) { layouts = rootProfile.layouts = [] }
     let selectedLayout = layouts.find((layout: any) => layout.appliesTo.includes(className))
