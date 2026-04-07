@@ -30,6 +30,7 @@ interface RoCrateEditorWidgetOptions {
 }
 
 type NavigationEntity = { ['@id']?: string } & Record<string, unknown>
+type ProfileValidationMode = 'none' | 'always'
 
 @injectable()
 export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
@@ -82,6 +83,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected pendingSchemasRefresh = false
   protected pendingSchemasRefreshBaseProfile?: Record<string, any>
   protected pendingSchemasRefreshEntityId?: string
+  protected pendingSchemasRefreshValidationMode: ProfileValidationMode = 'none'
   protected profileRevision = 0
   protected lastSeenNonMissingProfileCount = 0
   protected lastFocusedElement?: HTMLElement
@@ -97,7 +99,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected baselineEntitySnapshot?: string
 
   protected validationTimer?: ReturnType<typeof setTimeout>
+  protected backgroundValidationTimer?: ReturnType<typeof setTimeout>
   protected validationRun = 0
+  protected lastValidationErrorSignature = ''
 
   protected normalizeValidationErrors(
     errors: ValidationError[] | undefined,
@@ -134,8 +138,95 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     return result
   }
 
+  protected buildValidationSignature(errors: ValidationError[]): string {
+    if (errors.length === 0) {
+      return ''
+    }
+    return errors
+      .map((error) =>
+        [
+          error.entityId ?? '',
+          error.entityType ?? '',
+          error.fieldName ?? '',
+          error.fieldLabel ?? '',
+          error.errorCode ?? '',
+          error.error ?? '',
+          error.path ?? '',
+        ].join('|'),
+      )
+      .join('||')
+  }
+
+  protected publishValidationErrors(errors: ValidationError[] | undefined): void {
+    const normalized = this.normalizeValidationErrors(errors)
+    const signature = this.buildValidationSignature(normalized)
+    if (signature === this.lastValidationErrorSignature) {
+      return
+    }
+    this.lastValidationErrorSignature = signature
+    this.appStateService.validationErrors = normalized
+  }
+
+  protected clearBackgroundValidationTimer(): void {
+    if (this.backgroundValidationTimer) {
+      clearTimeout(this.backgroundValidationTimer)
+      this.backgroundValidationTimer = undefined
+    }
+  }
+
+  protected scheduleBackgroundFullValidation(run: number): void {
+    this.clearBackgroundValidationTimer()
+    this.backgroundValidationTimer = setTimeout(() => {
+      this.backgroundValidationTimer = undefined
+      const idle: any = (globalThis as any).requestIdleCallback
+      if (typeof idle === 'function') {
+        idle(
+          () => {
+            void this.runBackgroundFullValidation(run)
+          },
+          { timeout: 2000 },
+        )
+        return
+      }
+      void this.runBackgroundFullValidation(run)
+    }, 250)
+  }
+
+  protected async runBackgroundFullValidation(run: number): Promise<void> {
+    if (run !== this.validationRun) {
+      return
+    }
+
+    const validatorWithFull = this.schemaValidator as any
+    if (typeof validatorWithFull.validateEntitiesFull !== 'function') {
+      return
+    }
+
+    const crate = this.localCrate ?? this.appStateService.roCrate
+    const baseProfile = this.baseProfile
+    if (!crate || !Array.isArray(crate['@graph']) || !baseProfile) {
+      return
+    }
+
+    try {
+      const fullErrors: ValidationError[] | undefined =
+        await validatorWithFull.validateEntitiesFull(crate, baseProfile)
+      if (run !== this.validationRun) {
+        return
+      }
+      this.publishValidationErrors(fullErrors)
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        return
+      }
+      console.warn('RoCrateEditorWidget: background full validation failed', error)
+    }
+  }
+
   protected async validateCurrentCrate(): Promise<void> {
     const run = ++this.validationRun
+
+    this.clearBackgroundValidationTimer()
 
     if (this.validationTimer) {
       clearTimeout(this.validationTimer)
@@ -165,23 +256,21 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
     if (!crate || !Array.isArray(crate['@graph']) || !baseProfile) {
       if (run === this.validationRun) {
-        this.appStateService.validationErrors = []
+        this.publishValidationErrors([])
       }
       return
     }
 
-    if (run === this.validationRun) {
-      this.appStateService.validationErrors = []
-    }
-
     let validationErrors: ValidationError[] | undefined
     try {
-      const baseProfileClone = JSON.parse(JSON.stringify(baseProfile))
       validationErrors = await this.schemaValidator.validateEntities(
         crate,
-        baseProfileClone,
+        baseProfile,
       )
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        return
+      }
       console.warn('RoCrateEditorWidget: validation failed', error)
       validationErrors = []
     }
@@ -190,7 +279,19 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       return
     }
 
-    this.appStateService.validationErrors = this.normalizeValidationErrors(validationErrors)
+    this.publishValidationErrors(validationErrors)
+
+    const validatorWithMode = this.schemaValidator as any
+    const mode =
+      typeof validatorWithMode.getLastRunMode === 'function'
+        ? validatorWithMode.getLastRunMode()
+        : undefined
+
+    if (mode === 'incremental') {
+      this.scheduleBackgroundFullValidation(run)
+    } else {
+      this.clearBackgroundValidationTimer()
+    }
   }
 
   constructor() {
@@ -296,7 +397,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         if (!entityId) {
           return
         }
-        await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId)
+        await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always')
       },
     )
 
@@ -323,6 +424,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
       if (this.isRefreshingProfile) {
         this.pendingSchemasRefresh = true
+        this.pendingSchemasRefreshValidationMode = 'always'
         return
       }
       if (!this.baseProfile || !this.localCrate) {
@@ -334,7 +436,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       }
 
       try {
-        await this.updateProfileWithEntitySchemas(this.baseProfile, entityId)
+        await this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'always')
         if (isAddingProfile) {
           this.messageService.info('Profile added.', { timeout: 5000 })
         }
@@ -377,7 +479,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         })
         this.updateTitleLabel()
         if (this.baseProfile && this.localCrate) {
-          void this.updateProfileWithEntitySchemas(this.baseProfile, trimmed)
+          void this.updateProfileWithEntitySchemas(this.baseProfile, trimmed, 'none')
         } else {
           this.update()
         }
@@ -387,6 +489,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     this.schemasSubscription = this.schemaManagerService.onDidChangeSchemas(async () => {
       if (this.isRefreshingProfile) {
         this.pendingSchemasRefresh = true
+        this.pendingSchemasRefreshValidationMode = 'always'
         return
       }
       if (!this.baseProfile || !this.localCrate) {
@@ -396,7 +499,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       if (!entityId) {
         return
       }
-      await this.updateProfileWithEntitySchemas(this.baseProfile, entityId)
+      await this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'always')
     })
 
     const initialEntity = this.resolveInitialEntityId(options.entityId)
@@ -405,7 +508,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     if (this.baseProfile && this.localCrate && Array.isArray(this.localCrate['@graph'])) {
       const entityId = this.getActiveEntityId()
       if (entityId) {
-        await this.updateProfileWithEntitySchemas(this.baseProfile, entityId)
+        await this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'none')
       }
     }
 
@@ -470,7 +573,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
     const profileEntityId = this.getActiveEntityId()
     if (this.baseProfile && profileEntityId) {
-      await this.updateProfileWithEntitySchemas(this.baseProfile, profileEntityId)
+      await this.updateProfileWithEntitySchemas(this.baseProfile, profileEntityId, 'none')
     }
 
     await this.validateCurrentCrate()
@@ -661,7 +764,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       )
       await this.handleSaveCrate(updatedCrate)
       this.update()
-      await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId)
+      await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'none')
 
       this.messageService.info('Profile removed.', { timeout: 5000 })
     } catch (error) {
@@ -1012,14 +1115,15 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected async updateProfileWithEntitySchemas(
     baseProfile: Record<string, any>,
     entityId: string,
+    validationMode: ProfileValidationMode = 'none',
   ) {
-    const crateAtStart = this.localCrate
-    let didMergeProfileForValidation = false
-
     if (this.isRefreshingProfile) {
       this.pendingSchemasRefresh = true
       this.pendingSchemasRefreshBaseProfile = baseProfile
       this.pendingSchemasRefreshEntityId = entityId
+      if (validationMode === 'always') {
+        this.pendingSchemasRefreshValidationMode = 'always'
+      }
       return
     }
 
@@ -1111,7 +1215,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         this.localProfile = updateProfile
         if (didUpdateProfile) {
           this.profileRevision += 1
-          didMergeProfileForValidation = true
         }
       }
 
@@ -1121,10 +1224,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       this.lastAppliedProfileList = profileList
       this.update()
     } finally {
-      const shouldValidate =
-        crateAtStart !== this.localCrate || didMergeProfileForValidation
-
-      if (shouldValidate) {
+      if (validationMode === 'always') {
         await this.validateCurrentCrate()
       }
 
@@ -1139,13 +1239,19 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
           this.assignedEntityId ??
           this.localSelectedEntityId ??
           './'
+        const pendingValidationMode = this.pendingSchemasRefreshValidationMode
 
         this.pendingSchemasRefreshBaseProfile = undefined
         this.pendingSchemasRefreshEntityId = undefined
+        this.pendingSchemasRefreshValidationMode = 'none'
 
         if (baseProfile && crate) {
           queueMicrotask(() => {
-            void this.updateProfileWithEntitySchemas(baseProfile, entityId)
+            void this.updateProfileWithEntitySchemas(
+              baseProfile,
+              entityId,
+              pendingValidationMode,
+            )
           })
         }
       }
@@ -1274,7 +1380,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       }
     }
 
-    await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId)
+    await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'none')
     this.update()
   }
 
@@ -1403,6 +1509,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       clearTimeout(this.validationTimer)
       this.validationTimer = undefined
     }
+    this.clearBackgroundValidationTimer()
 
     this.node.removeEventListener('focusin', this.handleFocusIn, true)
     this.onDirtyChangedEmitter.dispose()
