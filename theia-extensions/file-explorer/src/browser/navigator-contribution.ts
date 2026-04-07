@@ -425,7 +425,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         if (!selectedResources.length) {
             return false;
         }
-        return true;
+        return selectedResources.some(resource => !this.roCrateIgnoredFilesService.isIgnoredPath(resource.path));
     }
 
     protected canIncludeResource(
