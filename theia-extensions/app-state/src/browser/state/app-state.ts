@@ -25,6 +25,7 @@ export type ProfileListItem = {
 // Define the default application state. This defines the shape of the state and initial values.
 export const defaultAppState = {
   roCrate: undefined as Record<string, any> | undefined,
+  ignoreList: undefined as string[] | undefined,
   profile: undefined as Record<string, any> | undefined,
   selectedEntityId: undefined as string | undefined,
   EIRCEIA: undefined as EIRCEIA | undefined,

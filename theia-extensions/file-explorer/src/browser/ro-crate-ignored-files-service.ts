@@ -1,10 +1,11 @@
-import { inject, injectable } from '@theia/core/shared/inversify'
+import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import { Emitter, Event } from '@theia/core/lib/common/event'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { minimatch, MinimatchOptions } from 'minimatch'
 import { Disposable } from '@theia/core/lib/common/disposable'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 
 interface IgnoreRule {
   negated: boolean
@@ -43,6 +44,18 @@ export class RoCrateIgnoredFilesService {
   @inject(FileService)
   protected readonly fileService: FileService
 
+  @inject(AppStateService)
+  protected readonly appStateService: AppStateService
+
+  @postConstruct()
+  protected init(): void {
+    this.appStateService.onDidChangeSelector((state) => state.ignoreList)(
+      (entries) => {
+        this.setIgnoredEntries(Array.isArray(entries) ? entries : [])
+      },
+    )
+  }
+
   async ensureIgnoreStoreExists(): Promise<void> {
     const rootUri = this.getPrimaryWorkspaceRootUri()
     if (!rootUri) {
@@ -51,16 +64,10 @@ export class RoCrateIgnoredFilesService {
       return
     }
 
-    const ignoredUri = await this.ensureIgnoreFile(rootUri)
+    const ignoredUri = this.resolveIgnoreFileUri(rootUri)
     this.ensureIgnoreWatch(rootUri, ignoredUri)
-    const current = await this.readIgnoredEntries(ignoredUri)
-    const next = this.compactRedundantIncludeEntries(this.withDefaultEntries(current))
-
-    if (!this.sameEntries(current, next)) {
-      await this.writeIgnoredEntries(ignoredUri, next)
-    }
-
-    this.setIgnoredEntries(next)
+    const stateEntries = this.appStateService.ignoreList
+    this.setIgnoredEntries(Array.isArray(stateEntries) ? stateEntries : [])
   }
 
   getIgnoredPaths(): ReadonlySet<string> {
@@ -99,9 +106,10 @@ export class RoCrateIgnoredFilesService {
       return
     }
 
-    const ignoredUri = await this.ensureIgnoreFile(rootUri)
-    const current = await this.readIgnoredEntries(ignoredUri)
-    let next = [...current]
+    let next = [
+      ...(this.appStateService.ignoreList ?? this.ignoredEntries),
+    ]
+    next = this.withDefaultEntries(next)
 
     for (const path of paths) {
       const isDirectoryEntry = (path || '').replace(/\\/g, '/').trim().endsWith('/')
@@ -120,14 +128,13 @@ export class RoCrateIgnoredFilesService {
     }
     next = this.compactRedundantIncludeEntries(next)
 
-    const changed = !this.sameEntries(current, next)
-    if (!changed) {
-      this.setIgnoredEntries(next)
-      return
-    }
+    this.applyIgnoredEntries(next)
+  }
 
-    await this.writeIgnoredEntries(ignoredUri, next)
-    this.setIgnoredEntries(next)
+  protected resolveIgnoreFileUri(rootUri: URI): URI {
+    return rootUri
+      .resolve(RoCrateIgnoredFilesService.IGNORE_DIR)
+      .resolve(RoCrateIgnoredFilesService.IGNORE_FILE)
   }
 
   protected async ensureIgnoreFile(rootUri: URI): Promise<URI> {
@@ -252,17 +259,13 @@ export class RoCrateIgnoredFilesService {
       return
     }
 
-    const ignoredUri = await this.ensureIgnoreFile(rootUri)
+    const ignoredUri = this.resolveIgnoreFileUri(rootUri)
     this.ensureIgnoreWatch(rootUri, ignoredUri)
 
     const current = await this.readIgnoredEntries(ignoredUri)
     const next = this.compactRedundantIncludeEntries(this.withDefaultEntries(current))
 
-    if (!this.sameEntries(current, next)) {
-      await this.writeIgnoredEntries(ignoredUri, next)
-    }
-
-    this.setIgnoredEntries(next)
+    this.applyIgnoredEntries(next)
   }
 
   protected withDefaultEntries(entries: string[]): string[] {
@@ -439,5 +442,18 @@ export class RoCrateIgnoredFilesService {
     this.ignoredEntries = [...next]
     this.ignoredRules = this.toRules(next)
     this.onDidChangeIgnoredPathsEmitter.fire(new Set(this.ignoredEntries))
+  }
+
+  protected applyIgnoredEntries(next: readonly string[]): void {
+    const normalized = [...next]
+    this.setIgnoredEntries(normalized)
+
+    const currentStateEntries = this.appStateService.ignoreList ?? []
+    if (this.sameEntries(currentStateEntries, normalized)) {
+      return
+    }
+    this.appStateService.ignoreList = normalized.length
+      ? [...normalized]
+      : undefined
   }
 }

@@ -25,7 +25,7 @@ export interface RoCrateWorkspaceResource {
 export interface IncludeResourcesResult {
   /**
    * Whether `appState.roCrate` was available and processed.
-   * `false` means only ignored.txt state was updated.
+   * `false` means only ignored-rule app state was updated.
    */
   metadataLoaded: boolean
   /**
@@ -45,7 +45,7 @@ export interface IncludeResourcesResult {
 export interface OmitResourcesResult {
   /**
    * Whether `appState.roCrate` was available and processed.
-   * `false` means only ignored.txt state was updated.
+   * `false` means only ignored-rule app state was updated.
    */
   metadataLoaded: boolean
   /**
@@ -74,7 +74,7 @@ export interface SyncIgnoredDescriptionsResult {
 }
 
 /**
- * Shared, path-based include/omit operations for RO-Crate metadata + ignored.txt.
+ * Shared, path-based include/omit operations for RO-Crate metadata + ignored rules.
  *
  * This service is intended for reuse from multiple frontend components.
  * It updates ignored rules through {@link RoCrateIgnoredFilesService} and,
@@ -99,7 +99,8 @@ export class RoCrateDescriptionOperationsService {
 
   /**
    * Includes resources back into RO-Crate:
-   * 1. Removes omit effect for selected resources in ignored.txt (via include/negation semantics)
+   * 1. Removes omit effect for selected resources from ignored-rule app state
+   *    (via include/negation semantics)
    * 2. Recreates missing `Dataset`/`File` entities
    * 3. Rebuilds missing `hasPart` links
    *
@@ -282,7 +283,7 @@ export class RoCrateDescriptionOperationsService {
 
   /**
    * Omits resources from RO-Crate scope:
-   * 1. Marks resources omitted in ignored.txt
+   * 1. Marks resources omitted in ignored-rule app state
    * 2. Removes paired RO-Crate entities (`File`/`Dataset`) from `@graph`
    */
   async omitResources(

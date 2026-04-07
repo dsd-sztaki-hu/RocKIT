@@ -7,6 +7,7 @@ import {
   MenuModelRegistry,
   MessageService,
 } from '@theia/core/lib/common'
+import URI from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
@@ -17,6 +18,16 @@ import { SaveableService } from '@theia/core/lib/browser/saveable-service'
 
 // Make sure this string matches exactly what is defined in your EditorWidget
 const RO_CRATE_EDITOR_ID = 'rocrate-editor-widget'; 
+
+const AROMA_IGNORE_DIR = '.aroma'
+const AROMA_IGNORE_FILE = 'ignored.txt'
+const DEFAULT_IGNORED_ENTRIES = [
+  'ro-crate-preview.html',
+  'ro-crate-metadata.json',
+  'AGENTS.md',
+  'CLAUDE.md',
+  '.aroma/',
+] as const
 
 export const SaveRoCrateCommand: Command = {
   id: 'ro-crate.save',
@@ -110,24 +121,97 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
     const previewUri = rootUri.resolve('ro-crate-preview.html')
 
     const crateData = this.appStateService.roCrate
+    const ignoredEntries = this.appStateService.ignoreList
 
     try {
-      await this.fileService.create(metadataUri, JSON.stringify(crateData, null, 2), {
-        overwrite: true,
-      })
+      if (crateData) {
+        await this.fileService.create(metadataUri, JSON.stringify(crateData, null, 2), {
+          overwrite: true,
+        })
 
-      const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
+        const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
 
-      await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+        await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+      }
 
-      await this.messageService.info('RO-Crate and HTML preview file saved!', {
-        timeout: 3000,
-      })
-      this.appStateService.setRoCrateSnapshot(crateData)
-      this.appStateService.dirty = false
+      if (Array.isArray(ignoredEntries)) {
+        await this.persistIgnoredEntries(rootUri, ignoredEntries)
+      }
+
+      if (crateData && Array.isArray(ignoredEntries)) {
+        await this.messageService.info('RO-Crate, HTML preview, and ignored rules saved!', {
+          timeout: 3000,
+        })
+      } else if (crateData) {
+        await this.messageService.info('RO-Crate and HTML preview file saved!', {
+          timeout: 3000,
+        })
+      } else if (Array.isArray(ignoredEntries)) {
+        await this.messageService.info('Ignored rules saved!', {
+          timeout: 3000,
+        })
+      }
+
+      if (crateData) {
+        this.appStateService.setRoCrateSnapshot(crateData)
+        this.appStateService.dirty = false
+      }
     } catch (error) {
       await this.messageService.error(`Save failed: ${error}`)
     }
+  }
+
+  protected async persistIgnoredEntries(rootUri: URI, entries: readonly string[]): Promise<void> {
+    const normalized = this.withDefaultIgnoredEntries(entries)
+    const aromaUri = rootUri.resolve(AROMA_IGNORE_DIR)
+    if (!(await this.fileService.exists(aromaUri))) {
+      await this.fileService.createFolder(aromaUri)
+    }
+    const ignoredUri = aromaUri.resolve(AROMA_IGNORE_FILE)
+    const payload = normalized.length ? `${normalized.join('\n')}\n` : ''
+    await this.fileService.create(ignoredUri, payload, { overwrite: true })
+    this.appStateService.ignoreList = normalized
+  }
+
+  protected withDefaultIgnoredEntries(entries: readonly string[]): string[] {
+    const normalizedEntries = entries
+      .map((entry) => this.normalizeIgnoredEntry(entry))
+      .filter((entry): entry is string => Boolean(entry))
+
+    const defaults = DEFAULT_IGNORED_ENTRIES.map((entry) =>
+      this.normalizeIgnoredEntry(entry),
+    ).filter((entry): entry is string => Boolean(entry))
+
+    const existingPositive = new Set(
+      normalizedEntries.filter((entry) => !entry.startsWith('!')),
+    )
+    const missingDefaults = defaults.filter((entry) => !existingPositive.has(entry))
+    if (!missingDefaults.length) {
+      return normalizedEntries
+    }
+    return [...missingDefaults, ...normalizedEntries]
+  }
+
+  protected normalizeIgnoredEntry(value: string): string | undefined {
+    const trimmed = (value || '').trim()
+    if (!trimmed || trimmed.startsWith('#')) {
+      return undefined
+    }
+
+    const negated = trimmed.startsWith('!')
+    let normalized = negated ? trimmed.slice(1) : trimmed
+    normalized = normalized.replace(/\\/g, '/')
+    normalized = normalized.replace(/^\.\//, '')
+    normalized = normalized.replace(/^\/+/, '')
+    normalized = normalized.replace(/\/{2,}/g, '/')
+    const isDirectory = normalized.endsWith('/')
+    if (isDirectory) {
+      normalized = normalized.replace(/\/+$/, '')
+    }
+    if (!normalized) {
+      return undefined
+    }
+    return `${negated ? '!' : ''}${normalized}${isDirectory ? '/' : ''}`.toLowerCase()
   }
 
   registerMenus(menus: MenuModelRegistry): void {

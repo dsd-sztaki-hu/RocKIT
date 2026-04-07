@@ -23,6 +23,15 @@ import { RoCrateIdConversionDialog } from './ro-crate-id-conversion-dialog'
 // import { loadInitialCrateAndProfile } from './initial-state-loader'
 
 const REMOTE_RO_CRATE_CONVERSION_COMMAND_ID = 'RemoteRoCrateConversion.command'
+const AROMA_IGNORE_DIR = '.aroma'
+const AROMA_IGNORE_FILE = 'ignored.txt'
+const DEFAULT_IGNORED_ENTRIES = [
+  'ro-crate-preview.html',
+  'ro-crate-metadata.json',
+  'AGENTS.md',
+  'CLAUDE.md',
+  '.aroma/',
+] as const
 
 @injectable()
 export class RoCrateLoaderContribution implements FrontendApplicationContribution {
@@ -122,6 +131,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       // If we previously had roots, then this is a real "workspace closed" case => clear state.
       if (this.hadWorkspaceRoots) {
         this.updateState(undefined, false)
+        this.appStateService.ignoreList = undefined
         await this.refreshProfileList(undefined)
         await this.refreshCompleteProfile(undefined)
       }
@@ -134,6 +144,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
     const rootUri = roots[0].resource
     this.ensureMetadataWatch(rootUri)
+    await this.syncIgnoredEntriesFromWorkspace(rootUri)
 
     try {
       const roCrateUri = rootUri.resolve('ro-crate-metadata.json')
@@ -859,5 +870,66 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
   protected createEmptyProfile(): Record<string, any> {
     return { classes: {}, layouts: [], localisation: {} }
+  }
+
+  protected async syncIgnoredEntriesFromWorkspace(rootUri: URI): Promise<void> {
+    const ignoredUri = rootUri.resolve(AROMA_IGNORE_DIR).resolve(AROMA_IGNORE_FILE)
+    const current = await this.readIgnoredEntries(ignoredUri)
+    const next = this.withDefaultIgnoredEntries(current)
+    this.appStateService.ignoreList = next.length ? next : undefined
+  }
+
+  protected async readIgnoredEntries(ignoreFileUri: URI): Promise<string[]> {
+    try {
+      const content = await this.fileService.read(ignoreFileUri)
+      const text = `${content.value ?? ''}`
+      return text
+        .split(/\r?\n/g)
+        .map((line) => this.normalizeIgnoredEntry(line))
+        .filter((line): line is string => Boolean(line))
+    } catch {
+      return []
+    }
+  }
+
+  protected withDefaultIgnoredEntries(entries: readonly string[]): string[] {
+    const normalizedEntries = entries
+      .map((entry) => this.normalizeIgnoredEntry(entry))
+      .filter((entry): entry is string => Boolean(entry))
+
+    const defaults = DEFAULT_IGNORED_ENTRIES.map((entry) =>
+      this.normalizeIgnoredEntry(entry),
+    ).filter((entry): entry is string => Boolean(entry))
+
+    const existingPositive = new Set(
+      normalizedEntries.filter((entry) => !entry.startsWith('!')),
+    )
+    const missingDefaults = defaults.filter((entry) => !existingPositive.has(entry))
+    if (!missingDefaults.length) {
+      return normalizedEntries
+    }
+    return [...missingDefaults, ...normalizedEntries]
+  }
+
+  protected normalizeIgnoredEntry(value: string): string | undefined {
+    const trimmed = (value || '').trim()
+    if (!trimmed || trimmed.startsWith('#')) {
+      return undefined
+    }
+
+    const negated = trimmed.startsWith('!')
+    let normalized = negated ? trimmed.slice(1) : trimmed
+    normalized = normalized.replace(/\\/g, '/')
+    normalized = normalized.replace(/^\.\//, '')
+    normalized = normalized.replace(/^\/+/, '')
+    normalized = normalized.replace(/\/{2,}/g, '/')
+    const isDirectory = normalized.endsWith('/')
+    if (isDirectory) {
+      normalized = normalized.replace(/\/+$/, '')
+    }
+    if (!normalized) {
+      return undefined
+    }
+    return `${negated ? '!' : ''}${normalized}${isDirectory ? '/' : ''}`.toLowerCase()
   }
 }

@@ -46,7 +46,15 @@ export class AppStateService {
       .getData<AppState>(STORAGE_KEY)
       .then((stored) => {
         if (stored) {
-          const { roCrate, profile, selectedEntityId, schemaSelectorContext, profileList, ...restStored } = stored
+          const {
+            roCrate,
+            ignoreList,
+            profile,
+            selectedEntityId,
+            schemaSelectorContext,
+            profileList,
+            ...restStored
+          } = stored
           this.store.setState({
             ...cloneDefaultAppState(),
             ...(restStored as any), // Only restore other properties
@@ -151,6 +159,15 @@ export class AppStateService {
   }
   set roCrate(value: AppState['roCrate']) {
     this.updateState({ roCrate: value })
+  }
+
+  get ignoreList(): AppState['ignoreList'] {
+    return this.getState().ignoreList
+  }
+  set ignoreList(value: AppState['ignoreList']) {
+    this.updateState({
+      ignoreList: Array.isArray(value) ? [...value] : undefined,
+    })
   }
 
   setRoCrateSnapshot(value: AppState['roCrate']): void {

@@ -530,12 +530,12 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         }
 
         if (!result.metadataLoaded) {
-            this.messageService.info('Included selected file/folder rules in ignored.txt, but RO-Crate metadata is not loaded.');
+            this.messageService.info('Updated include rules in memory. Save to persist changes to .aroma/ignored.txt.');
             return result;
         }
 
         if (result.addedFiles === 0 && result.addedDatasets === 0 && result.linkedReferences === 0) {
-            this.messageService.info('Selected files/folders were included in ignored.txt. RO-Crate descriptions were already up to date.');
+            this.messageService.info('Updated include rules in memory. RO-Crate descriptions were already up to date.');
             return result;
         }
 
@@ -563,17 +563,17 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         }
 
         if (result.pairedDescriptionCount === 0) {
-            this.messageService.info('Marked selected files/folders as omitted in .aroma/ignored.txt.');
+            this.messageService.info('Marked selected files/folders as omitted in memory. Save to persist changes to .aroma/ignored.txt.');
             return result;
         }
 
         if (!result.metadataLoaded) {
-            this.messageService.info('Marked selected files/folders as omitted in .aroma/ignored.txt.');
+            this.messageService.info('Marked selected files/folders as omitted in memory. Save to persist changes to .aroma/ignored.txt.');
             return result;
         }
 
         if (result.removedDescriptionCount === 0) {
-            this.messageService.info('Marked selected files/folders as omitted in .aroma/ignored.txt.');
+            this.messageService.info('Marked selected files/folders as omitted in memory. RO-Crate descriptions were already up to date.');
             return result;
         }
 

@@ -11,6 +11,7 @@ import {
   CommandService,
   MenuModelRegistry,
 } from '@theia/core/lib/common'
+import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
@@ -18,6 +19,16 @@ import { FILE_WORKSPACE } from '@theia/workspace/lib/browser/workspace-frontend-
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-loader'
 import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser';
+
+const AROMA_IGNORE_DIR = '.aroma'
+const AROMA_IGNORE_FILE = 'ignored.txt'
+const DEFAULT_IGNORED_ENTRIES = [
+  'ro-crate-preview.html',
+  'ro-crate-metadata.json',
+  'AGENTS.md',
+  'CLAUDE.md',
+  '.aroma/',
+] as const
 
 @injectable()
 export class ApplicationFileMenuOverrides implements FrontendApplicationContribution {
@@ -156,7 +167,10 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
   }
 
   protected async persistRoCrateToDisk(): Promise<void> {
-    if (!this.appStateService.roCrate) {
+    if (
+      !this.appStateService.roCrate &&
+      !Array.isArray(this.appStateService.ignoreList)
+    ) {
       return
     }
     if (this.persistPromise) {
@@ -174,21 +188,89 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     const crateData = this.appStateService.roCrate
     const roots = this.workspaceService.tryGetRoots()
     const rootUri = roots?.[0]?.resource
-    if (!crateData || !rootUri) {
+    if (!rootUri) {
       return
     }
-    const metadataUri = rootUri.resolve('ro-crate-metadata.json')
-    const previewUri = rootUri.resolve('ro-crate-preview.html')
-    try {
-      await this.fileService.create(metadataUri, JSON.stringify(crateData, null, 2), {
-        overwrite: true,
-      })
-      const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
-      await this.fileService.create(previewUri, htmlContent, { overwrite: true })
-      this.appStateService.setRoCrateSnapshot(crateData)
-      this.appStateService.dirty = false
-    } catch (error) {
-      console.error('Failed to persist RO-Crate metadata:', error)
+
+    if (crateData) {
+      const metadataUri = rootUri.resolve('ro-crate-metadata.json')
+      const previewUri = rootUri.resolve('ro-crate-preview.html')
+      try {
+        await this.fileService.create(metadataUri, JSON.stringify(crateData, null, 2), {
+          overwrite: true,
+        })
+        const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
+        await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+        this.appStateService.setRoCrateSnapshot(crateData)
+        this.appStateService.dirty = false
+      } catch (error) {
+        console.error('Failed to persist RO-Crate metadata:', error)
+      }
     }
+
+    try {
+      await this.persistIgnoredEntries(rootUri)
+    } catch (error) {
+      console.error('Failed to persist ignored entries:', error)
+    }
+  }
+
+  protected async persistIgnoredEntries(rootUri: URI): Promise<void> {
+    const entries = this.appStateService.ignoreList
+    if (!Array.isArray(entries)) {
+      return
+    }
+
+    const normalized = this.withDefaultIgnoredEntries(entries)
+    const aromaUri = rootUri.resolve(AROMA_IGNORE_DIR)
+    if (!(await this.fileService.exists(aromaUri))) {
+      await this.fileService.createFolder(aromaUri)
+    }
+
+    const ignoredUri = aromaUri.resolve(AROMA_IGNORE_FILE)
+    const payload = normalized.length ? `${normalized.join('\n')}\n` : ''
+    await this.fileService.create(ignoredUri, payload, { overwrite: true })
+    this.appStateService.ignoreList = normalized
+  }
+
+  protected withDefaultIgnoredEntries(entries: readonly string[]): string[] {
+    const normalizedEntries = entries
+      .map((entry) => this.normalizeIgnoredEntry(entry))
+      .filter((entry): entry is string => Boolean(entry))
+
+    const defaults = DEFAULT_IGNORED_ENTRIES.map((entry) =>
+      this.normalizeIgnoredEntry(entry),
+    ).filter((entry): entry is string => Boolean(entry))
+
+    const existingPositive = new Set(
+      normalizedEntries.filter((entry) => !entry.startsWith('!')),
+    )
+    const missingDefaults = defaults.filter((entry) => !existingPositive.has(entry))
+    if (!missingDefaults.length) {
+      return normalizedEntries
+    }
+    return [...missingDefaults, ...normalizedEntries]
+  }
+
+  protected normalizeIgnoredEntry(value: string): string | undefined {
+    const trimmed = (value || '').trim()
+    if (!trimmed || trimmed.startsWith('#')) {
+      return undefined
+    }
+
+    const negated = trimmed.startsWith('!')
+    let normalized = negated ? trimmed.slice(1) : trimmed
+    normalized = normalized.replace(/\\/g, '/')
+    normalized = normalized.replace(/^\.\//, '')
+    normalized = normalized.replace(/^\/+/, '')
+    normalized = normalized.replace(/\/{2,}/g, '/')
+    const isDirectory = normalized.endsWith('/')
+    if (isDirectory) {
+      normalized = normalized.replace(/\/+$/, '')
+    }
+    if (!normalized) {
+      return undefined
+    }
+    return `${negated ? '!' : ''}${normalized}${isDirectory ? '/' : ''}`.toLowerCase()
   }
 }
