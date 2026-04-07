@@ -171,6 +171,7 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
     const payload = normalized.length ? `${normalized.join('\n')}\n` : ''
     await this.fileService.create(ignoredUri, payload, { overwrite: true })
     this.appStateService.ignoreList = normalized
+    this.appStateService.setIgnoreListSnapshot(normalized)
   }
 
   protected withDefaultIgnoredEntries(entries: readonly string[]): string[] {

@@ -20,6 +20,7 @@ export class AppStateService {
   // Default state values
   private readonly store = new SimpleStateStore<AppState>(cloneDefaultAppState())
   private roCrateSnapshot?: string
+  private ignoreListSnapshot?: string
 
   private readonly persistIntervalMs = 5000
   private lastPersistAt = 0
@@ -192,6 +193,32 @@ export class AppStateService {
       return this.roCrateSnapshot !== current
     } catch (error) {
       console.warn('Failed to compare RO-Crate snapshot:', error)
+      return true
+    }
+  }
+
+  setIgnoreListSnapshot(value: AppState['ignoreList']): void {
+    if (!Array.isArray(value)) {
+      this.ignoreListSnapshot = undefined
+      return
+    }
+    try {
+      this.ignoreListSnapshot = JSON.stringify([...value])
+    } catch (error) {
+      console.warn('Failed to snapshot ignore list:', error)
+      this.ignoreListSnapshot = undefined
+    }
+  }
+
+  isIgnoreListDirty(value: AppState['ignoreList']): boolean {
+    if (!Array.isArray(value)) {
+      return this.ignoreListSnapshot !== undefined
+    }
+    try {
+      const current = JSON.stringify([...value])
+      return this.ignoreListSnapshot !== current
+    } catch (error) {
+      console.warn('Failed to compare ignore list snapshot:', error)
       return true
     }
   }

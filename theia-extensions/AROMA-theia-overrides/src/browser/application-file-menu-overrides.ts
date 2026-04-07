@@ -1,7 +1,11 @@
 import {
   CommonCommands,
   CommonMenus,
+  ConfirmSaveDialog,
+  Dialog,
+  FrontendApplication,
   FrontendApplicationContribution,
+  OnWillStopAction,
 } from '@theia/core/lib/browser'
 import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding'
 import { SaveReason } from '@theia/core/lib/browser/saveable'
@@ -18,7 +22,7 @@ import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browse
 import { FILE_WORKSPACE } from '@theia/workspace/lib/browser/workspace-frontend-contribution'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-loader'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser';
+import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 
 const AROMA_IGNORE_DIR = '.aroma'
 const AROMA_IGNORE_FILE = 'ignored.txt'
@@ -29,6 +33,12 @@ const DEFAULT_IGNORED_ENTRIES = [
   'CLAUDE.md',
   '.aroma/',
 ] as const
+
+type UnsavedCloseState = {
+  hasUnsaved: boolean
+  roCrateUnsaved: boolean
+  ignoreListUnsaved: boolean
+}
 
 @injectable()
 export class ApplicationFileMenuOverrides implements FrontendApplicationContribution {
@@ -103,6 +113,19 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
 
       return result
     }) as typeof originalSave
+  }
+
+  onWillStop(_app: FrontendApplication): OnWillStopAction<UnsavedCloseState> | undefined {
+    if (!this.hasPotentialUnsavedChanges()) {
+      return undefined
+    }
+
+    return {
+      reason: 'Unsaved RO-Crate metadata or ignore list changes',
+      priority: 90,
+      prepare: () => this.detectUnsavedStateFromDisk(),
+      action: (prepared) => this.handleUnsavedCloseAction(prepared),
+    }
   }
 
   protected updateWorkspaceLabels(): void {
@@ -184,6 +207,111 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     }
   }
 
+  protected hasPotentialUnsavedChanges(): boolean {
+    const roCrate = this.appStateService.roCrate
+    const roCrateDirty = Boolean(roCrate) && this.appStateService.isRoCrateDirty(roCrate)
+    const ignoreListDirty = this.appStateService.isIgnoreListDirty(this.appStateService.ignoreList)
+    return roCrateDirty || ignoreListDirty
+  }
+
+  protected async detectUnsavedStateFromDisk(): Promise<UnsavedCloseState> {
+    const rootUri = this.workspaceService.tryGetRoots()?.[0]?.resource
+    if (!rootUri) {
+      return { hasUnsaved: false, roCrateUnsaved: false, ignoreListUnsaved: false }
+    }
+
+    const roCrateUnsaved = await this.isRoCrateUnsaved(rootUri)
+    const ignoreListUnsaved = await this.isIgnoreListUnsaved(rootUri)
+    return {
+      hasUnsaved: roCrateUnsaved || ignoreListUnsaved,
+      roCrateUnsaved,
+      ignoreListUnsaved,
+    }
+  }
+
+  protected async handleUnsavedCloseAction(prepared: UnsavedCloseState): Promise<boolean> {
+    if (!prepared.hasUnsaved) {
+      return true
+    }
+
+    const changedFiles: string[] = []
+    if (prepared.roCrateUnsaved) {
+      changedFiles.push('ro-crate-metadata.json')
+    }
+    if (prepared.ignoreListUnsaved) {
+      changedFiles.push('.aroma/ignored.txt')
+    }
+
+    const messageNode = document.createElement('div')
+    const intro = document.createElement('div')
+    intro.textContent = "You have unsaved changes in:"
+    messageNode.appendChild(intro)
+
+    const list = document.createElement('ul')
+    list.style.margin = '8px 0 0 18px'
+    for (const fileName of changedFiles) {
+      const li = document.createElement('li')
+      li.textContent = fileName
+      list.appendChild(li)
+    }
+    messageNode.appendChild(list)
+
+    const result = await new ConfirmSaveDialog({
+      title: 'Save Changes Before Closing?',
+      msg: messageNode,
+      dontSave: "Don't Save",
+      save: 'Save',
+      cancel: Dialog.CANCEL,
+    }).open()
+
+    if (result === true) {
+      await this.persistRoCrateToDisk()
+      const recheck = await this.detectUnsavedStateFromDisk()
+      return !recheck.hasUnsaved
+    }
+
+    if (result === false) {
+      return true
+    }
+
+    return false
+  }
+
+  protected async isRoCrateUnsaved(rootUri: URI): Promise<boolean> {
+    const appCrate = this.appStateService.roCrate
+    const metadataUri = rootUri.resolve('ro-crate-metadata.json')
+    let diskCrate: Record<string, any> | undefined
+
+    if (await this.fileService.exists(metadataUri)) {
+      try {
+        const content = await this.fileService.read(metadataUri)
+        diskCrate = JSON.parse(content.value)
+      } catch {
+        return Boolean(appCrate)
+      }
+    }
+
+    return this.normalizeRoCrate(appCrate) !== this.normalizeRoCrate(diskCrate)
+  }
+
+  protected async isIgnoreListUnsaved(rootUri: URI): Promise<boolean> {
+    const ignoredUri = rootUri.resolve(AROMA_IGNORE_DIR).resolve(AROMA_IGNORE_FILE)
+    const diskEntries = this.withDefaultIgnoredEntries(await this.readIgnoredEntries(ignoredUri))
+    const stateEntries = this.withDefaultIgnoredEntries(this.appStateService.ignoreList ?? [])
+    return !this.sameEntries(stateEntries, diskEntries)
+  }
+
+  protected normalizeRoCrate(value: Record<string, any> | undefined): string | undefined {
+    if (!value) {
+      return undefined
+    }
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return undefined
+    }
+  }
+
   protected async writeRoCrateFiles(): Promise<void> {
     const crateData = this.appStateService.roCrate
     const roots = this.workspaceService.tryGetRoots()
@@ -231,6 +359,20 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     const payload = normalized.length ? `${normalized.join('\n')}\n` : ''
     await this.fileService.create(ignoredUri, payload, { overwrite: true })
     this.appStateService.ignoreList = normalized
+    this.appStateService.setIgnoreListSnapshot(normalized)
+  }
+
+  protected async readIgnoredEntries(ignoreFileUri: URI): Promise<string[]> {
+    try {
+      const content = await this.fileService.read(ignoreFileUri)
+      const text = `${content.value ?? ''}`
+      return text
+        .split(/\r?\n/g)
+        .map((line) => this.normalizeIgnoredEntry(line))
+        .filter((line): line is string => Boolean(line))
+    } catch {
+      return []
+    }
   }
 
   protected withDefaultIgnoredEntries(entries: readonly string[]): string[] {
@@ -272,5 +414,17 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
       return undefined
     }
     return `${negated ? '!' : ''}${normalized}${isDirectory ? '/' : ''}`.toLowerCase()
+  }
+
+  protected sameEntries(a: readonly string[], b: readonly string[]): boolean {
+    if (a.length !== b.length) {
+      return false
+    }
+    for (let index = 0; index < a.length; index += 1) {
+      if (a[index] !== b[index]) {
+        return false
+      }
+    }
+    return true
   }
 }

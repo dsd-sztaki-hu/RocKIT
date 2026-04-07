@@ -132,6 +132,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
       if (this.hadWorkspaceRoots) {
         this.updateState(undefined, false)
         this.appStateService.ignoreList = undefined
+        this.appStateService.setIgnoreListSnapshot(undefined)
         await this.refreshProfileList(undefined)
         await this.refreshCompleteProfile(undefined)
       }
@@ -877,6 +878,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     const current = await this.readIgnoredEntries(ignoredUri)
     const next = this.withDefaultIgnoredEntries(current)
     this.appStateService.ignoreList = next.length ? next : undefined
+    this.appStateService.setIgnoreListSnapshot(next.length ? next : undefined)
   }
 
   protected async readIgnoredEntries(ignoreFileUri: URI): Promise<string[]> {
