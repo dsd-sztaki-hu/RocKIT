@@ -73,6 +73,14 @@ export interface SyncIgnoredDescriptionsResult {
   removedDescriptionCount: number
 }
 
+export interface IgnoredDescriptionConsistencyOptions {
+  /**
+   * Ignore built-in default ignored entries for consistency checks/sync,
+   * except `ro-crate-metadata.json` which remains included.
+   */
+  ignoreDefaultEntries?: boolean
+}
+
 /**
  * Shared, path-based include/omit operations for RO-Crate metadata + ignored rules.
  *
@@ -341,7 +349,24 @@ export class RoCrateDescriptionOperationsService {
    * Intended for external ignored.txt edits (for example from file editor / external tools),
    * so metadata views stay in sync with omit rules.
    */
-  async syncIgnoredDescriptionsFromRules(): Promise<SyncIgnoredDescriptionsResult> {
+  async getIgnoredDescriptionMismatchCount(
+    options?: IgnoredDescriptionConsistencyOptions,
+  ): Promise<number> {
+    const crate = this.appStateService.roCrate
+    if (!crate || !Array.isArray(crate['@graph'])) {
+      return 0
+    }
+
+    const graph = crate['@graph'] as Record<string, any>[]
+    return this.collectIgnoredDescriptionIds(graph, options).size
+  }
+
+  /**
+   * Removes RO-Crate `File`/`Dataset` descriptions that are currently omitted by ignored rules.
+   */
+  async syncIgnoredDescriptionsFromRules(
+    options?: IgnoredDescriptionConsistencyOptions,
+  ): Promise<SyncIgnoredDescriptionsResult> {
     const crate = this.appStateService.roCrate
     if (!crate || !Array.isArray(crate['@graph'])) {
       return {
@@ -352,6 +377,33 @@ export class RoCrateDescriptionOperationsService {
     }
 
     const graph = this.cloneValue(crate['@graph']) as Record<string, any>[]
+    const idsToRemove = this.collectIgnoredDescriptionIds(graph, options)
+
+    const matchedDescriptionCount = idsToRemove.size
+    if (!matchedDescriptionCount) {
+      return {
+        metadataLoaded: true,
+        matchedDescriptionCount: 0,
+        removedDescriptionCount: 0,
+      }
+    }
+
+    const updatedGraph = this.removeEntitiesAndReferences(graph, idsToRemove)
+    const updatedCrate = { ...crate, '@graph': updatedGraph }
+    this.appStateService.roCrate = updatedCrate
+    this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
+
+    return {
+      metadataLoaded: true,
+      matchedDescriptionCount,
+      removedDescriptionCount: matchedDescriptionCount,
+    }
+  }
+
+  protected collectIgnoredDescriptionIds(
+    graph: ReadonlyArray<Record<string, any>>,
+    options?: IgnoredDescriptionConsistencyOptions,
+  ): Set<string> {
     const idsToRemove = new Set<string>()
     for (const entry of graph) {
       if (!entry || typeof entry !== 'object') {
@@ -373,30 +425,49 @@ export class RoCrateDescriptionOperationsService {
       if (!normalizedPath) {
         continue
       }
+      if (
+        options?.ignoreDefaultEntries &&
+        this.isIgnoredDefaultPathExcludedFromConsistency(normalizedPath)
+      ) {
+        continue
+      }
       if (this.roCrateIgnoredFilesService.isIgnoredPath(normalizedPath)) {
         idsToRemove.add(rawId)
       }
     }
+    return idsToRemove
+  }
 
-    const matchedDescriptionCount = idsToRemove.size
-    if (!matchedDescriptionCount) {
-      return {
-        metadataLoaded: true,
-        matchedDescriptionCount: 0,
-        removedDescriptionCount: 0,
+  protected isIgnoredDefaultPathExcludedFromConsistency(relativePath: string): boolean {
+    const normalizedPath = this.normalizeRelativePath(relativePath).toLowerCase()
+    if (!normalizedPath || normalizedPath === 'ro-crate-metadata.json') {
+      return false
+    }
+
+    for (const entry of RoCrateIgnoredFilesService.DEFAULT_IGNORED_ENTRIES) {
+      const trimmed = `${entry || ''}`.trim().toLowerCase()
+      if (!trimmed) {
+        continue
+      }
+      const directoryOnly = trimmed.endsWith('/')
+      let candidate = directoryOnly ? trimmed.slice(0, -1) : trimmed
+      candidate = this.normalizeRelativePath(candidate).toLowerCase()
+      if (!candidate || candidate === 'ro-crate-metadata.json') {
+        continue
+      }
+
+      if (!directoryOnly && normalizedPath === candidate) {
+        return true
+      }
+      if (
+        directoryOnly &&
+        (normalizedPath === candidate || normalizedPath.startsWith(`${candidate}/`))
+      ) {
+        return true
       }
     }
 
-    const updatedGraph = this.removeEntitiesAndReferences(graph, idsToRemove)
-    const updatedCrate = { ...crate, '@graph': updatedGraph }
-    this.appStateService.roCrate = updatedCrate
-    this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
-
-    return {
-      metadataLoaded: true,
-      matchedDescriptionCount,
-      removedDescriptionCount: matchedDescriptionCount,
-    }
+    return false
   }
 
   protected normalizeResources(

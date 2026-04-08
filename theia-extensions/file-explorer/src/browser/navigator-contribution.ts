@@ -71,6 +71,7 @@ import URI from '@theia/core/lib/common/uri';
 import { UriAwareCommandHandler } from '@theia/core/lib/common/uri-command-handler';
 import { FileNavigatorCommands } from './file-navigator-commands';
 import { WorkspacePreferences } from '@theia/workspace/lib/common';
+import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { RoCrateIgnoredFilesService } from './ro-crate-ignored-files-service';
 import {
@@ -148,6 +149,8 @@ export interface RoCrateDescriptionActionOptions {
 @injectable()
 export class FileNavigatorContribution extends AbstractViewContribution<FileNavigatorWidget> implements FrontendApplicationContribution, TabBarToolbarContribution {
     protected syncingIgnoredRulesToMetadata = false;
+    protected startupIgnoredConsistencyCheckRunning = false;
+    protected startupIgnoredConsistencyCheckDone = false;
 
     @inject(ClipboardService)
     protected readonly clipboardService: ClipboardService;
@@ -228,6 +231,10 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
     protected async doInit(): Promise<void> {
         await this.fileNavigatorPreferences.ready;
         await this.roCrateIgnoredFilesService.ensureIgnoreStoreExists();
+        this.appStateService.onDidChangeSelector((state) => state.roCrate)(() => {
+            void this.checkStartupIgnoredConsistency();
+        });
+        void this.checkStartupIgnoredConsistency();
         this.roCrateIgnoredFilesService.onDidChangeIgnoredPaths(() => {
             void this.syncRoCrateDescriptionsFromIgnoredRules();
         });
@@ -243,8 +250,59 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         this.workspaceCommandContribution.onDidCreateNewFile(async event => this.onDidCreateNewResource(event));
         this.workspaceCommandContribution.onDidCreateNewFolder(async event => this.onDidCreateNewResource(event));
         this.workspaceService.onWorkspaceChanged(() => {
+            this.startupIgnoredConsistencyCheckDone = false;
             void this.roCrateIgnoredFilesService.ensureIgnoreStoreExists();
+            void this.checkStartupIgnoredConsistency();
         });
+    }
+
+    protected async checkStartupIgnoredConsistency(): Promise<void> {
+        if (this.startupIgnoredConsistencyCheckDone || this.startupIgnoredConsistencyCheckRunning) {
+            return;
+        }
+
+        const crate = this.appStateService.roCrate;
+        if (!crate || !Array.isArray(crate['@graph'])) {
+            return;
+        }
+
+        this.startupIgnoredConsistencyCheckRunning = true;
+        try {
+            const mismatchCount = await this.roCrateDescriptionOperationsService.getIgnoredDescriptionMismatchCount({
+                ignoreDefaultEntries: true,
+            });
+            if (mismatchCount === 0) {
+                this.startupIgnoredConsistencyCheckDone = true;
+                return;
+            }
+
+            const itemLabel = mismatchCount === 1
+                ? '1 RO-Crate description'
+                : `${mismatchCount} RO-Crate descriptions`;
+            const apply = await new ConfirmDialog({
+                title: 'Apply ignore list changes to RO-Crate?',
+                msg: `Found ${itemLabel} that conflict with ignore rules. Apply ignore rules to RO-Crate now?`,
+                ok: 'Apply Changes',
+                cancel: 'Keep Current',
+            }).open();
+
+            if (apply) {
+                const result = await this.roCrateDescriptionOperationsService.syncIgnoredDescriptionsFromRules({
+                    ignoreDefaultEntries: true,
+                });
+                if (result.removedDescriptionCount > 0) {
+                    this.messageService.info(
+                        result.removedDescriptionCount === 1
+                            ? 'Applied ignore rules and removed 1 RO-Crate description.'
+                            : `Applied ignore rules and removed ${result.removedDescriptionCount} RO-Crate descriptions.`,
+                    );
+                }
+            }
+
+            this.startupIgnoredConsistencyCheckDone = true;
+        } finally {
+            this.startupIgnoredConsistencyCheckRunning = false;
+        }
     }
 
     protected async syncRoCrateDescriptionsFromIgnoredRules(): Promise<void> {
