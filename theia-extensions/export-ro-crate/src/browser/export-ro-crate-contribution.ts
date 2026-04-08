@@ -17,6 +17,7 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { FileDownloadService } from '@theia/filesystem/lib/common/download/file-download'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { minimatch, MinimatchOptions } from 'minimatch'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { ExportRoCrateDialog, ExportRoCrateMode } from './export-ro-crate-dialog'
 
 export const ExportRoCrateCommand: Command = {
@@ -61,6 +62,9 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
 
   @inject(FileDialogService)
   protected readonly fileDialogService!: FileDialogService
+
+  @inject(AppStateService)
+  protected readonly appStateService!: AppStateService
 
   registerCommands(registry: CommandRegistry): void {
     registry.registerCommand(ExportRoCrateCommand, {
@@ -205,11 +209,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
   protected async createIgnoreMatcher(
     rootUri: URI,
   ): Promise<(relativePath: string, isDirectory: boolean) => boolean> {
-    const ignoredUri = rootUri
-      .resolve(ExportRoCrateCommandContribution.IGNORE_DIR)
-      .resolve(ExportRoCrateCommandContribution.IGNORE_FILE)
-    const diskEntries = await this.readIgnoreEntries(ignoredUri)
-    const entries = this.withDefaultIgnoreEntries(diskEntries)
+    const entries = await this.getEffectiveIgnoreEntries(rootUri)
     const rules = this.toIgnoreRules(entries)
 
     return (relativePath: string, _isDirectory: boolean): boolean => {
@@ -219,6 +219,19 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
       }
       return this.isIgnoredByRules(rules, normalized)
     }
+  }
+
+  protected async getEffectiveIgnoreEntries(rootUri: URI): Promise<string[]> {
+    const stateEntries = this.appStateService.ignoreList
+    if (Array.isArray(stateEntries) && stateEntries.length >= 0) {
+      return this.withDefaultIgnoreEntries(stateEntries)
+    }
+
+    const ignoredUri = rootUri
+      .resolve(ExportRoCrateCommandContribution.IGNORE_DIR)
+      .resolve(ExportRoCrateCommandContribution.IGNORE_FILE)
+    const diskEntries = await this.readIgnoreEntries(ignoredUri)
+    return this.withDefaultIgnoreEntries(diskEntries)
   }
 
   protected async readIgnoreEntries(ignoreFileUri: URI): Promise<string[]> {
@@ -401,11 +414,13 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     zip.file('ro-crate-metadata.json', metadataContent.value.buffer)
 
     await this.addOptionalFileToZip(zip, rootUri, 'ro-crate-preview.html')
+    const shouldOmit = await this.createIgnoreMatcher(rootUri)
 
     // Collect all workspace files referenced by @graph entity name
     const files = await this.collectWorkspaceFilesFromGraphByName(
       crate['@graph'],
       rootUri,
+      shouldOmit,
     )
 
     for (const file of files) {
@@ -458,6 +473,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
   protected async collectWorkspaceFilesFromGraphByName(
     graph: any,
     rootUri: URI,
+    shouldOmit: (relativePath: string, isDirectory: boolean) => boolean,
   ): Promise<Array<{ uri: URI; relativePath: string }>> {
     if (!Array.isArray(graph)) {
       return []
@@ -491,6 +507,12 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
       const dir = directoryLabel || inferredDir || ''
 
       const relativePath = this.joinPosix(dir, fileName) // e.g. "elsokonyvtar/jargon.html" or "keyboard-interface.html"
+      if (
+        shouldOmit(relativePath, false) &&
+        !this.isForcedNormalExportFile(relativePath)
+      ) {
+        continue
+      }
       const resolvedUri = rootUri.resolve(relativePath)
 
       // Ensure it exists and is a file

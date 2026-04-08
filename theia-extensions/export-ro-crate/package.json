@@ -11,7 +11,8 @@
   "dependencies": {
     "@theia/core": "1.65.2",
     "jszip": "^3.10.1",
-    "minimatch": "^10.0.3"
+    "minimatch": "^10.0.3",
+    "app-state": "0.0.1"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
