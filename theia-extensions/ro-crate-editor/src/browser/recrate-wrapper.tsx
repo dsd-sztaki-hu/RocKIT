@@ -2,6 +2,7 @@ import { DescriboCrateBuilder } from '@arpproject/recrate'
 import * as React from 'react'
 
 import '../../src/browser/style/recrate-scoped.css'
+import '../../src/browser/style/recrate-dark-overrides.css'
 
 export const DescriboCrateBuilderWrapper = ({
   crate,
