@@ -1,14 +1,17 @@
 import { injectable } from '@theia/core/shared/inversify'
+import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser';
+type Entity = Record<string, any>
 
 @injectable()
 export class RoCrateHtmlGeneratorImpl implements RoCrateHtmlGenerator {
   public generate(crate: any): string {
-    const entities = crate['@graph'] || []
-    const mainEntity = entities.find(
-      (e: any) => e['@id'] === './' || e['@id'] === 'ro-crate-metadata.json',
-    )
+    const entities: Entity[] = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+    const entityById = this.buildEntityIndex(entities)
+    const inboundRefs = this.buildInboundReferenceIndex(entities, entityById)
+
+    const mainEntity = entityById.get('./') ?? entityById.get('ro-crate-metadata.json')
+    const title = this.escapeHtml(String(mainEntity?.name ?? 'RO-Crate Preview'))
 
     return `
 <!DOCTYPE html>
@@ -39,22 +42,24 @@ export class RoCrateHtmlGeneratorImpl implements RoCrateHtmlGenerator {
 <body>
     <div class="header">
         <div class="container">
-            <h1>${mainEntity?.name || 'RO-Crate Preview'}</h1>
-            <a href="ro-crate-metadata.json" class="id-link">💾 Download metadata in JSON-LD format</a>
+            <h1>${title}</h1>
+            <a href="ro-crate-metadata.json" class="id-link">Download metadata in JSON-LD format</a>
         </div>
     </div>
 
     <div class="container">
-        ${entities.map((entity: any) => this.renderEntity(entity, entities)).join('')}
+        ${entities.map((entity) => this.renderEntity(entity, entityById, inboundRefs)).join('')}
     </div>
 
     <script>
         function navigate() {
             const hash = window.location.hash || '#./';
             const id = decodeURIComponent(hash.substring(1));
-            
-            document.querySelectorAll('.entity-section').forEach(s => s.classList.remove('active'));
-            
+
+            document.querySelectorAll('.entity-section').forEach(function(section) {
+                section.classList.remove('active');
+            });
+
             const safeId = 'entity-' + btoa(id).replace(/=/g, '').replace(/\\+/g, '-').replace(/\\//g, '_');
             const target = document.getElementById(safeId);
             if (target) {
@@ -69,91 +74,207 @@ export class RoCrateHtmlGeneratorImpl implements RoCrateHtmlGenerator {
 </html>`
   }
 
-  private renderEntity(entity: any, allEntities: any[]): string {
-    const id = entity['@id']
-    const safeId =
-      'entity-' + btoa(id).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  private buildEntityIndex(entities: Entity[]): Map<string, Entity> {
+    const byId = new Map<string, Entity>()
+    for (const entity of entities) {
+      const id = typeof entity?.['@id'] === 'string' ? entity['@id'] : ''
+      if (!id) {
+        continue
+      }
+      byId.set(id, entity)
+    }
+    return byId
+  }
+
+  private buildInboundReferenceIndex(
+    entities: Entity[],
+    entityById: Map<string, Entity>,
+  ): Map<string, Set<string>> {
+    const inbound = new Map<string, Set<string>>()
+
+    const addRef = (sourceId: string, targetId: string): void => {
+      if (!targetId || sourceId === targetId || !entityById.has(targetId)) {
+        return
+      }
+      let sources = inbound.get(targetId)
+      if (!sources) {
+        sources = new Set<string>()
+        inbound.set(targetId, sources)
+      }
+      sources.add(sourceId)
+    }
+
+    const visit = (value: unknown, sourceId: string): void => {
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          visit(item, sourceId)
+        }
+        return
+      }
+
+      if (value && typeof value === 'object') {
+        const objectValue = value as Record<string, unknown>
+        const objectId = typeof objectValue['@id'] === 'string' ? objectValue['@id'] : ''
+        if (objectId) {
+          addRef(sourceId, objectId)
+        }
+        for (const nested of Object.values(objectValue)) {
+          visit(nested, sourceId)
+        }
+        return
+      }
+
+      if (typeof value === 'string') {
+        addRef(sourceId, value)
+      }
+    }
+
+    for (const entity of entities) {
+      const sourceId = typeof entity?.['@id'] === 'string' ? entity['@id'] : ''
+      if (!sourceId) {
+        continue
+      }
+      visit(entity, sourceId)
+    }
+
+    return inbound
+  }
+
+  private renderEntity(
+    entity: Entity,
+    entityById: Map<string, Entity>,
+    inboundRefs: Map<string, Set<string>>,
+  ): string {
+    const id = typeof entity?.['@id'] === 'string' ? entity['@id'] : ''
+    const safeId = `entity-${this.toHashSafeId(id)}`
+    const title = this.escapeHtml(String(entity?.name ?? id))
     const keys = Object.keys(entity).filter((k) => k !== '@id')
 
     return `
         <div class="entity-section" id="${safeId}">
-            <div class="breadcrumb" onclick="window.location.hash='#./'">← Back to Home</div>
-            <h2>${entity.name || id}</h2>
+            <div class="breadcrumb" onclick="window.location.hash='#./'">&lt;- Back to Home</div>
+            <h2>${title}</h2>
             <table>
                 <tr>
                     <th>@id</th>
-                    <td><a class="id-link" href="${id}" target="_blank">${id}</a></td>
+                    <td>${this.renderIdCell(id, entityById)}</td>
                 </tr>
                 ${keys
                   .map(
                     (key) => `
                     <tr>
-                        <th>${key}</th>
-                        <td>${this.renderValue(entity[key], allEntities)}</td>
+                        <th>${this.escapeHtml(key)}</th>
+                        <td>${this.renderValue(entity[key], entityById)}</td>
                     </tr>
                 `,
                   )
                   .join('')}
             </table>
-            ${this.renderReferences(id, allEntities)}
+            ${this.renderReferences(id, inboundRefs, entityById)}
         </div>`
   }
 
-  private renderValue(value: any, allEntities: any[]): string {
+  private renderIdCell(id: string, entityById: Map<string, Entity>): string {
+    if (!id) {
+      return ''
+    }
+    if (/^https?:\/\//.test(id)) {
+      return this.createResolvableLink(id, entityById)
+    }
+    const escaped = this.escapeHtml(id)
+    return `<a class="id-link" href="${escaped}" target="_blank" rel="noopener">${escaped}</a>`
+  }
+
+  private renderValue(value: unknown, entityById: Map<string, Entity>): string {
     if (Array.isArray(value)) {
-      return `<ul>${value.map((v) => `<li>${this.renderValue(v, allEntities)}</li>`).join('')}</ul>`
+      return `<ul>${value.map((item) => `<li>${this.renderValue(item, entityById)}</li>`).join('')}</ul>`
     }
 
-    if (value && typeof value === 'object' && value['@id']) {
-      return this.createResolvableLink(value['@id'], allEntities)
-    }
-
-    if (typeof value === 'string' && /^https?:\/\//.test(value)) {
-      return this.createResolvableLink(value, allEntities)
-    }
-
-    return value
-  }
-
-  private createResolvableLink(id: string, allEntities: any[]): string {
-    const targetEntity = allEntities.find((e) => e['@id'] === id)
-    const displayName = targetEntity?.name || id
-
-    const isExternal = /^https?:\/\//.test(id)
-
-    if (isExternal) {
-      if (targetEntity) {
-        return `<a class="id-link" href="#${id}">${displayName}</a>`
-      } else {
-        return `<a class="id-link" href="${id}" target="_blank" rel="noopener">${displayName}</a>`
+    if (value && typeof value === 'object') {
+      const objectValue = value as Record<string, unknown>
+      const objectId = typeof objectValue['@id'] === 'string' ? objectValue['@id'] : ''
+      if (objectId) {
+        return this.createResolvableLink(objectId, entityById)
       }
+      return this.escapeHtml(JSON.stringify(objectValue))
     }
 
-    return `<a class="id-link" href="#${id}">${displayName}</a>`
+    if (typeof value === 'string') {
+      if (/^https?:\/\//.test(value) || entityById.has(value)) {
+        return this.createResolvableLink(value, entityById)
+      }
+      return this.escapeHtml(value)
+    }
+
+    if (value === undefined || value === null) {
+      return ''
+    }
+
+    return this.escapeHtml(String(value))
   }
 
-  private renderReferences(currentId: string, allEntities: any[]): string {
-    const refs = allEntities.filter(
-      (e) => JSON.stringify(e).includes(`"@id":"${currentId}"`) && e['@id'] !== currentId,
-    )
+  private createResolvableLink(id: string, entityById: Map<string, Entity>): string {
+    const targetEntity = entityById.get(id)
+    const displayName = this.escapeHtml(String(targetEntity?.name ?? id))
+    const encodedId = encodeURIComponent(id)
 
-    if (refs.length === 0) return ''
+    if (/^https?:\/\//.test(id) && !targetEntity) {
+      const escapedUrl = this.escapeHtml(id)
+      return `<a class="id-link" href="${escapedUrl}" target="_blank" rel="noopener">${displayName}</a>`
+    }
+
+    return `<a class="id-link" href="#${encodedId}">${displayName}</a>`
+  }
+
+  private renderReferences(
+    currentId: string,
+    inboundRefs: Map<string, Set<string>>,
+    entityById: Map<string, Entity>,
+  ): string {
+    const sourceIds = inboundRefs.get(currentId)
+    if (!sourceIds || sourceIds.size === 0) {
+      return ''
+    }
+
+    const rows: string[] = []
+    for (const sourceId of sourceIds) {
+      const sourceEntity = entityById.get(sourceId)
+      if (!sourceEntity) {
+        continue
+      }
+      const type = this.escapeHtml(String(sourceEntity['@type'] ?? 'Entity'))
+      const label = this.escapeHtml(String(sourceEntity.name ?? sourceId))
+      rows.push(`
+                    <tr>
+                        <th>${type}</th>
+                        <td><a class="id-link" href="#${encodeURIComponent(sourceId)}">${label}</a></td>
+                    </tr>
+                `)
+    }
+
+    if (rows.length === 0) {
+      return ''
+    }
 
     return `
         <div class="reference-section">
             <div class="reference-header">Items that reference this one</div>
             <table>
-                ${refs
-                  .map(
-                    (r) => `
-                    <tr>
-                        <th>${r['@type'] || 'Entity'}</th>
-                        <td><a class="id-link" href="#${r['@id']}">${r.name || r['@id']}</a></td>
-                    </tr>
-                `,
-                  )
-                  .join('')}
+                ${rows.join('')}
             </table>
         </div>`
+  }
+
+  private toHashSafeId(id: string): string {
+    return btoa(id).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
   }
 }

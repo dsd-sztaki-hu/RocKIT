@@ -108,18 +108,14 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
     const rootUri = roots[0].resource
     const metadataUri = rootUri.resolve('ro-crate-metadata.json')
     const previewUri = rootUri.resolve('ro-crate-preview.html')
-
     const crateData = this.appStateService.roCrate
 
     try {
       await this.fileService.create(metadataUri, JSON.stringify(crateData, null, 2), {
         overwrite: true,
       })
-
       const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
-
       await this.fileService.create(previewUri, htmlContent, { overwrite: true })
-
       await this.messageService.info('RO-Crate and HTML preview file saved!', {
         timeout: 3000,
       })
