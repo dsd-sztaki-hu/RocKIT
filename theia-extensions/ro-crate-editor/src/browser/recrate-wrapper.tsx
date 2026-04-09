@@ -1,6 +1,7 @@
 import { DescriboCrateBuilder } from '@arpproject/recrate'
 import * as React from 'react'
-import 'allotment/dist/style.css'
+
+import '../../src/browser/style/recrate-scoped.css'
 
 export const DescriboCrateBuilderWrapper = ({
   crate,
@@ -26,50 +27,9 @@ export const DescriboCrateBuilderWrapper = ({
   )
   const [loading, setLoading] = React.useState<boolean>(false)
   const lastNavTarget = React.useRef<string | undefined>(undefined)
-  // const prevEntityIdRef = React.useRef<string | undefined>(undefined)
   const transitionTimeoutRef = React.useRef<any>(null)
   const containerRef = React.useRef<HTMLDivElement>(null)
 
-  /*React.useEffect(() => {
-    if (prevEntityIdRef.current !== currentEntityId) {
-      console.log('entityId transition', {
-        prev: prevEntityIdRef.current,
-        next: currentEntityId,
-      })
-      prevEntityIdRef.current = currentEntityId
-    }
-  }, [currentEntityId])*/
-
-  /*React.useEffect(() => {
-        if (loading) {
-            if (entityId && entityId === lastNavTarget.current) {
-                console.log("navigation settled", { expected: lastNavTarget.current, actual: entityId });
-                setCurrentEntityId(entityId);
-                setLoading(false);
-                lastNavTarget.current = undefined;
-                if (transitionTimeoutRef.current) {
-                    clearTimeout(transitionTimeoutRef.current);
-                    transitionTimeoutRef.current = null;
-                }
-            } else if (entityId && lastNavTarget.current && entityId !== lastNavTarget.current) {
-                console.warn("mismatch during navigation", { expected: lastNavTarget.current, actual: entityId });
-            }
-        } else {
-            if (entityId !== currentEntityId) {
-                setCurrentEntityId(entityId);
-            }
-        }
-    }, [entityId, loading]);*/
-
-  /*React.useEffect(() => {
-    return () => {
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current)
-        transitionTimeoutRef.current = null
-      }
-      lastNavTarget.current = undefined
-    }
-  }, [])*/
   React.useEffect(() => {
     if (loading) {
       if (entityId && entityId === lastNavTarget.current) {
@@ -81,12 +41,11 @@ export const DescriboCrateBuilderWrapper = ({
           transitionTimeoutRef.current = null
         }
       }
-    } else {
-      if (entityId !== currentEntityId) {
-        setCurrentEntityId(entityId)
-      }
+    } else if (entityId !== currentEntityId) {
+      setCurrentEntityId(entityId)
     }
   }, [entityId, loading, currentEntityId])
+
   React.useEffect(() => {
     requestAnimationFrame(() => {
       containerRef.current?.scrollTo({ top: 0, behavior: 'auto' })
@@ -101,8 +60,9 @@ export const DescriboCrateBuilderWrapper = ({
     (entity: any) => {
       const nextId = entity && entity['@id']
       console.log('navigation', { entity })
-      if (!nextId) return
-      if (nextId === currentEntityId) return
+      if (!nextId || nextId === currentEntityId) {
+        return
+      }
       lastNavTarget.current = nextId
       setLoading(true)
       setCurrentEntityId(nextId)
@@ -136,7 +96,7 @@ export const DescriboCrateBuilderWrapper = ({
 
   console.log('DescriboCrateBuilderWrapper', { crate, profile, entityId })
   return (
-    <div ref={containerRef}>
+    <div ref={containerRef} className="recrate-scope">
       {loading && (
         <div style={{ padding: '0.5rem', color: '#888' }}>Loading entity...</div>
       )}
