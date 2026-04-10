@@ -80,10 +80,10 @@
     resize-observer-polyfill "^1.5.1"
     throttle-debounce "^5.0.0"
 
-"@arpproject/recrate@0.1.14":
-  version "0.1.14"
-  resolved "https://registry.yarnpkg.com/@arpproject/recrate/-/recrate-0.1.14.tgz#d8f84941f8400cc7b7b2fe384da0bbc5966db214"
-  integrity sha512-QPVXn/FUT344QbOMJeUHiOzBWRGPgH7D3adUcJIvK1T6UKntBeVbWagH6PX0C3rUVd4dCIHgdM4WhVzNmi55vw==
+"@arpproject/recrate@0.1.17":
+  version "0.1.17"
+  resolved "https://registry.yarnpkg.com/@arpproject/recrate/-/recrate-0.1.17.tgz#00149965eacda5c650e7d7871940377eea9683e6"
+  integrity sha512-LKxcFv2zwB0agzy8RTtCcP3KNeTWOWsfhEPbq/05sI71dX/Vjn3OQcjUqiA0GYBCRm2iBLQ2Dy+e9FU83+MF6A==
   dependencies:
     "@codemirror/lang-javascript" "^6.2.3"
     "@codemirror/state" "^6.5.2"
