@@ -18,6 +18,7 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import { MetadataSchemaManager } from 'aroma2-common/lib/browser'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
@@ -60,6 +61,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
     @inject(TreeModel) public override readonly model: EntitiesOverviewModel,
     @inject(ContextMenuRenderer) contextMenuRenderer: ContextMenuRenderer,
     @inject(AppStateService) private readonly appStateService: AppStateService,
+    @inject(RoCrateHistoryService)
+    private readonly roCrateHistoryService: RoCrateHistoryService,
     @inject(MetadataSchemaManager)
     private readonly schemaManagerService: MetadataSchemaManager,
     @inject(WidgetManager) private readonly widgetManager: WidgetManager,
@@ -776,6 +779,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
       entityIds,
       this.appStateService,
       this.schemaManagerService,
+      this.roCrateHistoryService,
     )
     await dialog.open()
   }
