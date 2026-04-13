@@ -41,7 +41,7 @@
     "electron": "37.2.1",
     "react-grab": "^0.0.53",
     "allotment": "^1.20.5",
-    "@arpproject/recrate": "0.1.19"
+    "@arpproject/recrate": "0.1.21"
   },
   "scripts": {
     "bundle": "yarn run rebuild && theia build --mode development",
