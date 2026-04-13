@@ -42,6 +42,14 @@ interface OperationRow {
   value: string
 }
 
+interface PreparedOperation {
+  operation: OperationRow
+  rowIndex: number
+  field?: FieldDefinition
+  parsedValue?: unknown
+  schemaUrl?: string
+}
+
 interface EntitySummary {
   id: string
   name: string
@@ -166,6 +174,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   protected schemaOptions: SchemaOption[] = []
   protected selectedSchemaIds = new Set<string>()
   protected schemaUrlsById = new Map<string, string>()
+  protected schemaConformsLookupCache?: Map<string, string>
 
   protected schemaOrgEnabled = false
   protected schemaOrgProperties: SchemaOrgProperty[] = []
@@ -271,12 +280,20 @@ export class MultiEditDialog extends ReactDialog<string> {
     const graph = Array.isArray(crate['@graph'])
       ? (crate['@graph'] as Record<string, any>[])
       : []
+    const entitiesById = new Map<string, Record<string, any>>()
+    for (const entry of graph) {
+      if (!entry || typeof entry !== 'object') {
+        continue
+      }
+      const id = typeof entry['@id'] === 'string' ? entry['@id'] : ''
+      if (!id || entitiesById.has(id)) {
+        continue
+      }
+      entitiesById.set(id, entry)
+    }
     const result: EntitySummary[] = []
     for (const entityId of this.entityIds) {
-      const entity = graph.find(
-        (entry) =>
-          entry && typeof entry === 'object' && String(entry['@id']) === entityId,
-      )
+      const entity = entitiesById.get(entityId)
       if (!entity) {
         result.push({ id: entityId, name: entityId, type: 'Unknown' })
         continue
@@ -1789,6 +1806,16 @@ export class MultiEditDialog extends ReactDialog<string> {
     return `{${content}}`
   }
 
+  protected cloneEntityForMutation(entity: Record<string, any>): Record<string, any> {
+    const cloneFn: ((value: Record<string, any>) => Record<string, any>) | undefined = (
+      globalThis as any
+    ).structuredClone
+    if (typeof cloneFn === 'function') {
+      return cloneFn(entity)
+    }
+    return JSON.parse(JSON.stringify(entity))
+  }
+
   /**
    * Executes schema attachment and value updates for all selected entities.
    * @returns Promise resolved when execution summary is updated.
@@ -1830,35 +1857,52 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
 
     const selectedEntitySet = new Set(this.entityIds)
-    const graph = JSON.parse(JSON.stringify(currentCrate['@graph'])) as Record<
-      string,
-      any
-    >[]
-    const conformsLookup = await this.buildSchemaConformsLookup()
-
-    const resolvedValues = new Map<string, unknown>()
-    for (const operation of this.operations) {
-      if (operation.operator === 'unset') {
+    const sourceGraph = currentCrate['@graph'] as Record<string, any>[]
+    const graph = [...sourceGraph]
+    const indexByEntityId = new Map<string, number>()
+    for (let index = 0; index < sourceGraph.length; index += 1) {
+      const entity = sourceGraph[index]
+      const id = entity && typeof entity === 'object' ? String(entity['@id'] ?? '') : ''
+      if (!id || indexByEntityId.has(id)) {
         continue
       }
+      indexByEntityId.set(id, index)
+    }
+
+    const conformsLookup = await this.buildSchemaConformsLookup()
+
+    const preparedOperations: PreparedOperation[] = []
+    for (let rowIndex = 0; rowIndex < this.operations.length; rowIndex += 1) {
+      const operation = this.operations[rowIndex]
       const field = operation.fieldKey
         ? this.fieldsByKey.get(operation.fieldKey)
         : undefined
+      const prepared: PreparedOperation = {
+        operation,
+        rowIndex,
+        field,
+      }
+
       if (!field) {
+        preparedOperations.push(prepared)
         continue
       }
-      const rawValue = operation.value.trim()
-      if (rawValue.length === 0) {
-        continue
+
+      if (operation.operator === 'set' || operation.operator === 'add') {
+        prepared.schemaUrl = this.resolveConformsToUrl(field, conformsLookup)
       }
-      if (field.valueKind === 'entity') {
-        const resolved = this.resolveEntityValues(field, rawValue, graph)
-        if (resolved) {
-          resolvedValues.set(operation.id, resolved)
+
+      if (operation.operator !== 'unset') {
+        const rawValue = operation.value.trim()
+        if (rawValue.length > 0) {
+          prepared.parsedValue =
+            field.valueKind === 'entity'
+              ? this.resolveEntityValues(field, rawValue, graph)
+              : this.parseValue(field, rawValue)
         }
-        continue
       }
-      resolvedValues.set(operation.id, this.parseValue(field, rawValue))
+
+      preparedOperations.push(prepared)
     }
 
     let processedEntities = 0
@@ -1868,21 +1912,24 @@ export class MultiEditDialog extends ReactDialog<string> {
     const errors: string[] = []
 
     for (const entityId of selectedEntitySet) {
-      const index = graph.findIndex((entry) => String(entry?.['@id']) === entityId)
-      if (index < 0) {
+      const index = indexByEntityId.get(entityId)
+      if (index === undefined) {
         errors.push(`Entity not found: ${entityId}`)
         continue
       }
 
-      const entity = graph[index]
+      const sourceEntity = graph[index]
+      if (!sourceEntity || typeof sourceEntity !== 'object') {
+        errors.push(`Entity not found: ${entityId}`)
+        continue
+      }
+
+      let entity = sourceEntity
       let changed = false
       processedEntities += 1
 
-      for (let opIndex = 0; opIndex < this.operations.length; opIndex += 1) {
-        const operation = this.operations[opIndex]
-        const field = operation.fieldKey
-          ? this.fieldsByKey.get(operation.fieldKey)
-          : undefined
+      for (const prepared of preparedOperations) {
+        const { operation, field, schemaUrl } = prepared
         if (!field) {
           continue
         }
@@ -1892,18 +1939,17 @@ export class MultiEditDialog extends ReactDialog<string> {
         if (operation.operator !== 'set' && operation.operator !== 'add') {
           continue
         }
-        const schemaUrl = this.resolveConformsToUrl(field, conformsLookup)
+        if (entity === sourceEntity) {
+          entity = this.cloneEntityForMutation(sourceEntity)
+        }
         const schemaAdded = this.ensureSchemaAssociation(entity, schemaUrl)
         if (schemaAdded) {
           changed = true
         }
       }
 
-      for (let opIndex = 0; opIndex < this.operations.length; opIndex += 1) {
-        const operation = this.operations[opIndex]
-        const field = operation.fieldKey
-          ? this.fieldsByKey.get(operation.fieldKey)
-          : undefined
+      for (const prepared of preparedOperations) {
+        const { operation, field, rowIndex } = prepared
 
         if (!field) {
           skippedOperations += 1
@@ -1916,8 +1962,10 @@ export class MultiEditDialog extends ReactDialog<string> {
         }
 
         try {
-          const parsedValue =
-            operation.operator === 'unset' ? undefined : resolvedValues.get(operation.id)
+          if (entity === sourceEntity) {
+            entity = this.cloneEntityForMutation(sourceEntity)
+          }
+          const parsedValue = operation.operator === 'unset' ? undefined : prepared.parsedValue
           const changedByOperation = this.executeOperationOnEntity(
             entity,
             field,
@@ -1933,7 +1981,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Unknown execution error.'
-          errors.push(`Entity ${entityId}, row ${opIndex + 1}: ${message}`)
+          errors.push(`Entity ${entityId}, row ${rowIndex + 1}: ${message}`)
         }
       }
 
@@ -2133,6 +2181,10 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected async buildSchemaConformsLookup(): Promise<Map<string, string>> {
+    if (this.schemaConformsLookupCache) {
+      return this.schemaConformsLookupCache
+    }
+
     const lookup = new Map<string, string>()
     if (!this.schemaManagerService) {
       return lookup
@@ -2161,6 +2213,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         lookup.set(`name:${key}`, conformsTo)
       }
     }
+    this.schemaConformsLookupCache = lookup
     return lookup
   }
 
