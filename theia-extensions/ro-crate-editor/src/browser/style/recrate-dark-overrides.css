@@ -337,6 +337,7 @@
   --recrate-border: var(--theia-ui-border, rgba(127, 127, 127, 0.42));
   --recrate-text: var(--theia-ui-font-color1, #d4d4d4);
   --recrate-muted: var(--theia-ui-font-color2, #a6a6a6);
+  z-index: 5000 !important;
 }
 
 .theia-dark
@@ -357,6 +358,45 @@
   .ant-drawer-body {
   background-color: transparent !important;
   border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-header {
+  min-height: 56px !important;
+  padding: 14px 18px !important;
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-header-title {
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-title
+  .ant-typography {
+  margin: 0 !important;
+  line-height: 1.3 !important;
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-close {
+  align-items: center !important;
+  display: inline-flex !important;
+  height: 32px !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  min-width: 32px !important;
+  padding: 0 !important;
+  width: 32px !important;
 }
 
 .theia-dark
@@ -443,4 +483,24 @@
   .ant-drawer-content-wrapper[style*='width: 600px']
   .border-gray-700 {
   border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+body.theia-dark:has(
+    .ant-drawer.ant-drawer-open.ant-drawer-left
+      .ant-drawer-content-wrapper[style*='width: 600px']
+  )
+  .theia-sidepanel-toolbar
+  .lm-TabBar-toolbar
+  .item
+  > [id='navigator.toggle.search'],
+body.theia-dark:has(
+    .ant-drawer.ant-drawer-open.ant-drawer-left
+      .ant-drawer-content-wrapper[style*='width: 600px']
+  )
+  .theia-sidepanel-toolbar
+  .lm-TabBar-toolbar
+  .item
+  > [id='navigator.collapse.all'] {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
