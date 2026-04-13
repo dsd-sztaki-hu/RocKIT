@@ -330,3 +330,117 @@
 .theia-dark .rocrate-editor .recrate-scope .active\:bg-blue-400:active {
   background-color: var(--recrate-panel-2) !important;
 }
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px'] {
+  --recrate-border: var(--theia-ui-border, rgba(127, 127, 127, 0.42));
+  --recrate-text: var(--theia-ui-font-color1, #d4d4d4);
+  --recrate-muted: var(--theia-ui-font-color2, #a6a6a6);
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content {
+  background-color: var(--theia-editor-background, #1e1e1e) !important;
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-header,
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-body {
+  background-color: transparent !important;
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-title,
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-close,
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-typography,
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .text-black {
+  color: var(--recrate-text) !important;
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-typography.ant-typography-secondary {
+  color: var(--recrate-muted) !important;
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-input,
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  input:not([type='checkbox']):not([type='radio']) {
+  background-color: var(--theia-input-background, #1f1f1f) !important;
+  color: var(--recrate-text) !important;
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-input::placeholder,
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  input:not([type='checkbox']):not([type='radio'])::placeholder {
+  color: var(--theia-ui-font-color2, #b8b8b8) !important;
+  opacity: 1 !important;
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-btn {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+  color: var(--recrate-text) !important;
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-btn.ant-btn-primary {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .cursor-pointer:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .border-b,
+.theia-dark
+  .ant-drawer.ant-drawer-left
+  .ant-drawer-content-wrapper[style*='width: 600px']
+  .border-gray-700 {
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+}
