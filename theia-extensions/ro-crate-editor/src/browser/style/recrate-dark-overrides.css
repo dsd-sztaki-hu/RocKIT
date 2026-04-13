@@ -204,6 +204,24 @@
   color: var(--recrate-text) !important;
 }
 
+.theia-dark .rocrate-editor .recrate-scope .ant-btn[aria-label='Remove profile'],
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn[aria-label='Remove profile']:hover,
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn[aria-label='Remove profile']:focus,
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn[aria-label='Remove profile']:active {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
 .theia-dark .rocrate-editor .recrate-scope button:hover:not(:disabled),
 .theia-dark .rocrate-editor .recrate-scope .ant-btn:hover:not(:disabled) {
   background-color: #333b47 !important;
