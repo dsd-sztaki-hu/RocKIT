@@ -77,6 +77,12 @@ interface SchemaMeta {
   selectable: boolean
 }
 
+interface RuleEvaluationCache {
+  normalizedQueries: string[]
+  dateQueryDayKeys?: number[]
+  nestedFieldsByKey?: Map<string, AdvancedFieldDefinition>
+}
+
 const OPERATORS_WITHOUT_VALUE = new Set<AdvancedRuleOperator>(['is_null', 'is_not_null'])
 const MULTI_VALUE_PREFIX = '__advanced_multi__:'
 const DATE_ORDER_OPERATORS = new Set<AdvancedRuleOperator>([
@@ -254,9 +260,10 @@ export function buildAdvancedEntityMatcher(
     return undefined
   }
 
+  const selectedSchemaIds = new Set(sanitized.selectedSchemaIds)
   const activeFieldsByKey = new Map(
     catalog.fields
-      .filter((field) => sanitized.selectedSchemaIds.includes(field.schemaId))
+      .filter((field) => selectedSchemaIds.has(field.schemaId))
       .map((field) => [field.key, field] as const),
   )
 
@@ -270,8 +277,13 @@ export function buildAdvancedEntityMatcher(
       entityById.set(id, graphEntity)
     }
   }
+  const { cache: ruleCache } = buildRuleEvaluationCache(
+    sanitized.root,
+    activeFieldsByKey,
+  )
 
-  return (entity) => evaluateGroup(entity, sanitized.root, activeFieldsByKey, entityById)
+  return (entity) =>
+    evaluateGroup(entity, sanitized.root, activeFieldsByKey, entityById, ruleCache)
 }
 
 /**
@@ -289,10 +301,11 @@ function sanitizeState(
   if (selectedSchemaIds.length === 0) {
     return undefined
   }
+  const selectedSchemaSet = new Set(selectedSchemaIds)
 
   const allowedFieldIds = new Set(
     catalog.fields
-      .filter((field) => selectedSchemaIds.includes(field.schemaId))
+      .filter((field) => selectedSchemaSet.has(field.schemaId))
       .map((field) => field.key),
   )
   if (allowedFieldIds.size === 0) {
@@ -420,19 +433,39 @@ function evaluateGroup(
   group: AdvancedFilterGroupNode,
   fieldsByKey: Map<string, AdvancedFieldDefinition>,
   entityById: Map<string, Record<string, unknown>>,
+  ruleCache: WeakMap<AdvancedFilterRuleNode, RuleEvaluationCache>,
 ): boolean {
   if (group.children.length === 0) {
     return true
   }
-  const results = group.children.map((child) => {
-    if (child.kind === 'group') {
-      return evaluateGroup(entity, child, fieldsByKey, entityById)
-    }
-    return evaluateRule(entity, child, fieldsByKey, entityById)
-  })
 
-  const value =
-    group.combinator === 'or' ? results.some(Boolean) : results.every(Boolean)
+  let value: boolean
+  if (group.combinator === 'or') {
+    value = false
+    for (const child of group.children) {
+      const matches =
+        child.kind === 'group'
+          ? evaluateGroup(entity, child, fieldsByKey, entityById, ruleCache)
+          : evaluateRule(entity, child, fieldsByKey, entityById, ruleCache)
+      if (matches) {
+        value = true
+        break
+      }
+    }
+  } else {
+    value = true
+    for (const child of group.children) {
+      const matches =
+        child.kind === 'group'
+          ? evaluateGroup(entity, child, fieldsByKey, entityById, ruleCache)
+          : evaluateRule(entity, child, fieldsByKey, entityById, ruleCache)
+      if (!matches) {
+        value = false
+        break
+      }
+    }
+  }
+
   return group.not ? !value : value
 }
 
@@ -445,6 +478,7 @@ function evaluateRule(
   rule: AdvancedFilterRuleNode,
   fieldsByKey: Map<string, AdvancedFieldDefinition>,
   entityById: Map<string, Record<string, unknown>>,
+  ruleCache: WeakMap<AdvancedFilterRuleNode, RuleEvaluationCache>,
 ): boolean {
   if (!rule.fieldKey) {
     return false
@@ -457,35 +491,43 @@ function evaluateRule(
     if (!rule.fieldsRoot || field.objectSubfields.length === 0) {
       return false
     }
-    const nestedFieldsByKey = new Map(
-      field.objectSubfields.map((subfield) => [subfield.key, subfield] as const),
-    )
+    const cached = ruleCache.get(rule)
+    const nestedFieldsByKey =
+      cached?.nestedFieldsByKey ??
+      new Map(field.objectSubfields.map((subfield) => [subfield.key, subfield] as const))
     const objectEntities = resolveObjectEntities(entity[field.propertyName], entityById)
     if (objectEntities.length === 0) {
       return false
     }
-    const results = objectEntities.map((item) =>
-      evaluateGroup(item, rule.fieldsRoot!, nestedFieldsByKey, entityById),
-    )
-    return results.some(Boolean)
+    for (const item of objectEntities) {
+      if (evaluateGroup(item, rule.fieldsRoot, nestedFieldsByKey, entityById, ruleCache)) {
+        return true
+      }
+    }
+    return false
   }
 
   const values = getComparableValues(entity, field)
   const hasValue = values.length > 0
-  if (field.valueKind === 'date' && isDateComparableOperator(rule.operator)) {
-    return evaluateDateRule(values, rule.operator, rule.value)
+  if (rule.operator === 'is_null') {
+    return !hasValue
   }
+  if (rule.operator === 'is_not_null') {
+    return hasValue
+  }
+
+  const cached = ruleCache.get(rule)
+  if (field.valueKind === 'date' && isDateComparableOperator(rule.operator)) {
+    return evaluateDateRule(values, rule.operator, cached?.dateQueryDayKeys)
+  }
+
   const normalizedValues = values.map((value) => value.toLocaleLowerCase())
-  const queries = decodeAdvancedRuleValues(rule.value).map((value) =>
-    value.toLocaleLowerCase(),
-  )
+  const queries =
+    cached?.normalizedQueries ??
+    decodeAdvancedRuleValues(rule.value).map((value) => value.toLocaleLowerCase())
   const query = queries[0] ?? ''
 
   switch (rule.operator) {
-    case 'is_null':
-      return !hasValue
-    case 'is_not_null':
-      return hasValue
     case 'equal':
       if (field.expectsObjectValue) {
         return hasExactValueSetMatch(normalizedValues, queries)
@@ -537,20 +579,12 @@ function evaluateDateRule(
     AdvancedRuleOperator,
     'equal' | 'not_equal' | 'lt' | 'lte' | 'gt' | 'gte' | 'between' | 'not_between'
   >,
-  rawValue: string,
+  queryDayKeys: number[] | undefined,
 ): boolean {
   const dateValues = values
     .map((value) => toDateDayKey(value))
     .filter((value): value is number => value !== undefined)
-  const queryDates = decodeAdvancedRuleValues(rawValue)
-    .map((value) => toDateDayKey(value))
-    .filter((value): value is number => value !== undefined)
-  const normalizedQueryDates =
-    queryDates.length >= 2
-      ? queryDates
-      : decodeDateQueryValues(rawValue)
-    .map((value) => toDateDayKey(value))
-    .filter((value): value is number => value !== undefined)
+  const normalizedQueryDates = queryDayKeys ?? []
   const queryDate = normalizedQueryDates[0]
 
   switch (operator) {
@@ -1017,6 +1051,19 @@ function decodeDateQueryValues(rawValue: string): string[] {
   return decoded
 }
 
+function decodeDateQueryDayKeys(rawValue: string): number[] {
+  const queryDates = decodeAdvancedRuleValues(rawValue)
+    .map((value) => toDateDayKey(value))
+    .filter((value): value is number => value !== undefined)
+  const normalizedQueryDates =
+    queryDates.length >= 2
+      ? queryDates
+      : decodeDateQueryValues(rawValue)
+          .map((value) => toDateDayKey(value))
+          .filter((value): value is number => value !== undefined)
+  return normalizedQueryDates
+}
+
 function toDateDayKey(rawValue: string): number | undefined {
   const value = String(rawValue ?? '').trim()
   if (!value) {
@@ -1080,6 +1127,49 @@ function stableStringify(value: unknown): string {
     (key) => `${JSON.stringify(key)}:${stableStringify(objectValue[key])}`,
   )
   return `{${entries.join(',')}}`
+}
+
+function buildRuleEvaluationCache(
+  group: AdvancedFilterGroupNode,
+  fieldsByKey: Map<string, AdvancedFieldDefinition>,
+  cache: WeakMap<AdvancedFilterRuleNode, RuleEvaluationCache> = new WeakMap(),
+): { cache: WeakMap<AdvancedFilterRuleNode, RuleEvaluationCache>; ruleCount: number } {
+  let ruleCount = 0
+  for (const child of group.children) {
+    if (child.kind === 'group') {
+      const nested = buildRuleEvaluationCache(child, fieldsByKey, cache)
+      ruleCount += nested.ruleCount
+      continue
+    }
+
+    const field = child.fieldKey ? fieldsByKey.get(child.fieldKey) : undefined
+    const decodedValues = decodeAdvancedRuleValues(child.value)
+    const entry: RuleEvaluationCache = {
+      normalizedQueries: decodedValues.map((value) =>
+        value.toLocaleLowerCase(),
+      ),
+    }
+
+    if (field?.valueKind === 'date' && isDateComparableOperator(child.operator)) {
+      entry.dateQueryDayKeys = decodeDateQueryDayKeys(child.value)
+    }
+
+    if (child.operator === 'fields' && field && field.objectSubfields.length > 0) {
+      const nestedFieldsByKey = new Map(
+        field.objectSubfields.map((subfield) => [subfield.key, subfield] as const),
+      )
+      entry.nestedFieldsByKey = nestedFieldsByKey
+      if (child.fieldsRoot) {
+        const nested = buildRuleEvaluationCache(child.fieldsRoot, nestedFieldsByKey, cache)
+        ruleCount += nested.ruleCount
+      }
+    }
+
+    cache.set(child, entry)
+    ruleCount += 1
+  }
+
+  return { cache, ruleCount }
 }
 
 function cloneGroup(group: AdvancedFilterGroupNode): AdvancedFilterGroupNode {

@@ -429,6 +429,12 @@ body.vs .entities-overview-type-select .ant-select-selection-item-remove {
   outline: none;
 }
 
+.lm-TabBar-toolbar .item.toggled:has(> [id="entities-overview:toggle-filters"]) {
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
 .lm-TabBar-toolbar .item > [id="entities-overview:toggle-filters"]:hover,
 .lm-TabBar-toolbar .item > [id="entities-overview:collapse-all"]:hover {
   background-color: var(--theia-toolbar-hoverBackground) !important;
