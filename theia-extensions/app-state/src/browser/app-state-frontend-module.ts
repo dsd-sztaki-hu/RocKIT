@@ -5,12 +5,16 @@ import { ContainerModule } from 'inversify'
 import { AppStatePanelContribution } from './app-state-panel-contribution'
 import { AppStatePanelWidget } from './app-state-panel-widget'
 import { AppStateService } from './state/app-state-service'
-import {RoCrateLoaderContribution} from "./state/ro-crate-loader";
+import { RoCrateLoaderContribution } from './state/ro-crate-loader'
+import { RoCrateHistoryService } from './state/ro-crate-history-service'
+import { RoCrateUndoRedoCommandContribution } from './state/ro-crate-undo-redo-command-contribution'
 import { bindAppStatePreferences } from '../common/app-state-preferences'
 
 export default new ContainerModule((bind) => {
   // Global app state service
   bind(AppStateService).toSelf().inSingletonScope()
+  bind(RoCrateHistoryService).toSelf().inSingletonScope()
+  bind(RoCrateUndoRedoCommandContribution).toSelf().inSingletonScope()
   bindAppStatePreferences(bind)
 
   // AppState Panel widget
@@ -26,7 +30,8 @@ export default new ContainerModule((bind) => {
   bind(AppStatePanelContribution).toSelf().inSingletonScope()
   bind(RoCrateLoaderContribution).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).to(AppStatePanelContribution)
-  bind(FrontendApplicationContribution).toService(RoCrateLoaderContribution);
+  bind(FrontendApplicationContribution).toService(RoCrateLoaderContribution)
   bind(CommandContribution).to(AppStatePanelContribution)
+  bind(CommandContribution).toService(RoCrateUndoRedoCommandContribution)
   bind(MenuContribution).to(AppStatePanelContribution)
 })

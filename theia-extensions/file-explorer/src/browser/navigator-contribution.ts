@@ -30,6 +30,7 @@ import {
     OpenWithService
 } from '@theia/core/lib/browser';
 import { FileDownloadCommands } from '@theia/filesystem/lib/browser/download/file-download-command-contribution';
+import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import {
     CommandRegistry,
     isOSX,
@@ -46,6 +47,7 @@ import {
     WorkspaceCommands,
     WorkspaceService
 } from '@theia/workspace/lib/browser';
+import { FileSearchService } from '@theia/file-search/lib/common/file-search-service';
 import { EXPLORER_VIEW_CONTAINER_ID, EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS } from './navigator-widget-factory';
 import { FILE_NAVIGATOR_ID, FileNavigatorWidget } from './navigator-widget';
 import { FileNavigatorPreferences } from '../common/navigator-preferences';
@@ -59,15 +61,25 @@ import {
 } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { FileSystemCommands } from '@theia/filesystem/lib/browser/filesystem-frontend-contribution';
 import { NavigatorDiff, NavigatorDiffCommands } from './navigator-diff';
-import { DirNode, FileNode } from '@theia/filesystem/lib/browser';
+import { DirNode, FileNode, FileStatNode } from '@theia/filesystem/lib/browser';
 import { FileNavigatorModel } from './navigator-model';
 import { ClipboardService } from '@theia/core/lib/browser/clipboard-service';
 import { SelectionService } from '@theia/core/lib/common/selection-service';
 import { nls } from '@theia/core/lib/common/nls';
+import { MessageService } from '@theia/core/lib/common/message-service';
 import URI from '@theia/core/lib/common/uri';
 import { UriAwareCommandHandler } from '@theia/core/lib/common/uri-command-handler';
 import { FileNavigatorCommands } from './file-navigator-commands';
 import { WorkspacePreferences } from '@theia/workspace/lib/common';
+import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
+import { RoCrateIgnoredFilesService } from './ro-crate-ignored-files-service';
+import {
+    IncludeResourcesResult,
+    OmitResourcesResult,
+    RoCrateDescriptionOperationsService,
+    RoCrateWorkspaceResource
+} from './ro-crate-description-operations-service';
 export { FileNavigatorCommands };
 
 /**
@@ -112,12 +124,34 @@ export namespace NavigatorContextMenu {
 
     /** @deprecated use the `FileNavigatorCommands.OPEN_WITH` command */
     export const OPEN_WITH = [...NAVIGATION, 'open_with'];
+    export const RO_CRATE_DESCRIPTION = [...NAVIGATOR_CONTEXT_MENU, '6_ro_crate_description'];
 }
 
 export const FILE_NAVIGATOR_TOGGLE_COMMAND_ID = 'fileNavigator:toggle';
 
+export interface RoCrateDescriptionActionResource {
+    path: string;
+    isDirectory: boolean;
+    uri?: URI | string;
+}
+
+export interface RoCrateDescriptionActionOptions {
+    /**
+     * Optional explicit resources.
+     * If omitted, the current file-navigator selection is used.
+     */
+    resources?: ReadonlyArray<RoCrateDescriptionActionResource>;
+    /**
+     * Suppresses toasts and interactive confirmation.
+     */
+    silent?: boolean;
+}
+
 @injectable()
 export class FileNavigatorContribution extends AbstractViewContribution<FileNavigatorWidget> implements FrontendApplicationContribution, TabBarToolbarContribution {
+    protected syncingIgnoredRulesToMetadata = false;
+    protected startupIgnoredConsistencyCheckRunning = false;
+    protected startupIgnoredConsistencyCheckDone = false;
 
     @inject(ClipboardService)
     protected readonly clipboardService: ClipboardService;
@@ -143,11 +177,29 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
     @inject(SelectionService)
     protected readonly selectionService: SelectionService;
 
+    @inject(AppStateService)
+    protected readonly appStateService: AppStateService;
+
+    @inject(MessageService)
+    protected readonly messageService: MessageService;
+
+    @inject(FileService)
+    protected readonly fileService: FileService;
+
+    @inject(RoCrateIgnoredFilesService)
+    protected readonly roCrateIgnoredFilesService: RoCrateIgnoredFilesService;
+
+    @inject(RoCrateDescriptionOperationsService)
+    protected readonly roCrateDescriptionOperationsService: RoCrateDescriptionOperationsService;
+
     @inject(WorkspaceCommandContribution)
     protected readonly workspaceCommandContribution: WorkspaceCommandContribution;
 
     @inject(OpenWithService)
     protected readonly openWithService: OpenWithService;
+
+    @inject(FileSearchService)
+    protected readonly fileSearchService: FileSearchService;
 
     @inject(QuickInputService) @optional()
     protected readonly quickInputService: QuickInputService;
@@ -179,6 +231,14 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
 
     protected async doInit(): Promise<void> {
         await this.fileNavigatorPreferences.ready;
+        await this.roCrateIgnoredFilesService.ensureIgnoreStoreExists();
+        this.appStateService.onDidChangeSelector((state) => state.roCrate)(() => {
+            void this.checkStartupIgnoredConsistency();
+        });
+        void this.checkStartupIgnoredConsistency();
+        this.roCrateIgnoredFilesService.onDidChangeIgnoredPaths(() => {
+            void this.syncRoCrateDescriptionsFromIgnoredRules();
+        });
         this.shell.onDidChangeCurrentWidget(() => this.onCurrentWidgetChangedHandler());
 
         const updateFocusContextKeys = () => {
@@ -190,6 +250,72 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         this.shell.onDidChangeActiveWidget(updateFocusContextKeys);
         this.workspaceCommandContribution.onDidCreateNewFile(async event => this.onDidCreateNewResource(event));
         this.workspaceCommandContribution.onDidCreateNewFolder(async event => this.onDidCreateNewResource(event));
+        this.workspaceService.onWorkspaceChanged(() => {
+            this.startupIgnoredConsistencyCheckDone = false;
+            void this.roCrateIgnoredFilesService.ensureIgnoreStoreExists();
+            void this.checkStartupIgnoredConsistency();
+        });
+    }
+
+    protected async checkStartupIgnoredConsistency(): Promise<void> {
+        if (this.startupIgnoredConsistencyCheckDone || this.startupIgnoredConsistencyCheckRunning) {
+            return;
+        }
+
+        const crate = this.appStateService.roCrate;
+        if (!crate || !Array.isArray(crate['@graph'])) {
+            return;
+        }
+
+        this.startupIgnoredConsistencyCheckRunning = true;
+        try {
+            const mismatchCount = await this.roCrateDescriptionOperationsService.getIgnoredDescriptionMismatchCount({
+                ignoreDefaultEntries: true,
+            });
+            if (mismatchCount === 0) {
+                this.startupIgnoredConsistencyCheckDone = true;
+                return;
+            }
+
+            const itemLabel = mismatchCount === 1
+                ? '1 RO-Crate description'
+                : `${mismatchCount} RO-Crate descriptions`;
+            const apply = await new ConfirmDialog({
+                title: 'Apply ignore list changes to RO-Crate?',
+                msg: `Found ${itemLabel} that conflict with ignore rules. Apply ignore rules to RO-Crate now?`,
+                ok: 'Apply Changes',
+                cancel: 'Keep Current',
+            }).open();
+
+            if (apply) {
+                const result = await this.roCrateDescriptionOperationsService.syncIgnoredDescriptionsFromRules({
+                    ignoreDefaultEntries: true,
+                });
+                if (result.removedDescriptionCount > 0) {
+                    this.messageService.info(
+                        result.removedDescriptionCount === 1
+                            ? 'Applied ignore rules and removed 1 RO-Crate description.'
+                            : `Applied ignore rules and removed ${result.removedDescriptionCount} RO-Crate descriptions.`,
+                    );
+                }
+            }
+
+            this.startupIgnoredConsistencyCheckDone = true;
+        } finally {
+            this.startupIgnoredConsistencyCheckRunning = false;
+        }
+    }
+
+    protected async syncRoCrateDescriptionsFromIgnoredRules(): Promise<void> {
+        if (this.syncingIgnoredRulesToMetadata) {
+            return;
+        }
+        this.syncingIgnoredRulesToMetadata = true;
+        try {
+            await this.roCrateDescriptionOperationsService.syncIgnoredDescriptionsFromRules();
+        } finally {
+            this.syncingIgnoredRulesToMetadata = false;
+        }
     }
 
     private async onDidCreateNewResource(event: DidCreateNewResourceEvent): Promise<void> {
@@ -308,6 +434,16 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             isVisible: uri => this.openWithService.getHandlers(uri).length > 0,
             execute: uri => this.openWithService.openWith(uri)
         }));
+        registry.registerCommand(FileNavigatorCommands.INCLUDE_IN_RO_CRATE_DESCRIPTION, {
+            execute: (options?: RoCrateDescriptionActionOptions) => this.includeSelectedFilesInRoCrateDescription(options),
+            isEnabled: () => this.canIncludeSelectedFiles(),
+            isVisible: () => this.getSelectedFileStatNodes().length > 0,
+        });
+        registry.registerCommand(FileNavigatorCommands.OMIT_FROM_RO_CRATE_DESCRIPTION, {
+            execute: (options?: RoCrateDescriptionActionOptions) => this.omitSelectedFilesFromRoCrateDescription(options),
+            isEnabled: () => this.canOmitSelectedFiles(),
+            isVisible: () => this.getSelectedFileStatNodes().length > 0,
+        });
 
         registry.registerCommand(FileNavigatorCommands.NEW_FILE_TOOLBAR, {
             execute: (...args) => registry.executeCommand(WorkspaceCommands.NEW_FILE.id, ...args),
@@ -323,6 +459,667 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
 
     protected getSelectedFileNodes(): FileNode[] {
         return this.tryGetWidget()?.model.selectedNodes.filter(FileNode.is) || [];
+    }
+
+    protected getSelectedFileStatNodes(): FileStatNode[] {
+        return this.tryGetWidget()?.model.selectedNodes.filter(FileStatNode.is) || [];
+    }
+
+    protected canIncludeSelectedFiles(): boolean {
+        const selectedResources = this.getSelectedWorkspaceResources();
+        if (!selectedResources.length) {
+            return false;
+        }
+        const crate = this.appStateService.roCrate;
+        const graph = crate && Array.isArray(crate['@graph'])
+            ? (crate['@graph'] as Record<string, any>[])
+            : [];
+        const ignoredEntries = [...this.roCrateIgnoredFilesService.getIgnoredPaths()];
+
+        return selectedResources.some(resource => this.canIncludeResource(resource, graph, ignoredEntries));
+    }
+
+    protected canOmitSelectedFiles(): boolean {
+        const selectedResources = this.getSelectedWorkspaceResources();
+        if (!selectedResources.length) {
+            return false;
+        }
+        return selectedResources.some(resource => !this.roCrateIgnoredFilesService.isIgnoredPath(resource.path));
+    }
+
+    protected canIncludeResource(
+        resource: { path: string; isDirectory: boolean; uri: URI },
+        graph: ReadonlyArray<Record<string, any>>,
+        ignoredEntries: readonly string[],
+    ): boolean {
+        const normalizedPath = this.normalizeRelativePath(resource.path).toLowerCase();
+        if (!normalizedPath) {
+            return false;
+        }
+
+        if (!resource.isDirectory) {
+            if (this.roCrateIgnoredFilesService.isIgnoredPath(normalizedPath)) {
+                return true;
+            }
+            return this.findFileEntityMatchesByRelativePath([...graph], normalizedPath).length === 0;
+        }
+
+        if (this.hasIgnoredChildrenInDirectory(normalizedPath, ignoredEntries)) {
+            return true;
+        }
+
+        return this.findDatasetEntityMatchesByRelativePath([...graph], normalizedPath).length === 0;
+    }
+
+    protected hasIgnoredChildrenInDirectory(
+        directoryPath: string,
+        ignoredEntries: readonly string[],
+    ): boolean {
+        const normalizedDirectory = this.normalizeRelativePath(directoryPath).toLowerCase();
+        if (!normalizedDirectory) {
+            return false;
+        }
+
+        if (this.roCrateIgnoredFilesService.isIgnoredPath(normalizedDirectory)) {
+            return true;
+        }
+
+        const directoryPrefix = `${normalizedDirectory}/`;
+        for (const rawEntry of ignoredEntries) {
+            const trimmed = (rawEntry || '').trim();
+            if (!trimmed || trimmed.startsWith('!')) {
+                continue;
+            }
+
+            const directoryOnly = trimmed.endsWith('/');
+            const entryBody = directoryOnly ? trimmed.slice(0, -1) : trimmed;
+            if (!entryBody) {
+                continue;
+            }
+
+            if (!this.hasGlobMagic(entryBody)) {
+                if (
+                    entryBody === normalizedDirectory ||
+                    entryBody.startsWith(directoryPrefix)
+                ) {
+                    return true;
+                }
+                continue;
+            }
+
+            if (!entryBody.includes('/')) {
+                return true;
+            }
+
+            const staticPrefix = entryBody.split(/[*?[\]{}]/, 1)[0];
+            const normalizedPrefix = this.normalizeRelativePath(staticPrefix).toLowerCase();
+            if (!normalizedPrefix) {
+                return true;
+            }
+            if (
+                normalizedPrefix === normalizedDirectory ||
+                normalizedPrefix.startsWith(directoryPrefix) ||
+                normalizedDirectory.startsWith(`${normalizedPrefix}/`)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected hasGlobMagic(value: string): boolean {
+        return /[*?[\]{}]/.test(value);
+    }
+
+    protected async includeSelectedFilesInRoCrateDescription(
+        options?: RoCrateDescriptionActionOptions,
+    ): Promise<IncludeResourcesResult | undefined> {
+        const selectedResources = this.resolveResourcesForRoCrateAction(options);
+        const silent = Boolean(options?.silent);
+        if (!selectedResources.length) {
+            if (!silent) {
+                this.messageService.info('No eligible file or folder selected.');
+            }
+            return undefined;
+        }
+        const result = await this.roCrateDescriptionOperationsService.includeResources(selectedResources);
+        if (silent) {
+            return result;
+        }
+
+        if (!result.metadataLoaded) {
+            this.messageService.info('Updated include rules in memory. Save to persist changes to .aroma/ignored.txt.');
+            return result;
+        }
+
+        if (result.addedFiles === 0 && result.addedDatasets === 0 && result.linkedReferences === 0) {
+            this.messageService.info('Updated include rules in memory. RO-Crate descriptions were already up to date.');
+            return result;
+        }
+
+        const fileLabel = result.addedFiles === 1 ? '1 file' : `${result.addedFiles} files`;
+        const datasetLabel = result.addedDatasets === 1 ? '1 dataset' : `${result.addedDatasets} datasets`;
+        this.messageService.info(`Included ${fileLabel} and ${datasetLabel} in RO-Crate description.`);
+        return result;
+    }
+
+    protected async omitSelectedFilesFromRoCrateDescription(
+        options?: RoCrateDescriptionActionOptions,
+    ): Promise<OmitResourcesResult | undefined> {
+        const selectedResources = this.resolveResourcesForRoCrateAction(options);
+        const silent = Boolean(options?.silent);
+        if (!selectedResources.length) {
+            if (!silent) {
+                this.messageService.info('No eligible file or folder selected.');
+            }
+            return undefined;
+        }
+        const result = await this.roCrateDescriptionOperationsService.omitResources(selectedResources);
+
+        if (silent) {
+            return result;
+        }
+
+        if (result.pairedDescriptionCount === 0) {
+            this.messageService.info('Marked selected files/folders as omitted in memory. Save to persist changes to .aroma/ignored.txt.');
+            return result;
+        }
+
+        if (!result.metadataLoaded) {
+            this.messageService.info('Marked selected files/folders as omitted in memory. Save to persist changes to .aroma/ignored.txt.');
+            return result;
+        }
+
+        if (result.removedDescriptionCount === 0) {
+            this.messageService.info('Marked selected files/folders as omitted in memory. RO-Crate descriptions were already up to date.');
+            return result;
+        }
+
+        this.messageService.info(
+            result.removedDescriptionCount === 1
+                ? 'Omitted 1 file/folder and removed its RO-Crate description.'
+                : `Omitted ${result.removedDescriptionCount} files/folders and removed their RO-Crate descriptions.`,
+        );
+        return result;
+    }
+
+    protected resolveResourcesForRoCrateAction(
+        options?: RoCrateDescriptionActionOptions,
+    ): RoCrateWorkspaceResource[] {
+        const resources = options?.resources;
+        if (!resources || resources.length === 0) {
+            return this.getSelectedWorkspaceResources();
+        }
+
+        const normalizedResources: RoCrateWorkspaceResource[] = [];
+        const seen = new Set<string>();
+        for (const resource of resources) {
+            const normalizedPath = this.normalizeRelativePath(resource.path);
+            if (!normalizedPath || normalizedPath === 'ro-crate-metadata.json') {
+                continue;
+            }
+
+            const key = `${normalizedPath.toLowerCase()}${resource.isDirectory ? '/' : ''}`;
+            if (seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+
+            let uri: URI | undefined;
+            if (resource.uri instanceof URI) {
+                uri = resource.uri;
+            } else if (typeof resource.uri === 'string' && resource.uri.trim().length > 0) {
+                try {
+                    uri = new URI(resource.uri);
+                } catch {
+                    uri = undefined;
+                }
+            }
+
+            normalizedResources.push({
+                path: normalizedPath,
+                isDirectory: resource.isDirectory,
+                uri
+            });
+        }
+
+        return normalizedResources;
+    }
+
+    protected getSelectedWorkspaceResources(): Array<{ path: string; isDirectory: boolean; uri: URI }> {
+        const seen = new Set<string>();
+        const results: Array<{ path: string; isDirectory: boolean; uri: URI }> = [];
+        for (const node of this.getSelectedFileStatNodes()) {
+            const relativePath = this.getWorkspaceRelativePath(node.uri);
+            if (!relativePath) {
+                continue;
+            }
+            const normalized = this.normalizeRelativePath(relativePath);
+            if (!normalized || normalized === 'ro-crate-metadata.json') {
+                continue;
+            }
+            const isDirectory = DirNode.is(node);
+            const key = `${normalized}${isDirectory ? '/' : ''}`;
+            if (seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+            results.push({ path: normalized, isDirectory, uri: node.uri });
+        }
+        return results;
+    }
+
+    protected async collectSelectedInclusionPaths(
+        selectedResources: ReadonlyArray<{ path: string; isDirectory: boolean; uri: URI }>,
+    ): Promise<{ filePaths: Set<string>; directoryPaths: Set<string> }> {
+        const filePaths = new Set<string>();
+        const directoryPaths = new Set<string>();
+
+        for (const selected of selectedResources) {
+            const selectedPath = this.normalizeRelativePath(selected.path);
+            if (!selectedPath) {
+                continue;
+            }
+
+            if (!selected.isDirectory) {
+                filePaths.add(selectedPath);
+                continue;
+            }
+            directoryPaths.add(selectedPath);
+
+            let fileUris: string[] = [];
+            try {
+                fileUris = await this.fileSearchService.find('', {
+                    rootUris: [selected.uri.toString()],
+                });
+            } catch (error) {
+                console.warn('Failed to resolve selected directory files for include operation:', error);
+                continue;
+            }
+
+            for (const fileUri of fileUris) {
+                const relative = this.getWorkspaceRelativePath(new URI(fileUri));
+                if (!relative) {
+                    continue;
+                }
+                const normalized = this.normalizeRelativePath(relative);
+                if (!normalized || normalized === 'ro-crate-metadata.json') {
+                    continue;
+                }
+                filePaths.add(normalized);
+
+                const parentDirectories = this.collectParentDirectories(normalized);
+                for (const directoryPath of parentDirectories) {
+                    if (
+                        directoryPath === selectedPath ||
+                        directoryPath.startsWith(`${selectedPath}/`)
+                    ) {
+                        directoryPaths.add(directoryPath);
+                    }
+                }
+            }
+        }
+
+        return { filePaths, directoryPaths };
+    }
+
+    protected collectParentDirectories(path: string): string[] {
+        const normalized = this.normalizeRelativePath(path);
+        if (!normalized) {
+            return [];
+        }
+        const segments = normalized.split('/').filter(Boolean);
+        if (segments.length < 2) {
+            return [];
+        }
+
+        const directories: string[] = [];
+        for (let index = 1; index < segments.length; index += 1) {
+            directories.push(segments.slice(0, index).join('/'));
+        }
+        return directories;
+    }
+
+    protected countPathSegments(path: string): number {
+        const normalized = this.normalizeRelativePath(path);
+        if (!normalized) {
+            return 0;
+        }
+        return normalized.split('/').filter(Boolean).length;
+    }
+
+    protected resolveInclusionParentContainer(
+        path: string,
+        datasetEntitiesByPath: Map<string, Record<string, any>>,
+        rootEntity: Record<string, any> | undefined,
+    ): Record<string, any> | undefined {
+        const normalizedPath = this.normalizeRelativePath(path);
+        if (!normalizedPath) {
+            return rootEntity;
+        }
+        const parentPath = this.getParentPath(normalizedPath);
+        if (!parentPath) {
+            return rootEntity;
+        }
+
+        const normalizedParentPath = this.normalizeRelativePath(parentPath).toLowerCase();
+        if (!normalizedParentPath) {
+            return rootEntity;
+        }
+        if (this.roCrateIgnoredFilesService.isIgnoredPath(normalizedParentPath)) {
+            return rootEntity;
+        }
+
+        return datasetEntitiesByPath.get(normalizedParentPath) ?? rootEntity;
+    }
+
+    protected getParentPath(path: string): string | undefined {
+        const normalized = this.normalizeRelativePath(path);
+        if (!normalized) {
+            return undefined;
+        }
+        const lastSeparatorIndex = normalized.lastIndexOf('/');
+        if (lastSeparatorIndex === -1) {
+            return undefined;
+        }
+        return normalized.slice(0, lastSeparatorIndex);
+    }
+
+    protected collectEntityIdsForResources(
+        graph: Record<string, any>[],
+        selectedResources: ReadonlyArray<{ path: string; isDirectory: boolean; uri: URI }>,
+    ): Set<string> {
+        const idsToRemove = new Set<string>();
+        const resources = selectedResources.map(resource => ({
+            path: this.normalizeRelativePath(resource.path).toLowerCase(),
+            isDirectory: resource.isDirectory,
+        }));
+
+        for (const entry of graph) {
+            if (!entry || typeof entry !== 'object') {
+                continue;
+            }
+            if (!this.entityHasType(entry, 'File') && !this.entityHasType(entry, 'Dataset')) {
+                continue;
+            }
+            const rawId = typeof entry['@id'] === 'string' ? entry['@id'] : '';
+            if (!rawId) {
+                continue;
+            }
+            const derivedPath = this.deriveRelativePathFromEntityId(rawId);
+            if (!derivedPath) {
+                continue;
+            }
+            const normalizedPath = this.normalizeRelativePath(derivedPath).toLowerCase();
+            if (!normalizedPath) {
+                continue;
+            }
+
+            for (const resource of resources) {
+                if (!resource.path) {
+                    continue;
+                }
+                if (resource.isDirectory) {
+                    if (
+                        normalizedPath === resource.path ||
+                        normalizedPath.startsWith(`${resource.path}/`)
+                    ) {
+                        idsToRemove.add(rawId);
+                        break;
+                    }
+                } else if (normalizedPath === resource.path) {
+                    idsToRemove.add(rawId);
+                    break;
+                }
+            }
+        }
+
+        return idsToRemove;
+    }
+
+    protected getWorkspaceRelativePath(uri: URI): string | undefined {
+        const rootUri = this.workspaceService.getWorkspaceRootUri(uri);
+        if (!rootUri) {
+            return undefined;
+        }
+        const relative = rootUri.relative(uri);
+        if (!relative) {
+            return undefined;
+        }
+        const normalized = this.normalizeRelativePath(relative.toString());
+        return normalized || undefined;
+    }
+
+    protected normalizeRelativePath(path: string): string {
+        let normalized = path.replace(/\\/g, '/').trim();
+        normalized = normalized.replace(/^\.?\//, '');
+        normalized = normalized.replace(/^\/+/, '');
+        normalized = normalized.replace(/\/{2,}/g, '/');
+        while (normalized.endsWith('/') && normalized.length > 1) {
+            normalized = normalized.slice(0, -1);
+        }
+        return normalized;
+    }
+
+    protected findFileEntityMatchesByRelativePath(
+        graph: Record<string, any>[],
+        relativePath: string,
+    ): Array<{ id: string; index: number }> {
+        const target = this.normalizeRelativePath(relativePath).toLowerCase();
+        const matches: Array<{ id: string; index: number }> = [];
+
+        for (let index = 0; index < graph.length; index += 1) {
+            const entry = graph[index];
+            if (!entry || typeof entry !== 'object' || !this.entityHasType(entry, 'File')) {
+                continue;
+            }
+            const rawId = typeof entry['@id'] === 'string' ? entry['@id'] : '';
+            if (!rawId) {
+                continue;
+            }
+            const derivedPath = this.deriveRelativePathFromEntityId(rawId);
+            if (!derivedPath) {
+                continue;
+            }
+            if (derivedPath.toLowerCase() === target) {
+                matches.push({ id: rawId, index });
+            }
+        }
+
+        return matches;
+    }
+
+    protected findDatasetEntityMatchesByRelativePath(
+        graph: Record<string, any>[],
+        relativePath: string,
+    ): Array<{ id: string; index: number }> {
+        const target = this.normalizeRelativePath(relativePath).toLowerCase();
+        const matches: Array<{ id: string; index: number }> = [];
+
+        for (let index = 0; index < graph.length; index += 1) {
+            const entry = graph[index];
+            if (!entry || typeof entry !== 'object' || !this.entityHasType(entry, 'Dataset')) {
+                continue;
+            }
+            const rawId = typeof entry['@id'] === 'string' ? entry['@id'] : '';
+            if (!rawId) {
+                continue;
+            }
+            const derivedPath = this.deriveRelativePathFromEntityId(rawId);
+            if (!derivedPath) {
+                continue;
+            }
+            if (derivedPath.toLowerCase() === target) {
+                matches.push({ id: rawId, index });
+            }
+        }
+
+        return matches;
+    }
+
+    protected deriveRelativePathFromEntityId(entityId: string): string | undefined {
+        let candidate = entityId.trim();
+        if (!candidate) {
+            return undefined;
+        }
+
+        if (candidate.startsWith('file://./')) {
+            candidate = candidate.slice('file://./'.length);
+        } else if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(candidate)) {
+            return undefined;
+        }
+
+        if (candidate.startsWith('./')) {
+            candidate = candidate.slice(2);
+        }
+
+        return this.normalizeRelativePath(candidate) || undefined;
+    }
+
+    protected entityHasType(entity: Record<string, any>, type: string): boolean {
+        const rawType = entity['@type'];
+        if (Array.isArray(rawType)) {
+            return rawType.includes(type);
+        }
+        return rawType === type;
+    }
+
+    protected async buildFileEntity(relativePath: string): Promise<Record<string, any>> {
+        const name = relativePath.split('/').pop() ?? relativePath;
+        const fileEntity: Record<string, any> = {
+            '@id': relativePath,
+            '@type': 'File',
+            name,
+        };
+
+        const roots = this.workspaceService.tryGetRoots();
+        const rootUri = roots && roots.length > 0 ? roots[0].resource : undefined;
+        if (!rootUri) {
+            return fileEntity;
+        }
+
+        try {
+            const fileUri = rootUri.resolve(relativePath);
+            const fileStat = await this.fileService.resolve(fileUri, { resolveMetadata: true });
+            if (!fileStat.isDirectory && typeof fileStat.size === 'number' && fileStat.size >= 0) {
+                fileEntity.contentSize = `${fileStat.size}`;
+            }
+        } catch (error) {
+            console.warn(`Failed to read file size for "${relativePath}" while including into RO-Crate:`, error);
+        }
+
+        return fileEntity;
+    }
+
+    protected buildDatasetEntity(relativePath: string): Record<string, any> {
+        const normalizedPath = this.normalizeRelativePath(relativePath);
+        const name = normalizedPath.split('/').pop() ?? normalizedPath;
+        return {
+            '@id': `${normalizedPath}/`,
+            '@type': 'Dataset',
+            name,
+            hasPart: [],
+        };
+    }
+
+    protected normalizeHasPart(value: unknown): Array<{ '@id': string }> {
+        if (!value) {
+            return [];
+        }
+        const raw = Array.isArray(value) ? value : [value];
+        const normalized: Array<{ '@id': string }> = [];
+        for (const entry of raw) {
+            if (!entry) {
+                continue;
+            }
+            if (typeof entry === 'string') {
+                normalized.push({ '@id': entry });
+                continue;
+            }
+            if (typeof entry === 'object') {
+                const id = (entry as Record<string, any>)['@id'] ?? (entry as Record<string, any>).id;
+                if (typeof id === 'string') {
+                    normalized.push({ '@id': id });
+                }
+            }
+        }
+        return normalized;
+    }
+
+    protected removeEntitiesAndReferences(
+        graph: Record<string, any>[],
+        idsToRemove: Set<string>,
+    ): Record<string, any>[] {
+        const filtered = graph.filter((entry) => {
+            const id = typeof entry?.['@id'] === 'string' ? entry['@id'] : '';
+            return !idsToRemove.has(id);
+        });
+
+        const cleaned: Record<string, any>[] = [];
+        for (const entity of filtered) {
+            const normalized = this.removeReferencesFromValue(entity, idsToRemove);
+            if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
+                cleaned.push(normalized as Record<string, any>);
+            }
+        }
+        return cleaned;
+    }
+
+    protected removeReferencesFromValue(
+        value: unknown,
+        idsToRemove: Set<string>,
+    ): unknown {
+        if (Array.isArray(value)) {
+            const nextArray = value
+                .map(item => this.removeReferencesFromValue(item, idsToRemove))
+                .filter(item => item !== undefined);
+            return nextArray;
+        }
+
+        if (value && typeof value === 'object') {
+            const asObject = value as Record<string, unknown>;
+            const referenceId = this.extractReferenceId(asObject);
+            if (referenceId && idsToRemove.has(referenceId) && this.isReferenceObject(asObject)) {
+                return undefined;
+            }
+
+            const nextObject: Record<string, unknown> = {};
+            for (const [key, child] of Object.entries(asObject)) {
+                const normalized = this.removeReferencesFromValue(child, idsToRemove);
+                if (normalized === undefined) {
+                    continue;
+                }
+                if (Array.isArray(normalized) && normalized.length === 0) {
+                    continue;
+                }
+                nextObject[key] = normalized;
+            }
+            return nextObject;
+        }
+
+        return value;
+    }
+
+    protected extractReferenceId(value: Record<string, unknown>): string | undefined {
+        const idValue = value['@id'] ?? value.id;
+        return typeof idValue === 'string' ? idValue : undefined;
+    }
+
+    protected isReferenceObject(value: Record<string, unknown>): boolean {
+        const keys = Object.keys(value);
+        if (keys.length !== 1) {
+            return false;
+        }
+        return keys[0] === '@id' || keys[0] === 'id';
+    }
+
+    protected cloneValue<T>(value: T): T {
+        try {
+            return JSON.parse(JSON.stringify(value));
+        } catch {
+            return value;
+        }
     }
 
     protected withWidget<T>(widget: Widget | undefined = this.tryGetWidget(), cb: (navigator: FileNavigatorWidget) => T): T | false {
@@ -390,6 +1187,14 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         registry.registerMenuAction(downloadUploadMenu, {
             commandId: FileDownloadCommands.DOWNLOAD.id,
             order: 'b'
+        });
+        registry.registerMenuAction(NavigatorContextMenu.RO_CRATE_DESCRIPTION, {
+            commandId: FileNavigatorCommands.INCLUDE_IN_RO_CRATE_DESCRIPTION.id,
+            order: 'a',
+        });
+        registry.registerMenuAction(NavigatorContextMenu.RO_CRATE_DESCRIPTION, {
+            commandId: FileNavigatorCommands.OMIT_FROM_RO_CRATE_DESCRIPTION.id,
+            order: 'b',
         });
 
         registry.registerMenuAction(NavigatorContextMenu.NAVIGATION, {

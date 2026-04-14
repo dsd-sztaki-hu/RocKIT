@@ -13,6 +13,7 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 
 export const RemoteRoCrateConversionCommand: Command = {
   id: 'RemoteRoCrateConversion.command',
@@ -37,6 +38,9 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
 
   @inject(AppStateService)
   protected readonly appStateService!: AppStateService
+
+  @inject(RoCrateHistoryService)
+  protected readonly roCrateHistoryService!: RoCrateHistoryService
 
   registerCommands(registry: CommandRegistry): void {
     registry.registerCommand(RemoteRoCrateConversionCommand, {
@@ -207,7 +211,9 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
     try {
       const pretty = JSON.stringify(json, null, 2) + '\n'
       await this.fileService.writeFile(metadataUri, BinaryBuffer.fromString(pretty))
-      this.appStateService.roCrate = json
+      this.roCrateHistoryService.applyRoCrateChange(json, {
+        label: 'Convert remote RO-Crate IDs to local IDs',
+      })
       await this.messageService.info(
         `Converted ${changedEntities} entities and updated references. (Datasets kept local @id out of url: ${datasetsSkippedUrlMove})`,
       )
@@ -375,9 +381,10 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
 @injectable()
 export class RemoteRoCrateConversionMenuContribution implements MenuContribution {
   registerMenus(menus: MenuModelRegistry): void {
-    menus.registerMenuAction(CommonMenus.FILE, {
+    menus.registerMenuAction([...CommonMenus.EDIT, '9_remote_ro_crate_conversion'], {
       commandId: RemoteRoCrateConversionCommand.id,
       label: RemoteRoCrateConversionCommand.label,
+      order: 'zzzz',
     })
   }
 }

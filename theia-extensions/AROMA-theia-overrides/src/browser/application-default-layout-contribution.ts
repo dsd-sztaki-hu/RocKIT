@@ -9,6 +9,11 @@ import { RoCrateStructurePanelWidget } from 'ro-crate-structure-panel/lib/browse
 
 @injectable()
 export class RoCrateDefaultLayoutContribution implements FrontendApplicationContribution {
+  protected readonly leftPanelRatio = 0.18
+  protected readonly rightPanelRatio = 0.18
+  protected readonly structurePanelRatio = 18
+  protected readonly editorPanelRatio = 46
+
   @inject(ApplicationShell)
   protected readonly shell: ApplicationShell
 
@@ -43,5 +48,55 @@ export class RoCrateDefaultLayoutContribution implements FrontendApplicationCont
     this.shell.addWidget(entities, { area: 'right' })
     this.shell.rightPanelHandler.expand()
     await this.shell.revealWidget(entities.id)
+
+    await this.shell.pendingUpdates
+    this.applyDefaultColumnRatios(structure.id, editor.id)
+  }
+
+  protected applyDefaultColumnRatios(structureWidgetId: string, editorWidgetId: string): void {
+    const shellWidth = this.shell.node.getBoundingClientRect().width
+    if (shellWidth > 0) {
+      const leftPanelWidth = Math.round(shellWidth * this.leftPanelRatio)
+      const rightPanelWidth = Math.round(shellWidth * this.rightPanelRatio)
+      this.shell.resize(leftPanelWidth, 'left')
+      this.shell.resize(rightPanelWidth, 'right')
+    }
+
+    const mainLayout = this.shell.mainPanel.saveLayout() as any
+    const mainArea = mainLayout.main as any
+    if (!mainArea || mainArea.type !== 'split-area' || mainArea.orientation !== 'horizontal') {
+      return
+    }
+    if (mainArea.children.length !== 2 || mainArea.sizes.length !== 2) {
+      return
+    }
+
+    const [firstChild, secondChild] = mainArea.children
+    if (firstChild.type !== 'tab-area' || secondChild.type !== 'tab-area') {
+      return
+    }
+
+    const firstHasStructure = firstChild.widgets.some(
+      (widget: { id: string }) => widget.id === structureWidgetId,
+    )
+    const firstHasEditor = firstChild.widgets.some(
+      (widget: { id: string }) => widget.id === editorWidgetId,
+    )
+    const secondHasStructure = secondChild.widgets.some(
+      (widget: { id: string }) => widget.id === structureWidgetId,
+    )
+    const secondHasEditor = secondChild.widgets.some(
+      (widget: { id: string }) => widget.id === editorWidgetId,
+    )
+
+    if (firstHasStructure && secondHasEditor) {
+      mainArea.sizes = [this.structurePanelRatio, this.editorPanelRatio]
+    } else if (firstHasEditor && secondHasStructure) {
+      mainArea.sizes = [this.editorPanelRatio, this.structurePanelRatio]
+    } else {
+      return
+    }
+
+    this.shell.mainPanel.restoreLayout(mainLayout)
   }
 }

@@ -14,6 +14,8 @@ import {
 } from './entities-overview-tree-item-factory'
 import { EntitiesOverviewTree } from './entities-overview-tree'
 
+export type EntityMatcher = (entity: Record<string, unknown>) => boolean
+
 function formatTypeLabel(rawType: string): string {
     const trimmed = rawType.trim()
     if (!trimmed) {
@@ -108,12 +110,15 @@ function createEntitiesData(
     validityFilter: ValidityFilter,
     invalidEntityIds: Set<string>,
     selectedEntityIds: Set<string>,
+    advancedEntityMatcher?: EntityMatcher,
 ): Item[] {
     const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
     const byType = new Map<string, { label: string; items: Item[] }>()
 
     const normalizedNameFilter = normalizeFilter(nameFilter)
-    const normalizedTypeFilters = typeFilters.map((type) => normalizeFilter(type))
+    const normalizedTypeFilters = new Set(
+        typeFilters.map((type) => normalizeFilter(type)),
+    )
 
     for (const entry of graph) {
         if (!entry || typeof entry !== 'object') {
@@ -141,19 +146,28 @@ function createEntitiesData(
             (validityFilter === 'valid' && valid) ||
             (validityFilter === 'invalid' && !valid)
 
-        for (const typeEntry of getEntityTypeEntries(entry, profile)) {
+        if (!matchesName || !matchesValidity) {
+            continue
+        }
+
+        const typeEntries = getEntityTypeEntries(entry, profile)
+        if (normalizedTypeFilters.size > 0) {
+            const hasMatchingType = typeEntries.some((typeEntry) =>
+                normalizedTypeFilters.has(typeEntry.label.toLowerCase()),
+            )
+            if (!hasMatchingType) {
+                continue
+            }
+        }
+
+        if (advancedEntityMatcher && !advancedEntityMatcher(entry)) {
+            continue
+        }
+
+        for (const typeEntry of typeEntries) {
             const normalizedTypeLabel = typeEntry.label.toLowerCase()
 
-            if (
-                normalizedTypeFilters.length > 0 &&
-                !normalizedTypeFilters.some((type) => type === normalizedTypeLabel)
-            ) {
-                continue
-            }
-            if (!matchesName) {
-                continue
-            }
-            if (!matchesValidity) {
+            if (normalizedTypeFilters.size > 0 && !normalizedTypeFilters.has(normalizedTypeLabel)) {
                 continue
             }
 
@@ -224,10 +238,12 @@ export class EntitiesOverviewModel extends TreeModelImpl {
     private entityNameFilter = ''
     private entityTypeFilters: string[] = []
     private validityFilter: ValidityFilter = 'all'
+    private advancedEntityMatcher: EntityMatcher | undefined
 
     // branch: multi-select tracked independently from tree selection
     private readonly selectedEntityIds = new Set<string>()
     private lastSelectedEntityId: string | undefined
+    private leafNodesByEntityId = new Map<string, ExampleTreeLeaf[]>()
 
     getSelectedEntityIds(): string[] {
         return Array.from(this.selectedEntityIds)
@@ -368,6 +384,14 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         this.refreshFilteredTree()
     }
 
+    setAdvancedEntityMatcher(matcher: EntityMatcher | undefined): void {
+        if (this.advancedEntityMatcher === matcher) {
+            return
+        }
+        this.advancedEntityMatcher = matcher
+        this.refreshFilteredTree()
+    }
+
     getAvailableTypes(): string[] {
         return getAvailableTypes(this.currentCrate, this.appStateService.completeProfile)
     }
@@ -391,7 +415,8 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         const shouldExpand = Boolean(
             this.entityNameFilter.trim() ||
             this.entityTypeFilters.length > 0 ||
-            this.validityFilter !== 'all',
+            this.validityFilter !== 'all' ||
+            this.advancedEntityMatcher,
         )
 
         const invalidEntityIds = new Set(
@@ -401,8 +426,7 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         )
 
         const selected = new Set(this.selectedEntityIds)
-
-        createEntitiesData(
+        const groupedItems = createEntitiesData(
             this.currentCrate,
             this.appStateService.completeProfile,
             this.entityNameFilter,
@@ -410,11 +434,13 @@ export class EntitiesOverviewModel extends TreeModelImpl {
             this.validityFilter,
             invalidEntityIds,
             selected,
+            this.advancedEntityMatcher,
         )
+        groupedItems
             .map((item) => this.buildTreeNode(item, root, existingNodes, shouldExpand))
             .forEach((node) => CompositeTreeNode.addChild(root, node))
-
         this.tree.root = root
+        this.rebuildLeafIndex(root)
 
         // keep leaf "selected" flags in sync after rebuild
         this.updateLeafSelection(Array.from(this.selectedEntityIds))
@@ -464,7 +490,7 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         const tree = this.tree as EntitiesOverviewTree
         const updated: TreeNode[] = []
         for (const entityId of entityIds) {
-            const nodes = this.findLeavesByEntityId(entityId)
+            const nodes = this.leafNodesByEntityId.get(entityId) ?? []
             if (nodes.length === 0) {
                 continue
             }
@@ -478,15 +504,24 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         }
     }
 
-    private findLeavesByEntityId(entityId: string): ExampleTreeLeaf[] {
-        const root = this.tree.root
-        if (!root) return []
-        const matches: ExampleTreeLeaf[] = []
-        for (const node of new DepthFirstTreeIterator(root)) {
-            if (ExampleTreeLeaf.is(node) && node.data.entityId === entityId) {
-                matches.push(node)
-            }
+    private rebuildLeafIndex(root: TreeNode | undefined): void {
+        const next = new Map<string, ExampleTreeLeaf[]>()
+        if (!root) {
+            this.leafNodesByEntityId = next
+            return
         }
-        return matches
+        for (const node of new DepthFirstTreeIterator(root)) {
+            if (!ExampleTreeLeaf.is(node)) {
+                continue
+            }
+            const entityId = node.data.entityId
+            if (!entityId) {
+                continue
+            }
+            const bucket = next.get(entityId) ?? []
+            bucket.push(node)
+            next.set(entityId, bucket)
+        }
+        this.leafNodesByEntityId = next
     }
 }

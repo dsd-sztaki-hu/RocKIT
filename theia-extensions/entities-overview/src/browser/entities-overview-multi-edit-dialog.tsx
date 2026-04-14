@@ -2,6 +2,7 @@ import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import * as React from '@theia/core/shared/react'
 import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import type { MetadataSchemaManager, SchemaInfo } from 'aroma2-common/lib/browser'
 
 import dayjs = require('dayjs')
@@ -39,6 +40,14 @@ interface OperationRow {
   fieldKey?: string
   operator: BulkOperator
   value: string
+}
+
+interface PreparedOperation {
+  operation: OperationRow
+  rowIndex: number
+  field?: FieldDefinition
+  parsedValue?: unknown
+  schemaUrl?: string
 }
 
 interface EntitySummary {
@@ -165,6 +174,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   protected schemaOptions: SchemaOption[] = []
   protected selectedSchemaIds = new Set<string>()
   protected schemaUrlsById = new Map<string, string>()
+  protected schemaConformsLookupCache?: Map<string, string>
 
   protected schemaOrgEnabled = false
   protected schemaOrgProperties: SchemaOrgProperty[] = []
@@ -192,6 +202,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     private readonly entityIds: string[],
     private readonly appStateService: AppStateService,
     private readonly schemaManagerService?: MetadataSchemaManager,
+    private readonly roCrateHistoryService?: RoCrateHistoryService,
   ) {
     super({ title: 'Multi Edit' })
     this.startButton = this.appendButton('Start multi-edit', true)
@@ -269,12 +280,20 @@ export class MultiEditDialog extends ReactDialog<string> {
     const graph = Array.isArray(crate['@graph'])
       ? (crate['@graph'] as Record<string, any>[])
       : []
+    const entitiesById = new Map<string, Record<string, any>>()
+    for (const entry of graph) {
+      if (!entry || typeof entry !== 'object') {
+        continue
+      }
+      const id = typeof entry['@id'] === 'string' ? entry['@id'] : ''
+      if (!id || entitiesById.has(id)) {
+        continue
+      }
+      entitiesById.set(id, entry)
+    }
     const result: EntitySummary[] = []
     for (const entityId of this.entityIds) {
-      const entity = graph.find(
-        (entry) =>
-          entry && typeof entry === 'object' && String(entry['@id']) === entityId,
-      )
+      const entity = entitiesById.get(entityId)
       if (!entity) {
         result.push({ id: entityId, name: entityId, type: 'Unknown' })
         continue
@@ -398,32 +417,11 @@ export class MultiEditDialog extends ReactDialog<string> {
           entityTypes,
         }
 
-        const dedupeKey = `${schemaMeta.id}::${propertyName}::${field.label}`
-        const existingField = fieldsByKey.get(dedupeKey)
-        if (!existingField) {
-          fieldsByKey.set(dedupeKey, field)
-        } else {
-          const supported = new Set(existingField.supportedClasses ?? [])
-          supported.add(className)
-          existingField.supportedClasses = Array.from(supported.values())
-          const mergedEntityTypes = new Set(existingField.entityTypes)
-          for (const typeName of field.entityTypes) {
-            mergedEntityTypes.add(typeName)
-          }
-          existingField.entityTypes = Array.from(mergedEntityTypes.values())
-          if (field.multiple) {
-            existingField.multiple = true
-          }
-          if (field.selectValues.length > 0) {
-            const mergedValues = new Set(existingField.selectValues)
-            for (const value of field.selectValues) {
-              mergedValues.add(value)
-            }
-            existingField.selectValues = Array.from(mergedValues.values())
-          }
-        }
+        this.upsertFieldDefinition(fieldsByKey, field)
       }
     }
+
+    this.addSchemaProfileFields(fieldsByKey, schemasById)
 
     const fields = Array.from(fieldsByKey.values())
     fields.sort((a, b) => {
@@ -439,6 +437,145 @@ export class MultiEditDialog extends ReactDialog<string> {
     )
 
     return { fields, schemas }
+  }
+
+  /**
+   * Builds and appends fields from crate-level schema profiles (profileList entries).
+   * These fields are applicable to all selected entities when their schema is selected.
+   * @param fieldsByKey Mutable field map.
+   * @param schemasById Mutable schema map.
+   * @returns void
+   * @protected
+   */
+  protected addSchemaProfileFields(
+    fieldsByKey: Map<string, FieldDefinition>,
+    schemasById: Map<string, SchemaOption>,
+  ): void {
+    const profileList = Array.isArray(this.appStateService.profileList)
+      ? this.appStateService.profileList
+      : []
+    const allowedSchemaUrls = new Set(this.extractConformsToUrlsFromCrate())
+
+    for (const entry of profileList) {
+      const schemaUrl = typeof entry?.id === 'string' ? entry.id.trim() : ''
+      if (!schemaUrl || !allowedSchemaUrls.has(schemaUrl)) {
+        continue
+      }
+
+      const schemaLabel = this.resolveSchemaLabelFromProfileEntry(entry, schemaUrl)
+      const schemaId = this.normalizeSchemaId(schemaLabel)
+      if (!schemaId) {
+        continue
+      }
+
+      if (!schemasById.has(schemaId)) {
+        schemasById.set(schemaId, { id: schemaId, label: schemaLabel, url: schemaUrl })
+      }
+      this.schemaUrlsById.set(schemaId, schemaUrl)
+
+      const schemaProfile = entry?.content
+      const schemaClasses =
+        schemaProfile && typeof schemaProfile === 'object'
+          ? ((schemaProfile.classes as Record<string, any> | undefined) ?? {})
+          : {}
+      const datasetClass = schemaClasses.Dataset
+      const schemaInputs = Array.isArray(datasetClass?.inputs)
+        ? (datasetClass.inputs as Record<string, any>[])
+        : []
+      if (schemaInputs.length === 0) {
+        continue
+      }
+
+      const schemaLayouts = Array.isArray(schemaProfile?.layouts)
+        ? (schemaProfile.layouts as Record<string, any>[])
+        : []
+      const datasetLayout = this.findLayoutForClass(schemaLayouts, 'Dataset')
+
+      for (const input of schemaInputs) {
+        const propertyName = typeof input?.name === 'string' ? input.name.trim() : ''
+        if (!propertyName) {
+          continue
+        }
+
+        const relationshipTypes = this.extractEntityTypes(input, schemaClasses)
+        const groupName = this.getFieldGroup(input)
+        const schemaMeta = this.resolveSchemaMeta(datasetLayout, groupName)
+        const field: FieldDefinition = {
+          key: `schema::${schemaId}::${propertyName}`,
+          className: '__any__',
+          classLabel: 'Any',
+          supportedClasses: [],
+          schemaId,
+          schemaLabel,
+          schemaGroupName: schemaMeta.label || schemaLabel,
+          schemaUrl,
+          propertyName,
+          label: String(input.label ?? propertyName),
+          help: typeof input.help === 'string' ? input.help : undefined,
+          multiple: this.parseBoolean(input.multiple),
+          valueKind: this.resolveValueKind(input, schemaClasses, relationshipTypes),
+          selectValues: Array.isArray(input.values)
+            ? input.values
+                .map((value) => String(value))
+                .filter((value) => value.trim().length > 0)
+            : [],
+          entityTypes: relationshipTypes,
+          appliesToAll: true,
+        }
+
+        this.upsertFieldDefinition(fieldsByKey, field)
+      }
+    }
+  }
+
+  /**
+   * Inserts or merges one field into the deduplicated field map.
+   * @param fieldsByKey Mutable field map.
+   * @param field Candidate field.
+   * @returns void
+   * @protected
+   */
+  protected upsertFieldDefinition(
+    fieldsByKey: Map<string, FieldDefinition>,
+    field: FieldDefinition,
+  ): void {
+    const dedupeKey = `${field.schemaId}::${field.propertyName}::${field.label}`
+    const existingField = fieldsByKey.get(dedupeKey)
+    if (!existingField) {
+      fieldsByKey.set(dedupeKey, field)
+      return
+    }
+
+    const supported = new Set(existingField.supportedClasses ?? [])
+    for (const className of field.supportedClasses ?? []) {
+      if (className && className.trim().length > 0) {
+        supported.add(className)
+      }
+    }
+    existingField.supportedClasses = Array.from(supported.values())
+
+    const mergedEntityTypes = new Set(existingField.entityTypes)
+    for (const typeName of field.entityTypes) {
+      mergedEntityTypes.add(typeName)
+    }
+    existingField.entityTypes = Array.from(mergedEntityTypes.values())
+
+    if (field.multiple) {
+      existingField.multiple = true
+    }
+    if (field.appliesToAll) {
+      existingField.appliesToAll = true
+    }
+    if (!existingField.schemaUrl && field.schemaUrl) {
+      existingField.schemaUrl = field.schemaUrl
+    }
+    if (field.selectValues.length > 0) {
+      const mergedValues = new Set(existingField.selectValues)
+      for (const value of field.selectValues) {
+        mergedValues.add(value)
+      }
+      existingField.selectValues = Array.from(mergedValues.values())
+    }
   }
 
   /**
@@ -1669,6 +1806,16 @@ export class MultiEditDialog extends ReactDialog<string> {
     return `{${content}}`
   }
 
+  protected cloneEntityForMutation(entity: Record<string, any>): Record<string, any> {
+    const cloneFn: ((value: Record<string, any>) => Record<string, any>) | undefined = (
+      globalThis as any
+    ).structuredClone
+    if (typeof cloneFn === 'function') {
+      return cloneFn(entity)
+    }
+    return JSON.parse(JSON.stringify(entity))
+  }
+
   /**
    * Executes schema attachment and value updates for all selected entities.
    * @returns Promise resolved when execution summary is updated.
@@ -1710,35 +1857,52 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.update()
 
     const selectedEntitySet = new Set(this.entityIds)
-    const graph = JSON.parse(JSON.stringify(currentCrate['@graph'])) as Record<
-      string,
-      any
-    >[]
-    const conformsLookup = await this.buildSchemaConformsLookup()
-
-    const resolvedValues = new Map<string, unknown>()
-    for (const operation of this.operations) {
-      if (operation.operator === 'unset') {
+    const sourceGraph = currentCrate['@graph'] as Record<string, any>[]
+    const graph = [...sourceGraph]
+    const indexByEntityId = new Map<string, number>()
+    for (let index = 0; index < sourceGraph.length; index += 1) {
+      const entity = sourceGraph[index]
+      const id = entity && typeof entity === 'object' ? String(entity['@id'] ?? '') : ''
+      if (!id || indexByEntityId.has(id)) {
         continue
       }
+      indexByEntityId.set(id, index)
+    }
+
+    const conformsLookup = await this.buildSchemaConformsLookup()
+
+    const preparedOperations: PreparedOperation[] = []
+    for (let rowIndex = 0; rowIndex < this.operations.length; rowIndex += 1) {
+      const operation = this.operations[rowIndex]
       const field = operation.fieldKey
         ? this.fieldsByKey.get(operation.fieldKey)
         : undefined
+      const prepared: PreparedOperation = {
+        operation,
+        rowIndex,
+        field,
+      }
+
       if (!field) {
+        preparedOperations.push(prepared)
         continue
       }
-      const rawValue = operation.value.trim()
-      if (rawValue.length === 0) {
-        continue
+
+      if (operation.operator === 'set' || operation.operator === 'add') {
+        prepared.schemaUrl = this.resolveConformsToUrl(field, conformsLookup)
       }
-      if (field.valueKind === 'entity') {
-        const resolved = this.resolveEntityValues(field, rawValue, graph)
-        if (resolved) {
-          resolvedValues.set(operation.id, resolved)
+
+      if (operation.operator !== 'unset') {
+        const rawValue = operation.value.trim()
+        if (rawValue.length > 0) {
+          prepared.parsedValue =
+            field.valueKind === 'entity'
+              ? this.resolveEntityValues(field, rawValue, graph)
+              : this.parseValue(field, rawValue)
         }
-        continue
       }
-      resolvedValues.set(operation.id, this.parseValue(field, rawValue))
+
+      preparedOperations.push(prepared)
     }
 
     let processedEntities = 0
@@ -1748,21 +1912,24 @@ export class MultiEditDialog extends ReactDialog<string> {
     const errors: string[] = []
 
     for (const entityId of selectedEntitySet) {
-      const index = graph.findIndex((entry) => String(entry?.['@id']) === entityId)
-      if (index < 0) {
+      const index = indexByEntityId.get(entityId)
+      if (index === undefined) {
         errors.push(`Entity not found: ${entityId}`)
         continue
       }
 
-      const entity = graph[index]
+      const sourceEntity = graph[index]
+      if (!sourceEntity || typeof sourceEntity !== 'object') {
+        errors.push(`Entity not found: ${entityId}`)
+        continue
+      }
+
+      let entity = sourceEntity
       let changed = false
       processedEntities += 1
 
-      for (let opIndex = 0; opIndex < this.operations.length; opIndex += 1) {
-        const operation = this.operations[opIndex]
-        const field = operation.fieldKey
-          ? this.fieldsByKey.get(operation.fieldKey)
-          : undefined
+      for (const prepared of preparedOperations) {
+        const { operation, field, schemaUrl } = prepared
         if (!field) {
           continue
         }
@@ -1772,18 +1939,17 @@ export class MultiEditDialog extends ReactDialog<string> {
         if (operation.operator !== 'set' && operation.operator !== 'add') {
           continue
         }
-        const schemaUrl = this.resolveConformsToUrl(field, conformsLookup)
+        if (entity === sourceEntity) {
+          entity = this.cloneEntityForMutation(sourceEntity)
+        }
         const schemaAdded = this.ensureSchemaAssociation(entity, schemaUrl)
         if (schemaAdded) {
           changed = true
         }
       }
 
-      for (let opIndex = 0; opIndex < this.operations.length; opIndex += 1) {
-        const operation = this.operations[opIndex]
-        const field = operation.fieldKey
-          ? this.fieldsByKey.get(operation.fieldKey)
-          : undefined
+      for (const prepared of preparedOperations) {
+        const { operation, field, rowIndex } = prepared
 
         if (!field) {
           skippedOperations += 1
@@ -1796,8 +1962,10 @@ export class MultiEditDialog extends ReactDialog<string> {
         }
 
         try {
-          const parsedValue =
-            operation.operator === 'unset' ? undefined : resolvedValues.get(operation.id)
+          if (entity === sourceEntity) {
+            entity = this.cloneEntityForMutation(sourceEntity)
+          }
+          const parsedValue = operation.operator === 'unset' ? undefined : prepared.parsedValue
           const changedByOperation = this.executeOperationOnEntity(
             entity,
             field,
@@ -1813,7 +1981,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Unknown execution error.'
-          errors.push(`Entity ${entityId}, row ${opIndex + 1}: ${message}`)
+          errors.push(`Entity ${entityId}, row ${rowIndex + 1}: ${message}`)
         }
       }
 
@@ -1828,7 +1996,9 @@ export class MultiEditDialog extends ReactDialog<string> {
         ...currentCrate,
         '@graph': graph,
       }
-      this.appStateService.roCrate = updatedCrate
+      this.roCrateHistoryService?.applyRoCrateChange(updatedCrate, {
+        label: 'Apply multi-edit changes',
+      }) ?? (this.appStateService.roCrate = updatedCrate)
       this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
     }
 
@@ -2011,6 +2181,10 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected async buildSchemaConformsLookup(): Promise<Map<string, string>> {
+    if (this.schemaConformsLookupCache) {
+      return this.schemaConformsLookupCache
+    }
+
     const lookup = new Map<string, string>()
     if (!this.schemaManagerService) {
       return lookup
@@ -2039,6 +2213,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         lookup.set(`name:${key}`, conformsTo)
       }
     }
+    this.schemaConformsLookupCache = lookup
     return lookup
   }
 

@@ -50,6 +50,7 @@ import {
   WorkspaceNode,
   WorkspaceRootNode,
 } from './navigator-tree'
+import { RoCrateIgnoredFilesService } from './ro-crate-ignored-files-service'
 
 export const FILE_NAVIGATOR_ID = 'files'
 export const LABEL = nls.localizeByDefault('Workspace')
@@ -69,6 +70,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   @inject(DataSourceService) protected readonly dataSourceService: DataSourceService
   @inject(ThemeService) protected readonly themeService: ThemeService
   @inject(FileSearchService) protected readonly fileSearchService: FileSearchService
+  @inject(RoCrateIgnoredFilesService)
+  protected readonly roCrateIgnoredFilesService: RoCrateIgnoredFilesService
 
   protected readonly filters: {
     fileNameFilter: string
@@ -104,6 +107,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   @postConstruct()
   protected override init(): void {
     super.init()
+    this.searchVisible = this.appStateService.fileExplorerFiltersVisible
 
     const dataset = {
       ...this.title.dataset,
@@ -127,6 +131,11 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       // refresh when crate changes (highlighting depends on it)
       this.appStateService.onDidChangeSelector((state) => state.roCrate)((_) => {
         this.roCratePathIndex = this.buildRoCrateEntityPathIndex(this.appStateService.roCrate)
+        void this.refreshOrphanHighlights()
+        void this.model.refresh()
+        this.update()
+      }),
+      this.roCrateIgnoredFilesService.onDidChangeIgnoredPaths(() => {
         void this.refreshOrphanHighlights()
         void this.model.refresh()
         this.update()
@@ -420,13 +429,17 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     props: NodeProps,
   ): React.Attributes & React.HTMLAttributes<HTMLElement> {
     const attributes = super.createNodeAttributes(node, props)
+    const ignoredNode = FileStatNode.is(node) && this.isIgnoredNode(node)
 
-    if (FileStatNode.is(node) && this.shouldHighlightFile(node)) {
+    if (ignoredNode) {
+      const existingClassName = attributes.className || ''
+      attributes.className = `${existingClassName} omitted-from-ro-crate`.trim()
+    } else if (FileStatNode.is(node) && this.shouldHighlightFile(node)) {
       const existingClassName = attributes.className || ''
       attributes.className = `${existingClassName} not-in-ro-crate`.trim()
     }
 
-    if (DirNode.is(node) && this.containsNotInRoCrate(node)) {
+    if (DirNode.is(node) && !ignoredNode && this.containsNotInRoCrate(node)) {
       const existingClassName = attributes.className || ''
       attributes.className = `${existingClassName} contains-not-in-ro-crate`.trim()
     }
@@ -505,6 +518,14 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     return false
   }
 
+  private isIgnoredNode(node: FileStatNode): boolean {
+    const relativePath = this.getNodeWorkspaceRelativePath(node)
+    if (!relativePath) {
+      return false
+    }
+    return this.roCrateIgnoredFilesService.isIgnoredPath(relativePath)
+  }
+
   /**
    * Highlight files NOT present in RO-Crate by workspace-relative path.
    */
@@ -519,9 +540,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       return false
     }
 
-    // The workspace-root metadata file is part of RO-Crate infrastructure and should
-    // never be treated as an orphan marker in the root listing.
-    if (relativePath === 'ro-crate-metadata.json') {
+    if (this.roCrateIgnoredFilesService.isIgnoredPath(relativePath)) {
       return false
     }
 
@@ -701,6 +720,10 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         continue
       }
 
+      if (this.roCrateIgnoredFilesService.isIgnoredPath(normalized)) {
+        continue
+      }
+
       if (files.has(normalized)) {
         continue
       }
@@ -821,6 +844,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
   toggleSearch(): void {
     this.searchVisible = !this.searchVisible
+    this.appStateService.fileExplorerFiltersVisible = this.searchVisible
     this.updateSearchVisibilityClass()
     this.update()
     if (this.searchVisible) {

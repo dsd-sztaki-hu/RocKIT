@@ -29,6 +29,7 @@
   "dependencies": {
     "mime-types": "^3.0.2",
     "spark-md5": "^3.0.2",
-    "aroma2-common": "0.0.0"
+    "aroma2-common": "0.0.0",
+    "rfc6902": "^5.2.0"
   }
 }

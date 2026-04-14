@@ -11,7 +11,6 @@ import {
   Widget,
   WidgetManager,
 } from '@theia/core/lib/browser'
-import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { Disposable } from '@theia/core/lib/common'
@@ -19,6 +18,7 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import { MetadataSchemaManager } from 'aroma2-common/lib/browser'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
@@ -29,32 +29,21 @@ import {
   ExampleTreeNode,
   ValidityFilter,
 } from './entities-overview-model'
+import { AdvancedFiltersDialog } from './entities-overview-advanced-filters-dialog'
+import {
+  AdvancedEntityMatcher,
+  ALL_ENTITY_TYPES_OPTION,
+  AdvancedFilterState,
+  buildAdvancedEntityMatcher,
+  buildAdvancedFilterCatalog,
+  countActiveAdvancedRules,
+} from './entities-overview-advanced-filtering'
 import { MultiEditDialog } from './entities-overview-multi-edit-dialog'
 
 /** Well-known constant for the context menu path */
 export const TREEVIEW_EXAMPLE_CONTEXT_MENU: MenuPath = [
   'theia-examples:treeview-example-context-menu',
 ]
-
-class AdvancedFiltersDialog extends ReactDialog<'apply'> {
-  constructor() {
-    super({ title: 'Advanced filters' })
-    this.appendCloseButton('Close')
-    this.appendAcceptButton('Filter')
-  }
-
-  protected render(): React.ReactNode {
-    return (
-      <div className="entities-overview-advanced-modal-body">
-        <p>Advanced filtering options will live here.</p>
-      </div>
-    )
-  }
-
-  get value(): 'apply' {
-    return 'apply'
-  }
-}
 
 /** Implementation of the Tree Widget */
 @injectable()
@@ -72,6 +61,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
     @inject(TreeModel) public override readonly model: EntitiesOverviewModel,
     @inject(ContextMenuRenderer) contextMenuRenderer: ContextMenuRenderer,
     @inject(AppStateService) private readonly appStateService: AppStateService,
+    @inject(RoCrateHistoryService)
+    private readonly roCrateHistoryService: RoCrateHistoryService,
     @inject(MetadataSchemaManager)
     private readonly schemaManagerService: MetadataSchemaManager,
     @inject(WidgetManager) private readonly widgetManager: WidgetManager,
@@ -79,6 +70,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
     @inject(ThemeService) private readonly themeService: ThemeService,
   ) {
     super(props, model, contextMenuRenderer)
+    this.shouldScrollToRow = false
 
     // set the general properties for the view
     this.id = EntitiesOverviewWidget.ID
@@ -89,6 +81,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
     // this.toDispose.push(this.toCancelNodeExpansion)
     this.addClass('entities-overview-panel')
+    this.filtersVisible = this.appStateService.entitiesOverviewFiltersVisible
     this.syncFiltersVisibleBodyClass()
     this.toDispose.push(
       Disposable.create(() => {
@@ -129,6 +122,9 @@ export class EntitiesOverviewWidget extends TreeWidget {
   protected filtersVisible = true
   protected readonly filtersVisibleBodyClass = 'entities-overview-filters-visible'
   protected readonly editorFocusOrder: string[] = []
+  protected advancedFilterState: AdvancedFilterState | undefined
+  protected advancedEntityMatcher: AdvancedEntityMatcher | undefined
+  protected advancedRuleCount = 0
 
   /**
    * Enable icon rendering.
@@ -191,12 +187,27 @@ export class EntitiesOverviewWidget extends TreeWidget {
     return false
   }
 
+  protected override scrollToSelected(): void {
+    // Selection visuals in this widget are driven by entity ids rather than the tree model
+    // selection service. The base implementation scrolls to the first selected DOM row,
+    // which can jump the viewport unexpectedly for large/virtualized lists.
+  }
+
   protected override render(): React.ReactNode {
     const availableTypes = this.model.getAvailableTypes()
     const activeFilters = this.getActiveFilters()
     const selectedTypes = this.normalizeSelectedTypes(availableTypes, activeFilters)
     const isAdvanced = this.filterMode === 'advanced'
     const showFilters = this.filtersVisible
+    const isSimpleClearDisabled =
+      activeFilters.entityNameFilter.trim() === '' &&
+      selectedTypes.length === 0 &&
+      activeFilters.validityFilter === 'all'
+    const isAdvancedClearDisabled =
+      !this.advancedEntityMatcher &&
+      this.advancedFilters.selectedTypeFilters.length === 0 &&
+      this.advancedFilters.entityNameFilter.trim() === '' &&
+      this.advancedFilters.validityFilter === 'all'
     return (
       <AntdThemeProvider themeService={this.themeService}>
         <div className="entities-overview-panel-content">
@@ -291,18 +302,16 @@ export class EntitiesOverviewWidget extends TreeWidget {
                     this.stopFilterKeyEvents(event)
                   }
                 >
-                  Advanced filters
+                  {this.advancedRuleCount > 0
+                    ? `Advanced filters (${this.advancedRuleCount})`
+                    : 'Advanced filters'}
                 </Button>
               </div>
               <Button
                 className="entities-overview-filter-clear"
                 danger
                 ghost
-                disabled={
-                  activeFilters.entityNameFilter.trim() === '' &&
-                  selectedTypes.length === 0 &&
-                  activeFilters.validityFilter === 'all'
-                }
+                disabled={isAdvanced ? isAdvancedClearDisabled : isSimpleClearDisabled}
                 onClick={() => this.clearFilters()}
                 onKeyDownCapture={(event: React.KeyboardEvent) =>
                   this.stopFilterKeyEvents(event)
@@ -312,7 +321,10 @@ export class EntitiesOverviewWidget extends TreeWidget {
               </Button>
             </div>
           </div>
-          <div className="entities-overview-edit-row">
+          <div
+            className="entities-overview-edit-row"
+            onClick={(event) => this.handleEditRowClick(event)}
+          >
             <Button
               className="entities-overview-edit-button"
               type="default"
@@ -336,6 +348,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
   toggleFiltersVisibility(): void {
     this.filtersVisible = !this.filtersVisible
+    this.appStateService.entitiesOverviewFiltersVisible = this.filtersVisible
     this.syncFiltersVisibleBodyClass()
     this.update()
   }
@@ -506,6 +519,14 @@ export class EntitiesOverviewWidget extends TreeWidget {
     void this.openRoCrateEditorForEntity(entityId)
   }
 
+  protected handleEditRowClick(event: React.MouseEvent<HTMLElement>): void {
+    const target = event.target as HTMLElement | null
+    if (target?.closest('.entities-overview-edit-button')) {
+      return
+    }
+    this.model.clearSelection()
+  }
+
   protected async openRoCrateEditorForEntity(
     entityId: string,
     options?: { forceNewWindow?: boolean },
@@ -667,6 +688,9 @@ export class EntitiesOverviewWidget extends TreeWidget {
       selectedTypes,
       activeFilters.validityFilter,
     )
+    this.model.setAdvancedEntityMatcher(
+      this.filterMode === 'advanced' ? this.advancedEntityMatcher : undefined,
+    )
     this.update()
   }
 
@@ -704,6 +728,11 @@ export class EntitiesOverviewWidget extends TreeWidget {
     activeFilters.entityNameFilter = ''
     activeFilters.selectedTypeFilters = []
     activeFilters.validityFilter = 'all'
+    if (this.filterMode === 'advanced') {
+      this.advancedFilterState = undefined
+      this.advancedEntityMatcher = undefined
+      this.advancedRuleCount = 0
+    }
     this.applyFilters()
   }
 
@@ -716,9 +745,28 @@ export class EntitiesOverviewWidget extends TreeWidget {
   }
 
   protected async openAdvancedDialog(): Promise<void> {
-    const dialog = new AdvancedFiltersDialog()
+    const profile = this.appStateService.completeProfile ?? this.appStateService.profile
+    const catalog = buildAdvancedFilterCatalog(this.appStateService.roCrate, profile)
+    const availableTypes = this.model.getAvailableTypes()
+    const dialog = new AdvancedFiltersDialog(
+      catalog,
+      this.advancedFilterState,
+      availableTypes,
+      this.appStateService.roCrate,
+    )
     const result = await dialog.open()
-    if (result === 'apply') {
+    if (result) {
+      this.advancedFilterState = result
+      this.advancedFilters.selectedTypeFilters =
+        result.selectedEntityType === ALL_ENTITY_TYPES_OPTION
+          ? []
+          : [result.selectedEntityType]
+      this.advancedEntityMatcher = buildAdvancedEntityMatcher(
+        result,
+        catalog,
+        this.appStateService.roCrate,
+      )
+      this.advancedRuleCount = countActiveAdvancedRules(result, catalog)
       this.applyAdvancedFilters()
     }
   }
@@ -731,6 +779,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
       entityIds,
       this.appStateService,
       this.schemaManagerService,
+      this.roCrateHistoryService,
     )
     await dialog.open()
   }

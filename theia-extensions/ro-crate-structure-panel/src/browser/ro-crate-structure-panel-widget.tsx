@@ -14,6 +14,7 @@ import { WorkspaceService } from '@theia/workspace/lib/browser'
 import type { TreeDataNode } from 'antd'
 import { Tooltip, Tree } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { MultiEditDialog } from 'entities-overview/lib/browser/entities-overview-multi-edit-dialog'
 import { inject, injectable } from 'inversify'
@@ -41,9 +42,15 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   static readonly ID = 'dataset-panel:widget'
 
   protected instanceId: string = ''
+  protected renderPerfSeq = 0
+  protected cachedCrateRef: Record<string, any> | undefined
+  protected cachedRoot: CrateNode | undefined
+  protected cachedTreeData: TreeDataNode[] | undefined
 
   @inject(AppStateService)
   protected readonly appStateService: AppStateService
+  @inject(RoCrateHistoryService)
+  protected readonly roCrateHistoryService: RoCrateHistoryService
   @inject(WidgetManager)
   protected readonly widgetManager: WidgetManager
   @inject(ApplicationShell)
@@ -79,7 +86,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     this.title.label = `RO-Crate Structure panel (${this.instanceId})`
 
     this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
-      (_) => this.update(),
+      (_) => {
+        this.invalidateTreeCache()
+        this.update()
+      },
     )
 
     this.invalidEntityIds = this.buildInvalidEntityIdSet(
@@ -121,6 +131,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
   protected expandedKeys: string[] = []
   protected containerRef: React.RefObject<HTMLDivElement> = React.createRef()
+  protected treeViewportRef: React.RefObject<HTMLDivElement> = React.createRef()
   protected treeHeight: number = 400
   protected dropTargetDatasetId?: string
   protected globalDragListenersAttached = false
@@ -143,17 +154,34 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
   protected MemoTooltip: React.ComponentType<any> = React.memo(Tooltip as any)
 
+  protected nowMs(): number {
+    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+      return performance.now()
+    }
+    return Date.now()
+  }
+
+  protected invalidateTreeCache(): void {
+    this.cachedCrateRef = undefined
+    this.cachedRoot = undefined
+    this.cachedTreeData = undefined
+  }
+
   public async openEditFromContextMenu(): Promise<void> {
     const entityIds = this.getEntityIdsForMultiEdit()
-    const dialog = new MultiEditDialog(entityIds, this.appStateService)
+    const dialog = new MultiEditDialog(
+      entityIds,
+      this.appStateService,
+      undefined,
+      this.roCrateHistoryService,
+    )
     await dialog.open()
   }
 
   protected getEntityIdsForMultiEdit(): string[] {
     const crate = this.appStateService.roCrate
     const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
-    const selectedIds =
-      this.selectedEntityIds.size > 0 ? Array.from(this.selectedEntityIds.values()) : []
+    const selectedIds = this.selectedEntityIds
 
     const selectedEditableIds: string[] = []
     const allFileIds: string[] = []
@@ -170,7 +198,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       if (this.entityHasType(entity, 'Dataset')) {
         allDatasetIds.push(id)
       }
-      if (selectedIds.includes(id)) {
+      if (selectedIds.has(id)) {
         if (this.entityHasType(entity, 'Dataset') || this.entityHasType(entity, 'File')) {
           selectedEditableIds.push(id)
         }
@@ -316,7 +344,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   // Windows Explorer-like selection behavior:
   // - single click: single select
   // - ctrl/cmd+click: toggle specific row
-  // - shift+click: additive range selection across visible rows
+  // - shift+click: additive range selection across expanded rows
   protected handleTreeSelect = (_keys: React.Key[], info: any): void => {
     const entityId = info.node?.entityId
     if (!entityId) {
@@ -425,33 +453,67 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   }
 
   protected getVisibleEntityRows(): Array<{ entityId: string; nodeKey: React.Key }> {
-    const container = this.containerRef.current
-    if (!container) {
-      return []
-    }
-    const elements = Array.from(
-      container.querySelectorAll<HTMLElement>('[data-entity-id][data-node-key]'),
-    )
+    const treeData = this.getCurrentTreeData()
     const rows: Array<{ entityId: string; nodeKey: React.Key }> = []
     const seen = new Set<string>()
-    for (const element of elements) {
-      const entityId = element.getAttribute('data-entity-id')
-      const nodeKey = element.getAttribute('data-node-key')
-      if (!entityId || !nodeKey) {
-        continue
+
+    const expanded = new Set(this.expandedKeys.map((key) => String(key)))
+    const visit = (node: TreeDataNode): void => {
+      const typedNode = node as TreeDataNode & {
+        entityId?: string
+        children?: TreeDataNode[]
       }
-      if (seen.has(entityId)) {
-        continue
+      const entityId = typedNode.entityId
+      const nodeKey = node.key
+
+      if (entityId && nodeKey !== undefined && !seen.has(entityId)) {
+        seen.add(entityId)
+        rows.push({ entityId, nodeKey })
       }
-      seen.add(entityId)
-      rows.push({ entityId, nodeKey })
+
+      const children = typedNode.children ?? []
+      if (!children.length) {
+        return
+      }
+      if (!expanded.has(String(node.key))) {
+        return
+      }
+      for (const child of children) {
+        visit(child)
+      }
     }
+    for (const rootNode of treeData) {
+      visit(rootNode)
+    }
+
     return rows
   }
 
   protected getNodeKeyForEntity(entityId: string): React.Key | undefined {
     const row = this.getVisibleEntityRows().find((value) => value.entityId === entityId)
     return row?.nodeKey
+  }
+
+  protected getCurrentTreeData(): TreeDataNode[] {
+    const crate = this.appStateService.roCrate
+    if (crate === this.cachedCrateRef && this.cachedTreeData) {
+      return this.cachedTreeData
+    }
+
+    const built = this.buildCrateTree(crate)
+    const treeData = built.root ? [this.crateNodeToTreeData(built.root)] : []
+    this.cachedCrateRef = crate
+    this.cachedRoot = built.root
+    this.cachedTreeData = treeData
+    if (this.expandedKeys.length === 0 && treeData.length > 0) {
+      this.expandedKeys = [String(treeData[0].key)]
+    }
+    return treeData
+  }
+
+  protected handleTreeExpand = (keys: React.Key[]): void => {
+    this.expandedKeys = keys.map((key) => String(key))
+    this.update()
   }
 
   protected async openRoCrateEditor(
@@ -612,13 +674,22 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   }
 
   protected computeHeightAndUpdate(): void {
-    const el = this.containerRef?.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const style = window.getComputedStyle(el)
-    const topPad = parseFloat(style.paddingTop || '0')
-    const bottomPad = parseFloat(style.paddingBottom || '0')
-    const h = Math.max(0, Math.floor(rect.height - topPad - bottomPad))
+    const viewportEl = this.treeViewportRef?.current
+    const containerEl = this.containerRef?.current
+    if (!viewportEl && !containerEl) {
+      return
+    }
+
+    const h = viewportEl
+      ? Math.max(0, Math.floor(viewportEl.getBoundingClientRect().height))
+      : (() => {
+          const rect = containerEl!.getBoundingClientRect()
+          const style = window.getComputedStyle(containerEl!)
+          const topPad = parseFloat(style.paddingTop || '0')
+          const bottomPad = parseFloat(style.paddingBottom || '0')
+          return Math.max(0, Math.floor(rect.height - topPad - bottomPad))
+        })()
+
     if (h !== this.treeHeight) {
       this.treeHeight = h
       this.update()
@@ -644,9 +715,37 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   }
 
   render(): React.ReactNode {
+    const renderStartedAt = this.nowMs()
+    const seq = ++this.renderPerfSeq
     const crateToUse = this.appStateService.roCrate
-    const { root } = this.buildCrateTree(crateToUse)
-    const treeData = root ? [this.crateNodeToTreeData(root)] : []
+    const graphEntityCount = Array.isArray(crateToUse?.['@graph'])
+      ? crateToUse['@graph'].length
+      : 0
+
+    let root: CrateNode | undefined
+    let treeData: TreeDataNode[] = []
+    let buildCrateTreeMs = 0
+    let buildTreeDataMs = 0
+    let cacheHit = false
+
+    if (crateToUse === this.cachedCrateRef && this.cachedTreeData) {
+      cacheHit = true
+      root = this.cachedRoot
+      treeData = this.cachedTreeData
+    } else {
+      const buildCrateTreeStartedAt = this.nowMs()
+      const built = this.buildCrateTree(crateToUse)
+      root = built.root
+      buildCrateTreeMs = this.nowMs() - buildCrateTreeStartedAt
+
+      const treeDataStartedAt = this.nowMs()
+      treeData = root ? [this.crateNodeToTreeData(root)] : []
+      buildTreeDataMs = this.nowMs() - treeDataStartedAt
+
+      this.cachedCrateRef = crateToUse
+      this.cachedRoot = root
+      this.cachedTreeData = treeData
+    }
 
     if (this.expandedKeys.length === 0 && treeData.length) {
       const rootKey = treeData[0].key as string
@@ -664,6 +763,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           paddingTop: '6px',
           width: '100%',
           height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
           boxSizing: 'border-box',
           overflowX: 'auto',
           overflowY: 'hidden',
@@ -703,86 +805,104 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           </span>
         </button>
 
-        <Tree
-          style={{ minWidth: '100%' }}
-          treeData={treeData}
-          height={this.treeHeight}
-          showIcon
-          multiple
-          selectedKeys={this.selectedKeys}
-          defaultExpandedKeys={['./']}
-          onSelect={this.handleTreeSelect}
-          // expandedKeys={this.expandedKeys}
-          // onExpand={(keys) => { this.expandedKeys = keys as string[]; this.update(); }}
-          titleRender={(item) => {
-            const title = item.title as React.ReactNode
-            const displayName =
-              (item as any).displayName ?? (typeof title === 'string' ? title : '')
-            const entityId = (item as any).entityId as string | undefined
-            const isInvalid = Boolean(entityId && this.invalidEntityIds.has(entityId))
-            const isFolder = Array.isArray(item.children) && item.children.length > 0
-            const isExpanded = this.expandedKeys.includes(item.key as string)
-            const icon = isFolder ? (
-              isExpanded ? (
-                <FolderOpenOutlined />
+        <div ref={this.treeViewportRef} className="ro-crate-structure-tree-viewport">
+          <Tree
+            className="ro-crate-structure-tree"
+            style={{ minWidth: '100%' }}
+            treeData={treeData}
+            height={this.treeHeight}
+            showIcon
+            multiple
+            selectedKeys={this.selectedKeys}
+            expandedKeys={this.expandedKeys}
+            onExpand={this.handleTreeExpand}
+            onSelect={this.handleTreeSelect}
+            titleRender={(item) => {
+              const title = item.title as React.ReactNode
+              const displayName =
+                (item as any).displayName ?? (typeof title === 'string' ? title : '')
+              const entityId = (item as any).entityId as string | undefined
+              const isInvalid = Boolean(entityId && this.invalidEntityIds.has(entityId))
+              const isFolder = Array.isArray(item.children) && item.children.length > 0
+              const isExpanded = this.expandedKeys.includes(String(item.key))
+              const icon = isFolder ? (
+                isExpanded ? (
+                  <FolderOpenOutlined />
+                ) : (
+                  <FolderOutlined />
+                )
               ) : (
-                <FolderOutlined />
+                <FileOutlined />
               )
-            ) : (
-              <FileOutlined />
-            )
-            const isDatasetNode = (item as any).entityType === 'Dataset'
+              const isDatasetNode = (item as any).entityType === 'Dataset'
 
-            return (
-              <this.MemoTooltip title={entityId ?? displayName} placement="right">
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '2px 4px',
-                    borderRadius: 4,
-                    background:
-                      isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
-                        ? 'rgba(24, 144, 255, 0.14)'
-                        : 'transparent',
-                    outline: 'none',
-                    boxShadow:
-                      isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
-                        ? '0 0 8px rgba(24, 144, 255, 0.35)'
-                        : 'none',
-                  }}
-                  data-entity-id={entityId}
-                  data-node-key={String(item.key)}
-                  title=""
-                  onDoubleClick={(event) => {
-                    if (!entityId) {
-                      return
-                    }
-                    this.handleEntityDoubleClick(entityId, event)
-                  }}
-                >
-                  {icon}
-                  {isInvalid && (
-                    <span
-                      className="ro-crate-structure-invalid-icon fa fa-exclamation-triangle"
-                      role="img"
-                      aria-label="Invalid entity"
-                      title="Invalid entity"
-                    />
-                  )}
-                  {displayName}
-                </span>
-              </this.MemoTooltip>
-            )
-          }}
-        />
+              return (
+                <this.MemoTooltip title={entityId ?? displayName} placement="right">
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '2px 4px',
+                      borderRadius: 4,
+                      background:
+                        isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
+                          ? 'rgba(24, 144, 255, 0.14)'
+                          : 'transparent',
+                      outline: 'none',
+                      boxShadow:
+                        isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
+                          ? '0 0 8px rgba(24, 144, 255, 0.35)'
+                          : 'none',
+                    }}
+                    data-entity-id={entityId}
+                    data-node-key={String(item.key)}
+                    title=""
+                    onDoubleClick={(event) => {
+                      if (!entityId) {
+                        return
+                      }
+                      this.handleEntityDoubleClick(entityId, event)
+                    }}
+                  >
+                    {icon}
+                    {isInvalid && (
+                      <span
+                        className="ro-crate-structure-invalid-icon fa fa-exclamation-triangle"
+                        role="img"
+                        aria-label="Invalid entity"
+                        title="Invalid entity"
+                      />
+                    )}
+                    {displayName}
+                  </span>
+                </this.MemoTooltip>
+              )
+            }}
+          />
+        </div>
       </div>
     )
 
-    return (
+    const result = (
       <AntdThemeProvider themeService={this.themeService}>{content}</AntdThemeProvider>
     )
+
+    const totalMs = this.nowMs() - renderStartedAt
+    console.info('[ro-crate-structure-panel:perf] render', {
+      seq,
+      totalMs: Number(totalMs.toFixed(2)),
+      graphEntityCount,
+      selectedEntityCount: this.selectedEntityIds.size,
+      invalidEntityCount: this.invalidEntityIds.size,
+      buildCrateTreeMs: Number(buildCrateTreeMs.toFixed(2)),
+      buildTreeDataMs: Number(buildTreeDataMs.toFixed(2)),
+      cacheHit,
+      rootPresent: Boolean(root),
+      treeNodeCount: treeData.length,
+    })
+
+    return result
   }
 
   protected handleDragOver(event: React.DragEvent): void {
@@ -880,7 +1000,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       uniqueDroppedFiles,
     )
 
-    this.appStateService.roCrate = updatedCrate
+    this.roCrateHistoryService.applyRoCrateChange(updatedCrate, {
+      label: 'Add dropped files to RO-Crate',
+    })
     this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
     this.update()
   }

@@ -1,6 +1,7 @@
 // src/browser/metadata-schema-manager-widget.tsx
 
 import { BaseWidget } from '@theia/core/lib/browser'
+import { ApplicationShell } from '@theia/core/lib/browser'
 import type { Message, StatefulWidget } from '@theia/core/lib/browser'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables'
@@ -39,6 +40,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected selectedSchemaKeys: Key[] = []
 
     private reactRoot: Root | undefined
+    protected lastFocusedElement: HTMLElement | undefined
 
     constructor(
         @inject(FileDialogService) protected readonly fileDialogService: FileDialogService,
@@ -46,6 +48,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         @inject(EnvVariablesServer) protected readonly envVariablesServer: EnvVariablesServer,
         @inject(SchemaManagerService) protected readonly schemaManagerService: SchemaManagerService,
         @inject(ThemeService) protected readonly themeService: ThemeService,
+        @inject(ApplicationShell) protected readonly shell: ApplicationShell,
     ) {
         super()
 
@@ -54,6 +57,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.title.caption = METADATA_SCHEMA_MANAGER_LABEL
         this.title.closable = true
         this.title.iconClass = 'fa fa-file-code'
+        this.node.tabIndex = 0
 
         this.toDispose.push(this.schemaManagerService.onDidChangeSchemas(() => this.loadSchemas()))
     }
@@ -207,6 +211,8 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected onAfterAttach(msg: Message): void {
         super.onAfterAttach(msg)
+        this.node.addEventListener('focusin', this.handleFocusIn, true)
+        this.node.addEventListener('mousedown', this.handleMouseDown, true)
         this.node.innerHTML = ''
         this.render()
         this.loadSchemas()
@@ -260,11 +266,38 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     }
 
     protected onBeforeDetach(msg: Message): void {
+        this.node.removeEventListener('focusin', this.handleFocusIn, true)
+        this.node.removeEventListener('mousedown', this.handleMouseDown, true)
         if (this.reactRoot) {
             this.reactRoot.unmount()
             this.reactRoot = undefined
         }
         super.onBeforeDetach(msg)
+    }
+
+    protected onActivateRequest(msg: Message): void {
+        super.onActivateRequest(msg)
+        if (this.lastFocusedElement && this.node.contains(this.lastFocusedElement)) {
+            this.lastFocusedElement.focus()
+            return
+        }
+        this.node.focus()
+    }
+
+    protected readonly handleFocusIn = (event: FocusEvent): void => {
+        const target = event.target
+        if (target instanceof HTMLElement) {
+            this.lastFocusedElement = target
+        }
+        if (this.shell.currentWidget?.id !== this.id) {
+            void this.shell.activateWidget(this.id)
+        }
+    }
+
+    protected readonly handleMouseDown = (_event: MouseEvent): void => {
+        if (this.shell.currentWidget?.id !== this.id) {
+            void this.shell.activateWidget(this.id)
+        }
     }
 
     storeState(): object {
