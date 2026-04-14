@@ -4,6 +4,7 @@ import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import type { MetadataSchemaManager, SchemaInfo } from 'aroma2-common/lib/browser'
+import schemaTypeDefinitions = require('./schema-type-definitions.json')
 
 import dayjs = require('dayjs')
 
@@ -24,6 +25,7 @@ interface FieldDefinition {
   help?: string
   multiple: boolean
   valueKind: FieldValueKind
+  valueKinds?: FieldValueKind[]
   selectValues: string[]
   entityTypes: string[]
   appliesToAll?: boolean
@@ -40,12 +42,14 @@ interface OperationRow {
   fieldKey?: string
   operator: BulkOperator
   value: string
+  valueKind?: FieldValueKind
 }
 
 interface PreparedOperation {
   operation: OperationRow
   rowIndex: number
   field?: FieldDefinition
+  valueKind?: FieldValueKind
   parsedValue?: unknown
   schemaUrl?: string
 }
@@ -71,13 +75,30 @@ interface SchemaMeta {
   selectable: boolean
 }
 
-interface SchemaOrgProperty {
-  label: string
-  comment: string
+interface SchemaTypeDefinitionInput {
+  id?: string
+  name?: string
+  label?: string
+  help?: string
+  multiple?: boolean | string
+  type?: string | string[]
+  values?: unknown[]
 }
 
-const SCHEMA_ORG_PROPERTIES_URL =
-  'https://schema.org/version/latest/schemaorg-current-http-properties.csv'
+interface SchemaTypeDefinition {
+  id?: string
+  name?: string
+  label?: string
+  help?: string
+  subClassOf?: string[]
+  hierarchy?: string[]
+  inputs?: SchemaTypeDefinitionInput[]
+}
+
+const SCHEMA_TYPE_DEFINITIONS = schemaTypeDefinitions as Record<
+  string,
+  SchemaTypeDefinition
+>
 const SCHEMA_ORG_SCHEMA_ID = '__schemaorg__'
 
 const OPERATOR_LABELS: Record<BulkOperator, string> = {
@@ -87,88 +108,27 @@ const OPERATOR_LABELS: Record<BulkOperator, string> = {
   unset: 'Unset',
 }
 
-/**
- * Parses one CSV row while respecting quoted values and escaped quotes.
- * @param line Raw CSV row text.
- * @returns Parsed column values.
- */
-const parseCsvLine = (line: string): string[] => {
-  const result: string[] = []
-  let current = ''
-  let inQuotes = false
-
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i]
-
-    if (char === '"') {
-      const nextChar = line[i + 1]
-      if (inQuotes && nextChar === '"') {
-        current += '"'
-        i += 1
-        continue
-      }
-      inQuotes = !inQuotes
-      continue
-    }
-
-    if (char === ',' && !inQuotes) {
-      result.push(current)
-      current = ''
-      continue
-    }
-
-    current += char
-  }
-
-  result.push(current)
-  return result.map((value) => value.trim().replace(/^"|"$/g, ''))
+const VALUE_KIND_LABELS: Record<FieldValueKind, string> = {
+  text: 'Text',
+  number: 'Number',
+  date: 'Date',
+  select: 'Option list',
+  json: 'JSON',
+  entity: 'Entity reference',
 }
 
-/**
- * Parses schema.org CSV content into label/comment property entries.
- * @param csvText Full CSV response text.
- * @returns Parsed schema.org properties.
- */
-const parseSchemaOrgCsv = (csvText: string): SchemaOrgProperty[] => {
-  const lines = csvText.split('\n').filter((line) => line.trim() !== '')
-  if (lines.length <= 1) {
-    return []
-  }
-
-  const headers = parseCsvLine(lines[0])
-
-  const labelIndex = headers.indexOf('label')
-  const commentIndex = headers.indexOf('comment')
-
-  if (labelIndex === -1 || commentIndex === -1) {
-    console.error(`CSV missing required headers. Found: [${headers.join(', ')}]`)
-    return []
-  }
-
-  const properties: SchemaOrgProperty[] = []
-
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseCsvLine(lines[i])
-    if (values.length <= commentIndex) {
-      continue
-    }
-
-    const rawLabel = values[labelIndex] ?? ''
-    if (!rawLabel) {
-      continue
-    }
-
-    properties.push({
-      label: rawLabel,
-      comment: values[commentIndex] ?? 'No description provided',
-    })
-  }
-
-  return properties
+const VALUE_KIND_PRIORITY: Record<FieldValueKind, number> = {
+  select: 0,
+  entity: 1,
+  date: 2,
+  number: 3,
+  json: 4,
+  text: 5,
 }
 
 export class MultiEditDialog extends ReactDialog<string> {
   protected readonly fieldsByKey = new Map<string, FieldDefinition>()
+  protected readonly schemaOrgFieldsByKey = new Map<string, FieldDefinition>()
   protected readonly operations: OperationRow[] = []
 
   protected schemaOptions: SchemaOption[] = []
@@ -177,9 +137,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   protected schemaConformsLookupCache?: Map<string, string>
 
   protected schemaOrgEnabled = false
-  protected schemaOrgProperties: SchemaOrgProperty[] = []
-  protected schemaOrgLoading = false
-  protected schemaOrgError?: string
+  protected selectedEntities: Record<string, any>[] = []
 
   protected startButton?: HTMLButtonElement
   protected hideSetupWarning = false
@@ -232,6 +190,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
 
     this.entitySummaries = this.buildEntitySummaries(crate, profile)
+    this.selectedEntities = this.collectSelectedEntities(crate)
 
     const entityTypes = this.collectEntityTypes(crate)
     if (entityTypes.length === 0) {
@@ -243,6 +202,10 @@ export class MultiEditDialog extends ReactDialog<string> {
     const { fields, schemas } = this.buildFieldCatalog(profile, entityTypes)
     for (const field of fields) {
       this.fieldsByKey.set(field.key, field)
+    }
+    const schemaOrgFields = this.buildSchemaOrgFields(crate, profile)
+    for (const field of schemaOrgFields) {
+      this.schemaOrgFieldsByKey.set(field.key, field)
     }
 
     this.schemaOptions = this.mergeSchemaOptions(schemas)
@@ -344,6 +307,28 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   /**
+   * Collects selected entity records for field applicability checks.
+   * @param crate Active RO-Crate document.
+   * @returns Selected entity objects.
+   * @protected
+   */
+  protected collectSelectedEntities(crate: Record<string, any>): Record<string, any>[] {
+    const graph = Array.isArray(crate['@graph'])
+      ? (crate['@graph'] as Record<string, any>[])
+      : []
+    const selected = new Set(this.entityIds)
+    const entities: Record<string, any>[] = []
+    for (const entity of graph) {
+      const id = typeof entity?.['@id'] === 'string' ? entity['@id'] : ''
+      if (!id || !selected.has(id)) {
+        continue
+      }
+      entities.push(entity)
+    }
+    return entities
+  }
+
+  /**
    * Builds editable field definitions and schema options from profile classes/layouts.
    * @param profile Active profile definition.
    * @param entityTypes Selected entity types.
@@ -394,7 +379,8 @@ export class MultiEditDialog extends ReactDialog<string> {
           }
         }
 
-        const entityTypes = this.extractEntityTypes(input, classes)
+        const relationshipTypes = this.extractEntityTypes(input, classes)
+        const valueKinds = this.resolveValueKinds(input, classes, relationshipTypes)
         const field: FieldDefinition = {
           key: `${className}::${propertyName}`,
           className,
@@ -408,13 +394,14 @@ export class MultiEditDialog extends ReactDialog<string> {
           label: String(input.label ?? propertyName),
           help: typeof input.help === 'string' ? input.help : undefined,
           multiple: this.parseBoolean(input.multiple),
-          valueKind: this.resolveValueKind(input, classes, entityTypes),
+          valueKind: valueKinds[0] ?? 'text',
+          valueKinds,
           selectValues: Array.isArray(input.values)
             ? input.values
                 .map((value) => String(value))
                 .filter((value) => value.trim().length > 0)
             : [],
-          entityTypes,
+          entityTypes: relationshipTypes,
         }
 
         this.upsertFieldDefinition(fieldsByKey, field)
@@ -498,6 +485,11 @@ export class MultiEditDialog extends ReactDialog<string> {
         }
 
         const relationshipTypes = this.extractEntityTypes(input, schemaClasses)
+        const valueKinds = this.resolveValueKinds(
+          input,
+          schemaClasses,
+          relationshipTypes,
+        )
         const groupName = this.getFieldGroup(input)
         const schemaMeta = this.resolveSchemaMeta(datasetLayout, groupName)
         const field: FieldDefinition = {
@@ -513,7 +505,8 @@ export class MultiEditDialog extends ReactDialog<string> {
           label: String(input.label ?? propertyName),
           help: typeof input.help === 'string' ? input.help : undefined,
           multiple: this.parseBoolean(input.multiple),
-          valueKind: this.resolveValueKind(input, schemaClasses, relationshipTypes),
+          valueKind: valueKinds[0] ?? 'text',
+          valueKinds,
           selectValues: Array.isArray(input.values)
             ? input.values
                 .map((value) => String(value))
@@ -576,6 +569,12 @@ export class MultiEditDialog extends ReactDialog<string> {
       }
       existingField.selectValues = Array.from(mergedValues.values())
     }
+
+    existingField.valueKinds = this.sortValueKinds([
+      ...this.getFieldValueKinds(existingField),
+      ...this.getFieldValueKinds(field),
+    ])
+    existingField.valueKind = existingField.valueKinds[0] ?? existingField.valueKind
   }
 
   /**
@@ -849,20 +848,22 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   /**
-   * Resolves editor value kind from an input definition.
+   * Resolves all editor value kinds from an input definition.
    * @param input Profile input definition.
    * @param classes Profile classes map.
    * @param entityTypes Linked entity target types.
-   * @returns Value editor kind.
+   * @returns Sorted value editor kinds.
    * @protected
    */
-  protected resolveValueKind(
+  protected resolveValueKinds(
     input: Record<string, any>,
     classes: Record<string, any>,
     entityTypes: string[],
-  ): FieldValueKind {
+  ): FieldValueKind[] {
+    const kinds = new Set<FieldValueKind>()
+
     if (Array.isArray(input.values) && input.values.length > 0) {
-      return 'select'
+      kinds.add('select')
     }
 
     const types = Array.isArray(input.type)
@@ -872,26 +873,92 @@ export class MultiEditDialog extends ReactDialog<string> {
         : []
 
     if (entityTypes.length > 0) {
-      return 'entity'
+      kinds.add('entity')
     }
 
-    const firstType = types[0] ?? ''
-    const normalized = firstType.toLowerCase()
+    for (const typeName of types) {
+      const normalized = this.normalizeInputTypeName(typeName)
+      if (!normalized) {
+        continue
+      }
 
-    if (
-      normalized.includes('number') ||
-      normalized.includes('int') ||
-      normalized.includes('float') ||
-      normalized.includes('double')
-    ) {
-      return 'number'
+      if (
+        normalized.includes('number') ||
+        normalized.includes('integer') ||
+        normalized.includes('int') ||
+        normalized.includes('float') ||
+        normalized.includes('double') ||
+        normalized.includes('decimal')
+      ) {
+        kinds.add('number')
+        continue
+      }
+
+      if (
+        normalized.includes('date') ||
+        normalized.includes('time') ||
+        normalized.includes('datetime')
+      ) {
+        kinds.add('date')
+        continue
+      }
+
+      if (normalized.includes('json') || normalized.includes('object')) {
+        kinds.add('json')
+        continue
+      }
+
+      if (
+        normalized.includes('text') ||
+        normalized.includes('string') ||
+        normalized.includes('url') ||
+        normalized.includes('boolean')
+      ) {
+        kinds.add('text')
+      }
     }
 
-    if (normalized.includes('date')) {
-      return 'date'
+    if (kinds.size === 0) {
+      kinds.add('text')
     }
 
-    return 'text'
+    return this.sortValueKinds(Array.from(kinds.values()))
+  }
+
+  /**
+   * Normalizes a profile input type token into a comparison-safe key.
+   * @param rawType Raw type declaration.
+   * @returns Normalized type token.
+   * @protected
+   */
+  protected normalizeInputTypeName(rawType: string): string {
+    return this.toTypeTail(String(rawType)).trim().toLowerCase()
+  }
+
+  /**
+   * Sorts value kinds by UI/editor preference.
+   * @param kinds Candidate value kinds.
+   * @returns Sorted, deduplicated kinds.
+   * @protected
+   */
+  protected sortValueKinds(kinds: FieldValueKind[]): FieldValueKind[] {
+    return Array.from(new Set(kinds)).sort(
+      (a, b) => (VALUE_KIND_PRIORITY[a] ?? 999) - (VALUE_KIND_PRIORITY[b] ?? 999),
+    )
+  }
+
+  /**
+   * Returns all configured value kinds for a field.
+   * @param field Field definition.
+   * @returns Sorted value kinds.
+   * @protected
+   */
+  protected getFieldValueKinds(field: FieldDefinition): FieldValueKind[] {
+    const configured =
+      field.valueKinds && field.valueKinds.length > 0
+        ? field.valueKinds
+        : [field.valueKind]
+    return this.sortValueKinds(configured)
   }
 
   /**
@@ -913,7 +980,11 @@ export class MultiEditDialog extends ReactDialog<string> {
     const typeSet = new Set<string>()
     for (const typeName of types) {
       const tail = this.toTypeTail(typeName)
-      if (tail && classes[tail]?.inputs) {
+      const schemaTypeHasInputs =
+        tail &&
+        Array.isArray(SCHEMA_TYPE_DEFINITIONS[tail]?.inputs) &&
+        (SCHEMA_TYPE_DEFINITIONS[tail]?.inputs?.length ?? 0) > 0
+      if (tail && (classes[tail]?.inputs || schemaTypeHasInputs)) {
         typeSet.add(tail)
       }
     }
@@ -1021,19 +1092,45 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   /**
+   * Resolves a field by key from base or schema.org catalogs.
+   * @param fieldKey Field key.
+   * @returns Field definition or undefined.
+   * @protected
+   */
+  protected getFieldByKey(fieldKey?: string): FieldDefinition | undefined {
+    if (!fieldKey) {
+      return undefined
+    }
+    return this.fieldsByKey.get(fieldKey) ?? this.schemaOrgFieldsByKey.get(fieldKey)
+  }
+
+  /**
+   * Checks if a field applies to all currently selected entities.
+   * @param field Field definition.
+   * @returns True when every selected entity supports the field.
+   * @protected
+   */
+  protected fieldAppliesToSelection(field: FieldDefinition): boolean {
+    if (this.selectedEntities.length === 0) {
+      return true
+    }
+    return this.selectedEntities.every((entity) => this.entitySupportsField(entity, field))
+  }
+
+  /**
    * Returns fields visible under current schema/schema.org selection.
    * @returns Visible field definitions.
    * @protected
    */
   protected getVisibleFields(): FieldDefinition[] {
-    const baseFields = Array.from(this.fieldsByKey.values()).filter((field) =>
-      this.selectedSchemaIds.has(field.schemaId),
+    const baseFields = Array.from(this.fieldsByKey.values()).filter(
+      (field) => this.selectedSchemaIds.has(field.schemaId) && this.fieldAppliesToSelection(field),
     )
     if (!this.schemaOrgEnabled) {
       return baseFields
     }
-    const schemaOrgFields = this.schemaOrgProperties.map((property) =>
-      this.toSchemaOrgField(property),
+    const schemaOrgFields = Array.from(this.schemaOrgFieldsByKey.values()).filter((field) =>
+      this.fieldAppliesToSelection(field),
     )
     return [...baseFields, ...schemaOrgFields]
   }
@@ -1063,17 +1160,42 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   /**
-   * Toggles schema.org mode and lazily loads schema.org properties.
+   * Toggles schema.org mode.
    * @param enabled True when schema.org fields should be included.
    * @returns void
    * @protected
    */
   protected toggleSchemaOrg = (enabled: boolean) => {
     this.schemaOrgEnabled = enabled
-    if (enabled && this.schemaOrgProperties.length === 0 && !this.schemaOrgLoading) {
-      void this.fetchSchemaOrgProperties()
-    }
     this.update()
+  }
+
+  /**
+   * Resolves default value kind for a field.
+   * @param field Field definition.
+   * @returns Default value kind.
+   * @protected
+   */
+  protected getDefaultValueKind(field: FieldDefinition): FieldValueKind {
+    return this.getFieldValueKinds(field)[0] ?? field.valueKind
+  }
+
+  /**
+   * Resolves effective value kind for an operation row and field.
+   * @param row Operation row.
+   * @param field Field definition.
+   * @returns Effective value kind.
+   * @protected
+   */
+  protected getEffectiveValueKind(
+    row: OperationRow,
+    field: FieldDefinition,
+  ): FieldValueKind {
+    const kinds = this.getFieldValueKinds(field)
+    if (row.valueKind && kinds.includes(row.valueKind)) {
+      return row.valueKind
+    }
+    return kinds[0] ?? field.valueKind
   }
 
   /**
@@ -1141,11 +1263,38 @@ export class MultiEditDialog extends ReactDialog<string> {
     row.value = ''
     this.operationSearch.delete(id)
 
-    const field = fieldKey ? this.fieldsByKey.get(fieldKey) : undefined
+    const field = this.getFieldByKey(fieldKey)
+    row.valueKind = field ? this.getDefaultValueKind(field) : undefined
     const allowed = this.getAllowedOperators(field)
     if (!allowed.includes(row.operator)) {
       row.operator = allowed[0]
     }
+    this.update()
+  }
+
+  /**
+   * Sets the value kind for an operation row.
+   * @param id Operation row id.
+   * @param valueKind Selected value kind.
+   * @returns void
+   * @protected
+   */
+  protected setOperationValueKind = (id: string, valueKind: FieldValueKind) => {
+    const row = this.operations.find((operation) => operation.id === id)
+    if (!row) {
+      return
+    }
+    const field = this.getFieldByKey(row.fieldKey)
+    if (!field) {
+      return
+    }
+    const kinds = this.getFieldValueKinds(field)
+    if (!kinds.includes(valueKind)) {
+      return
+    }
+    row.valueKind = valueKind
+    row.value = ''
+    this.operationSearch.delete(id)
     this.update()
   }
 
@@ -1303,6 +1452,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   protected renderMultiValueScalarInput(
     row: OperationRow,
     field: FieldDefinition,
+    valueKind: FieldValueKind,
     value: string,
     valueIndex: number,
     disableRemove: boolean,
@@ -1321,7 +1471,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       </button>
     )
 
-    if (field.valueKind === 'date') {
+    if (valueKind === 'date') {
       const parsed = value.trim().length > 0 ? dayjs(value) : null
       const pickerValue = parsed && parsed.isValid() ? parsed : null
       return (
@@ -1356,7 +1506,7 @@ export class MultiEditDialog extends ReactDialog<string> {
           this.setOperationMultiTextValueFromEvent(row.id, valueIndex, event)
         }
         placeholder="Enter value"
-        type={field.valueKind === 'number' ? 'number' : 'text'}
+        type={valueKind === 'number' ? 'number' : 'text'}
         suffix={removeButton}
       />
     )
@@ -1382,14 +1532,18 @@ export class MultiEditDialog extends ReactDialog<string> {
 
     for (let index = 0; index < this.operations.length; index += 1) {
       const row = this.operations[index]
-      const field = row.fieldKey ? this.fieldsByKey.get(row.fieldKey) : undefined
+      const field = this.getFieldByKey(row.fieldKey)
       if (!field) {
         errors.push(`Row ${index + 1}: select a property.`)
         continue
       }
+      const valueKind = this.getEffectiveValueKind(row, field)
 
+      const schemaOrgFieldActive =
+        field.schemaId === SCHEMA_ORG_SCHEMA_ID && this.schemaOrgEnabled
       if (
         !this.selectedSchemaIds.has(field.schemaId) &&
+        !schemaOrgFieldActive &&
         !(field.appliesToAll && this.schemaOrgEnabled)
       ) {
         errors.push(`Row ${index + 1}: selected property is not part of active schemas.`)
@@ -1408,7 +1562,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       }
 
       if (row.operator !== 'unset' && row.value.trim().length > 0) {
-        const parseError = this.validateValue(field, row.value)
+        const parseError = this.validateValue(field, row.value, valueKind)
         if (parseError) {
           errors.push(`Row ${index + 1}: ${parseError}`)
         }
@@ -1425,13 +1579,17 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @returns Validation error text or undefined.
    * @protected
    */
-  protected validateValue(field: FieldDefinition, rawValue: string): string | undefined {
-    const tokens = this.splitMultiValue(rawValue, field)
+  protected validateValue(
+    field: FieldDefinition,
+    rawValue: string,
+    valueKind: FieldValueKind,
+  ): string | undefined {
+    const tokens = this.splitMultiValue(rawValue, field, valueKind)
     if (tokens.length === 0) {
       return `value must be selected for ${field.label}.`
     }
 
-    if (field.valueKind === 'entity') {
+    if (valueKind === 'entity') {
       const graph = this.getGraph()
       for (const token of tokens) {
         if (!token) {
@@ -1448,7 +1606,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       return undefined
     }
 
-    if (field.valueKind === 'number') {
+    if (valueKind === 'number') {
       for (const token of tokens) {
         const numberValue = Number(token)
         if (!Number.isFinite(numberValue)) {
@@ -1457,7 +1615,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       }
     }
 
-    if (field.valueKind === 'json') {
+    if (valueKind === 'json') {
       try {
         const parsed = JSON.parse(rawValue)
         if (field.multiple && !Array.isArray(parsed)) {
@@ -1468,7 +1626,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       }
     }
 
-    if (field.valueKind === 'select' && field.selectValues.length > 0) {
+    if (valueKind === 'select' && field.selectValues.length > 0) {
       const allowed = new Set(field.selectValues.map((value) => value.trim()))
       for (const token of tokens) {
         if (!allowed.has(token)) {
@@ -1487,16 +1645,20 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @returns Parsed value.
    * @protected
    */
-  protected parseValue(field: FieldDefinition, rawValue: string): unknown {
-    const tokens = this.splitMultiValue(rawValue, field)
-    if (field.valueKind === 'number') {
+  protected parseValue(
+    field: FieldDefinition,
+    rawValue: string,
+    valueKind: FieldValueKind,
+  ): unknown {
+    const tokens = this.splitMultiValue(rawValue, field, valueKind)
+    if (valueKind === 'number') {
       const values = tokens.map((token) => Number(token))
       return field.multiple ? values : values[0]
     }
-    if (field.valueKind === 'json') {
+    if (valueKind === 'json') {
       return JSON.parse(rawValue)
     }
-    if (field.valueKind === 'entity') {
+    if (valueKind === 'entity') {
       const values = tokens.map((token) => ({ '@id': token.trim() }))
       return field.multiple ? values : values[0]
     }
@@ -1530,58 +1692,292 @@ export class MultiEditDialog extends ReactDialog<string> {
     )
   }
 
-  /**
-   * Converts a schema.org property into a generic field definition.
-   * @param property schema.org property entry.
-   * @returns Field definition usable in the operations UI.
-   * @protected
-   */
-  protected toSchemaOrgField(property: SchemaOrgProperty): FieldDefinition {
+  protected getSchemaTypeHierarchy(
+    typeName: string,
+    profileClasses: Record<string, any>,
+  ): string[] {
+    const normalized = this.toTypeTail(typeName)
+    if (!normalized) {
+      return []
+    }
+
+    const collected = new Set<string>()
+    const queue: string[] = [normalized]
+    while (queue.length > 0) {
+      const current = queue.shift()
+      if (!current || collected.has(current)) {
+        continue
+      }
+      collected.add(current)
+
+      const profileParents = Array.isArray(profileClasses[current]?.subClassOf)
+        ? profileClasses[current].subClassOf
+        : []
+      for (const parent of profileParents) {
+        const parentTail = this.toTypeTail(String(parent))
+        if (parentTail && !collected.has(parentTail)) {
+          queue.push(parentTail)
+        }
+      }
+
+      const schemaDef = SCHEMA_TYPE_DEFINITIONS[current]
+      const schemaHierarchy = Array.isArray(schemaDef?.hierarchy)
+        ? schemaDef.hierarchy
+        : []
+      for (const parent of schemaHierarchy) {
+        const parentTail = this.toTypeTail(String(parent))
+        if (parentTail && !collected.has(parentTail)) {
+          queue.push(parentTail)
+        }
+      }
+    }
+
+    if (!collected.has('Thing')) {
+      collected.add('Thing')
+    }
+    return Array.from(collected.values())
+  }
+
+  protected buildSchemaOrgFields(
+    crate: Record<string, any>,
+    profile: Record<string, any>,
+  ): FieldDefinition[] {
+    const profileClasses = (profile?.classes ?? {}) as Record<string, any>
+    const selectedEntities =
+      this.selectedEntities.length > 0
+        ? this.selectedEntities
+        : this.collectSelectedEntities(crate)
+    if (selectedEntities.length === 0) {
+      return []
+    }
+
+    const maps: Array<Map<string, FieldDefinition>> = []
+    for (const entity of selectedEntities) {
+      const map = this.buildSchemaOrgFieldMapForEntity(entity, profileClasses)
+      if (map.size === 0) {
+        return []
+      }
+      maps.push(map)
+    }
+
+    const commonPropertyNames = this.intersectFieldPropertyNames(maps)
+    const mergedFields: FieldDefinition[] = []
+    for (const propertyName of commonPropertyNames) {
+      const definitions = maps
+        .map((map) => map.get(propertyName))
+        .filter((field): field is FieldDefinition => !!field)
+      const merged = this.mergeSchemaOrgFieldDefinitions(definitions)
+      if (merged) {
+        mergedFields.push(merged)
+      }
+    }
+
+    return mergedFields.sort((a, b) => a.label.localeCompare(b.label))
+  }
+
+  protected buildSchemaOrgFieldMapForEntity(
+    entity: Record<string, any>,
+    profileClasses: Record<string, any>,
+  ): Map<string, FieldDefinition> {
+    const entityTypes = this.getEntityTypeNames(entity)
+    if (entityTypes.length === 0) {
+      return new Map()
+    }
+
+    const hierarchy = new Set<string>()
+    for (const typeName of entityTypes) {
+      const typeHierarchy = this.getSchemaTypeHierarchy(typeName, profileClasses)
+      for (const item of typeHierarchy) {
+        hierarchy.add(item)
+      }
+    }
+
+    const inputs: SchemaTypeDefinitionInput[] = []
+    for (const typeName of hierarchy) {
+      const profileClass = profileClasses[typeName]
+      const profileInputs = Array.isArray(profileClass?.inputs)
+        ? (profileClass.inputs as SchemaTypeDefinitionInput[])
+        : []
+      if (profileInputs.length > 0) {
+        inputs.push(...profileInputs)
+      }
+
+      const shouldIncludeSchemaInputs =
+        !profileClass || profileClass?.definition === 'inherit'
+      if (shouldIncludeSchemaInputs) {
+        const schemaInputs = Array.isArray(SCHEMA_TYPE_DEFINITIONS[typeName]?.inputs)
+          ? (SCHEMA_TYPE_DEFINITIONS[typeName]?.inputs as SchemaTypeDefinitionInput[])
+          : []
+        if (schemaInputs.length > 0) {
+          inputs.push(...schemaInputs)
+        }
+      }
+    }
+
+    const byProperty = new Map<string, FieldDefinition>()
+    for (const input of inputs) {
+      const field = this.toSchemaOrgField(input, profileClasses, entityTypes)
+      if (!field) {
+        continue
+      }
+      const existing = byProperty.get(field.propertyName)
+      if (!existing) {
+        byProperty.set(field.propertyName, field)
+        continue
+      }
+      const merged = this.mergeSchemaOrgFieldDefinitions([existing, field])
+      if (merged) {
+        byProperty.set(field.propertyName, merged)
+      }
+    }
+    return byProperty
+  }
+
+  protected intersectFieldPropertyNames(
+    fieldMaps: Array<Map<string, FieldDefinition>>,
+  ): string[] {
+    if (fieldMaps.length === 0) {
+      return []
+    }
+    const firstMap = fieldMaps[0]
+    const result: string[] = []
+    for (const propertyName of firstMap.keys()) {
+      const presentInAll = fieldMaps.every((map) => map.has(propertyName))
+      if (presentInAll) {
+        result.push(propertyName)
+      }
+    }
+    return result
+  }
+
+  protected toSchemaOrgField(
+    input: SchemaTypeDefinitionInput,
+    profileClasses: Record<string, any>,
+    supportedClasses: string[],
+  ): FieldDefinition | undefined {
+    const propertyName = typeof input?.name === 'string' ? input.name.trim() : ''
+    if (!propertyName) {
+      return undefined
+    }
+
+    const relationshipTypes = this.extractEntityTypes(input, profileClasses)
+    const valueKinds = this.resolveValueKinds(input, profileClasses, relationshipTypes)
+    const label =
+      typeof input.label === 'string' && input.label.trim().length > 0
+        ? input.label.trim()
+        : propertyName
+
     return {
-      key: `schemaorg::${property.label}`,
-      className: '__any__',
-      classLabel: 'Any',
+      key: `schemaorg::${propertyName}`,
+      className: '__schemaorg__',
+      classLabel: 'schema.org',
+      supportedClasses,
       schemaId: SCHEMA_ORG_SCHEMA_ID,
       schemaLabel: 'schema.org',
       schemaGroupName: 'schema.org',
-      propertyName: property.label,
-      label: property.label,
-      help: property.comment,
-      multiple: true,
-      valueKind: 'text',
-      selectValues: [],
-      entityTypes: [],
-      appliesToAll: true,
+      propertyName,
+      label,
+      help: typeof input.help === 'string' ? input.help : undefined,
+      multiple: this.parseBoolean(input.multiple),
+      valueKind: valueKinds[0] ?? 'text',
+      valueKinds,
+      selectValues: Array.isArray(input.values)
+        ? input.values
+            .map((value) => String(value))
+            .filter((value) => value.trim().length > 0)
+        : [],
+      entityTypes: relationshipTypes,
     }
   }
 
-  /**
-   * Loads schema.org property definitions from remote CSV.
-   * @returns Promise resolved when loading finishes.
-   * @protected
-   */
-  protected async fetchSchemaOrgProperties(): Promise<void> {
-    this.schemaOrgLoading = true
-    this.schemaOrgError = undefined
-    this.update()
-
-    try {
-      const response = await fetch(SCHEMA_ORG_PROPERTIES_URL)
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      const csvText = await response.text()
-      this.schemaOrgProperties = parseSchemaOrgCsv(csvText).sort((a, b) =>
-        a.label.localeCompare(b.label),
-      )
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown fetch error.'
-      this.schemaOrgError = `Failed to fetch schema.org properties: ${message}`
-      console.error('Error fetching schema.org properties:', error)
-    } finally {
-      this.schemaOrgLoading = false
-      this.update()
+  protected mergeSchemaOrgFieldDefinitions(
+    definitions: FieldDefinition[],
+  ): FieldDefinition | undefined {
+    if (definitions.length === 0) {
+      return undefined
     }
+    const base = { ...definitions[0] }
+    base.multiple = definitions.every((definition) => definition.multiple)
+    base.appliesToAll = definitions.every((definition) => definition.appliesToAll)
+
+    const supported = new Set<string>()
+    for (const definition of definitions) {
+      for (const className of definition.supportedClasses ?? []) {
+        supported.add(className)
+      }
+    }
+    base.supportedClasses = Array.from(supported.values())
+
+    const intersectKinds = (lists: FieldValueKind[][]): FieldValueKind[] => {
+      if (lists.length === 0) {
+        return []
+      }
+      let current = new Set(lists[0])
+      for (let index = 1; index < lists.length; index += 1) {
+        const next = new Set(lists[index])
+        current = new Set(Array.from(current).filter((item) => next.has(item)))
+      }
+      return Array.from(current.values())
+    }
+    const valueKindLists = definitions.map((definition) =>
+      this.getFieldValueKinds(definition),
+    )
+    const intersectedKinds = intersectKinds(valueKindLists)
+    const fallbackKinds = this.sortValueKinds(valueKindLists.flat())
+    base.valueKinds = this.sortValueKinds(
+      intersectedKinds.length > 0 ? intersectedKinds : fallbackKinds,
+    )
+
+    const intersectStrings = (lists: string[][]): string[] => {
+      if (lists.length === 0) {
+        return []
+      }
+      let current = new Set(lists[0])
+      for (let index = 1; index < lists.length; index += 1) {
+        const next = new Set(lists[index])
+        current = new Set(Array.from(current).filter((item) => next.has(item)))
+      }
+      return Array.from(current.values())
+    }
+
+    const intersectedEntityTypes = intersectStrings(
+      definitions.map((definition) => definition.entityTypes),
+    )
+    const allEntityTypes: string[] = []
+    for (const definition of definitions) {
+      for (const typeName of definition.entityTypes) {
+        allEntityTypes.push(typeName)
+      }
+    }
+    base.entityTypes =
+      intersectedEntityTypes.length > 0
+        ? intersectedEntityTypes
+        : Array.from(new Set(allEntityTypes))
+
+    const selectValueCandidates = definitions.map((definition) => definition.selectValues)
+    const intersectedSelectValues = intersectStrings(selectValueCandidates)
+    const allSelectValues: string[] = []
+    for (const definition of definitions) {
+      for (const value of definition.selectValues) {
+        allSelectValues.push(value)
+      }
+    }
+    base.selectValues =
+      intersectedSelectValues.length > 0
+        ? intersectedSelectValues
+        : Array.from(new Set(allSelectValues))
+
+    if (base.entityTypes.length === 0) {
+      base.valueKinds = base.valueKinds.filter((kind) => kind !== 'entity')
+    }
+    if (base.selectValues.length === 0) {
+      base.valueKinds = base.valueKinds.filter((kind) => kind !== 'select')
+    }
+    if (base.valueKinds.length === 0) {
+      base.valueKinds = ['text']
+    }
+    base.valueKind = base.valueKinds[0] ?? 'text'
+    return base
   }
 
   /**
@@ -1740,12 +2136,16 @@ export class MultiEditDialog extends ReactDialog<string> {
     return [value]
   }
 
-  protected splitMultiValue(rawValue: string, field: FieldDefinition): string[] {
+  protected splitMultiValue(
+    rawValue: string,
+    field: FieldDefinition,
+    valueKind: FieldValueKind,
+  ): string[] {
     const trimmed = rawValue.trim()
     if (!field.multiple) {
       return trimmed ? [trimmed] : []
     }
-    const separatorPattern = field.valueKind === 'text' ? /\r?\n+/ : /[\n;,]+/
+    const separatorPattern = valueKind === 'text' ? /\r?\n+/ : /[\n;,]+/
     const parts = trimmed
       .split(separatorPattern)
       .map((part) => part.trim())
@@ -1874,13 +2274,13 @@ export class MultiEditDialog extends ReactDialog<string> {
     const preparedOperations: PreparedOperation[] = []
     for (let rowIndex = 0; rowIndex < this.operations.length; rowIndex += 1) {
       const operation = this.operations[rowIndex]
-      const field = operation.fieldKey
-        ? this.fieldsByKey.get(operation.fieldKey)
-        : undefined
+      const field = this.getFieldByKey(operation.fieldKey)
+      const valueKind = field ? this.getEffectiveValueKind(operation, field) : undefined
       const prepared: PreparedOperation = {
         operation,
         rowIndex,
         field,
+        valueKind,
       }
 
       if (!field) {
@@ -1896,9 +2296,9 @@ export class MultiEditDialog extends ReactDialog<string> {
         const rawValue = operation.value.trim()
         if (rawValue.length > 0) {
           prepared.parsedValue =
-            field.valueKind === 'entity'
+            valueKind === 'entity'
               ? this.resolveEntityValues(field, rawValue, graph)
-              : this.parseValue(field, rawValue)
+              : this.parseValue(field, rawValue, valueKind ?? field.valueKind)
         }
       }
 
@@ -2029,6 +2429,43 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   /**
+   * Renders a value-kind selector when a field supports multiple value kinds.
+   * @param row Operation row.
+   * @param field Field definition.
+   * @returns Selector UI or undefined.
+   * @protected
+   */
+  protected renderValueKindSelector(
+    row: OperationRow,
+    field: FieldDefinition,
+  ): React.ReactNode {
+    const kinds = this.getFieldValueKinds(field)
+    if (kinds.length <= 1) {
+      return undefined
+    }
+    const currentKind = this.getEffectiveValueKind(row, field)
+    return (
+      <div className="entities-overview-edit-modal-value-kind">
+        <Select
+          size="small"
+          value={currentKind}
+          onChange={(value) =>
+            this.setOperationValueKind(row.id, value as FieldValueKind)
+          }
+          options={kinds.map((kind) => ({
+            value: kind,
+            label: VALUE_KIND_LABELS[kind],
+          }))}
+          getPopupContainer={() => document.body}
+          classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
+          styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
+          style={{ width: 180 }}
+        />
+      </div>
+    )
+  }
+
+  /**
    * Renders the appropriate input control for an operation value.
    * @param row Operation row.
    * @param field Selected field definition.
@@ -2047,10 +2484,16 @@ export class MultiEditDialog extends ReactDialog<string> {
       return <Input disabled placeholder="Select property first" />
     }
 
-    if (field.valueKind === 'select' && field.selectValues.length > 0) {
+    const valueKind = this.getEffectiveValueKind(row, field)
+    const valueKindSelector = this.renderValueKindSelector(row, field)
+
+    let editor: React.ReactNode
+    if (valueKind === 'select' && field.selectValues.length > 0) {
       const isMulti = field.multiple
-      const multiValue = isMulti ? this.splitMultiValue(row.value, field) : undefined
-      return (
+      const multiValue = isMulti
+        ? this.splitMultiValue(row.value, field, valueKind)
+        : undefined
+      editor = (
         <Select
           value={isMulti ? multiValue : row.value || undefined}
           onChange={(value) => {
@@ -2074,14 +2517,10 @@ export class MultiEditDialog extends ReactDialog<string> {
           style={{ width: '100%' }}
         />
       )
-    }
-
-    if (field.valueKind === 'entity') {
-      return this.renderEntityValueEditor(row, field)
-    }
-
-    if (field.valueKind === 'json') {
-      return (
+    } else if (valueKind === 'entity') {
+      editor = this.renderEntityValueEditor(row, field)
+    } else if (valueKind === 'json') {
+      editor = (
         <Input.TextArea
           value={row.value}
           onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) =>
@@ -2091,12 +2530,10 @@ export class MultiEditDialog extends ReactDialog<string> {
           placeholder='Enter JSON value, e.g. {"@id":"./file.txt"}'
         />
       )
-    }
-
-    if (field.valueKind === 'date') {
+    } else if (valueKind === 'date') {
       const parsed = row.value.trim().length > 0 ? dayjs(row.value) : null
       const pickerValue = parsed && parsed.isValid() ? parsed : null
-      return (
+      editor = (
         <DatePicker
           value={pickerValue}
           onChange={(_, dateString) =>
@@ -2115,11 +2552,9 @@ export class MultiEditDialog extends ReactDialog<string> {
           allowClear
         />
       )
-    }
-
-    if (field.multiple) {
+    } else if (field.multiple) {
       const values = this.getEditableMultiTextValues(row.value)
-      return (
+      editor = (
         <div className="entities-overview-edit-modal-multi-text">
           {values.map((value, valueIndex) => (
             <div
@@ -2129,6 +2564,7 @@ export class MultiEditDialog extends ReactDialog<string> {
               {this.renderMultiValueScalarInput(
                 row,
                 field,
+                valueKind,
                 value,
                 valueIndex,
                 values.length === 1 && values[0].trim().length === 0,
@@ -2144,17 +2580,24 @@ export class MultiEditDialog extends ReactDialog<string> {
           </button>
         </div>
       )
+    } else {
+      editor = (
+        <Input
+          value={row.value}
+          onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+            this.setOperationValue(row.id, event.target.value)
+          }
+          placeholder="Enter value"
+          type={valueKind === 'number' ? 'number' : 'text'}
+        />
+      )
     }
 
     return (
-      <Input
-        value={row.value}
-        onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-          this.setOperationValue(row.id, event.target.value)
-        }
-        placeholder="Enter value"
-        type={field.valueKind === 'number' ? 'number' : 'text'}
-      />
+      <div className="entities-overview-edit-modal-value-input">
+        {valueKindSelector}
+        {editor}
+      </div>
     )
   }
 
@@ -2418,11 +2861,21 @@ export class MultiEditDialog extends ReactDialog<string> {
     if (types.length === 0) {
       return false
     }
-    const entityType = this.getEntityTypeName(entity)
-    if (!entityType) {
+    const entityTypes = this.getEntityTypeNames(entity)
+    if (entityTypes.length === 0) {
       return false
     }
-    return types.some((typeName) => typeName === entityType)
+    const profileClasses = (this.profileData?.classes ?? {}) as Record<string, any>
+    const entityHierarchy = new Set<string>()
+    for (const typeName of entityTypes) {
+      const hierarchy = this.getSchemaTypeHierarchy(typeName, profileClasses)
+      for (const entry of hierarchy) {
+        entityHierarchy.add(entry)
+      }
+      entityHierarchy.add(typeName)
+    }
+
+    return types.some((typeName) => entityHierarchy.has(typeName))
   }
 
   /**
@@ -2496,7 +2949,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     rawValue: string,
     graph: Record<string, any>[],
   ): unknown {
-    const tokens = this.splitMultiValue(rawValue, field)
+    const tokens = this.splitMultiValue(rawValue, field, 'entity')
     const resolved = tokens.map((token) => this.resolveEntityValue(field, token, graph))
     return field.multiple ? resolved : resolved[0]
   }
@@ -2507,7 +2960,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     isMulti: boolean,
   ): string[] | string | undefined {
     if (isMulti) {
-      return this.splitMultiValue(row.value, field)
+      return this.splitMultiValue(row.value, field, 'entity')
     }
     return row.value || undefined
   }
@@ -2636,7 +3089,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     return (
       <div className="entities-overview-edit-modal-rows">
         {this.operations.map((row, index) => {
-          const field = row.fieldKey ? this.fieldsByKey.get(row.fieldKey) : undefined
+          const field = this.getFieldByKey(row.fieldKey)
           const allowedOperators = this.getAllowedOperators(field)
           return (
             <div className="entities-overview-edit-modal-row" key={row.id}>
@@ -2872,12 +3325,8 @@ export class MultiEditDialog extends ReactDialog<string> {
             <Switch
               checked={this.schemaOrgEnabled}
               onChange={this.toggleSchemaOrg}
-              disabled={this.schemaOrgLoading}
             />
           </div>
-          {this.schemaOrgError && (
-            <Alert type="warning" showIcon message={this.schemaOrgError} />
-          )}
         </div>
 
         <div className="entities-overview-edit-modal-section">

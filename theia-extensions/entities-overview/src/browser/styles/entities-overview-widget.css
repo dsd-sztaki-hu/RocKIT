@@ -880,6 +880,17 @@ body.entities-overview-filters-visible
   min-width: 320px;
 }
 
+.entities-overview-edit-modal-value-input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.entities-overview-edit-modal-value-kind {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .entities-overview-edit-modal-value .ant-select,
 .entities-overview-edit-modal-value .ant-input,
 .entities-overview-edit-modal-value .ant-input-number,
