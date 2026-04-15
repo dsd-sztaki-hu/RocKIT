@@ -59,6 +59,8 @@ export type AdvancedFilterNode = AdvancedFilterRuleNode | AdvancedFilterGroupNod
 
 export const ALL_ENTITY_TYPES_OPTION = '__all__'
 export const SCHEMA_ORG_SCHEMA_ID = '__schemaorg__'
+const SCHEMA_ORG_LABEL = 'schema.org'
+const OTHER_ONTOLOGIES_LABEL = 'Other ontologies'
 
 interface SchemaTypeDefinitionInput {
   id?: string
@@ -983,6 +985,7 @@ function buildSchemaOrgCatalogFields(
         if (!propertyName) {
           continue
         }
+        const ontologyLabel = resolveOntologyLabelForSchemaInput(input)
 
         const inputRecord = input as Record<string, unknown>
         const relationshipTypes = extractEntityTypes(inputRecord, classes)
@@ -1012,6 +1015,12 @@ function buildSchemaOrgCatalogFields(
           if (existing.valueKind !== 'date' && valueKind === 'date') {
             existing.valueKind = 'date'
           }
+          const existingIsSchemaOrg = existing.schemaLabel
+            .toLowerCase()
+            .includes(SCHEMA_ORG_LABEL)
+          if (ontologyLabel === SCHEMA_ORG_LABEL && !existingIsSchemaOrg) {
+            existing.schemaLabel = SCHEMA_ORG_LABEL
+          }
 
           const mergedSubfields = new Map(
             existing.objectSubfields.map((subfield) => [subfield.key, subfield] as const),
@@ -1034,7 +1043,7 @@ function buildSchemaOrgCatalogFields(
               ? input.label.trim()
               : propertyName,
           schemaId: SCHEMA_ORG_SCHEMA_ID,
-          schemaLabel: 'schema.org',
+          schemaLabel: ontologyLabel,
           propertyName,
           help: typeof input?.help === 'string' ? input.help : undefined,
           supportedClasses: [entityType],
@@ -1050,6 +1059,11 @@ function buildSchemaOrgCatalogFields(
   return Array.from(fieldsByProperty.values()).sort((a, b) =>
     a.label.localeCompare(b.label),
   )
+}
+
+function resolveOntologyLabelForSchemaInput(input: SchemaTypeDefinitionInput): string {
+  const id = typeof input?.id === 'string' ? input.id.toLowerCase() : ''
+  return id.includes(SCHEMA_ORG_LABEL) ? SCHEMA_ORG_LABEL : OTHER_ONTOLOGIES_LABEL
 }
 
 function getEntityTypeNames(entity: Record<string, unknown>): string[] {

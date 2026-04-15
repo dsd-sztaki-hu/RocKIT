@@ -163,7 +163,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           />
           <div className="entities-overview-edit-modal-schema-org-toggle">
             <span className="entities-overview-edit-modal-label">
-              Include schema.org properties
+              Enable properties from other ontologies
             </span>
             <Switch
               checked={this.draft.schemaOrgEnabled}
@@ -178,7 +178,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
             showIcon
             message={
               this.draft.schemaOrgEnabled
-                ? 'No properties are available for the selected schemas or schema.org.'
+                ? 'No properties are available for the selected schemas or other ontologies.'
                 : 'No properties are available for the selected schemas.'
             }
           />
