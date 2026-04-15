@@ -1,6 +1,6 @@
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import * as React from '@theia/core/shared/react'
-import { Alert, Button, DatePicker, Input, Select } from 'antd'
+import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import dayjs = require('dayjs')
 import {
   ALL_ENTITY_TYPES_OPTION,
@@ -9,6 +9,7 @@ import {
   AdvancedFilterRuleNode,
   AdvancedFilterState,
   AdvancedRuleOperator,
+  SCHEMA_ORG_SCHEMA_ID,
   decodeAdvancedRuleValues,
   encodeAdvancedRuleValues,
   cloneAdvancedFilterState,
@@ -111,6 +112,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     return {
       selectedEntityType,
       selectedSchemaIds: [...selectedSchemaIds],
+      schemaOrgEnabled: Boolean(initial?.schemaOrgEnabled),
       root,
     }
   }
@@ -159,13 +161,26 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
             style={{ width: '100%' }}
             maxTagCount="responsive"
           />
+          <div className="entities-overview-edit-modal-schema-org-toggle">
+            <span className="entities-overview-edit-modal-label">
+              Include schema.org properties
+            </span>
+            <Switch
+              checked={this.draft.schemaOrgEnabled}
+              onChange={(enabled) => this.onSchemaOrgToggle(enabled)}
+            />
+          </div>
         </div>
 
         {visibleFields.length === 0 ? (
           <Alert
             type="info"
             showIcon
-            message="No properties are available for the selected schemas."
+            message={
+              this.draft.schemaOrgEnabled
+                ? 'No properties are available for the selected schemas or schema.org.'
+                : 'No properties are available for the selected schemas.'
+            }
           />
         ) : (
           this.renderGroup(this.draft.root, true)
@@ -321,7 +336,11 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
 
   protected getVisibleFields() {
     const selected = new Set(this.draft.selectedSchemaIds)
-    return this.catalog.fields.filter((field) => selected.has(field.schemaId))
+    return this.catalog.fields.filter(
+      (field) =>
+        selected.has(field.schemaId) ||
+        (this.draft.schemaOrgEnabled && field.schemaId === SCHEMA_ORG_SCHEMA_ID),
+    )
   }
 
   protected onSchemaSelectionChange(schemaIds: string[]): void {
@@ -331,6 +350,11 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
 
   protected onEntityTypeSelectionChange(entityType: string): void {
     this.draft.selectedEntityType = entityType
+    this.update()
+  }
+
+  protected onSchemaOrgToggle(enabled: boolean): void {
+    this.draft.schemaOrgEnabled = enabled
     this.update()
   }
 

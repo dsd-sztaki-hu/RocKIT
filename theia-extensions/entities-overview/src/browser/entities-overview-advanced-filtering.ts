@@ -1,3 +1,5 @@
+import schemaTypeDefinitions = require('./schema-type-definitions.json')
+
 export type AdvancedFilterCombinator = 'and' | 'or'
 
 export type AdvancedRuleOperator =
@@ -56,10 +58,27 @@ export interface AdvancedFilterGroupNode {
 export type AdvancedFilterNode = AdvancedFilterRuleNode | AdvancedFilterGroupNode
 
 export const ALL_ENTITY_TYPES_OPTION = '__all__'
+export const SCHEMA_ORG_SCHEMA_ID = '__schemaorg__'
+
+interface SchemaTypeDefinitionInput {
+  id?: string
+  name?: string
+  label?: string
+  help?: string
+  type?: string | string[]
+  values?: unknown[]
+}
+
+interface SchemaTypeDefinition {
+  subClassOf?: string[]
+  hierarchy?: string[]
+  inputs?: SchemaTypeDefinitionInput[]
+}
 
 export interface AdvancedFilterState {
   selectedEntityType: string
   selectedSchemaIds: string[]
+  schemaOrgEnabled: boolean
   root: AdvancedFilterGroupNode
 }
 
@@ -83,8 +102,22 @@ interface RuleEvaluationCache {
   nestedFieldsByKey?: Map<string, AdvancedFieldDefinition>
 }
 
+interface RuleEvaluationContext {
+  comparableValuesByEntity: WeakMap<Record<string, unknown>, Map<string, string[]>>
+  normalizedValuesByEntity: WeakMap<Record<string, unknown>, Map<string, string[]>>
+  dateDayKeysByEntity: WeakMap<Record<string, unknown>, Map<string, number[]>>
+  objectEntitiesByEntity: WeakMap<
+    Record<string, unknown>,
+    Map<string, Record<string, unknown>[]>
+  >
+}
+
 const OPERATORS_WITHOUT_VALUE = new Set<AdvancedRuleOperator>(['is_null', 'is_not_null'])
 const MULTI_VALUE_PREFIX = '__advanced_multi__:'
+const SCHEMA_TYPE_DEFINITIONS = schemaTypeDefinitions as Record<
+  string,
+  SchemaTypeDefinition
+>
 const DATE_ORDER_OPERATORS = new Set<AdvancedRuleOperator>([
   'lt',
   'lte',
@@ -195,6 +228,11 @@ export function buildAdvancedFilterCatalog(
     }
   }
 
+  const schemaOrgFields = buildSchemaOrgCatalogFields(crate, classes)
+  for (const field of schemaOrgFields) {
+    fieldsByKey.set(field.key, field)
+  }
+
   const fields = Array.from(fieldsByKey.values()).sort((a, b) => {
     const labelCompare = a.label.localeCompare(b.label)
     if (labelCompare !== 0) {
@@ -213,6 +251,7 @@ export function cloneAdvancedFilterState(state: AdvancedFilterState): AdvancedFi
   return {
     selectedEntityType: state.selectedEntityType,
     selectedSchemaIds: [...state.selectedSchemaIds],
+    schemaOrgEnabled: Boolean(state.schemaOrgEnabled),
     root: cloneGroup(state.root),
   }
 }
@@ -261,9 +300,14 @@ export function buildAdvancedEntityMatcher(
   }
 
   const selectedSchemaIds = new Set(sanitized.selectedSchemaIds)
+  const includeSchemaOrg = sanitized.schemaOrgEnabled
   const activeFieldsByKey = new Map(
     catalog.fields
-      .filter((field) => selectedSchemaIds.has(field.schemaId))
+      .filter(
+        (field) =>
+          selectedSchemaIds.has(field.schemaId) ||
+          (includeSchemaOrg && field.schemaId === SCHEMA_ORG_SCHEMA_ID),
+      )
       .map((field) => [field.key, field] as const),
   )
 
@@ -283,7 +327,14 @@ export function buildAdvancedEntityMatcher(
   )
 
   return (entity) =>
-    evaluateGroup(entity, sanitized.root, activeFieldsByKey, entityById, ruleCache)
+    evaluateGroup(
+      entity,
+      sanitized.root,
+      activeFieldsByKey,
+      entityById,
+      ruleCache,
+      createRuleEvaluationContext(),
+    )
 }
 
 /**
@@ -298,14 +349,19 @@ function sanitizeState(
   const selectedSchemaIds = state.selectedSchemaIds.filter((schemaId) =>
     schemaIds.has(schemaId),
   )
-  if (selectedSchemaIds.length === 0) {
+  const schemaOrgEnabled = Boolean(state.schemaOrgEnabled)
+  if (selectedSchemaIds.length === 0 && !schemaOrgEnabled) {
     return undefined
   }
   const selectedSchemaSet = new Set(selectedSchemaIds)
 
   const allowedFieldIds = new Set(
     catalog.fields
-      .filter((field) => selectedSchemaSet.has(field.schemaId))
+      .filter(
+        (field) =>
+          selectedSchemaSet.has(field.schemaId) ||
+          (schemaOrgEnabled && field.schemaId === SCHEMA_ORG_SCHEMA_ID),
+      )
       .map((field) => field.key),
   )
   if (allowedFieldIds.size === 0) {
@@ -320,6 +376,7 @@ function sanitizeState(
   return {
     selectedEntityType: state.selectedEntityType,
     selectedSchemaIds,
+    schemaOrgEnabled,
     root,
   }
 }
@@ -434,6 +491,7 @@ function evaluateGroup(
   fieldsByKey: Map<string, AdvancedFieldDefinition>,
   entityById: Map<string, Record<string, unknown>>,
   ruleCache: WeakMap<AdvancedFilterRuleNode, RuleEvaluationCache>,
+  evaluationContext: RuleEvaluationContext,
 ): boolean {
   if (group.children.length === 0) {
     return true
@@ -445,8 +503,22 @@ function evaluateGroup(
     for (const child of group.children) {
       const matches =
         child.kind === 'group'
-          ? evaluateGroup(entity, child, fieldsByKey, entityById, ruleCache)
-          : evaluateRule(entity, child, fieldsByKey, entityById, ruleCache)
+          ? evaluateGroup(
+              entity,
+              child,
+              fieldsByKey,
+              entityById,
+              ruleCache,
+              evaluationContext,
+            )
+          : evaluateRule(
+              entity,
+              child,
+              fieldsByKey,
+              entityById,
+              ruleCache,
+              evaluationContext,
+            )
       if (matches) {
         value = true
         break
@@ -457,8 +529,22 @@ function evaluateGroup(
     for (const child of group.children) {
       const matches =
         child.kind === 'group'
-          ? evaluateGroup(entity, child, fieldsByKey, entityById, ruleCache)
-          : evaluateRule(entity, child, fieldsByKey, entityById, ruleCache)
+          ? evaluateGroup(
+              entity,
+              child,
+              fieldsByKey,
+              entityById,
+              ruleCache,
+              evaluationContext,
+            )
+          : evaluateRule(
+              entity,
+              child,
+              fieldsByKey,
+              entityById,
+              ruleCache,
+              evaluationContext,
+            )
       if (!matches) {
         value = false
         break
@@ -479,6 +565,7 @@ function evaluateRule(
   fieldsByKey: Map<string, AdvancedFieldDefinition>,
   entityById: Map<string, Record<string, unknown>>,
   ruleCache: WeakMap<AdvancedFilterRuleNode, RuleEvaluationCache>,
+  evaluationContext: RuleEvaluationContext,
 ): boolean {
   if (!rule.fieldKey) {
     return false
@@ -495,19 +582,33 @@ function evaluateRule(
     const nestedFieldsByKey =
       cached?.nestedFieldsByKey ??
       new Map(field.objectSubfields.map((subfield) => [subfield.key, subfield] as const))
-    const objectEntities = resolveObjectEntities(entity[field.propertyName], entityById)
+    const objectEntities = getObjectEntitiesCached(
+      entity,
+      field,
+      entityById,
+      evaluationContext,
+    )
     if (objectEntities.length === 0) {
       return false
     }
     for (const item of objectEntities) {
-      if (evaluateGroup(item, rule.fieldsRoot, nestedFieldsByKey, entityById, ruleCache)) {
+      if (
+        evaluateGroup(
+          item,
+          rule.fieldsRoot,
+          nestedFieldsByKey,
+          entityById,
+          ruleCache,
+          evaluationContext,
+        )
+      ) {
         return true
       }
     }
     return false
   }
 
-  const values = getComparableValues(entity, field)
+  const values = getComparableValuesCached(entity, field, evaluationContext)
   const hasValue = values.length > 0
   if (rule.operator === 'is_null') {
     return !hasValue
@@ -518,10 +619,18 @@ function evaluateRule(
 
   const cached = ruleCache.get(rule)
   if (field.valueKind === 'date' && isDateComparableOperator(rule.operator)) {
-    return evaluateDateRule(values, rule.operator, cached?.dateQueryDayKeys)
+    return evaluateDateRule(
+      getDateDayKeysCached(entity, field, evaluationContext),
+      rule.operator,
+      cached?.dateQueryDayKeys,
+    )
   }
 
-  const normalizedValues = values.map((value) => value.toLocaleLowerCase())
+  const normalizedValues = getNormalizedComparableValuesCached(
+    entity,
+    field,
+    evaluationContext,
+  )
   const queries =
     cached?.normalizedQueries ??
     decodeAdvancedRuleValues(rule.value).map((value) => value.toLocaleLowerCase())
@@ -574,16 +683,13 @@ function evaluateRule(
  * Evaluates date/date-time operators using normalized calendar-day keys.
  */
 function evaluateDateRule(
-  values: string[],
+  dateValues: number[],
   operator: Extract<
     AdvancedRuleOperator,
     'equal' | 'not_equal' | 'lt' | 'lte' | 'gt' | 'gte' | 'between' | 'not_between'
   >,
   queryDayKeys: number[] | undefined,
 ): boolean {
-  const dateValues = values
-    .map((value) => toDateDayKey(value))
-    .filter((value): value is number => value !== undefined)
   const normalizedQueryDates = queryDayKeys ?? []
   const queryDate = normalizedQueryDates[0]
 
@@ -627,6 +733,101 @@ function getComparableValues(
   field: AdvancedFieldDefinition,
 ): string[] {
   return flattenComparableValues(entity[field.propertyName])
+}
+
+function createRuleEvaluationContext(): RuleEvaluationContext {
+  return {
+    comparableValuesByEntity: new WeakMap(),
+    normalizedValuesByEntity: new WeakMap(),
+    dateDayKeysByEntity: new WeakMap(),
+    objectEntitiesByEntity: new WeakMap(),
+  }
+}
+
+function getEntityPropertyCache<T>(
+  store: WeakMap<Record<string, unknown>, Map<string, T>>,
+  entity: Record<string, unknown>,
+): Map<string, T> {
+  let cache = store.get(entity)
+  if (!cache) {
+    cache = new Map<string, T>()
+    store.set(entity, cache)
+  }
+  return cache
+}
+
+function getComparableValuesCached(
+  entity: Record<string, unknown>,
+  field: AdvancedFieldDefinition,
+  evaluationContext: RuleEvaluationContext,
+): string[] {
+  const cache = getEntityPropertyCache(
+    evaluationContext.comparableValuesByEntity,
+    entity,
+  )
+  const existing = cache.get(field.propertyName)
+  if (existing) {
+    return existing
+  }
+  const values = getComparableValues(entity, field)
+  cache.set(field.propertyName, values)
+  return values
+}
+
+function getNormalizedComparableValuesCached(
+  entity: Record<string, unknown>,
+  field: AdvancedFieldDefinition,
+  evaluationContext: RuleEvaluationContext,
+): string[] {
+  const cache = getEntityPropertyCache(
+    evaluationContext.normalizedValuesByEntity,
+    entity,
+  )
+  const existing = cache.get(field.propertyName)
+  if (existing) {
+    return existing
+  }
+  const normalized = getComparableValuesCached(entity, field, evaluationContext).map((value) =>
+    value.toLocaleLowerCase(),
+  )
+  cache.set(field.propertyName, normalized)
+  return normalized
+}
+
+function getDateDayKeysCached(
+  entity: Record<string, unknown>,
+  field: AdvancedFieldDefinition,
+  evaluationContext: RuleEvaluationContext,
+): number[] {
+  const cache = getEntityPropertyCache(evaluationContext.dateDayKeysByEntity, entity)
+  const existing = cache.get(field.propertyName)
+  if (existing) {
+    return existing
+  }
+  const dayKeys = getComparableValuesCached(entity, field, evaluationContext)
+    .map((value) => toDateDayKey(value))
+    .filter((value): value is number => value !== undefined)
+  cache.set(field.propertyName, dayKeys)
+  return dayKeys
+}
+
+function getObjectEntitiesCached(
+  entity: Record<string, unknown>,
+  field: AdvancedFieldDefinition,
+  entityById: Map<string, Record<string, unknown>>,
+  evaluationContext: RuleEvaluationContext,
+): Record<string, unknown>[] {
+  const cache = getEntityPropertyCache(
+    evaluationContext.objectEntitiesByEntity,
+    entity,
+  )
+  const existing = cache.get(field.propertyName)
+  if (existing) {
+    return existing
+  }
+  const values = resolveObjectEntities(entity[field.propertyName], entityById)
+  cache.set(field.propertyName, values)
+  return values
 }
 
 function flattenComparableValues(rawValue: unknown): string[] {
@@ -700,6 +901,155 @@ function collectEntityTypes(
     }
   }
   return Array.from(types.values()).sort((a, b) => a.localeCompare(b))
+}
+
+function collectAllEntityTypes(crate: Record<string, unknown> | undefined): string[] {
+  const graph = Array.isArray(crate?.['@graph'])
+    ? (crate['@graph'] as Record<string, unknown>[])
+    : []
+  const types = new Set<string>()
+  for (const entity of graph) {
+    for (const typeName of getEntityTypeNames(entity)) {
+      types.add(typeName)
+    }
+  }
+  return Array.from(types.values()).sort((a, b) => a.localeCompare(b))
+}
+
+function getSchemaTypeHierarchy(
+  typeName: string,
+  classes: Record<string, unknown>,
+): string[] {
+  const normalized = toTypeTail(typeName)
+  if (!normalized) {
+    return []
+  }
+
+  const collected = new Set<string>()
+  const queue: string[] = [normalized]
+  while (queue.length > 0) {
+    const current = queue.shift()
+    if (!current || collected.has(current)) {
+      continue
+    }
+    collected.add(current)
+
+    const profileClass = asRecord(classes[current])
+    const profileParents = Array.isArray(profileClass?.subClassOf)
+      ? profileClass.subClassOf
+      : []
+    for (const parent of profileParents) {
+      const parentTail = toTypeTail(String(parent))
+      if (parentTail && !collected.has(parentTail)) {
+        queue.push(parentTail)
+      }
+    }
+
+    const schemaHierarchy = Array.isArray(SCHEMA_TYPE_DEFINITIONS[current]?.hierarchy)
+      ? SCHEMA_TYPE_DEFINITIONS[current].hierarchy
+      : []
+    for (const parent of schemaHierarchy ?? []) {
+      const parentTail = toTypeTail(String(parent))
+      if (parentTail && !collected.has(parentTail)) {
+        queue.push(parentTail)
+      }
+    }
+  }
+
+  if (!collected.has('Thing')) {
+    collected.add('Thing')
+  }
+  return Array.from(collected.values())
+}
+
+function buildSchemaOrgCatalogFields(
+  crate: Record<string, unknown> | undefined,
+  classes: Record<string, unknown>,
+): AdvancedFieldDefinition[] {
+  const entityTypes = collectAllEntityTypes(crate)
+  if (entityTypes.length === 0) {
+    return []
+  }
+
+  const fieldsByProperty = new Map<string, AdvancedFieldDefinition>()
+  for (const entityType of entityTypes) {
+    const hierarchy = getSchemaTypeHierarchy(entityType, classes)
+    for (const typeName of hierarchy) {
+      const schemaInputs = Array.isArray(SCHEMA_TYPE_DEFINITIONS[typeName]?.inputs)
+        ? SCHEMA_TYPE_DEFINITIONS[typeName].inputs
+        : []
+      for (const input of schemaInputs ?? []) {
+        const propertyName = typeof input?.name === 'string' ? input.name.trim() : ''
+        if (!propertyName) {
+          continue
+        }
+
+        const inputRecord = input as Record<string, unknown>
+        const relationshipTypes = extractEntityTypes(inputRecord, classes)
+        const expectsObjectValue = resolveExpectsObjectValue(
+          inputRecord,
+          classes,
+          relationshipTypes,
+        )
+        const valueKind = resolveValueKind(inputRecord, expectsObjectValue)
+        const objectSubfields = expectsObjectValue
+          ? buildObjectSubfields(relationshipTypes, classes)
+          : []
+
+        const existing = fieldsByProperty.get(propertyName)
+        if (existing) {
+          const supported = new Set(existing.supportedClasses)
+          supported.add(entityType)
+          existing.supportedClasses = Array.from(supported.values())
+
+          const mergedEntityTypes = new Set(existing.entityTypes)
+          for (const type of relationshipTypes) {
+            mergedEntityTypes.add(type)
+          }
+          existing.entityTypes = Array.from(mergedEntityTypes.values())
+
+          existing.expectsObjectValue = existing.expectsObjectValue || expectsObjectValue
+          if (existing.valueKind !== 'date' && valueKind === 'date') {
+            existing.valueKind = 'date'
+          }
+
+          const mergedSubfields = new Map(
+            existing.objectSubfields.map((subfield) => [subfield.key, subfield] as const),
+          )
+          for (const subfield of objectSubfields) {
+            if (!mergedSubfields.has(subfield.key)) {
+              mergedSubfields.set(subfield.key, subfield)
+            }
+          }
+          existing.objectSubfields = Array.from(mergedSubfields.values()).sort((a, b) =>
+            a.label.localeCompare(b.label),
+          )
+          continue
+        }
+
+        fieldsByProperty.set(propertyName, {
+          key: `schemaorg::${propertyName}`,
+          label:
+            typeof input?.label === 'string' && input.label.trim().length > 0
+              ? input.label.trim()
+              : propertyName,
+          schemaId: SCHEMA_ORG_SCHEMA_ID,
+          schemaLabel: 'schema.org',
+          propertyName,
+          help: typeof input?.help === 'string' ? input.help : undefined,
+          supportedClasses: [entityType],
+          entityTypes: relationshipTypes,
+          expectsObjectValue,
+          valueKind,
+          objectSubfields,
+        })
+      }
+    }
+  }
+
+  return Array.from(fieldsByProperty.values()).sort((a, b) =>
+    a.label.localeCompare(b.label),
+  )
 }
 
 function getEntityTypeNames(entity: Record<string, unknown>): string[] {
@@ -853,7 +1203,9 @@ function extractEntityTypes(
   for (const typeValue of typeValues) {
     const tail = toTypeTail(String(typeValue))
     const classDef = tail ? asRecord(classes[tail]) : undefined
-    if (tail && classDef && Array.isArray(classDef.inputs)) {
+    const schemaInputs = tail ? SCHEMA_TYPE_DEFINITIONS[tail]?.inputs : undefined
+    const schemaTypeHasInputs = Array.isArray(schemaInputs) && schemaInputs.length > 0
+    if (tail && ((classDef && Array.isArray(classDef.inputs)) || schemaTypeHasInputs)) {
       entityTypes.add(tail)
     }
   }
@@ -870,12 +1222,14 @@ function buildObjectSubfields(
   const subfieldsByKey = new Map<string, AdvancedFieldDefinition>()
   for (const entityType of entityTypes) {
     const classDef = asRecord(classes[entityType])
-    if (!classDef) {
-      continue
-    }
-    const inputs = Array.isArray(classDef.inputs)
-      ? (classDef.inputs as Record<string, unknown>[])
+    const profileInputs =
+      classDef && Array.isArray(classDef.inputs)
+        ? (classDef.inputs as Record<string, unknown>[])
+        : []
+    const schemaInputs = Array.isArray(SCHEMA_TYPE_DEFINITIONS[entityType]?.inputs)
+      ? (SCHEMA_TYPE_DEFINITIONS[entityType].inputs as Record<string, unknown>[])
       : []
+    const inputs = profileInputs.length > 0 ? profileInputs : schemaInputs
     for (const input of inputs) {
       const propertyName =
         typeof input?.name === 'string' ? String(input.name).trim() : ''
@@ -934,7 +1288,11 @@ function resolveExpectsObjectValue(
       continue
     }
     const tail = toTypeTail(raw)
-    if (tail && classes[tail]) {
+    const schemaTypeHasInputs =
+      tail &&
+      Array.isArray(SCHEMA_TYPE_DEFINITIONS[tail]?.inputs) &&
+      (SCHEMA_TYPE_DEFINITIONS[tail].inputs?.length ?? 0) > 0
+    if (tail && (classes[tail] || schemaTypeHasInputs)) {
       return true
     }
     if (!isScalarType(raw)) {
