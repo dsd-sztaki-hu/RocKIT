@@ -10,7 +10,7 @@ import { isSchemaOrgPropertyAllowedForHierarchy } from './schema-type-property-r
 import dayjs = require('dayjs')
 
 type BulkOperator = 'add' | 'remove' | 'set' | 'unset'
-type FieldValueKind = 'text' | 'number' | 'date' | 'select' | 'json' | 'entity'
+type FieldValueKind = 'text' | 'url' | 'number' | 'date' | 'select' | 'json' | 'entity'
 
 interface FieldDefinition {
   key: string
@@ -113,11 +113,12 @@ const OPERATOR_LABELS: Record<BulkOperator, string> = {
 
 const VALUE_KIND_LABELS: Record<FieldValueKind, string> = {
   text: 'Text',
+  url: 'URL',
   number: 'Number',
   date: 'Date',
   select: 'Option list',
   json: 'JSON',
-  entity: 'Entity reference',
+  entity: 'PropertyValue',
 }
 
 const VALUE_KIND_PRIORITY: Record<FieldValueKind, number> = {
@@ -127,6 +128,7 @@ const VALUE_KIND_PRIORITY: Record<FieldValueKind, number> = {
   number: 3,
   json: 4,
   text: 5,
+  url: 6,
 }
 
 export class MultiEditDialog extends ReactDialog<string> {
@@ -914,10 +916,18 @@ export class MultiEditDialog extends ReactDialog<string> {
       if (
         normalized.includes('text') ||
         normalized.includes('string') ||
-        normalized.includes('url') ||
         normalized.includes('boolean')
       ) {
         kinds.add('text')
+        continue
+      }
+
+      if (
+        normalized.includes('url') ||
+        normalized.includes('uri') ||
+        normalized.includes('iri')
+      ) {
+        kinds.add('url')
       }
     }
 
@@ -1508,8 +1518,8 @@ export class MultiEditDialog extends ReactDialog<string> {
         onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
           this.setOperationMultiTextValueFromEvent(row.id, valueIndex, event)
         }
-        placeholder="Enter value"
-        type={valueKind === 'number' ? 'number' : 'text'}
+        placeholder={valueKind === 'url' ? 'Enter URL' : 'Enter value'}
+        type={valueKind === 'number' ? 'number' : valueKind === 'url' ? 'url' : 'text'}
         suffix={removeButton}
       />
     )
@@ -2178,7 +2188,8 @@ export class MultiEditDialog extends ReactDialog<string> {
     if (!field.multiple) {
       return trimmed ? [trimmed] : []
     }
-    const separatorPattern = valueKind === 'text' ? /\r?\n+/ : /[\n;,]+/
+    const separatorPattern =
+      valueKind === 'text' || valueKind === 'url' ? /\r?\n+/ : /[\n;,]+/
     const parts = trimmed
       .split(separatorPattern)
       .map((part) => part.trim())
@@ -2479,21 +2490,21 @@ export class MultiEditDialog extends ReactDialog<string> {
     const currentKind = this.getEffectiveValueKind(row, field)
     return (
       <div className="entities-overview-edit-modal-value-kind">
-        <Select
-          size="small"
-          value={currentKind}
-          onChange={(value) =>
-            this.setOperationValueKind(row.id, value as FieldValueKind)
-          }
-          options={kinds.map((kind) => ({
-            value: kind,
-            label: VALUE_KIND_LABELS[kind],
-          }))}
-          getPopupContainer={() => document.body}
-          classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
-          styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
-          style={{ width: 180 }}
-        />
+        {kinds.map((kind) => {
+          const active = kind === currentKind
+          return (
+            <button
+              key={`${row.id}-${kind}`}
+              type="button"
+              className={`entities-overview-edit-modal-value-kind-button${active ? ' is-active' : ''}`}
+              onClick={() => this.setOperationValueKind(row.id, kind)}
+              aria-pressed={active}
+            >
+              <span className="codicon codicon-add" aria-hidden="true" />
+              {VALUE_KIND_LABELS[kind]}
+            </button>
+          )
+        })}
       </div>
     )
   }
@@ -2620,8 +2631,8 @@ export class MultiEditDialog extends ReactDialog<string> {
           onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
             this.setOperationValue(row.id, event.target.value)
           }
-          placeholder="Enter value"
-          type={valueKind === 'number' ? 'number' : 'text'}
+          placeholder={valueKind === 'url' ? 'Enter URL' : 'Enter value'}
+          type={valueKind === 'number' ? 'number' : valueKind === 'url' ? 'url' : 'text'}
         />
       )
     }
