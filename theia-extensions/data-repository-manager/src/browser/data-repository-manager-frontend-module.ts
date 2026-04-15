@@ -5,10 +5,12 @@ import { WidgetFactory, FrontendApplicationContribution } from '@theia/core/lib/
 import { DataRepositoryManagerWidget, DATA_REPOSITORY_MANAGER_WIDGET_ID } from './data-repository-manager-widget';
 import { DataRepositoryManagerContribution } from './data-repository-manager-contribution';
 import { DataRepositoryStoreService } from './services/data-repository-store-service';
+import { DataverseService } from './services/dataverse-service';
 
 export default new ContainerModule(bind => {
     // 1. Services
     bind(DataRepositoryStoreService).toSelf().inSingletonScope();
+    bind(DataverseService).toSelf().inSingletonScope();
 
     // 2. Widget
     bind(DataRepositoryManagerWidget).toSelf().inTransientScope();

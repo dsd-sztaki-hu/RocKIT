@@ -9,6 +9,7 @@ import { DataRepositoryTable } from './components/data-repository-table';
 import { DataRepositoryConfigDialog } from './components/data-repository-config-dialog';
 import { DataRepositoryDeleteDialog } from './components/data-repository-delete-dialog';
 import { DataRepositoryStoreService } from './services/data-repository-store-service';
+import { DataverseService } from './services/dataverse-service';
 import { DataRepositoryConfig } from './types';
 import './styles/index.css';
 
@@ -27,7 +28,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     constructor(
         @inject(MessageService) protected readonly messageService: MessageService,
-        @inject(DataRepositoryStoreService) protected readonly storeService: DataRepositoryStoreService
+        @inject(DataRepositoryStoreService) protected readonly storeService: DataRepositoryStoreService,
+        @inject(DataverseService) protected readonly dataverseService: DataverseService
     ) {
         super();
         this.id = DATA_REPOSITORY_MANAGER_WIDGET_ID;
@@ -65,7 +67,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     }
 
     protected handleAddRepository = async () => {
-        const dialog = new DataRepositoryConfigDialog();
+        const dialog = new DataRepositoryConfigDialog(this.dataverseService);
         const newConfig = await dialog.open();
 
         if (newConfig) {
@@ -76,7 +78,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     }
 
     protected handleEdit = async (repoToEdit: DataRepositoryConfig) => {
-        const dialog = new DataRepositoryConfigDialog(repoToEdit);
+        const dialog = new DataRepositoryConfigDialog(this.dataverseService, repoToEdit);
         const updatedConfig = await dialog.open();
 
         if (updatedConfig) {
