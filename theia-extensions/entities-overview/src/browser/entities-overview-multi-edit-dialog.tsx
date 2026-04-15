@@ -5,6 +5,7 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import type { MetadataSchemaManager, SchemaInfo } from 'aroma2-common/lib/browser'
 import schemaTypeDefinitions = require('./schema-type-definitions.json')
+import { isSchemaOrgPropertyAllowedForHierarchy } from './schema-type-property-restrictions'
 
 import dayjs = require('dayjs')
 
@@ -100,6 +101,8 @@ const SCHEMA_TYPE_DEFINITIONS = schemaTypeDefinitions as Record<
   SchemaTypeDefinition
 >
 const SCHEMA_ORG_SCHEMA_ID = '__schemaorg__'
+const SCHEMA_ORG_LABEL = 'schema.org'
+const OTHER_ONTOLOGIES_LABEL = 'Other ontologies'
 
 const OPERATOR_LABELS: Record<BulkOperator, string> = {
   add: 'Add',
@@ -1526,7 +1529,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
 
     if (this.selectedSchemaIds.size === 0 && !this.schemaOrgEnabled) {
-      errors.push('Select a schema or enable schema.org properties.')
+      errors.push('Select a schema or enable properties from other ontologies.')
       return errors
     }
 
@@ -1791,15 +1794,18 @@ export class MultiEditDialog extends ReactDialog<string> {
         hierarchy.add(item)
       }
     }
+    const hierarchyList = Array.from(hierarchy.values())
 
-    const inputs: SchemaTypeDefinitionInput[] = []
+    const inputs: Array<{ input: SchemaTypeDefinitionInput; sourceType: string }> = []
     for (const typeName of hierarchy) {
       const profileClass = profileClasses[typeName]
       const profileInputs = Array.isArray(profileClass?.inputs)
         ? (profileClass.inputs as SchemaTypeDefinitionInput[])
         : []
       if (profileInputs.length > 0) {
-        inputs.push(...profileInputs)
+        for (const input of profileInputs) {
+          inputs.push({ input, sourceType: typeName })
+        }
       }
 
       const shouldIncludeSchemaInputs =
@@ -1809,13 +1815,27 @@ export class MultiEditDialog extends ReactDialog<string> {
           ? (SCHEMA_TYPE_DEFINITIONS[typeName]?.inputs as SchemaTypeDefinitionInput[])
           : []
         if (schemaInputs.length > 0) {
-          inputs.push(...schemaInputs)
+          for (const input of schemaInputs) {
+            inputs.push({ input, sourceType: typeName })
+          }
         }
       }
     }
 
     const byProperty = new Map<string, FieldDefinition>()
-    for (const input of inputs) {
+    for (const inputEntry of inputs) {
+      const { input, sourceType } = inputEntry
+      const propertyName = typeof input?.name === 'string' ? input.name.trim() : ''
+      if (
+        propertyName &&
+        !isSchemaOrgPropertyAllowedForHierarchy(propertyName, hierarchyList, {
+          sourceType,
+          hierarchy: hierarchyList,
+          entityTypes,
+        })
+      ) {
+        continue
+      }
       const field = this.toSchemaOrgField(input, profileClasses, entityTypes)
       if (!field) {
         continue
@@ -1866,15 +1886,16 @@ export class MultiEditDialog extends ReactDialog<string> {
       typeof input.label === 'string' && input.label.trim().length > 0
         ? input.label.trim()
         : propertyName
+    const ontologyLabel = this.resolveOntologyLabelForSchemaInput(input)
 
     return {
       key: `schemaorg::${propertyName}`,
       className: '__schemaorg__',
-      classLabel: 'schema.org',
+      classLabel: ontologyLabel,
       supportedClasses,
       schemaId: SCHEMA_ORG_SCHEMA_ID,
-      schemaLabel: 'schema.org',
-      schemaGroupName: 'schema.org',
+      schemaLabel: ontologyLabel,
+      schemaGroupName: ontologyLabel,
       propertyName,
       label,
       help: typeof input.help === 'string' ? input.help : undefined,
@@ -1888,6 +1909,11 @@ export class MultiEditDialog extends ReactDialog<string> {
         : [],
       entityTypes: relationshipTypes,
     }
+  }
+
+  protected resolveOntologyLabelForSchemaInput(input: SchemaTypeDefinitionInput): string {
+    const id = typeof input?.id === 'string' ? input.id.toLowerCase() : ''
+    return id.includes(SCHEMA_ORG_LABEL) ? SCHEMA_ORG_LABEL : OTHER_ONTOLOGIES_LABEL
   }
 
   protected mergeSchemaOrgFieldDefinitions(
@@ -1907,6 +1933,13 @@ export class MultiEditDialog extends ReactDialog<string> {
       }
     }
     base.supportedClasses = Array.from(supported.values())
+    const hasSchemaOrgSource = definitions.some((definition) =>
+      definition.schemaLabel.toLowerCase().includes(SCHEMA_ORG_LABEL),
+    )
+    const ontologyLabel = hasSchemaOrgSource ? SCHEMA_ORG_LABEL : OTHER_ONTOLOGIES_LABEL
+    base.classLabel = ontologyLabel
+    base.schemaLabel = ontologyLabel
+    base.schemaGroupName = ontologyLabel
 
     const intersectKinds = (lists: FieldValueKind[][]): FieldValueKind[] => {
       if (lists.length === 0) {
@@ -3320,7 +3353,7 @@ export class MultiEditDialog extends ReactDialog<string> {
           />
           <div className="entities-overview-edit-modal-schema-org-toggle">
             <span className="entities-overview-edit-modal-label">
-              Include schema.org properties
+              Enable properties from other ontologies
             </span>
             <Switch
               checked={this.schemaOrgEnabled}
@@ -3346,7 +3379,7 @@ export class MultiEditDialog extends ReactDialog<string> {
               showIcon
               message={
                 this.schemaOrgEnabled
-                  ? 'No properties are available for the selected schemas or schema.org.'
+                  ? 'No properties are available for the selected schemas or other ontologies.'
                   : 'No properties are available for the selected schemas.'
               }
             />
@@ -3364,7 +3397,7 @@ export class MultiEditDialog extends ReactDialog<string> {
             onClose={this.dismissSetupWarning}
             description={
               <ol className="entities-overview-edit-modal-errors">
-                <li>Select a schema or enable schema.org properties.</li>
+                <li>Select a schema or enable properties from other ontologies.</li>
                 <li>Select a property, choose an operator, and enter a value.</li>
               </ol>
             }

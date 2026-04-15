@@ -1,0 +1,57 @@
+{
+  "bucketRules": {
+    "AgentLike": [
+      "Agent",
+      "Person",
+      "Organization",
+      "CorporateBody",
+      "Family",
+      "Audience"
+    ],
+    "RecordLike": ["Record", "RecordResource", "CreativeWork", "Dataset", "File"],
+    "InstantiationLike": ["Instantiation", "MediaObject", "DigitalDocument"],
+    "EventLike": ["Event"],
+    "PlaceLike": ["Place"],
+    "ConceptLike": ["Concept", "DefinedTerm"]
+  },
+  "propertyProfiles": {
+    "hasCreationDate": {
+      "allowedBuckets": ["RecordLike", "InstantiationLike"],
+      "disallowedBuckets": ["AgentLike"]
+    },
+    "hasModificationDate": {
+      "allowedBuckets": ["RecordLike", "InstantiationLike"],
+      "disallowedBuckets": ["AgentLike"]
+    },
+    "thingIsConnectedToRelation": {
+      "disallowedBuckets": ["AgentLike"]
+    },
+    "thingIsContextOfRelation": {
+      "disallowedBuckets": ["AgentLike"]
+    },
+    "thingIsSourceOfRelation": {
+      "disallowedBuckets": ["AgentLike"]
+    },
+    "thingIsTargetOfRelation": {
+      "disallowedBuckets": ["AgentLike"]
+    }
+  },
+  "fallback": {
+    "broadDomainType": "Thing",
+    "allowFromBroadDomain": [
+      "additionalType",
+      "alternateName",
+      "conformsTo",
+      "description",
+      "disambiguatingDescription",
+      "identifier",
+      "image",
+      "mainEntityOfPage",
+      "name",
+      "potentialAction",
+      "sameAs",
+      "subjectOf",
+      "url"
+    ]
+  }
+}
