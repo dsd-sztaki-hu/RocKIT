@@ -45,6 +45,20 @@ export const TREEVIEW_EXAMPLE_CONTEXT_MENU: MenuPath = [
   'theia-examples:treeview-example-context-menu',
 ]
 
+type PersistedEntityFilters = {
+  entityNameFilter: string
+  selectedTypeFilters: string[]
+  validityFilter: ValidityFilter
+}
+
+type EntitiesOverviewWidgetState = {
+  version: 2
+  filtersVisible?: boolean
+  filterMode?: 'simple' | 'advanced'
+  simpleFilters?: PersistedEntityFilters
+  advancedFilters?: PersistedEntityFilters
+}
+
 /** Implementation of the Tree Widget */
 @injectable()
 export class EntitiesOverviewWidget extends TreeWidget {
@@ -52,6 +66,11 @@ export class EntitiesOverviewWidget extends TreeWidget {
   static readonly ID = 'theia-examples:treeview-example-view'
   /** The label of the view */
   static readonly LABEL = 'Entities'
+  static readonly STATE_VERSION = 2
+  static readonly MAX_PERSISTED_STATE_BYTES = 16 * 1024
+  static readonly MAX_FILTER_TEXT_LENGTH = 1024
+  static readonly MAX_SELECTED_TYPES = 200
+  static readonly MAX_TYPE_LABEL_LENGTH = 256
 
   /** Used in Drag & Drop code to remember and cancel deferred expansion of hovered nodes */
   // protected readonly toCancelNodeExpansion = new DisposableCollection()
@@ -191,6 +210,132 @@ export class EntitiesOverviewWidget extends TreeWidget {
     // Selection visuals in this widget are driven by entity ids rather than the tree model
     // selection service. The base implementation scrolls to the first selected DOM row,
     // which can jump the viewport unexpectedly for large/virtualized lists.
+  }
+
+  override storeState(): object {
+    const safeState: EntitiesOverviewWidgetState = {
+      version: EntitiesOverviewWidget.STATE_VERSION,
+      filtersVisible: this.filtersVisible,
+      filterMode: this.filterMode,
+      simpleFilters: this.sanitizeFiltersForStorage(this.simpleFilters),
+      advancedFilters: this.sanitizeFiltersForStorage(this.advancedFilters),
+    }
+    const serializedSize = this.getSerializedSizeInBytes(safeState)
+    if (
+      serializedSize === undefined ||
+      serializedSize > EntitiesOverviewWidget.MAX_PERSISTED_STATE_BYTES
+    ) {
+      console.warn(
+        'EntitiesOverviewWidget: skipping large/invalid widget state persistence',
+        { serializedSize },
+      )
+      return {
+        version: EntitiesOverviewWidget.STATE_VERSION,
+        filtersVisible: this.filtersVisible,
+      }
+    }
+    return safeState
+  }
+
+  override restoreState(oldState: object): void {
+    if (!oldState || typeof oldState !== 'object') {
+      return
+    }
+    const rawState = oldState as Record<string, unknown>
+
+    // Reject legacy TreeWidget snapshots containing serialized tree/model payload.
+    if ('root' in rawState || 'model' in rawState || 'decorations' in rawState) {
+      console.warn(
+        'EntitiesOverviewWidget: discarded legacy persisted tree snapshot state',
+      )
+      return
+    }
+
+    const serializedSize = this.getSerializedSizeInBytes(rawState)
+    if (
+      serializedSize === undefined ||
+      serializedSize > EntitiesOverviewWidget.MAX_PERSISTED_STATE_BYTES
+    ) {
+      console.warn(
+        'EntitiesOverviewWidget: discarded oversized persisted widget state',
+        { serializedSize },
+      )
+      return
+    }
+
+    if (typeof rawState.filtersVisible === 'boolean') {
+      this.filtersVisible = rawState.filtersVisible
+      this.appStateService.entitiesOverviewFiltersVisible = rawState.filtersVisible
+      this.syncFiltersVisibleBodyClass()
+    }
+
+    if (rawState.filterMode === 'simple' || rawState.filterMode === 'advanced') {
+      this.filterMode = rawState.filterMode
+    }
+
+    const simple = this.readFiltersFromStorage(rawState.simpleFilters)
+    if (simple) {
+      this.simpleFilters.entityNameFilter = simple.entityNameFilter
+      this.simpleFilters.selectedTypeFilters = simple.selectedTypeFilters
+      this.simpleFilters.validityFilter = simple.validityFilter
+    }
+
+    const advanced = this.readFiltersFromStorage(rawState.advancedFilters)
+    if (advanced) {
+      this.advancedFilters.entityNameFilter = advanced.entityNameFilter
+      this.advancedFilters.selectedTypeFilters = advanced.selectedTypeFilters
+      this.advancedFilters.validityFilter = advanced.validityFilter
+    }
+
+    this.applyFilters()
+  }
+
+  protected sanitizeFiltersForStorage(filters: {
+    entityNameFilter: string
+    selectedTypeFilters: string[]
+    validityFilter: ValidityFilter
+  }): PersistedEntityFilters {
+    const entityNameFilter =
+      typeof filters.entityNameFilter === 'string'
+        ? filters.entityNameFilter.slice(0, EntitiesOverviewWidget.MAX_FILTER_TEXT_LENGTH)
+        : ''
+    const selectedTypeFilters = Array.from(
+      new Set(
+        (Array.isArray(filters.selectedTypeFilters) ? filters.selectedTypeFilters : [])
+          .filter((type): type is string => typeof type === 'string')
+          .map((type) => type.trim())
+          .filter((type) => type.length > 0)
+          .map((type) => type.slice(0, EntitiesOverviewWidget.MAX_TYPE_LABEL_LENGTH)),
+      ).values(),
+    ).slice(0, EntitiesOverviewWidget.MAX_SELECTED_TYPES)
+    const validityFilter =
+      filters.validityFilter === 'valid' ||
+      filters.validityFilter === 'invalid' ||
+      filters.validityFilter === 'all'
+        ? filters.validityFilter
+        : 'all'
+    return { entityNameFilter, selectedTypeFilters, validityFilter }
+  }
+
+  protected readFiltersFromStorage(value: unknown): PersistedEntityFilters | undefined {
+    if (!value || typeof value !== 'object') {
+      return undefined
+    }
+    const raw = value as Partial<PersistedEntityFilters>
+    return this.sanitizeFiltersForStorage({
+      entityNameFilter: raw.entityNameFilter ?? '',
+      selectedTypeFilters: raw.selectedTypeFilters ?? [],
+      validityFilter: raw.validityFilter ?? 'all',
+    })
+  }
+
+  protected getSerializedSizeInBytes(value: unknown): number | undefined {
+    try {
+      const serialized = JSON.stringify(value)
+      return serialized ? serialized.length * 2 : 0
+    } catch {
+      return undefined
+    }
   }
 
   protected override render(): React.ReactNode {
