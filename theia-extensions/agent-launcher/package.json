@@ -1,17 +1,14 @@
 {
-  "name": "file-explorer",
+  "name": "agent-launcher",
   "version": "0.0.0",
-  "description": "Theia - Navigator Extension",
+  "description": "AROMA coding agent launcher",
   "dependencies": {
     "@theia/core": "1.65.2",
-    "@theia/file-search": "1.65.2",
     "@theia/filesystem": "1.65.2",
     "@theia/terminal": "1.65.2",
     "@theia/workspace": "1.65.2",
-    "app-state": "0.0.1",
-    "aroma2-common": "0.0.0",
-    "data-sources": "0.0.0",
-    "minimatch": "^10.0.3",
+    "agent-instructions": "0.0.0",
+    "file-explorer": "0.0.0",
     "tslib": "^2.6.2"
   },
   "publishConfig": {
@@ -19,31 +16,19 @@
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/navigator-frontend-module",
-      "backend": "lib/node/navigator-backend-module"
-    },
-    {
-      "frontendElectron": "lib/electron-browser/electron-navigator-module"
+      "frontendElectron": "lib/electron-browser/agent-launcher-module"
     }
   ],
   "keywords": [
     "theia-extension"
   ],
   "license": "EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/eclipse-theia/theia.git"
-  },
-  "bugs": {
-    "url": "https://github.com/eclipse-theia/theia/issues"
-  },
-  "homepage": "https://github.com/eclipse-theia/theia",
   "files": [
     "lib",
     "src"
   ],
   "scripts": {
-    "build": "theiaext build && node scripts/copy-css.js",
+    "build": "theiaext build",
     "postbuild": "rimraf tsconfig.tsbuildinfo",
     "clean": "theiaext clean",
     "compile": "theiaext compile",
@@ -57,6 +42,5 @@
   },
   "nyc": {
     "extends": "../../configs/nyc.json"
-  },
-  "gitHead": "21358137e41342742707f660b8e222f940a27652"
+  }
 }
