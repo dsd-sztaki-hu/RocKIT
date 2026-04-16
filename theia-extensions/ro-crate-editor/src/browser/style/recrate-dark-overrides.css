@@ -672,3 +672,224 @@ body.theia-light:has(
   opacity: 0 !important;
   pointer-events: none !important;
 }
+
+/* Right-side drawers used by reverse-links / related entity panels. */
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%']) {
+  --recrate-border: var(--theia-ui-border, rgba(127, 127, 127, 0.42));
+  --recrate-text: var(--theia-ui-font-color1, #d4d4d4);
+  --recrate-muted: var(--theia-ui-font-color2, #a6a6a6);
+  z-index: 5000 !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content {
+  background-color: var(--theia-editor-background, #1e1e1e) !important;
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-header,
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-body {
+  background-color: transparent !important;
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-input,
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-select-selector {
+  background-color: var(--theia-input-background, #1f1f1f) !important;
+  color: var(--recrate-text) !important;
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-input::placeholder {
+  color: var(--theia-ui-font-color2, #b8b8b8) !important;
+  opacity: 1 !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-btn {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-btn.ant-btn-primary {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-card {
+  background-color: var(--recrate-panel, #252526) !important;
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-card
+  .ant-card-meta-title,
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-typography {
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-tag {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-close {
+  align-items: center !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  color: var(--recrate-text) !important;
+  display: inline-flex !important;
+  height: 34px !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  width: 34px !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-close:hover,
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-close:focus-visible {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-close:active {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-close
+  .anticon {
+  color: inherit !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-pagination-item,
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-pagination-prev
+  .ant-pagination-item-link,
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-pagination-next
+  .ant-pagination-item-link {
+  background-color: var(--theia-input-background, #1f1f1f) !important;
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-pagination-item
+  a,
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-pagination-prev
+  .ant-pagination-item-link
+  .anticon,
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-pagination-next
+  .ant-pagination-item-link
+  .anticon {
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-pagination-item-active {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-pagination-disabled
+  .ant-pagination-item-link,
+:is(.theia-dark, body:not(.theia-light))
+  .ant-drawer.ant-drawer-right
+  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-pagination-disabled
+  .ant-pagination-item-link
+  .anticon {
+  color: var(--recrate-muted) !important;
+  opacity: 0.7 !important;
+}
+
+body:has(
+    .ant-drawer.ant-drawer-open.ant-drawer-right
+      .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  )
+  .theia-sidepanel-toolbar
+  [id='entities-overview:toggle-filters'],
+body:has(
+    .ant-drawer.ant-drawer-open.ant-drawer-right
+      .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  )
+  .theia-sidepanel-toolbar
+  [id='entities-overview:collapse-all'] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
