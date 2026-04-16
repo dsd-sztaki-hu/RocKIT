@@ -740,3 +740,13 @@ body {
 .icon.spinning {
   animation: spin 1s linear infinite;
 }
+
+/* Links in test results */
+.panel-content a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.panel-content a:hover {
+  text-decoration: underline;
+}

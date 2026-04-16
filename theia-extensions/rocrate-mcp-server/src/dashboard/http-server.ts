@@ -433,6 +433,110 @@ class DashboardApiHandlers {
   }
 
   /**
+   * POST /test/tavily-search - Test Tavily search API
+   */
+  async testTavilySearch(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    try {
+      const body = await parseJsonObjectBody(req)
+      const query = typeof body.query === 'string' ? body.query : undefined
+
+      if (!query || query.trim() === '') {
+        sendJson(res, { error: 'Query is required' }, 400)
+        return
+      }
+
+      const apiKey =
+        typeof process.env.TAVILY_API_KEY === 'string' &&
+        process.env.TAVILY_API_KEY.trim() !== ''
+          ? process.env.TAVILY_API_KEY.trim()
+          : undefined
+
+      if (!apiKey) {
+        sendJson(
+          res,
+          {
+            success: false,
+            error: 'TAVILY_API_KEY environment variable is not set',
+            apiKeyPresent: false,
+          },
+          200,
+        )
+        return
+      }
+
+      const endpoint =
+        process.env.TAVILY_API_URL || 'https://api.tavily.com/search'
+      const startTime = Date.now()
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json',
+          authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          api_key: apiKey,
+          query: query.trim(),
+          max_results: typeof body.max_results === 'number' ? body.max_results : 3,
+          search_depth: typeof body.search_depth === 'string' && (body.search_depth === 'basic' || body.search_depth === 'advanced') ? body.search_depth : 'basic',
+          include_raw_content: false,
+          include_images: false,
+        }),
+      })
+
+      const latencyMs = Date.now() - startTime
+      const payloadText = await response.text()
+
+      if (!response.ok) {
+        sendJson(
+          res,
+          {
+            success: false,
+            error: `Tavily API error (${response.status}): ${payloadText.slice(0, 300)}`,
+            apiKeyPresent: true,
+            statusCode: response.status,
+            latencyMs,
+          },
+          200,
+        )
+        return
+      }
+
+      let result: unknown
+      try {
+        result = JSON.parse(payloadText)
+      } catch {
+        result = { raw: payloadText.slice(0, 1000) }
+      }
+
+      sendJson(res, {
+        success: true,
+        apiKeyPresent: true,
+        latencyMs,
+        query,
+        result,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(
+        res,
+        {
+          success: false,
+          error: message,
+          apiKeyPresent:
+            typeof process.env.TAVILY_API_KEY === 'string' &&
+            process.env.TAVILY_API_KEY.trim() !== '',
+        },
+        200,
+      )
+    }
+  }
+
+  /**
    * POST /config - Update dashboard configuration
    */
   async updateConfig(
@@ -724,6 +828,16 @@ export class DashboardHttpServer {
       }
       if (method === 'POST') {
         void this.apiHandlers.updateConfig(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    // Test Tavily search endpoint
+    if (urlPath === '/test/tavily-search') {
+      if (method === 'POST') {
+        void this.apiHandlers.testTavilySearch(req, res)
         return
       }
       sendJson(res, { error: 'Method not allowed' }, 405)

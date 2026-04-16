@@ -5,7 +5,7 @@
     "npm": ">=8"
   },
   "scripts": {
-    "build:extensions": "lerna run build --stream --sort --skip-nx-cache",
+    "build:extensions": "yarn run recrate:build && lerna run build --stream --sort --skip-nx-cache",
     "build:rocrate-tools": "yarn workspace rocrate-core build && yarn workspace rocrate-mcp-server build",
     "test:rocrate-tools": "yarn workspace rocrate-core test && yarn workspace rocrate-mcp-server test",
     "verify:rocrate-tools": "yarn build:rocrate-tools && yarn test:rocrate-tools",

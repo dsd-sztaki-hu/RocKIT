@@ -1,5 +1,7 @@
 # Search and Evidence
 
+Always use the rocrate MCP `search` tool when searching the web and the rocrate MCP  `download_url` tool when downloading files.
+
 Use `search` only when metadata values are unknown and cannot be derived locally.
 
 Rules:

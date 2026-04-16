@@ -50,6 +50,13 @@ const elements = {
   addSchemaBtn: document.getElementById('addSchemaBtn'),
   reloadSchemaBtn: document.getElementById('reloadSchemaBtn'),
   schemaRegistryMessage: document.getElementById('schemaRegistryMessage'),
+  tavilyTestForm: document.getElementById('tavilyTestForm'),
+  tavilyQueryInput: document.getElementById('tavilyQueryInput'),
+  tavilyMaxResults: document.getElementById('tavilyMaxResults'),
+  tavilySearchDepth: document.getElementById('tavilySearchDepth'),
+  tavilyTestBtn: document.getElementById('tavilyTestBtn'),
+  tavilyClearBtn: document.getElementById('tavilyClearBtn'),
+  tavilyTestResult: document.getElementById('tavilyTestResult'),
 };
 
 // API Helpers
@@ -816,6 +823,15 @@ if (elements.reloadSchemaBtn) {
   elements.reloadSchemaBtn.addEventListener('click', loadSchemaRegistry);
 }
 
+// Tavily test form event listeners
+if (elements.tavilyTestForm) {
+  elements.tavilyTestForm.addEventListener('submit', testTavilySearch);
+}
+
+if (elements.tavilyClearBtn) {
+  elements.tavilyClearBtn.addEventListener('click', clearTavilyTestResult);
+}
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     closeOpenModals();
@@ -827,6 +843,125 @@ window.viewSession = viewSession;
 window.viewToolCall = viewToolCall;
 window.editSchema = editSchema;
 window.deleteSchema = deleteSchema;
+
+// Tavily search test functions
+async function testTavilySearch(e) {
+  e.preventDefault();
+
+  const query = elements.tavilyQueryInput.value.trim();
+  const maxResults = parseInt(elements.tavilyMaxResults.value, 10);
+  const searchDepth = elements.tavilySearchDepth.value;
+
+  if (!query) {
+    showTavilyTestResult('Please enter a search query', 'error');
+    return;
+  }
+
+  // Show loading state
+  elements.tavilyTestBtn.disabled = true;
+  const originalBtnContent = elements.tavilyTestBtn.innerHTML;
+  elements.tavilyTestBtn.innerHTML = '<span class="icon spinning">↻</span> Testing...';
+
+  showTavilyTestResult('Running test search...', 'info');
+
+  try {
+    const result = await postAPI('/test/tavily-search', {
+      query,
+      max_results: maxResults,
+      search_depth: searchDepth,
+    });
+
+    if (result.success) {
+      // Display successful results
+      let resultHtml = `
+        <div class="settings-message success" style="margin-top: 1rem;">
+          <strong>✓ Search successful!</strong><br>
+          Query: ${escapeHtml(result.query)}<br>
+          Latency: ${result.latencyMs}ms
+        </div>
+      `;
+
+      if (result.result && result.result.answer) {
+        resultHtml += `
+          <div style="margin-top: 1rem; padding: 1rem; background: var(--color-bg-tertiary); border-radius: var(--border-radius);">
+            <h4 style="margin-bottom: 0.5rem;">Answer:</h4>
+            <p style="color: var(--color-text); line-height: 1.5;">${escapeHtml(result.result.answer)}</p>
+          </div>
+        `;
+      }
+
+      if (result.result && result.result.results && Array.isArray(result.result.results)) {
+        resultHtml += `
+          <div style="margin-top: 1rem;">
+            <h4 style="margin-bottom: 0.5rem;">Results (${result.result.results.length}):</h4>
+            <div style="max-height: 300px; overflow-y: auto;">
+        `;
+
+        result.result.results.forEach((item, index) => {
+          resultHtml += `
+            <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: var(--color-bg-tertiary); border-radius: var(--border-radius);">
+              <div style="display: flex; justify-content: space-between; align-items: start;">
+                <strong style="color: var(--color-primary);">${index + 1}. ${escapeHtml(item.title || 'Untitled')}</strong>
+                ${item.score ? `<span class="badge badge-neutral">Score: ${item.score.toFixed(2)}</span>` : ''}
+              </div>
+              ${item.url ? `<div style="margin-top: 0.25rem;"><a href="${escapeHtml(item.url)}" target="_blank" style="color: var(--color-info); font-size: 0.875rem;">${escapeHtml(item.url)}</a></div>` : ''}
+              ${item.content ? `<div style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--color-text-secondary);">${escapeHtml(item.content.slice(0, 200))}${item.content.length > 200 ? '...' : ''}</div>` : ''}
+            </div>
+          `;
+        });
+
+        resultHtml += `
+            </div>
+          </div>
+        `;
+      }
+
+      elements.tavilyTestResult.innerHTML = resultHtml;
+    } else {
+      // Display error
+      let errorHtml = `
+        <div class="settings-message error" style="margin-top: 1rem;">
+          <strong>✗ Search failed</strong><br>
+      `;
+
+      if (!result.apiKeyPresent) {
+        errorHtml += `TAVILY_API_KEY environment variable is not set on the server.<br>`;
+        errorHtml += `Please set the environment variable and restart the server.`;
+      } else {
+        errorHtml += `${escapeHtml(result.error || 'Unknown error')}`;
+      }
+
+      errorHtml += `</div>`;
+      elements.tavilyTestResult.innerHTML = errorHtml;
+    }
+
+    elements.tavilyTestResult.classList.remove('hidden');
+  } catch (err) {
+    showTavilyTestResult(`Request failed: ${escapeHtml(err.message)}`, 'error');
+  } finally {
+    elements.tavilyTestBtn.disabled = false;
+    elements.tavilyTestBtn.innerHTML = originalBtnContent;
+  }
+}
+
+function showTavilyTestResult(message, type) {
+  const colorClass = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+  const bgColor = type === 'error' ? 'var(--color-danger-bg)' : type === 'success' ? 'var(--color-success-bg)' : 'var(--color-info-bg)';
+  const textColor = type === 'error' ? '#ffa198' : type === 'success' ? '#7ee787' : '#79c0ff';
+
+  elements.tavilyTestResult.innerHTML = `
+    <div class="settings-message ${colorClass}" style="margin-top: 1rem;">
+      ${escapeHtml(message)}
+    </div>
+  `;
+  elements.tavilyTestResult.classList.remove('hidden');
+}
+
+function clearTavilyTestResult() {
+  elements.tavilyQueryInput.value = '';
+  elements.tavilyTestResult.classList.add('hidden');
+  elements.tavilyTestResult.innerHTML = '';
+}
 
 // Initial load
 refreshAll();
