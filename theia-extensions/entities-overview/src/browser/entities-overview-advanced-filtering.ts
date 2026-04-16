@@ -17,6 +17,8 @@ export type AdvancedRuleOperator =
   | 'is_not_null'
   | 'fields'
 
+export type AdvancedFieldValueKind = 'entity' | 'text' | 'url' | 'date'
+
 export interface AdvancedSchemaOption {
   id: string
   label: string
@@ -33,7 +35,8 @@ export interface AdvancedFieldDefinition {
   supportedClasses: string[]
   entityTypes: string[]
   expectsObjectValue: boolean
-  valueKind: 'text' | 'date'
+  valueKind: AdvancedFieldValueKind
+  valueKinds?: AdvancedFieldValueKind[]
   objectSubfields: AdvancedFieldDefinition[]
 }
 
@@ -43,6 +46,7 @@ export interface AdvancedFilterRuleNode {
   fieldKey?: string
   operator: AdvancedRuleOperator
   value: string
+  valueKind?: AdvancedFieldValueKind
   fieldsMode?: 'all' | 'any'
   fieldsRoot?: AdvancedFilterGroupNode
 }
@@ -127,6 +131,12 @@ const DATE_ORDER_OPERATORS = new Set<AdvancedRuleOperator>([
   'gte',
 ])
 const DATE_RANGE_OPERATORS = new Set<AdvancedRuleOperator>(['between', 'not_between'])
+const FIELD_VALUE_KIND_PRIORITY: Record<AdvancedFieldValueKind, number> = {
+  entity: 0,
+  date: 1,
+  text: 2,
+  url: 3,
+}
 
 /**
  * Builds advanced-filter field/schema catalog using the same profile layout grouping
@@ -166,7 +176,8 @@ export function buildAdvancedFilterCatalog(
       }
       const entityTypes = extractEntityTypes(input, classes)
       const expectsObjectValue = resolveExpectsObjectValue(input, classes, entityTypes)
-      const valueKind = resolveValueKind(input, expectsObjectValue)
+      const valueKinds = resolveValueKinds(input, classes, entityTypes, expectsObjectValue)
+      const valueKind = valueKinds[0] ?? 'text'
       const objectSubfields = expectsObjectValue
         ? buildObjectSubfields(entityTypes, classes)
         : []
@@ -197,9 +208,11 @@ export function buildAdvancedFilterCatalog(
         }
         existing.entityTypes = Array.from(mergedEntityTypes.values())
         existing.expectsObjectValue = existing.expectsObjectValue || expectsObjectValue
-        if (existing.valueKind !== 'date' && valueKind === 'date') {
-          existing.valueKind = 'date'
-        }
+        existing.valueKinds = sortAdvancedFieldValueKinds([
+          ...getFieldValueKinds(existing),
+          ...valueKinds,
+        ])
+        existing.valueKind = existing.valueKinds[0] ?? existing.valueKind
         const mergedSubfields = new Map(
           existing.objectSubfields.map((subfield) => [subfield.key, subfield] as const),
         )
@@ -225,6 +238,7 @@ export function buildAdvancedFilterCatalog(
         entityTypes,
         expectsObjectValue,
         valueKind,
+        valueKinds,
         objectSubfields,
       })
     }
@@ -413,6 +427,7 @@ function sanitizeGroup(
     if (!field) {
       continue
     }
+    const effectiveValueKind = getEffectiveRuleValueKind(child, field)
     if (child.operator === 'fields') {
       if (!field.expectsObjectValue || field.objectSubfields.length === 0) {
         continue
@@ -435,6 +450,7 @@ function sanitizeGroup(
         fieldKey: child.fieldKey,
         operator: 'fields',
         value: '',
+        valueKind: 'entity',
         fieldsMode: 'any',
         fieldsRoot: sanitizedFieldsRoot,
       })
@@ -447,18 +463,19 @@ function sanitizeGroup(
         fieldKey: child.fieldKey,
         operator: child.operator,
         value: '',
+        valueKind: effectiveValueKind,
         fieldsMode: undefined,
         fieldsRoot: undefined,
       })
       continue
     }
     const decodedValues = decodeAdvancedRuleValues(child.value)
-    if (isDateOrderingOperator(child.operator) && field.valueKind !== 'date') {
+    if (isDateOrderingOperator(child.operator) && effectiveValueKind !== 'date') {
       continue
     }
     if (isRangeOperator(child.operator)) {
       const rangeValues = decodeDateQueryValues(child.value)
-      if (field.valueKind !== 'date' || rangeValues.length < 2) {
+      if (effectiveValueKind !== 'date' || rangeValues.length < 2) {
         continue
       }
     } else if (decodedValues.length === 0) {
@@ -470,6 +487,7 @@ function sanitizeGroup(
       fieldKey: child.fieldKey,
       operator: child.operator,
       value: child.value,
+      valueKind: effectiveValueKind,
       fieldsMode: undefined,
       fieldsRoot: undefined,
     })
@@ -576,6 +594,7 @@ function evaluateRule(
   if (!field) {
     return false
   }
+  const effectiveValueKind = getEffectiveRuleValueKind(rule, field)
   if (rule.operator === 'fields') {
     if (!rule.fieldsRoot || field.objectSubfields.length === 0) {
       return false
@@ -620,7 +639,7 @@ function evaluateRule(
   }
 
   const cached = ruleCache.get(rule)
-  if (field.valueKind === 'date' && isDateComparableOperator(rule.operator)) {
+  if (effectiveValueKind === 'date' && isDateComparableOperator(rule.operator)) {
     return evaluateDateRule(
       getDateDayKeysCached(entity, field, evaluationContext),
       rule.operator,
@@ -640,7 +659,7 @@ function evaluateRule(
 
   switch (rule.operator) {
     case 'equal':
-      if (field.expectsObjectValue) {
+      if (effectiveValueKind === 'entity') {
         return hasExactValueSetMatch(normalizedValues, queries)
       }
       if (queries.length > 1) {
@@ -648,7 +667,7 @@ function evaluateRule(
       }
       return normalizedValues.some((value) => value === query)
     case 'not_equal':
-      if (field.expectsObjectValue) {
+      if (effectiveValueKind === 'entity') {
         return !hasExactValueSetMatch(normalizedValues, queries)
       }
       if (queries.length > 1) {
@@ -994,7 +1013,13 @@ function buildSchemaOrgCatalogFields(
           classes,
           relationshipTypes,
         )
-        const valueKind = resolveValueKind(inputRecord, expectsObjectValue)
+        const valueKinds = resolveValueKinds(
+          inputRecord,
+          classes,
+          relationshipTypes,
+          expectsObjectValue,
+        )
+        const valueKind = valueKinds[0] ?? 'text'
         const objectSubfields = expectsObjectValue
           ? buildObjectSubfields(relationshipTypes, classes)
           : []
@@ -1012,9 +1037,11 @@ function buildSchemaOrgCatalogFields(
           existing.entityTypes = Array.from(mergedEntityTypes.values())
 
           existing.expectsObjectValue = existing.expectsObjectValue || expectsObjectValue
-          if (existing.valueKind !== 'date' && valueKind === 'date') {
-            existing.valueKind = 'date'
-          }
+          existing.valueKinds = sortAdvancedFieldValueKinds([
+            ...getFieldValueKinds(existing),
+            ...valueKinds,
+          ])
+          existing.valueKind = existing.valueKinds[0] ?? existing.valueKind
           const existingIsSchemaOrg = existing.schemaLabel
             .toLowerCase()
             .includes(SCHEMA_ORG_LABEL)
@@ -1050,6 +1077,7 @@ function buildSchemaOrgCatalogFields(
           entityTypes: relationshipTypes,
           expectsObjectValue,
           valueKind,
+          valueKinds,
           objectSubfields,
         })
       }
@@ -1254,6 +1282,7 @@ function buildObjectSubfields(
       if (subfieldsByKey.has(key)) {
         continue
       }
+      const subfieldValueKinds = resolveValueKinds(input, classes, [], false)
       subfieldsByKey.set(key, {
         key,
         label: String(input?.label ?? propertyName),
@@ -1264,7 +1293,8 @@ function buildObjectSubfields(
         supportedClasses: [],
         entityTypes: [],
         expectsObjectValue: false,
-        valueKind: resolveValueKind(input, false),
+        valueKind: subfieldValueKinds[0] ?? 'text',
+        valueKinds: subfieldValueKinds,
         objectSubfields: [],
       })
     }
@@ -1317,28 +1347,91 @@ function resolveExpectsObjectValue(
   return false
 }
 
+function sortAdvancedFieldValueKinds(
+  kinds: AdvancedFieldValueKind[],
+): AdvancedFieldValueKind[] {
+  return Array.from(new Set(kinds)).sort(
+    (a, b) => (FIELD_VALUE_KIND_PRIORITY[a] ?? 999) - (FIELD_VALUE_KIND_PRIORITY[b] ?? 999),
+  )
+}
+
+function getFieldValueKinds(field: AdvancedFieldDefinition): AdvancedFieldValueKind[] {
+  const configured =
+    field.valueKinds && field.valueKinds.length > 0 ? field.valueKinds : [field.valueKind]
+  return sortAdvancedFieldValueKinds(configured)
+}
+
+function getEffectiveRuleValueKind(
+  rule: AdvancedFilterRuleNode,
+  field: AdvancedFieldDefinition,
+): AdvancedFieldValueKind {
+  const kinds = getFieldValueKinds(field)
+  if (rule.operator === 'fields' && kinds.includes('entity')) {
+    return 'entity'
+  }
+  if (rule.valueKind && kinds.includes(rule.valueKind)) {
+    return rule.valueKind
+  }
+  return kinds[0] ?? 'text'
+}
+
 /**
- * Classifies scalar value handling in the advanced UI/evaluator.
+ * Classifies supported value modes for one field (object/text/url/date).
  */
-function resolveValueKind(
+function resolveValueKinds(
   input: Record<string, unknown>,
+  classes: Record<string, unknown>,
+  entityTypes: string[],
   expectsObjectValue: boolean,
-): 'text' | 'date' {
-  if (expectsObjectValue) {
-    return 'text'
+): AdvancedFieldValueKind[] {
+  const kinds = new Set<AdvancedFieldValueKind>()
+
+  if (expectsObjectValue || entityTypes.length > 0) {
+    kinds.add('entity')
   }
   if (Array.isArray(input.values) && input.values.length > 0) {
-    return 'text'
+    kinds.add('text')
   }
 
   const rawType = input.type
   const typeValues = Array.isArray(rawType) ? rawType : rawType ? [rawType] : []
   for (const typeValue of typeValues) {
-    if (isDateType(String(typeValue))) {
-      return 'date'
+    const raw = String(typeValue)
+    if (!raw.trim()) {
+      continue
     }
+    const normalized = raw.trim().toLowerCase()
+    if (isDateType(normalized)) {
+      kinds.add('date')
+      continue
+    }
+    if (
+      normalized.includes('url') ||
+      normalized.includes('uri') ||
+      normalized.includes('iri')
+    ) {
+      kinds.add('url')
+      continue
+    }
+    if (isScalarType(raw)) {
+      kinds.add('text')
+      continue
+    }
+    const tail = toTypeTail(raw)
+    const classDef = tail ? asRecord(classes[tail]) : undefined
+    const schemaInputs = tail ? SCHEMA_TYPE_DEFINITIONS[tail]?.inputs : undefined
+    const schemaTypeHasInputs = Array.isArray(schemaInputs) && schemaInputs.length > 0
+    if (tail && ((classDef && Array.isArray(classDef.inputs)) || schemaTypeHasInputs)) {
+      kinds.add('entity')
+      continue
+    }
+    kinds.add('entity')
   }
-  return 'text'
+
+  if (kinds.size === 0) {
+    kinds.add('text')
+  }
+  return sortAdvancedFieldValueKinds(Array.from(kinds.values()))
 }
 
 function isDateType(typeName: string): boolean {
@@ -1516,13 +1609,14 @@ function buildRuleEvaluationCache(
 
     const field = child.fieldKey ? fieldsByKey.get(child.fieldKey) : undefined
     const decodedValues = decodeAdvancedRuleValues(child.value)
+    const effectiveValueKind = field ? getEffectiveRuleValueKind(child, field) : undefined
     const entry: RuleEvaluationCache = {
       normalizedQueries: decodedValues.map((value) =>
         value.toLocaleLowerCase(),
       ),
     }
 
-    if (field?.valueKind === 'date' && isDateComparableOperator(child.operator)) {
+    if (effectiveValueKind === 'date' && isDateComparableOperator(child.operator)) {
       entry.dateQueryDayKeys = decodeDateQueryDayKeys(child.value)
     }
 
@@ -1559,6 +1653,7 @@ function cloneGroup(group: AdvancedFilterGroupNode): AdvancedFilterGroupNode {
             fieldKey: child.fieldKey,
             operator: child.operator,
             value: child.value,
+            valueKind: child.valueKind,
             fieldsMode: child.fieldsMode,
             fieldsRoot: child.fieldsRoot ? cloneGroup(child.fieldsRoot) : undefined,
           },
