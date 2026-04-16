@@ -151,7 +151,7 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
                                 size="small" 
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onDelete(record.id);
+                                    onDelete(record);
                                 }}
                                 className="data-repo-table__action-btn data-repo-table__action-btn--delete"
                             >

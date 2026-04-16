@@ -13,7 +13,7 @@ export interface DataRepositoryTableProps {
     isLoading: boolean;
     selectedKeys?: Key[];
     onSelectionChange?: (keys: Key[]) => void;
-    onDelete?: (id: string) => void;
+    onDelete?: (repo: DataRepositoryConfig) => void;
     onEdit?: (repo: DataRepositoryConfig) => void;
 }
 
@@ -23,4 +23,24 @@ export interface DataRepositoryToolbarProps {
     onConfigure: () => void;
     selectedCount?: number;
     onDeleteSelected?: () => void;
+}
+
+export interface DataverseCollection {
+    id: string;
+    alias: string;
+    name: string;
+    description?: string;
+    parentAlias?: string;
+    isWritable?: boolean;
+}
+
+export interface DataverseUserRole {
+    id: string;
+    name: string;
+    alias: string;
+}
+
+export interface DataverseCollectionBrowserState {
+    selectedCollection?: DataverseCollection;
+    repository: DataRepositoryConfig;
 }
