@@ -23,15 +23,6 @@ export const DescriboCrateBuilderWrapper = ({
 }) => {
   const [loading, setLoading] = React.useState<boolean>(false)
   const containerRef = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => {
-    requestAnimationFrame(() => {
-      containerRef.current?.scrollTo({ top: 0, behavior: 'auto' })
-      containerRef.current
-        ?.closest('.rocrate-editor')
-        ?.scrollTo({ top: 0, behavior: 'auto' })
-      window.scrollTo({ top: 0, behavior: 'auto' })
-    })
-  }, [entityId])
 
   React.useEffect(() => {
     if (loading) {
