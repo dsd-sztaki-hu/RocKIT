@@ -409,6 +409,19 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         )((profile) => {
             this.localCompleteProfile = profile
             this.updateTitleLabel()
+
+            if (!this.baseProfile || !this.localCrate) {
+                this.update()
+                return
+            }
+            const entityId = this.getActiveEntityId()
+            if (!entityId) {
+                this.update()
+                return
+            }
+
+            this.lastAppliedEntityId = undefined
+            void this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'none')
         })
 
         this.profileListSubscription = this.appStateService.onDidChangeSelector(
@@ -1096,6 +1109,23 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         return result
     }
 
+    protected getEntityTypeNames(entity: Record<string, any>): string[] {
+        const rawTypes = entity?.['@type']
+        const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
+        return typeList
+            .map((type) => String(type ?? '').trim())
+            .filter((type) => type.length > 0)
+            .map((type) => {
+                const tail = type.split(/[\/#]/).pop() || type
+                return tail.toLowerCase()
+            })
+    }
+
+    protected isFileOrDatasetEntity(entity: Record<string, any>): boolean {
+        const typeNames = this.getEntityTypeNames(entity)
+        return typeNames.includes('file') || typeNames.includes('dataset')
+    }
+
     protected isSameStringSet(a: string[], b: string[]): boolean {
         let result = true
         if (a.length !== b.length) {
@@ -1156,7 +1186,13 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             }
 
             if (!conformsTos || conformsTos.length === 0) {
-                const nextProfile = JSON.parse(JSON.stringify(baseProfile))
+                const fallbackProfile =
+                    !this.isFileOrDatasetEntity(entity) && this.localCompleteProfile
+                        ? this.localCompleteProfile
+                        : baseProfile
+                const nextProfile = JSON.parse(
+                    JSON.stringify(fallbackProfile ?? baseProfile),
+                )
                 const didProfileChange = this.localProfile !== nextProfile
 
                 this.localProfile = nextProfile
