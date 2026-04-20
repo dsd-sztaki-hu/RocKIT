@@ -17,7 +17,6 @@ import {
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 
-import '@arpproject/recrate/style.css'
 import { Message } from '@lumino/messaging'
 import type { Disposable } from '@theia/core'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
