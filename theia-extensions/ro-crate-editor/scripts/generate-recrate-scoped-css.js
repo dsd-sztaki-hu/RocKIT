@@ -14,7 +14,7 @@ const recratePath = path.join(
   'dist',
   'recrate.css',
 )
-l
+
 const allotmentPath = path.join(root, 'node_modules', 'allotment', 'dist', 'style.css')
 const outPath = path.join(
   root,
