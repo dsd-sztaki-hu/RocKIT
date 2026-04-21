@@ -792,7 +792,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
     render(): React.ReactNode {
         return (
-            <div style={{ padding: '1rem' }}>
+            <div style={{ height: '100%', minHeight: 0, overflow: 'hidden', padding: 10, }}>
                 <DescriboCrateBuilderWrapper
                     crate={this.localCrate}
                     profile={this.localProfile}
