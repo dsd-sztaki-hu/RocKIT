@@ -7,6 +7,7 @@ export const DescriboCrateBuilderWrapper = ({
   profile,
   entityId,
   profileKey,
+  instanceId,
   onSaveCrate,
   onNavigation,
   onOpenSchemaManager,
@@ -16,6 +17,7 @@ export const DescriboCrateBuilderWrapper = ({
   profile: Record<string, any> | undefined
   entityId: string | undefined
   profileKey: number
+  instanceId: string
   onSaveCrate: (data: any) => void
   onNavigation: (entity: any) => void
   onOpenSchemaManager: (requested: boolean) => void
@@ -61,6 +63,7 @@ export const DescriboCrateBuilderWrapper = ({
       <DescriboCrateBuilder
         crate={crate}
         profile={profile}
+        stateScopeKey={`theia:${instanceId}`}
         onAddNewProfileRequest={handleAddNewProfileRequest}
         onRemoveProfile={onRemoveProfile}
         entityId={entityId}
