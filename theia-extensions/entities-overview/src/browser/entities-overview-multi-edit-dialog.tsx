@@ -3071,16 +3071,75 @@ export class MultiEditDialog extends ReactDialog<string> {
   ): string {
     const entityType =
       token.entityType || field.entityTypes[0] || field.className || 'Thing'
-    const entityId = token.label
+    const entityId = this.normalizeCreatedEntityId(token.label, entityType)
+    const existingEntity = graph.find(
+      (entry) => entry && typeof entry === 'object' && String(entry['@id']) === entityId,
+    )
+    if (existingEntity) {
+      return entityId
+    }
     const entity: Record<string, any> = {
       '@id': entityId,
       '@type': entityType,
     }
 
-    entity.name = token.label
+    entity.name = token.label.trim() || entityId.replace(/^#/, '')
 
     graph.push(entity)
     return entityId
+  }
+
+  /**
+   * Normalizes IDs for newly created entities so downstream editor state and
+   * ReCrate identifier normalization stay in sync.
+   * @param label Raw user label.
+   * @param entityType Target entity type.
+   * @returns Canonical entity id.
+   * @protected
+   */
+  protected normalizeCreatedEntityId(label: string, entityType: string): string {
+    const trimmed = String(label ?? '').trim()
+    const fallback = `${entityType || 'Thing'}-${Date.now()}`
+    const rawId = trimmed || fallback
+    const encoded = this.isUriEncoded(rawId) ? rawId : encodeURI(rawId)
+    const normalizedType = String(entityType ?? '').toLowerCase()
+    const isDataset = normalizedType.includes('dataset')
+    const isFile = normalizedType.includes('file')
+    let entityId = encoded
+
+    if (isDataset && entityId !== './' && entityId.slice(-1) !== '/') {
+      entityId = `${entityId}/`
+    }
+
+    if (isFile || isDataset) {
+      return entityId
+    }
+
+    const hasRelativePrefix =
+      entityId.startsWith('/') ||
+      entityId.startsWith('.') ||
+      entityId.startsWith('#') ||
+      entityId.startsWith('_:')
+    const hasSchemePrefix = /^[A-Za-z][A-Za-z0-9+.-]*:/.test(entityId)
+    if (hasRelativePrefix || hasSchemePrefix) {
+      return entityId
+    }
+
+    return `#${entityId}`
+  }
+
+  /**
+   * Checks whether a URI-like string is already percent encoded.
+   * @param value Candidate URI string.
+   * @returns True when value appears encoded.
+   * @protected
+   */
+  protected isUriEncoded(value: string): boolean {
+    try {
+      return value !== decodeURIComponent(value)
+    } catch {
+      return true
+    }
   }
 
   /**
