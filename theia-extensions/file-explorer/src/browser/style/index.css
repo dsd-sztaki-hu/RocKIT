@@ -71,3 +71,90 @@
 .theia-TreeNode.theia-mod-collapsed > .theia-TreeNodeSegment > .theia-ExpansionToggle.codicon-chevron-down {
     transform: rotate(-90deg);
 }
+
+.theia-Files .theia-TreeNodeContent > .theia-TreeNodeSegment {
+    margin-left: 2px;
+}
+
+.theia-Files .navigator-file-icon.file-icon {
+    opacity: 0.95;
+}
+
+.theia-Files .navigator-file-icon--code {
+    color: var(--theia-terminal-ansiBlue, #5aa9ff);
+}
+
+.theia-Files .navigator-file-icon--script {
+    color: var(--theia-terminal-ansiGreen, #5cc290);
+}
+
+.theia-Files .navigator-file-icon--data {
+    color: var(--theia-terminal-ansiCyan, #44b3c2);
+}
+
+.theia-Files .navigator-file-icon--database {
+    color: var(--theia-terminal-ansiMagenta, #c678dd);
+}
+
+.theia-Files .navigator-file-icon--text {
+    color: var(--theia-terminal-ansiWhite, #b9c0cc);
+}
+
+.theia-Files .navigator-file-icon--document {
+    color: var(--theia-terminal-ansiYellow, #d4a959);
+}
+
+.theia-Files .navigator-file-icon--config {
+    color: var(--theia-terminal-ansiWhite, #b9c0cc);
+}
+
+.theia-Files .navigator-file-icon--archive,
+.theia-Files .navigator-file-icon--binary {
+    color: var(--theia-terminal-ansiRed, #e57373);
+}
+
+.theia-Files .navigator-file-icon--media {
+    color: var(--theia-terminal-ansiBlue, #4ea8de);
+}
+
+.theia-Files .navigator-folder-icon.file-icon {
+    opacity: 0.95;
+}
+
+.theia-Files .navigator-folder-icon--code {
+    color: var(--theia-terminal-ansiBlue, #5aa9ff);
+}
+
+.theia-Files .navigator-folder-icon--document {
+    color: var(--theia-terminal-ansiYellow, #d4a959);
+}
+
+.theia-Files .navigator-folder-icon--data {
+    color: var(--theia-terminal-ansiMagenta, #c678dd);
+}
+
+.theia-Files .navigator-folder-icon--config {
+    color: var(--theia-terminal-ansiWhite, #b9c0cc);
+}
+
+.theia-Files .navigator-folder-icon--package {
+    color: var(--theia-terminal-ansiCyan, #44b3c2);
+}
+
+.theia-Files .navigator-folder-icon--test {
+    color: var(--theia-terminal-ansiGreen, #5cc290);
+}
+
+.theia-Files .navigator-folder-icon--media {
+    color: var(--theia-terminal-ansiBlue, #4ea8de);
+}
+
+.theia-Files .theia-TreeNode.theia-mod-selected .navigator-file-icon.file-icon {
+    color: inherit;
+    opacity: 1;
+}
+
+.theia-Files .theia-TreeNode.theia-mod-selected .navigator-folder-icon.file-icon {
+    color: inherit;
+    opacity: 1;
+}
