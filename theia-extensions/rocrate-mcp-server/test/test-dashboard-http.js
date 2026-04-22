@@ -23,6 +23,23 @@ async function testHttpServer() {
   // Add some test data
   const session = collector.getOrCreateSession('content-length')
   const toolCallId = collector.startToolCall('test_tool', { arg1: 'value1' })
+  collector.appendToolCallHttpLog(toolCallId, {
+    timestamp: new Date().toISOString(),
+    dependency: 'dataverse',
+    request: {
+      method: 'POST',
+      url: 'https://example.test/api/arp/uploadRoCrateZip',
+      headers: { 'x-dataverse-key': '[REDACTED]' },
+      body: 'multipart/form-data upload: temp-zip-path=/tmp/rocrate-dataverse-upload-123/rocrate.zip; content omitted',
+    },
+    response: {
+      status: 200,
+      ok: true,
+      url: 'https://example.test/api/arp/uploadRoCrateZip',
+      headers: { 'content-type': 'application/json' },
+      body: '{"status":"ok"}',
+    },
+  })
   collector.completeToolCallSuccess(toolCallId)
   collector.recordDependencyCall('tavily', true, 150)
 
@@ -197,6 +214,24 @@ async function testHttpServer() {
 
     const tavily = depsData.dependencies.find((d) => d.dependency === 'tavily')
     assert.strictEqual(tavily !== undefined, true)
+
+    // Test /tool-calls/:id endpoint includes HTTP logs
+    console.log('  Testing /tool-calls/:id endpoint...')
+    const toolCallResp = await get(`/tool-calls/${toolCallId}`)
+    assert.strictEqual(toolCallResp.status, 200)
+    const toolCallData = JSON.parse(toolCallResp.data)
+    assert.strictEqual(toolCallData.toolCall.id, toolCallId)
+    assert.strictEqual(Array.isArray(toolCallData.toolCall.httpLogs), true)
+    assert.strictEqual(toolCallData.toolCall.httpLogs.length, 1)
+    assert.strictEqual(toolCallData.toolCall.httpLogs[0].dependency, 'dataverse')
+    assert.strictEqual(
+      toolCallData.toolCall.httpLogs[0].request.body.includes('content omitted'),
+      true,
+    )
+    assert.strictEqual(
+      toolCallData.toolCall.httpLogs[0].request.body.includes('temp-zip-path='),
+      true,
+    )
 
     // Test schema registry endpoints
     console.log('  Testing /schema-registry endpoints...')

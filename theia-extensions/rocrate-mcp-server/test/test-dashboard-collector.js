@@ -87,18 +87,50 @@ async function testCollector() {
   assert.strictEqual(tavily.failureCount, 1)
   assert.strictEqual(tavily.lastCallAt !== null, true)
 
+  // Test tool call HTTP logging and async-scoped context
+  console.log('  Testing HTTP exchange logging...')
+  const httpCallId = collector.startToolCall('upload_rocrate_to_dataverse', { pid: 'doi:test' })
+  await collector.runWithToolCallContext(httpCallId, async () => {
+    assert.strictEqual(collector.getCurrentToolCallId(), httpCallId)
+    collector.appendToolCallHttpLog(httpCallId, {
+      timestamp: new Date().toISOString(),
+      dependency: 'dataverse',
+      request: {
+        method: 'POST',
+        url: 'https://example.test/api/arp/uploadRoCrateZip',
+        headers: { 'x-dataverse-key': '[REDACTED]' },
+        body: 'multipart/form-data upload: temp-zip-path=/tmp/rocrate-dataverse-upload-123/rocrate.zip; content omitted',
+      },
+      response: {
+        status: 200,
+        ok: true,
+        url: 'https://example.test/api/arp/uploadRoCrateZip',
+        headers: { 'content-type': 'application/json' },
+        body: '{"status":"ok"}',
+      },
+    })
+  })
+  collector.completeToolCallSuccess(httpCallId)
+  const httpCall = collector.getToolCalls().find((tc) => tc.id === httpCallId)
+  assert.strictEqual(Array.isArray(httpCall.httpLogs), true)
+  assert.strictEqual(httpCall.httpLogs.length, 1)
+  assert.strictEqual(httpCall.httpLogs[0].dependency, 'dataverse')
+  assert.strictEqual(httpCall.httpLogs[0].request.body.includes('content omitted'), true)
+  assert.strictEqual(httpCall.httpLogs[0].request.body.includes('temp-zip-path='), true)
+  assert.strictEqual(collector.getCurrentToolCallId(), undefined)
+
   // Test session stats
   console.log('  Testing session stats...')
   const stats = collector.getStats()
   assert.strictEqual(stats.sessionCount, 1)
-  assert.strictEqual(stats.toolCallCount, 2) // 1 success, 1 error
+  assert.strictEqual(stats.toolCallCount, 3) // 2 success, 1 error
   assert.strictEqual(stats.errorCount, 1)
   assert.strictEqual(stats.dependencyCount, 2)
 
   // Test tool calls for session
   console.log('  Testing session tool calls...')
   const sessionCalls = collector.getToolCallsForSession(session1.id)
-  assert.strictEqual(sessionCalls.length, 2)
+  assert.strictEqual(sessionCalls.length, 3)
 
   // Test per-connection session keys
   console.log('  Testing session keys...')

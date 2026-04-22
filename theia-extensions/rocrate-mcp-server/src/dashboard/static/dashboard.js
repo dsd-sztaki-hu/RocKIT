@@ -490,6 +490,49 @@ async function viewToolCall(toolCallId) {
       `;
     }
 
+    if (Array.isArray(toolCall.httpLogs) && toolCall.httpLogs.length > 0) {
+      detailsHtml += `
+        <div class="session-detail-section">
+          <h3>HTTP Communication</h3>
+          ${toolCall.httpLogs.map((log, index) => `
+            <div class="session-detail-section">
+              <h4>${escapeHtml(log.dependency || 'http')} #${index + 1}</h4>
+              <div class="session-stats">
+                <div class="session-stat">
+                  <div class="session-stat-label">Timestamp</div>
+                  <div class="session-stat-value">${escapeHtml(log.timestamp || '')}</div>
+                </div>
+                <div class="session-stat">
+                  <div class="session-stat-label">Request</div>
+                  <div class="session-stat-value">${escapeHtml((log.request?.method || 'GET') + ' ' + (log.request?.url || ''))}</div>
+                </div>
+                ${log.response ? `
+                  <div class="session-stat">
+                    <div class="session-stat-label">Response</div>
+                    <div class="session-stat-value">${escapeHtml(String(log.response.status))}</div>
+                  </div>
+                ` : ''}
+              </div>
+              <h4>Request Headers</h4>
+              ${formatHttpHeaders(log.request?.headers)}
+              <h4>Request Body</h4>
+              ${formatHttpBody(log.request?.body)}
+              ${log.response ? `
+                <h4>Response Headers</h4>
+                ${formatHttpHeaders(log.response.headers)}
+                <h4>Response Body</h4>
+                ${formatHttpBody(log.response.body)}
+              ` : ''}
+              ${log.error ? `
+                <h4>Error</h4>
+                <pre class="code-block">${escapeHtml(log.error)}</pre>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
     // Sizes
     detailsHtml += `
       <div class="session-detail-section">
@@ -523,6 +566,20 @@ function formatBytes(bytes) {
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function formatHttpHeaders(headers) {
+  if (!headers || Object.keys(headers).length === 0) {
+    return '<p class="text-muted">No headers logged</p>';
+  }
+  return `<pre class="code-block">${escapeHtml(JSON.stringify(headers, null, 2))}</pre>`;
+}
+
+function formatHttpBody(body) {
+  if (body === undefined || body === null || body === '') {
+    return '<p class="text-muted">No body logged</p>';
+  }
+  return `<pre class="code-block">${escapeHtml(body)}</pre>`;
 }
 
 // Settings functions

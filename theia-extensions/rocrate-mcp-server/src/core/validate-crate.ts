@@ -121,6 +121,14 @@ export function validateCrate(
         path: `${basePath}.name`,
       })
     }
+
+    if (Object.prototype.hasOwnProperty.call(entity, '@graph')) {
+      errors.push({
+        code: 'invalid_nested_graph',
+        message: 'Entity must not define @graph. @graph is only allowed at the top level.',
+        path: `${basePath}.@graph`,
+      })
+    }
   })
 
   for (const duplicateId of duplicateIds) {

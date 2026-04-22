@@ -14,6 +14,33 @@ export type TransportMode = 'content-length' | 'jsonl'
 export type ToolCallStatus = 'started' | 'success' | 'error' | 'timeout'
 
 /**
+ * A sanitized HTTP request/response exchange captured during a tool call.
+ */
+export interface HttpExchangeLog {
+  /** ISO timestamp when the exchange completed */
+  timestamp: string
+  /** Dependency name (e.g. dataverse) */
+  dependency: string
+  /** Request details */
+  request: {
+    method: string
+    url: string
+    headers?: Record<string, string>
+    body?: string
+  }
+  /** Response details, if one was received */
+  response?: {
+    status: number
+    ok: boolean
+    url: string
+    headers?: Record<string, string>
+    body?: string
+  }
+  /** Error message if the request failed before a response was available */
+  error?: string
+}
+
+/**
  * A session represents a single MCP server connection/run
  * Sessions are created on first request and tracked until server shutdown
  */
@@ -66,6 +93,8 @@ export interface ToolCall {
   result?: unknown
   /** Size of result in bytes */
   resultSizeBytes?: number
+  /** Captured HTTP exchanges for this tool call */
+  httpLogs?: HttpExchangeLog[]
 }
 
 /**

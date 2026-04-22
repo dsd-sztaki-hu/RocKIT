@@ -3,12 +3,14 @@
  * Bounded memory usage with automatic retention purging
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
 import type {
   Session,
   ToolCall,
   ErrorEvent,
   DependencyUsage,
+  HttpExchangeLog,
   TransportMode,
   CollectorConfig,
 } from './types'
@@ -31,6 +33,12 @@ const DEFAULT_CONFIG: CollectorConfig = {
   detailedToolCallLogging: true,
   maxDetailSizeBytes: 100 * 1024, // 100KB
 }
+const MAX_HTTP_LOGS_PER_TOOL_CALL = 20
+const MAX_HTTP_DETAIL_CHARS = 16 * 1024
+
+type ToolCallContext = {
+  toolCallId: string
+}
 
 /**
  * Telemetry collector with bounded memory and automatic retention
@@ -44,6 +52,7 @@ export class TelemetryCollector {
   private readonly sessionToolCalls: Map<string, Set<string>>
   private readonly sessionErrors: Map<string, Set<string>>
   private readonly sessionIdsByKey: Map<string, string>
+  private readonly toolCallContext: AsyncLocalStorage<ToolCallContext>
   private serverStartTime: Date
 
   constructor(config: Partial<CollectorConfig> = {}) {
@@ -55,6 +64,7 @@ export class TelemetryCollector {
     this.sessionToolCalls = new Map()
     this.sessionErrors = new Map()
     this.sessionIdsByKey = new Map()
+    this.toolCallContext = new AsyncLocalStorage<ToolCallContext>()
     this.serverStartTime = new Date()
   }
 
@@ -79,11 +89,38 @@ export class TelemetryCollector {
   }
 
   /**
+   * Truncates HTTP log detail to a bounded size.
+   */
+  private truncateHttpDetail(value: string | undefined): string | undefined {
+    if (!value) {
+      return undefined
+    }
+    if (value.length > MAX_HTTP_DETAIL_CHARS) {
+      return value.slice(0, MAX_HTTP_DETAIL_CHARS) + '\n... (truncated)'
+    }
+    return value
+  }
+
+  /**
    * Updates the collector configuration
    * Used to set dashboard-specific settings after initialization
    */
   configure(updates: Partial<CollectorConfig>): void {
     Object.assign(this.config, updates)
+  }
+
+  /**
+   * Runs work inside the current tool-call telemetry context.
+   */
+  runWithToolCallContext<T>(toolCallId: string, fn: () => T): T {
+    return this.toolCallContext.run({ toolCallId }, fn)
+  }
+
+  /**
+   * Returns the active tool-call telemetry ID for the current async context.
+   */
+  getCurrentToolCallId(): string | undefined {
+    return this.toolCallContext.getStore()?.toolCallId
   }
 
   /**
@@ -307,6 +344,41 @@ export class TelemetryCollector {
     usage.avgLatencyMs =
       (usage.avgLatencyMs * (usage.callCount - 1) + latencyMs) / usage.callCount
     usage.lastCallAt = new Date().toISOString()
+  }
+
+  /**
+   * Appends a sanitized HTTP exchange to a tool call.
+   */
+  appendToolCallHttpLog(toolCallId: string, log: HttpExchangeLog): void {
+    const toolCall = this.toolCalls.get(toolCallId)
+    if (!toolCall) {
+      return
+    }
+    const sanitized: HttpExchangeLog = {
+      timestamp: log.timestamp,
+      dependency: log.dependency,
+      request: {
+        method: log.request.method,
+        url: log.request.url,
+        headers: log.request.headers,
+        body: this.truncateHttpDetail(log.request.body),
+      },
+      response: log.response
+        ? {
+            status: log.response.status,
+            ok: log.response.ok,
+            url: log.response.url,
+            headers: log.response.headers,
+            body: this.truncateHttpDetail(log.response.body),
+          }
+        : undefined,
+      error: this.truncateHttpDetail(log.error),
+    }
+    const nextLogs = [...(toolCall.httpLogs ?? []), sanitized]
+    if (nextLogs.length > MAX_HTTP_LOGS_PER_TOOL_CALL) {
+      nextLogs.splice(0, nextLogs.length - MAX_HTTP_LOGS_PER_TOOL_CALL)
+    }
+    toolCall.httpLogs = nextLogs
   }
 
   /**

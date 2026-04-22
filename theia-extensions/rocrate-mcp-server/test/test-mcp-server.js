@@ -743,6 +743,32 @@ async function run() {
     assert.ok(invalidChangeSetResponse.error, 'unsupported changeset key should fail')
     assert.match(invalidChangeSetResponse.error.message, /unsupported keys/)
 
+    const invalidNestedGraphMutationResponse = await request('tools/call', {
+      name: 'apply_changes',
+      arguments: {
+        cratePath,
+        write: true,
+        changeSet: {
+          setRootFields: {
+            '@graph': [
+              {
+                '@id': './',
+                author: [{ '@id': '#author-1' }],
+              },
+            ],
+          },
+        },
+      },
+    })
+    assert.ok(
+      invalidNestedGraphMutationResponse.error,
+      'setRootFields.@graph should be rejected to prevent malformed nested graph writes',
+    )
+    assert.match(
+      invalidNestedGraphMutationResponse.error.message,
+      /Invalid @graph mutation blocked/,
+    )
+
     const misplacedTopLevelArgsInChangeSetResponse = await request('tools/call', {
       name: 'apply_changes',
       arguments: {
@@ -879,6 +905,13 @@ async function run() {
     assert.ok(Array.isArray(searchPayload.results), 'search should return results array')
     assert.equal(searchPayload.results[0].url, 'https://example.org/mock')
 
+    const tempUploadPrefix = 'rocrate-dataverse-upload-'
+    const tempEntriesBeforeUpload = fs
+      .readdirSync(os.tmpdir(), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith(tempUploadPrefix))
+      .map((entry) => entry.name)
+      .sort()
+
     const uploadDataverseResponse = await request('tools/call', {
       name: 'upload_rocrate_to_dataverse',
       arguments: {
@@ -899,6 +932,16 @@ async function run() {
     assert.equal(uploadDataversePayload.endpoint, 'create')
     assert.equal(uploadDataversePayload.pid, 'hdl:21.T15999/DSDDEV/MOCKPID')
     assert.match(uploadDataversePayload.dataverseUrl, /dataset\.xhtml\?persistentId=/)
+    const tempEntriesAfterUpload = fs
+      .readdirSync(os.tmpdir(), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith(tempUploadPrefix))
+      .map((entry) => entry.name)
+      .sort()
+    assert.deepEqual(
+      tempEntriesAfterUpload,
+      tempEntriesBeforeUpload,
+      'Dataverse ZIP temp directory should be cleaned up after upload',
+    )
 
     const crateWithArpPid = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
     const crateWithArpPidRoot = crateWithArpPid['@graph'].find((entity) => entity['@id'] === './')
@@ -1453,6 +1496,44 @@ async function run() {
     })
     const remoteValidatePayload = JSON.parse(remoteValidateResponse.result.content[0].text)
     assert.equal(typeof remoteValidatePayload.valid, 'boolean')
+
+    const invalidNestedGraphValidateResponse = await request('tools/call', {
+      name: 'validate_crate',
+      arguments: {
+        mode: 'remote',
+        crate: {
+          '@context': 'https://w3id.org/ro/crate/1.1/context',
+          '@graph': [
+            {
+              '@id': './',
+              '@type': 'Dataset',
+              name: 'Bad Root',
+              '@graph': [{ '@id': './', author: [{ '@id': '#author-1' }] }],
+            },
+            {
+              '@id': 'ro-crate-metadata.json',
+              '@type': 'CreativeWork',
+              name: 'RO-Crate Metadata',
+              about: { '@id': './' },
+            },
+          ],
+        },
+      },
+    })
+    const invalidNestedGraphValidatePayload = JSON.parse(
+      invalidNestedGraphValidateResponse.result.content[0].text,
+    )
+    assert.equal(
+      invalidNestedGraphValidatePayload.valid,
+      false,
+      'validate_crate should reject entity-level @graph properties',
+    )
+    assert.ok(
+      invalidNestedGraphValidatePayload.errors.some(
+        (error) => error.code === 'invalid_nested_graph',
+      ),
+      'validate_crate should report invalid_nested_graph for entity-level @graph',
+    )
 
     const remoteWriteResponse = await request('tools/call', {
       name: 'write_crate_atomic',

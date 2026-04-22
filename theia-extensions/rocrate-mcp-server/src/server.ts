@@ -372,6 +372,7 @@ const {
   ensureProfileConformanceOrThrow,
   buildContextTermSuggestion,
   uniqueStrings,
+  getTelemetryCollector,
 })
 
 const { runOntologyTool } = createOntologyHelpers()

@@ -1,5 +1,7 @@
 import * as fs from 'node:fs'
+import * as os from 'node:os'
 import * as path from 'node:path'
+import { Readable } from 'node:stream'
 import { validateCrate } from '../core'
 import type { RoCrate, RoCrateEntity } from '../core/types'
 import type {
@@ -40,12 +42,44 @@ type DataverseDeps = {
     constraints?: unknown,
   ) => { missingTerms: string[] }
   uniqueStrings: (values: string[]) => string[]
+  getTelemetryCollector: () => {
+    getCurrentToolCallId: () => string | undefined
+    appendToolCallHttpLog: (
+      toolCallId: string,
+      log: {
+        timestamp: string
+        dependency: string
+        request: {
+          method: string
+          url: string
+          headers?: Record<string, string>
+          body?: string
+        }
+        response?: {
+          status: number
+          ok: boolean
+          url: string
+          headers?: Record<string, string>
+          body?: string
+        }
+        error?: string
+      },
+    ) => void
+    recordDependencyCall: (
+      dependency: string,
+      success: boolean,
+      latencyMs: number,
+    ) => void
+  } | null
 }
 
 /**
  * Builds Dataverse upload/download/validation handlers and parameter parsers.
  */
 export function createDataverseHandlers(deps: DataverseDeps) {
+  const DATAVERSE_UPLOAD_TMP_PREFIX = 'rocrate-dataverse-upload-'
+  const REDACTED_HEADER_VALUE = '[REDACTED]'
+
   /**
    * Handles extract conformsTo urls.
    */
@@ -190,6 +224,130 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       return Math.max(1000, Math.min(300000, Math.floor(value)))
     }
     return fallbackMs
+  }
+
+  /**
+   * Redacts sensitive headers before dashboard logging.
+   */
+  function sanitizeHeadersForLog(
+    headers: Record<string, string> | undefined,
+  ): Record<string, string> | undefined {
+    if (!headers) {
+      return undefined
+    }
+    const sanitized: Record<string, string> = {}
+    for (const [key, value] of Object.entries(headers)) {
+      const normalizedKey = key.toLowerCase()
+      sanitized[key] =
+        normalizedKey === 'x-dataverse-key' || normalizedKey === 'authorization'
+          ? REDACTED_HEADER_VALUE
+          : value
+    }
+    return sanitized
+  }
+
+  /**
+   * Converts response headers to a loggable record.
+   */
+  function responseHeadersToRecord(response: Response): Record<string, string> {
+    const headers: Record<string, string> = {}
+    response.headers.forEach((value, key) => {
+      headers[key] = value
+    })
+    return headers
+  }
+
+  /**
+   * Builds a concise HTTP body summary for dashboard logging.
+   */
+  function buildBodySummary(
+    body: unknown,
+    contentType: string | undefined,
+    fallback: string,
+  ): string | undefined {
+    if (body === undefined || body === null) {
+      return undefined
+    }
+    if (typeof body === 'string') {
+      return body
+    }
+    const normalizedType = contentType?.toLowerCase() ?? ''
+    if (normalizedType.includes('application/json')) {
+      return fallback
+    }
+    return fallback
+  }
+
+  /**
+   * Executes a Dataverse HTTP request with dashboard logging.
+   */
+  async function fetchDataverseWithTelemetry(
+    url: string,
+    timeoutMs: number,
+    init: RequestInit,
+    options: {
+      requestBodyLog?: string
+      responseBodyMode?: 'text' | 'skip'
+    } = {},
+  ): Promise<Response> {
+    const collector = deps.getTelemetryCollector()
+    const toolCallId = collector?.getCurrentToolCallId()
+    const requestHeaders = sanitizeHeadersForLog(
+      init.headers && !Array.isArray(init.headers)
+        ? (init.headers as Record<string, string>)
+        : undefined,
+    )
+    const startedAt = Date.now()
+    try {
+      const response = await fetchWithTimeout(url, timeoutMs, init)
+      const latencyMs = Date.now() - startedAt
+      collector?.recordDependencyCall('dataverse', response.ok, latencyMs)
+      let responseBody: string | undefined
+      if (options.responseBodyMode !== 'skip') {
+        try {
+          responseBody = await response.clone().text()
+        } catch {
+          responseBody = '[unavailable]'
+        }
+      }
+      if (toolCallId) {
+        collector?.appendToolCallHttpLog(toolCallId, {
+          timestamp: new Date().toISOString(),
+          dependency: 'dataverse',
+          request: {
+            method: init.method ?? 'GET',
+            url,
+            headers: requestHeaders,
+            body: options.requestBodyLog,
+          },
+          response: {
+            status: response.status,
+            ok: response.ok,
+            url: response.url || url,
+            headers: responseHeadersToRecord(response),
+            body: responseBody,
+          },
+        })
+      }
+      return response
+    } catch (error) {
+      const latencyMs = Date.now() - startedAt
+      collector?.recordDependencyCall('dataverse', false, latencyMs)
+      if (toolCallId) {
+        collector?.appendToolCallHttpLog(toolCallId, {
+          timestamp: new Date().toISOString(),
+          dependency: 'dataverse',
+          request: {
+            method: init.method ?? 'GET',
+            url,
+            headers: requestHeaders,
+            body: options.requestBodyLog,
+          },
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+      throw error
+    }
   }
 
   /**
@@ -367,71 +525,122 @@ export function createDataverseHandlers(deps: DataverseDeps) {
    *
    * Implemented locally to avoid extra runtime dependencies.
    */
-  function createStoredZip(entries: Array<{ name: string; data: Buffer }>): Buffer {
-    const localParts: Buffer[] = []
+  function crc32File(filePath: string): { crc: number; size: number } {
+    const fd = fs.openSync(filePath, 'r')
+    const buffer = Buffer.allocUnsafe(64 * 1024)
+    let crc = 0xffffffff
+    let size = 0
+    try {
+      while (true) {
+        const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null)
+        if (bytesRead <= 0) {
+          break
+        }
+        size += bytesRead
+        for (let i = 0; i < bytesRead; i += 1) {
+          const index = (crc ^ buffer[i]) & 0xff
+          crc = (CRC32_TABLE[index] ^ (crc >>> 8)) >>> 0
+        }
+      }
+    } finally {
+      fs.closeSync(fd)
+    }
+    return { crc: (crc ^ 0xffffffff) >>> 0, size: size >>> 0 }
+  }
+
+  type StoredZipEntry =
+    | { name: string; data: Buffer }
+    | { name: string; filePath: string }
+
+  function writeStoredZipToFile(entries: StoredZipEntry[], outputPath: string): void {
     const centralParts: Buffer[] = []
     let offset = 0
     const dt = dosDateTime()
+    const zipFd = fs.openSync(outputPath, 'w')
 
-    for (const entry of entries) {
-      const nameBuffer = Buffer.from(entry.name, 'utf8')
-      const data = entry.data
-      const crc = crc32(data)
-      const size = data.length >>> 0
+    try {
+      for (const entry of entries) {
+        const nameBuffer = Buffer.from(entry.name, 'utf8')
+        const stats =
+          'data' in entry
+            ? { crc: crc32(entry.data), size: entry.data.length >>> 0 }
+            : crc32File(entry.filePath)
 
-      const localHeader = Buffer.alloc(30)
-      localHeader.writeUInt32LE(0x04034b50, 0)
-      localHeader.writeUInt16LE(20, 4)
-      localHeader.writeUInt16LE(0, 6)
-      localHeader.writeUInt16LE(0, 8)
-      localHeader.writeUInt16LE(dt.time, 10)
-      localHeader.writeUInt16LE(dt.date, 12)
-      localHeader.writeUInt32LE(crc, 14)
-      localHeader.writeUInt32LE(size, 18)
-      localHeader.writeUInt32LE(size, 22)
-      localHeader.writeUInt16LE(nameBuffer.length, 26)
-      localHeader.writeUInt16LE(0, 28)
+        const localHeader = Buffer.alloc(30)
+        localHeader.writeUInt32LE(0x04034b50, 0)
+        localHeader.writeUInt16LE(20, 4)
+        localHeader.writeUInt16LE(0, 6)
+        localHeader.writeUInt16LE(0, 8)
+        localHeader.writeUInt16LE(dt.time, 10)
+        localHeader.writeUInt16LE(dt.date, 12)
+        localHeader.writeUInt32LE(stats.crc, 14)
+        localHeader.writeUInt32LE(stats.size, 18)
+        localHeader.writeUInt32LE(stats.size, 22)
+        localHeader.writeUInt16LE(nameBuffer.length, 26)
+        localHeader.writeUInt16LE(0, 28)
 
-      localParts.push(localHeader, nameBuffer, data)
+        fs.writeSync(zipFd, localHeader)
+        fs.writeSync(zipFd, nameBuffer)
+        if ('data' in entry) {
+          fs.writeSync(zipFd, entry.data)
+        } else {
+          const sourceFd = fs.openSync(entry.filePath, 'r')
+          const copyBuffer = Buffer.allocUnsafe(64 * 1024)
+          try {
+            while (true) {
+              const bytesRead = fs.readSync(sourceFd, copyBuffer, 0, copyBuffer.length, null)
+              if (bytesRead <= 0) {
+                break
+              }
+              fs.writeSync(zipFd, copyBuffer, 0, bytesRead)
+            }
+          } finally {
+            fs.closeSync(sourceFd)
+          }
+        }
 
-      const centralHeader = Buffer.alloc(46)
-      centralHeader.writeUInt32LE(0x02014b50, 0)
-      centralHeader.writeUInt16LE(20, 4)
-      centralHeader.writeUInt16LE(20, 6)
-      centralHeader.writeUInt16LE(0, 8)
-      centralHeader.writeUInt16LE(0, 10)
-      centralHeader.writeUInt16LE(dt.time, 12)
-      centralHeader.writeUInt16LE(dt.date, 14)
-      centralHeader.writeUInt32LE(crc, 16)
-      centralHeader.writeUInt32LE(size, 20)
-      centralHeader.writeUInt32LE(size, 24)
-      centralHeader.writeUInt16LE(nameBuffer.length, 28)
-      centralHeader.writeUInt16LE(0, 30)
-      centralHeader.writeUInt16LE(0, 32)
-      centralHeader.writeUInt16LE(0, 34)
-      centralHeader.writeUInt16LE(0, 36)
-      centralHeader.writeUInt32LE(0, 38)
-      centralHeader.writeUInt32LE(offset >>> 0, 42)
-      centralParts.push(centralHeader, nameBuffer)
+        const centralHeader = Buffer.alloc(46)
+        centralHeader.writeUInt32LE(0x02014b50, 0)
+        centralHeader.writeUInt16LE(20, 4)
+        centralHeader.writeUInt16LE(20, 6)
+        centralHeader.writeUInt16LE(0, 8)
+        centralHeader.writeUInt16LE(0, 10)
+        centralHeader.writeUInt16LE(dt.time, 12)
+        centralHeader.writeUInt16LE(dt.date, 14)
+        centralHeader.writeUInt32LE(stats.crc, 16)
+        centralHeader.writeUInt32LE(stats.size, 20)
+        centralHeader.writeUInt32LE(stats.size, 24)
+        centralHeader.writeUInt16LE(nameBuffer.length, 28)
+        centralHeader.writeUInt16LE(0, 30)
+        centralHeader.writeUInt16LE(0, 32)
+        centralHeader.writeUInt16LE(0, 34)
+        centralHeader.writeUInt16LE(0, 36)
+        centralHeader.writeUInt32LE(0, 38)
+        centralHeader.writeUInt32LE(offset >>> 0, 42)
+        centralParts.push(centralHeader, nameBuffer)
 
-      offset += localHeader.length + nameBuffer.length + data.length
+        offset += localHeader.length + nameBuffer.length + stats.size
+      }
+
+      const centralDirectory = Buffer.concat(centralParts)
+      const centralOffset = offset
+      const centralSize = centralDirectory.length
+
+      const eocd = Buffer.alloc(22)
+      eocd.writeUInt32LE(0x06054b50, 0)
+      eocd.writeUInt16LE(0, 4)
+      eocd.writeUInt16LE(0, 6)
+      eocd.writeUInt16LE(entries.length, 8)
+      eocd.writeUInt16LE(entries.length, 10)
+      eocd.writeUInt32LE(centralSize >>> 0, 12)
+      eocd.writeUInt32LE(centralOffset >>> 0, 16)
+      eocd.writeUInt16LE(0, 20)
+
+      fs.writeSync(zipFd, centralDirectory)
+      fs.writeSync(zipFd, eocd)
+    } finally {
+      fs.closeSync(zipFd)
     }
-
-    const centralDirectory = Buffer.concat(centralParts)
-    const centralOffset = offset
-    const centralSize = centralDirectory.length
-
-    const eocd = Buffer.alloc(22)
-    eocd.writeUInt32LE(0x06054b50, 0)
-    eocd.writeUInt16LE(0, 4)
-    eocd.writeUInt16LE(0, 6)
-    eocd.writeUInt16LE(entries.length, 8)
-    eocd.writeUInt16LE(entries.length, 10)
-    eocd.writeUInt32LE(centralSize >>> 0, 12)
-    eocd.writeUInt32LE(centralOffset >>> 0, 16)
-    eocd.writeUInt16LE(0, 20)
-
-    return Buffer.concat([...localParts, centralDirectory, eocd])
   }
 
   /**
@@ -439,9 +648,9 @@ export function createDataverseHandlers(deps: DataverseDeps) {
    *
    * Enforces crate-root containment and existence checks for referenced files.
    */
-  function buildDataverseUploadZip(crate: RoCrate, cratePath: string, indent: number): Buffer {
+  function buildDataverseUploadZip(crate: RoCrate, cratePath: string, outputPath: string, indent: number): void {
     const crateRoot = path.dirname(cratePath)
-    const entries: Array<{ name: string; data: Buffer }> = []
+    const entries: StoredZipEntry[] = []
     const metadataPayload = `${JSON.stringify(crate, null, indent)}\n`
     entries.push({
       name: 'ro-crate-metadata.json',
@@ -466,10 +675,43 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       }
       entries.push({
         name: relativePath.replace(/\\/g, '/'),
-        data: fs.readFileSync(fsPath),
+        filePath: fsPath,
       })
     }
-    return createStoredZip(entries)
+    writeStoredZipToFile(entries, outputPath)
+  }
+
+  function buildMultipartFileUploadBody(
+    fieldName: string,
+    filename: string,
+    filePath: string,
+    contentType: string,
+    boundary: string,
+  ): { body: Readable; contentLength: number } {
+    const preamble = Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="${fieldName}"; filename="${filename}"\r\nContent-Type: ${contentType}\r\n\r\n`,
+      'utf8',
+    )
+    const epilogue = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8')
+    const fileSize = fs.statSync(filePath).size
+    const contentLength = preamble.length + fileSize + epilogue.length
+
+    const body = Readable.from(
+      (async function* () {
+        yield preamble
+        const stream = fs.createReadStream(filePath)
+        try {
+          for await (const chunk of stream) {
+            yield chunk
+          }
+        } finally {
+          stream.destroy()
+        }
+        yield epilogue
+      })(),
+    )
+
+    return { body, contentLength }
   }
 
   /**
@@ -700,10 +942,13 @@ export function createDataverseHandlers(deps: DataverseDeps) {
     if (apiKey) {
       headers['x-dataverse-key'] = apiKey
     }
-    const response = await fetchWithTimeout(endpointUrl.toString(), timeoutMs, {
+    const requestBody = JSON.stringify(crate)
+    const response = await fetchDataverseWithTelemetry(endpointUrl.toString(), timeoutMs, {
       method: 'POST',
       headers,
-      body: JSON.stringify(crate),
+      body: requestBody,
+    }, {
+      requestBodyLog: buildBodySummary(requestBody, headers['content-type'], requestBody),
     })
     const payloadText = await response.text()
     let payload: unknown = payloadText
@@ -789,6 +1034,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
     let endpoint: 'create' | 'update'
     let endpointUrl: URL
     let response: Response
+    let tempUploadDir: string | undefined
     if (creatingDataset) {
       if (params.mode !== 'local' || !params.cratePath) {
         throw new Error(
@@ -798,24 +1044,40 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       endpoint = 'create'
       endpointUrl = new URL('/api/arp/uploadRoCrateZip', `${params.baseUrl}/`)
       endpointUrl.searchParams.set('ownerId', params.ownerId)
-      const zipBuffer = buildDataverseUploadZip(
+      tempUploadDir = fs.mkdtempSync(path.join(os.tmpdir(), DATAVERSE_UPLOAD_TMP_PREFIX))
+      const zipPath = path.join(tempUploadDir, 'rocrate.zip')
+      buildDataverseUploadZip(
         params.crate,
         params.cratePath,
+        zipPath,
         params.indent,
       )
-      const form = new FormData()
-      form.append('file', new Blob([zipBuffer], { type: 'application/zip' }), 'rocrate.zip')
+      const boundary = `----rocrate-mcp-${Date.now().toString(16)}-${Math.random()
+        .toString(16)
+        .slice(2)}`
+      const multipart = buildMultipartFileUploadBody(
+        'file',
+        'rocrate.zip',
+        zipPath,
+        'application/zip',
+        boundary,
+      )
       const headers: Record<string, string> = {
         accept: 'application/json',
+        'content-length': String(multipart.contentLength),
+        'content-type': `multipart/form-data; boundary=${boundary}`,
         'user-agent': 'rocrate-mcp-server/0.0.0',
       }
       if (params.apiKey) {
         headers['x-dataverse-key'] = params.apiKey
       }
-      response = await fetchWithTimeout(endpointUrl.toString(), params.timeoutMs, {
+      response = await fetchDataverseWithTelemetry(endpointUrl.toString(), params.timeoutMs, {
         method: 'POST',
+        duplex: 'half' as const,
         headers,
-        body: form,
+        body: multipart.body as unknown as RequestInit['body'],
+      }, {
+        requestBodyLog: `multipart/form-data upload: field=file; filename=rocrate.zip; temp-zip-path=${zipPath}; content-type=application/zip; content omitted; content-length=${multipart.contentLength}`,
       })
     } else {
       endpoint = 'update'
@@ -828,66 +1090,75 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       if (params.apiKey) {
         headers['x-dataverse-key'] = params.apiKey
       }
-      response = await fetchWithTimeout(endpointUrl.toString(), params.timeoutMs, {
+      const requestBody = JSON.stringify(params.crate)
+      response = await fetchDataverseWithTelemetry(endpointUrl.toString(), params.timeoutMs, {
         method: 'POST',
         headers,
-        body: JSON.stringify(params.crate),
+        body: requestBody,
+      }, {
+        requestBodyLog: buildBodySummary(requestBody, headers['content-type'], requestBody),
       })
     }
-    const payloadText = await response.text()
-    let payload: unknown = payloadText
     try {
-      payload = JSON.parse(payloadText) as unknown
-    } catch {
-      // keep text payload
-    }
-    if (!response.ok) {
-      const preview = typeof payload === 'string' ? payload : payloadText
-      throw new Error(
-        `Dataverse upload failed (${response.status}): ${String(preview).slice(0, 300)}`,
-      )
-    }
-
-    const ingestedCrate = extractDataverseCrate(payload)
-    let payloadPid: string | undefined
-    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-      const payloadRecord = payload as Record<string, unknown>
-      payloadPid = readOptionalStringParam(payloadRecord.pid)
-      if (
-        !payloadPid &&
-        payloadRecord.data &&
-        typeof payloadRecord.data === 'object' &&
-        !Array.isArray(payloadRecord.data)
-      ) {
-        payloadPid = readOptionalStringParam(
-          (payloadRecord.data as Record<string, unknown>).pid,
+      const payloadText = await response.text()
+      let payload: unknown = payloadText
+      try {
+        payload = JSON.parse(payloadText) as unknown
+      } catch {
+        // keep text payload
+      }
+      if (!response.ok) {
+        const preview = typeof payload === 'string' ? payload : payloadText
+        throw new Error(
+          `Dataverse upload failed (${response.status}): ${String(preview).slice(0, 300)}`,
         )
       }
-    }
-    const resolvedPid =
-      (ingestedCrate ? extractArpPid(ingestedCrate) : undefined) ?? payloadPid
-    const dataverseUrl = buildDataverseDatasetUrl(params.baseUrl, resolvedPid)
-    let writeApplied = false
-    if (params.mode === 'local' && ingestedCrate && params.cratePath) {
-      deps.writeCrateAtomic(params.cratePath, ingestedCrate, params.indent)
-      writeApplied = true
-    }
 
-    return {
-      mode: params.mode,
-      writeApplied,
-      cratePath: params.cratePath,
-      status: response.status,
-      endpoint,
-      requestUrl: response.url || endpointUrl.toString(),
-      pid: resolvedPid ?? params.pid,
-      dataverseUrl,
-      ingestedCrate,
-      response: payload,
-      note:
-        params.mode === 'remote'
-          ? 'Remote mode does not persist files. Use returned ingestedCrate payload.'
-          : undefined,
+      const ingestedCrate = extractDataverseCrate(payload)
+      let payloadPid: string | undefined
+      if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        const payloadRecord = payload as Record<string, unknown>
+        payloadPid = readOptionalStringParam(payloadRecord.pid)
+        if (
+          !payloadPid &&
+          payloadRecord.data &&
+          typeof payloadRecord.data === 'object' &&
+          !Array.isArray(payloadRecord.data)
+        ) {
+          payloadPid = readOptionalStringParam(
+            (payloadRecord.data as Record<string, unknown>).pid,
+          )
+        }
+      }
+      const resolvedPid =
+        (ingestedCrate ? extractArpPid(ingestedCrate) : undefined) ?? payloadPid
+      const dataverseUrl = buildDataverseDatasetUrl(params.baseUrl, resolvedPid)
+      let writeApplied = false
+      if (params.mode === 'local' && ingestedCrate && params.cratePath) {
+        deps.writeCrateAtomic(params.cratePath, ingestedCrate, params.indent)
+        writeApplied = true
+      }
+
+      return {
+        mode: params.mode,
+        writeApplied,
+        cratePath: params.cratePath,
+        status: response.status,
+        endpoint,
+        requestUrl: response.url || endpointUrl.toString(),
+        pid: resolvedPid ?? params.pid,
+        dataverseUrl,
+        ingestedCrate,
+        response: payload,
+        note:
+          params.mode === 'remote'
+            ? 'Remote mode does not persist files. Use returned ingestedCrate payload.'
+            : undefined,
+      }
+    } finally {
+      if (tempUploadDir) {
+        fs.rmSync(tempUploadDir, { recursive: true, force: true })
+      }
     }
   }
 
@@ -908,7 +1179,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
     if (params.apiKey) {
       headers['x-dataverse-key'] = params.apiKey
     }
-    const response = await fetchWithTimeout(endpointUrl.toString(), params.timeoutMs, {
+    const response = await fetchDataverseWithTelemetry(endpointUrl.toString(), params.timeoutMs, {
       method: 'GET',
       headers,
     })

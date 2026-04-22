@@ -15,6 +15,7 @@ type TelemetryCollector = {
   ) => string
   completeToolCallSuccess: (telemetryId: string, payload: unknown) => void
   completeToolCallError: (telemetryId: string, error: unknown) => void
+  runWithToolCallContext: <T>(toolCallId: string, fn: () => Promise<T>) => Promise<T>
 }
 
 type DispatcherDeps = {
@@ -267,6 +268,65 @@ export function createToolDispatcher(deps: DispatcherDeps) {
     return reasons
   }
 
+  function collectInvalidGraphMutationReasons(changeSet: unknown): string[] {
+    if (!changeSet || typeof changeSet !== 'object' || Array.isArray(changeSet)) {
+      return []
+    }
+    const record = changeSet as Record<string, unknown>
+    const reasons: string[] = []
+
+    const setRootFields =
+      record.setRootFields &&
+      typeof record.setRootFields === 'object' &&
+      !Array.isArray(record.setRootFields)
+        ? (record.setRootFields as Record<string, unknown>)
+        : undefined
+    if (setRootFields && Object.prototype.hasOwnProperty.call(setRootFields, '@graph')) {
+      reasons.push('setRootFields.@graph')
+    }
+
+    const addEntities = Array.isArray(record.addEntities) ? record.addEntities : []
+    for (const entity of addEntities) {
+      if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+        continue
+      }
+      const entityId =
+        typeof (entity as Record<string, unknown>)['@id'] === 'string'
+          ? String((entity as Record<string, unknown>)['@id'])
+          : '<unknown>'
+      if (Object.prototype.hasOwnProperty.call(entity, '@graph')) {
+        reasons.push(`addEntities(${entityId}).@graph`)
+      }
+    }
+
+    const updates = Array.isArray(record.updateEntities) ? record.updateEntities : []
+    for (const update of updates) {
+      if (!update || typeof update !== 'object' || Array.isArray(update)) {
+        continue
+      }
+      const updateRecord = update as Record<string, unknown>
+      const entityId =
+        typeof updateRecord['@id'] === 'string' ? updateRecord['@id'] : '<unknown>'
+      const merge =
+        updateRecord.merge &&
+        typeof updateRecord.merge === 'object' &&
+        !Array.isArray(updateRecord.merge)
+          ? (updateRecord.merge as Record<string, unknown>)
+          : undefined
+      if (merge && Object.prototype.hasOwnProperty.call(merge, '@graph')) {
+        reasons.push(`updateEntities(${entityId}).merge.@graph`)
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(updateRecord, '@graph') &&
+        updateRecord['@graph'] !== undefined
+      ) {
+        reasons.push(`updateEntities(${entityId}).@graph`)
+      }
+    }
+
+    return reasons
+  }
+
   return async function handleToolCall(
     toolName: string,
     params: Record<string, unknown>,
@@ -285,9 +345,18 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         )
       }
 
+      const runInTelemetryContext = async <T>(fn: () => Promise<T>): Promise<T> => {
+        if (collector && telemetryId) {
+          return collector.runWithToolCallContext(telemetryId, fn)
+        }
+        return fn()
+      }
+
       if (toolName === 'search') {
-        const searchParams = parseWebSearchParams(params)
-        const result = await runWebSearch(searchParams)
+        const result = await runInTelemetryContext(async () => {
+          const searchParams = parseWebSearchParams(params)
+          return runWebSearch(searchParams)
+        })
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, result)
         }
@@ -295,8 +364,10 @@ export function createToolDispatcher(deps: DispatcherDeps) {
       }
 
       if (toolName === 'download_url') {
-        const downloadParams = parseDownloadUrlParams(params)
-        const result = await runDownloadUrl(downloadParams)
+        const result = await runInTelemetryContext(async () => {
+          const downloadParams = parseDownloadUrlParams(params)
+          return runDownloadUrl(downloadParams)
+        })
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, result)
         }
@@ -304,8 +375,11 @@ export function createToolDispatcher(deps: DispatcherDeps) {
       }
 
       if (toolName === 'upload_rocrate_to_dataverse') {
-        const uploadParams = parseDataverseUploadParams(params)
-        const payload = await runDataverseUpload(uploadParams)
+        const { uploadParams, payload } = await runInTelemetryContext(async () => {
+          const uploadParams = parseDataverseUploadParams(params)
+          const payload = await runDataverseUpload(uploadParams)
+          return { uploadParams, payload }
+        })
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, payload)
         }
@@ -316,8 +390,11 @@ export function createToolDispatcher(deps: DispatcherDeps) {
       }
 
       if (toolName === 'download_rocrate_from_dataverse') {
-        const downloadParams = parseDataverseDownloadParams(params)
-        const payload = await runDataverseDownload(downloadParams)
+        const { downloadParams, payload } = await runInTelemetryContext(async () => {
+          const downloadParams = parseDataverseDownloadParams(params)
+          const payload = await runDataverseDownload(downloadParams)
+          return { downloadParams, payload }
+        })
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, payload)
         }
@@ -370,6 +447,13 @@ export function createToolDispatcher(deps: DispatcherDeps) {
           )
         }
         const destructiveReasons = collectDestructiveChangeReasons(normalizedChangeSet)
+        const invalidGraphMutationReasons =
+          collectInvalidGraphMutationReasons(normalizedChangeSet)
+        if (invalidGraphMutationReasons.length > 0) {
+          throw new Error(
+            `Invalid @graph mutation blocked (${invalidGraphMutationReasons.join(', ')}). @graph may only appear at the top level of the RO-Crate, never on individual entities or inside setRootFields.`,
+          )
+        }
         if (
           destructiveReasons.length > 0 &&
           !dryRun &&

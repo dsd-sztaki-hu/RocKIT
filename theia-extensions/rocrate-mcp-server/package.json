@@ -12,7 +12,7 @@
     "rocrate-mcp-server": "lib/server.js"
   },
   "scripts": {
-    "build": "tsc -b && cp -r src/dashboard/static lib/dashboard/static",
+    "build": "tsc -b && mkdir -p lib/dashboard/static && cp -r src/dashboard/static/. lib/dashboard/static/",
     "clean": "rimraf lib tsconfig.tsbuildinfo",
     "watch": "tsc -b -w",
     "start": "node lib/server.js",
