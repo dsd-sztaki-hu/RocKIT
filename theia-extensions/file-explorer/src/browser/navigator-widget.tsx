@@ -580,6 +580,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
     const files = new Set<string>()
     const directories = new Set<string>()
+    let hasSupportedLocalId = false
+    let hasUnsupportedSchemeId = false
 
     for (const entry of graph) {
       if (!entry || typeof entry !== 'object') {
@@ -606,9 +608,13 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
       const derived = this.deriveRelativePathFromEntityId(rawId)
       if (!derived || derived.path === '') {
+        if (this.hasUnsupportedEntityIdScheme(rawId)) {
+          hasUnsupportedSchemeId = true
+        }
         continue
       }
 
+      hasSupportedLocalId = true
       if (derived.isDirectory) {
         directories.add(derived.path.toLowerCase())
       } else {
@@ -616,7 +622,26 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       }
     }
 
+    // Only enable orphan highlighting for crates with a consistent local-path ID style.
+    // Mixed/foreign scheme styles should not produce orphan decorations.
+    if (!hasSupportedLocalId || hasUnsupportedSchemeId) {
+      return { files: new Set(), directories: new Set() }
+    }
+
     return { files, directories }
+  }
+
+  private hasUnsupportedEntityIdScheme(id: string): boolean {
+    const candidate = id.trim()
+    if (!candidate) {
+      return false
+    }
+
+    if (candidate.startsWith('./')) {
+      return false
+    }
+
+    return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(candidate)
   }
 
   private deriveRelativePathFromEntityId(
