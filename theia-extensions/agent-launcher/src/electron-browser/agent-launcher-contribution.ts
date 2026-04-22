@@ -18,6 +18,11 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service'
 import { TerminalWidget } from '@theia/terminal/lib/browser/base/terminal-widget'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
+import {
+  getRocrateMcpServerPathCandidates,
+  resolveAppProjectPathFromLocation,
+  resolveRocrateMcpSocketPath,
+} from '../../../aroma2-common/lib/common/rocrate-mcp-config'
 import * as path from 'path'
 import { NavigatorContextMenu } from 'file-explorer/lib/browser/navigator-contribution'
 
@@ -230,8 +235,6 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       await new ConfirmDialog({ title: 'AROMA MCP Error', msg }).open()
       return false
     }
-    await this.ensureRocrateMcpDaemonRunning(cwd, launchConfig)
-
     if (agentId === 'claude') {
       return this.ensureClaudeMcpConfigured(directoryUri, launchConfig, cwd)
     }
@@ -360,82 +363,24 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   }
 
   protected async resolveRocrateServerPath(): Promise<string> {
-    const candidates: string[] = []
     const processEnv = (globalThis as any).process?.env
-    if (processEnv?.AROMA_ROCRATE_MCP_SERVER_PATH) {
-      candidates.push(processEnv.AROMA_ROCRATE_MCP_SERVER_PATH)
-    }
-
-    const crawledRoot = this.findAppRootByCrawling()
-    if (crawledRoot) {
-      if (crawledRoot.endsWith('electron-app')) {
-        candidates.push(
-          path.resolve(
-            crawledRoot,
-            '..',
-            'theia-extensions',
-            'rocrate-mcp-server',
-            'lib',
-            'server.js',
-          ),
-        )
-      } else {
-        candidates.push(
-          path.resolve(
-            crawledRoot,
-            'theia-extensions',
-            'rocrate-mcp-server',
-            'lib',
-            'server.js',
-          ),
-        )
-      }
-    }
-
+    const processPlatform = ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
     const runtime = this.getElectronRuntimePaths()
-    if (runtime.resourcesPath) {
-      candidates.push(
-        path.resolve(
-          runtime.resourcesPath,
-          'app',
-          'theia-extensions',
-          'rocrate-mcp-server',
-          'lib',
-          'server.js',
-        ),
+    const appProjectPath =
+      processEnv?.THEIA_APP_PROJECT_PATH ??
+      resolveAppProjectPathFromLocation(
+        typeof window === 'undefined' ? undefined : window.location.pathname,
+        processPlatform,
       )
-      candidates.push(
-        path.resolve(
-          runtime.resourcesPath,
-          'theia-extensions',
-          'rocrate-mcp-server',
-          'lib',
-          'server.js',
-        ),
-      )
-    }
-
-    const unique = [...new Set(candidates.filter((candidate) => !!candidate && path.isAbsolute(candidate)))]
+    const unique = getRocrateMcpServerPathCandidates({
+      appProjectPath,
+      resourcesPath: runtime.resourcesPath,
+      serverPathOverride: processEnv?.AROMA_ROCRATE_MCP_SERVER_PATH,
+    })
     for (const candidate of unique) {
       if (await this.fileService.exists(FileUri.create(candidate))) return candidate
     }
     throw new Error(`Server not found. Tried: ${unique.join(' | ')}`)
-  }
-
-  protected findAppRootByCrawling(): string | undefined {
-    if (typeof window === 'undefined' || !window.location.pathname) return undefined
-    let current = decodeURIComponent(window.location.pathname)
-    if (isWindows && /^\/[a-zA-Z]:/.test(current)) current = current.slice(1)
-
-    const parts = current.split(/[\\/]/)
-    while (parts.length > 0) {
-      const checkPath = parts.join(isWindows ? '\\' : '/')
-      if (checkPath.endsWith('electron-app') || checkPath.endsWith('aroma-2')) {
-        return checkPath
-      }
-      parts.pop()
-    }
-    return undefined
   }
 
   protected async resolveRocrateMcpLaunchConfig(): Promise<RocrateMcpLaunchConfig> {
@@ -452,33 +397,15 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   }
 
   protected resolveRocrateMcpSocketPath(): string {
+    const env = (globalThis as any).process?.env
+    const processPlatform = ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
     const homeDirs = this.getHomeDirs()
-    const home = homeDirs.length > 0 ? homeDirs[0] : this.homeDirPath
-    if (isWindows) {
-      const user = ((window as any).process?.env?.USERNAME as string | undefined) ?? 'user'
-      return `\\\\.\\pipe\\aroma-rocrate-mcp-${user}`
-    }
-    const base = home ? path.join(home, '.aroma') : path.join('/tmp', 'aroma')
-    return path.join(base, 'rocrate-mcp-server.sock')
-  }
-
-  protected async ensureRocrateMcpDaemonRunning(
-    cwd: string,
-    launchConfig: RocrateMcpLaunchConfig,
-  ): Promise<void> {
-    if (!launchConfig.socketPath || launchConfig.args.length === 0) {
-      return
-    }
-    const [serverPath] = launchConfig.args
-    const args = [launchConfig.command, serverPath, '--ensure-daemon', launchConfig.socketPath]
-    try {
-      await this.executeCommandArgs(cwd, args, 'rocrate.mcp.ensure-daemon')
-    } catch (error) {
-      console.warn('[agent-launcher] rocrate.mcp.ensure-daemon.failed', {
-        socketPath: launchConfig.socketPath,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
+    return resolveRocrateMcpSocketPath({
+      homeDir: homeDirs.length > 0 ? homeDirs[0] : this.homeDirPath,
+      platform: processPlatform,
+      socketPathOverride: env?.AROMA_ROCRATE_MCP_SOCKET_PATH,
+      username: env?.USERNAME,
+    })
   }
 
   protected async writeRocrateMcpConfig(
