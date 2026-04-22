@@ -8,6 +8,10 @@ function escapeTemplateLiteral(input) {
   return input.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${')
 }
 
+function normalizeLineEndings(input) {
+  return input.replace(/\r\n/g, '\n')
+}
+
 if (!fs.existsSync(docsDir)) {
   throw new Error(`Agent docs directory not found: ${docsDir}`)
 }
@@ -25,20 +29,22 @@ if (entries.length === 0) {
 const docsObjectContent = entries
   .map((name) => {
     const fullPath = path.join(docsDir, name)
-    const raw = fs.readFileSync(fullPath, 'utf8')
+    const raw = normalizeLineEndings(fs.readFileSync(fullPath, 'utf8'))
     return `  '${name}': \`${escapeTemplateLiteral(raw)}\``
   })
   .join(',\n')
 
-const content = `// AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.
-// Source: agent-docs/*.md
-
-export const AGENT_DOCS_DIR = '.aroma'
-
-export const AGENT_DOCS_BUNDLE: Record<string, string> = {
-${docsObjectContent}
-}
-`
+const content = [
+  '// AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.',
+  '// Source: agent-docs/*.md',
+  '',
+  "export const AGENT_DOCS_DIR = '.aroma'",
+  '',
+  'export const AGENT_DOCS_BUNDLE: Record<string, string> = {',
+  docsObjectContent,
+  '}',
+  '',
+].join('\n')
 
 fs.writeFileSync(outPath, content, 'utf8')
 console.log(
