@@ -114,6 +114,7 @@ export namespace NavigatorContextMenu {
 
     export const SEARCH = [...NAVIGATOR_CONTEXT_MENU, '4_search'];
     export const CLIPBOARD = [...NAVIGATOR_CONTEXT_MENU, '5_cutcopypaste'];
+    export const AGENTS = [...NAVIGATOR_CONTEXT_MENU, '6_agents'];
 
     export const MODIFICATION = [...NAVIGATOR_CONTEXT_MENU, '7_modification'];
     /** @deprecated use MODIFICATION */
