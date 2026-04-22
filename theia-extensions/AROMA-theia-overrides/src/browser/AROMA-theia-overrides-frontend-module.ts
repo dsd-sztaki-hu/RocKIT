@@ -1,6 +1,7 @@
 import {
   FrontendApplicationContribution,
 } from '@theia/core/lib/browser'
+import { ShellLayoutTransformer } from '@theia/core/lib/browser/shell/shell-layout-restorer'
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common'
 import { ContainerModule } from '@theia/core/shared/inversify'
 import { RoCrateDefaultLayoutContribution } from './application-default-layout-contribution'
@@ -17,6 +18,7 @@ export default new ContainerModule((bind) => {
   bind(FrontendApplicationContribution).toService(ApplicationFileMenuOverrides)
   bind(ApplicationViewMenuOverrides).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(ApplicationViewMenuOverrides)
+  bind(ShellLayoutTransformer).toService(ApplicationViewMenuOverrides)
   bind(RoCrateDefaultLayoutContribution).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(RoCrateDefaultLayoutContribution)
 })
