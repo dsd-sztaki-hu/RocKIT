@@ -10,6 +10,10 @@ import {
 } from '../common/rocrate-mcp-config'
 
 type DaemonOwnership = 'existing' | 'started-by-aroma'
+type DaemonRuntime = {
+  command: string
+  env: NodeJS.ProcessEnv
+}
 
 @injectable()
 export class RocrateMcpDaemonManager implements BackendApplicationContribution {
@@ -59,9 +63,16 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
     this.cleanupStaleSocket(socketPath)
     this.ensureSocketDirectory(socketPath)
 
-    const child = spawn(this.resolveNodeCommand(), [serverPath, '--listen', socketPath], {
+    const runtime = this.resolveDaemonRuntime()
+    console.info('[aroma] starting RO-Crate MCP daemon', {
+      command: runtime.command,
+      electronRunAsNode: runtime.env.ELECTRON_RUN_AS_NODE === '1',
+      serverPath,
+      socketPath,
+    })
+    const child = spawn(runtime.command, [serverPath, '--listen', socketPath], {
       cwd: path.dirname(serverPath),
-      env: process.env,
+      env: runtime.env,
       stdio: 'ignore',
     })
     child.on('exit', (code, signal) => {
@@ -84,8 +95,23 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
     return process.env.AROMA_ROCRATE_MCP_AUTO_START !== 'false'
   }
 
-  protected resolveNodeCommand(): string {
-    return process.env.AROMA_ROCRATE_MCP_NODE_PATH || 'node'
+  protected resolveDaemonRuntime(): DaemonRuntime {
+    if (process.env.AROMA_ROCRATE_MCP_NODE_PATH) {
+      return {
+        command: process.env.AROMA_ROCRATE_MCP_NODE_PATH,
+        env: process.env,
+      }
+    }
+
+    const env = { ...process.env }
+    if (process.versions.electron) {
+      env.ELECTRON_RUN_AS_NODE = '1'
+    }
+
+    return {
+      command: process.execPath,
+      env,
+    }
   }
 
   protected resolveSocketPath(): string {
