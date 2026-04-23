@@ -1,14 +1,16 @@
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import * as React from '@theia/core/shared/react'
-import { Alert, Button, DatePicker, Input, Select } from 'antd'
+import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import dayjs = require('dayjs')
 import {
   ALL_ENTITY_TYPES_OPTION,
   AdvancedFilterCatalog,
+  AdvancedFieldValueKind,
   AdvancedFilterGroupNode,
   AdvancedFilterRuleNode,
   AdvancedFilterState,
   AdvancedRuleOperator,
+  SCHEMA_ORG_SCHEMA_ID,
   decodeAdvancedRuleValues,
   encodeAdvancedRuleValues,
   cloneAdvancedFilterState,
@@ -40,6 +42,12 @@ const OBJECT_OPERATOR_OPTIONS: { value: AdvancedRuleOperator; label: string }[] 
   ...BASE_OPERATOR_OPTIONS,
   { value: 'fields', label: 'Fields' },
 ]
+const VALUE_KIND_LABELS: Record<AdvancedFieldValueKind, string> = {
+  entity: 'PropertyValue',
+  text: 'Text',
+  url: 'URL',
+  date: 'Date',
+}
 
 const OPERATORS_WITHOUT_VALUE = new Set<AdvancedRuleOperator>(['is_null', 'is_not_null'])
 const RANGE_OPERATORS = new Set<AdvancedRuleOperator>(['between', 'not_between'])
@@ -111,6 +119,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     return {
       selectedEntityType,
       selectedSchemaIds: [...selectedSchemaIds],
+      schemaOrgEnabled: Boolean(initial?.schemaOrgEnabled),
       root,
     }
   }
@@ -159,13 +168,26 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
             style={{ width: '100%' }}
             maxTagCount="responsive"
           />
+          <div className="entities-overview-edit-modal-schema-org-toggle">
+            <span className="entities-overview-edit-modal-label">
+              Enable properties from other ontologies
+            </span>
+            <Switch
+              checked={this.draft.schemaOrgEnabled}
+              onChange={(enabled) => this.onSchemaOrgToggle(enabled)}
+            />
+          </div>
         </div>
 
         {visibleFields.length === 0 ? (
           <Alert
             type="info"
             showIcon
-            message="No properties are available for the selected schemas."
+            message={
+              this.draft.schemaOrgEnabled
+                ? 'No properties are available for the selected schemas or other ontologies.'
+                : 'No properties are available for the selected schemas.'
+            }
           />
         ) : (
           this.renderGroup(this.draft.root, true)
@@ -291,7 +313,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           getPopupContainer={() => document.body}
           classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
           style={{ width: 130 }}
-          options={this.getOperatorOptions(selectedField, false)}
+          options={this.getOperatorOptions(selectedField, false, rule)}
         />
         <div className="entities-overview-edit-modal-value entities-overview-advanced-rule-value">
           {rule.operator === 'fields' && selectedField?.expectsObjectValue ? (
@@ -321,7 +343,11 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
 
   protected getVisibleFields() {
     const selected = new Set(this.draft.selectedSchemaIds)
-    return this.catalog.fields.filter((field) => selected.has(field.schemaId))
+    return this.catalog.fields.filter(
+      (field) =>
+        selected.has(field.schemaId) ||
+        (this.draft.schemaOrgEnabled && field.schemaId === SCHEMA_ORG_SCHEMA_ID),
+    )
   }
 
   protected onSchemaSelectionChange(schemaIds: string[]): void {
@@ -331,6 +357,11 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
 
   protected onEntityTypeSelectionChange(entityType: string): void {
     this.draft.selectedEntityType = entityType
+    this.update()
+  }
+
+  protected onSchemaOrgToggle(enabled: boolean): void {
+    this.draft.schemaOrgEnabled = enabled
     this.update()
   }
 
@@ -372,6 +403,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     const selectedField = this.fieldsByKey.get(fieldKey)
     const keepFieldsMode = rule.operator === 'fields' && Boolean(selectedField?.expectsObjectValue)
     rule.fieldKey = fieldKey
+    rule.valueKind = selectedField ? this.getDefaultRuleValueKind(selectedField) : undefined
     rule.value = ''
     if (keepFieldsMode) {
       rule.operator = 'fields'
@@ -396,8 +428,17 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
   protected setRuleOperator(ruleId: string, operator: AdvancedRuleOperator): void {
     this.updateRule(ruleId, (rule) => {
       const selectedField = rule.fieldKey ? this.fieldsByKey.get(rule.fieldKey) : undefined
+      const selectedValueKind = selectedField
+        ? this.getEffectiveRuleValueKind(rule, selectedField)
+        : undefined
+      const allowedOperators = this.getOperatorOptions(selectedField, false, rule).map(
+        (item) => item.value,
+      )
+      if (!allowedOperators.includes(operator)) {
+        return
+      }
       if (operator === 'fields') {
-        if (!selectedField?.expectsObjectValue) {
+        if (!selectedField?.expectsObjectValue || selectedValueKind !== 'entity') {
           return
         }
         rule.operator = 'fields'
@@ -419,6 +460,11 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
       rule.fieldsRoot = undefined
       const values = decodeAdvancedRuleValues(rule.value)
       if (this.isRangeOperator(operator)) {
+        if (selectedValueKind !== 'date') {
+          rule.operator = 'equal'
+          rule.value = ''
+          return
+        }
         if (values.length >= 2) {
           rule.value = encodeAdvancedRuleValues([values[0], values[1]])
         } else {
@@ -426,7 +472,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
         }
         return
       }
-      if (values.length > 1 && !this.supportsRuleMultiValue(selectedField, operator)) {
+      if (values.length > 1 && !this.supportsRuleMultiValue(rule, selectedField, operator)) {
         rule.value = values[0]
       }
     })
@@ -504,23 +550,34 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
       return <Input disabled placeholder="Select field first" />
     }
 
-    if (field.expectsObjectValue) {
-      return this.renderObjectValueEditor(rule, field)
-    }
-    if (field.valueKind === 'date') {
-      return this.renderDateValueEditor(rule.value, rule.operator, (value) =>
+    const valueKind = this.getEffectiveRuleValueKind(rule, field)
+    const valueKindSelector = this.renderRuleValueKindSelector(rule, field)
+
+    let editor: React.ReactNode
+    if (valueKind === 'entity') {
+      editor = this.renderObjectValueEditor(rule, field)
+    } else if (valueKind === 'date') {
+      editor = this.renderDateValueEditor(rule.value, rule.operator, (value) =>
         this.setRuleValue(rule.id, value),
+      )
+    } else {
+      editor = (
+        <Input
+          value={rule.value}
+          onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+            this.setRuleValue(rule.id, event.target.value)
+          }
+          placeholder={valueKind === 'url' ? 'Enter URL' : 'Enter string'}
+          type={valueKind === 'url' ? 'url' : 'text'}
+        />
       )
     }
 
     return (
-      <Input
-        value={rule.value}
-        onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-          this.setRuleValue(rule.id, event.target.value)
-        }
-        placeholder="Enter string"
-      />
+      <div className="entities-overview-edit-modal-value-input">
+        {valueKindSelector}
+        {editor}
+      </div>
     )
   }
 
@@ -586,14 +643,103 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     )
   }
 
+  protected getFieldValueKinds(
+    field: AdvancedFilterCatalog['fields'][number],
+  ): AdvancedFieldValueKind[] {
+    const configured =
+      field.valueKinds && field.valueKinds.length > 0 ? field.valueKinds : [field.valueKind]
+    return Array.from(new Set(configured))
+  }
+
+  protected getDefaultRuleValueKind(
+    field: AdvancedFilterCatalog['fields'][number],
+  ): AdvancedFieldValueKind {
+    const kinds = this.getFieldValueKinds(field)
+    return kinds[0] ?? 'text'
+  }
+
+  protected getEffectiveRuleValueKind(
+    rule: AdvancedFilterRuleNode,
+    field: AdvancedFilterCatalog['fields'][number],
+  ): AdvancedFieldValueKind {
+    const kinds = this.getFieldValueKinds(field)
+    if (rule.operator === 'fields' && kinds.includes('entity')) {
+      return 'entity'
+    }
+    if (rule.valueKind && kinds.includes(rule.valueKind)) {
+      return rule.valueKind
+    }
+    return this.getDefaultRuleValueKind(field)
+  }
+
+  protected renderRuleValueKindSelector(
+    rule: AdvancedFilterRuleNode,
+    field: AdvancedFilterCatalog['fields'][number],
+  ): React.ReactNode {
+    const kinds = this.getFieldValueKinds(field)
+    if (kinds.length <= 1) {
+      return undefined
+    }
+    const currentKind = this.getEffectiveRuleValueKind(rule, field)
+    return (
+      <div className="entities-overview-edit-modal-value-kind">
+        {kinds.map((kind) => {
+          const active = kind === currentKind
+          return (
+            <button
+              key={`${rule.id}-${kind}`}
+              type="button"
+              className={`entities-overview-edit-modal-value-kind-button${active ? ' is-active' : ''}`}
+              onClick={() => this.setRuleValueKind(rule.id, kind)}
+              aria-pressed={active}
+            >
+              <span className="codicon codicon-add" aria-hidden="true" />
+              {VALUE_KIND_LABELS[kind]}
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
+  protected setRuleValueKind(ruleId: string, valueKind: AdvancedFieldValueKind): void {
+    this.updateRule(ruleId, (rule) => {
+      const selectedField = rule.fieldKey ? this.fieldsByKey.get(rule.fieldKey) : undefined
+      if (!selectedField) {
+        return
+      }
+      const availableKinds = this.getFieldValueKinds(selectedField)
+      if (!availableKinds.includes(valueKind)) {
+        return
+      }
+      rule.valueKind = valueKind
+      rule.value = ''
+      const allowedOperators = this.getOperatorOptions(selectedField, false, rule).map(
+        (item) => item.value,
+      )
+      if (!allowedOperators.includes(rule.operator)) {
+        rule.operator = 'equal'
+        rule.fieldsMode = undefined
+        rule.fieldsRoot = undefined
+      }
+    })
+  }
+
   protected supportsRuleMultiValue(
+    rule: AdvancedFilterRuleNode,
     field: AdvancedFilterCatalog['fields'][number] | undefined,
     operator: AdvancedRuleOperator,
   ): boolean {
     if (this.isRangeOperator(operator)) {
       return true
     }
-    return Boolean(field?.expectsObjectValue) && this.supportsMultiObjectSelection(operator)
+    if (!field) {
+      return false
+    }
+    return (
+      this.getEffectiveRuleValueKind(rule, field) === 'entity' &&
+      this.supportsMultiObjectSelection(operator)
+    )
   }
 
   protected isRangeOperator(operator: AdvancedRuleOperator): boolean {
@@ -661,14 +807,22 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
   protected getOperatorOptions(
     field: AdvancedFilterCatalog['fields'][number] | undefined,
     isSubRule: boolean,
+    rule?: AdvancedFilterRuleNode,
   ): { value: AdvancedRuleOperator; label: string }[] {
-    if (field?.valueKind === 'date') {
+    if (!field) {
+      return BASE_OPERATOR_OPTIONS
+    }
+    const valueKind =
+      !isSubRule && rule
+        ? this.getEffectiveRuleValueKind(rule, field)
+        : this.getFieldValueKinds(field)[0] ?? field.valueKind
+    if (valueKind === 'date') {
       return DATE_OPERATOR_OPTIONS
     }
     if (isSubRule) {
       return BASE_OPERATOR_OPTIONS
     }
-    return field?.expectsObjectValue ? OBJECT_OPERATOR_OPTIONS : BASE_OPERATOR_OPTIONS
+    return valueKind === 'entity' ? OBJECT_OPERATOR_OPTIONS : BASE_OPERATOR_OPTIONS
   }
 
   /**
@@ -991,7 +1145,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
             <span className="entities-overview-edit-modal-no-value">
               No value required
             </span>
-          ) : selectedField?.valueKind === 'date' ? (
+          ) : selectedField && this.getFieldValueKinds(selectedField).includes('date') ? (
             this.renderDateValueEditor(rule.value, rule.operator, (value) =>
               this.setSubRuleValue(parentRuleId, rule.id, value),
             )
@@ -1482,6 +1636,13 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
               operator:
                 KNOWN_OPERATORS.has(child.operator) ? child.operator : 'equal',
               value: String(child.value ?? ''),
+              valueKind:
+                child.valueKind === 'entity' ||
+                child.valueKind === 'text' ||
+                child.valueKind === 'url' ||
+                child.valueKind === 'date'
+                  ? child.valueKind
+                  : undefined,
               fieldsMode: child.fieldsMode === 'any' ? 'any' : 'all',
               fieldsRoot:
                 child.operator === 'fields'

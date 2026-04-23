@@ -73,6 +73,7 @@ import { FileNavigatorCommands } from './file-navigator-commands';
 import { WorkspacePreferences } from '@theia/workspace/lib/common';
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
+import { AddDataSourceCommand } from 'data-sources/lib/browser';
 import { RoCrateIgnoredFilesService } from './ro-crate-ignored-files-service';
 import {
     IncludeResourcesResult,
@@ -114,6 +115,7 @@ export namespace NavigatorContextMenu {
 
     export const SEARCH = [...NAVIGATOR_CONTEXT_MENU, '4_search'];
     export const CLIPBOARD = [...NAVIGATOR_CONTEXT_MENU, '5_cutcopypaste'];
+    export const AGENTS = [...NAVIGATOR_CONTEXT_MENU, '6_agents'];
 
     export const MODIFICATION = [...NAVIGATOR_CONTEXT_MENU, '7_modification'];
     /** @deprecated use MODIFICATION */
@@ -383,6 +385,11 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
             isVisible: widget => this.withWidget(widget, () => this.workspaceService.opened),
             isToggled: widget => this.withWidget(widget, navigator => navigator.isSearchVisible())
+        });
+        registry.registerCommand(FileNavigatorCommands.ADD_DATA_SOURCE_TOOLBAR, {
+            execute: (...args) => registry.executeCommand(AddDataSourceCommand.id, ...args),
+            isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
+            isVisible: widget => this.withWidget(widget, () => this.workspaceService.opened)
         });
         registry.registerCommand(FileNavigatorCommands.REFRESH_NAVIGATOR, {
             execute: widget => this.withWidget(widget, () => this.refreshWorkspace()),
@@ -1263,6 +1270,12 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             command: FileNavigatorCommands.TOGGLE_SEARCH.id,
             tooltip: FileNavigatorCommands.TOGGLE_SEARCH.label,
             priority: 0,
+        });
+        toolbarRegistry.registerItem({
+            id: FileNavigatorCommands.ADD_DATA_SOURCE_TOOLBAR.id,
+            command: FileNavigatorCommands.ADD_DATA_SOURCE_TOOLBAR.id,
+            tooltip: AddDataSourceCommand.label,
+            priority: 0.5,
         });
         toolbarRegistry.registerItem({
             id: FileNavigatorCommands.COLLAPSE_ALL.id,

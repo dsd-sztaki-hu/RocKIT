@@ -925,3 +925,26 @@ body:has(
   color: var(--theia-focusBorder, #f38518) !important;
 }
 
+/* Remove nested PerfectScrollbar visuals in the RO-Crate editor (avoid double scrollbar UI). */
+.rocrate-editor .recrate-scope .ps__rail-y,
+.rocrate-editor .recrate-scope .ps__thumb-y {
+  display: none !important;
+}
+
+/* Keep scrolling inside RECrate and prevent outer Theia scrollbar. */
+.rocrate-editor {
+  overflow: hidden !important;
+}
+
+.rocrate-editor .recrate-scope,
+.rocrate-editor .recrate-scope .recrate,
+.rocrate-editor .recrate-scope .recrate .recrate-ant {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.rocrate-editor .recrate-scope .describo-editor-scroll {
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
