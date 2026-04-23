@@ -126,7 +126,8 @@
 .native-agent-markdown ul,
 .native-agent-markdown ol,
 .native-agent-markdown pre,
-.native-agent-markdown blockquote {
+.native-agent-markdown blockquote,
+.native-agent-markdown table {
   margin: 0;
   font-family: var(--theia-ui-font-family);
   line-height: 1.45;
@@ -138,7 +139,10 @@
 .native-agent-markdown ul + p,
 .native-agent-markdown ol + p,
 .native-agent-markdown pre + p,
-.native-agent-markdown blockquote + p {
+.native-agent-markdown blockquote + p,
+.native-agent-markdown p + table,
+.native-agent-markdown table + p,
+.native-agent-markdown table + table {
   margin-top: 8px;
 }
 
@@ -188,6 +192,54 @@
 
 .native-agent-markdown a {
   color: var(--theia-textLink-foreground);
+}
+
+.native-agent-markdown .native-agent-entity-link {
+  border: 1px solid color-mix(in srgb, var(--theia-textLink-foreground) 35%, var(--theia-editorWidget-border));
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--theia-textLink-foreground) 8%, transparent);
+  color: var(--theia-textLink-foreground);
+  cursor: pointer;
+  padding: 0 3px;
+  text-decoration: none;
+}
+
+.native-agent-markdown .native-agent-entity-link:hover {
+  border-color: var(--theia-textLink-activeForeground, var(--theia-textLink-foreground));
+  background: color-mix(in srgb, var(--theia-textLink-foreground) 14%, transparent);
+  color: var(--theia-textLink-activeForeground, var(--theia-textLink-foreground));
+}
+
+.native-agent-markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  border: 1px solid var(--theia-editorWidget-border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.native-agent-markdown thead {
+  background: color-mix(in srgb, var(--theia-editorWidget-background) 80%, var(--theia-editor-background));
+}
+
+.native-agent-markdown th,
+.native-agent-markdown td {
+  border: 1px solid var(--theia-editorWidget-border);
+  padding: 5px 7px;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.native-agent-markdown th {
+  color: var(--theia-editor-foreground);
+  font-weight: 700;
+  text-align: left;
+}
+
+.native-agent-markdown td {
+  color: var(--theia-editor-foreground);
 }
 
 .native-agent-check {

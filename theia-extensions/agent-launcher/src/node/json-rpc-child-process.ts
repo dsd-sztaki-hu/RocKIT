@@ -13,7 +13,7 @@ export interface JsonRpcMessage {
 export class JsonRpcChildProcess extends EventEmitter {
   protected child: ChildProcessWithoutNullStreams
   protected nextId = 1
-  protected stdoutBuffer = Buffer.alloc(0)
+  protected stdoutBuffer = ''
   protected pending = new Map<
     string | number,
     { resolve: (value: unknown) => void; reject: (reason: Error) => void }
@@ -37,7 +37,7 @@ export class JsonRpcChildProcess extends EventEmitter {
 
   request(method: string, params?: unknown): Promise<unknown> {
     const id = this.nextId++
-    const message: JsonRpcMessage = { jsonrpc: '2.0', id, method }
+    const message: JsonRpcMessage = { id, method }
     if (params !== undefined) {
       message.params = params
     }
@@ -49,7 +49,7 @@ export class JsonRpcChildProcess extends EventEmitter {
   }
 
   notify(method: string, params?: unknown): void {
-    const message: JsonRpcMessage = { jsonrpc: '2.0', method }
+    const message: JsonRpcMessage = { method }
     if (params !== undefined) {
       message.params = params
     }
@@ -57,7 +57,7 @@ export class JsonRpcChildProcess extends EventEmitter {
   }
 
   respond(id: string | number | null, result: unknown): void {
-    this.write({ jsonrpc: '2.0', id, result })
+    this.write({ id, result })
   }
 
   dispose(): void {
@@ -65,34 +65,23 @@ export class JsonRpcChildProcess extends EventEmitter {
   }
 
   protected write(message: JsonRpcMessage): void {
-    const body = Buffer.from(JSON.stringify(message), 'utf8')
-    this.child.stdin.write(`Content-Length: ${body.length}\r\n\r\n`)
-    this.child.stdin.write(body)
+    this.child.stdin.write(`${JSON.stringify(message)}\n`)
   }
 
   protected handleStdout(chunk: Buffer): void {
-    this.stdoutBuffer = Buffer.concat([this.stdoutBuffer, chunk])
+    this.stdoutBuffer += chunk.toString('utf8')
     while (true) {
-      const headerEnd = this.stdoutBuffer.indexOf('\r\n\r\n')
-      if (headerEnd < 0) {
+      const lineEnd = this.stdoutBuffer.indexOf('\n')
+      if (lineEnd < 0) {
         return
       }
-      const header = this.stdoutBuffer.slice(0, headerEnd).toString('utf8')
-      const lengthMatch = header.match(/Content-Length:\s*(\d+)/i)
-      if (!lengthMatch) {
-        this.stdoutBuffer = this.stdoutBuffer.slice(headerEnd + 4)
+      const line = this.stdoutBuffer.slice(0, lineEnd).replace(/\r$/, '')
+      this.stdoutBuffer = this.stdoutBuffer.slice(lineEnd + 1)
+      if (!line.trim()) {
         continue
       }
-      const length = Number(lengthMatch[1])
-      const bodyStart = headerEnd + 4
-      const bodyEnd = bodyStart + length
-      if (this.stdoutBuffer.length < bodyEnd) {
-        return
-      }
-      const body = this.stdoutBuffer.slice(bodyStart, bodyEnd).toString('utf8')
-      this.stdoutBuffer = this.stdoutBuffer.slice(bodyEnd)
       try {
-        this.handleMessage(JSON.parse(body) as JsonRpcMessage)
+        this.handleMessage(JSON.parse(line) as JsonRpcMessage)
       } catch (error) {
         this.emit('error', error)
       }

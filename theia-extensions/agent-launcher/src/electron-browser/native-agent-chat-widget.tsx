@@ -1,9 +1,11 @@
 import * as React from 'react'
 import MarkdownIt = require('markdown-it')
+import { ApplicationShell, Widget, WidgetManager } from '@theia/core/lib/browser'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { MessageService } from '@theia/core/lib/common/message-service'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import {
   NativeAgentProvider,
   NativeAgentMessage,
@@ -41,8 +43,10 @@ type NativeAgentChatViewProps = {
   provider: NativeAgentProvider
   cwd: string
   session: NativeAgentSession | undefined
+  entityIds: string[]
   activityExpanded: boolean
   onActivityExpandedChange: (expanded: boolean) => void
+  onSelectEntity: (entityId: string) => void
   onCancel: () => void
   onSend: (text: string) => Promise<void>
   onError: (error: unknown) => void
@@ -311,11 +315,12 @@ class NativeAgentChatView extends React.Component<
         const rawToolName = toolMatch[1].trim()
         const label = this.formatToolName(rawToolName)
         const toolUseId = this.getToolUseId(activity)
+        const status = this.getToolActivityStatus(activity) ?? 'running'
         const display = {
           message: this.withToolIdentityDetails(activity, label, rawToolName),
           label,
           rawToolName,
-          status: 'running' as NativeAgentActivityStatus,
+          status,
         }
         displayActivities.push(display)
         latestToolRow = display
@@ -405,6 +410,25 @@ class NativeAgentChatView extends React.Component<
     return { toolUseId, failed }
   }
 
+  protected getToolActivityStatus(
+    activity: NativeAgentMessage,
+  ): NativeAgentActivityStatus | undefined {
+    for (const detail of activity.details ?? []) {
+      const value = this.parseDetailJson(detail)
+      const status = String(value?.status ?? value?.result?.status ?? '').toLowerCase()
+      if (status === 'completed' || status === 'success' || status === 'succeeded') {
+        return 'done'
+      }
+      if (status === 'failed' || status === 'error' || status === 'cancelled') {
+        return 'fail'
+      }
+      if (status === 'running' || status === 'in_progress') {
+        return 'running'
+      }
+    }
+    return undefined
+  }
+
   protected parseDetailJson(detail: NativeAgentMessageDetail): any | undefined {
     if (detail.language !== 'json') {
       return undefined
@@ -472,6 +496,7 @@ class NativeAgentChatView extends React.Component<
     return (
       <div
         className="native-agent-markdown"
+        onClick={this.handleMarkdownClick}
         dangerouslySetInnerHTML={{ __html: html }}
       />
     )
@@ -498,19 +523,132 @@ class NativeAgentChatView extends React.Component<
   protected formatMessageText(message: NativeAgentMessage): string {
     let text = message.text.replace(/\r\n/g, '\n').trim()
     if (message.role === 'assistant') {
-      text = text
-        .replace(/([.!?])(?=[A-Z])/g, '$1\n\n')
-        .replace(/([^\s])([✓✔])/g, '$1\n\n$2')
-        .replace(/([✓✔])\s*/g, '$1 ')
-        .replace(/\s+(?=(?:Now|Next|Then|Finally)\b)/g, '\n\n')
+      text = this.protectMarkdownTables(
+        text.replace(/([^\n])(\s*)(\|[^\n]*\|\s*\n\|[-:\s|]+\|)/g, '$1\n\n$3'),
+      )
     }
     return text
   }
 
+  protected protectMarkdownTables(text: string): string {
+    return text
+      .split('\n')
+      .map((line) => (this.isMarkdownTableLine(line) ? line : this.formatAssistantProse(line)))
+      .join('\n')
+  }
+
+  protected isMarkdownTableLine(line: string): boolean {
+    return /^\s*\|.*\|\s*$/.test(line) || /^\s*\|[-:\s|]+\|\s*$/.test(line)
+  }
+
+  protected formatAssistantProse(text: string): string {
+    return text
+      .replace(/([.!?])(?=[A-Z])/g, '$1\n\n')
+      .replace(/([^\s])([✓✔])/g, '$1\n\n$2')
+      .replace(/([✓✔])\s*/g, '$1 ')
+      .replace(/\s+(?=(?:Now|Next|Then|Finally)\b)/g, '\n\n')
+  }
+
   protected formatRenderedHtml(html: string): string {
-    return html
+    const marked = html
       .replace(/(^|[>\s])(✓|✔)(?=\s|<|$)/g, '$1<span class="native-agent-check">$2</span>')
       .replace(/(^|[>\s])(✗|✘|✕|×)(?=\s|<|$)/g, '$1<span class="native-agent-cross">$2</span>')
+    return this.linkEntityReferences(marked)
+  }
+
+  protected linkEntityReferences(html: string): string {
+    if (!this.props.entityIds.length) {
+      return html
+    }
+    const template = document.createElement('template')
+    template.innerHTML = html
+    const sortedEntityIds = [...this.props.entityIds].sort((a, b) => b.length - a.length)
+    this.linkEntityReferencesInNode(template.content, sortedEntityIds)
+    return template.innerHTML
+  }
+
+  protected linkEntityReferencesInNode(node: Node, entityIds: string[]): void {
+    const children = Array.from(node.childNodes)
+    for (const child of children) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        this.replaceEntityTextNode(child as Text, entityIds)
+        continue
+      }
+      if (child.nodeType !== Node.ELEMENT_NODE) {
+        continue
+      }
+      const element = child as Element
+      if (element.closest('a')) {
+        continue
+      }
+      this.linkEntityReferencesInNode(element, entityIds)
+    }
+  }
+
+  protected replaceEntityTextNode(textNode: Text, entityIds: string[]): void {
+    const text = textNode.nodeValue ?? ''
+    const fragment = document.createDocumentFragment()
+    let offset = 0
+    let linked = false
+
+    while (offset < text.length) {
+      const match = this.findNextEntityReference(text, offset, entityIds)
+      if (!match) {
+        break
+      }
+      if (match.index > offset) {
+        fragment.appendChild(document.createTextNode(text.slice(offset, match.index)))
+      }
+      const link = document.createElement('a')
+      link.href = '#'
+      link.className = 'native-agent-entity-link'
+      link.dataset.rocrateEntityId = match.entityId
+      link.textContent = match.entityId
+      fragment.appendChild(link)
+      offset = match.index + match.entityId.length
+      linked = true
+    }
+
+    if (!linked) {
+      return
+    }
+    if (offset < text.length) {
+      fragment.appendChild(document.createTextNode(text.slice(offset)))
+    }
+    textNode.replaceWith(fragment)
+  }
+
+  protected findNextEntityReference(
+    text: string,
+    offset: number,
+    entityIds: string[],
+  ): { entityId: string; index: number } | undefined {
+    let best: { entityId: string; index: number } | undefined
+    for (const entityId of entityIds) {
+      const index = text.indexOf(entityId, offset)
+      if (index < 0) {
+        continue
+      }
+      if (entityId.length <= 2 && text.trim() !== entityId) {
+        continue
+      }
+      if (!best || index < best.index || (index === best.index && entityId.length > best.entityId.length)) {
+        best = { entityId, index }
+      }
+    }
+    return best
+  }
+
+  protected readonly handleMarkdownClick = (event: React.MouseEvent<HTMLDivElement>): void => {
+    const target = event.target as HTMLElement | null
+    const link = target?.closest<HTMLAnchorElement>('a[data-rocrate-entity-id]')
+    const entityId = link?.dataset.rocrateEntityId
+    if (!entityId) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    this.props.onSelectEntity(entityId)
   }
 
   protected readonly handleDraftChange = (event: React.ChangeEvent<HTMLTextAreaElement>): void => {
@@ -615,10 +753,18 @@ export class NativeAgentChatWidget extends ReactWidget {
   @inject(MessageService)
   protected readonly messageService: MessageService
 
+  @inject(WidgetManager)
+  protected readonly widgetManager: WidgetManager
+
+  @inject(ApplicationShell)
+  protected readonly shell: ApplicationShell
+
   protected session: NativeAgentSession | undefined
   protected provider: NativeAgentProvider = 'codex'
   protected cwd = ''
   protected initialized = false
+  protected readonly openingEntities = new Set<string>()
+  protected readonly editorFocusOrder: string[] = []
 
   initWidget(): void {
     if (this.initialized) {
@@ -644,6 +790,18 @@ export class NativeAgentChatWidget extends ReactWidget {
       this.appStateService.onDidChangeSelector(
         (state) => state.nativeAgentActivityExpanded,
       )(() => this.update()),
+    )
+    this.toDispose.push(
+      this.appStateService.onDidChangeSelector(
+        (state) => state.roCrate,
+      )(() => this.update()),
+    )
+    this.toDispose.push(
+      this.shell.onDidChangeCurrentWidget(({ newValue }) => {
+        if (newValue && this.isRoCrateEditorWidget(newValue)) {
+          this.markEditorFocused(newValue.id)
+        }
+      }),
     )
     void this.appStateService.ready.then(() => this.update())
     this.update()
@@ -672,8 +830,10 @@ export class NativeAgentChatWidget extends ReactWidget {
         provider={this.provider}
         cwd={this.cwd}
         session={this.session}
+        entityIds={this.getEntityIds()}
         activityExpanded={this.appStateService.nativeAgentActivityExpanded}
         onActivityExpandedChange={this.handleActivityExpandedChange}
+        onSelectEntity={this.handleSelectEntity}
         onCancel={this.handleCancel}
         onSend={this.handleSend}
         onError={this.handleError}
@@ -683,6 +843,117 @@ export class NativeAgentChatWidget extends ReactWidget {
 
   protected readonly handleActivityExpandedChange = (expanded: boolean): void => {
     this.appStateService.nativeAgentActivityExpanded = expanded
+  }
+
+  protected readonly handleSelectEntity = (entityId: string): void => {
+    void this.openRoCrateEditorForEntity(entityId)
+  }
+
+  protected async openRoCrateEditorForEntity(entityId: string): Promise<void> {
+    if (!entityId || this.openingEntities.has(entityId)) {
+      return
+    }
+    this.openingEntities.add(entityId)
+    const prevSelected = this.appStateService.selectedEntityId
+    if (prevSelected !== entityId) {
+      this.appStateService.selectedEntityId = entityId
+    }
+
+    try {
+      const existingWidgetId = this.findWidgetIdForEntity(entityId)
+      if (existingWidgetId) {
+        this.appStateService.registerEntityEditor(existingWidgetId, entityId)
+        await this.shell.activateWidget(existingWidgetId)
+        this.markEditorFocused(existingWidgetId)
+        return
+      }
+
+      const preferredEditor = this.getPreferredRoCrateEditorWidget()
+      if (preferredEditor) {
+        this.appStateService.registerEntityEditor(preferredEditor.id, entityId)
+        await this.shell.activateWidget(preferredEditor.id)
+        this.markEditorFocused(preferredEditor.id)
+        return
+      }
+
+      const instanceId = `${RoCrateEditorWidget.ID}:${Math.random().toString(36).slice(2)}`
+      const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
+        instanceId,
+        entityId,
+      })
+      await this.shell.addWidget(widget, { area: 'main' })
+      this.appStateService.registerEntityEditor(widget.id, entityId)
+      await this.shell.activateWidget(widget.id)
+      this.markEditorFocused(widget.id)
+    } catch (error) {
+      console.error('NativeAgentChatWidget: failed to open entity', { entityId, error })
+      this.messageService.error(error instanceof Error ? error.message : String(error))
+    } finally {
+      this.openingEntities.delete(entityId)
+    }
+  }
+
+  protected findWidgetIdForEntity(entityId: string): string | undefined {
+    const mapping = this.appStateService.EIRCEIA ?? {}
+    const matchingIds = Object.entries(mapping)
+      .filter(([, mappedEntityId]) => mappedEntityId === entityId)
+      .map(([widgetId]) => widgetId)
+      .filter((widgetId) => Boolean(this.shell.getWidgetById(widgetId)))
+
+    for (let index = this.editorFocusOrder.length - 1; index >= 0; index -= 1) {
+      const widgetId = this.editorFocusOrder[index]
+      if (matchingIds.includes(widgetId)) {
+        return widgetId
+      }
+    }
+
+    return matchingIds[0]
+  }
+
+  protected isRoCrateEditorWidget(widget: Widget): boolean {
+    return widget.id.startsWith(RoCrateEditorWidget.ID)
+  }
+
+  protected markEditorFocused(widgetId: string): void {
+    const index = this.editorFocusOrder.indexOf(widgetId)
+    if (index >= 0) {
+      this.editorFocusOrder.splice(index, 1)
+    }
+    this.editorFocusOrder.push(widgetId)
+  }
+
+  protected getPreferredRoCrateEditorWidget(): Widget | undefined {
+    for (let index = this.editorFocusOrder.length - 1; index >= 0; index -= 1) {
+      const widgetId = this.editorFocusOrder[index]
+      const widget = this.shell.getWidgetById(widgetId)
+      if (widget && this.isRoCrateEditorWidget(widget)) {
+        return widget
+      }
+      this.editorFocusOrder.splice(index, 1)
+    }
+
+    const active = this.shell.activeWidget ?? this.shell.currentWidget
+    if (active && this.isRoCrateEditorWidget(active)) {
+      return active
+    }
+
+    for (const widget of this.shell.getWidgets('main')) {
+      if (this.isRoCrateEditorWidget(widget)) {
+        return widget
+      }
+    }
+
+    return undefined
+  }
+
+  protected getEntityIds(): string[] {
+    const graph = this.appStateService.roCrate?.['@graph']
+    if (!Array.isArray(graph)) {
+      return []
+    }
+    return graph
+      .map((entity) => entity?.['@id'])
+      .filter((entityId): entityId is string => typeof entityId === 'string' && entityId.length > 0)
   }
 
   protected readonly handleCancel = (): void => {

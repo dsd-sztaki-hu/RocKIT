@@ -159,6 +159,7 @@ class CodexNativeAdapter implements Adapter {
   protected rpc: JsonRpcChildProcess | undefined
   protected providerThreadId: string | undefined
   protected activeAssistant: NativeAgentMessage | undefined
+  protected disposed = false
   protected readonly seenActivityKeys = new Set<string>()
 
   constructor(
@@ -184,6 +185,7 @@ class CodexNativeAdapter implements Adapter {
   }
 
   dispose(): void {
+    this.disposed = true
     this.rpc?.dispose()
     this.rpc = undefined
   }
@@ -192,6 +194,7 @@ class CodexNativeAdapter implements Adapter {
     if (this.rpc) {
       return
     }
+    this.disposed = false
     const executable = findExecutable(['codex'])
     if (!executable) {
       throw new Error('Codex executable not found in PATH.')
@@ -199,6 +202,12 @@ class CodexNativeAdapter implements Adapter {
     const rpc = new JsonRpcChildProcess(executable, ['app-server'], this.record.session.cwd, process.env)
     this.rpc = rpc
     rpc.on('message', (message: JsonRpcMessage) => this.handleMessage(message))
+    rpc.on('error', (error: Error) => this.handleRuntimeFailure(error.message))
+    rpc.on('exit', ({ code, signal }: { code: number | null; signal: string | null }) => {
+      if (!this.disposed && this.record.session.status === 'running') {
+        this.handleRuntimeFailure(`Codex app-server exited (code=${code ?? 'null'}, signal=${signal ?? 'null'}).`)
+      }
+    })
     rpc.on('stderr', (line: string) => {
       if (line.trim()) {
         appendActivity(this.record.session, 'Codex runtime output', 'stderr', line.trim())
@@ -207,7 +216,7 @@ class CodexNativeAdapter implements Adapter {
     })
     await rpc.request('initialize', {
       clientInfo: { name: 'aroma', title: 'AROMA', version: '0.0.0' },
-      capabilities: { experimentalApi: true },
+      capabilities: { experimentalApi: true, optOutNotificationMethods: null },
     })
     rpc.notify('initialized')
     const started = (await rpc.request('thread/start', {
@@ -285,9 +294,9 @@ class CodexNativeAdapter implements Adapter {
 
     const itemType = String(item.type ?? '')
     if (itemType === 'mcpToolCall' || method.toLowerCase().includes('mcptool')) {
-      const toolName = item.toolName ?? item.name ?? item.mcpToolName ?? 'MCP tool'
+      const toolName = this.codexToolName(item)
       return {
-        title: `MCP tool: ${toolName}`,
+        title: `Tool: ${toolName}`,
         detailTitle: 'Tool call',
         detail: item,
       }
@@ -300,6 +309,29 @@ class CodexNativeAdapter implements Adapter {
       }
     }
     return undefined
+  }
+
+  protected codexToolName(item: any): string {
+    const server = item.server ?? item.serverName ?? item.mcpServerName ?? item.mcpServer
+    const tool = item.tool ?? item.toolName ?? item.name ?? item.mcpToolName
+    if (typeof server === 'string' && typeof tool === 'string') {
+      return `${server}__${tool}`
+    }
+    if (typeof tool === 'string') {
+      return tool
+    }
+    return 'MCP tool'
+  }
+
+  protected handleRuntimeFailure(message: string): void {
+    if (this.activeAssistant) {
+      this.activeAssistant.streaming = false
+      this.activeAssistant = undefined
+    }
+    this.record.session.status = 'error'
+    this.record.session.lastError = message
+    appendMessage(this.record.session, 'error', message)
+    this.publish()
   }
 }
 
