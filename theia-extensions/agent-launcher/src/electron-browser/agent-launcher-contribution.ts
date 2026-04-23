@@ -18,11 +18,6 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service'
 import { TerminalWidget } from '@theia/terminal/lib/browser/base/terminal-widget'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import {
-  getRocrateMcpServerPathCandidates,
-  resolveAppProjectPathFromLocation,
-  resolveRocrateMcpSocketPath,
-} from '../../../aroma2-common/lib/common/rocrate-mcp-config'
 import * as path from 'path'
 import { NavigatorContextMenu } from 'file-explorer/lib/browser/navigator-contribution'
 
@@ -139,10 +134,10 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
           },
           isEnabled: (uri) =>
             !!this.workspaceService.getWorkspaceRootUri(uri) &&
-            sharedAvailableAgents.has(spec.id),
+            this.isAgentAvailableForMenu(spec),
           isVisible: (uri) =>
             !!this.workspaceService.getWorkspaceRootUri(uri) &&
-            sharedAvailableAgents.has(spec.id),
+            this.isAgentAvailableForMenu(spec),
         }),
       )
     }
@@ -166,7 +161,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     await this.waitForTerminalOpen(terminal, 1000)
     this.setAgentTerminalStatus(terminal, agentId, 'Preparing...')
 
-    const executable = sharedAvailableAgents.get(agentId)
+    const executable = await this.resolveAgentExecutable(agentId)
     if (!executable) {
       this.setAgentTerminalStatus(terminal, agentId, 'Executable not found')
       return
@@ -299,10 +294,10 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
     if (spec.kind === 'toml') {
       return (
-        content.includes(`command = "${launchConfig.command.replace(/\\/g, '\\\\')}"`) &&
+        content.includes(`command = ${this.toTomlString(launchConfig.command)}`) &&
         content.includes(
           `args = [${launchConfig.args
-            .map((arg) => `"${arg.replace(/\\/g, '\\\\')}"`)
+            .map((arg) => this.toTomlString(arg))
             .join(', ')}]`,
         )
       )
@@ -333,8 +328,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     if (spec.kind === 'toml') {
       return [
         '[mcp_servers.rocrate]',
-        `command = "${launchConfig.command}"`,
-        `args = [${launchConfig.args.map((arg) => `"${arg}"`).join(', ')}]`,
+        `command = ${this.toTomlString(launchConfig.command)}`,
+        `args = [${launchConfig.args.map((arg) => this.toTomlString(arg)).join(', ')}]`,
         'startup_timeout_sec = 30',
         'env = { ROCRATE_MCP_DEFAULT_MODE = "local" }',
       ].join('\n')
@@ -364,21 +359,21 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected async resolveRocrateServerPath(): Promise<string> {
     const processEnv = (globalThis as any).process?.env
-    const processPlatform = ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
     const runtime = this.getElectronRuntimePaths()
     const appProjectPath =
-      processEnv?.THEIA_APP_PROJECT_PATH ??
-      resolveAppProjectPathFromLocation(
+      this.normalizeFsPath(this.getEnvValue(processEnv, 'THEIA_APP_PROJECT_PATH')) ??
+      this.resolveAppProjectPathFromLocation(
         typeof window === 'undefined' ? undefined : window.location.pathname,
-        processPlatform,
       )
-    const unique = getRocrateMcpServerPathCandidates({
+    const unique = this.getRocrateMcpServerPathCandidates({
       appProjectPath,
-      resourcesPath: runtime.resourcesPath,
-      serverPathOverride: processEnv?.AROMA_ROCRATE_MCP_SERVER_PATH,
-    })
+      resourcesPath: this.normalizeFsPath(runtime.resourcesPath),
+      serverPathOverride: this.normalizeFsPath(
+        this.getEnvValue(processEnv, 'AROMA_ROCRATE_MCP_SERVER_PATH'),
+      ),
+    }).map((candidate) => this.normalizeFsPath(candidate) ?? candidate)
     for (const candidate of unique) {
-      if (await this.fileService.exists(FileUri.create(candidate))) return candidate
+      if (await this.pathExists(candidate)) return candidate
     }
     throw new Error(`Server not found. Tried: ${unique.join(' | ')}`)
   }
@@ -398,14 +393,15 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected resolveRocrateMcpSocketPath(): string {
     const env = (globalThis as any).process?.env
-    const processPlatform = ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
+    const override = this.getEnvValue(env, 'AROMA_ROCRATE_MCP_SOCKET_PATH')
+    if (override) return this.normalizeFsPath(override) ?? override
+    if (isWindows) {
+      const username = this.getEnvValue(env, 'USERNAME') ?? 'user'
+      return `\\\\.\\pipe\\aroma-rocrate-mcp-${username}`
+    }
     const homeDirs = this.getHomeDirs()
-    return resolveRocrateMcpSocketPath({
-      homeDir: homeDirs.length > 0 ? homeDirs[0] : this.homeDirPath,
-      platform: processPlatform,
-      socketPathOverride: env?.AROMA_ROCRATE_MCP_SOCKET_PATH,
-      username: env?.USERNAME,
-    })
+    const base = this.joinFsPath(homeDirs.length > 0 ? homeDirs[0] : undefined, '.aroma') ?? '/tmp/aroma'
+    return this.joinFsPath(base, 'rocrate-mcp-server.sock') ?? `${base}/rocrate-mcp-server.sock`
   }
 
   protected async writeRocrateMcpConfig(
@@ -515,7 +511,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const candidates = [path.join(homeDir, '.claude.json'), path.join(homeDir, '.claude', '.mcp.json')]
     for (const candidate of candidates) {
       const uri = FileUri.create(candidate)
-      if (!(await this.fileService.exists(uri))) {
+      if (!(await this.pathExists(candidate))) {
         continue
       }
       try {
@@ -576,14 +572,33 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected async detectAvailableAgents(): Promise<void> {
     for (const spec of AGENT_SPECS) {
-      let executable = await this.findExecutableInPath(spec.executables)
-      if (!executable && (await this.hasAgentMarker(spec))) {
-        executable = spec.executables[0]
-      }
+      const executable = await this.resolveAgentExecutable(spec.id)
       if (executable) {
         sharedAvailableAgents.set(spec.id, executable)
       }
     }
+  }
+
+  protected async resolveAgentExecutable(agentId: string): Promise<string | undefined> {
+    const cached = sharedAvailableAgents.get(agentId)
+    if (cached) return cached
+    const spec = AGENT_SPECS.find((candidate) => candidate.id === agentId)
+    if (!spec) return undefined
+    const executable = await this.findExecutableInPath(spec.executables)
+    if (executable) {
+      sharedAvailableAgents.set(agentId, executable)
+    }
+    return executable
+  }
+
+  protected isAgentAvailableForMenu(spec: AgentSpec): boolean {
+    if (sharedAvailableAgents.has(spec.id)) return true
+    const executable = this.findExecutableInPathSync(spec.executables)
+    if (executable) {
+      sharedAvailableAgents.set(spec.id, executable)
+      return true
+    }
+    return false
   }
 
   protected async findExecutableInPath(candidates: string[]): Promise<string | undefined> {
@@ -591,25 +606,59 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     return abs ? path.basename(abs).replace(/\.(exe|cmd|bat)$/i, '') : undefined
   }
 
+  protected findExecutableInPathSync(candidates: string[]): string | undefined {
+    const abs = this.findExecutableAbsolutePathSync(candidates)
+    return abs ? path.basename(abs).replace(/\.(exe|cmd|bat)$/i, '') : undefined
+  }
+
   protected async findExecutableAbsolutePath(
     candidates: string[],
   ): Promise<string | undefined> {
+    const local = this.findExecutableAbsolutePathSync(candidates)
+    if (local) return local
+    for (const full of this.getExecutablePathCandidates(candidates)) {
+      if (await this.pathExists(full)) return full
+    }
+    return undefined
+  }
+
+  protected findExecutableAbsolutePathSync(candidates: string[]): string | undefined {
+    for (const full of this.getExecutablePathCandidates(candidates)) {
+      if (this.pathExistsSync(full)) return full
+    }
+    return undefined
+  }
+
+  protected getExecutablePathCandidates(candidates: string[]): string[] {
     const processEnv = (globalThis as any).process?.env
-    const pathValue = processEnv?.PATH ?? ''
-    const dirs = [
-      ...new Set([...pathValue.split(isWindows ? ';' : ':'), ...this.getCommonBinDirs()]),
-    ]
-    const exts = isWindows ? ['.exe', '.cmd', '.bat', ''] : ['']
+    const dirs = this.getExecutableSearchDirs(processEnv)
+    const exts = this.getExecutableExtensions(processEnv)
+    const paths: string[] = []
 
     for (const dir of dirs) {
       for (const candidate of candidates) {
         for (const ext of exts) {
-          const full = path.join(dir, candidate + ext)
-          if (await this.fileService.exists(FileUri.create(full))) return full
+          const alreadyHasExt = isWindows && path.extname(candidate) !== ''
+          paths.push(path.join(dir, alreadyHasExt ? candidate : candidate + ext))
         }
       }
     }
-    return undefined
+    return paths
+  }
+
+  protected getExecutableSearchDirs(env: NodeJS.ProcessEnv | undefined): string[] {
+    const pathValue = this.getEnvValue(env, 'PATH') ?? ''
+    return [
+      ...new Set(
+        [
+          ...pathValue.split(isWindows ? ';' : ':'),
+          ...this.getRuntimeExecutableDirs(),
+          ...this.getCommonBinDirs(),
+        ]
+          .map((dir) => this.normalizeExecutableSearchDir(dir))
+          .filter((dir): dir is string => !!dir && this.isAbsoluteFsPath(dir)),
+      ),
+    ]
   }
 
   protected async hasAgentMarker(spec: AgentSpec): Promise<boolean> {
@@ -617,7 +666,20 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const homes = this.getHomeDirs()
     for (const home of homes) {
       for (const marker of spec.markerPaths) {
-        if (await this.fileService.exists(FileUri.create(path.join(home, marker)))) {
+        if (await this.pathExists(path.join(home, marker))) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  protected hasAgentMarkerSync(spec: AgentSpec): boolean {
+    if (!spec.markerPaths) return false
+    const homes = this.getHomeDirs()
+    for (const home of homes) {
+      for (const marker of spec.markerPaths) {
+        if (this.pathExistsSync(path.join(home, marker))) {
           return true
         }
       }
@@ -627,12 +689,163 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected getHomeDirs(): string[] {
     const env = (globalThis as any).process?.env
-    return [this.homeDirPath, env?.HOME, env?.USERPROFILE].filter((value): value is string => !!value)
+    return [
+      this.homeDirPath,
+      this.getEnvValue(env, 'HOME'),
+      this.getEnvValue(env, 'USERPROFILE'),
+    ].filter((value): value is string => !!value)
   }
 
   protected getElectronRuntimePaths(): { resourcesPath?: string; execPath?: string } {
     const processValue = (globalThis as any).process
     return { resourcesPath: processValue?.resourcesPath, execPath: processValue?.execPath }
+  }
+
+  protected getEnvValue(
+    env: NodeJS.ProcessEnv | undefined,
+    name: string,
+  ): string | undefined {
+    if (!env) return undefined
+    const direct = env[name]
+    if (direct !== undefined) return direct
+    const lower = name.toLowerCase()
+    const key = Object.keys(env).find((candidate) => candidate.toLowerCase() === lower)
+    return key ? env[key] : undefined
+  }
+
+  protected getProcessPlatform(): NodeJS.Platform {
+    const platform = (globalThis as any).process?.platform as NodeJS.Platform | undefined
+    return isWindows ? 'win32' : platform ?? 'darwin'
+  }
+
+  protected normalizeFsPath(fsPath: string | undefined): string | undefined {
+    if (!fsPath) return undefined
+    if (isWindows && /^\/[a-zA-Z]:[\\/]/.test(fsPath)) {
+      return fsPath.slice(1)
+    }
+    return fsPath
+  }
+
+  protected resolveAppProjectPathFromLocation(pathname: string | undefined): string | undefined {
+    if (!pathname) return undefined
+    let current = decodeURIComponent(pathname)
+    current = this.normalizeFsPath(current) ?? current
+    const separator = isWindows ? '\\' : '/'
+    const parts = current.split(/[\\/]/).filter((part) => part.length > 0)
+    while (parts.length > 0) {
+      const candidate = isWindows ? parts.join(separator) : `${separator}${parts.join(separator)}`
+      if (
+        candidate.endsWith('electron-app') ||
+        candidate.endsWith('browser-app') ||
+        candidate.endsWith('aroma-2')
+      ) {
+        return candidate
+      }
+      parts.pop()
+    }
+    return undefined
+  }
+
+  protected getRocrateMcpServerPathCandidates(options: {
+    appProjectPath?: string
+    resourcesPath?: string
+    serverPathOverride?: string
+  }): string[] {
+    const candidates: string[] = []
+    if (options.serverPathOverride) candidates.push(options.serverPathOverride)
+    if (options.appProjectPath) {
+      const base =
+        options.appProjectPath.endsWith('electron-app') ||
+        options.appProjectPath.endsWith('browser-app')
+          ? this.joinFsPath(options.appProjectPath, '..')
+          : options.appProjectPath
+      const candidate = this.joinFsPath(
+        base,
+        'theia-extensions',
+        'rocrate-mcp-server',
+        'lib',
+        'server.js',
+      )
+      if (candidate) candidates.push(candidate)
+    }
+    if (options.resourcesPath) {
+      for (const prefix of ['app', '']) {
+        const candidate = this.joinFsPath(
+          options.resourcesPath,
+          prefix,
+          'theia-extensions',
+          'rocrate-mcp-server',
+          'lib',
+          'server.js',
+        )
+        if (candidate) candidates.push(candidate)
+      }
+    }
+    return [
+      ...new Set(
+        candidates
+          .map((candidate) => this.normalizeFsPath(candidate))
+          .filter((candidate): candidate is string => !!candidate && this.isAbsoluteFsPath(candidate)),
+      ),
+    ]
+  }
+
+  protected joinFsPath(
+    first: string | undefined,
+    ...segments: string[]
+  ): string | undefined {
+    if (!first) return undefined
+    const separator = isWindows ? '\\' : '/'
+    const parts = [first, ...segments].filter((part) => part.length > 0)
+    const resolved: string[] = []
+    for (const part of parts.join(separator).split(/[\\/]/)) {
+      if (!part || part === '.') continue
+      if (part === '..') {
+        resolved.pop()
+        continue
+      }
+      resolved.push(part)
+    }
+    if (isWindows) {
+      const root = /^[a-zA-Z]:$/.test(resolved[0] ?? '') ? `${resolved.shift()}\\` : ''
+      return `${root}${resolved.join('\\')}`
+    }
+    return `/${resolved.join('/')}`
+  }
+
+  protected toTomlString(value: string): string {
+    return `"${value
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\r/g, '\\r')
+      .replace(/\n/g, '\\n')
+      .replace(/\t/g, '\\t')}"`
+  }
+
+  protected getExecutableExtensions(env: NodeJS.ProcessEnv | undefined): string[] {
+    if (!isWindows) return ['']
+    const configured = this.getEnvValue(env, 'PATHEXT')
+      ?.split(';')
+      .map((ext) => ext.trim().toLowerCase())
+      .filter(Boolean)
+    const exts = configured && configured.length > 0 ? configured : ['.exe', '.cmd', '.bat']
+    return [...new Set([...exts, ''])]
+  }
+
+  protected normalizeExecutableSearchDir(dir: string | undefined): string | undefined {
+    const normalized = dir?.trim().replace(/^"(.*)"$/, '$1')
+    return normalized || undefined
+  }
+
+  protected isAbsoluteFsPath(fsPath: string): boolean {
+    return isWindows ? /^[a-zA-Z]:[\\/]/.test(fsPath) || /^\\\\/.test(fsPath) : fsPath.startsWith('/')
+  }
+
+  protected getRuntimeExecutableDirs(): string[] {
+    const processValue = (globalThis as any).process
+    const runtime = this.getElectronRuntimePaths()
+    return [processValue?.cwd?.(), runtime.execPath ? path.dirname(runtime.execPath) : undefined]
+      .filter((value): value is string => !!value)
   }
 
   protected async loadHomeDirPath(): Promise<void> {
@@ -647,11 +860,39 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     if (!isWindows) {
       return [home ? `${home}/.volta/bin` : '', '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin'].filter(Boolean)
     }
-    return [home ? `${home}\\.local\\bin` : '', 'C:\\Program Files\\nodejs'].filter(Boolean)
+    const localAppData = this.getEnvValue((globalThis as any).process?.env, 'LOCALAPPDATA')
+    const appData = this.getEnvValue((globalThis as any).process?.env, 'APPDATA')
+    return [
+      home ? `${home}\\.local\\bin` : '',
+      appData ? `${appData}\\npm` : '',
+      localAppData ? `${localAppData}\\Programs\\nodejs` : '',
+      'C:\\Program Files\\nodejs',
+      'C:\\Program Files (x86)\\nodejs',
+      'C:\\nvm4w\\nodejs',
+    ].filter(Boolean)
   }
 
   protected async readTextFile(uri: URI): Promise<string> {
     return (await this.fileService.read(uri)).value.toString()
+  }
+
+  protected async pathExists(fsPath: string): Promise<boolean> {
+    if (this.pathExistsSync(fsPath)) return true
+    try {
+      return await this.fileService.exists(FileUri.create(fsPath))
+    } catch {
+      return false
+    }
+  }
+
+  protected pathExistsSync(fsPath: string): boolean {
+    try {
+      const nodeRequire = (globalThis as any).require ?? (window as any).require
+      const fsModule = nodeRequire?.('fs') as { existsSync?: (path: string) => boolean } | undefined
+      return fsModule?.existsSync?.(fsPath) ?? false
+    } catch {
+      return false
+    }
   }
 
   protected waitForTerminalOpen(terminal: TerminalWidget, timeout: number): Promise<void> {

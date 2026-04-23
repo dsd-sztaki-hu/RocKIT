@@ -12,7 +12,7 @@ export type RocrateMcpConfigOptions = {
 
 export function resolveAppProjectPathFromLocation(
   pathname: string | undefined,
-  platform: NodeJS.Platform = process.platform,
+  platform: NodeJS.Platform = getDefaultPlatform(),
 ): string | undefined {
   if (!pathname) {
     return undefined
@@ -111,7 +111,7 @@ export function resolveRocrateMcpSocketPath(
     return options.socketPathOverride
   }
 
-  const platform = options.platform ?? process.platform
+  const platform = options.platform ?? getDefaultPlatform()
   if (platform === 'win32') {
     const user = options.username ?? 'user'
     return `\\\\.\\pipe\\aroma-rocrate-mcp-${user}`
@@ -120,4 +120,12 @@ export function resolveRocrateMcpSocketPath(
   const homeDir = options.homeDir
   const base = homeDir ? path.join(homeDir, '.aroma') : path.join('/tmp', 'aroma')
   return path.join(base, 'rocrate-mcp-server.sock')
+}
+
+function getDefaultPlatform(): NodeJS.Platform {
+  return (
+    typeof process !== 'undefined' && process.platform
+      ? process.platform
+      : 'darwin'
+  )
 }
