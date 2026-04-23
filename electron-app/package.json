@@ -47,7 +47,7 @@
   },
   "scripts": {
     "bundle": "yarn run rebuild && theia build --mode development && yarn run copy:node-pty-agent",
-    "copy:node-pty-agent": "node scripts/copy-node-pty-agent.js",
+    "copy:node-pty-agent": "node ../scripts/copy-node-pty-agent.js",
     "rebuild": "theia rebuild:electron --cacheRoot ..",
     "start": "theia start",
     "watch": "yarn run rebuild && WATCHPACK_POLLING=true WATCHPACK_POLLING_INTERVAL=1000 theia build --watch --mode development"
