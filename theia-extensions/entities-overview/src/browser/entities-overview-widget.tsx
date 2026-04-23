@@ -59,6 +59,14 @@ type EntitiesOverviewWidgetState = {
   advancedFilters?: PersistedEntityFilters
 }
 
+type EntityOverviewDragPayload = {
+  entityId: string
+  entityName?: string
+  entityTypes: string[]
+  source: 'entities-overview'
+}
+
+
 /** Implementation of the Tree Widget */
 @injectable()
 export class EntitiesOverviewWidget extends TreeWidget {
@@ -603,10 +611,30 @@ export class EntitiesOverviewWidget extends TreeWidget {
     node: TreeNode,
     props: NodeProps,
   ): React.Attributes & React.HTMLAttributes<HTMLElement> {
+    const baseAttributes = super.createNodeAttributes(node, props)
+    const payload = this.getDraggableEntityPayload(node)
+    const className = `${baseAttributes.className ?? ''}${
+      payload ? ' entities-overview-draggable-entity' : ''
+    }`.trim()
+
     return {
-      ...super.createNodeAttributes(node, props),
+      ...baseAttributes,
+      className: className || undefined,
+      draggable: Boolean(payload),
       onClick: (event) => this.handleNodeClick(node, event),
       onDoubleClick: (event) => this.handleNodeDoubleClick(node, event),
+      onDragStart: (event) => {
+          const payload = this.getDraggableEntityPayload(node)
+          console.log('DRAG START', payload)
+
+          event.dataTransfer!.setData('text/plain', JSON.stringify(payload))
+          ;(globalThis as any).__aromaEntityDragPayload = payload
+      },
+      onDragEnd: (event) => {
+        event.stopPropagation()
+        console.log('[DND][EntitiesOverview] dragEnd: cleared global payload')
+        ;(globalThis as any).__aromaEntityDragPayload = undefined
+      },
     }
   }
 
@@ -946,6 +974,57 @@ export class EntitiesOverviewWidget extends TreeWidget {
     if (typeof event.nativeEvent.stopImmediatePropagation === 'function') {
       event.nativeEvent.stopImmediatePropagation()
     }
+  }
+
+  protected getDraggableEntityPayload(
+    node: TreeNode,
+  ): EntityOverviewDragPayload | undefined {
+    if (!ExampleTreeLeaf.is(node)) {
+      return undefined
+    }
+    const entityId = node.data.entityId
+    if (!entityId) {
+      return undefined
+    }
+
+    const entity = this.findCrateEntityById(entityId)
+    if (!entity) {
+      return undefined
+    }
+
+    const entityTypes = this.getEntityTypeNames(entity)
+    const isAllowed = entityTypes.includes('file') || entityTypes.includes('dataset')
+    if (!isAllowed) {
+      return undefined
+    }
+
+    return {
+      entityId,
+      entityName: node.data.name,
+      entityTypes,
+      source: 'entities-overview',
+    }
+  }
+
+  protected findCrateEntityById(entityId: string): Record<string, any> | undefined {
+    const graph = Array.isArray(this.appStateService.roCrate?.['@graph'])
+      ? (this.appStateService.roCrate?.['@graph'] as Record<string, any>[])
+      : []
+    return graph.find(
+      (entry) => entry && typeof entry === 'object' && String(entry['@id']) === entityId,
+    )
+  }
+
+  protected getEntityTypeNames(entity: Record<string, any>): string[] {
+    const rawTypes = entity?.['@type']
+    const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
+    return typeList
+      .map((type) => String(type ?? '').trim())
+      .filter((type) => type.length > 0)
+      .map((type) => {
+        const tail = type.split(/[\/#]/).pop() || type
+        return tail.toLowerCase()
+      })
   }
 
   protected restoreInputSelection(

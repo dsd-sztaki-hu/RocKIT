@@ -1453,3 +1453,11 @@ body.entities-overview-filters-visible
 .ant-select-selection-overflow-item {
   height: 32px;
 }
+
+.entities-overview-draggable-entity {
+  cursor: grab;
+}
+
+.entities-overview-draggable-entity:active {
+  cursor: grabbing;
+}
