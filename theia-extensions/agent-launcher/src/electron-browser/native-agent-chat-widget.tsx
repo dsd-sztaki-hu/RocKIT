@@ -1,6 +1,7 @@
 import * as React from 'react'
 import MarkdownIt = require('markdown-it')
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
+import { Message } from '@theia/core/lib/browser/widgets/widget'
 import { MessageService } from '@theia/core/lib/common/message-service'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
@@ -56,6 +57,10 @@ export class NativeAgentChatWidget extends ReactWidget {
   protected draft = ''
   protected sending = false
   protected initialized = false
+  protected messagesElement: HTMLDivElement | undefined
+  protected followChatEnd = true
+  protected scrollFrame: number | undefined
+  protected autoScrollPending = false
   protected readonly markdown = new MarkdownIt({
     breaks: true,
     html: false,
@@ -91,6 +96,14 @@ export class NativeAgentChatWidget extends ReactWidget {
     this.update()
   }
 
+  protected override onUpdateRequest(msg: Message): void {
+    const shouldFollow = this.shouldFollowChatEnd()
+    super.onUpdateRequest(msg)
+    if (shouldFollow) {
+      this.scrollChatToBottomSoon(true)
+    }
+  }
+
   async initialize(options: NativeAgentChatWidgetOptions): Promise<void> {
     this.id =
       options.instanceId ??
@@ -123,7 +136,12 @@ export class NativeAgentChatWidget extends ReactWidget {
             {session?.status ?? 'starting'}
           </div>
         </div>
-        <div className="native-agent-chat-messages">
+        <div
+          className="native-agent-chat-messages"
+          ref={this.setMessagesElement}
+          onScroll={this.handleMessagesScroll}
+          onWheel={this.handleMessagesWheel}
+        >
           {session?.messages.length ? (
             this.buildTimeline(session.messages).map((item) => this.renderTimelineItem(item))
           ) : (
@@ -527,6 +545,59 @@ export class NativeAgentChatWidget extends ReactWidget {
   protected readonly handleDraftChange = (event: React.ChangeEvent<HTMLTextAreaElement>): void => {
     this.draft = event.target.value
     this.update()
+  }
+
+  protected readonly setMessagesElement = (element: HTMLDivElement | null): void => {
+    this.messagesElement = element ?? undefined
+    if (this.messagesElement && this.followChatEnd) {
+      this.scrollChatToBottomSoon(true)
+    }
+  }
+
+  protected readonly handleMessagesScroll = (): void => {
+    if (this.autoScrollPending) {
+      return
+    }
+    this.followChatEnd = this.isMessagesScrolledToBottom()
+  }
+
+  protected readonly handleMessagesWheel = (event: React.WheelEvent<HTMLDivElement>): void => {
+    if (event.deltaY < 0) {
+      this.autoScrollPending = false
+      this.followChatEnd = false
+      if (this.scrollFrame !== undefined) {
+        window.cancelAnimationFrame(this.scrollFrame)
+        this.scrollFrame = undefined
+      }
+    }
+  }
+
+  protected shouldFollowChatEnd(): boolean {
+    return this.followChatEnd || this.isMessagesScrolledToBottom()
+  }
+
+  protected isMessagesScrolledToBottom(): boolean {
+    const element = this.messagesElement
+    if (!element) {
+      return true
+    }
+    return element.scrollHeight - element.scrollTop - element.clientHeight <= 24
+  }
+
+  protected scrollChatToBottomSoon(force = false): void {
+    if (this.scrollFrame !== undefined) {
+      window.cancelAnimationFrame(this.scrollFrame)
+    }
+    this.autoScrollPending = force || this.followChatEnd
+    this.scrollFrame = window.requestAnimationFrame(() => {
+      this.scrollFrame = undefined
+      const shouldScroll = this.autoScrollPending
+      this.autoScrollPending = false
+      if (shouldScroll && this.messagesElement) {
+        this.messagesElement.scrollTop = this.messagesElement.scrollHeight
+        this.followChatEnd = true
+      }
+    })
   }
 
   protected readonly handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
