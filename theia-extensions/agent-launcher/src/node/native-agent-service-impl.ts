@@ -1,7 +1,13 @@
-import { ChildProcessWithoutNullStreams, spawn } from 'child_process'
 import * as path from 'path'
 import { Emitter } from '@theia/core/lib/common/event'
 import { injectable } from '@theia/core/shared/inversify'
+import type {
+  Options as ClaudeQueryOptions,
+  Query as ClaudeQuery,
+  SDKMessage,
+  SDKUserMessage,
+  SettingSource,
+} from '@anthropic-ai/claude-agent-sdk'
 import {
   NativeAgentClient,
   NativeAgentMessage,
@@ -13,6 +19,9 @@ import {
   StartNativeAgentSessionInput,
 } from '../common/native-agent-protocol'
 import { JsonRpcChildProcess, JsonRpcMessage } from './json-rpc-child-process'
+
+const CLAUDE_SYSTEM_PROMPT =
+  'You are embedded in AROMA as an RO-Crate data steward. Prefer RO-Crate MCP tools for metadata edits and keep responses concise.'
 
 type Adapter = {
   send(text: string): Promise<void>
@@ -92,6 +101,58 @@ function appendActivity(
       language: typeof detailValue === 'string' ? undefined : 'json',
     },
   ])
+}
+
+type ClaudeAgentSdkModule = typeof import('@anthropic-ai/claude-agent-sdk')
+
+const importClaudeAgentSdk = new Function(
+  'specifier',
+  'return import(specifier)',
+) as (specifier: string) => Promise<ClaudeAgentSdkModule>
+
+class AsyncMessageQueue<T> implements AsyncIterable<T> {
+  protected readonly values: T[] = []
+  protected readonly waiters: Array<(result: IteratorResult<T>) => void> = []
+  protected closed = false
+
+  push(value: T): void {
+    if (this.closed) {
+      throw new Error('Cannot send to a closed Claude session.')
+    }
+    const waiter = this.waiters.shift()
+    if (waiter) {
+      waiter({ done: false, value })
+      return
+    }
+    this.values.push(value)
+  }
+
+  close(): void {
+    if (this.closed) {
+      return
+    }
+    this.closed = true
+    for (const waiter of this.waiters.splice(0)) {
+      waiter({ done: true, value: undefined as any })
+    }
+  }
+
+  [Symbol.asyncIterator](): AsyncIterator<T> {
+    return {
+      next: () => this.next(),
+    }
+  }
+
+  protected next(): Promise<IteratorResult<T>> {
+    const value = this.values.shift()
+    if (value !== undefined) {
+      return Promise.resolve({ done: false, value })
+    }
+    if (this.closed) {
+      return Promise.resolve({ done: true, value: undefined as any })
+    }
+    return new Promise((resolve) => this.waiters.push(resolve))
+  }
 }
 
 class CodexNativeAdapter implements Adapter {
@@ -243,7 +304,12 @@ class CodexNativeAdapter implements Adapter {
 }
 
 class ClaudeNativeAdapter implements Adapter {
-  protected child: ChildProcessWithoutNullStreams | undefined
+  protected queryRuntime: ClaudeQuery | undefined
+  protected promptQueue: AsyncMessageQueue<SDKUserMessage> | undefined
+  protected streamPromise: Promise<void> | undefined
+  protected activeAssistant: NativeAgentMessage | undefined
+  protected cancelling = false
+  protected stopped = false
   protected readonly seenActivityKeys = new Set<string>()
 
   constructor(
@@ -252,94 +318,139 @@ class ClaudeNativeAdapter implements Adapter {
   ) {}
 
   async send(text: string): Promise<void> {
-    const executable = findExecutable(['claude'])
-    if (!executable) {
-      throw new Error('Claude executable not found in PATH.')
+    await this.ensureStarted()
+    this.cancelling = false
+    if (this.activeAssistant?.streaming) {
+      throw new Error('Claude is still working on the previous message.')
     }
-    const prompt = this.buildPrompt(text)
-    const assistant = appendMessage(this.record.session, 'assistant', '', true)
+    this.activeAssistant = appendMessage(this.record.session, 'assistant', '', true)
     this.publish()
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn(
-        executable,
-        ['-p', prompt, '--output-format', 'stream-json', '--verbose', '--dangerously-skip-permissions'],
-        { cwd: this.record.session.cwd, env: process.env, stdio: 'pipe' },
-      )
-      this.child = child
-      child.stdin.end()
-      let buffer = ''
-      child.stdout.on('data', (chunk: Buffer) => {
-        buffer += chunk.toString()
-        const lines = buffer.split(/\r?\n/)
-        buffer = lines.pop() ?? ''
-        for (const line of lines) {
-          this.handleClaudeLine(line, assistant)
-        }
-      })
-      child.stderr.on('data', (chunk: Buffer) => {
-        const text = chunk.toString().trim()
-        if (text) {
-          appendMessage(this.record.session, 'activity', text)
-          this.publish()
-        }
-      })
-      child.on('error', reject)
-      child.on('exit', (code) => {
-        assistant.streaming = false
-        this.record.session.status = code === 0 ? 'ready' : 'error'
-        if (code !== 0) {
-          const error = `Claude exited with code ${code ?? 'unknown'}.`
-          this.record.session.lastError = error
-          appendMessage(this.record.session, 'error', error)
-        }
-        this.child = undefined
-        this.publish()
-        resolve()
-      })
-    })
+    this.promptQueue!.push(this.createUserMessage(text))
   }
 
   async cancel(): Promise<void> {
-    this.child?.kill()
+    this.cancelling = true
+    await this.queryRuntime?.interrupt().catch(() => undefined)
+    if (this.activeAssistant) {
+      this.activeAssistant.streaming = false
+      this.activeAssistant = undefined
+    }
   }
 
   dispose(): void {
-    this.child?.kill()
-    this.child = undefined
+    this.stopped = true
+    this.promptQueue?.close()
+    this.queryRuntime?.close()
+    this.promptQueue = undefined
+    this.queryRuntime = undefined
+    this.cancelling = false
+    if (this.activeAssistant) {
+      this.activeAssistant.streaming = false
+      this.activeAssistant = undefined
+    }
   }
 
-  protected buildPrompt(text: string): string {
-    const previous = this.record.session.messages
-      .filter((message) => message.role === 'user' || message.role === 'assistant')
-      .slice(-8)
-      .map((message) => `${message.role}: ${message.text}`)
-      .join('\n\n')
-    const context = previous ? `Conversation so far:\n${previous}\n\n` : ''
-    return `${context}You are embedded in AROMA as an RO-Crate data steward. Prefer RO-Crate MCP tools for metadata edits and keep responses concise.\n\nUser: ${text}`
-  }
-
-  protected handleClaudeLine(line: string, assistant: NativeAgentMessage): void {
-    if (!line.trim()) {
+  protected async ensureStarted(): Promise<void> {
+    if (this.queryRuntime) {
       return
     }
-    try {
-      const event = JSON.parse(line) as any
-      this.appendClaudeActivities(event)
-      const delta = this.extractClaudeText(event, assistant)
-      if (delta) {
-        appendToMessage(assistant, delta)
-        this.publish()
+    this.stopped = false
+    const sdk = await importClaudeAgentSdk('@anthropic-ai/claude-agent-sdk')
+    const promptQueue = new AsyncMessageQueue<SDKUserMessage>()
+    const executable = findExecutable(['claude'])
+    const settingSources: SettingSource[] = ['user', 'project', 'local']
+    const options: ClaudeQueryOptions = {
+      cwd: this.record.session.cwd,
+      additionalDirectories: [this.record.session.cwd],
+      env: {
+        ...process.env,
+        CLAUDE_AGENT_SDK_CLIENT_APP: 'aroma/0.0.0',
+      },
+      settingSources,
+      systemPrompt: {
+        type: 'preset',
+        preset: 'claude_code',
+        append: CLAUDE_SYSTEM_PROMPT,
+      },
+      permissionMode: 'bypassPermissions',
+      allowDangerouslySkipPermissions: true,
+      includePartialMessages: true,
+      ...(executable ? { pathToClaudeCodeExecutable: executable } : {}),
+      stderr: (data: string) => {
+        const text = data.trim()
+        if (text) {
+          appendActivity(this.record.session, 'Claude runtime output', 'stderr', text)
+          this.publish()
+        }
+      },
+    }
+    this.promptQueue = promptQueue
+    this.queryRuntime = sdk.query({ prompt: promptQueue, options })
+    this.streamPromise = this.readStream(this.queryRuntime).catch((error) => {
+      if (this.stopped) {
+        return
       }
-    } catch {
-      appendToMessage(assistant, `${line}\n`)
+      const message = error instanceof Error ? error.message : String(error)
+      if (this.activeAssistant) {
+        this.activeAssistant.streaming = false
+        this.activeAssistant = undefined
+      }
+      this.record.session.status = 'error'
+      this.record.session.lastError = message
+      appendMessage(this.record.session, 'error', message)
       this.publish()
+    })
+  }
+
+  protected async readStream(queryRuntime: ClaudeQuery): Promise<void> {
+    for await (const event of queryRuntime) {
+      this.handleClaudeEvent(event)
+    }
+    if (!this.stopped) {
+      this.queryRuntime = undefined
+      this.promptQueue = undefined
+      if (this.activeAssistant?.streaming) {
+        this.activeAssistant.streaming = false
+        this.activeAssistant = undefined
+      }
+      if (this.record.session.status === 'running') {
+        this.record.session.status = 'error'
+        const message = 'Claude SDK session ended unexpectedly.'
+        this.record.session.lastError = message
+        appendMessage(this.record.session, 'error', message)
+      }
+      this.publish()
+    }
+  }
+
+  protected createUserMessage(text: string): SDKUserMessage {
+    return {
+      type: 'user',
+      parent_tool_use_id: null,
+      message: {
+        role: 'user',
+        content: text,
+      },
+    } as SDKUserMessage
+  }
+
+  protected handleClaudeEvent(event: SDKMessage): void {
+    const rawEvent = event as any
+    this.appendClaudeActivities(rawEvent)
+    const delta = this.extractClaudeText(rawEvent)
+    if (delta && this.activeAssistant) {
+      appendToMessage(this.activeAssistant, delta)
+      this.publish()
+    }
+    if (rawEvent?.type === 'result') {
+      this.completeActiveTurn(rawEvent)
     }
   }
 
   protected appendClaudeActivities(event: any): void {
     const content = event?.message?.content ?? event?.content
     if (event?.type === 'system' && event?.subtype === 'init') {
-      this.appendDistinctActivity('claude:init', 'Claude session initialized', 'Session details', event)
+      this.appendDistinctActivity('claude:init', 'Claude session initialized', 'Session details', this.summarizeClaudeInit(event))
       return
     }
     if (event?.type === 'result') {
@@ -381,6 +492,27 @@ class ClaudeNativeAdapter implements Adapter {
     }
   }
 
+  protected summarizeClaudeInit(event: any): unknown {
+    return {
+      session_id: event.session_id,
+      claude_code_version: event.claude_code_version,
+      cwd: event.cwd,
+      model: event.model,
+      permissionMode: event.permissionMode,
+      tools: event.tools,
+      mcp_servers: event.mcp_servers,
+      slash_commands: event.slash_commands,
+      output_style: event.output_style,
+      skills: event.skills,
+      plugins: Array.isArray(event.plugins)
+        ? event.plugins.map((plugin: any) => ({
+            name: plugin?.name,
+            path: plugin?.path,
+          }))
+        : undefined,
+    }
+  }
+
   protected appendDistinctActivity(
     key: string,
     title: string,
@@ -395,27 +527,50 @@ class ClaudeNativeAdapter implements Adapter {
     this.publish()
   }
 
-  protected extractClaudeText(event: any, assistant: NativeAgentMessage): string {
-    if (event?.type === 'result' && assistant.text.trim()) {
+  protected extractClaudeText(event: any): string {
+    if (event?.type === 'stream_event') {
+      const streamEvent = event.event
+      if (streamEvent?.type === 'content_block_delta') {
+        const delta = streamEvent.delta
+        if (typeof delta?.text === 'string') {
+          return delta.text
+        }
+        if (typeof delta?.thinking === 'string') {
+          return delta.thinking
+        }
+      }
       return ''
     }
-    if (typeof event?.delta?.text === 'string') {
-      return event.delta.text
-    }
-    if (typeof event?.text === 'string') {
-      return event.text
-    }
-    const content = event?.message?.content ?? event?.content
-    if (Array.isArray(content)) {
-      return content
-        .map((item) => (typeof item?.text === 'string' ? item.text : ''))
-        .filter(Boolean)
-        .join('')
-    }
-    if (typeof event?.result === 'string') {
+    if (
+      event?.type === 'result' &&
+      this.activeAssistant &&
+      !this.activeAssistant.text.trim() &&
+      typeof event?.result === 'string'
+    ) {
       return event.result
     }
     return ''
+  }
+
+  protected completeActiveTurn(event: any): void {
+    if (this.activeAssistant) {
+      this.activeAssistant.streaming = false
+      this.activeAssistant = undefined
+    }
+    if (this.cancelling) {
+      this.cancelling = false
+      this.record.session.status = 'ready'
+      this.publish()
+      return
+    }
+    const failed = event.subtype !== 'success' || event.is_error === true
+    this.record.session.status = failed ? 'error' : 'ready'
+    if (failed) {
+      const error = event.error ?? event.result ?? 'Claude turn failed.'
+      this.record.session.lastError = String(error)
+      appendMessage(this.record.session, 'error', String(error))
+    }
+    this.publish()
   }
 }
 
@@ -455,6 +610,9 @@ export class NativeAgentServiceImpl implements NativeAgentServer {
 
   async sendMessage(input: SendNativeAgentMessageInput): Promise<NativeAgentSession> {
     const record = this.requireSession(input.sessionId)
+    if (record.session.status === 'running') {
+      throw new Error('The native agent is still working on the previous message.')
+    }
     appendMessage(record.session, 'user', input.text)
     record.session.status = 'running'
     this.publish(record)

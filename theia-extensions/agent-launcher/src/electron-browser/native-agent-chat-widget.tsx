@@ -148,7 +148,10 @@ export class NativeAgentChatWidget extends ReactWidget {
             >
               Stop
             </button>
-            <button type="submit" disabled={!this.draft.trim() || this.sending}>
+            <button
+              type="submit"
+              disabled={!this.draft.trim() || this.sending || session?.status === 'running'}
+            >
               Send
             </button>
           </div>
@@ -546,7 +549,7 @@ export class NativeAgentChatWidget extends ReactWidget {
 
   protected async submitDraft(): Promise<void> {
     const text = this.draft.trim()
-    if (!text || !this.session || this.sending) {
+    if (!text || !this.session || this.sending || this.session.status === 'running') {
       return
     }
     this.draft = ''

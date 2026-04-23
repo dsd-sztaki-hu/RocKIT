@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "description": "AROMA coding agent launcher",
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.111",
     "@theia/core": "1.65.2",
     "@theia/filesystem": "1.65.2",
     "@theia/terminal": "1.65.2",
@@ -40,8 +41,10 @@
     "watch": "node scripts/copy-css.js && tsc -b -w --preserveWatchOutput"
   },
   "devDependencies": {
-    "@types/markdown-it": "^12.2.3",
     "@theia/ext-scripts": "1.65.2",
+    "@types/markdown-it": "^12.2.3",
+    "@types/react": "18.3.27",
+    "@types/react-dom": "18.3.7",
     "rimraf": "6.0.0"
   },
   "nyc": {
