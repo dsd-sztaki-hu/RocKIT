@@ -1,7 +1,6 @@
 import * as React from 'react'
 import MarkdownIt = require('markdown-it')
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
-import { Message } from '@theia/core/lib/browser/widgets/widget'
 import { MessageService } from '@theia/core/lib/common/message-service'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
@@ -38,25 +37,32 @@ type NativeAgentActivityDisplay = {
   rawToolName?: string
 }
 
-@injectable()
-export class NativeAgentChatWidget extends ReactWidget {
-  static readonly ID = 'native-agent-chat-widget'
+type NativeAgentChatViewProps = {
+  provider: NativeAgentProvider
+  cwd: string
+  session: NativeAgentSession | undefined
+  activityExpanded: boolean
+  onActivityExpandedChange: (expanded: boolean) => void
+  onCancel: () => void
+  onSend: (text: string) => Promise<void>
+  onError: (error: unknown) => void
+}
 
-  @inject(NativeAgentService)
-  protected readonly nativeAgentService: NativeAgentService
+type NativeAgentChatViewState = {
+  draft: string
+  sending: boolean
+}
 
-  @inject(AppStateService)
-  protected readonly appStateService: AppStateService
+class NativeAgentChatView extends React.Component<
+  NativeAgentChatViewProps,
+  NativeAgentChatViewState,
+  boolean
+> {
+  override state: NativeAgentChatViewState = {
+    draft: '',
+    sending: false,
+  }
 
-  @inject(MessageService)
-  protected readonly messageService: MessageService
-
-  protected session: NativeAgentSession | undefined
-  protected provider: NativeAgentProvider = 'codex'
-  protected cwd = ''
-  protected draft = ''
-  protected sending = false
-  protected initialized = false
   protected messagesElement: HTMLDivElement | undefined
   protected followChatEnd = true
   protected scrollFrame: number | undefined
@@ -67,70 +73,35 @@ export class NativeAgentChatWidget extends ReactWidget {
     linkify: true,
   })
 
-  initWidget(): void {
-    if (this.initialized) {
-      return
-    }
-    this.initialized = true
-    this.id = NativeAgentChatWidget.ID
-    this.title.label = 'AI Assistant'
-    this.title.caption = 'AI Assistant'
-    this.title.iconClass = 'fa fa-comments'
-    this.title.closable = true
-    this.addClass('native-agent-chat')
-    this.toDispose.push(
-      this.nativeAgentService.onDidChangeSession((event) => {
-        if (event.sessionId === this.session?.id) {
-          this.session = event.session
-          this.updateTitle()
-          this.update()
-        }
-      }),
-    )
-    this.toDispose.push(
-      this.appStateService.onDidChangeSelector(
-        (state) => state.nativeAgentActivityExpanded,
-      )(() => this.update()),
-    )
-    void this.appStateService.ready.then(() => this.update())
-    this.update()
+  override componentDidMount(): void {
+    this.scrollChatToBottomSoon(true)
   }
 
-  protected override onUpdateRequest(msg: Message): void {
-    const shouldFollow = this.shouldFollowChatEnd()
-    super.onUpdateRequest(msg)
+  override getSnapshotBeforeUpdate(): boolean {
+    return this.shouldFollowChatEnd()
+  }
+
+  override componentDidUpdate(
+    _prevProps: Readonly<NativeAgentChatViewProps>,
+    _prevState: Readonly<NativeAgentChatViewState>,
+    shouldFollow: boolean,
+  ): void {
     if (shouldFollow) {
       this.scrollChatToBottomSoon(true)
     }
   }
 
-  async initialize(options: NativeAgentChatWidgetOptions): Promise<void> {
-    this.id =
-      options.instanceId ??
-      `${NativeAgentChatWidget.ID}:${Math.random().toString(36).slice(2)}`
-    this.provider = options.provider
-    this.cwd = options.cwd
-    this.session = await this.nativeAgentService.startSession(options)
-    this.updateTitle()
-    this.update()
-  }
-
-  protected updateTitle(): void {
-    const label = `${this.provider === 'codex' ? 'Codex' : 'Claude'} Chat`
-    this.title.label = label
-    this.title.caption = `${label} - ${this.cwd}`
-  }
-
-  protected render(): React.ReactNode {
-    const session = this.session
+  override render(): React.ReactNode {
+    const { cwd, provider, session } = this.props
+    const { draft, sending } = this.state
     return (
       <div className="native-agent-chat-shell">
         <div className="native-agent-chat-header">
           <div>
             <div className="native-agent-chat-title">
-              {this.provider === 'codex' ? 'Codex' : 'Claude'} in AROMA
+              {provider === 'codex' ? 'Codex' : 'Claude'} in AROMA
             </div>
-            <div className="native-agent-chat-cwd">{this.cwd}</div>
+            <div className="native-agent-chat-cwd">{cwd}</div>
           </div>
           <div className={`native-agent-chat-status status-${session?.status ?? 'starting'}`}>
             {session?.status ?? 'starting'}
@@ -152,11 +123,11 @@ export class NativeAgentChatWidget extends ReactWidget {
         </div>
         <form className="native-agent-chat-composer" onSubmit={this.handleSubmit}>
           <textarea
-            value={this.draft}
+            value={draft}
             placeholder="Ask about this RO-Crate..."
             onChange={this.handleDraftChange}
             onKeyDown={this.handleKeyDown}
-            disabled={this.sending}
+            disabled={sending}
           />
           <div className="native-agent-chat-actions">
             <button
@@ -168,7 +139,7 @@ export class NativeAgentChatWidget extends ReactWidget {
             </button>
             <button
               type="submit"
-              disabled={!this.draft.trim() || this.sending || session?.status === 'running'}
+              disabled={!draft.trim() || sending || session?.status === 'running'}
             >
               Send
             </button>
@@ -289,7 +260,7 @@ export class NativeAgentChatWidget extends ReactWidget {
     return (
       <details
         className="native-agent-activity-trail"
-        open={this.appStateService.nativeAgentActivityExpanded}
+        open={this.props.activityExpanded}
         onToggle={this.handleActivityTrailToggle}
       >
         <summary>
@@ -451,7 +422,7 @@ export class NativeAgentChatWidget extends ReactWidget {
     if (event.currentTarget !== event.target) {
       return
     }
-    this.appStateService.nativeAgentActivityExpanded = event.currentTarget.open
+    this.props.onActivityExpandedChange(event.currentTarget.open)
   }
 
   protected formatActivityTitle(activity: NativeAgentMessage | undefined): string {
@@ -543,8 +514,7 @@ export class NativeAgentChatWidget extends ReactWidget {
   }
 
   protected readonly handleDraftChange = (event: React.ChangeEvent<HTMLTextAreaElement>): void => {
-    this.draft = event.target.value
-    this.update()
+    this.setState({ draft: event.target.value })
   }
 
   protected readonly setMessagesElement = (element: HTMLDivElement | null): void => {
@@ -613,33 +583,129 @@ export class NativeAgentChatWidget extends ReactWidget {
   }
 
   protected readonly handleCancel = (): void => {
+    this.props.onCancel()
+  }
+
+  protected async submitDraft(): Promise<void> {
+    const text = this.state.draft.trim()
+    if (!text || !this.props.session || this.state.sending || this.props.session.status === 'running') {
+      return
+    }
+    this.setState({ draft: '', sending: true })
+    try {
+      await this.props.onSend(text)
+    } catch (error) {
+      this.props.onError(error)
+    } finally {
+      this.setState({ sending: false })
+    }
+  }
+}
+
+@injectable()
+export class NativeAgentChatWidget extends ReactWidget {
+  static readonly ID = 'native-agent-chat-widget'
+
+  @inject(NativeAgentService)
+  protected readonly nativeAgentService: NativeAgentService
+
+  @inject(AppStateService)
+  protected readonly appStateService: AppStateService
+
+  @inject(MessageService)
+  protected readonly messageService: MessageService
+
+  protected session: NativeAgentSession | undefined
+  protected provider: NativeAgentProvider = 'codex'
+  protected cwd = ''
+  protected initialized = false
+
+  initWidget(): void {
+    if (this.initialized) {
+      return
+    }
+    this.initialized = true
+    this.id = NativeAgentChatWidget.ID
+    this.title.label = 'AI Assistant'
+    this.title.caption = 'AI Assistant'
+    this.title.iconClass = 'fa fa-comments'
+    this.title.closable = true
+    this.addClass('native-agent-chat')
+    this.toDispose.push(
+      this.nativeAgentService.onDidChangeSession((event) => {
+        if (event.sessionId === this.session?.id) {
+          this.session = event.session
+          this.updateTitle()
+          this.update()
+        }
+      }),
+    )
+    this.toDispose.push(
+      this.appStateService.onDidChangeSelector(
+        (state) => state.nativeAgentActivityExpanded,
+      )(() => this.update()),
+    )
+    void this.appStateService.ready.then(() => this.update())
+    this.update()
+  }
+
+  async initialize(options: NativeAgentChatWidgetOptions): Promise<void> {
+    this.id =
+      options.instanceId ??
+      `${NativeAgentChatWidget.ID}:${Math.random().toString(36).slice(2)}`
+    this.provider = options.provider
+    this.cwd = options.cwd
+    this.session = await this.nativeAgentService.startSession(options)
+    this.updateTitle()
+    this.update()
+  }
+
+  protected updateTitle(): void {
+    const label = `${this.provider === 'codex' ? 'Codex' : 'Claude'} Chat`
+    this.title.label = label
+    this.title.caption = `${label} - ${this.cwd}`
+  }
+
+  protected render(): React.ReactNode {
+    return (
+      <NativeAgentChatView
+        provider={this.provider}
+        cwd={this.cwd}
+        session={this.session}
+        activityExpanded={this.appStateService.nativeAgentActivityExpanded}
+        onActivityExpandedChange={this.handleActivityExpandedChange}
+        onCancel={this.handleCancel}
+        onSend={this.handleSend}
+        onError={this.handleError}
+      />
+    )
+  }
+
+  protected readonly handleActivityExpandedChange = (expanded: boolean): void => {
+    this.appStateService.nativeAgentActivityExpanded = expanded
+  }
+
+  protected readonly handleCancel = (): void => {
     if (this.session) {
       void this.nativeAgentService.cancel(this.session.id)
     }
   }
 
-  protected async submitDraft(): Promise<void> {
-    const text = this.draft.trim()
-    if (!text || !this.session || this.sending || this.session.status === 'running') {
+  protected readonly handleSend = async (text: string): Promise<void> => {
+    if (!this.session) {
       return
     }
-    this.draft = ''
-    this.sending = true
-    this.update()
-    try {
-      this.session = await this.nativeAgentService.sendMessage({
-        sessionId: this.session.id,
-        text,
-        context: {
-          selectedEntityId: this.appStateService.selectedEntityId,
-          validationErrors: this.appStateService.validationErrors,
-        },
-      })
-    } catch (error) {
-      this.messageService.error(error instanceof Error ? error.message : String(error))
-    } finally {
-      this.sending = false
-      this.update()
-    }
+    this.session = await this.nativeAgentService.sendMessage({
+      sessionId: this.session.id,
+      text,
+      context: {
+        selectedEntityId: this.appStateService.selectedEntityId,
+        validationErrors: this.appStateService.validationErrors,
+      },
+    })
+  }
+
+  protected readonly handleError = (error: unknown): void => {
+    this.messageService.error(error instanceof Error ? error.message : String(error))
   }
 }
