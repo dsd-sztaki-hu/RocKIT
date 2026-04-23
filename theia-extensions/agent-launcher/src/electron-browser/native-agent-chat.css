@@ -415,11 +415,21 @@
   width: 100%;
   min-height: 82px;
   resize: vertical;
-  border: 1px solid var(--theia-input-border);
+  border: 1px solid var(--theia-input-border, var(--theia-editorWidget-border));
   border-radius: 8px;
   background: var(--theia-input-background);
   color: var(--theia-input-foreground);
   padding: 8px;
+}
+
+.native-agent-chat-composer textarea:hover {
+  border-color: color-mix(in srgb, var(--theia-focusBorder) 45%, var(--theia-editorWidget-border));
+}
+
+.native-agent-chat-composer textarea:focus {
+  border-color: var(--theia-focusBorder);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theia-focusBorder) 35%, transparent);
+  outline: none;
 }
 
 .native-agent-chat-actions {
