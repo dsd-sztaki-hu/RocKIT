@@ -1,0 +1,426 @@
+.native-agent-chat {
+  min-width: 320px;
+}
+
+.native-agent-chat-shell {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--theia-editor-background);
+  color: var(--theia-editor-foreground);
+}
+
+.native-agent-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--theia-editorWidget-border);
+  padding: 12px;
+}
+
+.native-agent-chat-title {
+  font-weight: 600;
+}
+
+.native-agent-chat-cwd {
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--theia-descriptionForeground);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.native-agent-chat-status {
+  border: 1px solid var(--theia-editorWidget-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.native-agent-chat-status.status-running {
+  border-color: var(--theia-progressBar-background);
+  position: relative;
+  padding-left: 18px;
+}
+
+.native-agent-chat-status.status-running::before {
+  position: absolute;
+  top: 50%;
+  left: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: native-agent-pulse 1.1s ease-in-out infinite;
+  background: var(--theia-progressBar-background);
+  content: '';
+}
+
+.native-agent-chat-status.status-error {
+  border-color: var(--theia-errorForeground);
+  color: var(--theia-errorForeground);
+}
+
+.native-agent-chat-messages {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.native-agent-chat-empty {
+  margin: auto;
+  max-width: 280px;
+  color: var(--theia-descriptionForeground);
+  text-align: center;
+}
+
+.native-agent-message {
+  border: 1px solid var(--theia-editorWidget-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.native-agent-message.is-streaming {
+  border-color: color-mix(in srgb, var(--theia-progressBar-background) 55%, var(--theia-editorWidget-border));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theia-progressBar-background) 16%, transparent);
+}
+
+.native-agent-assistant-part + .native-agent-assistant-part {
+  margin-top: 10px;
+}
+
+.native-agent-message.role-user {
+  border-color: var(--theia-focusBorder);
+  background: color-mix(in srgb, var(--theia-focusBorder) 10%, transparent);
+}
+
+.native-agent-message.role-activity {
+  opacity: 0.8;
+}
+
+.native-agent-message.role-error {
+  border-color: var(--theia-errorForeground);
+}
+
+.native-agent-message-role {
+  margin-bottom: 4px;
+  color: var(--theia-descriptionForeground);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.native-agent-message-content,
+.native-agent-markdown {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.native-agent-markdown p,
+.native-agent-markdown ul,
+.native-agent-markdown ol,
+.native-agent-markdown pre,
+.native-agent-markdown blockquote {
+  margin: 0;
+  font-family: var(--theia-ui-font-family);
+  line-height: 1.45;
+}
+
+.native-agent-markdown p + p,
+.native-agent-markdown p + ul,
+.native-agent-markdown p + ol,
+.native-agent-markdown ul + p,
+.native-agent-markdown ol + p,
+.native-agent-markdown pre + p,
+.native-agent-markdown blockquote + p {
+  margin-top: 8px;
+}
+
+.native-agent-markdown ul,
+.native-agent-markdown ol {
+  padding-left: 20px;
+}
+
+.native-agent-markdown li + li {
+  margin-top: 3px;
+}
+
+.native-agent-markdown strong {
+  color: var(--theia-editor-foreground);
+  font-weight: 700;
+}
+
+.native-agent-markdown code,
+.native-agent-details pre {
+  border: 1px solid var(--theia-editorWidget-border);
+  border-radius: 4px;
+  background: var(--theia-textCodeBlock-background, var(--theia-editorWidget-background));
+  color: var(--theia-textPreformat-foreground, var(--theia-editor-foreground));
+  font-family: var(--theia-editor-font-family);
+}
+
+.native-agent-markdown code {
+  padding: 1px 4px;
+}
+
+.native-agent-markdown pre {
+  overflow: auto;
+  padding: 8px;
+}
+
+.native-agent-markdown pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.native-agent-markdown blockquote {
+  border-left: 3px solid var(--theia-editorWidget-border);
+  padding-left: 10px;
+  color: var(--theia-descriptionForeground);
+}
+
+.native-agent-markdown a {
+  color: var(--theia-textLink-foreground);
+}
+
+.native-agent-check {
+  color: var(--theia-charts-green, #4ec06f);
+  font-weight: 800;
+}
+
+.native-agent-cross {
+  color: var(--theia-errorForeground);
+  font-weight: 800;
+}
+
+.native-agent-details {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.native-agent-details details {
+  border: 1px solid var(--theia-editorWidget-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--theia-editorWidget-background) 70%, transparent);
+}
+
+.native-agent-details summary {
+  cursor: pointer;
+  padding: 6px 8px;
+  color: var(--theia-descriptionForeground);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.native-agent-details pre {
+  max-height: 340px;
+  overflow: auto;
+  margin: 0 8px 8px;
+  padding: 8px;
+  white-space: pre-wrap;
+}
+
+.native-agent-activity-trail {
+  margin-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--theia-editorWidget-border) 70%, transparent);
+  padding-top: 8px;
+}
+
+.native-agent-activity-trail > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--theia-descriptionForeground);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.native-agent-activity-count {
+  border: 1px solid var(--theia-editorWidget-border);
+  border-radius: 999px;
+  padding: 1px 6px;
+  color: var(--theia-descriptionForeground);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: none;
+}
+
+.native-agent-activity-list {
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.native-agent-activity-row {
+  border: 1px solid color-mix(in srgb, var(--theia-editorWidget-border) 70%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--theia-editorWidget-background) 45%, transparent);
+  padding: 6px 7px;
+  color: var(--theia-descriptionForeground);
+  font-size: 11px;
+}
+
+.native-agent-activity-row.role-error {
+  border-color: color-mix(in srgb, var(--theia-errorForeground) 70%, var(--theia-editorWidget-border));
+}
+
+.native-agent-activity-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.native-agent-activity-row .native-agent-details {
+  margin-top: 5px;
+}
+
+.native-agent-activity-row .native-agent-details details {
+  background: transparent;
+}
+
+.native-agent-activity-row .native-agent-details summary {
+  padding: 4px 6px;
+  font-size: 10px;
+}
+
+.native-agent-activity-row .native-agent-details pre {
+  max-height: 220px;
+  margin: 0 6px 6px;
+  font-size: 11px;
+}
+
+.native-agent-working {
+  display: grid;
+  gap: 8px;
+  color: var(--theia-editor-foreground);
+  font-weight: 600;
+}
+
+.native-agent-dots {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 2px;
+  vertical-align: middle;
+}
+
+.native-agent-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  animation: native-agent-dot 1s ease-in-out infinite;
+  background: var(--theia-descriptionForeground);
+}
+
+.native-agent-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.native-agent-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.native-agent-progress {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theia-progressBar-background) 18%, transparent);
+}
+
+.native-agent-progress::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -45%;
+  width: 45%;
+  animation: native-agent-progress 1.25s ease-in-out infinite;
+  border-radius: inherit;
+  background: var(--theia-progressBar-background);
+  content: '';
+}
+
+.native-agent-chat-composer {
+  border-top: 1px solid var(--theia-editorWidget-border);
+  padding: 10px;
+}
+
+.native-agent-chat-composer textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 82px;
+  resize: vertical;
+  border: 1px solid var(--theia-input-border);
+  border-radius: 8px;
+  background: var(--theia-input-background);
+  color: var(--theia-input-foreground);
+  padding: 8px;
+}
+
+.native-agent-chat-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.native-agent-chat-actions button {
+  border: 1px solid var(--theia-button-border, transparent);
+  border-radius: 4px;
+  background: var(--theia-button-background);
+  color: var(--theia-button-foreground);
+  padding: 4px 10px;
+}
+
+.native-agent-chat-actions button:disabled {
+  opacity: 0.5;
+}
+
+@keyframes native-agent-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(-50%) scale(0.85);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.25);
+  }
+}
+
+@keyframes native-agent-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes native-agent-progress {
+  0% {
+    left: -45%;
+  }
+
+  100% {
+    left: 100%;
+  }
+}

@@ -7,7 +7,7 @@ import {
   SelectionService,
   URI,
 } from '@theia/core'
-import { CommonCommands } from '@theia/core/lib/browser'
+import { ApplicationShell, CommonCommands, WidgetManager } from '@theia/core/lib/browser'
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables'
 import { FileUri } from '@theia/core/lib/common/file-uri'
@@ -25,6 +25,8 @@ import {
 } from '../../../aroma2-common/lib/common/rocrate-mcp-config'
 import * as path from 'path'
 import { NavigatorContextMenu } from 'file-explorer/lib/browser/navigator-contribution'
+import { NativeAgentProvider } from '../common/native-agent-protocol'
+import { NativeAgentChatWidget } from './native-agent-chat-widget'
 
 type AgentSpec = {
   id: string
@@ -94,6 +96,18 @@ function agentCommandId(agentId: string): string {
   return `openAgent.${agentId}`
 }
 
+function agentTerminalCommandId(agentId: string): string {
+  return `openAgent.${agentId}.terminal`
+}
+
+function agentChatCommandId(agentId: string): string {
+  return `openAgent.${agentId}.chat`
+}
+
+function supportsNativeChat(agentId: string): agentId is NativeAgentProvider {
+  return agentId === 'codex' || agentId === 'claude'
+}
+
 function toSerializableLaunchConfig(launchConfig: RocrateMcpLaunchConfig): {
   command: string
   args: string[]
@@ -113,6 +127,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   @inject(FileService) protected readonly fileService: FileService
   @inject(TerminalService) protected readonly terminalService: TerminalService
   @inject(EnvVariablesServer) protected readonly envVariablesServer: EnvVariablesServer
+  @inject(WidgetManager) protected readonly widgetManager: WidgetManager
+  @inject(ApplicationShell) protected readonly shell: ApplicationShell
   @inject('AgentInstructionService')
   protected readonly agentInstructionService: AgentInstructionPort
 
@@ -145,16 +161,92 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
             sharedAvailableAgents.has(spec.id),
         }),
       )
+
+      const terminalCommand: Command = Command.toDefaultLocalizedCommand({
+        id: agentTerminalCommandId(spec.id),
+        category: CommonCommands.FILE_CATEGORY,
+        label: 'Open in Terminal',
+      })
+      commands.registerCommand(
+        terminalCommand,
+        UriAwareCommandHandler.MonoSelect(this.selectionService, {
+          execute: async (uri) => {
+            await this.openAgentForUri(uri, spec.id)
+          },
+          isEnabled: (uri) =>
+            !!this.workspaceService.getWorkspaceRootUri(uri) &&
+            sharedAvailableAgents.has(spec.id),
+          isVisible: (uri) =>
+            supportsNativeChat(spec.id) &&
+            !!this.workspaceService.getWorkspaceRootUri(uri) &&
+            sharedAvailableAgents.has(spec.id),
+        }),
+      )
+
+      if (supportsNativeChat(spec.id)) {
+        const nativeAgentId = spec.id
+        const chatCommand: Command = Command.toDefaultLocalizedCommand({
+          id: agentChatCommandId(nativeAgentId),
+          category: CommonCommands.FILE_CATEGORY,
+          label: 'Chat in AROMA',
+        })
+        commands.registerCommand(
+          chatCommand,
+          UriAwareCommandHandler.MonoSelect(this.selectionService, {
+            execute: async (uri) => {
+              await this.openNativeChatForUri(uri, nativeAgentId)
+            },
+            isEnabled: (uri) =>
+              !!this.workspaceService.getWorkspaceRootUri(uri) &&
+              sharedAvailableAgents.has(spec.id),
+            isVisible: (uri) =>
+              !!this.workspaceService.getWorkspaceRootUri(uri) &&
+              sharedAvailableAgents.has(spec.id),
+          }),
+        )
+      }
     }
   }
 
   registerMenus(menus: MenuModelRegistry): void {
     for (const spec of AGENT_SPECS) {
+      if (supportsNativeChat(spec.id)) {
+        const submenu = [...NavigatorContextMenu.AGENTS, spec.id]
+        menus.registerSubmenu(submenu, spec.menuLabel)
+        menus.registerMenuAction(submenu, {
+          commandId: agentChatCommandId(spec.id),
+          label: 'Chat in AROMA',
+          order: 'a',
+        })
+        menus.registerMenuAction(submenu, {
+          commandId: agentTerminalCommandId(spec.id),
+          label: 'Open in Terminal',
+          order: 'b',
+        })
+        continue
+      }
       menus.registerMenuAction(NavigatorContextMenu.AGENTS, {
         commandId: agentCommandId(spec.id),
         label: spec.menuLabel,
       })
     }
+  }
+
+  protected async openNativeChatForUri(uri: URI, agentId: NativeAgentProvider): Promise<void> {
+    const directoryUri = await this.resolveDirectoryUri(uri)
+    const cwd = FileUri.fsPath(directoryUri)
+    const mcpReady = await this.ensureAgentMcpConfigured(agentId, directoryUri)
+    if (!mcpReady) {
+      return
+    }
+    await this.agentInstructionService.ensureAgentFiles(directoryUri, agentId)
+    const widget = await this.widgetManager.getOrCreateWidget(NativeAgentChatWidget.ID, {
+      instanceId: `${NativeAgentChatWidget.ID}:${agentId}:${Date.now().toString(36)}`,
+      provider: agentId,
+      cwd,
+    })
+    await this.shell.addWidget(widget, { area: 'right' })
+    await this.shell.activateWidget(widget.id)
   }
 
   protected async openAgentForUri(uri: URI, agentId: string): Promise<void> {
