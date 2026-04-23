@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RO-Crate MCP Dashboard</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>RO-Crate MCP Dashboard</h1>
+      <div class="header-controls">
+        <select id="timeRange" class="time-range-select">
+          <option value="all">All time</option>
+          <option value="15" selected>15 minutes</option>
+          <option value="60">1 hour</option>
+          <option value="1440">24 hours</option>
+        </select>
+        <button id="refreshBtn" class="btn btn-secondary">
+          <span class="icon">↻</span> Refresh
+        </button>
+        <button id="settingsBtn" class="btn btn-secondary">
+          <span class="icon">⚙</span> Settings
+        </button>
+      </div>
+    </header>
+
+    <div id="errorBanner" class="error-banner hidden"></div>
+
+    <section class="overview-cards">
+      <div class="card">
+        <div class="card-label">Total Calls</div>
+        <div class="card-value" id="totalCalls">-</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Error Rate</div>
+        <div class="card-value" id="errorRate">-</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Active Sessions</div>
+        <div class="card-value" id="activeSessions">-</div>
+      </div>
+      <div class="card">
+        <div class="card-label">P95 Latency</div>
+        <div class="card-value" id="p95Latency">-</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Avg Latency</div>
+        <div class="card-value" id="avgLatency">-</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Uptime</div>
+        <div class="card-value" id="uptime">-</div>
+      </div>
+    </section>
+
+    <div class="dashboard-grid">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Tool Statistics</h2>
+        </div>
+        <div class="panel-content">
+          <table class="data-table" id="toolsTable">
+            <thead>
+              <tr>
+                <th>Tool</th>
+                <th>Calls</th>
+                <th>Fail %</th>
+                <th>Avg Latency</th>
+                <th>P95 Latency</th>
+                <th>Last Call</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="6" class="loading">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Recent Errors</h2>
+        </div>
+        <div class="panel-content">
+          <div id="errorsList" class="errors-list">
+            <div class="loading">Loading...</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Test Tavily Search</h2>
+        </div>
+        <div class="panel-content">
+          <form id="tavilyTestForm" class="settings-form">
+            <div class="setting-row">
+              <label class="setting-label">
+                <strong>Search Query</strong>
+                <span class="setting-description">Enter a test query to verify Tavily search functionality</span>
+              </label>
+              <div class="setting-control">
+                <input type="text" id="tavilyQueryInput" class="number-input" style="width: 300px;" placeholder="e.g., RO-Crate metadata specification" required>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <label class="setting-label">
+                <strong>Max Results</strong>
+                <span class="setting-description">Number of results to return (1-10)</span>
+              </label>
+              <div class="setting-control">
+                <input type="number" id="tavilyMaxResults" class="number-input" min="1" max="10" value="3">
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <label class="setting-label">
+                <strong>Search Depth</strong>
+                <span class="setting-description">Basic or advanced search</span>
+              </label>
+              <div class="setting-control">
+                <select id="tavilySearchDepth" class="time-range-select">
+                  <option value="basic">Basic</option>
+                  <option value="advanced">Advanced</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="setting-actions">
+              <button type="submit" class="btn btn-primary" id="tavilyTestBtn">
+                <span class="icon">🔍</span> Test Search
+              </button>
+              <button type="button" class="btn btn-secondary" id="tavilyClearBtn">Clear Results</button>
+            </div>
+
+            <div id="tavilyTestResult" class="hidden"></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel full-width">
+        <div class="panel-header">
+          <h2>Sessions</h2>
+        </div>
+        <div class="panel-content">
+          <table class="data-table" id="sessionsTable">
+            <thead>
+              <tr>
+                <th>Session ID</th>
+                <th>Started</th>
+                <th>Last Activity</th>
+                <th>Mode</th>
+                <th>Requests</th>
+                <th>Errors</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="8" class="loading">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel full-width">
+        <div class="panel-header">
+          <h2>Dependency Usage</h2>
+        </div>
+        <div class="panel-content">
+          <table class="data-table" id="dependenciesTable">
+            <thead>
+              <tr>
+                <th>Dependency</th>
+                <th>Calls</th>
+                <th>Success Rate</th>
+                <th>Avg Latency</th>
+                <th>Last Call</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="5" class="loading">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Session Detail Modal -->
+  <div id="sessionModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="sessionModalTitle">Session Details</h2>
+        <button class="modal-close" id="closeSessionModal">&times;</button>
+      </div>
+      <div class="modal-body" id="sessionModalBody">
+        <!-- Session details will be populated here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Tool Call Detail Modal -->
+  <div id="toolCallModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="toolCallModalTitle">Tool Call Details</h2>
+        <button class="modal-close" id="closeToolCallModal">&times;</button>
+      </div>
+      <div class="modal-body" id="toolCallModalBody">
+        <!-- Tool call details will be populated here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h2>Dashboard Settings</h2>
+        <button class="modal-close" id="closeSettingsModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="settingsForm" class="settings-form">
+          <div class="setting-row">
+            <label class="setting-label">
+              <strong>Detailed Tool Call Logging</strong>
+              <span class="setting-description">Store tool parameters and results (uses more memory)</span>
+            </label>
+            <div class="setting-control">
+              <label class="toggle">
+                <input type="checkbox" id="detailedLoggingToggle">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <label class="setting-label">
+              <strong>Data Retention</strong>
+              <span class="setting-description">How long to keep telemetry data (hours)</span>
+            </label>
+            <div class="setting-control">
+              <input type="number" id="retentionHoursInput" class="number-input" min="1" max="168" value="24">
+              <span class="input-suffix">hours</span>
+            </div>
+          </div>
+
+          <div class="setting-actions">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <button type="button" class="btn btn-secondary" id="cancelSettingsBtn">Cancel</button>
+          </div>
+
+          <div id="settingsMessage" class="settings-message hidden"></div>
+        </form>
+
+        <hr style="border: 0; border-top: 1px solid var(--color-border); margin: 1rem 0;" />
+
+        <div class="schema-registry-section">
+          <h3 style="margin: 0 0 0.5rem 0;">Schema Registry</h3>
+          <p class="setting-description" style="margin: 0 0 0.75rem 0;">
+            Manage ontology schema sources used by MCP ontology suggestion tools.
+          </p>
+
+          <table class="data-table" id="schemaRegistryTable">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Schema URL</th>
+                <th>Matches Prefixes</th>
+                <th>Specs</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="6" class="loading">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="setting-row" style="margin-top: 0.75rem;">
+            <label class="setting-label">
+              <strong>New Schema</strong>
+              <span class="setting-description">Create or replace a registry entry by ID.</span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-control" style="width: 100%;">
+              <input type="text" id="schemaIdInput" class="number-input" placeholder="id (e.g. codemeta3)">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-control" style="width: 100%;">
+              <input type="text" id="schemaDisplayNameInput" class="number-input" placeholder="display name">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-control" style="width: 100%;">
+              <input type="text" id="schemaUrlInput" class="number-input" placeholder="schema URL">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-control" style="width: 100%;">
+              <input type="text" id="schemaMatchesInput" class="number-input" placeholder="matchesUrls (comma-separated)">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-control" style="width: 100%;">
+              <input type="text" id="schemaSpecsInput" class="number-input" placeholder="activeOnSpec (comma-separated, default: v1.1.3,v1.2.0)">
+            </div>
+          </div>
+          <div class="setting-actions">
+            <button type="button" class="btn btn-primary" id="addSchemaBtn">Add / Replace</button>
+            <button type="button" class="btn btn-secondary" id="reloadSchemaBtn">Reload</button>
+          </div>
+          <div id="schemaRegistryMessage" class="settings-message hidden"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>

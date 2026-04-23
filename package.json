@@ -5,7 +5,10 @@
     "npm": ">=8"
   },
   "scripts": {
-    "build:extensions": "yarn run recrate:build && lerna run build --stream --sort --skip-nx-cache --ignore @arpproject/recrate",
+    "build:extensions": "yarn run recrate:build && lerna run build --stream --sort --skip-nx-cache",
+    "build:rocrate-tools": "yarn workspace rocrate-core build && yarn workspace rocrate-mcp-server build",
+    "test:rocrate-tools": "yarn workspace rocrate-core test && yarn workspace rocrate-mcp-server test",
+    "verify:rocrate-tools": "yarn build:rocrate-tools && yarn test:rocrate-tools",
     "build:browser": "yarn run build:extensions && yarn workspace browser-app run bundle",
     "build:electron": "yarn run build:extensions && yarn workspace electron-app run bundle",
     "prepare": "lerna run prepare",
@@ -15,8 +18,9 @@
     "postinstall": "theia check:theia-version",
     "start:browser": "yarn workspace browser-app start",
     "start:electron": "node scripts/start-electron.js",
-    "watch:electron": "lerna run --parallel watch --scope app-state --scope electron-app",
-    "watch:browser": "lerna run --parallel watch --scope app-state --scope browser-app",
+    "start:rocrate-mcp": "yarn workspace rocrate-mcp-server start",
+    "watch:browser": "lerna run --parallel watch --ignore electron-app",
+    "watch:electron": "lerna run --parallel watch --ignore browser-app",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "format": "biome format .",

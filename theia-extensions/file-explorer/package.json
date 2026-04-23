@@ -6,12 +6,13 @@
     "@theia/core": "1.65.2",
     "@theia/file-search": "1.65.2",
     "@theia/filesystem": "1.65.2",
+    "@theia/terminal": "1.65.2",
     "@theia/workspace": "1.65.2",
-    "minimatch": "^10.0.3",
-    "tslib": "^2.6.2",
     "app-state": "0.0.1",
     "aroma2-common": "0.0.0",
-    "data-sources": "0.0.0"
+    "data-sources": "0.0.0",
+    "minimatch": "^10.0.3",
+    "tslib": "^2.6.2"
   },
   "publishConfig": {
     "access": "public"
@@ -48,7 +49,7 @@
     "compile": "theiaext compile",
     "lint": "theiaext lint",
     "test": "theiaext test",
-    "watch": "theiaext watch"
+    "watch": "tsc -b -w --preserveWatchOutput"
   },
   "devDependencies": {
     "@theia/ext-scripts": "1.65.2",

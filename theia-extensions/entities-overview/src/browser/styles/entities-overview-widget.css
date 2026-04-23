@@ -219,16 +219,16 @@ body.hc-black .entities-overview-edit-button.ant-btn {
 }
 
 .entities-overview-filter-actions.is-advanced .entities-overview-filter-clear {
-  flex: 1 1 120px;
-  min-width: 120px;
+  flex: 0.9 1 0;
+  min-width: 0;
   width: auto;
   max-width: none;
   order: 2;
 }
 
 .entities-overview-filter-actions.is-advanced .entities-overview-advanced-button-wrap {
-  flex: 1.2 1 150px;
-  min-width: 150px;
+  flex: 1.1 1 0;
+  min-width: 0;
   width: auto;
 }
 
@@ -873,7 +873,9 @@ body.entities-overview-filters-visible
 .entities-overview-edit-modal-row-order {
   width: 24px;
   display: flex;
-  align-self: stretch;
+  align-self: flex-start;
+  height: 36px;
+  min-height: 36px;
   align-items: center;
   justify-content: center;
   text-align: center;
@@ -885,6 +887,60 @@ body.entities-overview-filters-visible
 .entities-overview-edit-modal-value {
   flex: 1 1 auto;
   min-width: 320px;
+}
+
+.entities-overview-edit-modal-value-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.entities-overview-edit-modal-value-kind {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.entities-overview-edit-modal-value-kind-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  border: 1px solid rgba(22, 119, 255, 0.28);
+  border-radius: 6px;
+  background: rgba(22, 119, 255, 0.12);
+  color: #1677ff;
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.entities-overview-edit-modal-value-kind-button .codicon {
+  font-size: 12px;
+}
+
+.entities-overview-edit-modal-value-kind-button:hover {
+  background: rgba(22, 119, 255, 0.2);
+  border-color: rgba(22, 119, 255, 0.4);
+}
+
+.entities-overview-edit-modal-value-kind-button.is-active {
+  background: #1677ff;
+  border-color: #1677ff;
+  color: #ffffff;
+}
+
+.entities-overview-edit-modal-value-kind-button:focus,
+.entities-overview-edit-modal-value-kind-button:focus-visible {
+  outline: 2px solid rgba(22, 119, 255, 0.35);
+  outline-offset: 1px;
 }
 
 .entities-overview-edit-modal-value .ant-select,
