@@ -359,7 +359,11 @@ class ClaudeNativeAdapter implements Adapter {
           `claude:tool_use:${item.id ?? toolName}:${prettyJson(item.input).slice(0, 120)}`,
           `Tool: ${toolName}`,
           'Tool input',
-          item.input ?? item,
+          {
+            toolName,
+            toolUseId: item.id,
+            input: item.input ?? null,
+          },
         )
       }
       if (item?.type === 'tool_result') {
@@ -367,7 +371,11 @@ class ClaudeNativeAdapter implements Adapter {
           `claude:tool_result:${item.tool_use_id ?? prettyJson(item).slice(0, 120)}`,
           `Tool result${item.is_error ? ' failed' : ''}`,
           'Tool output',
-          item.content ?? item,
+          {
+            toolUseId: item.tool_use_id,
+            isError: Boolean(item.is_error),
+            content: item.content ?? null,
+          },
         )
       }
     }

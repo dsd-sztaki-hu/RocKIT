@@ -7,6 +7,7 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import {
   NativeAgentProvider,
   NativeAgentMessage,
+  NativeAgentMessageDetail,
   NativeAgentService,
   NativeAgentSession,
 } from '../common/native-agent-protocol'
@@ -26,6 +27,15 @@ type NativeAgentTimelineItem =
       assistants: NativeAgentMessage[]
       activities: NativeAgentMessage[]
     }
+
+type NativeAgentActivityStatus = 'running' | 'done' | 'fail'
+
+type NativeAgentActivityDisplay = {
+  message: NativeAgentMessage
+  label: string
+  status?: NativeAgentActivityStatus
+  rawToolName?: string
+}
 
 @injectable()
 export class NativeAgentChatWidget extends ReactWidget {
@@ -72,6 +82,12 @@ export class NativeAgentChatWidget extends ReactWidget {
         }
       }),
     )
+    this.toDispose.push(
+      this.appStateService.onDidChangeSelector(
+        (state) => state.nativeAgentActivityExpanded,
+      )(() => this.update()),
+    )
+    void this.appStateService.ready.then(() => this.update())
     this.update()
   }
 
@@ -190,7 +206,7 @@ export class NativeAgentChatWidget extends ReactWidget {
               </div>
             ))
           : this.renderWorkingState()}
-        {this.renderActivityTrail(item.activities, streaming)}
+        {this.renderActivityTrail(item.activities)}
       </div>
     )
   }
@@ -237,34 +253,226 @@ export class NativeAgentChatWidget extends ReactWidget {
 
   protected renderActivityTrail(
     activities: NativeAgentMessage[],
-    openByDefault: boolean,
   ): React.ReactNode {
     if (!activities.length) {
       return undefined
     }
-    const errors = activities.filter((message) => message.role === 'error').length
+    const displayActivities = this.buildActivityDisplay(activities)
+    if (!displayActivities.length) {
+      return undefined
+    }
+    const errors = displayActivities.filter(
+      (activity) => activity.message.role === 'error' || activity.status === 'fail',
+    ).length
+    const latest = displayActivities[displayActivities.length - 1]
     return (
-      <details className="native-agent-activity-trail" open={openByDefault}>
+      <details
+        className="native-agent-activity-trail"
+        open={this.appStateService.nativeAgentActivityExpanded}
+        onToggle={this.handleActivityTrailToggle}
+      >
         <summary>
-          <span>Agent activity</span>
+          <span className="native-agent-activity-summary-main">
+            <span>Agent activity</span>
+            <span className="native-agent-activity-latest">
+              {latest.label}
+            </span>
+          </span>
           <span className="native-agent-activity-count">
-            {activities.length}
+            {displayActivities.length}
             {errors ? `, ${errors} error${errors === 1 ? '' : 's'}` : ''}
           </span>
         </summary>
         <div className="native-agent-activity-list">
-          {activities.map((activity) => (
+          {displayActivities.map((activity) => (
             <div
-              key={activity.id}
-              className={`native-agent-activity-row role-${activity.role}`}
+              key={activity.message.id}
+              className={`native-agent-activity-row role-${activity.message.role}`}
             >
-              <div className="native-agent-activity-title">{activity.text}</div>
-              {this.renderDetails(activity)}
+              <div className="native-agent-activity-title">
+                <span>{activity.label}</span>
+                {activity.status ? (
+                  <span className={`native-agent-activity-status status-${activity.status}`}>
+                    {activity.status}
+                  </span>
+                ) : undefined}
+              </div>
+              {this.renderDetails(activity.message)}
             </div>
           ))}
         </div>
       </details>
     )
+  }
+
+  protected buildActivityDisplay(
+    activities: NativeAgentMessage[],
+  ): NativeAgentActivityDisplay[] {
+    const displayActivities: NativeAgentActivityDisplay[] = []
+    const toolRowsByUseId = new Map<string, NativeAgentActivityDisplay>()
+    let latestToolRow: NativeAgentActivityDisplay | undefined
+
+    for (const activity of activities) {
+      const raw = activity.text.trim()
+      const toolMatch = raw.match(/^Tool:\s*(.+)$/)
+      if (toolMatch) {
+        const rawToolName = toolMatch[1].trim()
+        const label = this.formatToolName(rawToolName)
+        const toolUseId = this.getToolUseId(activity)
+        const display = {
+          message: this.withToolIdentityDetails(activity, label, rawToolName),
+          label,
+          rawToolName,
+          status: 'running' as NativeAgentActivityStatus,
+        }
+        displayActivities.push(display)
+        latestToolRow = display
+        if (toolUseId) {
+          toolRowsByUseId.set(toolUseId, display)
+        }
+        continue
+      }
+
+      const resultMatch = raw.match(/^Tool result(?<failed>\s+failed)?$/)
+      if (resultMatch) {
+        const result = this.getToolResult(activity)
+        const toolRow = (result.toolUseId ? toolRowsByUseId.get(result.toolUseId) : undefined) ?? latestToolRow
+        if (toolRow) {
+          toolRow.status = result.failed ? 'fail' : 'done'
+          toolRow.message = this.mergeActivityDetails(toolRow.message, activity.details)
+          continue
+        }
+        if (!result.failed) {
+          continue
+        }
+      }
+
+      const label = this.formatActivityTitle(activity)
+      displayActivities.push({ message: activity, label })
+    }
+
+    return displayActivities
+  }
+
+  protected withToolIdentityDetails(
+    activity: NativeAgentMessage,
+    label: string,
+    rawToolName: string,
+  ): NativeAgentMessage {
+    return {
+      ...activity,
+      details: [
+        {
+          title: 'Tool',
+          text: JSON.stringify({ label, toolName: rawToolName }, null, 2),
+          language: 'json',
+        },
+        ...(activity.details ?? []),
+      ],
+    }
+  }
+
+  protected mergeActivityDetails(
+    activity: NativeAgentMessage,
+    details: NativeAgentMessageDetail[] | undefined,
+  ): NativeAgentMessage {
+    if (!details?.length) {
+      return activity
+    }
+    return {
+      ...activity,
+      details: [...(activity.details ?? []), ...details],
+    }
+  }
+
+  protected getToolUseId(activity: NativeAgentMessage): string | undefined {
+    for (const detail of activity.details ?? []) {
+      const value = this.parseDetailJson(detail)
+      const toolUseId = value?.toolUseId ?? value?.id
+      if (typeof toolUseId === 'string') {
+        return toolUseId
+      }
+    }
+    return undefined
+  }
+
+  protected getToolResult(activity: NativeAgentMessage): { toolUseId?: string; failed: boolean } {
+    let failed = activity.text.includes('failed')
+    let toolUseId: string | undefined
+    for (const detail of activity.details ?? []) {
+      const value = this.parseDetailJson(detail)
+      if (typeof value?.toolUseId === 'string') {
+        toolUseId = value.toolUseId
+      }
+      if (typeof value?.isError === 'boolean') {
+        failed = value.isError
+      } else if (typeof value?.is_error === 'boolean') {
+        failed = value.is_error
+      }
+    }
+    return { toolUseId, failed }
+  }
+
+  protected parseDetailJson(detail: NativeAgentMessageDetail): any | undefined {
+    if (detail.language !== 'json') {
+      return undefined
+    }
+    try {
+      return JSON.parse(detail.text)
+    } catch {
+      return undefined
+    }
+  }
+
+  protected readonly handleActivityTrailToggle = (
+    event: React.SyntheticEvent<HTMLDetailsElement>,
+  ): void => {
+    if (event.currentTarget !== event.target) {
+      return
+    }
+    this.appStateService.nativeAgentActivityExpanded = event.currentTarget.open
+  }
+
+  protected formatActivityTitle(activity: NativeAgentMessage | undefined): string {
+    if (!activity) {
+      return ''
+    }
+    if (activity.role === 'error') {
+      return `Error: ${activity.text}`
+    }
+    const raw = activity.text.trim()
+    const toolMatch = raw.match(/^Tool:\s*(.+)$/)
+    if (toolMatch) {
+      return this.formatToolName(toolMatch[1])
+    }
+    return raw
+  }
+
+  protected formatToolName(rawName: string): string {
+    const normalized = rawName
+      .trim()
+      .replace(/^mcp__/, '')
+      .replace(/^mcp_/, '')
+      .replace(/^rocrate__/, '')
+      .replace(/^rocrate_/, '')
+    const known: Record<string, string> = {
+      apply_changes: 'Apply RO-Crate changes',
+      get_rocrate_context: 'Read RO-Crate context',
+      read_crate: 'Read RO-Crate',
+      validate_crate: 'Validate RO-Crate',
+      write_crate_atomic: 'Write RO-Crate',
+      suggest_context_terms: 'Suggest context terms',
+      suggest_properties: 'Suggest properties',
+      suggest_types: 'Suggest types',
+    }
+    if (known[normalized]) {
+      return known[normalized]
+    }
+    return normalized
+      .split(/[_\s-]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ')
   }
 
   protected renderMarkdown(message: NativeAgentMessage): React.ReactNode {
