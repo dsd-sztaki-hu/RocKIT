@@ -44,6 +44,12 @@ export namespace FileNavigatorCommands {
         label: 'Collapse Folders in Explorer',
         iconClass: codicon('collapse-all')
     });
+    export const EXPAND_ALL = Command.toDefaultLocalizedCommand({
+        id: 'navigator.expand.all',
+        category: CommonCommands.FILE_CATEGORY,
+        label: 'Expand Folders in Explorer',
+        iconClass: codicon('expand-all')
+    });
     export const TOGGLE_SEARCH = Command.toDefaultLocalizedCommand({
         id: 'navigator.toggle.search',
         category: CommonCommands.FILE_CATEGORY,

@@ -23,6 +23,11 @@ export const CollapseAllEntitiesOverviewNodes: Command = {
   iconClass: codicon('collapse-all'),
 }
 
+export const ExpandAllEntitiesOverviewNodes: Command = {
+  id: 'entities-overview:expand-all',
+  iconClass: codicon('expand-all'),
+}
+
 /** Definition of a command to add a new child (to demonstrate context menus) */
 /*export const EntitiesOverviewTreeAddItem: Command = {
   id: 'theia-examples:treeview-example-tree-add-item-command-id',
@@ -99,12 +104,26 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
     commands.registerCommand(CollapseAllEntitiesOverviewNodes, {
       execute: (widget) =>
         this.withWidget(widget, async (view) => view.collapseAllEntityNodes()),
-      isEnabled: (widget) => this.withWidget(widget, () => true) || false,
-      isVisible: (widget) => this.withWidget(widget, () => true) || false,
+      isEnabled: (widget) =>
+        this.withWidget(widget, (view) => view.hasExpandedEntityNodes()) || false,
+      isVisible: (widget) =>
+        this.withWidget(widget, (view) => view.hasExpandedEntityNodes()) || false,
+    })
+
+    commands.registerCommand(ExpandAllEntitiesOverviewNodes, {
+      execute: (widget) =>
+        this.withWidget(widget, async (view) => view.expandAllEntityNodes()),
+      isEnabled: (widget) =>
+        this.withWidget(widget, (view) => !view.hasExpandedEntityNodes()) || false,
+      isVisible: (widget) =>
+        this.withWidget(widget, (view) => !view.hasExpandedEntityNodes()) || false,
     })
   }
 
   async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
+    const widget = await this.widget
+    const onDidChange = widget.model.onChanged
+
     toolbarRegistry.registerItem({
       id: ToggleEntitiesOverviewFilters.id,
       command: ToggleEntitiesOverviewFilters.id,
@@ -117,6 +136,15 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
       command: CollapseAllEntitiesOverviewNodes.id,
       tooltip: 'Collapse All',
       priority: 1,
+      onDidChange,
+    })
+
+    toolbarRegistry.registerItem({
+      id: ExpandAllEntitiesOverviewNodes.id,
+      command: ExpandAllEntitiesOverviewNodes.id,
+      tooltip: 'Expand All',
+      priority: 1,
+      onDidChange,
     })
   }
 
