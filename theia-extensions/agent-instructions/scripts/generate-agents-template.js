@@ -8,16 +8,22 @@ function escapeTemplateLiteral(input) {
   return input.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${')
 }
 
+function normalizeLineEndings(input) {
+  return input.replace(/\r\n/g, '\n')
+}
+
 if (!fs.existsSync(templatePath)) {
   throw new Error(`AGENTS template file not found: ${templatePath}`)
 }
 
-const raw = fs.readFileSync(templatePath, 'utf8')
-const content = `// AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.
-// Source: AGENTS.template.md
-
-export const AGENTS_TEMPLATE = \`${escapeTemplateLiteral(raw)}\`;
-`
+const raw = normalizeLineEndings(fs.readFileSync(templatePath, 'utf8'))
+const content = [
+  '// AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.',
+  '// Source: AGENTS.template.md',
+  '',
+  `export const AGENTS_TEMPLATE = \`${escapeTemplateLiteral(raw)}\`;`,
+  '',
+].join('\n')
 
 fs.writeFileSync(outPath, content, 'utf8')
 console.log(

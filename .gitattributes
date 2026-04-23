@@ -1,0 +1,4 @@
+theia-extensions/agent-instructions/AGENTS.template.md text eol=lf
+theia-extensions/agent-instructions/agent-docs/*.md text eol=lf
+theia-extensions/agent-instructions/src/electron-browser/agent-docs-bundle.ts text eol=lf
+theia-extensions/agent-instructions/src/electron-browser/agents-template.ts text eol=lf
