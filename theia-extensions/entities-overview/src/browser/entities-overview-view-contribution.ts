@@ -5,7 +5,7 @@ import { injectable } from '@theia/core/shared/inversify'
 // import { ExampleTreeNode } from './entities-overview-model'
 import {
   EntitiesOverviewWidget,
-  // TREEVIEW_EXAMPLE_CONTEXT_MENU,
+  TREEVIEW_EXAMPLE_CONTEXT_MENU,
 } from './entities-overview-widget'
 
 /** Definition of a command to show the Entities Overview View */
@@ -21,6 +21,16 @@ export const ToggleEntitiesOverviewFilters: Command = {
 export const CollapseAllEntitiesOverviewNodes: Command = {
   id: 'entities-overview:collapse-all',
   iconClass: codicon('collapse-all'),
+}
+
+export const EntitiesOverviewContextEditCommand: Command = {
+  id: 'entities-overview:context-edit',
+  label: 'Edit',
+}
+
+export const EntitiesOverviewContextDeleteCommand: Command = {
+  id: 'entities-overview:context-delete',
+  label: 'Delete',
 }
 
 /** Definition of a command to add a new child (to demonstrate context menus) */
@@ -76,12 +86,14 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
   override registerMenus(menus: MenuModelRegistry): void {
     super.registerMenus(menus)
 
-    // add the "Add Child" menu item to the context menu
-    /*menus.registerMenuAction([...TREEVIEW_EXAMPLE_CONTEXT_MENU, '_1'],
-            {
-                commandId: EntitiesOverviewTreeAddItem.id,
-                label: 'Add Child'
-            });*/
+    menus.registerMenuAction(TREEVIEW_EXAMPLE_CONTEXT_MENU, {
+      commandId: EntitiesOverviewContextEditCommand.id,
+      label: EntitiesOverviewContextEditCommand.label,
+    })
+    menus.registerMenuAction(TREEVIEW_EXAMPLE_CONTEXT_MENU, {
+      commandId: EntitiesOverviewContextDeleteCommand.id,
+      label: EntitiesOverviewContextDeleteCommand.label,
+    })
   }
 
   override registerCommands(commands: CommandRegistry): void {
@@ -100,6 +112,22 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
       execute: (widget) =>
         this.withWidget(widget, async (view) => view.collapseAllEntityNodes()),
       isEnabled: (widget) => this.withWidget(widget, () => true) || false,
+      isVisible: (widget) => this.withWidget(widget, () => true) || false,
+    })
+
+    commands.registerCommand(EntitiesOverviewContextEditCommand, {
+      execute: (widget) =>
+        this.withWidget(widget, async (view) => view.openEditFromContextMenu()),
+      isEnabled: (widget) =>
+        this.withWidget(widget, (view) => view.canOpenEditFromContextMenu()) || false,
+      isVisible: (widget) => this.withWidget(widget, () => true) || false,
+    })
+
+    commands.registerCommand(EntitiesOverviewContextDeleteCommand, {
+      execute: (widget) =>
+        this.withWidget(widget, async (view) => view.deleteFromContextMenu()),
+      isEnabled: (widget) =>
+        this.withWidget(widget, (view) => view.canDeleteFromContextMenu()) || false,
       isVisible: (widget) => this.withWidget(widget, () => true) || false,
     })
   }
@@ -126,6 +154,10 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
   ): T | false {
     if (widget instanceof EntitiesOverviewWidget) {
       return cb(widget)
+    }
+    const current = this.tryGetWidget()
+    if (current instanceof EntitiesOverviewWidget) {
+      return cb(current)
     }
     return false
   }
