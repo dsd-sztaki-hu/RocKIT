@@ -5,7 +5,14 @@ import '../../src/browser/style/recrate-scoped.css'
 import '../../src/browser/style/recrate-dark-overrides.css'
 
 type EntityOverviewDropPayload = {
-    entityId?: string
+    entityIds?: string[]
+    entityNames?: string[]
+    entityTypes?: string[][]
+    source?: 'entities-overview'
+}
+
+type SingleEntityDropPayload = {
+    entityId: string
     entityName?: string
     entityTypes?: string[]
     source?: 'entities-overview'
@@ -32,7 +39,7 @@ export const DescriboCrateBuilderWrapper = ({
     onNavigation: (entity: any) => void
     onOpenSchemaManager: (requested: boolean) => void
     onRemoveProfile: (tabData: any) => void
-    onDropEntityToHasPart: (payload: EntityOverviewDropPayload, destinationEntityId: string) => Promise<void>
+    onDropEntityToHasPart: (payload: SingleEntityDropPayload, destinationEntityId: string) => Promise<void>
 }) => {
     const [currentEntityId, setCurrentEntityId] = React.useState<string | undefined>(entityId)
     const [loading, setLoading] = React.useState<boolean>(false)
@@ -68,7 +75,6 @@ export const DescriboCrateBuilderWrapper = ({
             try {
                 const parsed = JSON.parse(raw) as EntityOverviewDropPayload
                 if (parsed?.source === 'entities-overview') {
-                    console.log('[DND][Recrate] parsePayload via dataTransfer', parsed)
                     return parsed
                 }
             } catch (error) {
@@ -81,7 +87,6 @@ export const DescriboCrateBuilderWrapper = ({
             | undefined
 
         if (globalPayload?.source === 'entities-overview') {
-            console.log('[DND][Recrate] parsePayload via global fallback', globalPayload)
             return globalPayload
         }
 
@@ -131,7 +136,7 @@ export const DescriboCrateBuilderWrapper = ({
             const targetTypes = getEntityTypeNames(targetEntity)
             const targetValid = targetTypes.includes('dataset')
 
-            if (!payload?.entityId) {
+            if (!payload?.entityIds || payload.entityIds.length === 0) {
                 setDropState('invalid')
                 setDropMessage('Invalid drag payload')
                 return
@@ -158,10 +163,8 @@ export const DescriboCrateBuilderWrapper = ({
         const onDrop = async (event: DragEvent) => {
             event.preventDefault()
 
-            console.log('[DND][Recrate] drop event fired')
-
             const payload = parsePayload(event)
-            if (!payload?.entityId) {
+            if (!payload?.entityIds || payload.entityIds.length === 0) {
                 setDropState('invalid')
                 setDropMessage('Drop payload was not available. Please drag again.')
                 return
@@ -185,7 +188,23 @@ export const DescriboCrateBuilderWrapper = ({
             }
 
             try {
-                await onDropEntityToHasPart(payload, destinationEntityId)
+                if (!payload.entityIds || !payload.entityNames || !payload.entityTypes) {
+                    setDropState('invalid')
+                    setDropMessage('Drop payload was not available. Please drag again.')
+                    return
+                }
+                
+                for (let i = 0; i < payload.entityIds.length; i++) {
+                    await onDropEntityToHasPart(
+                        {
+                            entityId: payload.entityIds[i],
+                            entityName: payload.entityNames?.[i],
+                            entityTypes: payload.entityTypes?.[i] ?? [],
+                            source: 'entities-overview',
+                        },
+                        destinationEntityId,
+                    )
+                }
                 setDropState('idle')
                 setDropMessage('')
             } catch (error: any) {
@@ -250,9 +269,8 @@ export const DescriboCrateBuilderWrapper = ({
     return (
         <div
             ref={containerRef}
-            className={`recrate-scope recrate-drop-zone${dropState === 'valid' ? ' is-valid' : ''}${
-                dropState === 'invalid' ? ' is-invalid' : ''
-            }`}
+            className={`recrate-scope recrate-drop-zone${dropState === 'valid' ? ' is-valid' : ''}${dropState === 'invalid' ? ' is-invalid' : ''
+                }`}
         >
             {dropState !== 'idle' && (
                 <div className={`recrate-drop-indicator ${dropState === 'valid' ? 'is-valid' : 'is-invalid'}`}>

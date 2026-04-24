@@ -1150,11 +1150,6 @@ protected handleDropEntityToHasPart = async (
     payload: EntityOverviewDropPayload,
     destinationEntityId: string,
 ): Promise<void> => {
-    console.log('[DND][Widget] handleDropEntityToHasPart start', {
-        payload,
-        destinationEntityId,
-    })
-
     const sourceEntityId =
         typeof payload?.entityId === 'string' ? payload.entityId.trim() : ''
     const targetEntityId =
@@ -1177,7 +1172,6 @@ protected handleDropEntityToHasPart = async (
         throw new Error('RO-Crate is not available.')
     }
 
-    // 🔎 Find source entity
     const sourceEntity = graph.find(
         (entry) => String(entry?.['@id']) === sourceEntityId,
     )
@@ -1193,7 +1187,6 @@ protected handleDropEntityToHasPart = async (
         throw new Error('Only File and Dataset entities can be dropped.')
     }
 
-    // 🔎 Find target entity
     const targetIndex = graph.findIndex(
         (entry) => String(entry?.['@id']) === targetEntityId,
     )
@@ -1214,27 +1207,15 @@ protected handleDropEntityToHasPart = async (
         throw new Error('Drop target must be a Dataset entity.')
     }
 
-    // 🧩 Normalize existing hasPart
     const existingHasPart = this.normalizeReferenceArray(targetEntity.hasPart)
 
-    console.log('[DND][Widget] existing hasPart before update', {
-        targetEntityId,
-        existingHasPart,
-    })
-
-    // 🚫 Prevent duplicates
     if (existingHasPart.some((entry) => entry['@id'] === sourceEntityId)) {
-        console.log('[DND][Widget] source already linked; skipping update', {
-            sourceEntityId,
-            targetEntityId,
-        })
         this.messageService.info('Entity is already linked in hasPart.', {
             timeout: 4000,
         })
         return
     }
 
-    // ✏️ Update entity
     const updatedTargetEntity = {
         ...targetEntity,
         hasPart: [...existingHasPart, { '@id': sourceEntityId }],
@@ -1248,13 +1229,6 @@ protected handleDropEntityToHasPart = async (
         '@graph': updatedGraph,
     }
 
-    console.log('[DND][Widget] saving updated crate with hasPart link', {
-        sourceEntityId,
-        targetEntityId,
-        nextHasPartLength: updatedTargetEntity.hasPart.length,
-    })
-
-    // ✅ Use explicit targetEntityId (no more getActiveEntityId!)
     await this.handleSaveCrate(
         {
             crate: updatedCrate,
@@ -1262,8 +1236,6 @@ protected handleDropEntityToHasPart = async (
         },
         'Add hasPart via drag-and-drop',
     )
-
-    console.log('[DND][Widget] handleSaveCrate completed for drop operation')
 
     const droppedName =
         typeof payload?.entityName === 'string' && payload.entityName.trim()

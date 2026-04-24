@@ -60,9 +60,9 @@ type EntitiesOverviewWidgetState = {
 }
 
 type EntityOverviewDragPayload = {
-  entityId: string
-  entityName?: string
-  entityTypes: string[]
+  entityIds?: string[]
+  entityNames?: string[]
+  entityTypes?: string[][]
   source: 'entities-overview'
 }
 
@@ -130,19 +130,19 @@ export class EntitiesOverviewWidget extends TreeWidget {
     selectedTypeFilters: string[]
     validityFilter: ValidityFilter
   } = {
-    entityNameFilter: '',
-    selectedTypeFilters: [],
-    validityFilter: 'all',
-  }
+      entityNameFilter: '',
+      selectedTypeFilters: [],
+      validityFilter: 'all',
+    }
   protected readonly advancedFilters: {
     entityNameFilter: string
     selectedTypeFilters: string[]
     validityFilter: ValidityFilter
   } = {
-    entityNameFilter: '',
-    selectedTypeFilters: [],
-    validityFilter: 'all',
-  }
+      entityNameFilter: '',
+      selectedTypeFilters: [],
+      validityFilter: 'all',
+    }
   protected filterMode: 'simple' | 'advanced' = 'simple'
   protected readonly entityNameInputRef = React.createRef<HTMLInputElement>()
   protected entityNameSelection: { start: number | null; end: number | null } | undefined
@@ -318,8 +318,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
     ).slice(0, EntitiesOverviewWidget.MAX_SELECTED_TYPES)
     const validityFilter =
       filters.validityFilter === 'valid' ||
-      filters.validityFilter === 'invalid' ||
-      filters.validityFilter === 'all'
+        filters.validityFilter === 'invalid' ||
+        filters.validityFilter === 'all'
         ? filters.validityFilter
         : 'all'
     return { entityNameFilter, selectedTypeFilters, validityFilter }
@@ -443,9 +443,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
               className={`entities-overview-filter-actions${isAdvanced ? ' is-advanced' : ''}`}
             >
               <div
-                className={`entities-overview-advanced-button-wrap${
-                  isAdvanced ? ' is-visible' : ''
-                }`}
+                className={`entities-overview-advanced-button-wrap${isAdvanced ? ' is-visible' : ''
+                  }`}
               >
                 <Button
                   className="entities-overview-advanced-button"
@@ -613,9 +612,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
   ): React.Attributes & React.HTMLAttributes<HTMLElement> {
     const baseAttributes = super.createNodeAttributes(node, props)
     const payload = this.getDraggableEntityPayload(node)
-    const className = `${baseAttributes.className ?? ''}${
-      payload ? ' entities-overview-draggable-entity' : ''
-    }`.trim()
+    const className = `${baseAttributes.className ?? ''}${payload ? ' entities-overview-draggable-entity' : ''
+      }`.trim()
 
     return {
       ...baseAttributes,
@@ -624,16 +622,48 @@ export class EntitiesOverviewWidget extends TreeWidget {
       onClick: (event) => this.handleNodeClick(node, event),
       onDoubleClick: (event) => this.handleNodeDoubleClick(node, event),
       onDragStart: (event) => {
-          const payload = this.getDraggableEntityPayload(node)
-          console.log('DRAG START', payload)
+        const selectedIds = this.model.getSelectedEntityIds()
 
-          event.dataTransfer!.setData('text/plain', JSON.stringify(payload))
-          ;(globalThis as any).__aromaEntityDragPayload = payload
+        const entityIds =
+          selectedIds.length > 0 && ExampleTreeLeaf.is(node)
+            ? selectedIds
+            : ExampleTreeLeaf.is(node)
+              ? [node.data.entityId]
+              : []
+
+        const entityNames: string[] = []
+        const entityTypes: string[][] = []
+
+        for (const id of entityIds) {
+          if (!id) continue
+          const entity = this.findCrateEntityById(id)
+          if (!entity) continue
+
+          const types = this.getEntityTypeNames(entity)
+
+          entityNames.push(entity['name'] ?? id)
+          entityTypes.push(types)
+        }
+
+        const payload = {
+          entityIds,
+          entityNames,
+          entityTypes,
+          source: 'entities-overview',
+        }
+
+        event.dataTransfer!.setData(
+          'application/x-aroma-entity-drag',
+          JSON.stringify(payload),
+        )
+
+        event.dataTransfer!.setData('text/plain', JSON.stringify(payload))
+
+          ; (globalThis as any).__aromaEntityDragPayload = payload
       },
       onDragEnd: (event) => {
         event.stopPropagation()
-        console.log('[DND][EntitiesOverview] dragEnd: cleared global payload')
-        ;(globalThis as any).__aromaEntityDragPayload = undefined
+          ; (globalThis as any).__aromaEntityDragPayload = undefined
       },
     }
   }
@@ -999,9 +1029,9 @@ export class EntitiesOverviewWidget extends TreeWidget {
     }
 
     return {
-      entityId,
-      entityName: node.data.name,
-      entityTypes,
+      entityIds: [entityId],
+      entityNames: [node.data.name],
+      entityTypes: [entityTypes],
       source: 'entities-overview',
     }
   }
