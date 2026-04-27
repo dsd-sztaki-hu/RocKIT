@@ -1080,6 +1080,7 @@ export class NativeAgentChatWidget extends ReactWidget {
   protected readonly editorFocusOrder: string[] = []
   protected readonly promptedDataverseUploadKeys = new Set<string>()
   protected dataverseReplacementPrompt: Promise<void> | undefined
+  protected backendCloseRequested = false
   protected promptHistory: string[] = []
   protected readonly deleteChatSessionButton: QuickInputButton = {
     iconClass: 'codicon-trashcan',
@@ -1139,6 +1140,25 @@ export class NativeAgentChatWidget extends ReactWidget {
     this.updateTitle()
     this.update()
     void this.maybePromptForDataverseCrateReplacement()
+  }
+
+  override dispose(): void {
+    if (!this.isDisposed) {
+      void this.closeBackendSession()
+    }
+    super.dispose()
+  }
+
+  protected async closeBackendSession(): Promise<void> {
+    if (this.backendCloseRequested || !this.session?.id) {
+      return
+    }
+    this.backendCloseRequested = true
+    try {
+      await this.nativeAgentService.closeSession(this.session.id)
+    } catch (error) {
+      console.warn('Failed to close native agent session:', error)
+    }
   }
 
   protected updateTitle(): void {

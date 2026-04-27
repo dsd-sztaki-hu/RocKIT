@@ -14,6 +14,7 @@ export class JsonRpcChildProcess extends EventEmitter {
   protected child: ChildProcessWithoutNullStreams
   protected nextId = 1
   protected stdoutBuffer = ''
+  protected disposed = false
   protected pending = new Map<
     string | number,
     { resolve: (value: unknown) => void; reject: (reason: Error) => void }
@@ -21,7 +22,12 @@ export class JsonRpcChildProcess extends EventEmitter {
 
   constructor(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv) {
     super()
-    this.child = spawn(command, args, { cwd, env, stdio: 'pipe' })
+    this.child = spawn(command, args, {
+      cwd,
+      detached: process.platform !== 'win32',
+      env,
+      stdio: 'pipe',
+    })
     this.child.stdout.on('data', (chunk: Buffer) => this.handleStdout(chunk))
     this.child.stderr.on('data', (chunk: Buffer) => this.emit('stderr', chunk.toString()))
     this.child.on('error', (error) => this.emit('error', error))
@@ -61,6 +67,34 @@ export class JsonRpcChildProcess extends EventEmitter {
   }
 
   dispose(): void {
+    if (this.disposed) {
+      return
+    }
+    this.disposed = true
+    const error = new Error('JSON-RPC process disposed')
+    for (const request of this.pending.values()) {
+      request.reject(error)
+    }
+    this.pending.clear()
+    const pid = this.child.pid
+    if (process.platform === 'win32' && pid) {
+      const taskkill = spawn('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' })
+      taskkill.on('error', () => this.child.kill())
+      return
+    }
+    if (pid) {
+      try {
+        process.kill(-pid, 'SIGTERM')
+      } catch {
+        this.child.kill('SIGTERM')
+      }
+      setTimeout(() => {
+        try {
+          process.kill(-pid, 'SIGKILL')
+        } catch {}
+      }, 2000).unref()
+      return
+    }
     this.child.kill()
   }
 
