@@ -40,6 +40,7 @@ export const RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU: MenuPath = [
 @injectable()
 export class RoCrateStructurePanelWidget extends ReactWidget {
   static readonly ID = 'dataset-panel:widget'
+  static readonly ROOT_DATASET_ENTITY_ID = './'
 
   protected instanceId: string = ''
   protected renderPerfSeq = 0
@@ -217,6 +218,19 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   ): void => {
     event.preventDefault()
     event.stopPropagation()
+    const target = event.target
+    const element =
+      target instanceof HTMLElement
+        ? target
+        : target instanceof Node
+          ? target.parentElement
+          : undefined
+    const clickedEntityId = element?.closest('[data-entity-id]')?.getAttribute('data-entity-id')
+    const entityId = clickedEntityId?.trim()
+    if (entityId && !this.selectedEntityIds.has(entityId)) {
+      const nodeKey = this.getNodeKeyForEntity(entityId)
+      this.selectSingle(entityId, nodeKey)
+    }
     void this.shell.activateWidget(this.id)
     const { x, y } = event.nativeEvent
     this.contextMenuRenderer.render({
@@ -509,6 +523,209 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       this.expandedKeys = [String(treeData[0].key)]
     }
     return treeData
+  }
+
+  public canDeleteFromContextMenu(): boolean {
+    return this.getDeletableSelectedEntityIds().length > 0
+  }
+
+  public async deleteFromContextMenu(): Promise<void> {
+    await this.deleteSelectedEntities()
+  }
+
+  protected async deleteSelectedEntities(): Promise<void> {
+    const crate = this.appStateService.roCrate
+    const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : undefined
+    if (!crate || !graph) {
+      return
+    }
+
+    const deletableEntityIds = this.getDeletableSelectedEntityIds()
+    if (deletableEntityIds.length === 0) {
+      return
+    }
+
+    const idsToRemove = this.resolveCascadeDeletionIds(graph, new Set(deletableEntityIds))
+    const updatedGraph = this.removeEntitiesAndReferences(graph, idsToRemove)
+    const updatedCrate = { ...crate, '@graph': updatedGraph }
+    const label = idsToRemove.size > 1 ? 'Delete entities' : 'Delete entity'
+    const changed = this.roCrateHistoryService.applyRoCrateChange(updatedCrate, { label })
+    if (!changed) {
+      return
+    }
+
+    const selectedEntityId = this.appStateService.selectedEntityId
+    if (selectedEntityId && idsToRemove.has(selectedEntityId)) {
+      this.appStateService.selectedEntityId = RoCrateStructurePanelWidget.ROOT_DATASET_ENTITY_ID
+    }
+
+    const remainingSelected = Array.from(this.selectedEntityIds.values()).filter(
+      (entityId) => !idsToRemove.has(entityId),
+    )
+    this.selectedEntityIds = new Set(remainingSelected)
+    this.selectedKeys = remainingSelected
+      .map((entityId) => this.getNodeKeyForEntity(entityId))
+      .filter((key): key is React.Key => key !== undefined)
+    this.lastSelectedEntityId = remainingSelected.slice(-1)[0]
+    this.update()
+  }
+
+  protected getDeletableSelectedEntityIds(): string[] {
+    return Array.from(this.selectedEntityIds.values()).filter(
+      (entityId) => entityId !== RoCrateStructurePanelWidget.ROOT_DATASET_ENTITY_ID,
+    )
+  }
+
+  protected resolveCascadeDeletionIds(
+    graph: ReadonlyArray<Record<string, any>>,
+    seedIds: Set<string>,
+  ): Set<string> {
+    const idsToRemove = new Set(seedIds)
+    const entityById = new Map<string, Record<string, any>>()
+    for (const entry of graph) {
+      const entityId = typeof entry?.['@id'] === 'string' ? entry['@id'] : undefined
+      if (!entityId) {
+        continue
+      }
+      entityById.set(entityId, entry)
+    }
+
+    const outgoingById = new Map<string, Set<string>>()
+    const incomingById = new Map<string, Set<string>>()
+
+    for (const [entityId, entity] of entityById.entries()) {
+      const outgoing = new Set<string>()
+      for (const [key, value] of Object.entries(entity)) {
+        if (key === '@id' || key === 'id') {
+          continue
+        }
+        this.collectReferenceIds(value, outgoing)
+      }
+      const normalizedOutgoing = new Set(
+        Array.from(outgoing.values()).filter((targetId) => entityById.has(targetId)),
+      )
+      outgoingById.set(entityId, normalizedOutgoing)
+
+      for (const targetId of normalizedOutgoing) {
+        const incoming = incomingById.get(targetId) ?? new Set<string>()
+        incoming.add(entityId)
+        incomingById.set(targetId, incoming)
+      }
+    }
+
+    const queue = Array.from(idsToRemove.values())
+    while (queue.length > 0) {
+      const sourceId = queue.shift()
+      if (!sourceId) {
+        continue
+      }
+      const outgoing = outgoingById.get(sourceId)
+      if (!outgoing) {
+        continue
+      }
+      for (const targetId of outgoing) {
+        if (
+          targetId === RoCrateStructurePanelWidget.ROOT_DATASET_ENTITY_ID ||
+          idsToRemove.has(targetId)
+        ) {
+          continue
+        }
+        const incoming = incomingById.get(targetId) ?? new Set<string>()
+        const hasExternalReference = Array.from(incoming.values()).some(
+          (referrerId) => !idsToRemove.has(referrerId),
+        )
+        if (!hasExternalReference) {
+          idsToRemove.add(targetId)
+          queue.push(targetId)
+        }
+      }
+    }
+
+    return idsToRemove
+  }
+
+  protected collectReferenceIds(value: unknown, collector: Set<string>): void {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        this.collectReferenceIds(item, collector)
+      }
+      return
+    }
+    if (!value || typeof value !== 'object') {
+      return
+    }
+    const objectValue = value as Record<string, unknown>
+    const referenceId = this.extractReferenceId(objectValue)
+    if (referenceId && this.isReferenceObject(objectValue)) {
+      collector.add(referenceId)
+      return
+    }
+    for (const child of Object.values(objectValue)) {
+      this.collectReferenceIds(child, collector)
+    }
+  }
+
+  protected removeEntitiesAndReferences(
+    graph: ReadonlyArray<Record<string, any>>,
+    idsToRemove: ReadonlySet<string>,
+  ): Record<string, any>[] {
+    const filtered = graph.filter((entry) => {
+      const entityId = typeof entry?.['@id'] === 'string' ? entry['@id'] : ''
+      return !idsToRemove.has(entityId)
+    })
+
+    const cleaned: Record<string, any>[] = []
+    for (const entity of filtered) {
+      const normalized = this.removeReferencesFromValue(entity, idsToRemove)
+      if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
+        cleaned.push(normalized as Record<string, any>)
+      }
+    }
+    return cleaned
+  }
+
+  protected removeReferencesFromValue(
+    value: unknown,
+    idsToRemove: ReadonlySet<string>,
+  ): unknown {
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => this.removeReferencesFromValue(item, idsToRemove))
+        .filter((item) => item !== undefined)
+    }
+
+    if (value && typeof value === 'object') {
+      const objectValue = value as Record<string, unknown>
+      const referenceId = this.extractReferenceId(objectValue)
+      if (referenceId && idsToRemove.has(referenceId) && this.isReferenceObject(objectValue)) {
+        return undefined
+      }
+
+      const normalizedObject: Record<string, unknown> = {}
+      for (const [key, child] of Object.entries(objectValue)) {
+        const normalized = this.removeReferencesFromValue(child, idsToRemove)
+        if (normalized === undefined) {
+          continue
+        }
+        if (Array.isArray(normalized) && normalized.length === 0) {
+          continue
+        }
+        normalizedObject[key] = normalized
+      }
+      return normalizedObject
+    }
+
+    return value
+  }
+
+  protected extractReferenceId(value: Record<string, unknown>): string | undefined {
+    const idValue = value['@id'] ?? value.id
+    return typeof idValue === 'string' ? idValue : undefined
+  }
+
+  protected isReferenceObject(value: Record<string, unknown>): boolean {
+    const keys = Object.keys(value)
+    return keys.length === 1 && (keys[0] === '@id' || keys[0] === 'id')
   }
 
   protected handleTreeExpand = (keys: React.Key[]): void => {

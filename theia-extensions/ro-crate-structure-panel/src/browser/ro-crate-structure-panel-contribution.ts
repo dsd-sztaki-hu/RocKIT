@@ -22,6 +22,11 @@ export const RoCrateStructurePanelEditCommand: Command = {
   label: 'Edit',
 }
 
+export const RoCrateStructurePanelDeleteCommand: Command = {
+  id: 'ro-crate-structure-panel:delete',
+  label: 'Delete',
+}
+
 @injectable()
 export class RoCrateStructurePanelContribution extends AbstractViewContribution<RoCrateStructurePanelWidget> {
   constructor(
@@ -60,6 +65,21 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
       isEnabled: () => Boolean(this.getActiveStructureWidget()),
       isVisible: () => Boolean(this.getActiveStructureWidget()),
     })
+
+    registry.registerCommand(RoCrateStructurePanelDeleteCommand, {
+      execute: async () => {
+        const widget = this.getActiveStructureWidget()
+        if (!widget) {
+          return
+        }
+        await widget.deleteFromContextMenu()
+      },
+      isEnabled: () => {
+        const widget = this.getActiveStructureWidget()
+        return Boolean(widget && widget.canDeleteFromContextMenu())
+      },
+      isVisible: () => Boolean(this.getActiveStructureWidget()),
+    })
   }
 
   registerMenus(menus: MenuModelRegistry): void {
@@ -71,6 +91,10 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
     menus.registerMenuAction(RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU, {
       commandId: RoCrateStructurePanelEditCommand.id,
       label: RoCrateStructurePanelEditCommand.label,
+    })
+    menus.registerMenuAction(RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU, {
+      commandId: RoCrateStructurePanelDeleteCommand.id,
+      label: RoCrateStructurePanelDeleteCommand.label,
     })
   }
 
