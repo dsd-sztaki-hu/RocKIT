@@ -4,6 +4,7 @@ import {
   CompositeTreeNode,
   ContextMenuRenderer,
   NodeProps,
+  SelectableTreeNode,
   TreeModel,
   TreeNode,
   TreeProps,
@@ -11,6 +12,7 @@ import {
   Widget,
   WidgetManager,
 } from '@theia/core/lib/browser'
+import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { Disposable } from '@theia/core/lib/common'
@@ -71,6 +73,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
   static readonly MAX_FILTER_TEXT_LENGTH = 1024
   static readonly MAX_SELECTED_TYPES = 200
   static readonly MAX_TYPE_LABEL_LENGTH = 256
+  static readonly ROOT_DATASET_ENTITY_ID = './'
 
   /** Used in Drag & Drop code to remember and cancel deferred expansion of hovered nodes */
   // protected readonly toCancelNodeExpansion = new DisposableCollection()
@@ -517,6 +520,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
   protected override createContainerAttributes(): React.HTMLAttributes<HTMLElement> {
     const attributes = super.createContainerAttributes()
     const existingOnClick = attributes.onClick
+    const existingOnKeyDown = attributes.onKeyDown
     return {
       ...attributes,
       onClick: (event) => {
@@ -528,6 +532,20 @@ export class EntitiesOverviewWidget extends TreeWidget {
           return
         }
         this.model.clearSelection()
+      },
+      onKeyDown: (event) => {
+        if (typeof existingOnKeyDown === 'function') {
+          existingOnKeyDown(event)
+        }
+        if (event.defaultPrevented || event.key !== 'Delete') {
+          return
+        }
+        if (this.shouldIgnoreDeleteKeyEvent(event.target as HTMLElement | null)) {
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        void this.deleteSelectedEntities()
       },
     }
   }
@@ -568,28 +586,46 @@ export class EntitiesOverviewWidget extends TreeWidget {
     node: TreeNode | undefined,
     event: React.MouseEvent<HTMLElement>,
   ): void {
-    if (node && ExampleTreeNode.is(node)) {
-      const contextMenuPath = this.props.contextMenuPath
-      if (contextMenuPath) {
-        const { x, y } = event.nativeEvent
-        const args = this.toContextMenuArgs(node)
-        const target = event.currentTarget
-        setTimeout(
-          () =>
-            this.contextMenuRenderer.render({
-              menuPath: contextMenuPath,
-              context: target,
-              anchor: { x, y },
-              args,
-            }),
-          10,
-        )
+    if (node && ExampleTreeLeaf.is(node)) {
+      const entityId = node.data.entityId
+      if (entityId) {
+        const selectedIds = new Set(this.model.getSelectedEntityIds())
+        if (!selectedIds.has(entityId)) {
+          this.model.selectSingle(entityId)
+        }
       }
-      event.stopPropagation()
-      event.preventDefault()
+      this.renderNodeContextMenu(node, event)
+      return
+    }
+    if (node && ExampleTreeNode.is(node)) {
+      this.renderNodeContextMenu(node, event)
       return
     }
     super.handleContextMenuEvent(node, event)
+  }
+
+  protected renderNodeContextMenu(
+    node: TreeNode,
+    event: React.MouseEvent<HTMLElement>,
+  ): void {
+    const contextMenuPath = this.props.contextMenuPath
+    if (contextMenuPath) {
+      const { x, y } = event.nativeEvent
+      const args = SelectableTreeNode.is(node) ? this.toContextMenuArgs(node) : [node]
+      const target = event.currentTarget
+      setTimeout(
+        () =>
+          this.contextMenuRenderer.render({
+            menuPath: contextMenuPath,
+            context: target,
+            anchor: { x, y },
+            args,
+          }),
+        10,
+      )
+    }
+    event.stopPropagation()
+    event.preventDefault()
   }
 
   /**
@@ -927,6 +963,187 @@ export class EntitiesOverviewWidget extends TreeWidget {
       this.roCrateHistoryService,
     )
     await dialog.open()
+  }
+
+  public canOpenEditFromContextMenu(): boolean {
+    return this.model.getSelectedEntityIds().length > 0
+  }
+
+  public async openEditFromContextMenu(): Promise<void> {
+    if (!this.canOpenEditFromContextMenu()) {
+      return
+    }
+    await this.openMultiEditDialog()
+  }
+
+  public canDeleteFromContextMenu(): boolean {
+    return this.getDeletableSelectedEntityIds().length > 0
+  }
+
+  public async deleteFromContextMenu(): Promise<void> {
+    await this.deleteSelectedEntities()
+  }
+
+  protected async deleteSelectedEntities(): Promise<void> {
+    const crate = this.appStateService.roCrate
+    const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : undefined
+    if (!crate || !graph) {
+      return
+    }
+
+    const deletableEntityIds = this.getDeletableSelectedEntityIds()
+    if (deletableEntityIds.length === 0) {
+      return
+    }
+
+    const idsToRemove = new Set(deletableEntityIds)
+    const confirmed = await this.confirmDeleteEntities(idsToRemove)
+    if (!confirmed) {
+      return
+    }
+
+    const updatedGraph = this.removeEntitiesAndReferences(graph, idsToRemove)
+    const updatedCrate = { ...crate, '@graph': updatedGraph }
+    const label = idsToRemove.size > 1 ? 'Delete entities' : 'Delete entity'
+    const changed = this.roCrateHistoryService.applyRoCrateChange(updatedCrate, { label })
+    if (!changed) {
+      return
+    }
+
+    const selectedEntityId = this.appStateService.selectedEntityId
+    if (selectedEntityId && idsToRemove.has(selectedEntityId)) {
+      this.appStateService.selectedEntityId = EntitiesOverviewWidget.ROOT_DATASET_ENTITY_ID
+    }
+    await this.closeDeletedEntityEditors(idsToRemove)
+    this.model.clearSelection()
+  }
+
+  protected getDeletableSelectedEntityIds(): string[] {
+    return this.model
+      .getSelectedEntityIds()
+      .filter((entityId) => entityId !== EntitiesOverviewWidget.ROOT_DATASET_ENTITY_ID)
+  }
+
+  protected async confirmDeleteEntities(idsToRemove: ReadonlySet<string>): Promise<boolean> {
+    const deleteCount = idsToRemove.size
+    if (deleteCount === 0) {
+      return false
+    }
+
+    const confirmed = await new ConfirmDialog({
+      title: deleteCount > 1 ? 'Delete RO-Crate entities?' : 'Delete RO-Crate entity?',
+      msg:
+        deleteCount > 1
+          ? `Are you sure you want to delete the ${deleteCount} selected entities?`
+          : 'Are you sure you want to delete the selected entity?',
+      ok: 'Delete',
+      cancel: 'Cancel',
+    }).open()
+    return confirmed === true
+  }
+
+  protected async closeDeletedEntityEditors(
+    idsToRemove: ReadonlySet<string>,
+  ): Promise<void> {
+    const mapping = this.appStateService.EIRCEIA ?? {}
+    const widgetIdsToClose = Object.entries(mapping)
+      .filter(([, entityId]) => idsToRemove.has(entityId))
+      .map(([widgetId]) => widgetId)
+
+    for (const widgetId of widgetIdsToClose) {
+      try {
+        const widget = this.shell.getWidgetById(widgetId)
+        if (widget) {
+          await this.shell.closeWidget(widgetId, { save: false })
+        } else {
+          this.appStateService.unregisterEntityEditor(widgetId)
+        }
+      } catch (error) {
+        console.warn('Failed to close RO-Crate editor for deleted entity', {
+          widgetId,
+          error,
+        })
+        this.appStateService.unregisterEntityEditor(widgetId)
+      }
+    }
+  }
+
+  protected removeEntitiesAndReferences(
+    graph: ReadonlyArray<Record<string, any>>,
+    idsToRemove: ReadonlySet<string>,
+  ): Record<string, any>[] {
+    const filtered = graph.filter((entry) => {
+      const entityId = typeof entry?.['@id'] === 'string' ? entry['@id'] : ''
+      return !idsToRemove.has(entityId)
+    })
+
+    const cleaned: Record<string, any>[] = []
+    for (const entity of filtered) {
+      const normalized = this.removeReferencesFromValue(entity, idsToRemove)
+      if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
+        cleaned.push(normalized as Record<string, any>)
+      }
+    }
+    return cleaned
+  }
+
+  protected removeReferencesFromValue(
+    value: unknown,
+    idsToRemove: ReadonlySet<string>,
+  ): unknown {
+    if (typeof value === 'string' && idsToRemove.has(value)) {
+      return undefined
+    }
+
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => this.removeReferencesFromValue(item, idsToRemove))
+        .filter((item) => item !== undefined)
+    }
+
+    if (value && typeof value === 'object') {
+      const objectValue = value as Record<string, unknown>
+      const referenceId = this.extractReferenceId(objectValue)
+      if (referenceId && idsToRemove.has(referenceId) && this.isReferenceObject(objectValue)) {
+        return undefined
+      }
+
+      const normalizedObject: Record<string, unknown> = {}
+      for (const [key, child] of Object.entries(objectValue)) {
+        const normalized = this.removeReferencesFromValue(child, idsToRemove)
+        if (normalized === undefined) {
+          continue
+        }
+        if (Array.isArray(normalized) && normalized.length === 0) {
+          continue
+        }
+        normalizedObject[key] = normalized
+      }
+      return normalizedObject
+    }
+
+    return value
+  }
+
+  protected extractReferenceId(value: Record<string, unknown>): string | undefined {
+    const idValue = value['@id'] ?? value.id
+    return typeof idValue === 'string' ? idValue : undefined
+  }
+
+  protected isReferenceObject(value: Record<string, unknown>): boolean {
+    const keys = Object.keys(value)
+    return keys.length === 1 && (keys[0] === '@id' || keys[0] === 'id')
+  }
+
+  protected shouldIgnoreDeleteKeyEvent(target: HTMLElement | null): boolean {
+    if (!target) {
+      return false
+    }
+    return Boolean(
+      target.closest(
+        'input, textarea, [contenteditable=""], [contenteditable="true"], [role="textbox"]',
+      ),
+    )
   }
 
   protected applyAdvancedFilters(): void {
