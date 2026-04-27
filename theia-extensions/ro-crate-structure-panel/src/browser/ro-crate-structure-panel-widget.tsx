@@ -6,7 +6,6 @@ import {
   Widget,
   WidgetManager,
 } from '@theia/core/lib/browser'
-import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { CommandService } from '@theia/core/lib/common/command'
@@ -17,7 +16,11 @@ import type { TreeDataNode } from 'antd'
 import { Tooltip, Tree } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
-import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
+import {
+  AntdThemeProvider,
+  RoCrateDeleteSelectedEntitiesCommand,
+  RoCrateEntityDeleteService,
+} from 'aroma2-common/lib/browser'
 import { MultiEditDialog } from 'entities-overview/lib/browser/entities-overview-multi-edit-dialog'
 import { inject, injectable } from 'inversify'
 import * as mime from 'mime-types'
@@ -38,7 +41,6 @@ interface CrateNode {
 export const RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU: MenuPath = [
   'ro-crate-structure-panel:context-menu',
 ]
-const RO_CRATE_STRUCTURE_PANEL_DELETE_COMMAND_ID = 'ro-crate-structure-panel:delete'
 
 @injectable()
 export class RoCrateStructurePanelWidget extends ReactWidget {
@@ -55,6 +57,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected readonly appStateService: AppStateService
   @inject(RoCrateHistoryService)
   protected readonly roCrateHistoryService: RoCrateHistoryService
+  @inject(RoCrateEntityDeleteService)
+  protected readonly roCrateEntityDeleteService: RoCrateEntityDeleteService
   @inject(WidgetManager)
   protected readonly widgetManager: WidgetManager
   @inject(ApplicationShell)
@@ -285,7 +289,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected async executeDeleteCommandFromKeyboard(): Promise<void> {
     await this.shell.activateWidget(this.id)
     await this.commandService.executeCommand(
-      RO_CRATE_STRUCTURE_PANEL_DELETE_COMMAND_ID,
+      RoCrateDeleteSelectedEntitiesCommand.id,
     )
   }
 
@@ -583,39 +587,19 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   }
 
   protected async deleteSelectedEntities(): Promise<void> {
-    const crate = this.appStateService.roCrate
-    const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : undefined
-    if (!crate || !graph) {
+    const result = await this.roCrateEntityDeleteService.deleteSelectedEntities({
+      selectedEntityIds: this.selectedEntityIds,
+      rootEntityId: RoCrateStructurePanelWidget.ROOT_DATASET_ENTITY_ID,
+      appStateService: this.appStateService,
+      roCrateHistoryService: this.roCrateHistoryService,
+      shell: this.shell,
+    })
+    if (!result.changed) {
       return
     }
-
-    const deletableEntityIds = this.getDeletableSelectedEntityIds()
-    if (deletableEntityIds.length === 0) {
-      return
-    }
-
-    const idsToRemove = new Set(deletableEntityIds)
-    const confirmed = await this.confirmDeleteEntities(idsToRemove)
-    if (!confirmed) {
-      return
-    }
-
-    const updatedGraph = this.removeEntitiesAndReferences(graph, idsToRemove)
-    const updatedCrate = { ...crate, '@graph': updatedGraph }
-    const label = idsToRemove.size > 1 ? 'Delete entities' : 'Delete entity'
-    const changed = this.roCrateHistoryService.applyRoCrateChange(updatedCrate, { label })
-    if (!changed) {
-      return
-    }
-
-    const selectedEntityId = this.appStateService.selectedEntityId
-    if (selectedEntityId && idsToRemove.has(selectedEntityId)) {
-      this.appStateService.selectedEntityId = RoCrateStructurePanelWidget.ROOT_DATASET_ENTITY_ID
-    }
-    await this.closeDeletedEntityEditors(idsToRemove)
 
     const remainingSelected = Array.from(this.selectedEntityIds.values()).filter(
-      (entityId) => !idsToRemove.has(entityId),
+      (entityId) => !result.deletedEntityIds.has(entityId),
     )
     this.selectedEntityIds = new Set(remainingSelected)
     this.selectedKeys = remainingSelected
@@ -626,120 +610,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   }
 
   protected getDeletableSelectedEntityIds(): string[] {
-    return Array.from(this.selectedEntityIds.values()).filter(
-      (entityId) => entityId !== RoCrateStructurePanelWidget.ROOT_DATASET_ENTITY_ID,
+    return Array.from(
+      this.roCrateEntityDeleteService.getDeletableEntityIds(
+        this.selectedEntityIds,
+        RoCrateStructurePanelWidget.ROOT_DATASET_ENTITY_ID,
+      ),
     )
-  }
-
-  protected async confirmDeleteEntities(idsToRemove: ReadonlySet<string>): Promise<boolean> {
-    const deleteCount = idsToRemove.size
-    if (deleteCount === 0) {
-      return false
-    }
-
-    const confirmed = await new ConfirmDialog({
-      title: deleteCount > 1 ? 'Delete RO-Crate entities?' : 'Delete RO-Crate entity?',
-      msg:
-        deleteCount > 1
-          ? `Are you sure you want to delete the ${deleteCount} selected entities?`
-          : 'Are you sure you want to delete the selected entity?',
-      ok: 'Delete',
-      cancel: 'Cancel',
-    }).open()
-    return confirmed === true
-  }
-
-  protected async closeDeletedEntityEditors(
-    idsToRemove: ReadonlySet<string>,
-  ): Promise<void> {
-    const mapping = this.appStateService.EIRCEIA ?? {}
-    const widgetIdsToClose = Object.entries(mapping)
-      .filter(([, entityId]) => idsToRemove.has(entityId))
-      .map(([widgetId]) => widgetId)
-
-    for (const widgetId of widgetIdsToClose) {
-      try {
-        const widget = this.shell.getWidgetById(widgetId)
-        if (widget) {
-          await this.shell.closeWidget(widgetId, { save: false })
-        } else {
-          this.appStateService.unregisterEntityEditor(widgetId)
-        }
-      } catch (error) {
-        console.warn('Failed to close RO-Crate editor for deleted entity', {
-          widgetId,
-          error,
-        })
-        this.appStateService.unregisterEntityEditor(widgetId)
-      }
-    }
-  }
-
-  protected removeEntitiesAndReferences(
-    graph: ReadonlyArray<Record<string, any>>,
-    idsToRemove: ReadonlySet<string>,
-  ): Record<string, any>[] {
-    const filtered = graph.filter((entry) => {
-      const entityId = typeof entry?.['@id'] === 'string' ? entry['@id'] : ''
-      return !idsToRemove.has(entityId)
-    })
-
-    const cleaned: Record<string, any>[] = []
-    for (const entity of filtered) {
-      const normalized = this.removeReferencesFromValue(entity, idsToRemove)
-      if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
-        cleaned.push(normalized as Record<string, any>)
-      }
-    }
-    return cleaned
-  }
-
-  protected removeReferencesFromValue(
-    value: unknown,
-    idsToRemove: ReadonlySet<string>,
-  ): unknown {
-    if (typeof value === 'string' && idsToRemove.has(value)) {
-      return undefined
-    }
-
-    if (Array.isArray(value)) {
-      return value
-        .map((item) => this.removeReferencesFromValue(item, idsToRemove))
-        .filter((item) => item !== undefined)
-    }
-
-    if (value && typeof value === 'object') {
-      const objectValue = value as Record<string, unknown>
-      const referenceId = this.extractReferenceId(objectValue)
-      if (referenceId && idsToRemove.has(referenceId) && this.isReferenceObject(objectValue)) {
-        return undefined
-      }
-
-      const normalizedObject: Record<string, unknown> = {}
-      for (const [key, child] of Object.entries(objectValue)) {
-        const normalized = this.removeReferencesFromValue(child, idsToRemove)
-        if (normalized === undefined) {
-          continue
-        }
-        if (Array.isArray(normalized) && normalized.length === 0) {
-          continue
-        }
-        normalizedObject[key] = normalized
-      }
-      return normalizedObject
-    }
-
-    return value
-  }
-
-  protected extractReferenceId(value: Record<string, unknown>): string | undefined {
-    const idValue = value['@id'] ?? value.id
-    return typeof idValue === 'string' ? idValue : undefined
-  }
-
-  protected isReferenceObject(value: Record<string, unknown>): boolean {
-    const keys = Object.keys(value)
-    return keys.length === 1 && (keys[0] === '@id' || keys[0] === 'id')
   }
 
   protected handleTreeExpand = (keys: React.Key[]): void => {

@@ -12,7 +12,6 @@ import {
   Widget,
   WidgetManager,
 } from '@theia/core/lib/browser'
-import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { Disposable } from '@theia/core/lib/common'
@@ -21,7 +20,7 @@ import * as React from '@theia/core/shared/react'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
-import { MetadataSchemaManager } from 'aroma2-common/lib/browser'
+import { MetadataSchemaManager, RoCrateEntityDeleteService } from 'aroma2-common/lib/browser'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
@@ -87,6 +86,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
     private readonly roCrateHistoryService: RoCrateHistoryService,
     @inject(MetadataSchemaManager)
     private readonly schemaManagerService: MetadataSchemaManager,
+    @inject(RoCrateEntityDeleteService)
+    private readonly roCrateEntityDeleteService: RoCrateEntityDeleteService,
     @inject(WidgetManager) private readonly widgetManager: WidgetManager,
     @inject(ApplicationShell) private readonly shell: ApplicationShell,
     @inject(ThemeService) private readonly themeService: ThemeService,
@@ -985,154 +986,26 @@ export class EntitiesOverviewWidget extends TreeWidget {
   }
 
   protected async deleteSelectedEntities(): Promise<void> {
-    const crate = this.appStateService.roCrate
-    const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : undefined
-    if (!crate || !graph) {
+    const result = await this.roCrateEntityDeleteService.deleteSelectedEntities({
+      selectedEntityIds: this.model.getSelectedEntityIds(),
+      rootEntityId: EntitiesOverviewWidget.ROOT_DATASET_ENTITY_ID,
+      appStateService: this.appStateService,
+      roCrateHistoryService: this.roCrateHistoryService,
+      shell: this.shell,
+    })
+    if (!result.changed) {
       return
     }
-
-    const deletableEntityIds = this.getDeletableSelectedEntityIds()
-    if (deletableEntityIds.length === 0) {
-      return
-    }
-
-    const idsToRemove = new Set(deletableEntityIds)
-    const confirmed = await this.confirmDeleteEntities(idsToRemove)
-    if (!confirmed) {
-      return
-    }
-
-    const updatedGraph = this.removeEntitiesAndReferences(graph, idsToRemove)
-    const updatedCrate = { ...crate, '@graph': updatedGraph }
-    const label = idsToRemove.size > 1 ? 'Delete entities' : 'Delete entity'
-    const changed = this.roCrateHistoryService.applyRoCrateChange(updatedCrate, { label })
-    if (!changed) {
-      return
-    }
-
-    const selectedEntityId = this.appStateService.selectedEntityId
-    if (selectedEntityId && idsToRemove.has(selectedEntityId)) {
-      this.appStateService.selectedEntityId = EntitiesOverviewWidget.ROOT_DATASET_ENTITY_ID
-    }
-    await this.closeDeletedEntityEditors(idsToRemove)
     this.model.clearSelection()
   }
 
   protected getDeletableSelectedEntityIds(): string[] {
-    return this.model
-      .getSelectedEntityIds()
-      .filter((entityId) => entityId !== EntitiesOverviewWidget.ROOT_DATASET_ENTITY_ID)
-  }
-
-  protected async confirmDeleteEntities(idsToRemove: ReadonlySet<string>): Promise<boolean> {
-    const deleteCount = idsToRemove.size
-    if (deleteCount === 0) {
-      return false
-    }
-
-    const confirmed = await new ConfirmDialog({
-      title: deleteCount > 1 ? 'Delete RO-Crate entities?' : 'Delete RO-Crate entity?',
-      msg:
-        deleteCount > 1
-          ? `Are you sure you want to delete the ${deleteCount} selected entities?`
-          : 'Are you sure you want to delete the selected entity?',
-      ok: 'Delete',
-      cancel: 'Cancel',
-    }).open()
-    return confirmed === true
-  }
-
-  protected async closeDeletedEntityEditors(
-    idsToRemove: ReadonlySet<string>,
-  ): Promise<void> {
-    const mapping = this.appStateService.EIRCEIA ?? {}
-    const widgetIdsToClose = Object.entries(mapping)
-      .filter(([, entityId]) => idsToRemove.has(entityId))
-      .map(([widgetId]) => widgetId)
-
-    for (const widgetId of widgetIdsToClose) {
-      try {
-        const widget = this.shell.getWidgetById(widgetId)
-        if (widget) {
-          await this.shell.closeWidget(widgetId, { save: false })
-        } else {
-          this.appStateService.unregisterEntityEditor(widgetId)
-        }
-      } catch (error) {
-        console.warn('Failed to close RO-Crate editor for deleted entity', {
-          widgetId,
-          error,
-        })
-        this.appStateService.unregisterEntityEditor(widgetId)
-      }
-    }
-  }
-
-  protected removeEntitiesAndReferences(
-    graph: ReadonlyArray<Record<string, any>>,
-    idsToRemove: ReadonlySet<string>,
-  ): Record<string, any>[] {
-    const filtered = graph.filter((entry) => {
-      const entityId = typeof entry?.['@id'] === 'string' ? entry['@id'] : ''
-      return !idsToRemove.has(entityId)
-    })
-
-    const cleaned: Record<string, any>[] = []
-    for (const entity of filtered) {
-      const normalized = this.removeReferencesFromValue(entity, idsToRemove)
-      if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
-        cleaned.push(normalized as Record<string, any>)
-      }
-    }
-    return cleaned
-  }
-
-  protected removeReferencesFromValue(
-    value: unknown,
-    idsToRemove: ReadonlySet<string>,
-  ): unknown {
-    if (typeof value === 'string' && idsToRemove.has(value)) {
-      return undefined
-    }
-
-    if (Array.isArray(value)) {
-      return value
-        .map((item) => this.removeReferencesFromValue(item, idsToRemove))
-        .filter((item) => item !== undefined)
-    }
-
-    if (value && typeof value === 'object') {
-      const objectValue = value as Record<string, unknown>
-      const referenceId = this.extractReferenceId(objectValue)
-      if (referenceId && idsToRemove.has(referenceId) && this.isReferenceObject(objectValue)) {
-        return undefined
-      }
-
-      const normalizedObject: Record<string, unknown> = {}
-      for (const [key, child] of Object.entries(objectValue)) {
-        const normalized = this.removeReferencesFromValue(child, idsToRemove)
-        if (normalized === undefined) {
-          continue
-        }
-        if (Array.isArray(normalized) && normalized.length === 0) {
-          continue
-        }
-        normalizedObject[key] = normalized
-      }
-      return normalizedObject
-    }
-
-    return value
-  }
-
-  protected extractReferenceId(value: Record<string, unknown>): string | undefined {
-    const idValue = value['@id'] ?? value.id
-    return typeof idValue === 'string' ? idValue : undefined
-  }
-
-  protected isReferenceObject(value: Record<string, unknown>): boolean {
-    const keys = Object.keys(value)
-    return keys.length === 1 && (keys[0] === '@id' || keys[0] === 'id')
+    return Array.from(
+      this.roCrateEntityDeleteService.getDeletableEntityIds(
+        this.model.getSelectedEntityIds(),
+        EntitiesOverviewWidget.ROOT_DATASET_ENTITY_ID,
+      ),
+    )
   }
 
   protected shouldIgnoreDeleteKeyEvent(target: HTMLElement | null): boolean {

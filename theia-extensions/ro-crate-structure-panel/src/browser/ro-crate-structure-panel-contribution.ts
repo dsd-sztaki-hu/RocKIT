@@ -5,6 +5,7 @@ import {
   CommonMenus,
   WidgetManager,
 } from '@theia/core/lib/browser'
+import { RoCrateDeleteSelectedEntitiesCommand } from 'aroma2-common/lib/browser'
 import type { Command, CommandRegistry } from '@theia/core/lib/common/command'
 import { inject, injectable } from 'inversify'
 import {
@@ -20,11 +21,6 @@ export const DatasetPanelCommand: Command = {
 export const RoCrateStructurePanelEditCommand: Command = {
   id: 'ro-crate-structure-panel:edit',
   label: 'Edit',
-}
-
-export const RoCrateStructurePanelDeleteCommand: Command = {
-  id: 'ro-crate-structure-panel:delete',
-  label: 'Delete',
 }
 
 @injectable()
@@ -66,20 +62,6 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
       isVisible: () => Boolean(this.getActiveStructureWidget()),
     })
 
-    registry.registerCommand(RoCrateStructurePanelDeleteCommand, {
-      execute: async () => {
-        const widget = this.getActiveStructureWidget()
-        if (!widget) {
-          return
-        }
-        await widget.deleteFromContextMenu()
-      },
-      isEnabled: () => {
-        const widget = this.getActiveStructureWidget()
-        return Boolean(widget && widget.canDeleteFromContextMenu())
-      },
-      isVisible: () => Boolean(this.getActiveStructureWidget()),
-    })
   }
 
   registerMenus(menus: MenuModelRegistry): void {
@@ -93,8 +75,8 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
       label: RoCrateStructurePanelEditCommand.label,
     })
     menus.registerMenuAction(RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU, {
-      commandId: RoCrateStructurePanelDeleteCommand.id,
-      label: RoCrateStructurePanelDeleteCommand.label,
+      commandId: RoCrateDeleteSelectedEntitiesCommand.id,
+      label: RoCrateDeleteSelectedEntitiesCommand.label,
     })
   }
 

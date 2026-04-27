@@ -2,6 +2,7 @@ import { Command, CommandRegistry, MenuModelRegistry } from '@theia/core'
 import { AbstractViewContribution, codicon } from '@theia/core/lib/browser'
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar'
 import { injectable } from '@theia/core/shared/inversify'
+import { RoCrateDeleteSelectedEntitiesCommand } from 'aroma2-common/lib/browser'
 // import { ExampleTreeNode } from './entities-overview-model'
 import {
   EntitiesOverviewWidget,
@@ -26,11 +27,6 @@ export const CollapseAllEntitiesOverviewNodes: Command = {
 export const EntitiesOverviewContextEditCommand: Command = {
   id: 'entities-overview:context-edit',
   label: 'Edit',
-}
-
-export const EntitiesOverviewContextDeleteCommand: Command = {
-  id: 'entities-overview:context-delete',
-  label: 'Delete',
 }
 
 /** Definition of a command to add a new child (to demonstrate context menus) */
@@ -91,8 +87,8 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
       label: EntitiesOverviewContextEditCommand.label,
     })
     menus.registerMenuAction(TREEVIEW_EXAMPLE_CONTEXT_MENU, {
-      commandId: EntitiesOverviewContextDeleteCommand.id,
-      label: EntitiesOverviewContextDeleteCommand.label,
+      commandId: RoCrateDeleteSelectedEntitiesCommand.id,
+      label: RoCrateDeleteSelectedEntitiesCommand.label,
     })
   }
 
@@ -123,13 +119,6 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
       isVisible: (widget) => this.withWidget(widget, () => true) || false,
     })
 
-    commands.registerCommand(EntitiesOverviewContextDeleteCommand, {
-      execute: (widget) =>
-        this.withWidget(widget, async (view) => view.deleteFromContextMenu()),
-      isEnabled: (widget) =>
-        this.withWidget(widget, (view) => view.canDeleteFromContextMenu()) || false,
-      isVisible: (widget) => this.withWidget(widget, () => true) || false,
-    })
   }
 
   async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
