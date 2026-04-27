@@ -50,6 +50,10 @@ export namespace FileNavigatorCommands {
         label: 'Search Explorer',
         iconClass: codicon('search')
     });
+    export const ADD_DATA_SOURCE_TOOLBAR: Command = {
+        id: 'navigator.addDataSource.toolbar',
+        iconClass: codicon('add')
+    };
     export const ADD_ROOT_FOLDER: Command = {
         id: 'navigator.addRootFolder'
     };
