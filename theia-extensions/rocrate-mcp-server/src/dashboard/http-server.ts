@@ -31,6 +31,7 @@ import {
 declare const __dirname: string
 
 const STATIC_DIR = __dirname
+const DEFAULT_DATAVERSE_BASE_URL = 'http://localhost:8080'
 type AccessMode = 'local' | 'remote'
 
 type SchemaRegistryStore = {
@@ -101,6 +102,32 @@ function parseQuery(url: string): Record<string, string> {
   }
 
   return query
+}
+
+function readOptionalEnv(name: string): string | undefined {
+  const value = process.env[name]
+  if (typeof value !== 'string') {
+    return undefined
+  }
+  const trimmed = value.trim()
+  return trimmed === '' ? undefined : trimmed
+}
+
+function getDataverseUploadConfig(): {
+  baseUrl: string
+  baseUrlSource: 'env' | 'default'
+  apiKey: string | null
+  apiKeySource: 'env' | 'unset'
+} {
+  const envBaseUrl = readOptionalEnv('DATAVERSE_BASE_URL')
+  const apiKey = readOptionalEnv('DATAVERSE_API_KEY')
+
+  return {
+    baseUrl: (envBaseUrl ?? DEFAULT_DATAVERSE_BASE_URL).replace(/\/+$/, ''),
+    baseUrlSource: envBaseUrl ? 'env' : 'default',
+    apiKey: apiKey ?? null,
+    apiKeySource: apiKey ? 'env' : 'unset',
+  }
 }
 
 /**
@@ -429,6 +456,7 @@ class DashboardApiHandlers {
       detailedToolCallLogging: this.config.detailedToolCallLogging,
       retentionHours: this.config.retentionHours,
       enabled: this.config.enabled,
+      dataverse: getDataverseUploadConfig(),
     })
   }
 

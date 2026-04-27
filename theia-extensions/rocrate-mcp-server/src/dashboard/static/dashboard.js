@@ -41,6 +41,10 @@ const elements = {
   cancelSettingsBtn: document.getElementById('cancelSettingsBtn'),
   closeSettingsModal: document.getElementById('closeSettingsModal'),
   settingsMessage: document.getElementById('settingsMessage'),
+  dataverseBaseUrlValue: document.getElementById('dataverseBaseUrlValue'),
+  dataverseBaseUrlSource: document.getElementById('dataverseBaseUrlSource'),
+  dataverseApiKeyValue: document.getElementById('dataverseApiKeyValue'),
+  dataverseApiKeySource: document.getElementById('dataverseApiKeySource'),
   schemaRegistryTableBody: document.querySelector('#schemaRegistryTable tbody'),
   schemaIdInput: document.getElementById('schemaIdInput'),
   schemaDisplayNameInput: document.getElementById('schemaDisplayNameInput'),
@@ -448,6 +452,21 @@ async function viewToolCall(toolCallId) {
       </div>
     `;
 
+    // Artifacts
+    if (Array.isArray(toolCall.artifacts) && toolCall.artifacts.length > 0) {
+      detailsHtml += `
+        <div class="session-detail-section">
+          <h3>Artifacts</h3>
+          ${toolCall.artifacts.map(artifact => `
+            <div class="artifact-row">
+              <div class="artifact-label">${escapeHtml(artifact.label || 'Artifact')}</div>
+              <pre class="code-block artifact-path">${escapeHtml(artifact.path || '')}</pre>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
     // Parameters
     if (toolCall.params !== undefined && toolCall.params !== null) {
       detailsHtml += `
@@ -588,9 +607,27 @@ async function loadSettings() {
     const config = await fetchAPI('/config');
     elements.detailedLoggingToggle.checked = config.detailedToolCallLogging;
     elements.retentionHoursInput.value = config.retentionHours;
+    renderDataverseSettings(config.dataverse);
   } catch (err) {
     showError(`Failed to load settings: ${err.message}`);
   }
+}
+
+function renderDataverseSettings(dataverse) {
+  const config = dataverse || {};
+  const baseUrl = config.baseUrl || '(not set)';
+  const apiKey = config.apiKey || '(not set)';
+  const baseUrlSource = config.baseUrlSource === 'env'
+    ? 'Set from DATAVERSE_BASE_URL'
+    : 'Using upload tool default';
+  const apiKeySource = config.apiKeySource === 'env'
+    ? 'Set from DATAVERSE_API_KEY'
+    : 'DATAVERSE_API_KEY is not set';
+
+  elements.dataverseBaseUrlValue.textContent = baseUrl;
+  elements.dataverseBaseUrlSource.textContent = baseUrlSource;
+  elements.dataverseApiKeyValue.textContent = apiKey;
+  elements.dataverseApiKeySource.textContent = apiKeySource;
 }
 
 async function saveSettings(e) {

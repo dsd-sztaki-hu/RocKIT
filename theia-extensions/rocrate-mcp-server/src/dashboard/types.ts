@@ -40,6 +40,11 @@ export interface HttpExchangeLog {
   error?: string
 }
 
+export interface ToolCallArtifact {
+  label: string
+  path: string
+}
+
 /**
  * A session represents a single MCP server connection/run
  * Sessions are created on first request and tracked until server shutdown
@@ -95,6 +100,8 @@ export interface ToolCall {
   resultSizeBytes?: number
   /** Captured HTTP exchanges for this tool call */
   httpLogs?: HttpExchangeLog[]
+  /** Local artifacts produced during this tool call */
+  artifacts?: ToolCallArtifact[]
 }
 
 /**

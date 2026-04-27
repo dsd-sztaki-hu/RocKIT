@@ -121,3 +121,26 @@ export function resolveRocrateMcpSocketPath(
   const base = homeDir ? path.join(homeDir, '.aroma') : path.join('/tmp', 'aroma')
   return path.join(base, 'rocrate-mcp-server.sock')
 }
+
+export function resolveRocrateMcpPidPath(
+  options: RocrateMcpConfigOptions = {},
+): string {
+  const platform = options.platform ?? process.platform
+  const homeDir = options.homeDir
+  const env =
+    typeof process === 'undefined'
+      ? {}
+      : (process.env as Record<string, string | undefined>)
+  const base =
+    platform === 'win32'
+      ? path.join(
+          env.LOCALAPPDATA || env.TEMP || homeDir || 'C:\\Temp',
+          'AROMA',
+        )
+      : homeDir
+        ? path.join(homeDir, '.aroma')
+        : path.join('/tmp', 'aroma')
+  return path.join(base, 'rocrate-mcp-server.pid')
+}
+
+export const ROCRATE_MCP_SHUTDOWN_CONTROL_MESSAGE = 'AROMA_ROCRATE_MCP_SHUTDOWN\n'

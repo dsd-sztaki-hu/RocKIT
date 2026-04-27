@@ -8,6 +8,11 @@ const http = require('node:http')
 async function testHttpServer() {
   console.log('Testing dashboard HTTP server...')
 
+  const originalDataverseBaseUrl = process.env.DATAVERSE_BASE_URL
+  const originalDataverseApiKey = process.env.DATAVERSE_API_KEY
+  process.env.DATAVERSE_BASE_URL = 'https://dataverse.example.test/'
+  process.env.DATAVERSE_API_KEY = 'test-dataverse-key'
+
   // Import modules
   const { TelemetryCollector } = await import('../lib/dashboard/collector.js')
   const { DashboardHttpServer } = await import('../lib/dashboard/http-server.js')
@@ -39,6 +44,10 @@ async function testHttpServer() {
       headers: { 'content-type': 'application/json' },
       body: '{"status":"ok"}',
     },
+  })
+  collector.addToolCallArtifact(toolCallId, {
+    label: 'Dataverse upload ZIP',
+    path: '/tmp/rocrate-dataverse-upload-test/rocrate.zip',
   })
   collector.completeToolCallSuccess(toolCallId)
   collector.recordDependencyCall('tavily', true, 150)
@@ -224,6 +233,11 @@ async function testHttpServer() {
     assert.strictEqual(Array.isArray(toolCallData.toolCall.httpLogs), true)
     assert.strictEqual(toolCallData.toolCall.httpLogs.length, 1)
     assert.strictEqual(toolCallData.toolCall.httpLogs[0].dependency, 'dataverse')
+    assert.strictEqual(toolCallData.toolCall.artifacts.length, 1)
+    assert.strictEqual(
+      toolCallData.toolCall.artifacts[0].path,
+      '/tmp/rocrate-dataverse-upload-test/rocrate.zip',
+    )
     assert.strictEqual(
       toolCallData.toolCall.httpLogs[0].request.body.includes('content omitted'),
       true,
@@ -232,6 +246,19 @@ async function testHttpServer() {
       toolCallData.toolCall.httpLogs[0].request.body.includes('temp-zip-path='),
       true,
     )
+
+    // Test /config endpoint includes Dataverse upload tool configuration
+    console.log('  Testing /config Dataverse settings...')
+    const configResp = await get('/config')
+    assert.strictEqual(configResp.status, 200)
+    const configData = JSON.parse(configResp.data)
+    assert.strictEqual(
+      configData.dataverse.baseUrl,
+      'https://dataverse.example.test',
+    )
+    assert.strictEqual(configData.dataverse.baseUrlSource, 'env')
+    assert.strictEqual(configData.dataverse.apiKey, 'test-dataverse-key')
+    assert.strictEqual(configData.dataverse.apiKeySource, 'env')
 
     // Test schema registry endpoints
     console.log('  Testing /schema-registry endpoints...')
@@ -299,6 +326,16 @@ async function testHttpServer() {
   } finally {
     // Stop the dashboard server
     await dashboard.stop()
+    if (originalDataverseBaseUrl === undefined) {
+      delete process.env.DATAVERSE_BASE_URL
+    } else {
+      process.env.DATAVERSE_BASE_URL = originalDataverseBaseUrl
+    }
+    if (originalDataverseApiKey === undefined) {
+      delete process.env.DATAVERSE_API_KEY
+    } else {
+      process.env.DATAVERSE_API_KEY = originalDataverseApiKey
+    }
   }
 }
 

@@ -65,6 +65,26 @@ function parseMessages(onMessage) {
   }
 }
 
+function listStoredZipEntries(zipPath) {
+  const data = fs.readFileSync(zipPath)
+  const entries = []
+  let offset = 0
+  while (offset + 30 <= data.length) {
+    const signature = data.readUInt32LE(offset)
+    if (signature !== 0x04034b50) {
+      break
+    }
+    const compressedSize = data.readUInt32LE(offset + 18)
+    const fileNameLength = data.readUInt16LE(offset + 26)
+    const extraLength = data.readUInt16LE(offset + 28)
+    const nameStart = offset + 30
+    const nameEnd = nameStart + fileNameLength
+    entries.push(data.slice(nameStart, nameEnd).toString('utf8'))
+    offset = nameEnd + extraLength + compressedSize
+  }
+  return entries
+}
+
 async function startMockWebToolsServer(profileUrl) {
   const dataverseState = {
     lastUploaded: null,
@@ -235,6 +255,12 @@ async function startMockWebToolsServer(profileUrl) {
     if (parsedUrl.pathname === '/api/arp/uploadRoCrateZip' && req.method === 'POST') {
       req.on('data', () => {})
       req.on('end', () => {
+        if (parsedUrl.searchParams.get('ownerId') === 'fail-upload') {
+          res.statusCode = 500
+          res.setHeader('content-type', 'application/json')
+          res.end(JSON.stringify({ status: 'ERROR', message: 'Mock upload failure' }))
+          return
+        }
         res.statusCode = 200
         res.setHeader('content-type', 'application/json')
         res.end(JSON.stringify({ status: 'OK', pid: 'hdl:21.T15999/DSDDEV/MOCKPID' }))
@@ -423,6 +449,9 @@ async function run() {
   )
   fs.mkdirSync(path.join(tempRoot, 'folder'))
   fs.writeFileSync(path.join(tempRoot, 'folder', 'x.txt'), 'hello\n', 'utf8')
+  fs.writeFileSync(path.join(tempRoot, 'folder', 'bare.txt'), 'bare\n', 'utf8')
+  fs.mkdirSync(path.join(tempRoot, 'folder', 'nested'))
+  fs.writeFileSync(path.join(tempRoot, 'folder', 'nested', 'inside.txt'), 'inside\n', 'utf8')
 
   const serverPath = path.resolve(__dirname, '../lib/server.js')
   const child = spawn('node', [serverPath], {
@@ -905,6 +934,41 @@ async function run() {
     assert.ok(Array.isArray(searchPayload.results), 'search should return results array')
     assert.equal(searchPayload.results[0].url, 'https://example.org/mock')
 
+    const crateBeforeDataverseUpload = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    const rootBeforeDataverseUpload = crateBeforeDataverseUpload['@graph'].find(
+      (entity) => entity['@id'] === './',
+    )
+    rootBeforeDataverseUpload.hasPart = [
+      ...(Array.isArray(rootBeforeDataverseUpload.hasPart)
+        ? rootBeforeDataverseUpload.hasPart
+        : []),
+      { '@id': './folder/x.txt' },
+      { '@id': 'folder/bare.txt' },
+      { '@id': 'folder/' },
+    ]
+    crateBeforeDataverseUpload['@graph'].push(
+      {
+        '@id': './folder/x.txt',
+        '@type': 'File',
+        name: 'Prefixed file',
+      },
+      {
+        '@id': 'folder/bare.txt',
+        '@type': 'File',
+        name: 'Bare relative file',
+      },
+      {
+        '@id': 'folder/',
+        '@type': 'Dataset',
+        name: 'Folder dataset',
+      },
+    )
+    fs.writeFileSync(
+      cratePath,
+      `${JSON.stringify(crateBeforeDataverseUpload, null, 2)}\n`,
+      'utf8',
+    )
+
     const tempUploadPrefix = 'rocrate-dataverse-upload-'
     const tempEntriesBeforeUpload = fs
       .readdirSync(os.tmpdir(), { withFileTypes: true })
@@ -942,6 +1006,42 @@ async function run() {
       tempEntriesBeforeUpload,
       'Dataverse ZIP temp directory should be cleaned up after upload',
     )
+
+    const failedUploadResponse = await request('tools/call', {
+      name: 'upload_rocrate_to_dataverse',
+      arguments: {
+        cratePath,
+        write: true,
+        baseUrl: webToolsMock.baseUrl,
+        ownerId: 'fail-upload',
+      },
+    })
+    assert.ok(failedUploadResponse.error, 'failed upload should return an error')
+    const failedUploadMessage = failedUploadResponse.error.message
+    assert.match(failedUploadMessage, /Dataverse upload failed \(500\)/)
+    assert.match(failedUploadMessage, /ZIP preserved at /)
+    const preservedZipPath = failedUploadMessage.match(/ZIP preserved at (.+)$/)?.[1]
+    assert.ok(preservedZipPath, 'failed upload error should include preserved ZIP path')
+    assert.ok(fs.existsSync(preservedZipPath), 'failed upload should keep ZIP on disk')
+    const preservedZipEntries = listStoredZipEntries(preservedZipPath)
+    assert.ok(
+      preservedZipEntries.includes('folder/x.txt'),
+      'Dataverse ZIP should include ./-prefixed file entity paths',
+    )
+    assert.ok(
+      preservedZipEntries.includes('folder/bare.txt'),
+      'Dataverse ZIP should include bare relative file entity paths',
+    )
+    assert.equal(
+      preservedZipEntries.includes('folder/'),
+      false,
+      'Dataverse ZIP should not include directory entries as empty files',
+    )
+    assert.ok(
+      preservedZipEntries.includes('folder/nested/inside.txt'),
+      'Dataverse ZIP should recursively include files from referenced directories',
+    )
+    fs.rmSync(path.dirname(preservedZipPath), { recursive: true, force: true })
 
     const crateWithArpPid = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
     const crateWithArpPidRoot = crateWithArpPid['@graph'].find((entity) => entity['@id'] === './')
