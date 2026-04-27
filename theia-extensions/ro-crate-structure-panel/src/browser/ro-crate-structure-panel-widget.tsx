@@ -8,6 +8,7 @@ import {
 } from '@theia/core/lib/browser'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
+import { CommandService } from '@theia/core/lib/common/command'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
@@ -36,6 +37,7 @@ interface CrateNode {
 export const RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU: MenuPath = [
   'ro-crate-structure-panel:context-menu',
 ]
+const RO_CRATE_STRUCTURE_PANEL_DELETE_COMMAND_ID = 'ro-crate-structure-panel:delete'
 
 @injectable()
 export class RoCrateStructurePanelWidget extends ReactWidget {
@@ -58,6 +60,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected readonly shell: ApplicationShell
   @inject(ContextMenuRenderer)
   protected readonly contextMenuRenderer: ContextMenuRenderer
+  @inject(CommandService)
+  protected readonly commandService: CommandService
   @inject(WorkspaceService)
   protected readonly workspaceService: WorkspaceService
   @inject(FileService)
@@ -238,6 +242,50 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       context: event.currentTarget,
       anchor: { x, y },
     })
+  }
+
+  protected readonly handleTreeKeyDown = (
+    event: React.KeyboardEvent<HTMLDivElement>,
+  ): void => {
+    if (event.key !== 'Delete' || event.defaultPrevented || event.repeat) {
+      return
+    }
+    if (this.isKeyboardEventFromEditableElement(event)) {
+      return
+    }
+    if (!this.canDeleteFromContextMenu()) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    void this.executeDeleteCommandFromKeyboard()
+  }
+
+  protected isKeyboardEventFromEditableElement(
+    event: React.KeyboardEvent,
+  ): boolean {
+    const target = event.target
+    const element =
+      target instanceof HTMLElement
+        ? target
+        : target instanceof Node
+          ? target.parentElement
+          : undefined
+    if (!element) {
+      return false
+    }
+    if (element.isContentEditable) {
+      return true
+    }
+    return Boolean(element.closest('input, textarea, select, [contenteditable="true"]'))
+  }
+
+  protected async executeDeleteCommandFromKeyboard(): Promise<void> {
+    await this.shell.activateWidget(this.id)
+    await this.commandService.executeCommand(
+      RO_CRATE_STRUCTURE_PANEL_DELETE_COMMAND_ID,
+    )
   }
 
   protected buildCrateTree(
@@ -1022,7 +1070,13 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           </span>
         </button>
 
-        <div ref={this.treeViewportRef} className="ro-crate-structure-tree-viewport">
+        <div
+          ref={this.treeViewportRef}
+          className="ro-crate-structure-tree-viewport"
+          tabIndex={0}
+          onKeyDown={this.handleTreeKeyDown}
+          onMouseDown={() => this.treeViewportRef.current?.focus()}
+        >
           <Tree
             className="ro-crate-structure-tree"
             style={{ minWidth: '100%' }}
