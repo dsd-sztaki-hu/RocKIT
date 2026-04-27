@@ -6,6 +6,7 @@ import {
   Widget,
   WidgetManager,
 } from '@theia/core/lib/browser'
+import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { CommandService } from '@theia/core/lib/common/command'
@@ -593,7 +594,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       return
     }
 
-    const idsToRemove = this.resolveCascadeDeletionIds(graph, new Set(deletableEntityIds))
+    const idsToRemove = new Set(deletableEntityIds)
+    const confirmed = await this.confirmDeleteEntities(idsToRemove)
+    if (!confirmed) {
+      return
+    }
+
     const updatedGraph = this.removeEntitiesAndReferences(graph, idsToRemove)
     const updatedCrate = { ...crate, '@graph': updatedGraph }
     const label = idsToRemove.size > 1 ? 'Delete entities' : 'Delete entity'
@@ -606,6 +612,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     if (selectedEntityId && idsToRemove.has(selectedEntityId)) {
       this.appStateService.selectedEntityId = RoCrateStructurePanelWidget.ROOT_DATASET_ENTITY_ID
     }
+    await this.closeDeletedEntityEditors(idsToRemove)
 
     const remainingSelected = Array.from(this.selectedEntityIds.values()).filter(
       (entityId) => !idsToRemove.has(entityId),
@@ -624,92 +631,47 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     )
   }
 
-  protected resolveCascadeDeletionIds(
-    graph: ReadonlyArray<Record<string, any>>,
-    seedIds: Set<string>,
-  ): Set<string> {
-    const idsToRemove = new Set(seedIds)
-    const entityById = new Map<string, Record<string, any>>()
-    for (const entry of graph) {
-      const entityId = typeof entry?.['@id'] === 'string' ? entry['@id'] : undefined
-      if (!entityId) {
-        continue
-      }
-      entityById.set(entityId, entry)
+  protected async confirmDeleteEntities(idsToRemove: ReadonlySet<string>): Promise<boolean> {
+    const deleteCount = idsToRemove.size
+    if (deleteCount === 0) {
+      return false
     }
 
-    const outgoingById = new Map<string, Set<string>>()
-    const incomingById = new Map<string, Set<string>>()
-
-    for (const [entityId, entity] of entityById.entries()) {
-      const outgoing = new Set<string>()
-      for (const [key, value] of Object.entries(entity)) {
-        if (key === '@id' || key === 'id') {
-          continue
-        }
-        this.collectReferenceIds(value, outgoing)
-      }
-      const normalizedOutgoing = new Set(
-        Array.from(outgoing.values()).filter((targetId) => entityById.has(targetId)),
-      )
-      outgoingById.set(entityId, normalizedOutgoing)
-
-      for (const targetId of normalizedOutgoing) {
-        const incoming = incomingById.get(targetId) ?? new Set<string>()
-        incoming.add(entityId)
-        incomingById.set(targetId, incoming)
-      }
-    }
-
-    const queue = Array.from(idsToRemove.values())
-    while (queue.length > 0) {
-      const sourceId = queue.shift()
-      if (!sourceId) {
-        continue
-      }
-      const outgoing = outgoingById.get(sourceId)
-      if (!outgoing) {
-        continue
-      }
-      for (const targetId of outgoing) {
-        if (
-          targetId === RoCrateStructurePanelWidget.ROOT_DATASET_ENTITY_ID ||
-          idsToRemove.has(targetId)
-        ) {
-          continue
-        }
-        const incoming = incomingById.get(targetId) ?? new Set<string>()
-        const hasExternalReference = Array.from(incoming.values()).some(
-          (referrerId) => !idsToRemove.has(referrerId),
-        )
-        if (!hasExternalReference) {
-          idsToRemove.add(targetId)
-          queue.push(targetId)
-        }
-      }
-    }
-
-    return idsToRemove
+    const confirmed = await new ConfirmDialog({
+      title: deleteCount > 1 ? 'Delete RO-Crate entities?' : 'Delete RO-Crate entity?',
+      msg:
+        deleteCount > 1
+          ? `Are you sure you want to delete the ${deleteCount} selected entities?`
+          : 'Are you sure you want to delete the selected entity?',
+      ok: 'Delete',
+      cancel: 'Cancel',
+    }).open()
+    return confirmed === true
   }
 
-  protected collectReferenceIds(value: unknown, collector: Set<string>): void {
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        this.collectReferenceIds(item, collector)
+  protected async closeDeletedEntityEditors(
+    idsToRemove: ReadonlySet<string>,
+  ): Promise<void> {
+    const mapping = this.appStateService.EIRCEIA ?? {}
+    const widgetIdsToClose = Object.entries(mapping)
+      .filter(([, entityId]) => idsToRemove.has(entityId))
+      .map(([widgetId]) => widgetId)
+
+    for (const widgetId of widgetIdsToClose) {
+      try {
+        const widget = this.shell.getWidgetById(widgetId)
+        if (widget) {
+          await this.shell.closeWidget(widgetId, { save: false })
+        } else {
+          this.appStateService.unregisterEntityEditor(widgetId)
+        }
+      } catch (error) {
+        console.warn('Failed to close RO-Crate editor for deleted entity', {
+          widgetId,
+          error,
+        })
+        this.appStateService.unregisterEntityEditor(widgetId)
       }
-      return
-    }
-    if (!value || typeof value !== 'object') {
-      return
-    }
-    const objectValue = value as Record<string, unknown>
-    const referenceId = this.extractReferenceId(objectValue)
-    if (referenceId && this.isReferenceObject(objectValue)) {
-      collector.add(referenceId)
-      return
-    }
-    for (const child of Object.values(objectValue)) {
-      this.collectReferenceIds(child, collector)
     }
   }
 
@@ -736,6 +698,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     value: unknown,
     idsToRemove: ReadonlySet<string>,
   ): unknown {
+    if (typeof value === 'string' && idsToRemove.has(value)) {
+      return undefined
+    }
+
     if (Array.isArray(value)) {
       return value
         .map((item) => this.removeReferencesFromValue(item, idsToRemove))
