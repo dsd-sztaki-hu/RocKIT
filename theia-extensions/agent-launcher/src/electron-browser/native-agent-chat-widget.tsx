@@ -4,16 +4,18 @@ import { ApplicationShell, OpenerService, Widget, WidgetManager, open } from '@t
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { ClipboardService } from '@theia/core/lib/browser/clipboard-service'
+import { QuickInputService, QuickPickItem } from '@theia/core/lib/browser/quick-input'
 import { FileUri } from '@theia/core/lib/common/file-uri'
 import { MessageService } from '@theia/core/lib/common/message-service'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { inject, injectable } from '@theia/core/shared/inversify'
+import { inject, injectable, optional } from '@theia/core/shared/inversify'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import {
   NativeAgentProvider,
+  NativeChatSessionIndex,
   NativeAgentMessage,
   NativeAgentMessageDetail,
   NativeAgentService,
@@ -64,9 +66,12 @@ type NativeAgentChatViewProps = {
   onSelectEntity: (entityId: string) => void
   onOpenLink: (href: string) => void
   onCopyChat: () => void
+  onShowHistory: () => void
+  onSearchPromptHistory: () => Promise<string | undefined>
   onCancel: () => void
   onSend: (text: string) => Promise<void>
   onError: (error: unknown) => void
+  promptHistory: string[]
 }
 
 type NativeAgentChatViewState = {
@@ -88,6 +93,8 @@ class NativeAgentChatView extends React.Component<
   protected followChatEnd = true
   protected scrollFrame: number | undefined
   protected autoScrollPending = false
+  protected promptHistoryIndex: number | undefined
+  protected draftBeforeHistory = ''
   protected readonly markdown = this.createMarkdownRenderer()
 
   protected createMarkdownRenderer(): MarkdownIt {
@@ -146,6 +153,14 @@ class NativeAgentChatView extends React.Component<
             </div>
           </div>
           <div className="native-agent-chat-header-actions">
+            <button
+              type="button"
+              className="native-agent-copy-chat"
+              title="Show previous chats"
+              onClick={this.handleShowHistory}
+            >
+              History
+            </button>
             <button
               type="button"
               className="native-agent-copy-chat"
@@ -775,10 +790,71 @@ class NativeAgentChatView extends React.Component<
   }
 
   protected readonly handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'r') {
+      event.preventDefault()
+      void this.searchPromptHistory()
+      return
+    }
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
       event.preventDefault()
       void this.submitDraft()
+      return
     }
+    if (event.key === 'ArrowUp' && this.shouldNavigatePromptHistory(event.currentTarget, 'previous')) {
+      event.preventDefault()
+      this.navigatePromptHistory('previous')
+      return
+    }
+    if (event.key === 'ArrowDown' && this.shouldNavigatePromptHistory(event.currentTarget, 'next')) {
+      event.preventDefault()
+      this.navigatePromptHistory('next')
+    }
+  }
+
+  protected shouldNavigatePromptHistory(
+    textarea: HTMLTextAreaElement,
+    direction: 'previous' | 'next',
+  ): boolean {
+    if (!this.props.promptHistory.length) {
+      return false
+    }
+    if (!this.state.draft.trim()) {
+      return true
+    }
+    const cursor = textarea.selectionStart
+    if (textarea.selectionStart !== textarea.selectionEnd) {
+      return false
+    }
+    if (direction === 'previous') {
+      return !textarea.value.slice(0, cursor).includes('\n')
+    }
+    return !textarea.value.slice(cursor).includes('\n')
+  }
+
+  protected navigatePromptHistory(direction: 'previous' | 'next'): void {
+    const history = this.props.promptHistory
+    if (!history.length) {
+      return
+    }
+    if (this.promptHistoryIndex === undefined) {
+      this.draftBeforeHistory = this.state.draft
+      if (direction === 'next') {
+        return
+      }
+      this.promptHistoryIndex = 0
+      this.setState({ draft: history[0] })
+      return
+    }
+    const nextIndex = direction === 'previous'
+      ? Math.min(this.promptHistoryIndex + 1, history.length - 1)
+      : this.promptHistoryIndex - 1
+    if (nextIndex < 0) {
+      this.promptHistoryIndex = undefined
+      this.setState({ draft: this.draftBeforeHistory })
+      return
+    }
+    this.promptHistoryIndex = nextIndex
+    this.setState({ draft: history[nextIndex] })
   }
 
   protected readonly handleSubmit = (event: React.FormEvent): void => {
@@ -792,6 +868,19 @@ class NativeAgentChatView extends React.Component<
 
   protected readonly handleCopyChat = (): void => {
     this.props.onCopyChat()
+  }
+
+  protected readonly handleShowHistory = (): void => {
+    this.props.onShowHistory()
+  }
+
+  protected async searchPromptHistory(): Promise<void> {
+    const selected = await this.props.onSearchPromptHistory()
+    if (selected !== undefined) {
+      this.promptHistoryIndex = undefined
+      this.draftBeforeHistory = ''
+      this.setState({ draft: selected })
+    }
   }
 
   protected getWorkspaceLabel(cwd: string): string {
@@ -852,6 +941,9 @@ export class NativeAgentChatWidget extends ReactWidget {
   @inject(ClipboardService)
   protected readonly clipboardService: ClipboardService
 
+  @inject(QuickInputService) @optional()
+  protected readonly quickInputService: QuickInputService | undefined
+
   @inject(OpenerService)
   protected readonly openerService: OpenerService
 
@@ -875,6 +967,7 @@ export class NativeAgentChatWidget extends ReactWidget {
   protected readonly editorFocusOrder: string[] = []
   protected readonly promptedDataverseUploadKeys = new Set<string>()
   protected dataverseReplacementPrompt: Promise<void> | undefined
+  protected promptHistory: string[] = []
 
   initWidget(): void {
     if (this.initialized) {
@@ -924,6 +1017,7 @@ export class NativeAgentChatWidget extends ReactWidget {
     this.provider = options.provider
     this.cwd = options.cwd
     this.session = await this.nativeAgentService.startSession(options)
+    await this.refreshPromptHistory()
     this.updateTitle()
     this.update()
     void this.maybePromptForDataverseCrateReplacement()
@@ -948,9 +1042,12 @@ export class NativeAgentChatWidget extends ReactWidget {
         onSelectEntity={this.handleSelectEntity}
         onOpenLink={this.handleOpenLink}
         onCopyChat={this.handleCopyChat}
+        onShowHistory={this.handleShowHistory}
+        onSearchPromptHistory={this.handleSearchPromptHistory}
         onCancel={this.handleCancel}
         onSend={this.handleSend}
         onError={this.handleError}
+        promptHistory={this.promptHistory}
       />
     )
   }
@@ -969,6 +1066,92 @@ export class NativeAgentChatWidget extends ReactWidget {
 
   protected readonly handleCopyChat = (): void => {
     void this.copyFullChatTranscript()
+  }
+
+  protected readonly handleShowHistory = (): void => {
+    void this.showChatHistory()
+  }
+
+  protected readonly handleSearchPromptHistory = async (): Promise<string | undefined> => {
+    return this.showPromptHistorySearch()
+  }
+
+  protected async refreshPromptHistory(): Promise<void> {
+    const entries = await this.nativeAgentService.listPromptHistory({
+      cwd: this.cwd,
+      provider: this.provider,
+      limit: 200,
+    })
+    this.promptHistory = entries.map((entry) => entry.text)
+  }
+
+  protected async showPromptHistorySearch(): Promise<string | undefined> {
+    if (!this.quickInputService) {
+      return undefined
+    }
+    const entries = await this.nativeAgentService.listPromptHistory({
+      cwd: this.cwd,
+      provider: this.provider,
+      limit: 200,
+    })
+    const picks = entries.map((entry): QuickPickItem & { text: string } => ({
+      label: this.truncateForPick(entry.text, 80),
+      description: new Date(entry.sentAt).toLocaleString(),
+      detail: entry.text,
+      text: entry.text,
+    }))
+    const selected = await this.quickInputService.showQuickPick(picks, {
+      title: 'Search Prompt History',
+      placeholder: 'Search previous prompts',
+      matchOnDescription: true,
+      matchOnDetail: true,
+    })
+    return selected?.text
+  }
+
+  protected async showChatHistory(): Promise<void> {
+    if (!this.quickInputService) {
+      return
+    }
+    const sessions = await this.nativeAgentService.listChatSessions({
+      cwd: this.cwd,
+      provider: this.provider,
+    })
+    const picks = sessions.map((entry): QuickPickItem & { session: NativeChatSessionIndex } => ({
+      label: entry.title,
+      description: `${entry.provider} · ${new Date(entry.updatedAt).toLocaleString()}`,
+      detail: entry.preview || `${entry.messageCount} messages`,
+      session: entry,
+    }))
+    const selected = await this.quickInputService.showQuickPick(picks, {
+      title: 'Chat History',
+      placeholder: 'Select a previous chat to reopen',
+      matchOnDescription: true,
+      matchOnDetail: true,
+    })
+    if (!selected) {
+      return
+    }
+    await this.reopenChatSession(selected.session.id)
+  }
+
+  protected async reopenChatSession(sessionId: string): Promise<void> {
+    if (this.session?.id === sessionId) {
+      return
+    }
+    this.session = await this.nativeAgentService.startSession({
+      provider: this.provider,
+      cwd: this.cwd,
+      resumeSessionId: sessionId,
+    })
+    await this.refreshPromptHistory()
+    this.updateTitle()
+    this.update()
+  }
+
+  protected truncateForPick(text: string, maxLength: number): string {
+    const normalized = text.replace(/\s+/g, ' ').trim()
+    return normalized.length <= maxLength ? normalized : `${normalized.slice(0, maxLength - 1)}…`
   }
 
   protected async copyFullChatTranscript(): Promise<void> {
@@ -1389,6 +1572,7 @@ export class NativeAgentChatWidget extends ReactWidget {
         validationErrors: this.appStateService.validationErrors,
       },
     })
+    await this.refreshPromptHistory()
     this.update()
     void this.maybePromptForDataverseCrateReplacement()
   }

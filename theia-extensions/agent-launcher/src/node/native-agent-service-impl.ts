@@ -1,3 +1,5 @@
+import * as fs from 'fs'
+import * as os from 'os'
 import * as path from 'path'
 import { Emitter } from '@theia/core/lib/common/event'
 import { injectable } from '@theia/core/shared/inversify'
@@ -10,11 +12,13 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import {
   NativeAgentClient,
+  NativeChatSessionIndex,
   NativeAgentMessage,
   NativeAgentProvider,
   NativeAgentServer,
   NativeAgentSession,
   NativeAgentSessionEvent,
+  NativePromptHistoryEntry,
   SendNativeAgentMessageInput,
   StartNativeAgentSessionInput,
 } from '../common/native-agent-protocol'
@@ -32,6 +36,12 @@ type Adapter = {
 type SessionRecord = {
   session: NativeAgentSession
   adapter?: Adapter
+  title?: string
+}
+
+type StoredNativeChatSession = NativeChatSessionIndex & {
+  messages: NativeAgentMessage[]
+  lastError?: string
 }
 
 function nowIso(): string {
@@ -652,25 +662,42 @@ export class NativeAgentServiceImpl implements NativeAgentServer {
   readonly onDidChangeSession = this.onDidChangeSessionEmitter.event
   protected readonly sessions = new Map<string, SessionRecord>()
   protected client: NativeAgentClient | undefined
+  protected readonly historyRoot = path.join(os.homedir(), '.aroma', 'native-chat-history')
+  protected readonly sessionsRoot = path.join(this.historyRoot, 'sessions')
+  protected readonly promptHistoryPath = path.join(this.historyRoot, 'prompt-history.json')
 
   setClient(client: NativeAgentClient | undefined): void {
     this.client = client
   }
 
   async startSession(input: StartNativeAgentSessionInput): Promise<NativeAgentSession> {
-    const session: NativeAgentSession = {
-      id: id('session'),
-      provider: input.provider,
-      cwd: input.cwd,
-      status: 'ready',
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-      messages: [],
-    }
-    const record: SessionRecord = { session }
+    const stored = input.resumeSessionId ? this.readStoredSession(input.resumeSessionId) : undefined
+    const session: NativeAgentSession = stored
+      ? {
+          id: stored.id,
+          provider: stored.provider,
+          cwd: stored.cwd,
+          status: 'ready',
+          createdAt: stored.createdAt,
+          updatedAt: nowIso(),
+          messages: stored.messages ?? [],
+          lastError: stored.lastError,
+        }
+      : {
+          id: id('session'),
+          provider: input.provider,
+          cwd: input.cwd,
+          status: 'ready',
+          createdAt: nowIso(),
+          updatedAt: nowIso(),
+          messages: [],
+        }
+    const record: SessionRecord = { session, title: stored?.title }
     record.adapter = this.createAdapter(input.provider, record)
     this.sessions.set(session.id, record)
-    appendMessage(session, 'system', `Native ${input.provider === 'codex' ? 'Codex' : 'Claude'} chat started for ${input.cwd}.`)
+    if (!stored) {
+      appendMessage(session, 'system', `Native ${input.provider === 'codex' ? 'Codex' : 'Claude'} chat started for ${input.cwd}.`)
+    }
     this.publish(record)
     return session
   }
@@ -680,12 +707,70 @@ export class NativeAgentServiceImpl implements NativeAgentServer {
     return session ? this.clone(session) : undefined
   }
 
+  async listChatSessions(input?: { cwd?: string; provider?: NativeAgentProvider }): Promise<NativeChatSessionIndex[]> {
+    const sessions = this.readSessionIndex()
+      .filter((entry) => !input?.cwd || entry.cwd === input.cwd)
+      .filter((entry) => !input?.provider || entry.provider === input.provider)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    return this.clone(sessions)
+  }
+
+  async deleteChatSession(sessionId: string): Promise<void> {
+    const record = this.sessions.get(sessionId)
+    record?.adapter?.dispose()
+    this.sessions.delete(sessionId)
+    const index = this.readSessionIndex().filter((entry) => entry.id !== sessionId)
+    this.writeSessionIndex(index)
+    try {
+      fs.rmSync(this.sessionPath(sessionId), { force: true })
+    } catch {}
+  }
+
+  async renameChatSession(
+    sessionId: string,
+    title: string,
+  ): Promise<NativeChatSessionIndex | undefined> {
+    const trimmed = title.trim()
+    if (!trimmed) {
+      return undefined
+    }
+    const stored = this.readStoredSession(sessionId)
+    if (!stored) {
+      return undefined
+    }
+    stored.title = trimmed
+    this.writeStoredSession(stored)
+    const live = this.sessions.get(sessionId)
+    if (live) {
+      live.title = trimmed
+      this.persistSession(live)
+    }
+    return this.clone(this.toSessionIndex(stored))
+  }
+
+  async listPromptHistory(input: {
+    cwd: string
+    provider: NativeAgentProvider
+    query?: string
+    limit?: number
+  }): Promise<NativePromptHistoryEntry[]> {
+    const query = input.query?.trim().toLowerCase() ?? ''
+    const limit = Math.max(1, Math.min(Number(input.limit ?? 100), 500))
+    const entries = this.readPromptHistory()
+      .filter((entry) => entry.cwd === input.cwd && entry.provider === input.provider)
+      .filter((entry) => !query || entry.text.toLowerCase().includes(query))
+      .sort((a, b) => b.sentAt.localeCompare(a.sentAt))
+      .slice(0, limit)
+    return this.clone(entries)
+  }
+
   async sendMessage(input: SendNativeAgentMessageInput): Promise<NativeAgentSession> {
     const record = this.requireSession(input.sessionId)
     if (record.session.status === 'running') {
       throw new Error('The native agent is still working on the previous message.')
     }
     appendMessage(record.session, 'user', input.text)
+    this.recordPrompt(record.session.provider, record.session.cwd, input.text)
     record.session.status = 'running'
     this.publish(record)
     try {
@@ -715,6 +800,180 @@ export class NativeAgentServiceImpl implements NativeAgentServer {
     const record = this.sessions.get(sessionId)
     record?.adapter?.dispose()
     this.sessions.delete(sessionId)
+  }
+
+  protected ensureHistoryDirs(): void {
+    fs.mkdirSync(this.sessionsRoot, { recursive: true })
+  }
+
+  protected indexPath(): string {
+    return path.join(this.historyRoot, 'sessions-index.json')
+  }
+
+  protected sessionPath(sessionId: string): string {
+    return path.join(this.sessionsRoot, `${sessionId}.json`)
+  }
+
+  protected readSessionIndex(): NativeChatSessionIndex[] {
+    try {
+      const raw = fs.readFileSync(this.indexPath(), 'utf8')
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed.filter(this.isSessionIndex) : []
+    } catch {
+      return []
+    }
+  }
+
+  protected writeSessionIndex(index: NativeChatSessionIndex[]): void {
+    this.ensureHistoryDirs()
+    fs.writeFileSync(this.indexPath(), `${JSON.stringify(index, null, 2)}\n`, 'utf8')
+  }
+
+  protected readStoredSession(sessionId: string): StoredNativeChatSession | undefined {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(this.sessionPath(sessionId), 'utf8'))
+      const record = parsed as Record<string, unknown>
+      if (!this.isSessionIndex(parsed) || !Array.isArray(record.messages)) {
+        return undefined
+      }
+      return parsed as StoredNativeChatSession
+    } catch {
+      return undefined
+    }
+  }
+
+  protected writeStoredSession(stored: StoredNativeChatSession): void {
+    this.ensureHistoryDirs()
+    fs.writeFileSync(this.sessionPath(stored.id), `${JSON.stringify(stored, null, 2)}\n`, 'utf8')
+    const next = this.readSessionIndex().filter((entry) => entry.id !== stored.id)
+    next.push(this.toSessionIndex(stored))
+    this.writeSessionIndex(next.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)))
+  }
+
+  protected persistSession(record: SessionRecord): void {
+    const stored = this.toStoredSession(record)
+    this.writeStoredSession(stored)
+  }
+
+  protected toStoredSession(record: SessionRecord): StoredNativeChatSession {
+    const index = this.toSessionIndex({
+      id: record.session.id,
+      provider: record.session.provider,
+      cwd: record.session.cwd,
+      createdAt: record.session.createdAt,
+      updatedAt: record.session.updatedAt,
+      title: record.title ?? this.deriveSessionTitle(record.session),
+      preview: this.deriveSessionPreview(record.session),
+      messageCount: record.session.messages.length,
+    })
+    return {
+      ...index,
+      messages: record.session.messages,
+      lastError: record.session.lastError,
+    }
+  }
+
+  protected toSessionIndex(value: {
+    id: string
+    provider: NativeAgentProvider
+    cwd: string
+    title: string
+    preview: string
+    createdAt: string
+    updatedAt: string
+    messageCount: number
+  }): NativeChatSessionIndex {
+    return {
+      id: value.id,
+      provider: value.provider,
+      cwd: value.cwd,
+      title: value.title,
+      preview: value.preview,
+      createdAt: value.createdAt,
+      updatedAt: value.updatedAt,
+      messageCount: value.messageCount,
+    }
+  }
+
+  protected deriveSessionTitle(session: NativeAgentSession): string {
+    const firstUser = session.messages.find((message) => message.role === 'user' && message.text.trim())
+    if (firstUser) {
+      return this.truncateLine(firstUser.text, 64)
+    }
+    return `${session.provider === 'codex' ? 'Codex' : 'Claude'} chat ${session.createdAt}`
+  }
+
+  protected deriveSessionPreview(session: NativeAgentSession): string {
+    const message = [...session.messages].reverse().find((entry) => entry.text.trim())
+    return message ? this.truncateLine(message.text, 120) : ''
+  }
+
+  protected truncateLine(text: string, maxLength: number): string {
+    const line = text.replace(/\s+/g, ' ').trim()
+    return line.length <= maxLength ? line : `${line.slice(0, maxLength - 1)}…`
+  }
+
+  protected isSessionIndex(value: unknown): value is NativeChatSessionIndex {
+    if (!value || typeof value !== 'object') {
+      return false
+    }
+    const record = value as Record<string, unknown>
+    return (
+      typeof record.id === 'string' &&
+      (record.provider === 'codex' || record.provider === 'claude') &&
+      typeof record.cwd === 'string' &&
+      typeof record.title === 'string' &&
+      typeof record.preview === 'string' &&
+      typeof record.createdAt === 'string' &&
+      typeof record.updatedAt === 'string' &&
+      typeof record.messageCount === 'number'
+    )
+  }
+
+  protected readPromptHistory(): NativePromptHistoryEntry[] {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(this.promptHistoryPath, 'utf8'))
+      return Array.isArray(parsed) ? parsed.filter(this.isPromptHistoryEntry) : []
+    } catch {
+      return []
+    }
+  }
+
+  protected writePromptHistory(entries: NativePromptHistoryEntry[]): void {
+    this.ensureHistoryDirs()
+    fs.writeFileSync(this.promptHistoryPath, `${JSON.stringify(entries, null, 2)}\n`, 'utf8')
+  }
+
+  protected recordPrompt(provider: NativeAgentProvider, cwd: string, text: string): void {
+    const trimmed = text.trim()
+    if (!trimmed) {
+      return
+    }
+    const entries = this.readPromptHistory()
+    const latest = entries
+      .filter((entry) => entry.provider === provider && entry.cwd === cwd)
+      .sort((a, b) => b.sentAt.localeCompare(a.sentAt))[0]
+    if (latest?.text === trimmed) {
+      return
+    }
+    const next = [
+      { provider, cwd, text: trimmed, sentAt: nowIso() },
+      ...entries,
+    ].slice(0, 2000)
+    this.writePromptHistory(next)
+  }
+
+  protected isPromptHistoryEntry(value: unknown): value is NativePromptHistoryEntry {
+    if (!value || typeof value !== 'object') {
+      return false
+    }
+    const record = value as Record<string, unknown>
+    return (
+      (record.provider === 'codex' || record.provider === 'claude') &&
+      typeof record.cwd === 'string' &&
+      typeof record.text === 'string' &&
+      typeof record.sentAt === 'string'
+    )
   }
 
   protected createAdapter(provider: NativeAgentProvider, record: SessionRecord): Adapter {
@@ -752,6 +1011,7 @@ export class NativeAgentServiceImpl implements NativeAgentServer {
   }
 
   protected publish(record: SessionRecord): void {
+    this.persistSession(record)
     const event = {
       sessionId: record.session.id,
       session: this.clone(record.session),

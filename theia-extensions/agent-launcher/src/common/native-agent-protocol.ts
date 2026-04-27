@@ -37,6 +37,7 @@ export interface NativeAgentSession {
 export interface StartNativeAgentSessionInput {
   provider: NativeAgentProvider
   cwd: string
+  resumeSessionId?: string
 }
 
 export interface SendNativeAgentMessageInput {
@@ -60,6 +61,24 @@ export interface NativeAgentSessionEvent {
   session: NativeAgentSession
 }
 
+export interface NativeChatSessionIndex {
+  id: string
+  provider: NativeAgentProvider
+  cwd: string
+  title: string
+  preview: string
+  createdAt: string
+  updatedAt: string
+  messageCount: number
+}
+
+export interface NativePromptHistoryEntry {
+  provider: NativeAgentProvider
+  cwd: string
+  text: string
+  sentAt: string
+}
+
 export interface NativeAgentClient {
   notifySessionChanged(event: NativeAgentSessionEvent): void
 }
@@ -68,6 +87,10 @@ export interface NativeAgentServer {
   setClient(client: NativeAgentClient | undefined): void
   startSession(input: StartNativeAgentSessionInput): Promise<NativeAgentSession>
   getSession(sessionId: string): Promise<NativeAgentSession | undefined>
+  listChatSessions(input?: { cwd?: string; provider?: NativeAgentProvider }): Promise<NativeChatSessionIndex[]>
+  deleteChatSession(sessionId: string): Promise<void>
+  renameChatSession(sessionId: string, title: string): Promise<NativeChatSessionIndex | undefined>
+  listPromptHistory(input: { cwd: string; provider: NativeAgentProvider; query?: string; limit?: number }): Promise<NativePromptHistoryEntry[]>
   sendMessage(input: SendNativeAgentMessageInput): Promise<NativeAgentSession>
   cancel(sessionId: string): Promise<NativeAgentSession | undefined>
   closeSession(sessionId: string): Promise<void>
@@ -77,6 +100,10 @@ export interface NativeAgentService {
   readonly onDidChangeSession: Event<NativeAgentSessionEvent>
   startSession(input: StartNativeAgentSessionInput): Promise<NativeAgentSession>
   getSession(sessionId: string): Promise<NativeAgentSession | undefined>
+  listChatSessions(input?: { cwd?: string; provider?: NativeAgentProvider }): Promise<NativeChatSessionIndex[]>
+  deleteChatSession(sessionId: string): Promise<void>
+  renameChatSession(sessionId: string, title: string): Promise<NativeChatSessionIndex | undefined>
+  listPromptHistory(input: { cwd: string; provider: NativeAgentProvider; query?: string; limit?: number }): Promise<NativePromptHistoryEntry[]>
   sendMessage(input: SendNativeAgentMessageInput): Promise<NativeAgentSession>
   cancel(sessionId: string): Promise<NativeAgentSession | undefined>
   closeSession(sessionId: string): Promise<void>
