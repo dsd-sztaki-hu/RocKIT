@@ -12,6 +12,7 @@ import {
   Widget,
   WidgetManager,
 } from '@theia/core/lib/browser'
+import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { Disposable } from '@theia/core/lib/common'
@@ -995,10 +996,12 @@ export class EntitiesOverviewWidget extends TreeWidget {
       return
     }
 
-    const idsToRemove = this.resolveCascadeDeletionIds(
-      graph,
-      new Set(deletableEntityIds),
-    )
+    const idsToRemove = new Set(deletableEntityIds)
+    const confirmed = await this.confirmDeleteEntities(idsToRemove)
+    if (!confirmed) {
+      return
+    }
+
     const updatedGraph = this.removeEntitiesAndReferences(graph, idsToRemove)
     const updatedCrate = { ...crate, '@graph': updatedGraph }
     const label = idsToRemove.size > 1 ? 'Delete entities' : 'Delete entity'
@@ -1011,6 +1014,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
     if (selectedEntityId && idsToRemove.has(selectedEntityId)) {
       this.appStateService.selectedEntityId = EntitiesOverviewWidget.ROOT_DATASET_ENTITY_ID
     }
+    await this.closeDeletedEntityEditors(idsToRemove)
     this.model.clearSelection()
   }
 
@@ -1020,116 +1024,46 @@ export class EntitiesOverviewWidget extends TreeWidget {
       .filter((entityId) => entityId !== EntitiesOverviewWidget.ROOT_DATASET_ENTITY_ID)
   }
 
-  protected resolveCascadeDeletionIds(
-    graph: ReadonlyArray<Record<string, any>>,
-    initialIdsToRemove: ReadonlySet<string>,
-  ): Set<string> {
-    const entityIds = new Set(
-      graph
-        .map((entity) => (typeof entity?.['@id'] === 'string' ? entity['@id'] : undefined))
-        .filter((entityId): entityId is string => Boolean(entityId)),
-    )
-    const idsToRemove = new Set(
-      Array.from(initialIdsToRemove).filter(
-        (entityId) =>
-          entityId !== EntitiesOverviewWidget.ROOT_DATASET_ENTITY_ID &&
-          entityIds.has(entityId),
-      ),
-    )
-    if (idsToRemove.size === 0) {
-      return idsToRemove
+  protected async confirmDeleteEntities(idsToRemove: ReadonlySet<string>): Promise<boolean> {
+    const deleteCount = idsToRemove.size
+    if (deleteCount === 0) {
+      return false
     }
 
-    const referrersByEntityId = this.buildReferrersByEntityId(graph, entityIds)
-    let changed = true
-    while (changed) {
-      changed = false
-      for (const entityId of entityIds) {
-        if (
-          entityId === EntitiesOverviewWidget.ROOT_DATASET_ENTITY_ID ||
-          idsToRemove.has(entityId)
-        ) {
-          continue
-        }
-
-        const referrers = referrersByEntityId.get(entityId)
-        if (!referrers || referrers.size === 0) {
-          continue
-        }
-        const remainingReferrers = Array.from(referrers).filter(
-          (referrerId) => !idsToRemove.has(referrerId),
-        )
-        if (remainingReferrers.length === 0) {
-          idsToRemove.add(entityId)
-          changed = true
-        }
-      }
-    }
-
-    return idsToRemove
+    const confirmed = await new ConfirmDialog({
+      title: deleteCount > 1 ? 'Delete RO-Crate entities?' : 'Delete RO-Crate entity?',
+      msg:
+        deleteCount > 1
+          ? `Are you sure you want to delete the ${deleteCount} selected entities?`
+          : 'Are you sure you want to delete the selected entity?',
+      ok: 'Delete',
+      cancel: 'Cancel',
+    }).open()
+    return confirmed === true
   }
 
-  protected buildReferrersByEntityId(
-    graph: ReadonlyArray<Record<string, any>>,
-    entityIds: ReadonlySet<string>,
-  ): Map<string, Set<string>> {
-    const referrersByEntityId = new Map<string, Set<string>>()
-    for (const entity of graph) {
-      const sourceId = typeof entity?.['@id'] === 'string' ? entity['@id'] : undefined
-      if (!sourceId) {
-        continue
-      }
+  protected async closeDeletedEntityEditors(
+    idsToRemove: ReadonlySet<string>,
+  ): Promise<void> {
+    const mapping = this.appStateService.EIRCEIA ?? {}
+    const widgetIdsToClose = Object.entries(mapping)
+      .filter(([, entityId]) => idsToRemove.has(entityId))
+      .map(([widgetId]) => widgetId)
 
-      const referencedEntityIds = new Set<string>()
-      for (const [key, value] of Object.entries(entity)) {
-        if (key === '@id' || key === 'id') {
-          continue
+    for (const widgetId of widgetIdsToClose) {
+      try {
+        const widget = this.shell.getWidgetById(widgetId)
+        if (widget) {
+          await this.shell.closeWidget(widgetId, { save: false })
+        } else {
+          this.appStateService.unregisterEntityEditor(widgetId)
         }
-        this.collectReferencedEntityIds(value, entityIds, referencedEntityIds)
-      }
-
-      for (const targetId of referencedEntityIds) {
-        if (targetId === sourceId) {
-          continue
-        }
-        const referrers = referrersByEntityId.get(targetId) ?? new Set<string>()
-        referrers.add(sourceId)
-        referrersByEntityId.set(targetId, referrers)
-      }
-    }
-    return referrersByEntityId
-  }
-
-  protected collectReferencedEntityIds(
-    value: unknown,
-    entityIds: ReadonlySet<string>,
-    referencedEntityIds: Set<string>,
-  ): void {
-    if (typeof value === 'string') {
-      if (entityIds.has(value)) {
-        referencedEntityIds.add(value)
-      }
-      return
-    }
-
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        this.collectReferencedEntityIds(item, entityIds, referencedEntityIds)
-      }
-      return
-    }
-
-    if (value && typeof value === 'object') {
-      const objectValue = value as Record<string, unknown>
-      const referenceId = this.extractReferenceId(objectValue)
-      if (referenceId && entityIds.has(referenceId)) {
-        referencedEntityIds.add(referenceId)
-      }
-      for (const [key, child] of Object.entries(objectValue)) {
-        if (key === '@id' || key === 'id') {
-          continue
-        }
-        this.collectReferencedEntityIds(child, entityIds, referencedEntityIds)
+      } catch (error) {
+        console.warn('Failed to close RO-Crate editor for deleted entity', {
+          widgetId,
+          error,
+        })
+        this.appStateService.unregisterEntityEditor(widgetId)
       }
     }
   }
