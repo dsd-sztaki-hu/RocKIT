@@ -18,13 +18,13 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service'
 import { TerminalWidget } from '@theia/terminal/lib/browser/base/terminal-widget'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
+import { NavigatorContextMenu } from 'file-explorer/lib/browser/navigator-contribution'
+import * as path from 'path'
 import {
   getRocrateMcpServerPathCandidates,
   resolveAppProjectPathFromLocation,
   resolveRocrateMcpSocketPath,
 } from '../../../aroma2-common/lib/common/rocrate-mcp-config'
-import * as path from 'path'
-import { NavigatorContextMenu } from 'file-explorer/lib/browser/navigator-contribution'
 import { NativeAgentProvider } from '../common/native-agent-protocol'
 import { NativeAgentChatWidget } from './native-agent-chat-widget'
 
@@ -54,15 +54,30 @@ type AgentInstructionPort = {
 }
 
 const AGENT_SPECS: AgentSpec[] = [
-  { id: 'codex', menuLabel: 'Edit with Codex', executables: ['codex'], markerPaths: ['.codex'] },
-  { id: 'claude', menuLabel: 'Edit with Claude', executables: ['claude'], markerPaths: ['.claude'] },
+  {
+    id: 'codex',
+    menuLabel: 'Edit with Codex',
+    executables: ['codex'],
+    markerPaths: ['.codex'],
+  },
+  {
+    id: 'claude',
+    menuLabel: 'Edit with Claude',
+    executables: ['claude'],
+    markerPaths: ['.claude'],
+  },
   {
     id: 'opencode',
     menuLabel: 'Edit with Opencode',
     executables: ['opencode'],
     markerPaths: ['.opencode'],
   },
-  { id: 'kilo', menuLabel: 'Edit with Kilo', executables: ['kilo'], markerPaths: ['.kilo'] },
+  {
+    id: 'kilo',
+    menuLabel: 'Edit with Kilo',
+    executables: ['kilo'],
+    markerPaths: ['.kilo'],
+  },
   { id: 'roo', menuLabel: 'Edit with Roo', executables: ['roo'], markerPaths: ['.roo'] },
   {
     id: 'gemini',
@@ -79,6 +94,7 @@ const AGENT_SPECS: AgentSpec[] = [
 ]
 
 const sharedAvailableAgents = new Map<string, string>()
+const AGENT_TERMINAL_ICON_CLASS = 'codicon codicon-hubot'
 
 function arraysEqual(a: string[] | undefined, b: string[] | undefined): boolean {
   if (!a || !b || a.length !== b.length) {
@@ -232,7 +248,10 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     }
   }
 
-  protected async openNativeChatForUri(uri: URI, agentId: NativeAgentProvider): Promise<void> {
+  protected async openNativeChatForUri(
+    uri: URI,
+    agentId: NativeAgentProvider,
+  ): Promise<void> {
     const directoryUri = await this.resolveDirectoryUri(uri)
     const cwd = FileUri.fsPath(directoryUri)
     const mcpReady = await this.ensureAgentMcpConfigured(agentId, directoryUri)
@@ -252,7 +271,12 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   protected async openAgentForUri(uri: URI, agentId: string): Promise<void> {
     const directoryUri = await this.resolveDirectoryUri(uri)
     const cwd = FileUri.fsPath(directoryUri)
-    const terminal = await this.terminalService.newTerminal({ cwd })
+    const agentName = this.formatAgentName(agentId)
+    const terminal = await this.terminalService.newTerminal({
+      cwd,
+      title: agentName,
+      iconClass: AGENT_TERMINAL_ICON_CLASS,
+    })
     this.terminalService.open(terminal, { mode: 'activate' })
     await terminal.start()
     await this.waitForTerminalOpen(terminal, 1000)
@@ -280,7 +304,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       await terminal.executeCommand({ cwd, args: launchArgs })
       this.setAgentTerminalStatus(terminal, agentId, 'Running')
     } catch {
-      terminal.sendText(`${executable}\n`)
+      terminal.sendText(`${this.buildAgentFallbackCommand(agentId, executable)}\n`)
       this.setAgentTerminalStatus(terminal, agentId, 'Running')
     }
   }
@@ -290,13 +314,33 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     agentId: string,
     status: string,
   ): void {
-    const name = agentId.charAt(0).toUpperCase() + agentId.slice(1)
+    const name = this.formatAgentName(agentId)
     const label = `${name} - ${status}`
     terminal.title.label = label
     terminal.title.caption = label
+    terminal.title.iconClass = AGENT_TERMINAL_ICON_CLASS
+  }
+
+  protected formatAgentName(agentId: string): string {
+    return agentId.charAt(0).toUpperCase() + agentId.slice(1)
   }
 
   protected buildAgentLaunchArgs(agentId: string, executable: string): string[] {
+    const args = this.buildRawAgentLaunchArgs(agentId, executable)
+    if (isWindows) {
+      return [
+        'powershell.exe',
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        this.buildWindowsAgentLifecycleCommand(args),
+      ]
+    }
+    return ['bash', '-lc', this.buildUnixAgentLifecycleCommand(args)]
+  }
+
+  protected buildRawAgentLaunchArgs(agentId: string, executable: string): string[] {
     if (agentId === 'qwen') {
       return [executable, '--prompt-interactive', 'Hi!']
     }
@@ -304,6 +348,69 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       return [executable]
     }
     return [executable, 'Hi!']
+  }
+
+  protected buildAgentFallbackCommand(agentId: string, executable: string): string {
+    const args = this.buildRawAgentLaunchArgs(agentId, executable)
+    if (isWindows) {
+      return [
+        'powershell.exe',
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        this.quoteForWindowsCommand(this.buildWindowsAgentLifecycleCommand(args)),
+      ].join(' ')
+    }
+    return `bash -lc ${this.quoteForBash(this.buildUnixAgentLifecycleCommand(args))}`
+  }
+
+  protected buildUnixAgentLifecycleCommand(args: string[]): string {
+    const command = args.map((arg) => this.quoteForBash(arg)).join(' ')
+    const cleanup =
+      'cleanup() { if command -v pkill >/dev/null 2>&1; then pkill -TERM -P "$$" 2>/dev/null || true; fi; }'
+    return [
+      cleanup,
+      'trap cleanup EXIT HUP INT TERM',
+      command,
+      'status=$?',
+      'cleanup',
+      'exit "$status"',
+    ].join('; ')
+  }
+
+  protected quoteForBash(value: string): string {
+    return `'${value.replace(/'/g, `'\\''`)}'`
+  }
+
+  protected buildWindowsAgentLifecycleCommand(args: string[]): string {
+    const executable = this.quoteForPowerShell(args[0] ?? '')
+    const agentArgs = args.slice(1).map((arg) => this.quoteForPowerShell(arg)).join(', ')
+    const argumentList = agentArgs ? `@(${agentArgs})` : '@()'
+    return [
+      '$ErrorActionPreference = "SilentlyContinue"',
+      `$agent = Start-Process -FilePath ${executable} -ArgumentList ${argumentList} -NoNewWindow -PassThru`,
+      'function Stop-Agent {',
+      'if ($script:agent -and -not $script:agent.HasExited) {',
+      'taskkill.exe /PID $script:agent.Id /T /F | Out-Null',
+      'Stop-Process -Id $script:agent.Id -Force',
+      '}',
+      '}',
+      'try {',
+      'while (-not $agent.WaitForExit(1000)) {}',
+      'exit $agent.ExitCode',
+      '} finally {',
+      'Stop-Agent',
+      '}',
+    ].join('; ')
+  }
+
+  protected quoteForPowerShell(value: string): string {
+    return `'${value.replace(/'/g, `''`)}'`
+  }
+
+  protected quoteForWindowsCommand(value: string): string {
+    return `"${value.replace(/"/g, '\\"')}"`
   }
 
   protected async resolveDirectoryUri(uri: URI): Promise<URI> {
@@ -456,7 +563,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected async resolveRocrateServerPath(): Promise<string> {
     const processEnv = (globalThis as any).process?.env
-    const processPlatform = ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
+    const processPlatform =
+      ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
     const runtime = this.getElectronRuntimePaths()
     const appProjectPath =
       processEnv?.THEIA_APP_PROJECT_PATH ??
@@ -490,7 +598,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected resolveRocrateMcpSocketPath(): string {
     const env = (globalThis as any).process?.env
-    const processPlatform = ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
+    const processPlatform =
+      ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
     const homeDirs = this.getHomeDirs()
     return resolveRocrateMcpSocketPath({
       homeDir: homeDirs.length > 0 ? homeDirs[0] : this.homeDirPath,
@@ -551,7 +660,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     if (await this.isClaudeMcpConfigured(home, launchConfig)) {
       return true
     }
-    const claudeExecutable = (await this.findExecutableAbsolutePath(['claude'])) ?? 'claude'
+    const claudeExecutable =
+      (await this.findExecutableAbsolutePath(['claude'])) ?? 'claude'
     const payload = this.buildClaudeAddMcpPayload(launchConfig)
     const accepted = await new ConfirmDialog({
       title: 'AROMA MCP Not Configured',
@@ -604,7 +714,10 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     homeDir: string,
     launchConfig: RocrateMcpLaunchConfig,
   ): Promise<boolean> {
-    const candidates = [path.join(homeDir, '.claude.json'), path.join(homeDir, '.claude', '.mcp.json')]
+    const candidates = [
+      path.join(homeDir, '.claude.json'),
+      path.join(homeDir, '.claude', '.mcp.json'),
+    ]
     for (const candidate of candidates) {
       const uri = FileUri.create(candidate)
       if (!(await this.fileService.exists(uri))) {
@@ -613,7 +726,9 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       try {
         const parsed = JSON.parse(await this.readTextFile(uri))
         const rocrate =
-          parsed?.mcpServers?.rocrate ?? parsed?.mcp?.servers?.rocrate ?? parsed?.servers?.rocrate
+          parsed?.mcpServers?.rocrate ??
+          parsed?.mcp?.servers?.rocrate ??
+          parsed?.servers?.rocrate
         if (
           rocrate?.command === launchConfig.command &&
           Array.isArray(rocrate?.args) &&
@@ -678,7 +793,9 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     }
   }
 
-  protected async findExecutableInPath(candidates: string[]): Promise<string | undefined> {
+  protected async findExecutableInPath(
+    candidates: string[],
+  ): Promise<string | undefined> {
     const abs = await this.findExecutableAbsolutePath(candidates)
     return abs ? path.basename(abs).replace(/\.(exe|cmd|bat)$/i, '') : undefined
   }
@@ -719,12 +836,17 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected getHomeDirs(): string[] {
     const env = (globalThis as any).process?.env
-    return [this.homeDirPath, env?.HOME, env?.USERPROFILE].filter((value): value is string => !!value)
+    return [this.homeDirPath, env?.HOME, env?.USERPROFILE].filter(
+      (value): value is string => !!value,
+    )
   }
 
   protected getElectronRuntimePaths(): { resourcesPath?: string; execPath?: string } {
     const processValue = (globalThis as any).process
-    return { resourcesPath: processValue?.resourcesPath, execPath: processValue?.execPath }
+    return {
+      resourcesPath: processValue?.resourcesPath,
+      execPath: processValue?.execPath,
+    }
   }
 
   protected async loadHomeDirPath(): Promise<void> {
@@ -737,16 +859,26 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   protected getCommonBinDirs(): string[] {
     const home = this.getHomeDirs()[0]
     if (!isWindows) {
-      return [home ? `${home}/.volta/bin` : '', '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin'].filter(Boolean)
+      return [
+        home ? `${home}/.volta/bin` : '',
+        '/opt/homebrew/bin',
+        '/usr/local/bin',
+        '/usr/bin',
+      ].filter(Boolean)
     }
-    return [home ? `${home}\\.local\\bin` : '', 'C:\\Program Files\\nodejs'].filter(Boolean)
+    return [home ? `${home}\\.local\\bin` : '', 'C:\\Program Files\\nodejs'].filter(
+      Boolean,
+    )
   }
 
   protected async readTextFile(uri: URI): Promise<string> {
     return (await this.fileService.read(uri)).value.toString()
   }
 
-  protected waitForTerminalOpen(terminal: TerminalWidget, timeout: number): Promise<void> {
+  protected waitForTerminalOpen(
+    terminal: TerminalWidget,
+    timeout: number,
+  ): Promise<void> {
     return new Promise((resolve) => {
       const timer = setTimeout(resolve, timeout)
       terminal.onDidOpen(() => {
