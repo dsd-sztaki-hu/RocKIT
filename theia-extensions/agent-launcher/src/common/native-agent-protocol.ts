@@ -89,6 +89,7 @@ export interface NativeAgentServer {
   getSession(sessionId: string): Promise<NativeAgentSession | undefined>
   listChatSessions(input?: { cwd?: string; provider?: NativeAgentProvider }): Promise<NativeChatSessionIndex[]>
   deleteChatSession(sessionId: string): Promise<void>
+  clearChatSessions(input?: { cwd?: string; provider?: NativeAgentProvider }): Promise<number>
   renameChatSession(sessionId: string, title: string): Promise<NativeChatSessionIndex | undefined>
   listPromptHistory(input: { cwd: string; provider: NativeAgentProvider; query?: string; limit?: number }): Promise<NativePromptHistoryEntry[]>
   sendMessage(input: SendNativeAgentMessageInput): Promise<NativeAgentSession>
@@ -102,6 +103,7 @@ export interface NativeAgentService {
   getSession(sessionId: string): Promise<NativeAgentSession | undefined>
   listChatSessions(input?: { cwd?: string; provider?: NativeAgentProvider }): Promise<NativeChatSessionIndex[]>
   deleteChatSession(sessionId: string): Promise<void>
+  clearChatSessions(input?: { cwd?: string; provider?: NativeAgentProvider }): Promise<number>
   renameChatSession(sessionId: string, title: string): Promise<NativeChatSessionIndex | undefined>
   listPromptHistory(input: { cwd: string; provider: NativeAgentProvider; query?: string; limit?: number }): Promise<NativePromptHistoryEntry[]>
   sendMessage(input: SendNativeAgentMessageInput): Promise<NativeAgentSession>

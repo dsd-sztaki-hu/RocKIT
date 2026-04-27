@@ -31,6 +31,7 @@ export default new ContainerModule((bind) => {
         getSession: (sessionId) => proxy.getSession(sessionId),
         listChatSessions: (input) => proxy.listChatSessions(input),
         deleteChatSession: (sessionId) => proxy.deleteChatSession(sessionId),
+        clearChatSessions: (input) => proxy.clearChatSessions(input),
         renameChatSession: (sessionId, title) => proxy.renameChatSession(sessionId, title),
         listPromptHistory: (input) => proxy.listPromptHistory(input),
         sendMessage: (input) => proxy.sendMessage(input),

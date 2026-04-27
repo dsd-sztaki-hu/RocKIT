@@ -26,6 +26,7 @@ import { JsonRpcChildProcess, JsonRpcMessage } from './json-rpc-child-process'
 
 const CLAUDE_SYSTEM_PROMPT =
   'You are embedded in AROMA as an RO-Crate data steward. Prefer RO-Crate MCP tools for metadata edits and keep responses concise.'
+const RESTORED_CHAT_CONTEXT_MAX_CHARS = 24000
 
 type Adapter = {
   send(text: string): Promise<void>
@@ -113,6 +114,50 @@ function appendActivity(
   ])
 }
 
+function hasRestorableConversation(messages: NativeAgentMessage[]): boolean {
+  return messages.some((message) =>
+    (message.role === 'user' || message.role === 'assistant') && Boolean(message.text.trim()),
+  )
+}
+
+function formatRestoredConversationContext(messages: NativeAgentMessage[], currentText: string): string {
+  const transcript = serializeRestoredConversation(messages)
+  if (!transcript) {
+    return currentText
+  }
+  return [
+    'A previous AROMA native chat session was reopened. Use the restored transcript below as conversation context, then answer only the newest user message.',
+    '',
+    '<restored_chat_transcript>',
+    transcript,
+    '</restored_chat_transcript>',
+    '',
+    'Newest user message:',
+    currentText,
+  ].join('\n')
+}
+
+function serializeRestoredConversation(messages: NativeAgentMessage[]): string {
+  const lines: string[] = []
+  for (const message of messages) {
+    if (message.role !== 'user' && message.role !== 'assistant') {
+      continue
+    }
+    const text = message.text.trim()
+    if (!text) {
+      continue
+    }
+    lines.push(`## ${message.role} (${message.createdAt})`)
+    lines.push(text)
+    lines.push('')
+  }
+  const transcript = lines.join('\n').trim()
+  if (transcript.length <= RESTORED_CHAT_CONTEXT_MAX_CHARS) {
+    return transcript
+  }
+  return `[Earlier restored chat omitted; showing the most recent ${RESTORED_CHAT_CONTEXT_MAX_CHARS} characters.]\n${transcript.slice(-RESTORED_CHAT_CONTEXT_MAX_CHARS)}`
+}
+
 type ClaudeAgentSdkModule = typeof import('@anthropic-ai/claude-agent-sdk')
 
 const importClaudeAgentSdk = new Function(
@@ -171,33 +216,62 @@ class CodexNativeAdapter implements Adapter {
   protected activeAssistant: NativeAgentMessage | undefined
   protected disposed = false
   protected readonly seenActivityKeys = new Set<string>()
+  protected restoredContextPending: boolean
 
   constructor(
     protected readonly record: SessionRecord,
     protected readonly publish: () => void,
-  ) {}
+  ) {
+    this.restoredContextPending = hasRestorableConversation(record.session.messages)
+  }
 
   async send(text: string): Promise<void> {
     await this.ensureStarted()
     const rpc = this.rpc!
+    const inputText = this.consumeRestoredContext(text)
     this.activeAssistant = appendMessage(this.record.session, 'assistant', '', true)
     this.publish()
     await rpc.request('turn/start', {
       threadId: this.providerThreadId,
-      input: [{ type: 'text', text }],
+      input: [{ type: 'text', text: inputText }],
       approvalPolicy: 'never',
       sandboxPolicy: { type: 'dangerFullAccess' },
     })
   }
 
+  protected consumeRestoredContext(text: string): string {
+    if (!this.restoredContextPending) {
+      return text
+    }
+    this.restoredContextPending = false
+    return formatRestoredConversationContext(this.record.session.messages.slice(0, -1), text)
+  }
+
   async cancel(): Promise<void> {
+    this.stopActiveAssistant()
+    appendActivity(this.record.session, 'Codex run stopped', 'Cancel details', {
+      provider: 'codex',
+      stoppedAt: nowIso(),
+    })
     this.dispose()
   }
 
   dispose(): void {
     this.disposed = true
+    this.stopActiveAssistant()
     this.rpc?.dispose()
     this.rpc = undefined
+  }
+
+  protected stopActiveAssistant(): void {
+    if (!this.activeAssistant) {
+      return
+    }
+    this.activeAssistant.streaming = false
+    if (!this.activeAssistant.text.trim()) {
+      this.activeAssistant.text = 'Stopped.'
+    }
+    this.activeAssistant = undefined
   }
 
   protected async ensureStarted(): Promise<void> {
@@ -393,11 +467,14 @@ class ClaudeNativeAdapter implements Adapter {
   protected cancelling = false
   protected stopped = false
   protected readonly seenActivityKeys = new Set<string>()
+  protected restoredContextPending: boolean
 
   constructor(
     protected readonly record: SessionRecord,
     protected readonly publish: () => void,
-  ) {}
+  ) {
+    this.restoredContextPending = hasRestorableConversation(record.session.messages)
+  }
 
   async send(text: string): Promise<void> {
     await this.ensureStarted()
@@ -405,9 +482,18 @@ class ClaudeNativeAdapter implements Adapter {
     if (this.activeAssistant?.streaming) {
       throw new Error('Claude is still working on the previous message.')
     }
+    const inputText = this.consumeRestoredContext(text)
     this.activeAssistant = appendMessage(this.record.session, 'assistant', '', true)
     this.publish()
-    this.promptQueue!.push(this.createUserMessage(text))
+    this.promptQueue!.push(this.createUserMessage(inputText))
+  }
+
+  protected consumeRestoredContext(text: string): string {
+    if (!this.restoredContextPending) {
+      return text
+    }
+    this.restoredContextPending = false
+    return formatRestoredConversationContext(this.record.session.messages.slice(0, -1), text)
   }
 
   async cancel(): Promise<void> {
@@ -726,6 +812,25 @@ export class NativeAgentServiceImpl implements NativeAgentServer {
     } catch {}
   }
 
+  async clearChatSessions(input?: { cwd?: string; provider?: NativeAgentProvider }): Promise<number> {
+    const index = this.readSessionIndex()
+    const deleting = index.filter((entry) => this.matchesSessionFilter(entry, input))
+    if (!deleting.length) {
+      return 0
+    }
+    const deletingIds = new Set(deleting.map((entry) => entry.id))
+    for (const sessionId of deletingIds) {
+      const record = this.sessions.get(sessionId)
+      record?.adapter?.dispose()
+      this.sessions.delete(sessionId)
+      try {
+        fs.rmSync(this.sessionPath(sessionId), { force: true })
+      } catch {}
+    }
+    this.writeSessionIndex(index.filter((entry) => !deletingIds.has(entry.id)))
+    return deletingIds.size
+  }
+
   async renameChatSession(
     sessionId: string,
     title: string,
@@ -893,6 +998,13 @@ export class NativeAgentServiceImpl implements NativeAgentServer {
       updatedAt: value.updatedAt,
       messageCount: value.messageCount,
     }
+  }
+
+  protected matchesSessionFilter(
+    entry: NativeChatSessionIndex,
+    input?: { cwd?: string; provider?: NativeAgentProvider },
+  ): boolean {
+    return (!input?.cwd || entry.cwd === input.cwd) && (!input?.provider || entry.provider === input.provider)
   }
 
   protected deriveSessionTitle(session: NativeAgentSession): string {

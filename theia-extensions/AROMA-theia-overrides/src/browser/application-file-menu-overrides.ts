@@ -32,6 +32,7 @@ const DEFAULT_IGNORED_ENTRIES = [
   'AGENTS.md',
   'CLAUDE.md',
   '.aroma/',
+  '.claude/',
 ] as const
 
 type UnsavedCloseState = {
@@ -210,7 +211,9 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
   protected hasPotentialUnsavedChanges(): boolean {
     const roCrate = this.appStateService.roCrate
     const roCrateDirty = Boolean(roCrate) && this.appStateService.isRoCrateDirty(roCrate)
-    const ignoreListDirty = this.appStateService.isIgnoreListDirty(this.appStateService.ignoreList)
+    const ignoreListDirty = this.appStateService.isIgnoreListDirty(
+      this.appStateService.ignoreList,
+    )
     return roCrateDirty || ignoreListDirty
   }
 
@@ -229,7 +232,9 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     }
   }
 
-  protected async handleUnsavedCloseAction(prepared: UnsavedCloseState): Promise<boolean> {
+  protected async handleUnsavedCloseAction(
+    prepared: UnsavedCloseState,
+  ): Promise<boolean> {
     if (!prepared.hasUnsaved) {
       return true
     }
@@ -244,7 +249,7 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
 
     const messageNode = document.createElement('div')
     const intro = document.createElement('div')
-    intro.textContent = "You have unsaved changes in:"
+    intro.textContent = 'You have unsaved changes in:'
     messageNode.appendChild(intro)
 
     const list = document.createElement('ul')
@@ -296,8 +301,12 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
 
   protected async isIgnoreListUnsaved(rootUri: URI): Promise<boolean> {
     const ignoredUri = rootUri.resolve(AROMA_IGNORE_DIR).resolve(AROMA_IGNORE_FILE)
-    const diskEntries = this.withDefaultIgnoredEntries(await this.readIgnoredEntries(ignoredUri))
-    const stateEntries = this.withDefaultIgnoredEntries(this.appStateService.ignoreList ?? [])
+    const diskEntries = this.withDefaultIgnoredEntries(
+      await this.readIgnoredEntries(ignoredUri),
+    )
+    const stateEntries = this.withDefaultIgnoredEntries(
+      this.appStateService.ignoreList ?? [],
+    )
     return !this.sameEntries(stateEntries, diskEntries)
   }
 

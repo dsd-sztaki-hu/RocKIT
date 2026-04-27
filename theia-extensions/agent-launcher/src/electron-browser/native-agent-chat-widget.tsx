@@ -4,7 +4,7 @@ import { ApplicationShell, OpenerService, Widget, WidgetManager, open } from '@t
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { ClipboardService } from '@theia/core/lib/browser/clipboard-service'
-import { QuickInputService, QuickPickItem } from '@theia/core/lib/browser/quick-input'
+import { QuickInputButton, QuickInputService, QuickPickItem } from '@theia/core/lib/browser/quick-input'
 import { FileUri } from '@theia/core/lib/common/file-uri'
 import { MessageService } from '@theia/core/lib/common/message-service'
 import URI from '@theia/core/lib/common/uri'
@@ -79,6 +79,17 @@ type NativeAgentChatViewState = {
   sending: boolean
 }
 
+type NativeChatHistoryPick = QuickPickItem & (
+  | {
+      kind: 'clear-all'
+      sessions: NativeChatSessionIndex[]
+    }
+  | {
+      kind: 'session'
+      session: NativeChatSessionIndex
+    }
+)
+
 class NativeAgentChatView extends React.Component<
   NativeAgentChatViewProps,
   NativeAgentChatViewState,
@@ -138,6 +149,7 @@ class NativeAgentChatView extends React.Component<
     const { draft, sending } = this.state
     const workspaceLabel = this.getWorkspaceLabel(cwd)
     const providerLabel = provider === 'codex' ? 'Codex' : 'Claude'
+    const timeline = session ? this.buildTimeline(session.messages) : []
     return (
       <div className="native-agent-chat-shell">
         <div className="native-agent-chat-header">
@@ -181,8 +193,8 @@ class NativeAgentChatView extends React.Component<
           onScroll={this.handleMessagesScroll}
           onWheel={this.handleMessagesWheel}
         >
-          {session?.messages.length ? (
-            this.buildTimeline(session.messages).map((item) => this.renderTimelineItem(item))
+          {timeline.length ? (
+            timeline.map((item) => this.renderTimelineItem(item))
           ) : (
             <div className="native-agent-chat-empty">
               Ask the agent to curate, validate, or explain this RO-Crate.
@@ -222,6 +234,9 @@ class NativeAgentChatView extends React.Component<
     let activeAssistantTurn: Extract<NativeAgentTimelineItem, { type: 'assistant-turn' }> | undefined
 
     for (const message of messages) {
+      if (message.role === 'system') {
+        continue
+      }
       if (message.role === 'assistant') {
         if (!activeAssistantTurn) {
           activeAssistantTurn = {
@@ -403,6 +418,16 @@ class NativeAgentChatView extends React.Component<
           toolRow.message = this.mergeActivityDetails(toolRow.message, activity.details)
           continue
         }
+        if (result.toolName) {
+          const label = this.formatToolName(result.toolName)
+          displayActivities.push({
+            message: this.withToolIdentityDetails(activity, label, result.toolName),
+            label,
+            rawToolName: result.toolName,
+            status: result.failed ? 'fail' : 'done',
+          })
+          continue
+        }
         if (!result.failed) {
           continue
         }
@@ -457,11 +482,19 @@ class NativeAgentChatView extends React.Component<
     return undefined
   }
 
-  protected getToolResult(activity: NativeAgentMessage): { toolUseId?: string; failed: boolean } {
+  protected getToolResult(activity: NativeAgentMessage): {
+    toolName?: string
+    toolUseId?: string
+    failed: boolean
+  } {
     let failed = activity.text.includes('failed')
+    let toolName: string | undefined
     let toolUseId: string | undefined
     for (const detail of activity.details ?? []) {
       const value = this.parseDetailJson(detail)
+      if (typeof value?.toolName === 'string') {
+        toolName = value.toolName
+      }
       if (typeof value?.toolUseId === 'string') {
         toolUseId = value.toolUseId
       }
@@ -471,7 +504,7 @@ class NativeAgentChatView extends React.Component<
         failed = value.is_error
       }
     }
-    return { toolUseId, failed }
+    return { toolName, toolUseId, failed }
   }
 
   protected getToolActivityStatus(
@@ -538,12 +571,17 @@ class NativeAgentChatView extends React.Component<
     const known: Record<string, string> = {
       apply_changes: 'Apply RO-Crate changes',
       get_rocrate_context: 'Read RO-Crate context',
+      download_url: 'Download source URL',
       read_crate: 'Read RO-Crate',
+      search: 'Search web evidence',
       validate_crate: 'Validate RO-Crate',
       write_crate_atomic: 'Write RO-Crate',
       suggest_context_terms: 'Suggest context terms',
       suggest_properties: 'Suggest properties',
       suggest_types: 'Suggest types',
+      upload_rocrate_to_dataverse: 'Upload RO-Crate to Dataverse',
+      adopt_pending_dataverse_rocrate: 'Use Dataverse-updated RO-Crate',
+      update_profile_conforms_to: 'Update RO-Crate profile',
     }
     if (known[normalized]) {
       return known[normalized]
@@ -607,6 +645,7 @@ class NativeAgentChatView extends React.Component<
 
   protected formatAssistantProse(text: string): string {
     return text
+      .replace(/([^\s])(\s*)(📖\s*STEP\s+\d+:)/g, '$1\n\n$3')
       .replace(/([.!?])(?=[A-Z])/g, '$1\n\n')
       .replace(/([^\s])([✓✔])/g, '$1\n\n$2')
       .replace(/([✓✔])\s*/g, '$1 ')
@@ -617,7 +656,81 @@ class NativeAgentChatView extends React.Component<
     const marked = html
       .replace(/(^|[>\s])(✓|✔)(?=\s|<|$)/g, '$1<span class="native-agent-check">$2</span>')
       .replace(/(^|[>\s])(✗|✘|✕|×)(?=\s|<|$)/g, '$1<span class="native-agent-cross">$2</span>')
-    return this.linkEntityReferences(marked)
+    return this.linkEntityReferences(this.linkPlainUrls(marked))
+  }
+
+  protected linkPlainUrls(html: string): string {
+    const template = document.createElement('template')
+    template.innerHTML = html
+    this.linkPlainUrlsInNode(template.content)
+    return template.innerHTML
+  }
+
+  protected linkPlainUrlsInNode(node: Node): void {
+    const children = Array.from(node.childNodes)
+    for (const child of children) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        this.replaceUrlTextNode(child as Text)
+        continue
+      }
+      if (child.nodeType !== Node.ELEMENT_NODE) {
+        continue
+      }
+      const element = child as Element
+      if (element.closest('a, pre')) {
+        continue
+      }
+      this.linkPlainUrlsInNode(element)
+    }
+  }
+
+  protected replaceUrlTextNode(textNode: Text): void {
+    const text = textNode.nodeValue ?? ''
+    const urlPattern = /\bhttps?:\/\/[^\s<>"'`]+/gi
+    const fragment = document.createDocumentFragment()
+    let offset = 0
+    let linked = false
+
+    for (const match of text.matchAll(urlPattern)) {
+      const rawUrl = match[0]
+      const index = match.index ?? 0
+      if (index > offset) {
+        fragment.appendChild(document.createTextNode(text.slice(offset, index)))
+      }
+
+      const { href, suffix } = this.splitTrailingUrlPunctuation(rawUrl)
+      if (href) {
+        const link = document.createElement('a')
+        link.href = href
+        link.target = '_blank'
+        link.rel = 'noopener noreferrer'
+        link.textContent = href
+        fragment.appendChild(link)
+        linked = true
+      }
+      if (suffix) {
+        fragment.appendChild(document.createTextNode(suffix))
+      }
+      offset = index + rawUrl.length
+    }
+
+    if (!linked) {
+      return
+    }
+    if (offset < text.length) {
+      fragment.appendChild(document.createTextNode(text.slice(offset)))
+    }
+    textNode.replaceWith(fragment)
+  }
+
+  protected splitTrailingUrlPunctuation(url: string): { href: string; suffix: string } {
+    let href = url
+    let suffix = ''
+    while (/[.,;:)\]}]$/.test(href)) {
+      suffix = href[href.length - 1] + suffix
+      href = href.slice(0, -1)
+    }
+    return { href, suffix }
   }
 
   protected linkEntityReferences(html: string): string {
@@ -968,6 +1081,11 @@ export class NativeAgentChatWidget extends ReactWidget {
   protected readonly promptedDataverseUploadKeys = new Set<string>()
   protected dataverseReplacementPrompt: Promise<void> | undefined
   protected promptHistory: string[] = []
+  protected readonly deleteChatSessionButton: QuickInputButton = {
+    iconClass: 'codicon-trashcan',
+    tooltip: 'Delete chat',
+    alwaysVisible: true,
+  }
 
   initWidget(): void {
     if (this.initialized) {
@@ -1117,22 +1235,94 @@ export class NativeAgentChatWidget extends ReactWidget {
       cwd: this.cwd,
       provider: this.provider,
     })
-    const picks = sessions.map((entry): QuickPickItem & { session: NativeChatSessionIndex } => ({
+    const remainingSessions = new Map(sessions.map((entry) => [entry.id, entry]))
+    const sessionPicks = sessions.map((entry): NativeChatHistoryPick => ({
+      kind: 'session',
       label: entry.title,
       description: `${entry.provider} · ${new Date(entry.updatedAt).toLocaleString()}`,
       detail: entry.preview || `${entry.messageCount} messages`,
+      buttons: [this.deleteChatSessionButton],
       session: entry,
     }))
+    const picks: NativeChatHistoryPick[] = sessions.length
+      ? [
+          {
+            kind: 'clear-all',
+            label: 'Clear all chat history',
+            description: `${sessions.length} saved chat${sessions.length === 1 ? '' : 's'}`,
+            iconClasses: ['codicon', 'codicon-clear-all'],
+            alwaysShow: true,
+            sessions,
+          },
+          ...sessionPicks,
+        ]
+      : sessionPicks
     const selected = await this.quickInputService.showQuickPick(picks, {
       title: 'Chat History',
       placeholder: 'Select a previous chat to reopen',
       matchOnDescription: true,
       matchOnDetail: true,
+      onDidTriggerItemButton: (context) => {
+        if (context.button === this.deleteChatSessionButton) {
+          const item = context.item as NativeChatHistoryPick
+          if (item.kind === 'session') {
+            void this.deleteChatHistoryItem(item.session, context.removeItem, remainingSessions)
+          }
+        }
+      },
     })
     if (!selected) {
       return
     }
+    if (selected.kind === 'clear-all') {
+      await this.clearChatHistory(Array.from(remainingSessions.values()))
+      return
+    }
     await this.reopenChatSession(selected.session.id)
+  }
+
+  protected async deleteChatHistoryItem(
+    session: NativeChatSessionIndex,
+    removeItem: () => void,
+    remainingSessions: Map<string, NativeChatSessionIndex>,
+  ): Promise<void> {
+    await this.nativeAgentService.deleteChatSession(session.id)
+    remainingSessions.delete(session.id)
+    removeItem()
+    if (this.session?.id === session.id) {
+      await this.startFreshChatSession()
+    }
+  }
+
+  protected async clearChatHistory(sessions: NativeChatSessionIndex[]): Promise<void> {
+    if (!sessions.length) {
+      return
+    }
+    const accepted = await new ConfirmDialog({
+      title: 'Clear Chat History?',
+      msg: `Delete ${sessions.length} saved chat${sessions.length === 1 ? '' : 's'} for this workspace?`,
+      ok: 'Clear All',
+      cancel: 'Cancel',
+    }).open()
+    if (!accepted) {
+      return
+    }
+    await this.nativeAgentService.clearChatSessions({
+      cwd: this.cwd,
+      provider: this.provider,
+    })
+    this.quickInputService?.hide()
+    await this.startFreshChatSession()
+  }
+
+  protected async startFreshChatSession(): Promise<void> {
+    this.session = await this.nativeAgentService.startSession({
+      provider: this.provider,
+      cwd: this.cwd,
+    })
+    await this.refreshPromptHistory()
+    this.updateTitle()
+    this.update()
   }
 
   protected async reopenChatSession(sessionId: string): Promise<void> {
@@ -1184,6 +1374,9 @@ export class NativeAgentChatWidget extends ReactWidget {
     lines.push('')
 
     for (const message of session.messages) {
+      if (message.role === 'system') {
+        continue
+      }
       lines.push(`## ${message.role} (${message.createdAt})`)
       if (message.streaming) {
         lines.push('')
