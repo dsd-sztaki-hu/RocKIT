@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -86,6 +87,12 @@ type DataverseDeps = {
 export function createDataverseHandlers(deps: DataverseDeps) {
   const DATAVERSE_UPLOAD_TMP_PREFIX = 'rocrate-dataverse-upload-'
   const REDACTED_HEADER_VALUE = '[REDACTED]'
+  const DATAVERSE_FILE_CONTEXT: Record<string, string> = {
+    contentSize: 'https://schema.org/contentSize',
+    directoryLabel: 'https://dataverse.org/schema/file/directoryLabel',
+    encodingFormat: 'https://schema.org/encodingFormat',
+    hash: 'https://dataverse.org/schema/file/hash',
+  }
 
   /**
    * Handles extract conformsTo urls.
@@ -448,6 +455,14 @@ export function createDataverseHandlers(deps: DataverseDeps) {
     return true
   }
 
+  function readOptionalEntityString(
+    entity: RoCrateEntity,
+    key: string,
+  ): string | undefined {
+    const value = entity[key]
+    return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+  }
+
   function localCratePathFromEntityId(id: string): string | undefined {
     if (id === '' || id === './' || id.startsWith('#')) {
       return undefined
@@ -468,10 +483,58 @@ export function createDataverseHandlers(deps: DataverseDeps) {
     return rel.replace(/\\/g, '/')
   }
 
+  function mimeTypeFromFilename(filename: string): string {
+    const lower = filename.toLowerCase()
+    if (lower.endsWith('.json')) return 'application/json'
+    if (lower.endsWith('.csv')) return 'text/csv'
+    if (lower.endsWith('.tsv')) return 'text/tab-separated-values'
+    if (lower.endsWith('.txt') || lower.endsWith('.md')) return 'text/plain'
+    if (lower.endsWith('.png')) return 'image/png'
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg'
+    if (lower.endsWith('.gif')) return 'image/gif'
+    if (lower.endsWith('.pdf')) return 'application/pdf'
+    if (lower.endsWith('.zip')) return 'application/zip'
+    return 'application/octet-stream'
+  }
+
+  function md5File(filePath: string): string {
+    const hash = createHash('md5')
+    const fd = fs.openSync(filePath, 'r')
+    const buffer = Buffer.allocUnsafe(64 * 1024)
+    try {
+      while (true) {
+        const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null)
+        if (bytesRead <= 0) {
+          break
+        }
+        hash.update(buffer.subarray(0, bytesRead))
+      }
+    } finally {
+      fs.closeSync(fd)
+    }
+    return hash.digest('hex')
+  }
+
+  function shouldKeepDataverseUploadZip(): boolean {
+    return process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS === 'true'
+  }
+
+  function addZipFileEntry(
+    entries: Map<string, string>,
+    rootPath: string,
+    relativePath: string,
+  ): void {
+    const normalized = relativePath.replace(/\\/g, '/')
+    if (!isSafeRelativePath(normalized)) {
+      throw new Error(`Refusing to include unsafe ZIP path: ${relativePath}`)
+    }
+    entries.set(normalized, path.resolve(rootPath, normalized))
+  }
+
   function walkDirectoryFiles(
     rootPath: string,
     relativePath: string,
-    entries: StoredZipEntry[],
+    entries: Map<string, string>,
   ): void {
     const directoryPath = path.resolve(rootPath, relativePath)
     const children = fs.readdirSync(directoryPath, { withFileTypes: true })
@@ -484,12 +547,30 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       if (child.isDirectory()) {
         walkDirectoryFiles(rootPath, childRelativePath, entries)
       } else if (child.isFile()) {
-        entries.push({
-          name: childRelativePath,
-          filePath: childFsPath,
-        })
+        entries.set(childRelativePath, childFsPath)
       }
     }
+  }
+
+  function dataverseFilePathFromEntity(entity: RoCrateEntity): string | undefined {
+    if (!entityTypes(entity).includes('File')) {
+      return undefined
+    }
+    const localIdPath = localCratePathFromEntityId(
+      typeof entity['@id'] === 'string' ? entity['@id'] : '',
+    )
+    if (localIdPath) {
+      return localIdPath
+    }
+    const name = readOptionalEntityString(entity, 'name')
+    if (!name || name.includes('/') || name.includes('\\')) {
+      return undefined
+    }
+    const directoryLabel = readOptionalEntityString(entity, 'directoryLabel')
+    const relativePath = directoryLabel
+      ? path.posix.join(directoryLabel.replace(/\\/g, '/'), name)
+      : name
+    return isSafeRelativePath(relativePath) ? relativePath : undefined
   }
 
   /**
@@ -507,12 +588,79 @@ export function createDataverseHandlers(deps: DataverseDeps) {
         continue
       }
       const id = typeof entity['@id'] === 'string' ? entity['@id'] : ''
-      const localPath = localCratePathFromEntityId(id)
+      const localPath = dataverseFilePathFromEntity(entity) ?? localCratePathFromEntityId(id)
       if (localPath) {
         files.add(localPath)
       }
     }
     return Array.from(files).sort((a, b) => a.localeCompare(b))
+  }
+
+  function ensureDataverseFileContext(crate: RoCrate): void {
+    const context = crate['@context']
+    if (Array.isArray(context)) {
+      const existingObject = context.find(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === 'object' && !Array.isArray(item),
+      )
+      if (existingObject) {
+        Object.assign(existingObject, DATAVERSE_FILE_CONTEXT)
+      } else {
+        context.push({ ...DATAVERSE_FILE_CONTEXT })
+      }
+      return
+    }
+    if (context && typeof context === 'object' && !Array.isArray(context)) {
+      Object.assign(context as Record<string, unknown>, DATAVERSE_FILE_CONTEXT)
+      return
+    }
+    crate['@context'] = context
+      ? [context, { ...DATAVERSE_FILE_CONTEXT }]
+      : ['https://w3id.org/ro/crate/1.1/context', { ...DATAVERSE_FILE_CONTEXT }]
+  }
+
+  function buildDataverseUploadCrate(crate: RoCrate, cratePath: string): RoCrate {
+    const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
+    const crateRoot = path.dirname(cratePath)
+    const graph = Array.isArray(uploadCrate['@graph']) ? uploadCrate['@graph'] : []
+    let enrichedFileCount = 0
+    for (const entity of graph) {
+      if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+        continue
+      }
+      if (!entityTypes(entity).includes('File')) {
+        continue
+      }
+      const relativePath = dataverseFilePathFromEntity(entity)
+      if (!relativePath) {
+        continue
+      }
+      const fsPath = path.resolve(crateRoot, relativePath)
+      const expectedPrefix = `${crateRoot}${path.sep}`
+      if (fsPath !== crateRoot && !fsPath.startsWith(expectedPrefix)) {
+        throw new Error(`Refusing to inspect path outside crate root: ${relativePath}`)
+      }
+      if (!fs.existsSync(fsPath) || !fs.statSync(fsPath).isFile()) {
+        continue
+      }
+      const parsed = path.posix.parse(relativePath.replace(/\\/g, '/'))
+      const stat = fs.statSync(fsPath)
+      entity.name = readOptionalEntityString(entity, 'name') ?? parsed.base
+      entity.hash = readOptionalEntityString(entity, 'hash') ?? md5File(fsPath)
+      entity.contentSize =
+        readOptionalEntityString(entity, 'contentSize') ?? String(stat.size)
+      entity.encodingFormat =
+        readOptionalEntityString(entity, 'encodingFormat') ??
+        mimeTypeFromFilename(relativePath)
+      if (!readOptionalEntityString(entity, 'directoryLabel') && parsed.dir) {
+        entity.directoryLabel = parsed.dir
+      }
+      enrichedFileCount += 1
+    }
+    if (enrichedFileCount > 0) {
+      ensureDataverseFileContext(uploadCrate)
+    }
+    return uploadCrate
   }
 
   /**
@@ -690,6 +838,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
   function buildDataverseUploadZip(crate: RoCrate, cratePath: string, outputPath: string, indent: number): void {
     const crateRoot = path.dirname(cratePath)
     const entries: StoredZipEntry[] = []
+    const fileEntries = new Map<string, string>()
     const metadataPayload = `${JSON.stringify(crate, null, indent)}\n`
     entries.push({
       name: 'ro-crate-metadata.json',
@@ -710,13 +859,15 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       }
       const stat = fs.statSync(fsPath)
       if (stat.isDirectory()) {
-        walkDirectoryFiles(crateRoot, relativePath, entries)
+        walkDirectoryFiles(crateRoot, relativePath, fileEntries)
       } else if (stat.isFile()) {
-        entries.push({
-          name: relativePath.replace(/\\/g, '/'),
-          filePath: fsPath,
-        })
+        addZipFileEntry(fileEntries, crateRoot, relativePath)
       }
+    }
+    for (const [name, filePath] of Array.from(fileEntries.entries()).sort((a, b) =>
+      a[0].localeCompare(b[0]),
+    )) {
+      entries.push({ name, filePath })
     }
     writeStoredZipToFile(entries, outputPath)
   }
@@ -1059,8 +1210,12 @@ export function createDataverseHandlers(deps: DataverseDeps) {
         `Upload blocked by @context coverage. Missing mappings for used term(s): ${blockingMissingTerms.join(', ')}. Use suggest_context_terms and mergeContext before upload.`,
       )
     }
+    const dataverseUploadCrate =
+      creatingDataset && params.mode === 'local' && params.cratePath
+        ? buildDataverseUploadCrate(params.crate, params.cratePath)
+        : params.crate
     const dataversePreflight = await validateRoCrateViaDataverse(
-      params.crate,
+      dataverseUploadCrate,
       params.baseUrl,
       params.apiKey,
       params.timeoutMs,
@@ -1098,7 +1253,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
           })
         }
         buildDataverseUploadZip(
-          params.crate,
+          dataverseUploadCrate,
           params.cratePath,
           zipPath,
           params.indent,
@@ -1213,7 +1368,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       }
       throw error
     } finally {
-      if (tempUploadDir && uploadSucceeded) {
+      if (tempUploadDir && uploadSucceeded && !shouldKeepDataverseUploadZip()) {
         fs.rmSync(tempUploadDir, { recursive: true, force: true })
       }
     }

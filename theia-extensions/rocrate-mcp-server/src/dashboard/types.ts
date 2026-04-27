@@ -238,4 +238,6 @@ export interface DashboardConfig {
   retentionHours: number
   /** Whether to store full tool call parameters and results */
   detailedToolCallLogging: boolean
+  /** Whether successful Dataverse uploads should keep generated RO-Crate ZIPs */
+  keepDataverseUploadZips: boolean
 }

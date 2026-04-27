@@ -37,6 +37,7 @@ const elements = {
   settingsModal: document.getElementById('settingsModal'),
   settingsForm: document.getElementById('settingsForm'),
   detailedLoggingToggle: document.getElementById('detailedLoggingToggle'),
+  keepDataverseUploadZipsToggle: document.getElementById('keepDataverseUploadZipsToggle'),
   retentionHoursInput: document.getElementById('retentionHoursInput'),
   cancelSettingsBtn: document.getElementById('cancelSettingsBtn'),
   closeSettingsModal: document.getElementById('closeSettingsModal'),
@@ -606,6 +607,7 @@ async function loadSettings() {
   try {
     const config = await fetchAPI('/config');
     elements.detailedLoggingToggle.checked = config.detailedToolCallLogging;
+    elements.keepDataverseUploadZipsToggle.checked = config.keepDataverseUploadZips === true;
     elements.retentionHoursInput.value = config.retentionHours;
     renderDataverseSettings(config.dataverse);
   } catch (err) {
@@ -634,6 +636,7 @@ async function saveSettings(e) {
   e.preventDefault();
 
   const detailedLogging = elements.detailedLoggingToggle.checked;
+  const keepDataverseUploadZips = elements.keepDataverseUploadZipsToggle.checked;
   const retentionHours = parseInt(elements.retentionHoursInput.value, 10);
 
   if (isNaN(retentionHours) || retentionHours < 1 || retentionHours > 168) {
@@ -644,6 +647,7 @@ async function saveSettings(e) {
   try {
     const result = await postAPI('/config', {
       detailedToolCallLogging: detailedLogging,
+      keepDataverseUploadZips: keepDataverseUploadZips,
       retentionHours: retentionHours,
     });
 

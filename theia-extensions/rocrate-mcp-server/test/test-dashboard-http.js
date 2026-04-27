@@ -10,8 +10,10 @@ async function testHttpServer() {
 
   const originalDataverseBaseUrl = process.env.DATAVERSE_BASE_URL
   const originalDataverseApiKey = process.env.DATAVERSE_API_KEY
+  const originalKeepUploadZips = process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
   process.env.DATAVERSE_BASE_URL = 'https://dataverse.example.test/'
   process.env.DATAVERSE_API_KEY = 'test-dataverse-key'
+  delete process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
 
   // Import modules
   const { TelemetryCollector } = await import('../lib/dashboard/collector.js')
@@ -259,6 +261,16 @@ async function testHttpServer() {
     assert.strictEqual(configData.dataverse.baseUrlSource, 'env')
     assert.strictEqual(configData.dataverse.apiKey, 'test-dataverse-key')
     assert.strictEqual(configData.dataverse.apiKeySource, 'env')
+    assert.strictEqual(configData.keepDataverseUploadZips, false)
+    const configUpdateResp = await requestWithBody('POST', '/config', {
+      detailedToolCallLogging: true,
+      keepDataverseUploadZips: true,
+      retentionHours: 2,
+    })
+    assert.strictEqual(configUpdateResp.status, 200)
+    const configUpdateData = JSON.parse(configUpdateResp.data)
+    assert.strictEqual(configUpdateData.config.keepDataverseUploadZips, true)
+    assert.strictEqual(process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS, 'true')
 
     // Test schema registry endpoints
     console.log('  Testing /schema-registry endpoints...')
@@ -335,6 +347,11 @@ async function testHttpServer() {
       delete process.env.DATAVERSE_API_KEY
     } else {
       process.env.DATAVERSE_API_KEY = originalDataverseApiKey
+    }
+    if (originalKeepUploadZips === undefined) {
+      delete process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
+    } else {
+      process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS = originalKeepUploadZips
     }
   }
 }

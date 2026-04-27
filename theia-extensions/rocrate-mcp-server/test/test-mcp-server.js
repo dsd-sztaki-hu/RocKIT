@@ -66,8 +66,12 @@ function parseMessages(onMessage) {
 }
 
 function listStoredZipEntries(zipPath) {
+  return Array.from(readStoredZipEntries(zipPath).keys())
+}
+
+function readStoredZipEntries(zipPath) {
   const data = fs.readFileSync(zipPath)
-  const entries = []
+  const entries = new Map()
   let offset = 0
   while (offset + 30 <= data.length) {
     const signature = data.readUInt32LE(offset)
@@ -79,7 +83,12 @@ function listStoredZipEntries(zipPath) {
     const extraLength = data.readUInt16LE(offset + 28)
     const nameStart = offset + 30
     const nameEnd = nameStart + fileNameLength
-    entries.push(data.slice(nameStart, nameEnd).toString('utf8'))
+    const dataStart = nameEnd + extraLength
+    const dataEnd = dataStart + compressedSize
+    entries.set(
+      data.slice(nameStart, nameEnd).toString('utf8'),
+      data.slice(dataStart, dataEnd),
+    )
     offset = nameEnd + extraLength + compressedSize
   }
   return entries
@@ -452,6 +461,7 @@ async function run() {
   fs.writeFileSync(path.join(tempRoot, 'folder', 'bare.txt'), 'bare\n', 'utf8')
   fs.mkdirSync(path.join(tempRoot, 'folder', 'nested'))
   fs.writeFileSync(path.join(tempRoot, 'folder', 'nested', 'inside.txt'), 'inside\n', 'utf8')
+  fs.writeFileSync(path.join(tempRoot, 'folder', 'nested', 'arp.txt'), 'arp\n', 'utf8')
 
   const serverPath = path.resolve(__dirname, '../lib/server.js')
   const child = spawn('node', [serverPath], {
@@ -944,6 +954,7 @@ async function run() {
         : []),
       { '@id': './folder/x.txt' },
       { '@id': 'folder/bare.txt' },
+      { '@id': 'https://example.org/arp/file/1' },
       { '@id': 'folder/' },
     ]
     crateBeforeDataverseUpload['@graph'].push(
@@ -956,6 +967,12 @@ async function run() {
         '@id': 'folder/bare.txt',
         '@type': 'File',
         name: 'Bare relative file',
+      },
+      {
+        '@id': 'https://example.org/arp/file/1',
+        '@type': 'File',
+        name: 'arp.txt',
+        directoryLabel: 'folder/nested',
       },
       {
         '@id': 'folder/',
@@ -1023,7 +1040,8 @@ async function run() {
     const preservedZipPath = failedUploadMessage.match(/ZIP preserved at (.+)$/)?.[1]
     assert.ok(preservedZipPath, 'failed upload error should include preserved ZIP path')
     assert.ok(fs.existsSync(preservedZipPath), 'failed upload should keep ZIP on disk')
-    const preservedZipEntries = listStoredZipEntries(preservedZipPath)
+    const preservedZipMap = readStoredZipEntries(preservedZipPath)
+    const preservedZipEntries = Array.from(preservedZipMap.keys())
     assert.ok(
       preservedZipEntries.includes('folder/x.txt'),
       'Dataverse ZIP should include ./-prefixed file entity paths',
@@ -1041,6 +1059,30 @@ async function run() {
       preservedZipEntries.includes('folder/nested/inside.txt'),
       'Dataverse ZIP should recursively include files from referenced directories',
     )
+    assert.ok(
+      preservedZipEntries.includes('folder/nested/arp.txt'),
+      'Dataverse ZIP should include Dataverse-style file entities from directoryLabel/name',
+    )
+    const zippedCrate = JSON.parse(
+      preservedZipMap.get('ro-crate-metadata.json').toString('utf8'),
+    )
+    const zippedArpFile = zippedCrate['@graph'].find(
+      (entity) => entity['@id'] === 'https://example.org/arp/file/1',
+    )
+    assert.equal(zippedArpFile.hash, '52ba4854ce5aa6ffc83fe901c7006426')
+    assert.equal(zippedArpFile.contentSize, '4')
+    assert.equal(zippedArpFile.encodingFormat, 'text/plain')
+    assert.equal(zippedArpFile.directoryLabel, 'folder/nested')
+    const zippedContext = Array.isArray(zippedCrate['@context'])
+      ? zippedCrate['@context'].find(
+          (entry) => entry && typeof entry === 'object' && !Array.isArray(entry),
+        )
+      : undefined
+    assert.equal(
+      zippedContext.directoryLabel,
+      'https://dataverse.org/schema/file/directoryLabel',
+    )
+    assert.equal(zippedContext.hash, 'https://dataverse.org/schema/file/hash')
     fs.rmSync(path.dirname(preservedZipPath), { recursive: true, force: true })
 
     const crateWithArpPid = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
