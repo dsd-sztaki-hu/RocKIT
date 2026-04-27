@@ -995,7 +995,10 @@ export class EntitiesOverviewWidget extends TreeWidget {
       return
     }
 
-    const idsToRemove = new Set(deletableEntityIds)
+    const idsToRemove = this.resolveCascadeDeletionIds(
+      graph,
+      new Set(deletableEntityIds),
+    )
     const updatedGraph = this.removeEntitiesAndReferences(graph, idsToRemove)
     const updatedCrate = { ...crate, '@graph': updatedGraph }
     const label = idsToRemove.size > 1 ? 'Delete entities' : 'Delete entity'
@@ -1015,6 +1018,120 @@ export class EntitiesOverviewWidget extends TreeWidget {
     return this.model
       .getSelectedEntityIds()
       .filter((entityId) => entityId !== EntitiesOverviewWidget.ROOT_DATASET_ENTITY_ID)
+  }
+
+  protected resolveCascadeDeletionIds(
+    graph: ReadonlyArray<Record<string, any>>,
+    initialIdsToRemove: ReadonlySet<string>,
+  ): Set<string> {
+    const entityIds = new Set(
+      graph
+        .map((entity) => (typeof entity?.['@id'] === 'string' ? entity['@id'] : undefined))
+        .filter((entityId): entityId is string => Boolean(entityId)),
+    )
+    const idsToRemove = new Set(
+      Array.from(initialIdsToRemove).filter(
+        (entityId) =>
+          entityId !== EntitiesOverviewWidget.ROOT_DATASET_ENTITY_ID &&
+          entityIds.has(entityId),
+      ),
+    )
+    if (idsToRemove.size === 0) {
+      return idsToRemove
+    }
+
+    const referrersByEntityId = this.buildReferrersByEntityId(graph, entityIds)
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const entityId of entityIds) {
+        if (
+          entityId === EntitiesOverviewWidget.ROOT_DATASET_ENTITY_ID ||
+          idsToRemove.has(entityId)
+        ) {
+          continue
+        }
+
+        const referrers = referrersByEntityId.get(entityId)
+        if (!referrers || referrers.size === 0) {
+          continue
+        }
+        const remainingReferrers = Array.from(referrers).filter(
+          (referrerId) => !idsToRemove.has(referrerId),
+        )
+        if (remainingReferrers.length === 0) {
+          idsToRemove.add(entityId)
+          changed = true
+        }
+      }
+    }
+
+    return idsToRemove
+  }
+
+  protected buildReferrersByEntityId(
+    graph: ReadonlyArray<Record<string, any>>,
+    entityIds: ReadonlySet<string>,
+  ): Map<string, Set<string>> {
+    const referrersByEntityId = new Map<string, Set<string>>()
+    for (const entity of graph) {
+      const sourceId = typeof entity?.['@id'] === 'string' ? entity['@id'] : undefined
+      if (!sourceId) {
+        continue
+      }
+
+      const referencedEntityIds = new Set<string>()
+      for (const [key, value] of Object.entries(entity)) {
+        if (key === '@id' || key === 'id') {
+          continue
+        }
+        this.collectReferencedEntityIds(value, entityIds, referencedEntityIds)
+      }
+
+      for (const targetId of referencedEntityIds) {
+        if (targetId === sourceId) {
+          continue
+        }
+        const referrers = referrersByEntityId.get(targetId) ?? new Set<string>()
+        referrers.add(sourceId)
+        referrersByEntityId.set(targetId, referrers)
+      }
+    }
+    return referrersByEntityId
+  }
+
+  protected collectReferencedEntityIds(
+    value: unknown,
+    entityIds: ReadonlySet<string>,
+    referencedEntityIds: Set<string>,
+  ): void {
+    if (typeof value === 'string') {
+      if (entityIds.has(value)) {
+        referencedEntityIds.add(value)
+      }
+      return
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        this.collectReferencedEntityIds(item, entityIds, referencedEntityIds)
+      }
+      return
+    }
+
+    if (value && typeof value === 'object') {
+      const objectValue = value as Record<string, unknown>
+      const referenceId = this.extractReferenceId(objectValue)
+      if (referenceId && entityIds.has(referenceId)) {
+        referencedEntityIds.add(referenceId)
+      }
+      for (const [key, child] of Object.entries(objectValue)) {
+        if (key === '@id' || key === 'id') {
+          continue
+        }
+        this.collectReferencedEntityIds(child, entityIds, referencedEntityIds)
+      }
+    }
   }
 
   protected removeEntitiesAndReferences(
@@ -1040,6 +1157,10 @@ export class EntitiesOverviewWidget extends TreeWidget {
     value: unknown,
     idsToRemove: ReadonlySet<string>,
   ): unknown {
+    if (typeof value === 'string' && idsToRemove.has(value)) {
+      return undefined
+    }
+
     if (Array.isArray(value)) {
       return value
         .map((item) => this.removeReferencesFromValue(item, idsToRemove))
