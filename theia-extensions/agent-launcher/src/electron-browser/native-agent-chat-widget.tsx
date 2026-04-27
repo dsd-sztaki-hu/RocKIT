@@ -1,8 +1,14 @@
 import * as React from 'react'
 import MarkdownIt = require('markdown-it')
-import { ApplicationShell, Widget, WidgetManager } from '@theia/core/lib/browser'
+import { ApplicationShell, OpenerService, Widget, WidgetManager, open } from '@theia/core/lib/browser'
+import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
+import { ClipboardService } from '@theia/core/lib/browser/clipboard-service'
+import { FileUri } from '@theia/core/lib/common/file-uri'
 import { MessageService } from '@theia/core/lib/common/message-service'
+import URI from '@theia/core/lib/common/uri'
+import { FileService } from '@theia/filesystem/lib/browser/file-service'
+import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
@@ -39,6 +45,15 @@ type NativeAgentActivityDisplay = {
   rawToolName?: string
 }
 
+type DataverseUploadReplacementCandidate = {
+  key: string
+  pendingId: string
+  tempPath: string
+  cratePath?: string
+  pid?: string
+  dataverseUrl?: string
+}
+
 type NativeAgentChatViewProps = {
   provider: NativeAgentProvider
   cwd: string
@@ -47,6 +62,8 @@ type NativeAgentChatViewProps = {
   activityExpanded: boolean
   onActivityExpandedChange: (expanded: boolean) => void
   onSelectEntity: (entityId: string) => void
+  onOpenLink: (href: string) => void
+  onCopyChat: () => void
   onCancel: () => void
   onSend: (text: string) => Promise<void>
   onError: (error: unknown) => void
@@ -71,11 +88,25 @@ class NativeAgentChatView extends React.Component<
   protected followChatEnd = true
   protected scrollFrame: number | undefined
   protected autoScrollPending = false
-  protected readonly markdown = new MarkdownIt({
-    breaks: true,
-    html: false,
-    linkify: true,
-  })
+  protected readonly markdown = this.createMarkdownRenderer()
+
+  protected createMarkdownRenderer(): MarkdownIt {
+    const markdown = new MarkdownIt({
+      breaks: true,
+      html: false,
+      linkify: true,
+    })
+    const defaultLinkOpen =
+      markdown.renderer.rules.link_open ??
+      ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options))
+    markdown.renderer.rules.link_open = (tokens, idx, options, env, self) => {
+      const token = tokens[idx]
+      token.attrSet('target', '_blank')
+      token.attrSet('rel', 'noopener noreferrer')
+      return defaultLinkOpen(tokens, idx, options, env, self)
+    }
+    return markdown
+  }
 
   override componentDidMount(): void {
     this.scrollChatToBottomSoon(true)
@@ -114,8 +145,19 @@ class NativeAgentChatView extends React.Component<
               </div>
             </div>
           </div>
-          <div className={`native-agent-chat-status status-${session?.status ?? 'starting'}`}>
-            {session?.status ?? 'starting'}
+          <div className="native-agent-chat-header-actions">
+            <button
+              type="button"
+              className="native-agent-copy-chat"
+              title="Copy full chat transcript"
+              disabled={!session?.messages.length}
+              onClick={this.handleCopyChat}
+            >
+              Copy
+            </button>
+            <div className={`native-agent-chat-status status-${session?.status ?? 'starting'}`}>
+              {session?.status ?? 'starting'}
+            </div>
           </div>
         </div>
         <div
@@ -647,15 +689,32 @@ class NativeAgentChatView extends React.Component<
   }
 
   protected readonly handleMarkdownClick = (event: React.MouseEvent<HTMLDivElement>): void => {
+    if (event.defaultPrevented) {
+      return
+    }
     const target = event.target as HTMLElement | null
-    const link = target?.closest<HTMLAnchorElement>('a[data-rocrate-entity-id]')
-    const entityId = link?.dataset.rocrateEntityId
-    if (!entityId) {
+    const link = target?.closest<HTMLAnchorElement>('a')
+    if (!link) {
+      return
+    }
+    const entityId = link.dataset.rocrateEntityId
+    if (entityId) {
+      event.preventDefault()
+      event.stopPropagation()
+      this.props.onSelectEntity(entityId)
+      return
+    }
+    const href = link.getAttribute('href')?.trim()
+    if (!href || !this.isExternalLink(href)) {
       return
     }
     event.preventDefault()
     event.stopPropagation()
-    this.props.onSelectEntity(entityId)
+    this.props.onOpenLink(href)
+  }
+
+  protected isExternalLink(href: string): boolean {
+    return /^(https?:|mailto:)/i.test(href)
   }
 
   protected readonly handleDraftChange = (event: React.ChangeEvent<HTMLTextAreaElement>): void => {
@@ -731,6 +790,10 @@ class NativeAgentChatView extends React.Component<
     this.props.onCancel()
   }
 
+  protected readonly handleCopyChat = (): void => {
+    this.props.onCopyChat()
+  }
+
   protected getWorkspaceLabel(cwd: string): string {
     const segments = cwd.split(/[\\/]/).filter(Boolean)
     return segments[segments.length - 1] ?? cwd
@@ -786,8 +849,20 @@ export class NativeAgentChatWidget extends ReactWidget {
   @inject(MessageService)
   protected readonly messageService: MessageService
 
+  @inject(ClipboardService)
+  protected readonly clipboardService: ClipboardService
+
+  @inject(OpenerService)
+  protected readonly openerService: OpenerService
+
   @inject(WidgetManager)
   protected readonly widgetManager: WidgetManager
+
+  @inject(FileService)
+  protected readonly fileService: FileService
+
+  @inject(WorkspaceService)
+  protected readonly workspaceService: WorkspaceService
 
   @inject(ApplicationShell)
   protected readonly shell: ApplicationShell
@@ -798,6 +873,8 @@ export class NativeAgentChatWidget extends ReactWidget {
   protected initialized = false
   protected readonly openingEntities = new Set<string>()
   protected readonly editorFocusOrder: string[] = []
+  protected readonly promptedDataverseUploadKeys = new Set<string>()
+  protected dataverseReplacementPrompt: Promise<void> | undefined
 
   initWidget(): void {
     if (this.initialized) {
@@ -815,6 +892,7 @@ export class NativeAgentChatWidget extends ReactWidget {
           this.session = event.session
           this.updateTitle()
           this.update()
+          void this.maybePromptForDataverseCrateReplacement()
         }
       }),
     )
@@ -848,6 +926,7 @@ export class NativeAgentChatWidget extends ReactWidget {
     this.session = await this.nativeAgentService.startSession(options)
     this.updateTitle()
     this.update()
+    void this.maybePromptForDataverseCrateReplacement()
   }
 
   protected updateTitle(): void {
@@ -867,6 +946,8 @@ export class NativeAgentChatWidget extends ReactWidget {
         activityExpanded={this.appStateService.nativeAgentActivityExpanded}
         onActivityExpandedChange={this.handleActivityExpandedChange}
         onSelectEntity={this.handleSelectEntity}
+        onOpenLink={this.handleOpenLink}
+        onCopyChat={this.handleCopyChat}
         onCancel={this.handleCancel}
         onSend={this.handleSend}
         onError={this.handleError}
@@ -880,6 +961,307 @@ export class NativeAgentChatWidget extends ReactWidget {
 
   protected readonly handleSelectEntity = (entityId: string): void => {
     void this.openRoCrateEditorForEntity(entityId)
+  }
+
+  protected readonly handleOpenLink = (href: string): void => {
+    void this.openExternalLink(href)
+  }
+
+  protected readonly handleCopyChat = (): void => {
+    void this.copyFullChatTranscript()
+  }
+
+  protected async copyFullChatTranscript(): Promise<void> {
+    const transcript = this.serializeChatTranscript()
+    if (!transcript.trim()) {
+      return
+    }
+    await this.clipboardService.writeText(transcript)
+    this.messageService.info('Chat transcript copied.')
+  }
+
+  protected serializeChatTranscript(): string {
+    const session = this.session
+    if (!session) {
+      return ''
+    }
+    const lines: string[] = [
+      '# Native Agent Chat Transcript',
+      '',
+      `Session: ${session.id}`,
+      `Provider: ${session.provider}`,
+      `Workspace: ${session.cwd}`,
+      `Status: ${session.status}`,
+      `Created: ${session.createdAt}`,
+      `Updated: ${session.updatedAt}`,
+    ]
+    if (session.lastError) {
+      lines.push(`Last error: ${session.lastError}`)
+    }
+    lines.push('')
+
+    for (const message of session.messages) {
+      lines.push(`## ${message.role} (${message.createdAt})`)
+      if (message.streaming) {
+        lines.push('')
+        lines.push('_streaming_')
+      }
+      if (message.text.trim()) {
+        lines.push('')
+        lines.push(message.text.trim())
+      }
+      if (message.details?.length) {
+        lines.push('')
+        lines.push('### Details')
+        message.details.forEach((detail, index) => {
+          lines.push('')
+          lines.push(`#### ${index + 1}. ${detail.title}`)
+          lines.push(this.formatTranscriptDetail(detail))
+        })
+      }
+      lines.push('')
+    }
+
+    return `${lines.join('\n').trim()}\n`
+  }
+
+  protected formatTranscriptDetail(detail: NativeAgentMessageDetail): string {
+    const text = detail.text ?? ''
+    const language = detail.language?.trim() ?? ''
+    const fence = this.transcriptFence(text)
+    return `${fence}${language}\n${text}\n${fence}`
+  }
+
+  protected transcriptFence(text: string): string {
+    let longest = 2
+    for (const match of text.matchAll(/`+/g)) {
+      longest = Math.max(longest, match[0].length)
+    }
+    return '`'.repeat(longest + 1)
+  }
+
+  protected async openExternalLink(href: string): Promise<void> {
+    try {
+      await open(this.openerService, new URI(href), { openExternalApp: true })
+    } catch (error) {
+      console.error('NativeAgentChatWidget: failed to open link', { href, error })
+      this.messageService.error(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  protected maybePromptForDataverseCrateReplacement(): void {
+    if (this.dataverseReplacementPrompt) {
+      return
+    }
+    const candidate = this.findDataverseUploadReplacementCandidate()
+    if (!candidate || this.promptedDataverseUploadKeys.has(candidate.key)) {
+      return
+    }
+    this.promptedDataverseUploadKeys.add(candidate.key)
+    this.dataverseReplacementPrompt = this.promptForDataverseCrateReplacement(candidate)
+      .catch((error) => {
+        console.error('NativeAgentChatWidget: failed to handle Dataverse RO-Crate prompt', error)
+        this.messageService.error(error instanceof Error ? error.message : String(error))
+      })
+      .finally(() => {
+        this.dataverseReplacementPrompt = undefined
+        queueMicrotask(() => this.maybePromptForDataverseCrateReplacement())
+      })
+  }
+
+  protected async promptForDataverseCrateReplacement(
+    candidate: DataverseUploadReplacementCandidate,
+  ): Promise<void> {
+    const pidLine = candidate.pid ? `\n\nDataset PID: ${candidate.pid}` : ''
+    const urlLine = candidate.dataverseUrl ? `\n${candidate.dataverseUrl}` : ''
+    const accepted = await new ConfirmDialog({
+      title: 'Use Dataverse-updated RO-Crate?',
+      msg:
+        'Dataverse returned an updated RO-Crate with assigned dataset and file IDs.' +
+        '\n\nReplace the local ro-crate-metadata.json with the Dataverse-updated version?' +
+        '\n\nThis enables future editing and syncing against the Dataverse dataset.' +
+        pidLine +
+        urlLine,
+      ok: 'Use Dataverse Version',
+      cancel: 'Keep Local Version',
+    }).open()
+    if (!accepted) {
+      return
+    }
+    await this.replaceLocalRoCrateWithDataverseCrate(candidate)
+  }
+
+  protected async replaceLocalRoCrateWithDataverseCrate(
+    candidate: DataverseUploadReplacementCandidate,
+  ): Promise<void> {
+    const metadataUri = candidate.cratePath
+      ? FileUri.create(candidate.cratePath)
+      : this.workspaceService.tryGetRoots()?.[0]?.resource.resolve('ro-crate-metadata.json')
+    if (!metadataUri) {
+      throw new Error('Cannot replace RO-Crate metadata because no workspace is open.')
+    }
+    const pendingContent = await this.fileService.read(FileUri.create(candidate.tempPath))
+    const crate = JSON.parse(pendingContent.value)
+    await this.fileService.create(metadataUri, JSON.stringify(crate, null, 2), {
+      overwrite: true,
+    })
+    this.appStateService.roCrate = crate
+    this.appStateService.setRoCrateSnapshot(crate)
+    this.appStateService.dirty = false
+    this.messageService.info('Local ro-crate-metadata.json replaced with Dataverse-updated metadata.')
+    this.update()
+  }
+
+  protected findDataverseUploadReplacementCandidate():
+    | DataverseUploadReplacementCandidate
+    | undefined {
+    const messages = this.session?.messages ?? []
+    for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+      const message = messages[messageIndex]
+      const details = message.details ?? []
+      for (let detailIndex = details.length - 1; detailIndex >= 0; detailIndex -= 1) {
+        const detail = details[detailIndex]
+        const values = this.expandJsonLikeValues(detail.text)
+        for (const value of values) {
+          const candidate = this.extractDataverseUploadReplacementCandidate(
+            value,
+            `${message.id}:${detailIndex}`,
+          )
+          if (candidate) {
+            return candidate
+          }
+        }
+      }
+    }
+    return undefined
+  }
+
+  protected expandJsonLikeValues(value: unknown, depth = 0): unknown[] {
+    if (depth > 8) {
+      return []
+    }
+    const values: unknown[] = [value]
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          values.push(...this.expandJsonLikeValues(JSON.parse(trimmed), depth + 1))
+        } catch {
+          // Keep the original string; not every tool output is JSON.
+        }
+      }
+      return values
+    }
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        values.push(...this.expandJsonLikeValues(entry, depth + 1))
+      }
+      return values
+    }
+    if (value && typeof value === 'object') {
+      for (const entry of Object.values(value as Record<string, unknown>)) {
+        values.push(...this.expandJsonLikeValues(entry, depth + 1))
+      }
+    }
+    return values
+  }
+
+  protected extractDataverseUploadReplacementCandidate(
+    value: unknown,
+    keyPrefix: string,
+  ): DataverseUploadReplacementCandidate | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return undefined
+    }
+    const record = value as Record<string, any>
+    const pending = this.asPendingDataverseCrate(record.pendingDataverseCrate)
+    if (!pending || !this.looksLikeDataverseUploadResult(record)) {
+      return undefined
+    }
+    const dataverseUrl =
+      typeof record.dataverseUrl === 'string'
+        ? record.dataverseUrl
+        : typeof record.datasetUrl === 'string'
+          ? record.datasetUrl
+          : typeof pending.dataverseUrl === 'string'
+            ? pending.dataverseUrl
+            : undefined
+    const pid =
+      typeof record.pid === 'string'
+        ? record.pid
+        : typeof pending.pid === 'string'
+          ? pending.pid
+          : undefined
+    return {
+      key: `${keyPrefix}:${pending.id}`,
+      pendingId: pending.id,
+      tempPath: pending.tempPath,
+      cratePath: pending.cratePath,
+      pid,
+      dataverseUrl,
+    }
+  }
+
+  protected looksLikeDataverseUploadResult(record: Record<string, any>): boolean {
+    if (record.pendingDataverseCrate) {
+      return true
+    }
+    const requestUrl = String(record.requestUrl ?? record.url ?? '')
+    if (requestUrl.includes('/api/arp/uploadRoCrateZip') || requestUrl.includes('/api/arp/rocrate')) {
+      return true
+    }
+    const toolName = String(record.toolName ?? record.name ?? record.tool ?? '')
+    if (toolName.includes('upload_rocrate_to_dataverse')) {
+      return true
+    }
+    return false
+  }
+
+  protected asPendingDataverseCrate(value: unknown):
+    | {
+        id: string
+        tempPath: string
+        cratePath?: string
+        pid?: string
+        dataverseUrl?: string
+      }
+    | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return undefined
+    }
+    const record = value as Record<string, unknown>
+    if (typeof record.id !== 'string' || typeof record.tempPath !== 'string') {
+      return undefined
+    }
+    return {
+      id: record.id,
+      tempPath: record.tempPath,
+      cratePath: typeof record.cratePath === 'string' ? record.cratePath : undefined,
+      pid: typeof record.pid === 'string' ? record.pid : undefined,
+      dataverseUrl: typeof record.dataverseUrl === 'string' ? record.dataverseUrl : undefined,
+    }
+  }
+
+  protected extractRootArpPid(crate: Record<string, any>): string | undefined {
+    const root = this.findRootDataset(crate)
+    return typeof root?.['@arpPid'] === 'string' ? root['@arpPid'] : undefined
+  }
+
+  protected extractRootTitle(crate: Record<string, any>): string | undefined {
+    const root = this.findRootDataset(crate)
+    return typeof root?.title === 'string'
+      ? root.title
+      : typeof root?.name === 'string'
+        ? root.name
+        : undefined
+  }
+
+  protected findRootDataset(crate: Record<string, any>): Record<string, any> | undefined {
+    const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
+    return graph.find(
+      (entity): entity is Record<string, any> =>
+        entity && typeof entity === 'object' && String(entity['@id']) === './',
+    )
   }
 
   protected async openRoCrateEditorForEntity(entityId: string): Promise<void> {
@@ -1007,6 +1389,8 @@ export class NativeAgentChatWidget extends ReactWidget {
         validationErrors: this.appStateService.validationErrors,
       },
     })
+    this.update()
+    void this.maybePromptForDataverseCrateReplacement()
   }
 
   protected readonly handleError = (error: unknown): void => {

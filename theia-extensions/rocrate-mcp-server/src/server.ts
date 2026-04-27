@@ -355,8 +355,10 @@ const {
 const {
   parseDataverseUploadParams,
   parseDataverseDownloadParams,
+  parsePendingDataverseCrateAdoptionParams,
   runDataverseUpload,
   runDataverseDownload,
+  adoptPendingDataverseRoCrate,
 } = createDataverseHandlers({
   defaultBaseUrl: DEFAULT_DATAVERSE_BASE_URL,
   defaultOwnerId: DEFAULT_DATAVERSE_OWNER_ID,
@@ -532,6 +534,8 @@ const handleToolCall = createToolDispatcher({
   parseDataverseUploadParams,
   runDataverseUpload,
   summarizeDataverseUploadPayload,
+  parsePendingDataverseCrateAdoptionParams,
+  adoptPendingDataverseRoCrate,
   parseDataverseDownloadParams,
   runDataverseDownload,
   summarizeDataverseDownloadPayload,

@@ -286,15 +286,27 @@ class CodexNativeAdapter implements Adapter {
     }
     const params = (message.params ?? {}) as any
     const item = params.item ?? params
-    const key = `${method}:${item.id ?? item.callId ?? item.name ?? prettyJson(item).slice(0, 160)}`
-    if (this.seenActivityKeys.has(key)) {
-      return undefined
-    }
-    this.seenActivityKeys.add(key)
-
     const itemType = String(item.type ?? '')
     if (itemType === 'mcpToolCall' || method.toLowerCase().includes('mcptool')) {
       const toolName = this.codexToolName(item)
+      const result = this.codexToolResult(item)
+      const key = `${method}:${item.id ?? item.callId ?? item.name ?? toolName}:${result ? 'result' : 'call'}:${prettyJson(result ?? item.input ?? item.arguments ?? item).slice(0, 160)}`
+      if (this.seenActivityKeys.has(key)) {
+        return undefined
+      }
+      this.seenActivityKeys.add(key)
+      if (result !== undefined) {
+        return {
+          title: `Tool result${this.codexToolResultFailed(item, result) ? ' failed' : ''}`,
+          detailTitle: 'Tool output',
+          detail: {
+            toolName,
+            toolUseId: item.id ?? item.callId,
+            isError: this.codexToolResultFailed(item, result),
+            content: result,
+          },
+        }
+      }
       return {
         title: `Tool: ${toolName}`,
         detailTitle: 'Tool call',
@@ -302,6 +314,11 @@ class CodexNativeAdapter implements Adapter {
       }
     }
     if (itemType === 'commandExecution' || method.toLowerCase().includes('commandexecution')) {
+      const key = `${method}:${item.id ?? item.callId ?? item.command ?? item.cmd ?? prettyJson(item).slice(0, 160)}`
+      if (this.seenActivityKeys.has(key)) {
+        return undefined
+      }
+      this.seenActivityKeys.add(key)
       return {
         title: `Command: ${item.command ?? item.cmd ?? 'execution'}`,
         detailTitle: 'Command details',
@@ -309,6 +326,29 @@ class CodexNativeAdapter implements Adapter {
       }
     }
     return undefined
+  }
+
+  protected codexToolResult(item: any): unknown {
+    for (const key of ['result', 'output', 'content', 'response']) {
+      if (item && Object.prototype.hasOwnProperty.call(item, key)) {
+        return item[key]
+      }
+    }
+    return undefined
+  }
+
+  protected codexToolResultFailed(item: any, result: unknown): boolean {
+    if (typeof item?.isError === 'boolean') {
+      return item.isError
+    }
+    if (typeof item?.is_error === 'boolean') {
+      return item.is_error
+    }
+    const status = String(item?.status ?? '').toLowerCase()
+    if (status === 'failed' || status === 'error' || status === 'cancelled') {
+      return true
+    }
+    return Boolean(result && typeof result === 'object' && (result as Record<string, unknown>).isError === true)
   }
 
   protected codexToolName(item: any): string {

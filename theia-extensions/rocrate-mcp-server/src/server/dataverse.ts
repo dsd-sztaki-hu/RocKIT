@@ -81,12 +81,25 @@ type DataverseDeps = {
   } | null
 }
 
+type PendingDataverseCrate = {
+  id: string
+  tempPath: string
+  cratePath?: string
+  pid?: string
+  dataverseUrl?: string
+  createdAt: string
+  expiresAt: string
+  indent: number
+}
+
 /**
  * Builds Dataverse upload/download/validation handlers and parameter parsers.
  */
 export function createDataverseHandlers(deps: DataverseDeps) {
   const DATAVERSE_UPLOAD_TMP_PREFIX = 'rocrate-dataverse-upload-'
+  const DATAVERSE_PENDING_TMP_PREFIX = 'rocrate-dataverse-updated-'
   const REDACTED_HEADER_VALUE = '[REDACTED]'
+  const pendingDataverseCrates = new Map<string, PendingDataverseCrate>()
   const DATAVERSE_FILE_CONTEXT: Record<string, string> = {
     contentSize: 'https://schema.org/contentSize',
     directoryLabel: 'https://dataverse.org/schema/file/directoryLabel',
@@ -379,10 +392,21 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       if (
         data &&
         typeof data === 'object' &&
-        !Array.isArray(data) &&
-        Array.isArray((data as Record<string, unknown>)['@graph'])
+        !Array.isArray(data)
       ) {
-        return data as RoCrate
+        const dataRecord = data as Record<string, unknown>
+        if (Array.isArray(dataRecord['@graph'])) {
+          return data as RoCrate
+        }
+        const roCrate = dataRecord.roCrate
+        if (
+          roCrate &&
+          typeof roCrate === 'object' &&
+          !Array.isArray(roCrate) &&
+          Array.isArray((roCrate as Record<string, unknown>)['@graph'])
+        ) {
+          return roCrate as RoCrate
+        }
       }
     }
     return undefined
@@ -414,7 +438,45 @@ export function createDataverseHandlers(deps: DataverseDeps) {
     if (!pid) {
       return undefined
     }
-    return `${baseUrl}/dataset.xhtml?persistentId=${encodeURIComponent(pid)}#metadataMapTab`
+    return `${baseUrl}/dataset.xhtml?persistentId=${encodeURIComponent(pid)}`
+  }
+
+  function buildDataverseFileUrl(baseUrl: string, datasetPid: string, filePid?: string): string | undefined {
+    if (!filePid) {
+      return undefined
+    }
+    return `${baseUrl}/file.xhtml?persistentId=${encodeURIComponent(filePid)}&datasetPid=${encodeURIComponent(datasetPid)}`
+  }
+
+  function extractDataverseFileLinks(
+    crate: RoCrate | undefined,
+    baseUrl: string,
+    datasetPid: string | undefined,
+  ): Array<Record<string, unknown>> {
+    if (!crate || !datasetPid || !Array.isArray(crate['@graph'])) {
+      return []
+    }
+    return crate['@graph']
+      .filter((entity) => {
+        if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+          return false
+        }
+        return entityTypes(entity).includes('File')
+      })
+      .map((entity) => {
+        const pid = readOptionalEntityString(entity, '@arpPid')
+        const name = readOptionalEntityString(entity, 'name')
+        const directoryLabel = readOptionalEntityString(entity, 'directoryLabel')
+        const pathLabel = directoryLabel && name ? path.posix.join(directoryLabel, name) : name
+        return {
+          id: entity['@id'],
+          name,
+          directoryLabel,
+          path: pathLabel,
+          pid,
+          url: buildDataverseFileUrl(baseUrl, datasetPid, pid),
+        }
+      })
   }
 
   /**
@@ -517,6 +579,91 @@ export function createDataverseHandlers(deps: DataverseDeps) {
 
   function shouldKeepDataverseUploadZip(): boolean {
     return process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS === 'true'
+  }
+
+  function createPendingDataverseCrate(
+    crate: RoCrate,
+    params: DataverseUploadParams,
+    pid?: string,
+    dataverseUrl?: string,
+  ): PendingDataverseCrate {
+    const id = `dv-crate-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), DATAVERSE_PENDING_TMP_PREFIX))
+    const tempPath = path.join(tempDir, 'ro-crate-metadata.json')
+    fs.writeFileSync(tempPath, `${JSON.stringify(crate, null, params.indent)}\n`, 'utf8')
+    const createdAtMs = Date.now()
+    const pending: PendingDataverseCrate = {
+      id,
+      tempPath,
+      cratePath: params.mode === 'local' ? params.cratePath : undefined,
+      pid,
+      dataverseUrl,
+      createdAt: new Date(createdAtMs).toISOString(),
+      expiresAt: new Date(createdAtMs + 24 * 60 * 60 * 1000).toISOString(),
+      indent: params.indent,
+    }
+    pendingDataverseCrates.set(id, pending)
+
+    const collector = deps.getTelemetryCollector()
+    const toolCallId = collector?.getCurrentToolCallId()
+    if (collector && toolCallId && collector.addToolCallArtifact) {
+      collector.addToolCallArtifact(toolCallId, {
+        label: 'Dataverse-updated RO-Crate metadata',
+        path: tempPath,
+      })
+    }
+    return pending
+  }
+
+  function parsePendingDataverseCrateAdoptionParams(params: Record<string, unknown>): {
+    pendingId: string
+    write: true
+    indent: number
+  } {
+    const pendingId = typeof params.pendingId === 'string' ? params.pendingId.trim() : ''
+    if (!pendingId) {
+      throw new Error('adopt_pending_dataverse_rocrate requires pendingId.')
+    }
+    if (params.write !== true) {
+      throw new Error('adopt_pending_dataverse_rocrate requires write=true.')
+    }
+    return {
+      pendingId,
+      write: true,
+      indent: Number.isFinite(params.indent) ? Number(params.indent) : 2,
+    }
+  }
+
+  async function adoptPendingDataverseRoCrate(params: {
+    pendingId: string
+    write: true
+    indent: number
+  }): Promise<Record<string, unknown>> {
+    const pending = pendingDataverseCrates.get(params.pendingId)
+    if (!pending) {
+      throw new Error(`No pending Dataverse-updated RO-Crate found for ${params.pendingId}.`)
+    }
+    if (!pending.cratePath) {
+      throw new Error(
+        'Pending Dataverse-updated RO-Crate has no local cratePath. Use local upload mode or copy pending tempPath manually.',
+      )
+    }
+    if (!fs.existsSync(pending.tempPath)) {
+      pendingDataverseCrates.delete(params.pendingId)
+      throw new Error(`Pending Dataverse-updated RO-Crate temp file is missing: ${pending.tempPath}`)
+    }
+    const crate = JSON.parse(fs.readFileSync(pending.tempPath, 'utf8')) as RoCrate
+    deps.writeCrateAtomic(pending.cratePath, crate, params.indent ?? pending.indent)
+    pendingDataverseCrates.delete(params.pendingId)
+    return {
+      mode: 'local',
+      writeApplied: true,
+      cratePath: pending.cratePath,
+      pendingId: pending.id,
+      tempPath: pending.tempPath,
+      pid: pending.pid,
+      dataverseUrl: pending.dataverseUrl,
+    }
   }
 
   function addZipFileEntry(
@@ -1338,11 +1485,10 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       const resolvedPid =
         (ingestedCrate ? extractArpPid(ingestedCrate) : undefined) ?? payloadPid
       const dataverseUrl = buildDataverseDatasetUrl(params.baseUrl, resolvedPid)
-      let writeApplied = false
-      if (params.mode === 'local' && ingestedCrate && params.cratePath) {
-        deps.writeCrateAtomic(params.cratePath, ingestedCrate, params.indent)
-        writeApplied = true
-      }
+      const writeApplied = false
+      const pendingDataverseCrate = ingestedCrate
+        ? createPendingDataverseCrate(ingestedCrate, params, resolvedPid, dataverseUrl)
+        : undefined
 
       uploadSucceeded = true
       return {
@@ -1354,11 +1500,13 @@ export function createDataverseHandlers(deps: DataverseDeps) {
         requestUrl: response.url || endpointUrl.toString(),
         pid: resolvedPid ?? params.pid,
         dataverseUrl,
-        ingestedCrate,
+        fileLinks: extractDataverseFileLinks(ingestedCrate, params.baseUrl, resolvedPid),
+        pendingDataverseCrate,
+        ingestedCrate: params.responseMode === 'full' ? ingestedCrate : undefined,
         response: payload,
         note:
-          params.mode === 'remote'
-            ? 'Remote mode does not persist files. Use returned ingestedCrate payload.'
+          pendingDataverseCrate
+            ? 'Dataverse returned an updated RO-Crate. Ask the user whether to adopt it; if yes, call adopt_pending_dataverse_rocrate with pendingDataverseCrate.id and write=true.'
             : undefined,
       }
     } catch (error) {
@@ -1440,7 +1588,9 @@ export function createDataverseHandlers(deps: DataverseDeps) {
   return {
     parseDataverseUploadParams,
     parseDataverseDownloadParams,
+    parsePendingDataverseCrateAdoptionParams,
     runDataverseUpload,
     runDataverseDownload,
+    adoptPendingDataverseRoCrate,
   }
 }

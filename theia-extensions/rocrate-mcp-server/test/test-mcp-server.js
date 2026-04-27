@@ -272,7 +272,32 @@ async function startMockWebToolsServer(profileUrl) {
         }
         res.statusCode = 200
         res.setHeader('content-type', 'application/json')
-        res.end(JSON.stringify({ status: 'OK', pid: 'hdl:21.T15999/DSDDEV/MOCKPID' }))
+        res.end(
+          JSON.stringify({
+            status: 'OK',
+            data: {
+              message: 'RO-Crate uploaded',
+              roCrate: {
+                '@context': 'https://w3id.org/ro/crate/1.1/context',
+                '@graph': [
+                  {
+                    '@id': './',
+                    '@type': 'Dataset',
+                    name: 'Uploaded Root',
+                    '@arpPid': 'doi:10.5072/FK2/MOCKPID',
+                  },
+                  {
+                    '@id': 'https://example.org/arp/file/created',
+                    '@type': 'File',
+                    name: 'created.txt',
+                    directoryLabel: 'folder',
+                    '@arpPid': 'doi:10.5072/FK2/MOCKPID/FILE1',
+                  },
+                ],
+              },
+            },
+          }),
+        )
       })
       return
     }
@@ -533,6 +558,10 @@ async function run() {
     assert.ok(
       toolNames.includes('upload_rocrate_to_dataverse'),
       'upload_rocrate_to_dataverse tool should exist',
+    )
+    assert.ok(
+      toolNames.includes('adopt_pending_dataverse_rocrate'),
+      'adopt_pending_dataverse_rocrate tool should exist',
     )
     assert.ok(
       toolNames.includes('download_rocrate_from_dataverse'),
@@ -1011,8 +1040,29 @@ async function run() {
     assert.equal(uploadDataversePayload.writeApplied, false)
     assert.equal(uploadDataversePayload.status, 200)
     assert.equal(uploadDataversePayload.endpoint, 'create')
-    assert.equal(uploadDataversePayload.pid, 'hdl:21.T15999/DSDDEV/MOCKPID')
-    assert.match(uploadDataversePayload.dataverseUrl, /dataset\.xhtml\?persistentId=/)
+    assert.equal(uploadDataversePayload.pid, 'doi:10.5072/FK2/MOCKPID')
+    assert.ok(uploadDataversePayload.pendingDataverseCrate, 'upload should return pending Dataverse crate metadata')
+    assert.ok(uploadDataversePayload.pendingDataverseCrate.id, 'pending Dataverse crate should include id')
+    assert.ok(
+      fs.existsSync(uploadDataversePayload.pendingDataverseCrate.tempPath),
+      'pending Dataverse crate temp file should exist',
+    )
+    assert.equal(uploadDataversePayload.pendingDataverseCrate.cratePath, cratePath)
+    assert.equal(
+      JSON.parse(fs.readFileSync(cratePath, 'utf8'))['@graph'][0].name,
+      crateBeforeDataverseUpload['@graph'][0].name,
+      'Dataverse upload should not replace local RO-Crate metadata without user confirmation',
+    )
+    assert.equal(
+      uploadDataversePayload.dataverseUrl,
+      `${webToolsMock.baseUrl}/dataset.xhtml?persistentId=doi%3A10.5072%2FFK2%2FMOCKPID`,
+    )
+    assert.equal(uploadDataversePayload.fileLinks.length, 1)
+    assert.equal(uploadDataversePayload.fileLinks[0].path, 'folder/created.txt')
+    assert.equal(
+      uploadDataversePayload.fileLinks[0].url,
+      `${webToolsMock.baseUrl}/file.xhtml?persistentId=doi%3A10.5072%2FFK2%2FMOCKPID%2FFILE1&datasetPid=doi%3A10.5072%2FFK2%2FMOCKPID`,
+    )
     const tempEntriesAfterUpload = fs
       .readdirSync(os.tmpdir(), { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && entry.name.startsWith(tempUploadPrefix))
@@ -1022,6 +1072,30 @@ async function run() {
       tempEntriesAfterUpload,
       tempEntriesBeforeUpload,
       'Dataverse ZIP temp directory should be cleaned up after upload',
+    )
+    const adoptDataverseResponse = await request('tools/call', {
+      name: 'adopt_pending_dataverse_rocrate',
+      arguments: {
+        pendingId: uploadDataversePayload.pendingDataverseCrate.id,
+        write: true,
+      },
+    })
+    assert.ok(
+      adoptDataverseResponse.result,
+      `adopt_pending_dataverse_rocrate failed unexpectedly: ${JSON.stringify(adoptDataverseResponse)}`,
+    )
+    const adoptDataversePayload = JSON.parse(adoptDataverseResponse.result.content[0].text)
+    assert.equal(adoptDataversePayload.writeApplied, true)
+    assert.equal(adoptDataversePayload.cratePath, cratePath)
+    assert.equal(
+      JSON.parse(fs.readFileSync(cratePath, 'utf8'))['@graph'][0]['@arpPid'],
+      'doi:10.5072/FK2/MOCKPID',
+      'adopting pending Dataverse crate should replace local metadata with Dataverse-updated version',
+    )
+    fs.writeFileSync(
+      cratePath,
+      `${JSON.stringify(crateBeforeDataverseUpload, null, 2)}\n`,
+      'utf8',
     )
 
     const failedUploadResponse = await request('tools/call', {
@@ -1466,6 +1540,7 @@ async function run() {
         write: true,
         baseUrl: webToolsMock.baseUrl,
         pid: 'hdl:21.T15999/DSDDEV/REMOTEPID',
+        responseMode: 'full',
       },
     })
     const remoteUploadPayload = JSON.parse(remoteUploadResponse.result.content[0].text)

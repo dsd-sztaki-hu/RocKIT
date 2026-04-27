@@ -22,8 +22,9 @@ export const AGENT_DOCS_BUNDLE: Record<string, string> = {
 4. \`validate_crate\` and capture summary.
 5. Call out remaining warnings with recommended fixes.
 6. State whether crate is publication-ready (\`enforce_required\`).
-7. If publication-ready, optionally offer Dataverse upload once; do not make upload a required final step.
-8. Give a final summary of data added or updated, use table format when possible.
+7. If publication-ready and the user asked for Dataverse upload, run \`upload_rocrate_to_dataverse(write=true)\` using MCP defaults; do not ask for Dataverse URL/API key first.
+8. After successful Dataverse upload, show the returned \`dataverseUrl\` as the dataset link and retain the returned RO-Crate representation for follow-up file links.
+9. Give a final summary of data added or updated, use table format when possible.
 `,
   'entity-quality-and-id-rules.md': `# Entity Quality and ID Rules
 
@@ -138,12 +139,20 @@ Uploading the RO-Crate ZIP to Dataverse is optional.
 2. Do not present upload as required; make clear that the user can stop after validation/export.
 3. Assume the rocrate MCP is already configured for the default Dataverse instance via environment variables or other local configuration, including authentication.
 4. Do not inspect, verify, print, summarize, or otherwise reveal Dataverse environment variables or API tokens before uploading.
-5. For the default configured instance, use \`upload_rocrate_to_dataverse(write=true)\` only after the user confirms they want the upload.
-6. Do not pass \`baseUrl\` or \`apiKey\` for the default configured instance; let the MCP use its existing configuration.
-7. If the default upload fails because configuration or authentication is missing, then ask for the missing Dataverse base URL and/or API token.
-8. If the user asks to upload to another Dataverse installation, ask for:
+5. If the user directly asks to upload to Dataverse, that is confirmation; do not ask which Dataverse to use.
+6. For the default configured instance, call \`upload_rocrate_to_dataverse(write=true)\` immediately after final validation passes.
+7. Do not pass \`baseUrl\`, \`apiKey\`, or \`ownerId\` for the default configured instance; let the MCP use its existing configuration and defaults.
+8. Do not offer local/custom Dataverse choices before the first upload attempt.
+9. If the default upload fails because configuration, authentication, or connectivity is missing or wrong, then ask for the missing Dataverse base URL and/or API token.
+10. After a successful upload, read the returned payload from \`upload_rocrate_to_dataverse\`.
+11. Report the returned \`dataverseUrl\` to the user as the newly created dataset link.
+12. If the returned payload includes \`pendingDataverseCrate\`, Dataverse has produced an updated RO-Crate with assigned dataset/file IDs and the MCP has saved it as a pending version.
+13. Ask the user whether they want to replace the local \`ro-crate-metadata.json\` with this Dataverse-updated version for future edit/sync workflows.
+14. In terminal chat, if the user agrees, call \`adopt_pending_dataverse_rocrate(pendingId=<pendingDataverseCrate.id>, write=true)\`. In native AROMA chat, the UI may show this confirmation popup and apply the pending version itself.
+15. If the user asks for uploaded file links, derive them from returned \`fileLinks\` when present.
+16. If the user asks to upload to another Dataverse installation, ask for:
    - the Dataverse base URL
    - the Dataverse API token
-9. Never reveal API tokens or other secrets unless the user explicitly asks to display them.
+17. Never reveal API tokens or other secrets unless the user explicitly asks to display them.
 `
 }

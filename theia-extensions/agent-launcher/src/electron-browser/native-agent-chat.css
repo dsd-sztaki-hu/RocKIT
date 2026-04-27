@@ -79,6 +79,34 @@
   color: var(--theia-errorForeground);
 }
 
+.native-agent-chat-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.native-agent-copy-chat {
+  border: 1px solid color-mix(in srgb, var(--theia-editorWidget-border) 82%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--theia-editorWidget-background) 48%, transparent);
+  color: var(--theia-descriptionForeground);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 18px;
+  padding: 0 7px;
+}
+
+.native-agent-copy-chat:hover:not(:disabled) {
+  border-color: var(--theia-focusBorder);
+  color: var(--theia-editor-foreground);
+}
+
+.native-agent-copy-chat:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .native-agent-provider-icon {
   display: inline-flex;
   width: 22px;
