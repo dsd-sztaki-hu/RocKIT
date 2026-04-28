@@ -401,11 +401,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     return
                 }
                 if (!this.entityExistsInCrate(crate, entityId)) {
-                    const fallbackEntityId = this.getFallbackEntityId(crate, './')
-                    if (fallbackEntityId && fallbackEntityId !== entityId) {
-                        this.assignEntity(fallbackEntityId)
-                    }
-                    this.update()
+                    this.close()
                     return
                 }
                 await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always')
@@ -660,20 +656,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         return graph.some(
             (entry) => entry && typeof entry === 'object' && String(entry['@id']) === entityId,
         )
-    }
-
-    protected getFallbackEntityId(
-        crate: Record<string, any> | undefined,
-        preferredEntityId = './',
-    ): string | undefined {
-        if (this.entityExistsInCrate(crate, preferredEntityId)) {
-            return preferredEntityId
-        }
-        const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
-        const firstId = graph.find(
-            (entry) => entry && typeof entry === 'object' && typeof entry['@id'] === 'string',
-        )?.['@id']
-        return typeof firstId === 'string' ? firstId : undefined
     }
 
     protected resolveInitialEntityId(optionEntityId?: string): string {
