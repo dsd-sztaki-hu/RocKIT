@@ -24,10 +24,7 @@ type RoCrateEntityDeleteAppState = {
 }
 
 type RoCrateHistory = {
-  applyRoCrateChange(
-    roCrate: Record<string, any>,
-    options?: { label?: string },
-  ): boolean
+  applyRoCrateChange(roCrate: Record<string, any>, options?: { label?: string }): boolean
 }
 
 export type RoCrateEntityDeleteOptions = {
@@ -81,12 +78,6 @@ export class RoCrateEntityDeleteService {
       options.appStateService.selectedEntityId = options.rootEntityId
     }
 
-    await this.closeDeletedEntityEditors(
-      idsToRemove,
-      options.appStateService,
-      options.shell,
-    )
-
     return { changed: true, deletedEntityIds: idsToRemove }
   }
 
@@ -94,10 +85,14 @@ export class RoCrateEntityDeleteService {
     selectedEntityIds: Iterable<string>,
     rootEntityId: string,
   ): Set<string> {
-    return new Set(Array.from(selectedEntityIds).filter((entityId) => entityId !== rootEntityId))
+    return new Set(
+      Array.from(selectedEntityIds).filter((entityId) => entityId !== rootEntityId),
+    )
   }
 
-  protected async confirmDeleteEntities(idsToRemove: ReadonlySet<string>): Promise<boolean> {
+  protected async confirmDeleteEntities(
+    idsToRemove: ReadonlySet<string>,
+  ): Promise<boolean> {
     const deleteCount = idsToRemove.size
     if (deleteCount === 0) {
       return false
@@ -113,34 +108,6 @@ export class RoCrateEntityDeleteService {
       cancel: 'Cancel',
     }).open()
     return confirmed === true
-  }
-
-  protected async closeDeletedEntityEditors(
-    idsToRemove: ReadonlySet<string>,
-    appStateService: RoCrateEntityDeleteAppState,
-    shell: ApplicationShell,
-  ): Promise<void> {
-    const mapping = appStateService.EIRCEIA ?? {}
-    const widgetIdsToClose = Object.entries(mapping)
-      .filter(([, entityId]) => idsToRemove.has(entityId))
-      .map(([widgetId]) => widgetId)
-
-    for (const widgetId of widgetIdsToClose) {
-      try {
-        const widget = shell.getWidgetById(widgetId)
-        if (widget) {
-          await shell.closeWidget(widgetId, { save: false })
-        } else {
-          appStateService.unregisterEntityEditor(widgetId)
-        }
-      } catch (error) {
-        console.warn('Failed to close RO-Crate editor for deleted entity', {
-          widgetId,
-          error,
-        })
-        appStateService.unregisterEntityEditor(widgetId)
-      }
-    }
   }
 
   protected removeEntitiesAndReferences(
@@ -179,7 +146,11 @@ export class RoCrateEntityDeleteService {
     if (value && typeof value === 'object') {
       const objectValue = value as Record<string, unknown>
       const referenceId = this.extractReferenceId(objectValue)
-      if (referenceId && idsToRemove.has(referenceId) && this.isReferenceObject(objectValue)) {
+      if (
+        referenceId &&
+        idsToRemove.has(referenceId) &&
+        this.isReferenceObject(objectValue)
+      ) {
         return undefined
       }
 
@@ -245,9 +216,7 @@ export class RoCrateEntityDeleteCommandContribution implements CommandContributi
     return undefined
   }
 
-  protected isDeleteTarget(
-    value: unknown,
-  ): value is RoCrateEntityDeleteCommandTarget {
+  protected isDeleteTarget(value: unknown): value is RoCrateEntityDeleteCommandTarget {
     return Boolean(
       value &&
         typeof (value as RoCrateEntityDeleteCommandTarget).canDeleteFromContextMenu ===
