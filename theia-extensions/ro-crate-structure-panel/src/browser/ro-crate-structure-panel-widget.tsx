@@ -1,4 +1,3 @@
-import { FileOutlined, FolderOpenOutlined, FolderOutlined } from '@ant-design/icons'
 import type { Disposable, MenuPath } from '@theia/core'
 import {
   ApplicationShell,
@@ -7,6 +6,7 @@ import {
   WidgetManager,
 } from '@theia/core/lib/browser'
 import { ThemeService } from '@theia/core/lib/browser/theming'
+import { codicon } from '@theia/core/lib/browser/widgets/widget'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -30,6 +30,7 @@ interface CrateNode {
   name: string
   type: string
   children: CrateNode[]
+  encodingFormat?: string
   conformsToUrls?: string[]
 }
 
@@ -40,6 +41,203 @@ export const RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU: MenuPath = [
 @injectable()
 export class RoCrateStructurePanelWidget extends ReactWidget {
   static readonly ID = 'dataset-panel:widget'
+  private static readonly ARCHIVE_FILE_SUFFIXES = ['.tar.gz', '.tar.bz2', '.tar.xz', '.tar.zst']
+  private static readonly ARCHIVE_EXTENSIONS = new Set([
+    '.zip',
+    '.gz',
+    '.bz2',
+    '.xz',
+    '.zst',
+    '.7z',
+    '.rar',
+    '.tgz',
+    '.tar',
+    '.jar',
+    '.war',
+  ])
+  private static readonly MEDIA_EXTENSIONS = new Set([
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.webp',
+    '.svg',
+    '.bmp',
+    '.ico',
+    '.tif',
+    '.tiff',
+    '.mp4',
+    '.m4v',
+    '.mov',
+    '.avi',
+    '.mkv',
+    '.webm',
+    '.mp3',
+    '.wav',
+    '.flac',
+    '.ogg',
+    '.m4a',
+  ])
+  private static readonly DOCUMENT_EXTENSIONS = new Set([
+    '.md',
+    '.mdx',
+    '.rst',
+    '.adoc',
+    '.rtf',
+  ])
+  private static readonly DATA_EXTENSIONS = new Set([
+    '.json',
+    '.jsonc',
+    '.yaml',
+    '.yml',
+    '.toml',
+    '.xml',
+    '.xsd',
+    '.xsl',
+    '.csv',
+    '.tsv',
+  ])
+  private static readonly CODE_EXTENSIONS = new Set([
+    '.c',
+    '.cc',
+    '.cpp',
+    '.cxx',
+    '.h',
+    '.hh',
+    '.hpp',
+    '.hxx',
+    '.java',
+    '.kt',
+    '.kts',
+    '.scala',
+    '.go',
+    '.rs',
+    '.swift',
+    '.cs',
+    '.php',
+    '.py',
+    '.rb',
+    '.lua',
+    '.pl',
+    '.r',
+    '.dart',
+    '.js',
+    '.jsx',
+    '.mjs',
+    '.cjs',
+    '.ts',
+    '.tsx',
+    '.vue',
+    '.svelte',
+    '.html',
+    '.htm',
+    '.css',
+    '.scss',
+    '.sass',
+    '.less',
+  ])
+  private static readonly SCRIPT_EXTENSIONS = new Set([
+    '.sh',
+    '.bash',
+    '.zsh',
+    '.fish',
+    '.ps1',
+    '.psm1',
+    '.bat',
+    '.cmd',
+  ])
+  private static readonly DATABASE_EXTENSIONS = new Set([
+    '.sql',
+    '.sqlite',
+    '.sqlite3',
+    '.db',
+    '.duckdb',
+  ])
+  private static readonly CONFIG_EXTENSIONS = new Set([
+    '.ini',
+    '.conf',
+    '.config',
+    '.cfg',
+    '.properties',
+    '.env',
+    '.editorconfig',
+  ])
+  private static readonly CONFIG_FILE_NAMES = new Set([
+    '.env',
+    '.env.local',
+    '.env.development',
+    '.env.production',
+    '.gitignore',
+    '.gitattributes',
+    '.npmrc',
+    '.yarnrc',
+    '.editorconfig',
+    '.prettierrc',
+    '.eslintrc',
+    'dockerfile',
+    'compose.yml',
+    'compose.yaml',
+    'docker-compose.yml',
+    'docker-compose.yaml',
+    'makefile',
+  ])
+  private static readonly FOLDER_MEDIA_NAMES = new Set([
+    'images',
+    'image',
+    'img',
+    'media',
+    'assets',
+    'videos',
+    'video',
+    'audio',
+    'icons',
+  ])
+  private static readonly FOLDER_CODE_NAMES = new Set([
+    'src',
+    'source',
+    'js',
+    'javascript',
+    'ts',
+    'typescript',
+    'scripts',
+    'script',
+    'lib',
+    'app',
+    'apps',
+    'components',
+  ])
+  private static readonly FOLDER_DOC_NAMES = new Set(['docs', 'doc', 'documentation'])
+  private static readonly FOLDER_DATA_NAMES = new Set([
+    'data',
+    'datasets',
+    'dataset',
+    'db',
+    'database',
+    'schemas',
+    'schema',
+  ])
+  private static readonly FOLDER_CONFIG_NAMES = new Set([
+    'config',
+    'configs',
+    'settings',
+    '.github',
+    '.gitlab',
+    '.vscode',
+  ])
+  private static readonly FOLDER_PACKAGE_NAMES = new Set([
+    'node_modules',
+    'vendor',
+    'packages',
+    'plugins',
+    'extensions',
+  ])
+  private static readonly FOLDER_TEST_NAMES = new Set([
+    'test',
+    'tests',
+    '__tests__',
+    'spec',
+    'specs',
+  ])
 
   protected instanceId: string = ''
   protected renderPerfSeq = 0
@@ -255,13 +453,15 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         const id = item['@id']
         const name = item.title || item.name || ''
         const type = Array.isArray(t) ? t[0] : t
+        const encodingFormat =
+          typeof item['encodingFormat'] === 'string' ? item['encodingFormat'] : undefined
         const conforms = item['conformsTo']
         const conformsToUrls = conforms
           ? typeof conforms === 'string'
             ? [conforms]
             : conforms
           : undefined
-        map[id] = { id, name, type, children: [], conformsToUrls }
+        map[id] = { id, name, type, children: [], encodingFormat, conformsToUrls }
       }
     }
 
@@ -337,8 +537,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
       displayName: node.name || node.id,
       entityId: node.id,
       entityType: node.type,
+      entityEncodingFormat: node.encodingFormat,
       children,
-    } as TreeDataNode & { entityId: string; entityType: string }
+    } as TreeDataNode & { entityId: string; entityType: string; entityEncodingFormat?: string }
   }
 
   // Windows Explorer-like selection behavior:
@@ -514,6 +715,187 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected handleTreeExpand = (keys: React.Key[]): void => {
     this.expandedKeys = keys.map((key) => String(key))
     this.update()
+  }
+
+  protected renderEntityIcon(item: TreeDataNode, isExpanded: boolean): React.ReactNode {
+    const typedItem = item as TreeDataNode & {
+      entityType?: string
+      entityId?: string
+      displayName?: string
+      entityEncodingFormat?: string
+    }
+    const entityType = typedItem.entityType
+    const entityId = typeof typedItem.entityId === 'string' ? typedItem.entityId : ''
+    const displayName =
+      typeof typedItem.displayName === 'string' ? typedItem.displayName : ''
+    const encodingFormat =
+      typeof typedItem.entityEncodingFormat === 'string'
+        ? typedItem.entityEncodingFormat
+        : undefined
+
+    if (entityType === 'Dataset') {
+      return (
+        <span
+          className={this.getDatasetIconClass(displayName, entityId, isExpanded)}
+          aria-hidden="true"
+        />
+      )
+    }
+
+    return (
+      <span
+        className={this.getFileIconClass(displayName, entityId, encodingFormat)}
+        aria-hidden="true"
+      />
+    )
+  }
+
+  protected getDatasetIconClass(
+    displayName: string,
+    entityId: string,
+    isExpanded: boolean,
+  ): string {
+    const folderName = this.getEntityNameCandidate(displayName, entityId).toLowerCase()
+    const folderGlyph = isExpanded ? codicon('folder-opened') : codicon('folder')
+    if (!folderName) {
+      return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon`
+    }
+
+    if (RoCrateStructurePanelWidget.FOLDER_MEDIA_NAMES.has(folderName)) {
+      return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--media`
+    }
+    if (RoCrateStructurePanelWidget.FOLDER_CODE_NAMES.has(folderName)) {
+      return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--code`
+    }
+    if (RoCrateStructurePanelWidget.FOLDER_DOC_NAMES.has(folderName)) {
+      return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--document`
+    }
+    if (RoCrateStructurePanelWidget.FOLDER_DATA_NAMES.has(folderName)) {
+      return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--data`
+    }
+    if (RoCrateStructurePanelWidget.FOLDER_CONFIG_NAMES.has(folderName)) {
+      return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--config`
+    }
+    if (RoCrateStructurePanelWidget.FOLDER_PACKAGE_NAMES.has(folderName)) {
+      return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--package`
+    }
+    if (RoCrateStructurePanelWidget.FOLDER_TEST_NAMES.has(folderName)) {
+      return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--test`
+    }
+
+    return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon`
+  }
+
+  protected getFileIconClass(
+    displayName: string,
+    entityId: string,
+    encodingFormat?: string,
+  ): string {
+    const fileName = this.getEntityNameCandidate(displayName, entityId).toLowerCase()
+    const ext = this.resolveEntityFileExtension(fileName, encodingFormat)
+    const normalizedEncoding = `${encodingFormat ?? ''}`.trim().toLowerCase()
+
+    if (normalizedEncoding.startsWith('image/')
+      || normalizedEncoding.startsWith('video/')
+      || normalizedEncoding.startsWith('audio/')) {
+      return `${codicon('file-media')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--media`
+    }
+
+    if (normalizedEncoding === 'text/plain' || normalizedEncoding.startsWith('text/plain;')) {
+      return `${codicon('file-text')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--text`
+    }
+
+    if (ext === '.pdf') {
+      return `${codicon('file-pdf')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--document`
+    }
+
+    if (ext === '.txt') {
+      return `${codicon('file-text')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--text`
+    }
+
+    if (
+      RoCrateStructurePanelWidget.ARCHIVE_EXTENSIONS.has(ext)
+      || RoCrateStructurePanelWidget.ARCHIVE_FILE_SUFFIXES.some((suffix) =>
+        fileName.endsWith(suffix),
+      )
+    ) {
+      return `${codicon('file-zip')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--archive`
+    }
+
+    if (RoCrateStructurePanelWidget.MEDIA_EXTENSIONS.has(ext)) {
+      return `${codicon('file-media')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--media`
+    }
+
+    if (RoCrateStructurePanelWidget.DATABASE_EXTENSIONS.has(ext)) {
+      return `${codicon('database')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--database`
+    }
+
+    if (
+      RoCrateStructurePanelWidget.CONFIG_EXTENSIONS.has(ext)
+      || RoCrateStructurePanelWidget.CONFIG_FILE_NAMES.has(fileName)
+    ) {
+      return `${codicon('settings-gear')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--config`
+    }
+
+    if (RoCrateStructurePanelWidget.DATA_EXTENSIONS.has(ext)) {
+      return `${codicon('json')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--data`
+    }
+
+    if (RoCrateStructurePanelWidget.DOCUMENT_EXTENSIONS.has(ext)) {
+      return `${codicon('markdown')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--document`
+    }
+
+    if (RoCrateStructurePanelWidget.SCRIPT_EXTENSIONS.has(ext)) {
+      return `${codicon('terminal')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--script`
+    }
+
+    if (RoCrateStructurePanelWidget.CODE_EXTENSIONS.has(ext)) {
+      return `${codicon('file-code')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--code`
+    }
+
+    if (ext === '.bin' || ext === '.dat') {
+      return `${codicon('file-binary')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--binary`
+    }
+
+    return `${codicon('file')} ro-crate-entity-icon ro-crate-file-icon`
+  }
+
+  protected resolveEntityFileExtension(fileName: string, encodingFormat?: string): string {
+    const normalizedFileName = `${fileName ?? ''}`.trim().toLowerCase()
+    if (normalizedFileName.includes('.')) {
+      const suffix = normalizedFileName.slice(normalizedFileName.lastIndexOf('.'))
+      if (suffix) {
+        return suffix
+      }
+    }
+
+    const normalizedEncoding = `${encodingFormat ?? ''}`.trim().toLowerCase()
+    if (!normalizedEncoding) {
+      return ''
+    }
+
+    const extension = mime.extension(normalizedEncoding)
+    if (typeof extension === 'string' && extension.trim()) {
+      return `.${extension.toLowerCase()}`
+    }
+    return ''
+  }
+
+  protected getEntityNameCandidate(displayName: string, entityId: string): string {
+    const normalizedDisplayName = `${displayName ?? ''}`.trim()
+    if (normalizedDisplayName) {
+      return normalizedDisplayName
+    }
+
+    let candidate = `${entityId ?? ''}`.trim()
+    if (candidate.startsWith('./')) {
+      candidate = candidate.slice(2)
+    }
+    while (candidate.endsWith('/') && candidate.length > 1) {
+      candidate = candidate.slice(0, -1)
+    }
+    const segments = candidate.split('/').filter(Boolean)
+    return segments.length ? segments[segments.length - 1] : candidate
   }
 
   protected async openRoCrateEditor(
@@ -823,18 +1205,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 (item as any).displayName ?? (typeof title === 'string' ? title : '')
               const entityId = (item as any).entityId as string | undefined
               const isInvalid = Boolean(entityId && this.invalidEntityIds.has(entityId))
-              const isFolder = Array.isArray(item.children) && item.children.length > 0
-              const isExpanded = this.expandedKeys.includes(String(item.key))
-              const icon = isFolder ? (
-                isExpanded ? (
-                  <FolderOpenOutlined />
-                ) : (
-                  <FolderOutlined />
-                )
-              ) : (
-                <FileOutlined />
-              )
               const isDatasetNode = (item as any).entityType === 'Dataset'
+              const isExpanded = this.expandedKeys.includes(String(item.key))
+              const icon = this.renderEntityIcon(item, isExpanded)
 
               return (
                 <this.MemoTooltip title={entityId ?? displayName} placement="right">
@@ -842,7 +1215,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: 8,
+                      gap: 6,
                       padding: '2px 4px',
                       borderRadius: 4,
                       background:

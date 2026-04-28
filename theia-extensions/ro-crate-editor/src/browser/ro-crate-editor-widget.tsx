@@ -813,6 +813,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     profile={this.localProfile}
                     entityId={this.getActiveEntityId()}
                     profileKey={this.profileRevision}
+                    instanceId={this.id}
                     onSaveCrate={this.handleSaveCrate}
                     onNavigation={this.handleNavigation}
                     onOpenSchemaManager={this.handleOpenSchemaManager}

@@ -15,39 +15,41 @@
     "@theia/process": "1.65.2",
     "@theia/terminal": "1.65.2",
     "@theia/workspace": "1.65.2",
+    "AROMA-theia-overrides": "0.0.0",
+    "agent-instructions": "0.0.0",
+    "agent-launcher": "0.0.0",
     "app-state": "0.0.1",
     "app-state-sample": "0.0.1",
+    "aroma2-common": "0.0.0",
+    "data-repository-manager": "0.0.0",
+    "data-sources": "0.0.0",
     "entities-overview": "0.0.0",
+    "export-ro-crate": "0.0.0",
     "file-explorer": "0.0.0",
     "file-preview": "0.0.0",
     "metadata-schema-manager": "0.0.0",
+    "open-editors": "0.0.0",
     "property-selector": "0.0.0",
     "react-grab-helper": "0.0.0",
+    "remote-ro-crate-conversion": "0.0.0",
     "ro-crate-editor": "0.0.0",
     "ro-crate-preview": "0.0.0",
     "ro-crate-structure-panel": "0.0.0",
     "save-ro-crate": "0.0.0",
-    "AROMA-theia-overrides": "0.0.0",
-    "export-ro-crate": "0.0.0",
-    "remote-ro-crate-conversion": "0.0.0",
-    "schema-validator": "0.0.0",
-    "aroma2-common": "0.0.0",
-    "data-sources": "0.0.0",
-    "data-repository-manager": "0.0.0",
-    "open-editors": "0.0.0"
+    "schema-validator": "0.0.0"
   },
   "devDependencies": {
+    "@arpproject/recrate": "0.1.25",
     "@theia/cli": "1.65.2",
-    "electron": "37.2.1",
-    "react-grab": "^0.0.53",
     "allotment": "^1.20.5",
-    "@arpproject/recrate": "0.1.22"
+    "electron": "37.2.1"
   },
   "scripts": {
-    "bundle": "yarn run rebuild && theia build --mode development",
+    "bundle": "yarn run rebuild && theia build --mode development && yarn run copy:node-pty-agent",
+    "copy:node-pty-agent": "node ../scripts/copy-node-pty-agent.js",
     "rebuild": "theia rebuild:electron --cacheRoot ..",
     "start": "theia start",
-    "watch": "yarn run rebuild && theia build --watch --mode development"
+    "watch": "yarn run rebuild && WATCHPACK_POLLING=true WATCHPACK_POLLING_INTERVAL=1000 theia build --watch --mode development"
   },
   "theia": {
     "target": "electron"
