@@ -16,7 +16,7 @@ import { Tooltip, Tree } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
-import { MultiEditDialog } from 'entities-overview/lib/browser/entities-overview-multi-edit-dialog'
+import { MultiEditDialogService } from 'multi-edit/lib/browser/multi-edit-dialog-service'
 import { inject, injectable } from 'inversify'
 import * as mime from 'mime-types'
 import * as React from 'react'
@@ -261,6 +261,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
   protected readonly fileService: FileService
   @inject(ThemeService)
   protected readonly themeService: ThemeService
+  @inject(MultiEditDialogService)
+  protected readonly multiEditDialogService: MultiEditDialogService
 
   protected crateSubscription?: Disposable
   protected validationSubscription?: Disposable
@@ -367,13 +369,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
   public async openEditFromContextMenu(): Promise<void> {
     const entityIds = this.getEntityIdsForMultiEdit()
-    const dialog = new MultiEditDialog(
-      entityIds,
-      this.appStateService,
-      undefined,
-      this.roCrateHistoryService,
-    )
-    await dialog.open()
+    await this.multiEditDialogService.open(entityIds)
   }
 
   protected getEntityIdsForMultiEdit(): string[] {

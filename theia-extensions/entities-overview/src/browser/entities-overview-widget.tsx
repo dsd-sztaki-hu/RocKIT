@@ -18,11 +18,11 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import { MetadataSchemaManager } from 'aroma2-common/lib/browser'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
+import { MultiEditDialogService } from 'multi-edit/lib/browser/multi-edit-dialog-service'
 import {
   EntitiesOverviewModel,
   ExampleTreeLeaf,
@@ -38,7 +38,6 @@ import {
   buildAdvancedFilterCatalog,
   countActiveAdvancedRules,
 } from './entities-overview-advanced-filtering'
-import { MultiEditDialog } from './entities-overview-multi-edit-dialog'
 
 /** Well-known constant for the context menu path */
 export const TREEVIEW_EXAMPLE_CONTEXT_MENU: MenuPath = [
@@ -88,13 +87,13 @@ export class EntitiesOverviewWidget extends TreeWidget {
     @inject(TreeModel) public override readonly model: EntitiesOverviewModel,
     @inject(ContextMenuRenderer) contextMenuRenderer: ContextMenuRenderer,
     @inject(AppStateService) private readonly appStateService: AppStateService,
-    @inject(RoCrateHistoryService)
-    private readonly roCrateHistoryService: RoCrateHistoryService,
     @inject(MetadataSchemaManager)
     private readonly schemaManagerService: MetadataSchemaManager,
     @inject(WidgetManager) private readonly widgetManager: WidgetManager,
     @inject(ApplicationShell) private readonly shell: ApplicationShell,
     @inject(ThemeService) private readonly themeService: ThemeService,
+    @inject(MultiEditDialogService)
+    private readonly multiEditDialogService: MultiEditDialogService,
   ) {
     super(props, model, contextMenuRenderer)
     this.shouldScrollToRow = false
@@ -978,13 +977,10 @@ export class EntitiesOverviewWidget extends TreeWidget {
     const selectedEntityIds = this.model.getSelectedEntityIds()
     const entityIds =
       selectedEntityIds.length > 0 ? selectedEntityIds : this.model.getVisibleEntityIds()
-    const dialog = new MultiEditDialog(
+    await this.multiEditDialogService.open(
       entityIds,
-      this.appStateService,
       this.schemaManagerService,
-      this.roCrateHistoryService,
     )
-    await dialog.open()
   }
 
   protected applyAdvancedFilters(): void {

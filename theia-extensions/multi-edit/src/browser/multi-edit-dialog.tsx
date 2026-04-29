@@ -2091,10 +2091,10 @@ export class MultiEditDialog extends ReactDialog<string> {
   ): boolean {
     const propertyName = field.propertyName
 
-    if (operator === 'unset') {
-      if (!Object.hasOwn(entity, propertyName)) {
-        return false
-      }
+      if (operator === 'unset') {
+        if (!Object.prototype.hasOwnProperty.call(entity, propertyName)) {
+          return false
+        }
       delete entity[propertyName]
       return true
     }
