@@ -39,7 +39,7 @@
     "schema-validator": "0.0.0"
   },
   "devDependencies": {
-    "@arpproject/recrate": "0.1.25",
+    "@arpproject/recrate": "0.1.26",
     "@theia/cli": "1.65.2",
     "allotment": "^1.20.5",
     "electron": "37.2.1"
