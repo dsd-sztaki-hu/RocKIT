@@ -32,6 +32,13 @@ interface RoCrateEditorWidgetOptions {
 type NavigationEntity = { ['@id']?: string } & Record<string, unknown>
 type ProfileValidationMode = 'none' | 'always'
 
+type EntityOverviewDropPayload = {
+    entityId?: string
+    entityName?: string
+    entityTypes?: string[]
+    source?: 'entities-overview'
+}
+
 @injectable()
 export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     static readonly ID = 'rocrate-editor-widget'
@@ -400,6 +407,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 if (!entityId) {
                     return
                 }
+                if (!this.entityExistsInCrate(crate, entityId)) {
+                    this.close()
+                    return
+                }
                 await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always')
             },
         )
@@ -644,6 +655,16 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         return this.assignedEntityId ?? this.localSelectedEntityId
     }
 
+    protected entityExistsInCrate(
+        crate: Record<string, any> | undefined,
+        entityId: string,
+    ): boolean {
+        const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+        return graph.some(
+            (entry) => entry && typeof entry === 'object' && String(entry['@id']) === entityId,
+        )
+    }
+
     protected resolveInitialEntityId(optionEntityId?: string): string {
         const fromState =
             typeof this.localSelectedEntityId === 'string'
@@ -806,10 +827,12 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     profile={this.localProfile}
                     entityId={this.getActiveEntityId()}
                     profileKey={this.profileRevision}
+                    instanceId={this.id}
                     onSaveCrate={this.handleSaveCrate}
                     onNavigation={this.handleNavigation}
                     onOpenSchemaManager={this.handleOpenSchemaManager}
                     onRemoveProfile={this.handleRemoveProfile}
+                    onDropEntityToHasPart={this.handleDropEntityToHasPart}
                 />
             </div>
         )
@@ -1133,6 +1156,111 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         const typeNames = this.getEntityTypeNames(entity)
         return typeNames.includes('file') || typeNames.includes('dataset')
     }
+
+    protected isDatasetEntity(entity: Record<string, any>): boolean {
+        return this.getEntityTypeNames(entity).includes('dataset')
+    }
+
+protected handleDropEntityToHasPart = async (
+    payload: EntityOverviewDropPayload,
+    destinationEntityId: string,
+): Promise<void> => {
+    const sourceEntityId =
+        typeof payload?.entityId === 'string' ? payload.entityId.trim() : ''
+    const targetEntityId =
+        typeof destinationEntityId === 'string' ? destinationEntityId.trim() : ''
+
+    if (!sourceEntityId || !targetEntityId) {
+        throw new Error('Missing source or destination entity id for drop operation.')
+    }
+
+    if (sourceEntityId === targetEntityId) {
+        throw new Error('Cannot link an entity to itself via hasPart.')
+    }
+
+    const crate = this.appStateService.roCrate ?? this.localCrate
+    const graph = Array.isArray(crate?.['@graph'])
+        ? (crate['@graph'] as Record<string, any>[])
+        : []
+
+    if (!crate || graph.length === 0) {
+        throw new Error('RO-Crate is not available.')
+    }
+
+    const sourceEntity = graph.find(
+        (entry) => String(entry?.['@id']) === sourceEntityId,
+    )
+
+    if (!sourceEntity || !this.isFileOrDatasetEntity(sourceEntity)) {
+        console.warn('[DND][Widget] invalid source entity', {
+            sourceEntityId,
+            found: Boolean(sourceEntity),
+            sourceTypes: sourceEntity
+                ? this.getEntityTypeNames(sourceEntity)
+                : [],
+        })
+        throw new Error('Only File and Dataset entities can be dropped.')
+    }
+
+    const targetIndex = graph.findIndex(
+        (entry) => String(entry?.['@id']) === targetEntityId,
+    )
+
+    if (targetIndex < 0) {
+        throw new Error('Destination entity was not found in the current RO-Crate.')
+    }
+
+    const targetEntity = graph[targetIndex]
+
+    if (!targetEntity || !this.isDatasetEntity(targetEntity)) {
+        console.warn('[DND][Widget] invalid destination entity', {
+            targetEntityId,
+            targetTypes: targetEntity
+                ? this.getEntityTypeNames(targetEntity)
+                : [],
+        })
+        throw new Error('Drop target must be a Dataset entity.')
+    }
+
+    const existingHasPart = this.normalizeReferenceArray(targetEntity.hasPart)
+
+    if (existingHasPart.some((entry) => entry['@id'] === sourceEntityId)) {
+        this.messageService.info('Entity is already linked in hasPart.', {
+            timeout: 4000,
+        })
+        return
+    }
+
+    const updatedTargetEntity = {
+        ...targetEntity,
+        hasPart: [...existingHasPart, { '@id': sourceEntityId }],
+    }
+
+    const updatedGraph = [...graph]
+    updatedGraph[targetIndex] = updatedTargetEntity
+
+    const updatedCrate = {
+        ...crate,
+        '@graph': updatedGraph,
+    }
+
+    await this.handleSaveCrate(
+        {
+            crate: updatedCrate,
+            entityId: targetEntityId,
+        },
+        'Add hasPart via drag-and-drop',
+    )
+
+    const droppedName =
+        typeof payload?.entityName === 'string' && payload.entityName.trim()
+            ? payload.entityName.trim()
+            : sourceEntityId
+
+    this.messageService.info(`Added "${droppedName}" to hasPart.`, {
+        timeout: 5000,
+    })
+}
 
     protected isSameStringSet(a: string[], b: string[]): boolean {
         let result = true
