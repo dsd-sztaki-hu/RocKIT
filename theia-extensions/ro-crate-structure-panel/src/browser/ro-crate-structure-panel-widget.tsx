@@ -8,7 +8,6 @@ import {
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { codicon } from '@theia/core/lib/browser/widgets/widget'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
-import { CommandService } from '@theia/core/lib/common/command'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
@@ -16,12 +15,8 @@ import type { TreeDataNode } from 'antd'
 import { Tooltip, Tree } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
-import {
-    AntdThemeProvider,
-    RoCrateDeleteSelectedEntitiesCommand,
-    RoCrateEntityDeleteService,
-} from 'aroma2-common/lib/browser'
-import { MultiEditDialog } from 'entities-overview/lib/browser/entities-overview-multi-edit-dialog'
+import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
+import { MultiEditDialogService } from 'multi-edit/lib/browser/multi-edit-dialog-service'
 import { inject, injectable } from 'inversify'
 import * as mime from 'mime-types'
 import * as React from 'react'
@@ -46,8 +41,6 @@ export const RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU: MenuPath = [
 @injectable()
 export class RoCrateStructurePanelWidget extends ReactWidget {
     static readonly ID = 'dataset-panel:widget'
-    static readonly ROOT_DATASET_ENTITY_ID = './'
-
     private static readonly ARCHIVE_FILE_SUFFIXES = ['.tar.gz', '.tar.bz2', '.tar.xz', '.tar.zst']
     private static readonly ARCHIVE_EXTENSIONS = new Set([
         '.zip',
@@ -256,22 +249,20 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected readonly appStateService: AppStateService
     @inject(RoCrateHistoryService)
     protected readonly roCrateHistoryService: RoCrateHistoryService
-    @inject(RoCrateEntityDeleteService)
-    protected readonly roCrateEntityDeleteService: RoCrateEntityDeleteService
     @inject(WidgetManager)
     protected readonly widgetManager: WidgetManager
     @inject(ApplicationShell)
     protected readonly shell: ApplicationShell
     @inject(ContextMenuRenderer)
     protected readonly contextMenuRenderer: ContextMenuRenderer
-    @inject(CommandService)
-    protected readonly commandService: CommandService
     @inject(WorkspaceService)
     protected readonly workspaceService: WorkspaceService
     @inject(FileService)
     protected readonly fileService: FileService
     @inject(ThemeService)
     protected readonly themeService: ThemeService
+    @inject(MultiEditDialogService)
+    protected readonly multiEditDialogService: MultiEditDialogService
 
     protected crateSubscription?: Disposable
     protected validationSubscription?: Disposable
@@ -314,7 +305,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             this.invalidEntityIds = next
             this.update()
         })
-
         this.shellFocusSubscription = this.shell.onDidChangeCurrentWidget(({ newValue }) => {
             if (newValue && this.isRoCrateEditorWidget(newValue)) {
                 this.markEditorFocused(newValue.id)
@@ -324,6 +314,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         this.update()
     }
 
+    // (kept from original; currently unused, but harmless)
     protected dig = (path = '0', level = 3): TreeDataNode[] => {
         const list: TreeDataNode[] = []
         for (let i = 0; i < 10; i += 1) {
@@ -336,7 +327,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         }
         return list
     }
-
     protected treeData = this.dig()
 
     protected expandedKeys: string[] = []
@@ -346,6 +336,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected dropTargetDatasetId?: string
     protected globalDragListenersAttached = false
 
+    // validation + selection
     protected invalidEntityIds = new Set<string>()
     protected selectedEntityIds = new Set<string>()
     protected selectedKeys: React.Key[] = []
@@ -378,13 +369,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
     public async openEditFromContextMenu(): Promise<void> {
         const entityIds = this.getEntityIdsForMultiEdit()
-        const dialog = new MultiEditDialog(
-            entityIds,
-            this.appStateService,
-            undefined,
-            this.roCrateHistoryService,
-        )
-        await dialog.open()
+        await this.multiEditDialogService.open(entityIds)
     }
 
     protected getEntityIdsForMultiEdit(): string[] {
@@ -426,81 +411,13 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     ): void => {
         event.preventDefault()
         event.stopPropagation()
-
-        const target = event.target
-        const element =
-            target instanceof HTMLElement
-                ? target
-                : target instanceof Node
-                    ? target.parentElement
-                    : undefined
-
-        const clickedEntityId = element
-            ?.closest('[data-entity-id]')
-            ?.getAttribute('data-entity-id')
-
-        const entityId = clickedEntityId?.trim()
-
-        if (entityId && !this.selectedEntityIds.has(entityId)) {
-            const nodeKey = this.getNodeKeyForEntity(entityId)
-            this.selectSingle(entityId, nodeKey)
-        }
-
         void this.shell.activateWidget(this.id)
-
         const { x, y } = event.nativeEvent
         this.contextMenuRenderer.render({
             menuPath: RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU,
             context: event.currentTarget,
             anchor: { x, y },
         })
-    }
-
-    protected readonly handleTreeKeyDown = (
-        event: React.KeyboardEvent<HTMLDivElement>,
-    ): void => {
-        if (event.key !== 'Delete' || event.defaultPrevented || event.repeat) {
-            return
-        }
-
-        if (this.isKeyboardEventFromEditableElement(event)) {
-            return
-        }
-
-        if (!this.canDeleteFromContextMenu()) {
-            return
-        }
-
-        event.preventDefault()
-        event.stopPropagation()
-        void this.executeDeleteCommandFromKeyboard()
-    }
-
-    protected isKeyboardEventFromEditableElement(event: React.KeyboardEvent): boolean {
-        const target = event.target
-        const element =
-            target instanceof HTMLElement
-                ? target
-                : target instanceof Node
-                    ? target.parentElement
-                    : undefined
-
-        if (!element) {
-            return false
-        }
-
-        if (element.isContentEditable) {
-            return true
-        }
-
-        return Boolean(element.closest('input, textarea, select, [contenteditable="true"]'))
-    }
-
-    protected async executeDeleteCommandFromKeyboard(): Promise<void> {
-        await this.shell.activateWidget(this.id)
-        await this.commandService.executeCommand(
-            RoCrateDeleteSelectedEntitiesCommand.id,
-        )
     }
 
     protected buildCrateTree(
@@ -618,13 +535,13 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             entityType: node.type,
             entityEncodingFormat: node.encodingFormat,
             children,
-        } as TreeDataNode & {
-            entityId: string
-            entityType: string
-            entityEncodingFormat?: string
-        }
+        } as TreeDataNode & { entityId: string; entityType: string; entityEncodingFormat?: string }
     }
 
+    // Windows Explorer-like selection behavior:
+    // - single click: single select
+    // - ctrl/cmd+click: toggle specific row
+    // - shift+click: additive range selection across expanded rows
     protected handleTreeSelect = (_keys: React.Key[], info: any): void => {
         const entityId = info.node?.entityId
         if (!entityId) {
@@ -644,6 +561,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
         if (event?.altKey) {
             void this.openRoCrateEditor(entityId, { forceNewWindow: true })
+            return
         }
     }
 
@@ -706,7 +624,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         const anchorIndex = anchorId
             ? visibleRows.findIndex((row) => row.entityId === anchorId)
             : -1
-
         if (!anchorId || anchorIndex < 0) {
             if (!this.selectedEntityIds.has(entityId)) {
                 this.selectedEntityIds.add(entityId)
@@ -722,14 +639,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         const start = Math.min(anchorIndex, clickedIndex)
         const end = Math.max(anchorIndex, clickedIndex)
         const range = visibleRows.slice(start, end + 1)
-
         for (const row of range) {
             this.selectedEntityIds.add(row.entityId)
             if (!this.selectedKeys.includes(row.nodeKey)) {
                 this.selectedKeys = [...this.selectedKeys, row.nodeKey]
             }
         }
-
         this.lastSelectedEntityId = entityId
         this.update()
     }
@@ -764,7 +679,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 visit(child)
             }
         }
-
         for (const rootNode of treeData) {
             visit(rootNode)
         }
@@ -794,49 +708,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         return treeData
     }
 
-    public canDeleteFromContextMenu(): boolean {
-        return this.getDeletableSelectedEntityIds().length > 0
-    }
-
-    public async deleteFromContextMenu(): Promise<void> {
-        await this.deleteSelectedEntities()
-    }
-
-    protected async deleteSelectedEntities(): Promise<void> {
-        const result = await this.roCrateEntityDeleteService.deleteSelectedEntities({
-            selectedEntityIds: this.selectedEntityIds,
-            rootEntityId: RoCrateStructurePanelWidget.ROOT_DATASET_ENTITY_ID,
-            appStateService: this.appStateService,
-            roCrateHistoryService: this.roCrateHistoryService,
-            shell: this.shell,
-        })
-
-        if (!result.changed) {
-            return
-        }
-
-        const remainingSelected = Array.from(this.selectedEntityIds.values()).filter(
-            (entityId) => !result.deletedEntityIds.has(entityId),
-        )
-
-        this.selectedEntityIds = new Set(remainingSelected)
-        this.selectedKeys = remainingSelected
-            .map((entityId) => this.getNodeKeyForEntity(entityId))
-            .filter((key): key is React.Key => key !== undefined)
-
-        this.lastSelectedEntityId = remainingSelected.slice(-1)[0]
-        this.update()
-    }
-
-    protected getDeletableSelectedEntityIds(): string[] {
-        return Array.from(
-            this.roCrateEntityDeleteService.getDeletableEntityIds(
-                this.selectedEntityIds,
-                RoCrateStructurePanelWidget.ROOT_DATASET_ENTITY_ID,
-            ),
-        )
-    }
-
     protected handleTreeExpand = (keys: React.Key[]): void => {
         this.expandedKeys = keys.map((key) => String(key))
         this.update()
@@ -849,7 +720,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             displayName?: string
             entityEncodingFormat?: string
         }
-
         const entityType = typedItem.entityType
         const entityId = typeof typedItem.entityId === 'string' ? typedItem.entityId : ''
         const displayName =
@@ -883,7 +753,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     ): string {
         const folderName = this.getEntityNameCandidate(displayName, entityId).toLowerCase()
         const folderGlyph = isExpanded ? codicon('folder-opened') : codicon('folder')
-
         if (!folderName) {
             return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon`
         }
@@ -922,11 +791,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         const ext = this.resolveEntityFileExtension(fileName, encodingFormat)
         const normalizedEncoding = `${encodingFormat ?? ''}`.trim().toLowerCase()
 
-        if (
-            normalizedEncoding.startsWith('image/') ||
-            normalizedEncoding.startsWith('video/') ||
-            normalizedEncoding.startsWith('audio/')
-        ) {
+        if (normalizedEncoding.startsWith('image/')
+            || normalizedEncoding.startsWith('video/')
+            || normalizedEncoding.startsWith('audio/')) {
             return `${codicon('file-media')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--media`
         }
 
@@ -943,8 +810,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         }
 
         if (
-            RoCrateStructurePanelWidget.ARCHIVE_EXTENSIONS.has(ext) ||
-            RoCrateStructurePanelWidget.ARCHIVE_FILE_SUFFIXES.some((suffix) =>
+            RoCrateStructurePanelWidget.ARCHIVE_EXTENSIONS.has(ext)
+            || RoCrateStructurePanelWidget.ARCHIVE_FILE_SUFFIXES.some((suffix) =>
                 fileName.endsWith(suffix),
             )
         ) {
@@ -960,8 +827,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         }
 
         if (
-            RoCrateStructurePanelWidget.CONFIG_EXTENSIONS.has(ext) ||
-            RoCrateStructurePanelWidget.CONFIG_FILE_NAMES.has(fileName)
+            RoCrateStructurePanelWidget.CONFIG_EXTENSIONS.has(ext)
+            || RoCrateStructurePanelWidget.CONFIG_FILE_NAMES.has(fileName)
         ) {
             return `${codicon('settings-gear')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--config`
         }
@@ -1034,14 +901,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         if (!entityId) {
             return
         }
-
         const forceNewWindow = options?.forceNewWindow === true
         const dedupeByEntity = !forceNewWindow
-
         if (dedupeByEntity && this.openingEntities.has(entityId)) {
             return
         }
-
         if (dedupeByEntity) {
             this.openingEntities.add(entityId)
         }
@@ -1050,7 +914,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         if (prevSelected !== entityId) {
             this.appStateService.selectedEntityId = entityId
         }
-
         try {
             if (!forceNewWindow) {
                 const existingWidgetId = this.findWidgetIdForEntity(entityId)
@@ -1086,7 +949,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 mode?: 'split-right' | 'tab-after'
                 ref?: Widget
             } = { area: 'main' }
-
             const referenceEditor = this.getPreferredRoCrateEditorWidget()
             if (referenceEditor) {
                 if (forceNewWindow) {
@@ -1116,7 +978,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             .filter(([, mappedEntityId]) => mappedEntityId === entityId)
             .map(([widgetId]) => widgetId)
             .filter((widgetId) => Boolean(this.shell.getWidgetById(widgetId)))
-
         if (matchingIds.length === 0) {
             return undefined
         }
@@ -1127,7 +988,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 return widgetId
             }
         }
-
         return matchingIds[0]
     }
 
@@ -1160,18 +1020,15 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             }
             this.editorFocusOrder.splice(index, 1)
         }
-
         const active = this.shell.activeWidget ?? this.shell.currentWidget
         if (active && this.isRoCrateEditorWidget(active)) {
             return active
         }
-
         for (const widget of this.shell.getWidgets('main')) {
             if (this.isRoCrateEditorWidget(widget)) {
                 return widget
             }
         }
-
         return undefined
     }
 
@@ -1326,13 +1183,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
           </span>
                 </button>
 
-                <div
-                    ref={this.treeViewportRef}
-                    className="ro-crate-structure-tree-viewport"
-                    tabIndex={0}
-                    onKeyDown={this.handleTreeKeyDown}
-                    onMouseDown={() => this.treeViewportRef.current?.focus()}
-                >
+                <div ref={this.treeViewportRef} className="ro-crate-structure-tree-viewport">
                     <Tree
                         className="ro-crate-structure-tree"
                         style={{ minWidth: '100%' }}
@@ -1455,6 +1306,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
 
     protected handleDropCapture(_event: React.DragEvent): void {
+        // Clear highlight even if a child stops drop propagation.
         this.setDropTargetDatasetId(undefined)
     }
 
@@ -1486,6 +1338,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 const rel = await this.workspaceService.getWorkspaceRelativePath(uri)
                 if (rel) {
                     droppedFiles.push({ relPath: rel, sourceUri: uri })
+                } else {
                 }
             } catch (error) {
                 console.warn('Failed to parse dropped URI', uriString, error)
@@ -1524,6 +1377,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
 
     protected extractUrisFromDataTransfer(dataTransfer: DataTransfer): string[] {
+        // Prefer the more robust extraction from 26755 (handles multiple sources, null separators, and files[] fallback).
         const uriList =
             dataTransfer.getData('text/uri-list') ||
             dataTransfer.getData('application/vnd.code.uri-list') ||
@@ -1654,7 +1508,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         if (!container) {
             return undefined
         }
-
         const nodes = Array.from(container.querySelectorAll<HTMLElement>('[data-entity-id]'))
         if (!nodes.length) {
             return undefined
@@ -1690,7 +1543,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     ): string {
         const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
         const entityById = new Map<string, any>()
-
         for (const entity of graph) {
             if (entity && typeof entity === 'object' && entity['@id']) {
                 entityById.set(String(entity['@id']), entity)
@@ -1742,7 +1594,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     ): Promise<Record<string, any>> {
         const graph = Array.isArray(crate['@graph']) ? [...crate['@graph']] : []
         const indexById = new Map<string, number>()
-
         for (let i = 0; i < graph.length; i += 1) {
             const entity = graph[i]
             if (entity && typeof entity === 'object' && entity['@id']) {
@@ -1764,7 +1615,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             if (!relPath) {
                 continue
             }
-
             const normalizedRelPath = this.normalizeWorkspaceRelativePath(relPath)
             const { isDirectory, fileUri } = await this.resolveDroppedEntryInfo(relPath, sourceUri)
             const baseNewId = this.toFileEntityId(normalizedRelPath, sourceUri)
@@ -1822,7 +1672,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                     this.getDatasetIdVariants(id).some((variantId) =>
                         existingHasPartIds.has(variantId),
                     ))
-
             if (!hasExistingPart) {
                 existingHasPart.push({ '@id': id })
                 existingHasPartIds.add(id)
@@ -1832,7 +1681,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         if (existingHasPart.length) {
             targetEntity.hasPart = existingHasPart
         }
-
         graph[targetIndex] = targetEntity
 
         return { ...crate, '@graph': graph }
@@ -1846,7 +1694,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         if (!fileUri) {
             return { fileUri: undefined, isDirectory: false }
         }
-
         try {
             const fileStat = await this.fileService.resolve(fileUri, { resolveMetadata: true })
             return { fileUri, isDirectory: Boolean(fileStat.isDirectory) }
@@ -1897,7 +1744,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         try {
             const fileStat = await this.fileService.resolve(fileUri, { resolveMetadata: true })
             fileEntity.contentSize = fileStat.size ? `${fileStat.size}` : undefined
-
             try {
                 const content = await this.fileService.read(fileUri)
                 fileEntity.hash = SparkMD5.hash(content.value)
@@ -1959,9 +1805,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         if (!roots || roots.length === 0) {
             return false
         }
-
         const uriPath = uri.path.toString().toLowerCase()
-
         for (const root of roots) {
             const rootPath = root.resource.path.toString().toLowerCase()
             const rootPrefix = rootPath.endsWith('/') ? rootPath : `${rootPath}/`
@@ -1969,7 +1813,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 return true
             }
         }
-
         return false
     }
 
@@ -1977,10 +1820,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         if (!value) {
             return []
         }
-
         const raw = Array.isArray(value) ? value : [value]
         const normalized: { '@id': string }[] = []
-
         for (const entry of raw) {
             if (!entry) {
                 continue
@@ -1994,7 +1835,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 }
             }
         }
-
         return normalized
     }
 
@@ -2010,13 +1850,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         if (a.size !== b.size) {
             return false
         }
-
         for (const id of a) {
             if (!b.has(id)) {
                 return false
             }
         }
-
         return true
     }
 
@@ -2041,7 +1879,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             await this.shell.activateWidget(existing.id)
             return
         }
-
         const widget = await this.widgetManager.getOrCreateWidget(SchemaValidatorWidget.ID)
         this.ensureWidgetInSideArea(widget, 'left')
         await this.shell.activateWidget(widget.id)

@@ -1,5 +1,5 @@
 {
-  "name": "entities-overview",
+  "name": "multi-edit",
   "keywords": [
     "theia-extension"
   ],
@@ -12,22 +12,21 @@
     "@theia/core": "1.65.2",
     "antd": "^5.29.1",
     "app-state": "0.0.1",
-    "aroma2-common": "0.0.0",
-    "multi-edit": "0.0.0",
-    "ro-crate-editor": "0.0.0"
+    "aroma2-common": "0.0.0"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
     "typescript": "~5.4.5"
   },
   "scripts": {
+    "prepare": "npm run clean && npm run build",
     "clean": "rimraf lib",
     "build": "tsc",
     "watch": "tsc -w"
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/entities-overview-frontend-module"
+      "frontend": "lib/browser/multi-edit-frontend-module"
     }
   ]
 }
