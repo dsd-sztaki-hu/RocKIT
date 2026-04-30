@@ -674,21 +674,20 @@ export class EntitiesOverviewWidget extends TreeWidget {
             onDragStart: (event) => {
                 const selectedIds = this.model.getSelectedEntityIds()
 
-                const entityIds =
+                const candidateEntityIds =
                     selectedIds.length > 0 && ExampleTreeLeaf.is(node)
                         ? selectedIds
                         : ExampleTreeLeaf.is(node)
                             ? [node.data.entityId]
                             : []
+                const entityIds = candidateEntityIds.filter(
+                    (id): id is string => Boolean(id),
+                )
 
                 const entityNames: string[] = []
                 const entityTypes: string[][] = []
 
                 for (const id of entityIds) {
-                    if (!id) {
-                        continue
-                    }
-
                     const entity = this.findCrateEntityById(id)
                     if (!entity) {
                         continue

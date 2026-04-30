@@ -15,6 +15,7 @@ import type { TreeDataNode } from 'antd'
 import { Tooltip, Tree } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
+import { RoCrateEntityDeleteService } from 'aroma2-common/lib/browser'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { MultiEditDialogService } from 'multi-edit/lib/browser/multi-edit-dialog-service'
 import { inject, injectable } from 'inversify'
@@ -263,6 +264,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected readonly themeService: ThemeService
     @inject(MultiEditDialogService)
     protected readonly multiEditDialogService: MultiEditDialogService
+    @inject(RoCrateEntityDeleteService)
+    protected readonly roCrateEntityDeleteService: RoCrateEntityDeleteService
 
     protected crateSubscription?: Disposable
     protected validationSubscription?: Disposable
@@ -370,6 +373,75 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     public async openEditFromContextMenu(): Promise<void> {
         const entityIds = this.getEntityIdsForMultiEdit()
         await this.multiEditDialogService.open(entityIds)
+    }
+
+    public canDeleteFromContextMenu(): boolean {
+        return this.getDeletableSelectedEntityIds().length > 0
+    }
+
+    public async deleteFromContextMenu(): Promise<void> {
+        await this.deleteSelectedEntities()
+    }
+
+    protected async deleteSelectedEntities(): Promise<void> {
+        const result = await this.roCrateEntityDeleteService.deleteSelectedEntities({
+            selectedEntityIds: this.selectedEntityIds,
+            rootEntityId: './',
+            appStateService: this.appStateService,
+            roCrateHistoryService: this.roCrateHistoryService,
+            shell: this.shell,
+        })
+
+        if (!result.changed) {
+            return
+        }
+
+        this.selectedEntityIds.clear()
+        this.selectedKeys = []
+        this.lastSelectedEntityId = undefined
+        this.invalidateTreeCache()
+        this.update()
+    }
+
+    protected getDeletableSelectedEntityIds(): string[] {
+        return Array.from(
+            this.roCrateEntityDeleteService.getDeletableEntityIds(
+                this.selectedEntityIds,
+                './',
+            ),
+        )
+    }
+
+    protected handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+        if (event.defaultPrevented || event.key !== 'Delete') {
+            return
+        }
+        if (this.shouldIgnoreDeleteKeyEvent(event.target as HTMLElement | null)) {
+            return
+        }
+        if (this.getDeletableSelectedEntityIds().length === 0) {
+            return
+        }
+
+        event.preventDefault()
+        event.stopPropagation()
+        void this.deleteSelectedEntities()
+    }
+
+    protected shouldIgnoreDeleteKeyEvent(target: HTMLElement | null): boolean {
+        if (!target) {
+            return false
+        }
+
+        return Boolean(
+            target.closest(
+                'input, textarea, [contenteditable=""], [contenteditable="true"], [role="textbox"]',
+            ),
+        )
+    }
+
+    protected focusContainer(): void {
+        this.containerRef.current?.focus()
     }
 
     protected getEntityIdsForMultiEdit(): string[] {
@@ -543,6 +615,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     // - ctrl/cmd+click: toggle specific row
     // - shift+click: additive range selection across expanded rows
     protected handleTreeSelect = (_keys: React.Key[], info: any): void => {
+        this.focusContainer()
+
         const entityId = info.node?.entityId
         if (!entityId) {
             return
@@ -1149,6 +1223,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                     overflowY: 'hidden',
                 }}
                 onClick={(event) => {
+                    this.focusContainer()
                     const target = event.target as HTMLElement | null
                     if (target?.closest?.('[data-entity-id]')) {
                         return
@@ -1161,6 +1236,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                     this.lastSelectedEntityId = undefined
                     this.update()
                 }}
+                tabIndex={0}
+                onKeyDown={(event) => this.handleKeyDown(event)}
                 onDragOver={(event) => this.handleDragOver(event)}
                 onDragLeave={(event) => this.handleDragLeave(event)}
                 onDropCapture={(event) => this.handleDropCapture(event)}
