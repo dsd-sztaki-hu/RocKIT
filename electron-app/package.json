@@ -36,7 +36,8 @@
     "ro-crate-preview": "0.0.0",
     "ro-crate-structure-panel": "0.0.0",
     "save-ro-crate": "0.0.0",
-    "schema-validator": "0.0.0"
+    "schema-validator": "0.0.0",
+    "multi-edit": "0.0.0"
   },
   "devDependencies": {
     "@arpproject/recrate": "0.1.26",

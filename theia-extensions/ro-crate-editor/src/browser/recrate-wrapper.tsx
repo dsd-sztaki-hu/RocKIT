@@ -295,6 +295,7 @@ export const DescriboCrateBuilderWrapper = ({
                 showControls={true}
                 resetTabOnEntityChange={false}
                 resetTabOnProfileChange={false}
+				purgeUnlinkedEntities={false}
             />
         </div>
     )
