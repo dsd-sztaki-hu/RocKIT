@@ -77,6 +77,63 @@
   color: var(--recrate-muted) !important;
 }
 
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-pagination-total-text,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-pagination-item a,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-pagination-prev
+  .ant-pagination-item-link
+  .anticon,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-pagination-next
+  .ant-pagination-item-link
+  .anticon {
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-pagination-item,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-pagination-prev
+  .ant-pagination-item-link,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-pagination-next
+  .ant-pagination-item-link {
+  background-color: var(--recrate-input-bg) !important;
+  border-color: var(--recrate-border) !important;
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-pagination-item-active {
+  background-color: var(--recrate-panel-2) !important;
+  border-color: var(--recrate-accent) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-pagination-item-active a {
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-pagination-disabled
+  .ant-pagination-item-link,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-pagination-disabled
+  .ant-pagination-item-link
+  .anticon {
+  color: var(--recrate-muted) !important;
+  opacity: 0.7 !important;
+}
+
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope
   .describo-tabs-vertical-center-add
   .ant-tabs-nav,
