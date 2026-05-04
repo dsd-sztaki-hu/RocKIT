@@ -62,13 +62,17 @@ function findExecutable(candidates: string[]): string | undefined {
     '/usr/local/bin',
     '/usr/bin',
   ].filter(Boolean)
+  const extensions =
+    process.platform === 'win32' ? ['.exe', '.cmd', '.bat', ''] : ['']
   for (const dir of dirs) {
     for (const candidate of candidates) {
-      const full = path.join(dir, candidate)
-      try {
-        require('fs').accessSync(full)
-        return full
-      } catch {}
+      for (const ext of extensions) {
+        const full = path.join(dir, candidate + ext)
+        try {
+          require('fs').accessSync(full)
+          return full
+        } catch {}
+      }
     }
   }
   return undefined

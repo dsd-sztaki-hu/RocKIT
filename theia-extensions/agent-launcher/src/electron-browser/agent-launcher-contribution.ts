@@ -49,6 +49,11 @@ type RocrateMcpLaunchConfig = {
   socketPath?: string
 }
 
+type RocrateMcpRuntime = {
+  command: string
+  env: Record<string, string>
+}
+
 type AgentInstructionPort = {
   ensureAgentFiles(directoryUri: URI, agentId: string): Promise<void>
 }
@@ -106,6 +111,17 @@ function arraysEqual(a: string[] | undefined, b: string[] | undefined): boolean 
     }
   }
   return true
+}
+
+function toTomlBasicString(value: string): string {
+  return `"${value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\u0008/g, '\\b')
+    .replace(/\t/g, '\\t')
+    .replace(/\n/g, '\\n')
+    .replace(/\f/g, '\\f')
+    .replace(/\r/g, '\\r')}"`
 }
 
 function agentCommandId(agentId: string): string {
@@ -171,10 +187,10 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
           },
           isEnabled: (uri) =>
             !!this.workspaceService.getWorkspaceRootUri(uri) &&
-            this.isAgentAvailableForMenu(spec),
+            sharedAvailableAgents.has(spec.id),
           isVisible: (uri) =>
             !!this.workspaceService.getWorkspaceRootUri(uri) &&
-            this.isAgentAvailableForMenu(spec),
+            sharedAvailableAgents.has(spec.id),
         }),
       )
 
@@ -282,7 +298,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     await this.waitForTerminalOpen(terminal, 1000)
     this.setAgentTerminalStatus(terminal, agentId, 'Preparing...')
 
-    const executable = await this.resolveAgentExecutable(agentId)
+    const executable = sharedAvailableAgents.get(agentId)
     if (!executable) {
       this.setAgentTerminalStatus(terminal, agentId, 'Executable not found')
       return
@@ -328,14 +344,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   protected buildAgentLaunchArgs(agentId: string, executable: string): string[] {
     const args = this.buildRawAgentLaunchArgs(agentId, executable)
     if (isWindows) {
-      return [
-        'powershell.exe',
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-        this.buildWindowsAgentLifecycleCommand(args),
-      ]
+      return args
     }
     return ['bash', '-lc', this.buildUnixAgentLifecycleCommand(args)]
   }
@@ -353,14 +362,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   protected buildAgentFallbackCommand(agentId: string, executable: string): string {
     const args = this.buildRawAgentLaunchArgs(agentId, executable)
     if (isWindows) {
-      return [
-        'powershell.exe',
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-        this.quoteForWindowsCommand(this.buildWindowsAgentLifecycleCommand(args)),
-      ].join(' ')
+      return args.map((arg) => this.quoteForWindowsCommand(arg)).join(' ')
     }
     return `bash -lc ${this.quoteForBash(this.buildUnixAgentLifecycleCommand(args))}`
   }
@@ -381,32 +383,6 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected quoteForBash(value: string): string {
     return `'${value.replace(/'/g, `'\\''`)}'`
-  }
-
-  protected buildWindowsAgentLifecycleCommand(args: string[]): string {
-    const executable = this.quoteForPowerShell(args[0] ?? '')
-    const agentArgs = args.slice(1).map((arg) => this.quoteForPowerShell(arg)).join(', ')
-    const argumentList = agentArgs ? `@(${agentArgs})` : '@()'
-    return [
-      '$ErrorActionPreference = "SilentlyContinue"',
-      `$agent = Start-Process -FilePath ${executable} -ArgumentList ${argumentList} -NoNewWindow -PassThru`,
-      'function Stop-Agent {',
-      'if ($script:agent -and -not $script:agent.HasExited) {',
-      'taskkill.exe /PID $script:agent.Id /T /F | Out-Null',
-      'Stop-Process -Id $script:agent.Id -Force',
-      '}',
-      '}',
-      'try {',
-      'while (-not $agent.WaitForExit(1000)) {}',
-      'exit $agent.ExitCode',
-      '} finally {',
-      'Stop-Agent',
-      '}',
-    ].join('; ')
-  }
-
-  protected quoteForPowerShell(value: string): string {
-    return `'${value.replace(/'/g, `''`)}'`
   }
 
   protected quoteForWindowsCommand(value: string): string {
@@ -498,11 +474,9 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
     if (spec.kind === 'toml') {
       return (
-        content.includes(`command = ${this.toTomlString(launchConfig.command)}`) &&
+        content.includes(`command = ${toTomlBasicString(launchConfig.command)}`) &&
         content.includes(
-          `args = [${launchConfig.args
-            .map((arg) => this.toTomlString(arg))
-            .join(', ')}]`,
+          `args = [${launchConfig.args.map((arg) => toTomlBasicString(arg)).join(', ')}]`,
         )
       )
     }
@@ -532,8 +506,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     if (spec.kind === 'toml') {
       return [
         '[mcp_servers.rocrate]',
-        `command = ${this.toTomlString(launchConfig.command)}`,
-        `args = [${launchConfig.args.map((arg) => this.toTomlString(arg)).join(', ')}]`,
+        `command = ${toTomlBasicString(launchConfig.command)}`,
+        `args = [${launchConfig.args.map((arg) => toTomlBasicString(arg)).join(', ')}]`,
         'startup_timeout_sec = 30',
         'env = { ROCRATE_MCP_DEFAULT_MODE = "local" }',
       ].join('\n')
@@ -563,50 +537,86 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected async resolveRocrateServerPath(): Promise<string> {
     const processEnv = (globalThis as any).process?.env
-    const processPlatform = this.getProcessPlatform()
+    const processPlatform =
+      ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
     const runtime = this.getElectronRuntimePaths()
     const appProjectPath =
-      this.normalizeFsPath(this.getEnvValue(processEnv, 'THEIA_APP_PROJECT_PATH')) ??
+      processEnv?.THEIA_APP_PROJECT_PATH ??
       resolveAppProjectPathFromLocation(
         typeof window === 'undefined' ? undefined : window.location.pathname,
         processPlatform,
       )
     const unique = getRocrateMcpServerPathCandidates({
       appProjectPath,
-      platform: processPlatform,
-      resourcesPath: this.normalizeFsPath(runtime.resourcesPath),
-      serverPathOverride: this.normalizeFsPath(
-        this.getEnvValue(processEnv, 'AROMA_ROCRATE_MCP_SERVER_PATH'),
-      ),
-    }).map((candidate) => this.normalizeFsPath(candidate) ?? candidate)
+      resourcesPath: runtime.resourcesPath,
+      serverPathOverride: processEnv?.AROMA_ROCRATE_MCP_SERVER_PATH,
+    })
     for (const candidate of unique) {
-      if (await this.pathExists(candidate)) return candidate
+      if (await this.fileService.exists(FileUri.create(candidate))) return candidate
     }
     throw new Error(`Server not found. Tried: ${unique.join(' | ')}`)
   }
 
   protected async resolveRocrateMcpLaunchConfig(): Promise<RocrateMcpLaunchConfig> {
-    const nodeCommand = await this.findExecutableAbsolutePath(['node'])
-    if (!nodeCommand) throw new Error('Node not found in PATH.')
+    const runtime = await this.resolveRocrateMcpRuntime()
     const serverPath = await this.resolveRocrateServerPath()
     const socketPath = this.resolveRocrateMcpSocketPath()
     return {
-      command: nodeCommand,
+      command: runtime.command,
       args: [serverPath, '--connect', socketPath],
-      env: { ROCRATE_MCP_DEFAULT_MODE: 'local' },
+      env: {
+        ...runtime.env,
+        ROCRATE_MCP_DEFAULT_MODE: 'local',
+      },
       socketPath,
     }
   }
 
+  protected async resolveRocrateMcpRuntime(): Promise<RocrateMcpRuntime> {
+    const processValue = (globalThis as any).process
+    const processEnv = processValue?.env ?? {}
+    const nodeOverride =
+      processEnv.AROMA_ROCRATE_MCP_NODE_PATH ??
+      (await this.envVariablesServer.getValue('AROMA_ROCRATE_MCP_NODE_PATH'))?.value
+    if (nodeOverride) {
+      return { command: nodeOverride, env: {} }
+    }
+
+    const nodeCommand = await this.findExecutableAbsolutePath(['node'])
+    if (nodeCommand) {
+      return { command: nodeCommand, env: {} }
+    }
+
+    const backendExecPath = await this.envVariablesServer.getExecPath()
+    if (backendExecPath) {
+      return {
+        command: backendExecPath,
+        env: { ELECTRON_RUN_AS_NODE: '1' },
+      }
+    }
+
+    const execPath = this.getElectronRuntimePaths().execPath
+    if (execPath) {
+      const env: Record<string, string> = {}
+      if (processValue?.versions?.electron) {
+        env.ELECTRON_RUN_AS_NODE = '1'
+      }
+      return { command: execPath, env }
+    }
+
+    throw new Error('Could not resolve a Node runtime for the RO-Crate MCP server.')
+  }
+
   protected resolveRocrateMcpSocketPath(): string {
     const env = (globalThis as any).process?.env
-    const override = this.getEnvValue(env, 'AROMA_ROCRATE_MCP_SOCKET_PATH')
+    const processPlatform =
+      ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
     const homeDirs = this.getHomeDirs()
     return resolveRocrateMcpSocketPath({
       homeDir: homeDirs.length > 0 ? homeDirs[0] : this.homeDirPath,
-      platform: this.getProcessPlatform(),
-      socketPathOverride: override ? this.normalizeFsPath(override) ?? override : undefined,
-      username: this.getEnvValue(env, 'USERNAME'),
+      platform: processPlatform,
+      socketPathOverride: env?.AROMA_ROCRATE_MCP_SOCKET_PATH,
+      username: env?.USERNAME,
     })
   }
 
@@ -721,7 +731,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     ]
     for (const candidate of candidates) {
       const uri = FileUri.create(candidate)
-      if (!(await this.pathExists(candidate))) {
+      if (!(await this.fileService.exists(uri))) {
         continue
       }
       try {
@@ -784,33 +794,14 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected async detectAvailableAgents(): Promise<void> {
     for (const spec of AGENT_SPECS) {
-      const executable = await this.resolveAgentExecutable(spec.id)
+      let executable = await this.findExecutableInPath(spec.executables)
+      if (!executable && (await this.hasAgentMarker(spec))) {
+        executable = spec.executables[0]
+      }
       if (executable) {
         sharedAvailableAgents.set(spec.id, executable)
       }
     }
-  }
-
-  protected async resolveAgentExecutable(agentId: string): Promise<string | undefined> {
-    const cached = sharedAvailableAgents.get(agentId)
-    if (cached) return cached
-    const spec = AGENT_SPECS.find((candidate) => candidate.id === agentId)
-    if (!spec) return undefined
-    const executable = await this.findExecutableInPath(spec.executables)
-    if (executable) {
-      sharedAvailableAgents.set(agentId, executable)
-    }
-    return executable
-  }
-
-  protected isAgentAvailableForMenu(spec: AgentSpec): boolean {
-    if (sharedAvailableAgents.has(spec.id)) return true
-    const executable = this.findExecutableInPathSync(spec.executables)
-    if (executable) {
-      sharedAvailableAgents.set(spec.id, executable)
-      return true
-    }
-    return false
   }
 
   protected async findExecutableInPath(
@@ -820,59 +811,25 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     return abs ? path.basename(abs).replace(/\.(exe|cmd|bat)$/i, '') : undefined
   }
 
-  protected findExecutableInPathSync(candidates: string[]): string | undefined {
-    const abs = this.findExecutableAbsolutePathSync(candidates)
-    return abs ? path.basename(abs).replace(/\.(exe|cmd|bat)$/i, '') : undefined
-  }
-
   protected async findExecutableAbsolutePath(
     candidates: string[],
   ): Promise<string | undefined> {
-    const local = this.findExecutableAbsolutePathSync(candidates)
-    if (local) return local
-    for (const full of this.getExecutablePathCandidates(candidates)) {
-      if (await this.pathExists(full)) return full
-    }
-    return undefined
-  }
-
-  protected findExecutableAbsolutePathSync(candidates: string[]): string | undefined {
-    for (const full of this.getExecutablePathCandidates(candidates)) {
-      if (this.pathExistsSync(full)) return full
-    }
-    return undefined
-  }
-
-  protected getExecutablePathCandidates(candidates: string[]): string[] {
     const processEnv = (globalThis as any).process?.env
-    const dirs = this.getExecutableSearchDirs(processEnv)
-    const exts = this.getExecutableExtensions(processEnv)
-    const paths: string[] = []
+    const pathValue = processEnv?.PATH ?? ''
+    const dirs = [
+      ...new Set([...pathValue.split(isWindows ? ';' : ':'), ...this.getCommonBinDirs()]),
+    ]
+    const exts = isWindows ? ['.exe', '.cmd', '.bat', ''] : ['']
 
     for (const dir of dirs) {
       for (const candidate of candidates) {
         for (const ext of exts) {
-          const alreadyHasExt = isWindows && path.extname(candidate) !== ''
-          paths.push(path.join(dir, alreadyHasExt ? candidate : candidate + ext))
+          const full = path.join(dir, candidate + ext)
+          if (await this.fileService.exists(FileUri.create(full))) return full
         }
       }
     }
-    return paths
-  }
-
-  protected getExecutableSearchDirs(env: NodeJS.ProcessEnv | undefined): string[] {
-    const pathValue = this.getEnvValue(env, 'PATH') ?? ''
-    return [
-      ...new Set(
-        [
-          ...pathValue.split(isWindows ? ';' : ':'),
-          ...this.getRuntimeExecutableDirs(),
-          ...this.getCommonBinDirs(),
-        ]
-          .map((dir) => this.normalizeExecutableSearchDir(dir))
-          .filter((dir): dir is string => !!dir && this.isAbsoluteFsPath(dir)),
-      ),
-    ]
+    return undefined
   }
 
   protected async hasAgentMarker(spec: AgentSpec): Promise<boolean> {
@@ -880,20 +837,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const homes = this.getHomeDirs()
     for (const home of homes) {
       for (const marker of spec.markerPaths) {
-        if (await this.pathExists(path.join(home, marker))) {
-          return true
-        }
-      }
-    }
-    return false
-  }
-
-  protected hasAgentMarkerSync(spec: AgentSpec): boolean {
-    if (!spec.markerPaths) return false
-    const homes = this.getHomeDirs()
-    for (const home of homes) {
-      for (const marker of spec.markerPaths) {
-        if (this.pathExistsSync(path.join(home, marker))) {
+        if (await this.fileService.exists(FileUri.create(path.join(home, marker)))) {
           return true
         }
       }
@@ -903,11 +847,9 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected getHomeDirs(): string[] {
     const env = (globalThis as any).process?.env
-    return [
-      this.homeDirPath,
-      this.getEnvValue(env, 'HOME'),
-      this.getEnvValue(env, 'USERPROFILE'),
-    ].filter((value): value is string => !!value)
+    return [this.homeDirPath, env?.HOME, env?.USERPROFILE].filter(
+      (value): value is string => !!value,
+    )
   }
 
   protected getElectronRuntimePaths(): { resourcesPath?: string; execPath?: string } {
@@ -916,66 +858,6 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       resourcesPath: processValue?.resourcesPath,
       execPath: processValue?.execPath,
     }
-  }
-
-  protected getEnvValue(
-    env: NodeJS.ProcessEnv | undefined,
-    name: string,
-  ): string | undefined {
-    if (!env) return undefined
-    const direct = env[name]
-    if (direct !== undefined) return direct
-    const lower = name.toLowerCase()
-    const key = Object.keys(env).find((candidate) => candidate.toLowerCase() === lower)
-    return key ? env[key] : undefined
-  }
-
-  protected getProcessPlatform(): NodeJS.Platform {
-    const platform = (globalThis as any).process?.platform as NodeJS.Platform | undefined
-    return isWindows ? 'win32' : platform ?? 'darwin'
-  }
-
-  protected normalizeFsPath(fsPath: string | undefined): string | undefined {
-    if (!fsPath) return undefined
-    if (isWindows && /^\/[a-zA-Z]:[\\/]/.test(fsPath)) {
-      return fsPath.slice(1)
-    }
-    return fsPath
-  }
-
-  protected toTomlString(value: string): string {
-    return `"${value
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"')
-      .replace(/\r/g, '\\r')
-      .replace(/\n/g, '\\n')
-      .replace(/\t/g, '\\t')}"`
-  }
-
-  protected getExecutableExtensions(env: NodeJS.ProcessEnv | undefined): string[] {
-    if (!isWindows) return ['']
-    const configured = this.getEnvValue(env, 'PATHEXT')
-      ?.split(';')
-      .map((ext) => ext.trim().toLowerCase())
-      .filter(Boolean)
-    const exts = configured && configured.length > 0 ? configured : ['.exe', '.cmd', '.bat']
-    return [...new Set([...exts, ''])]
-  }
-
-  protected normalizeExecutableSearchDir(dir: string | undefined): string | undefined {
-    const normalized = dir?.trim().replace(/^"(.*)"$/, '$1')
-    return normalized || undefined
-  }
-
-  protected isAbsoluteFsPath(fsPath: string): boolean {
-    return isWindows ? /^[a-zA-Z]:[\\/]/.test(fsPath) || /^\\\\/.test(fsPath) : fsPath.startsWith('/')
-  }
-
-  protected getRuntimeExecutableDirs(): string[] {
-    const processValue = (globalThis as any).process
-    const runtime = this.getElectronRuntimePaths()
-    return [processValue?.cwd?.(), runtime.execPath ? path.dirname(runtime.execPath) : undefined]
-      .filter((value): value is string => !!value)
   }
 
   protected async loadHomeDirPath(): Promise<void> {
@@ -995,42 +877,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         '/usr/bin',
       ].filter(Boolean)
     }
-    const localAppData = this.getEnvValue((globalThis as any).process?.env, 'LOCALAPPDATA')
-    const appData = this.getEnvValue((globalThis as any).process?.env, 'APPDATA')
-    return [
-      home ? `${home}\\.local\\bin` : '',
-      appData ? `${appData}\\npm` : '',
-      localAppData ? `${localAppData}\\Programs\\nodejs` : '',
-      'C:\\Program Files\\nodejs',
-      'C:\\Program Files (x86)\\nodejs',
-      'C:\\nvm4w\\nodejs',
-    ].filter(Boolean)
+    return [home ? `${home}\\.local\\bin` : '', 'C:\\Program Files\\nodejs'].filter(
+      Boolean,
+    )
   }
 
   protected async readTextFile(uri: URI): Promise<string> {
     return (await this.fileService.read(uri)).value.toString()
   }
 
-    protected async pathExists(fsPath: string): Promise<boolean> {
-        if (this.pathExistsSync(fsPath)) return true
-        try {
-            return await this.fileService.exists(FileUri.create(fsPath))
-        } catch {
-            return false
-        }
-    }
-
-    protected pathExistsSync(fsPath: string): boolean {
-        try {
-            const nodeRequire = (globalThis as any).require ?? (window as any).require
-            const fsModule = nodeRequire?.('fs') as { existsSync?: (path: string) => boolean } | undefined
-            return fsModule?.existsSync?.(fsPath) ?? false
-        } catch {
-            return false
-        }
-    }
-
-    protected waitForTerminalOpen(
+  protected waitForTerminalOpen(
     terminal: TerminalWidget,
     timeout: number,
   ): Promise<void> {
