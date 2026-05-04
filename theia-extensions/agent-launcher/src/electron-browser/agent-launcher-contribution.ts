@@ -563,16 +563,17 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected async resolveRocrateServerPath(): Promise<string> {
     const processEnv = (globalThis as any).process?.env
-    const processPlatform =
-      ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
+    const processPlatform = this.getProcessPlatform()
     const runtime = this.getElectronRuntimePaths()
     const appProjectPath =
       this.normalizeFsPath(this.getEnvValue(processEnv, 'THEIA_APP_PROJECT_PATH')) ??
-      this.resolveAppProjectPathFromLocation(
+      resolveAppProjectPathFromLocation(
         typeof window === 'undefined' ? undefined : window.location.pathname,
+        processPlatform,
       )
-    const unique = this.getRocrateMcpServerPathCandidates({
+    const unique = getRocrateMcpServerPathCandidates({
       appProjectPath,
+      platform: processPlatform,
       resourcesPath: this.normalizeFsPath(runtime.resourcesPath),
       serverPathOverride: this.normalizeFsPath(
         this.getEnvValue(processEnv, 'AROMA_ROCRATE_MCP_SERVER_PATH'),
@@ -600,40 +601,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   protected resolveRocrateMcpSocketPath(): string {
     const env = (globalThis as any).process?.env
     const override = this.getEnvValue(env, 'AROMA_ROCRATE_MCP_SOCKET_PATH')
-    if (override) return this.normalizeFsPath(override) ?? override
-    if (isWindows) {
-      const username = this.getEnvValue(env, 'USERNAME') ?? 'user'
-      return `\\\\.\\pipe\\aroma-rocrate-mcp-${username}`
-    }
-    const processPlatform =
-      ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
     const homeDirs = this.getHomeDirs()
-    const base = this.joinFsPath(homeDirs.length > 0 ? homeDirs[0] : undefined, '.aroma') ?? '/tmp/aroma'
-    return this.joinFsPath(base, 'rocrate-mcp-server.sock') ?? `${base}/rocrate-mcp-server.sock`
+    return resolveRocrateMcpSocketPath({
+      homeDir: homeDirs.length > 0 ? homeDirs[0] : this.homeDirPath,
+      platform: this.getProcessPlatform(),
+      socketPathOverride: override ? this.normalizeFsPath(override) ?? override : undefined,
+      username: this.getEnvValue(env, 'USERNAME'),
+    })
   }
 
-    protected resolveRocrateMcpSocketPath(): string {
-        const env = (globalThis as any).process?.env
-        const processPlatform =
-            ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
-        const homeDirs = this.getHomeDirs()
-        let override = this.getEnvValue(env, 'AROMA_ROCRATE_MCP_SOCKET_PATH')
-        if (override) {
-            override = this.normalizeFsPath(override) ?? override
-        }
-        if (isWindows) {
-            const username = this.getEnvValue(env, 'USERNAME') ?? 'user'
-            override = `\\\\.\\pipe\\aroma-rocrate-mcp-${username}`
-        }
-        return resolveRocrateMcpSocketPath({
-            homeDir: homeDirs.length > 0 ? homeDirs[0] : this.homeDirPath,
-            platform: processPlatform,
-            socketPathOverride: override,
-            username: env?.USERNAME,
-        })
-    }
-
-    protected async writeRocrateMcpConfig(
+  protected async writeRocrateMcpConfig(
     spec: AgentMcpConfigSpec,
     launchConfig: RocrateMcpLaunchConfig,
   ): Promise<void> {
@@ -964,93 +941,6 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       return fsPath.slice(1)
     }
     return fsPath
-  }
-
-  protected resolveAppProjectPathFromLocation(pathname: string | undefined): string | undefined {
-    if (!pathname) return undefined
-    let current = decodeURIComponent(pathname)
-    current = this.normalizeFsPath(current) ?? current
-    const separator = isWindows ? '\\' : '/'
-    const parts = current.split(/[\\/]/).filter((part) => part.length > 0)
-    while (parts.length > 0) {
-      const candidate = isWindows ? parts.join(separator) : `${separator}${parts.join(separator)}`
-      if (
-        candidate.endsWith('electron-app') ||
-        candidate.endsWith('browser-app') ||
-        candidate.endsWith('aroma-2')
-      ) {
-        return candidate
-      }
-      parts.pop()
-    }
-    return undefined
-  }
-
-  protected getRocrateMcpServerPathCandidates(options: {
-    appProjectPath?: string
-    resourcesPath?: string
-    serverPathOverride?: string
-  }): string[] {
-    const candidates: string[] = []
-    if (options.serverPathOverride) candidates.push(options.serverPathOverride)
-    if (options.appProjectPath) {
-      const base =
-        options.appProjectPath.endsWith('electron-app') ||
-        options.appProjectPath.endsWith('browser-app')
-          ? this.joinFsPath(options.appProjectPath, '..')
-          : options.appProjectPath
-      const candidate = this.joinFsPath(
-        base,
-        'theia-extensions',
-        'rocrate-mcp-server',
-        'lib',
-        'server.js',
-      )
-      if (candidate) candidates.push(candidate)
-    }
-    if (options.resourcesPath) {
-      for (const prefix of ['app', '']) {
-        const candidate = this.joinFsPath(
-          options.resourcesPath,
-          prefix,
-          'theia-extensions',
-          'rocrate-mcp-server',
-          'lib',
-          'server.js',
-        )
-        if (candidate) candidates.push(candidate)
-      }
-    }
-    return [
-      ...new Set(
-        candidates
-          .map((candidate) => this.normalizeFsPath(candidate))
-          .filter((candidate): candidate is string => !!candidate && this.isAbsoluteFsPath(candidate)),
-      ),
-    ]
-  }
-
-  protected joinFsPath(
-    first: string | undefined,
-    ...segments: string[]
-  ): string | undefined {
-    if (!first) return undefined
-    const separator = isWindows ? '\\' : '/'
-    const parts = [first, ...segments].filter((part) => part.length > 0)
-    const resolved: string[] = []
-    for (const part of parts.join(separator).split(/[\\/]/)) {
-      if (!part || part === '.') continue
-      if (part === '..') {
-        resolved.pop()
-        continue
-      }
-      resolved.push(part)
-    }
-    if (isWindows) {
-      const root = /^[a-zA-Z]:$/.test(resolved[0] ?? '') ? `${resolved.shift()}\\` : ''
-      return `${root}${resolved.join('\\')}`
-    }
-    return `/${resolved.join('/')}`
   }
 
   protected toTomlString(value: string): string {
