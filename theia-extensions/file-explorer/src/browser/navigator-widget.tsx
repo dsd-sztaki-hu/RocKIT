@@ -18,6 +18,7 @@ import { environment, isOSX } from '@theia/core'
 import {
   CompositeTreeNode,
   ContextMenuRenderer,
+  codicon,
   ExpandableTreeNode,
   Key,
   NodeProps,
@@ -28,12 +29,14 @@ import {
 } from '@theia/core/lib/browser'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { CommandService } from '@theia/core/lib/common'
+import { Disposable } from '@theia/core/lib/common/disposable'
 import { nls } from '@theia/core/lib/common/nls'
 import URI from '@theia/core/lib/common/uri'
 import { Message } from '@theia/core/shared/@lumino/messaging'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { DirNode, FileStatNode, FileStatNodeData } from '@theia/filesystem/lib/browser'
+import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { FileSearchService } from '@theia/file-search/lib/common/file-search-service'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import { Button, Select } from 'antd'
@@ -60,6 +63,208 @@ export const CLASS = 'theia-Files'
 export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   static SEARCH_VISIBLE_CLASS = 'navigator-search-visible'
   static BODY_SEARCH_VISIBLE_CLASS = 'navigator-search-visible'
+  private static readonly ARCHIVE_FILE_SUFFIXES = [
+    '.tar.gz',
+    '.tar.bz2',
+    '.tar.xz',
+    '.tar.zst',
+  ]
+  private static readonly ARCHIVE_EXTENSIONS = new Set([
+    '.zip',
+    '.gz',
+    '.bz2',
+    '.xz',
+    '.zst',
+    '.7z',
+    '.rar',
+    '.tgz',
+    '.tar',
+    '.jar',
+    '.war',
+  ])
+  private static readonly MEDIA_EXTENSIONS = new Set([
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.webp',
+    '.svg',
+    '.bmp',
+    '.ico',
+    '.tif',
+    '.tiff',
+    '.mp4',
+    '.m4v',
+    '.mov',
+    '.avi',
+    '.mkv',
+    '.webm',
+    '.mp3',
+    '.wav',
+    '.flac',
+    '.ogg',
+    '.m4a',
+  ])
+  private static readonly DOCUMENT_EXTENSIONS = new Set([
+    '.md',
+    '.mdx',
+    '.rst',
+    '.adoc',
+    '.rtf',
+  ])
+  private static readonly DATA_EXTENSIONS = new Set([
+    '.json',
+    '.jsonc',
+    '.yaml',
+    '.yml',
+    '.toml',
+    '.xml',
+    '.xsd',
+    '.xsl',
+    '.csv',
+    '.tsv',
+  ])
+  private static readonly CODE_EXTENSIONS = new Set([
+    '.c',
+    '.cc',
+    '.cpp',
+    '.cxx',
+    '.h',
+    '.hh',
+    '.hpp',
+    '.hxx',
+    '.java',
+    '.kt',
+    '.kts',
+    '.scala',
+    '.go',
+    '.rs',
+    '.swift',
+    '.cs',
+    '.php',
+    '.py',
+    '.rb',
+    '.lua',
+    '.pl',
+    '.r',
+    '.dart',
+    '.js',
+    '.jsx',
+    '.mjs',
+    '.cjs',
+    '.ts',
+    '.tsx',
+    '.vue',
+    '.svelte',
+    '.html',
+    '.htm',
+    '.css',
+    '.scss',
+    '.sass',
+    '.less',
+  ])
+  private static readonly SCRIPT_EXTENSIONS = new Set([
+    '.sh',
+    '.bash',
+    '.zsh',
+    '.fish',
+    '.ps1',
+    '.psm1',
+    '.bat',
+    '.cmd',
+  ])
+  private static readonly DATABASE_EXTENSIONS = new Set([
+    '.sql',
+    '.sqlite',
+    '.sqlite3',
+    '.db',
+    '.duckdb',
+  ])
+  private static readonly CONFIG_EXTENSIONS = new Set([
+    '.ini',
+    '.conf',
+    '.config',
+    '.cfg',
+    '.properties',
+    '.env',
+    '.editorconfig',
+  ])
+  private static readonly CONFIG_FILE_NAMES = new Set([
+    '.env',
+    '.env.local',
+    '.env.development',
+    '.env.production',
+    '.gitignore',
+    '.gitattributes',
+    '.npmrc',
+    '.yarnrc',
+    '.editorconfig',
+    '.prettierrc',
+    '.eslintrc',
+    'dockerfile',
+    'compose.yml',
+    'compose.yaml',
+    'docker-compose.yml',
+    'docker-compose.yaml',
+    'makefile',
+  ])
+  private static readonly FOLDER_MEDIA_NAMES = new Set([
+    'images',
+    'image',
+    'img',
+    'media',
+    'assets',
+    'videos',
+    'video',
+    'audio',
+    'icons',
+  ])
+  private static readonly FOLDER_CODE_NAMES = new Set([
+    'src',
+    'source',
+    'js',
+    'javascript',
+    'ts',
+    'typescript',
+    'scripts',
+    'script',
+    'lib',
+    'app',
+    'apps',
+    'components',
+  ])
+  private static readonly FOLDER_DOC_NAMES = new Set(['docs', 'doc', 'documentation'])
+  private static readonly FOLDER_DATA_NAMES = new Set([
+    'data',
+    'datasets',
+    'dataset',
+    'db',
+    'database',
+    'schemas',
+    'schema',
+  ])
+  private static readonly FOLDER_CONFIG_NAMES = new Set([
+    'config',
+    'configs',
+    'settings',
+    '.github',
+    '.gitlab',
+    '.vscode',
+  ])
+  private static readonly FOLDER_PACKAGE_NAMES = new Set([
+    'node_modules',
+    'vendor',
+    'packages',
+    'plugins',
+    'extensions',
+  ])
+  private static readonly FOLDER_TEST_NAMES = new Set([
+    'test',
+    'tests',
+    '__tests__',
+    'spec',
+    'specs',
+  ])
 
   @inject(CommandService) protected readonly commandService: CommandService
   @inject(NavigatorContextKeyService)
@@ -70,6 +275,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   @inject(DataSourceService) protected readonly dataSourceService: DataSourceService
   @inject(ThemeService) protected readonly themeService: ThemeService
   @inject(FileSearchService) protected readonly fileSearchService: FileSearchService
+  @inject(FileService) protected readonly fileService: FileService
   @inject(RoCrateIgnoredFilesService)
   protected readonly roCrateIgnoredFilesService: RoCrateIgnoredFilesService
 
@@ -93,6 +299,11 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   protected orphanFilePaths = new Set<string>()
   protected orphanDirectoryPaths = new Set<string>()
   protected orphanScanToken = 0
+  protected workspaceFilesWatchDisposable?: Disposable
+  protected workspaceFilesChangeDisposable?: Disposable
+  protected workspaceFilesWatchRoot?: string
+  protected workspaceFilesWatchRootUri?: URI
+  protected pendingOrphanRefresh?: number
 
   constructor(
     @inject(TreeProps) props: TreeProps,
@@ -141,6 +352,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         this.update()
       }),
       this.workspaceService.onWorkspaceChanged(() => {
+        this.ensureWorkspaceFileWatch()
         void this.refreshOrphanHighlights()
         void this.model.refresh()
       }),
@@ -152,9 +364,80 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       dispose: () =>
         document.body.classList.remove(FileNavigatorWidget.BODY_SEARCH_VISIBLE_CLASS),
     })
+    this.toDispose.push({
+      dispose: () => this.disposeWorkspaceFileWatch(),
+    })
     this.roCratePathIndex = this.buildRoCrateEntityPathIndex(this.appStateService.roCrate)
+    this.ensureWorkspaceFileWatch()
     void this.refreshOrphanHighlights()
     this.updateSearchVisibilityClass()
+  }
+
+  protected ensureWorkspaceFileWatch(): void {
+    const rootUri = this.getPrimaryWorkspaceRootUri()
+    if (!rootUri) {
+      this.disposeWorkspaceFileWatch()
+      return
+    }
+
+    const rootKey = rootUri.toString()
+    if (
+      this.workspaceFilesWatchRoot === rootKey &&
+      this.workspaceFilesWatchDisposable &&
+      this.workspaceFilesChangeDisposable
+    ) {
+      return
+    }
+
+    this.disposeWorkspaceFileWatch()
+    this.workspaceFilesWatchRoot = rootKey
+    this.workspaceFilesWatchRootUri = rootUri
+    this.workspaceFilesWatchDisposable = this.fileService.watch(rootUri)
+    this.workspaceFilesChangeDisposable = this.fileService.onDidFilesChange((event) => {
+      const watchedRootUri = this.workspaceFilesWatchRootUri
+      if (!watchedRootUri) {
+        return
+      }
+
+      const changedInWatchedRoot = event.changes.some((change) =>
+        watchedRootUri.isEqualOrParent(change.resource),
+      )
+      if (!changedInWatchedRoot) {
+        return
+      }
+
+      this.scheduleOrphanRefresh()
+    })
+  }
+
+  protected disposeWorkspaceFileWatch(): void {
+    this.workspaceFilesWatchDisposable?.dispose()
+    this.workspaceFilesChangeDisposable?.dispose()
+    this.workspaceFilesWatchDisposable = undefined
+    this.workspaceFilesChangeDisposable = undefined
+    this.workspaceFilesWatchRoot = undefined
+    this.workspaceFilesWatchRootUri = undefined
+    this.cancelPendingOrphanRefresh()
+  }
+
+  protected scheduleOrphanRefresh(): void {
+    this.cancelPendingOrphanRefresh()
+    this.pendingOrphanRefresh = window.setTimeout(() => {
+      this.pendingOrphanRefresh = undefined
+      void this.refreshOrphanHighlights()
+    }, 200)
+  }
+
+  protected cancelPendingOrphanRefresh(): void {
+    if (this.pendingOrphanRefresh) {
+      clearTimeout(this.pendingOrphanRefresh)
+      this.pendingOrphanRefresh = undefined
+    }
+  }
+
+  protected getPrimaryWorkspaceRootUri(): URI | undefined {
+    const roots = this.workspaceService.tryGetRoots()
+    return roots && roots.length > 0 ? roots[0].resource : undefined
   }
 
   protected override doUpdateRows(): void {
@@ -288,6 +571,129 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         </button>
       </div>
     )
+  }
+
+  protected override toNodeIcon(node: TreeNode): string {
+    const icon = super.toNodeIcon(node)
+    if (!FileStatNode.is(node)) {
+      return icon
+    }
+
+    if (DirNode.is(node)) {
+      if (icon && !icon.includes('default-folder-icon')) {
+        return icon
+      }
+      const mappedFolderIcon = this.getFolderIconClass(node)
+      return mappedFolderIcon ?? icon
+    }
+
+    // Respect active icon themes that already provide a file-specific icon.
+    if (icon && !icon.includes('default-file-icon')) {
+      return icon
+    }
+
+    const mapped = this.getMimeIconClass(node)
+    return mapped ?? icon
+  }
+
+  private getMimeIconClass(node: FileStatNode): string | undefined {
+    const fileName = node.fileStat.resource.path.base.toLowerCase()
+    const ext = node.fileStat.resource.path.ext.toLowerCase()
+
+    if (!fileName) {
+      return undefined
+    }
+
+    if (ext === '.pdf') {
+      return `${codicon('file-pdf')} navigator-file-icon navigator-file-icon--document`
+    }
+
+    if (ext === '.txt') {
+      return `${codicon('file-text')} navigator-file-icon navigator-file-icon--text`
+    }
+
+    if (
+      FileNavigatorWidget.ARCHIVE_EXTENSIONS.has(ext) ||
+      FileNavigatorWidget.ARCHIVE_FILE_SUFFIXES.some((suffix) => fileName.endsWith(suffix))
+    ) {
+      return `${codicon('file-zip')} navigator-file-icon navigator-file-icon--archive`
+    }
+
+    if (FileNavigatorWidget.MEDIA_EXTENSIONS.has(ext)) {
+      return `${codicon('file-media')} navigator-file-icon navigator-file-icon--media`
+    }
+
+    if (FileNavigatorWidget.DATABASE_EXTENSIONS.has(ext)) {
+      return `${codicon('database')} navigator-file-icon navigator-file-icon--database`
+    }
+
+    if (
+      FileNavigatorWidget.CONFIG_EXTENSIONS.has(ext) ||
+      FileNavigatorWidget.CONFIG_FILE_NAMES.has(fileName)
+    ) {
+      return `${codicon('settings-gear')} navigator-file-icon navigator-file-icon--config`
+    }
+
+    if (FileNavigatorWidget.DATA_EXTENSIONS.has(ext)) {
+      return `${codicon('json')} navigator-file-icon navigator-file-icon--data`
+    }
+
+    if (FileNavigatorWidget.DOCUMENT_EXTENSIONS.has(ext)) {
+      return `${codicon('markdown')} navigator-file-icon navigator-file-icon--document`
+    }
+
+    if (FileNavigatorWidget.SCRIPT_EXTENSIONS.has(ext)) {
+      return `${codicon('terminal')} navigator-file-icon navigator-file-icon--script`
+    }
+
+    if (FileNavigatorWidget.CODE_EXTENSIONS.has(ext)) {
+      return `${codicon('file-code')} navigator-file-icon navigator-file-icon--code`
+    }
+
+    if (ext === '.bin' || ext === '.dat') {
+      return `${codicon('file-binary')} navigator-file-icon navigator-file-icon--binary`
+    }
+
+    return undefined
+  }
+
+  private getFolderIconClass(node: DirNode): string | undefined {
+    const folderName = node.fileStat.resource.path.base.toLowerCase()
+    if (!folderName) {
+      return undefined
+    }
+
+    const folderGlyph = node.expanded ? codicon('folder-opened') : codicon('folder')
+
+    if (FileNavigatorWidget.FOLDER_MEDIA_NAMES.has(folderName)) {
+      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--media`
+    }
+
+    if (FileNavigatorWidget.FOLDER_CODE_NAMES.has(folderName)) {
+      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--code`
+    }
+
+    if (FileNavigatorWidget.FOLDER_DOC_NAMES.has(folderName)) {
+      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--document`
+    }
+
+    if (FileNavigatorWidget.FOLDER_DATA_NAMES.has(folderName)) {
+      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--data`
+    }
+
+    if (FileNavigatorWidget.FOLDER_CONFIG_NAMES.has(folderName)) {
+      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--config`
+    }
+
+    if (FileNavigatorWidget.FOLDER_PACKAGE_NAMES.has(folderName)) {
+      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--package`
+    }
+
+    if (FileNavigatorWidget.FOLDER_TEST_NAMES.has(folderName)) {
+      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--test`
+    }
+
+    return `${folderGlyph} navigator-folder-icon`
   }
 
   protected override createContainerAttributes(): React.HTMLAttributes<HTMLElement> {
@@ -580,6 +986,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
     const files = new Set<string>()
     const directories = new Set<string>()
+    let hasSupportedLocalId = false
+    let hasUnsupportedSchemeId = false
 
     for (const entry of graph) {
       if (!entry || typeof entry !== 'object') {
@@ -606,9 +1014,13 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
       const derived = this.deriveRelativePathFromEntityId(rawId)
       if (!derived || derived.path === '') {
+        if (this.hasUnsupportedEntityIdScheme(rawId)) {
+          hasUnsupportedSchemeId = true
+        }
         continue
       }
 
+      hasSupportedLocalId = true
       if (derived.isDirectory) {
         directories.add(derived.path.toLowerCase())
       } else {
@@ -616,7 +1028,26 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       }
     }
 
+    // Only enable orphan highlighting for crates with a consistent local-path ID style.
+    // Mixed/foreign scheme styles should not produce orphan decorations.
+    if (!hasSupportedLocalId || hasUnsupportedSchemeId) {
+      return { files: new Set(), directories: new Set() }
+    }
+
     return { files, directories }
+  }
+
+  private hasUnsupportedEntityIdScheme(id: string): boolean {
+    const candidate = id.trim()
+    if (!candidate) {
+      return false
+    }
+
+    if (candidate.startsWith('./')) {
+      return false
+    }
+
+    return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(candidate)
   }
 
   private deriveRelativePathFromEntityId(

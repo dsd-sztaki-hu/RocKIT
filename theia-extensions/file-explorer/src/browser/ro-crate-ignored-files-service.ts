@@ -64,10 +64,23 @@ export class RoCrateIgnoredFilesService {
       return
     }
 
-    const ignoredUri = this.resolveIgnoreFileUri(rootUri)
+    const ignoredUri = await this.ensureIgnoreFile(rootUri)
     this.ensureIgnoreWatch(rootUri, ignoredUri)
+
+    const diskEntries = await this.readIgnoredEntries(ignoredUri)
     const stateEntries = this.appStateService.ignoreList
-    this.setIgnoredEntries(Array.isArray(stateEntries) ? stateEntries : [])
+    const baseEntries = Array.isArray(stateEntries) && stateEntries.length > 0
+      ? stateEntries
+      : diskEntries
+    const next = this.compactRedundantIncludeEntries(
+      this.withDefaultEntries([...baseEntries]),
+    )
+
+    if (!this.sameEntries(diskEntries, next)) {
+      await this.writeIgnoredEntries(ignoredUri, next)
+    }
+
+    this.applyIgnoredEntries(next)
   }
 
   getIgnoredPaths(): ReadonlySet<string> {

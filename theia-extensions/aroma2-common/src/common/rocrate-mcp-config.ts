@@ -12,7 +12,7 @@ export type RocrateMcpConfigOptions = {
 
 export function resolveAppProjectPathFromLocation(
   pathname: string | undefined,
-  platform: NodeJS.Platform = process.platform,
+  platform: NodeJS.Platform = getDefaultPlatform(),
 ): string | undefined {
   if (!pathname) {
     return undefined
@@ -111,7 +111,7 @@ export function resolveRocrateMcpSocketPath(
     return options.socketPathOverride
   }
 
-  const platform = options.platform ?? process.platform
+  const platform = options.platform ?? getDefaultPlatform()
   if (platform === 'win32') {
     const user = options.username ?? 'user'
     return `\\\\.\\pipe\\aroma-rocrate-mcp-${user}`
@@ -144,3 +144,11 @@ export function resolveRocrateMcpPidPath(
 }
 
 export const ROCRATE_MCP_SHUTDOWN_CONTROL_MESSAGE = 'AROMA_ROCRATE_MCP_SHUTDOWN\n'
+
+function getDefaultPlatform(): NodeJS.Platform {
+  return (
+    typeof process !== 'undefined' && process.platform
+      ? process.platform
+      : 'darwin'
+  )
+}
