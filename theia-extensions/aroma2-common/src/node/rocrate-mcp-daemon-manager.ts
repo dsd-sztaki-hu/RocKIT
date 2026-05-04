@@ -22,6 +22,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
   protected startedDaemon = false
 
   async onStart(): Promise<void> {
+    this.publishFrontendRuntimeEnv()
     if (!this.isAutoStartEnabled()) {
       return
     }
@@ -103,6 +104,15 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
 
   protected isAutoStartEnabled(): boolean {
     return process.env.AROMA_ROCRATE_MCP_AUTO_START !== 'false'
+  }
+
+  protected publishFrontendRuntimeEnv(): void {
+    if (!process.env.AROMA_ROCRATE_MCP_NODE_PATH) {
+      process.env.AROMA_ROCRATE_MCP_NODE_PATH = process.execPath
+    }
+    if (process.versions.electron) {
+      process.env.AROMA_ROCRATE_MCP_ELECTRON_RUN_AS_NODE = '1'
+    }
   }
 
   protected resolveDaemonRuntime(): DaemonRuntime {

@@ -49,6 +49,11 @@ type RocrateMcpLaunchConfig = {
   socketPath?: string
 }
 
+type RocrateMcpRuntime = {
+  command: string
+  env: Record<string, string>
+}
+
 type AgentInstructionPort = {
   ensureAgentFiles(directoryUri: URI, agentId: string): Promise<void>
 }
@@ -106,6 +111,17 @@ function arraysEqual(a: string[] | undefined, b: string[] | undefined): boolean 
     }
   }
   return true
+}
+
+function toTomlBasicString(value: string): string {
+  return `"${value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\u0008/g, '\\b')
+    .replace(/\t/g, '\\t')
+    .replace(/\n/g, '\\n')
+    .replace(/\f/g, '\\f')
+    .replace(/\r/g, '\\r')}"`
 }
 
 function agentCommandId(agentId: string): string {
@@ -328,14 +344,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   protected buildAgentLaunchArgs(agentId: string, executable: string): string[] {
     const args = this.buildRawAgentLaunchArgs(agentId, executable)
     if (isWindows) {
-      return [
-        'powershell.exe',
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-        this.buildWindowsAgentLifecycleCommand(args),
-      ]
+      return args
     }
     return ['bash', '-lc', this.buildUnixAgentLifecycleCommand(args)]
   }
@@ -353,14 +362,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   protected buildAgentFallbackCommand(agentId: string, executable: string): string {
     const args = this.buildRawAgentLaunchArgs(agentId, executable)
     if (isWindows) {
-      return [
-        'powershell.exe',
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-        this.quoteForWindowsCommand(this.buildWindowsAgentLifecycleCommand(args)),
-      ].join(' ')
+      return args.map((arg) => this.quoteForWindowsCommand(arg)).join(' ')
     }
     return `bash -lc ${this.quoteForBash(this.buildUnixAgentLifecycleCommand(args))}`
   }
@@ -381,32 +383,6 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected quoteForBash(value: string): string {
     return `'${value.replace(/'/g, `'\\''`)}'`
-  }
-
-  protected buildWindowsAgentLifecycleCommand(args: string[]): string {
-    const executable = this.quoteForPowerShell(args[0] ?? '')
-    const agentArgs = args.slice(1).map((arg) => this.quoteForPowerShell(arg)).join(', ')
-    const argumentList = agentArgs ? `@(${agentArgs})` : '@()'
-    return [
-      '$ErrorActionPreference = "SilentlyContinue"',
-      `$agent = Start-Process -FilePath ${executable} -ArgumentList ${argumentList} -NoNewWindow -PassThru`,
-      'function Stop-Agent {',
-      'if ($script:agent -and -not $script:agent.HasExited) {',
-      'taskkill.exe /PID $script:agent.Id /T /F | Out-Null',
-      'Stop-Process -Id $script:agent.Id -Force',
-      '}',
-      '}',
-      'try {',
-      'while (-not $agent.WaitForExit(1000)) {}',
-      'exit $agent.ExitCode',
-      '} finally {',
-      'Stop-Agent',
-      '}',
-    ].join('; ')
-  }
-
-  protected quoteForPowerShell(value: string): string {
-    return `'${value.replace(/'/g, `''`)}'`
   }
 
   protected quoteForWindowsCommand(value: string): string {
@@ -498,11 +474,9 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
     if (spec.kind === 'toml') {
       return (
-        content.includes(`command = "${launchConfig.command.replace(/\\/g, '\\\\')}"`) &&
+        content.includes(`command = ${toTomlBasicString(launchConfig.command)}`) &&
         content.includes(
-          `args = [${launchConfig.args
-            .map((arg) => `"${arg.replace(/\\/g, '\\\\')}"`)
-            .join(', ')}]`,
+          `args = [${launchConfig.args.map((arg) => toTomlBasicString(arg)).join(', ')}]`,
         )
       )
     }
@@ -532,8 +506,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     if (spec.kind === 'toml') {
       return [
         '[mcp_servers.rocrate]',
-        `command = "${launchConfig.command}"`,
-        `args = [${launchConfig.args.map((arg) => `"${arg}"`).join(', ')}]`,
+        `command = ${toTomlBasicString(launchConfig.command)}`,
+        `args = [${launchConfig.args.map((arg) => toTomlBasicString(arg)).join(', ')}]`,
         'startup_timeout_sec = 30',
         'env = { ROCRATE_MCP_DEFAULT_MODE = "local" }',
       ].join('\n')
@@ -584,16 +558,53 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   }
 
   protected async resolveRocrateMcpLaunchConfig(): Promise<RocrateMcpLaunchConfig> {
-    const nodeCommand = await this.findExecutableAbsolutePath(['node'])
-    if (!nodeCommand) throw new Error('Node not found in PATH.')
+    const runtime = await this.resolveRocrateMcpRuntime()
     const serverPath = await this.resolveRocrateServerPath()
     const socketPath = this.resolveRocrateMcpSocketPath()
     return {
-      command: nodeCommand,
+      command: runtime.command,
       args: [serverPath, '--connect', socketPath],
-      env: { ROCRATE_MCP_DEFAULT_MODE: 'local' },
+      env: {
+        ...runtime.env,
+        ROCRATE_MCP_DEFAULT_MODE: 'local',
+      },
       socketPath,
     }
+  }
+
+  protected async resolveRocrateMcpRuntime(): Promise<RocrateMcpRuntime> {
+    const processValue = (globalThis as any).process
+    const processEnv = processValue?.env ?? {}
+    const nodeOverride =
+      processEnv.AROMA_ROCRATE_MCP_NODE_PATH ??
+      (await this.envVariablesServer.getValue('AROMA_ROCRATE_MCP_NODE_PATH'))?.value
+    if (nodeOverride) {
+      return { command: nodeOverride, env: {} }
+    }
+
+    const nodeCommand = await this.findExecutableAbsolutePath(['node'])
+    if (nodeCommand) {
+      return { command: nodeCommand, env: {} }
+    }
+
+    const backendExecPath = await this.envVariablesServer.getExecPath()
+    if (backendExecPath) {
+      return {
+        command: backendExecPath,
+        env: { ELECTRON_RUN_AS_NODE: '1' },
+      }
+    }
+
+    const execPath = this.getElectronRuntimePaths().execPath
+    if (execPath) {
+      const env: Record<string, string> = {}
+      if (processValue?.versions?.electron) {
+        env.ELECTRON_RUN_AS_NODE = '1'
+      }
+      return { command: execPath, env }
+    }
+
+    throw new Error('Could not resolve a Node runtime for the RO-Crate MCP server.')
   }
 
   protected resolveRocrateMcpSocketPath(): string {

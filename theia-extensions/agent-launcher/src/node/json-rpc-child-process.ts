@@ -22,10 +22,12 @@ export class JsonRpcChildProcess extends EventEmitter {
 
   constructor(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv) {
     super()
-    this.child = spawn(command, args, {
+    const launch = this.resolveLaunch(command, args)
+    this.child = spawn(launch.command, launch.args, {
       cwd,
       detached: process.platform !== 'win32',
       env,
+      shell: launch.shell,
       stdio: 'pipe',
     })
     this.child.stdout.on('data', (chunk: Buffer) => this.handleStdout(chunk))
@@ -114,10 +116,15 @@ export class JsonRpcChildProcess extends EventEmitter {
       if (!line.trim()) {
         continue
       }
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+        this.emit('stderr', trimmed)
+        continue
+      }
       try {
-        this.handleMessage(JSON.parse(line) as JsonRpcMessage)
+        this.handleMessage(JSON.parse(trimmed) as JsonRpcMessage)
       } catch (error) {
-        this.emit('error', error)
+        this.emit('stderr', trimmed)
       }
     }
   }
@@ -140,5 +147,19 @@ export class JsonRpcChildProcess extends EventEmitter {
       return
     }
     this.emit('message', message)
+  }
+
+  protected resolveLaunch(
+    command: string,
+    args: string[],
+  ): { command: string; args: string[]; shell?: boolean } {
+    if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(command)) {
+      return {
+        command,
+        args,
+        shell: true,
+      }
+    }
+    return { command, args }
   }
 }
