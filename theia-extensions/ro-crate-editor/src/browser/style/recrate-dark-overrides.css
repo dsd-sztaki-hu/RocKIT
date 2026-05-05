@@ -238,6 +238,7 @@
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope select,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-input,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-input-affix-wrapper,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-select-selector,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-select-selection-search-input {
   background-color: var(--recrate-input-bg) !important;
@@ -245,9 +246,21 @@
   border-color: var(--recrate-input-border) !important;
 }
 
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker input {
+  background-color: transparent !important;
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker .ant-picker-suffix,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker .ant-picker-clear {
+  background-color: transparent !important;
+  color: var(--recrate-muted) !important;
+}
+
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope input::placeholder,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope textarea::placeholder,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-input::placeholder,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker input::placeholder,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-select-selection-placeholder {
   color: var(--recrate-muted) !important;
 }
@@ -255,6 +268,8 @@
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-input:focus,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-input-focused,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-input-affix-wrapper-focused,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker-focused,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker:focus-within,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-select-focused .ant-select-selector,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .focus\:border-green-600:focus {
   border-color: var(--recrate-border) !important;
@@ -500,6 +515,8 @@
 .theia-dark .rocrate-editor .recrate-scope .ant-input-affix-wrapper:focus,
 .theia-dark .rocrate-editor .recrate-scope .ant-input-affix-wrapper:focus-within,
 .theia-dark .rocrate-editor .recrate-scope .ant-input-affix-wrapper-focused,
+.theia-dark .rocrate-editor .recrate-scope .ant-picker-focused,
+.theia-dark .rocrate-editor .recrate-scope .ant-picker:focus-within,
 .theia-dark .rocrate-editor .recrate-scope .ant-select-focused .ant-select-selector,
 .theia-dark .rocrate-editor .recrate-scope .focus\:border-green-600:focus {
   border-color: #5ccfe6 !important;
@@ -1177,6 +1194,50 @@ body:has(
   .anticon {
   color: var(--recrate-muted) !important;
   opacity: 0.7 !important;
+}
+
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-panel-container,
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-panel,
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-header,
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-footer {
+  background-color: var(--theia-dropdown-background, #252526) !important;
+  border-color: var(--theia-ui-border, rgba(127, 127, 127, 0.42)) !important;
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-content th,
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-cell,
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-header button,
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-today-btn {
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-cell-disabled,
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-cell-disabled .ant-picker-cell-inner {
+  color: var(--theia-disabledForeground, rgba(204, 204, 204, 0.5)) !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .ant-picker-dropdown
+  .ant-picker-cell-in-view.ant-picker-cell-selected
+  .ant-picker-cell-inner,
+:is(.theia-dark, .theia-hc)
+  .ant-picker-dropdown
+  .ant-picker-cell-in-view.ant-picker-cell-range-start
+  .ant-picker-cell-inner,
+:is(.theia-dark, .theia-hc)
+  .ant-picker-dropdown
+  .ant-picker-cell-in-view.ant-picker-cell-range-end
+  .ant-picker-cell-inner {
+  background-color: var(--theia-focusBorder, #3794ff) !important;
+  color: var(--theia-button-foreground, #ffffff) !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .ant-picker-dropdown
+  .ant-picker-cell-in-view
+  .ant-picker-cell-inner:hover {
+  background-color: rgba(92, 207, 230, 0.16) !important;
 }
 
 body:has(
