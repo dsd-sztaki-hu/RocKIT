@@ -1277,7 +1277,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             id: FileNavigatorCommands.ADD_DATA_SOURCE_TOOLBAR.id,
             command: FileNavigatorCommands.ADD_DATA_SOURCE_TOOLBAR.id,
             tooltip: AddDataSourceCommand.label,
-            priority: 0.5,
+            priority: 0,
         });
         toolbarRegistry.registerItem({
             id: FileNavigatorCommands.COLLAPSE_ALL.id,

@@ -166,15 +166,12 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
   }
 
   protected withWidget<T>(
-    widget: unknown = this.tryGetWidget(),
+    widget: unknown,
     cb: (view: EntitiesOverviewWidget) => T,
   ): T | false {
-    if (widget instanceof EntitiesOverviewWidget) {
-      return cb(widget)
-    }
-    const current = this.tryGetWidget()
-    if (current instanceof EntitiesOverviewWidget) {
-      return cb(current)
+    const candidate = widget ?? this.tryGetWidget()
+    if (candidate instanceof EntitiesOverviewWidget) {
+      return cb(candidate)
     }
     return false
   }
