@@ -516,6 +516,67 @@
 .theia-dark
   .rocrate-editor
   .recrate-scope
+  .describo-property
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(:has(.anticon-link)):hover:not(
+    :disabled
+  ),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(:has(.anticon-link)):hover:not(
+    :disabled
+  ),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property-background
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(:has(.anticon-link)):hover:not(
+    :disabled
+  ),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property-background
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(:has(.anticon-link)):hover:not(
+    :disabled
+  ),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(:has(.anticon-link)):focus-visible:not(
+    :disabled
+  ),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(:has(.anticon-link)):focus-visible:not(
+    :disabled
+  ),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property-background
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(:has(.anticon-link)):focus-visible:not(
+    :disabled
+  ),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property-background
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(:has(.anticon-link)):focus-visible:not(
+    :disabled
+  ) {
+  background-color: rgba(92, 207, 230, 0.1) !important;
+  border-color: rgba(92, 207, 230, 0.62) !important;
+  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.16) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
   .describo-property-name-id
   .ant-btn.ant-btn-link:hover,
 .theia-dark
