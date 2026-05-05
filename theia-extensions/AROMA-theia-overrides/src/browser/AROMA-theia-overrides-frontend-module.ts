@@ -16,6 +16,8 @@ export default new ContainerModule((bind) => {
   bind(MenuContribution).toService(ApplicationEditMenuOverrides)
   bind(ApplicationFileMenuOverrides).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(ApplicationFileMenuOverrides)
+  bind(CommandContribution).toService(ApplicationFileMenuOverrides)
+  bind(MenuContribution).toService(ApplicationFileMenuOverrides)
   bind(ApplicationViewMenuOverrides).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(ApplicationViewMenuOverrides)
   bind(ShellLayoutTransformer).toService(ApplicationViewMenuOverrides)

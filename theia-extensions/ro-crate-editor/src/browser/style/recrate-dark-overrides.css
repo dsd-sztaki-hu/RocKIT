@@ -13,6 +13,11 @@
   --recrate-input-border: var(--theia-ui-border, rgba(127, 127, 127, 0.42));
   --recrate-input-disabled: rgba(255, 255, 255, 0.03);
   --recrate-disabled-fg: #8c96a5;
+  --recrate-tab-rail-bg: var(--theia-editor-background, #1e1e1e);
+  --recrate-tab-rail-hover: rgba(255, 255, 255, 0.07);
+  --recrate-tab-rail-active-bg: rgba(37, 99, 235, 0.22);
+  --recrate-tab-rail-active-fg: var(--theia-textLink-foreground, #60a5fa);
+  --recrate-tab-rail-shadow: rgba(0, 0, 0, 0.36);
 }
 
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope,
@@ -183,6 +188,49 @@
 
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .recrate .ant-tabs-ink-bar {
   background: var(--recrate-border) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail {
+  background: var(--recrate-tab-rail-bg) !important;
+  border-inline-end: 1px solid var(--recrate-border) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-actions {
+  border-bottom-color: var(--recrate-border) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-item {
+  color: var(--recrate-label) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-item:hover,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-item:focus-visible {
+  background: var(--recrate-tab-rail-hover) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-item-active {
+  background: var(--recrate-tab-rail-active-bg) !important;
+  color: var(--recrate-tab-rail-active-fg) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-item-active::before {
+  background: var(--recrate-tab-rail-active-fg) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-description {
+  color: var(--recrate-muted) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail::before {
+  background: linear-gradient(var(--recrate-tab-rail-bg), transparent) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail::after {
+  background: linear-gradient(transparent, var(--recrate-tab-rail-bg)) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-scroll-button {
+  box-shadow: 0 2px 8px var(--recrate-tab-rail-shadow) !important;
 }
 
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope input:not([type='checkbox']):not([type='radio']),
@@ -850,6 +898,18 @@ body.theia-light:has(
   pointer-events: none !important;
 }
 
+body:has(
+    .ant-drawer.ant-drawer-open.ant-drawer-left
+      .ant-drawer-content-wrapper[style*='width: 600px']
+  )
+  .theia-sidepanel-toolbar
+  .lm-TabBar-toolbar
+  .item
+  > [id='navigator.addDataSource.toolbar'] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Right-side drawers used by reverse-links / related entity panels. */
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
@@ -1071,6 +1131,112 @@ body:has(
   pointer-events: none !important;
 }
 
+.describo-add-property-drawer {
+  --describo-add-property-text: #111827;
+  --describo-add-property-muted: #6b7280;
+  --describo-add-property-type: #475569;
+  --describo-add-property-hover: #f8fafc;
+  --describo-add-property-selected: #eff6ff;
+  --describo-add-property-border: #dbeafe;
+  --describo-add-property-selected-border: #93c5fd;
+  --describo-add-property-accent: #2563eb;
+  z-index: 6000 !important;
+}
+
+.describo-add-property-drawer .describo-add-property-title.ant-typography {
+  margin: 0 !important;
+  font-size: 22px !important;
+  line-height: 1.25 !important;
+}
+
+.describo-add-property-drawer .describo-add-property-row {
+  position: relative;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--describo-add-property-text) !important;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.describo-add-property-drawer .describo-add-property-row::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+.describo-add-property-drawer .describo-add-property-row:hover,
+.describo-add-property-drawer .describo-add-property-row:focus-visible {
+  background: var(--describo-add-property-hover) !important;
+  border-color: var(--describo-add-property-border) !important;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.describo-add-property-drawer .describo-add-property-row:active {
+  transform: translateY(1px);
+}
+
+.describo-add-property-drawer .describo-add-property-row-selected {
+  background: var(--describo-add-property-selected) !important;
+  border-color: var(--describo-add-property-selected-border) !important;
+}
+
+.describo-add-property-drawer .describo-add-property-row-selected::before {
+  background: var(--describo-add-property-accent) !important;
+}
+
+.describo-add-property-drawer .describo-add-property-row-header {
+  min-width: 0;
+  color: var(--describo-add-property-text) !important;
+}
+
+.describo-add-property-drawer .describo-add-property-row-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--describo-add-property-text) !important;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.describo-add-property-drawer .describo-add-property-row-type {
+  color: var(--describo-add-property-type) !important;
+  overflow-wrap: anywhere;
+}
+
+.describo-add-property-drawer .describo-add-property-row-help {
+  display: block;
+  margin-top: 4px;
+  color: var(--describo-add-property-muted) !important;
+  line-height: 1.45;
+}
+
+.describo-add-property-drawer .describo-add-property-row-check {
+  margin-left: auto;
+  color: var(--describo-add-property-accent) !important;
+}
+
+body:is(.theia-dark, .theia-hc) .describo-add-property-drawer {
+  --describo-add-property-text: var(--theia-ui-font-color1, #d4d4d4);
+  --describo-add-property-muted: var(--theia-ui-font-color2, #a6a6a6);
+  --describo-add-property-type: var(--theia-ui-font-color2, #a6a6a6);
+  --describo-add-property-hover: rgba(127, 127, 127, 0.13);
+  --describo-add-property-selected: rgba(37, 99, 235, 0.2);
+  --describo-add-property-border: rgba(96, 165, 250, 0.35);
+  --describo-add-property-selected-border: rgba(96, 165, 250, 0.75);
+  --describo-add-property-accent: #60a5fa;
+}
+
 /* HC-specific interaction accents to match Theia high-contrast behavior. */
 .theia-hc .rocrate-editor .recrate-scope .describo-property,
 .theia-hc .rocrate-editor .recrate-scope .describo-property-background {
@@ -1159,4 +1325,3 @@ body:has(
   background: rgba(255, 77, 79, 0.12);
   border: 1px solid rgba(255, 77, 79, 0.45);
 }
-
