@@ -592,12 +592,24 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         const visited = seen ?? new Set<string>()
 
         if (visited.has(idStr)) {
-            return { key, title: '', displayName: node.name || node.id } as TreeDataNode
+            return {
+                key,
+                title: '',
+                displayName: node.name || node.id,
+                entityId: node.id,
+                entityType: node.type,
+                entityEncodingFormat: node.encodingFormat,
+            } as TreeDataNode & {
+                entityId: string
+                entityType: string
+                entityEncodingFormat?: string
+            }
         }
 
-        visited.add(idStr)
+        const nextSeen = new Set(visited)
+        nextSeen.add(idStr)
         const children =
-            node.children?.map((c) => this.crateNodeToTreeData(c, key, visited)) || []
+            node.children?.map((c) => this.crateNodeToTreeData(c, key, nextSeen)) || []
 
         return {
             key,

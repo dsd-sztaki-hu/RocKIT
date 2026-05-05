@@ -1,7 +1,14 @@
 import { ContainerModule } from 'inversify';
 import { CommandContribution } from '@theia/core/lib/common/command';
 import { WebSocketConnectionProvider } from '@theia/core/lib/browser';
-import { SecureStorageService, SECURE_STORAGE_PATH } from '../common/secure-storage-protocol';
+import {
+    APPLICATION_RESET_PATH,
+    ApplicationResetService,
+} from '../common/application-reset-protocol';
+import {
+    SecureStorageService,
+    SECURE_STORAGE_PATH,
+} from '../common/secure-storage-protocol';
 import {
     RoCrateEntityDeleteCommandContribution,
     RoCrateEntityDeleteService,
@@ -9,10 +16,26 @@ import {
 
 export default new ContainerModule(bind => {
     bind(RoCrateEntityDeleteService).toSelf().inSingletonScope();
-    bind(CommandContribution).to(RoCrateEntityDeleteCommandContribution).inSingletonScope();
+    bind(CommandContribution)
+        .to(RoCrateEntityDeleteCommandContribution)
+        .inSingletonScope();
 
-    bind(SecureStorageService).toDynamicValue(ctx => {
-        const connectionProvider = ctx.container.get(WebSocketConnectionProvider);
-        return connectionProvider.createProxy<SecureStorageService>(SECURE_STORAGE_PATH);
-    }).inSingletonScope();
+    bind(ApplicationResetService)
+        .toDynamicValue(ctx => {
+            const connectionProvider = ctx.container.get(WebSocketConnectionProvider);
+            return connectionProvider.createProxy<ApplicationResetService>(
+                APPLICATION_RESET_PATH
+            );
+        })
+        .inSingletonScope();
+
+    // --- shared (keep only once) ---
+    bind(SecureStorageService)
+        .toDynamicValue(ctx => {
+            const connectionProvider = ctx.container.get(WebSocketConnectionProvider);
+            return connectionProvider.createProxy<SecureStorageService>(
+                SECURE_STORAGE_PATH
+            );
+        })
+        .inSingletonScope();
 });

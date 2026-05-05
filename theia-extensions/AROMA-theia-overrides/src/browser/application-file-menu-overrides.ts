@@ -1,6 +1,7 @@
 import {
   CommonCommands,
   CommonMenus,
+  ConfirmDialog,
   ConfirmSaveDialog,
   Dialog,
   FrontendApplication,
@@ -10,10 +11,15 @@ import {
 import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding'
 import { SaveReason } from '@theia/core/lib/browser/saveable'
 import { SaveableService } from '@theia/core/lib/browser/saveable-service'
+import { WindowService } from '@theia/core/lib/browser/window/window-service'
 import {
+  Command,
+  CommandContribution,
   CommandRegistry,
   CommandService,
+  MenuContribution,
   MenuModelRegistry,
+  MessageService,
 } from '@theia/core/lib/common'
 import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
@@ -22,7 +28,7 @@ import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browse
 import { FILE_WORKSPACE } from '@theia/workspace/lib/browser/workspace-frontend-contribution'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-loader'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { ApplicationResetService, RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 
 const AROMA_IGNORE_DIR = '.aroma'
 const AROMA_IGNORE_FILE = 'ignored.txt'
@@ -41,8 +47,13 @@ type UnsavedCloseState = {
   ignoreListUnsaved: boolean
 }
 
+const ResetApplicationCommand: Command = {
+  id: 'aroma.application.reset',
+  label: 'Reset the application',
+}
+
 @injectable()
-export class ApplicationFileMenuOverrides implements FrontendApplicationContribution {
+export class ApplicationFileMenuOverrides implements FrontendApplicationContribution, CommandContribution, MenuContribution {
   @inject(MenuModelRegistry)
   protected readonly menuRegistry: MenuModelRegistry
 
@@ -72,6 +83,15 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
 
   @inject(SaveableService)
   protected readonly saveableService: SaveableService
+
+  @inject(ApplicationResetService)
+  protected readonly applicationResetService: ApplicationResetService
+
+  @inject(MessageService)
+  protected readonly messageService: MessageService
+
+  @inject(WindowService)
+  protected readonly windowService: WindowService
 
   protected persistPromise?: Promise<void>
 
@@ -127,6 +147,20 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
       prepare: () => this.detectUnsavedStateFromDisk(),
       action: (prepared) => this.handleUnsavedCloseAction(prepared),
     }
+  }
+
+  registerCommands(commands: CommandRegistry): void {
+    commands.registerCommand(ResetApplicationCommand, {
+      execute: () => this.resetApplication(),
+    })
+  }
+
+  registerMenus(menus: MenuModelRegistry): void {
+    menus.registerMenuAction(CommonMenus.FILE, {
+      commandId: ResetApplicationCommand.id,
+      label: ResetApplicationCommand.label,
+      order: 'z99',
+    })
   }
 
   protected updateWorkspaceLabels(): void {
@@ -188,6 +222,32 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     this.keybindingRegistry.unregisterKeybinding(WorkspaceCommands.OPEN_WORKSPACE.id)
     this.keybindingRegistry.unregisterKeybinding(WorkspaceCommands.ADD_FOLDER.id)
     this.keybindingRegistry.unregisterKeybinding(WorkspaceCommands.SAVE_WORKSPACE_AS.id)
+  }
+
+  protected async resetApplication(): Promise<void> {
+    const confirmed = await new ConfirmDialog({
+      title: 'Reset the application',
+      msg:
+        'This will delete the application configuration directory in your user folder and restart AROMA. Unsaved changes will be lost. Continue?',
+      ok: 'Reset and restart',
+      cancel: Dialog.CANCEL,
+    }).open()
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      await this.applicationResetService.resetApplication()
+      if (this.workspaceService.opened) {
+        await this.commandService.executeCommand(WorkspaceCommands.CLOSE.id)
+      } else {
+        this.windowService.reload()
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.messageService.error(`Failed to reset the application: ${message}`)
+    }
   }
 
   protected async persistRoCrateToDisk(): Promise<void> {
