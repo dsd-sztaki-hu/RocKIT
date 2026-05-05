@@ -463,7 +463,7 @@
 
 .theia-dark .rocrate-editor .recrate-scope .bg-blue-200 {
   background-color: var(--recrate-accent-softer) !important;
-  box-shadow: inset 3px 0 0 var(--recrate-accent) !important;
+  box-shadow: none !important;
   color: var(--recrate-text) !important;
 }
 
@@ -482,7 +482,10 @@
 }
 
 .theia-dark .rocrate-editor .recrate-scope .describo-property:hover,
-.theia-dark .rocrate-editor .recrate-scope .describo-property-background:hover,
+.theia-dark .rocrate-editor .recrate-scope .describo-property-background:hover {
+  background-color: var(--recrate-accent-softer) !important;
+}
+
 .theia-dark .rocrate-editor .recrate-scope .hover\:bg-blue-100:hover,
 .theia-dark .rocrate-editor .recrate-scope .hover\:bg-blue-300:hover,
 .theia-dark .rocrate-editor .recrate-scope .hover\:bg-sky-100:hover {
