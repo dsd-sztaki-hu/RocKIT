@@ -5,6 +5,7 @@ import {
   CommonMenus,
   WidgetManager,
 } from '@theia/core/lib/browser'
+import { RoCrateDeleteSelectedEntitiesCommand } from 'aroma2-common/lib/browser'
 import type { Command, CommandRegistry } from '@theia/core/lib/common/command'
 import { inject, injectable } from 'inversify'
 import {
@@ -60,6 +61,7 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
       isEnabled: () => Boolean(this.getActiveStructureWidget()),
       isVisible: () => Boolean(this.getActiveStructureWidget()),
     })
+
   }
 
   registerMenus(menus: MenuModelRegistry): void {
@@ -71,6 +73,10 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
     menus.registerMenuAction(RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU, {
       commandId: RoCrateStructurePanelEditCommand.id,
       label: RoCrateStructurePanelEditCommand.label,
+    })
+    menus.registerMenuAction(RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU, {
+      commandId: RoCrateDeleteSelectedEntitiesCommand.id,
+      label: RoCrateDeleteSelectedEntitiesCommand.label,
     })
   }
 

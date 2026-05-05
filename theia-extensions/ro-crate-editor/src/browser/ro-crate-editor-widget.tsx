@@ -407,6 +407,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 if (!entityId) {
                     return
                 }
+                if (!this.entityExistsInCrate(crate, entityId)) {
+                    this.close()
+                    return
+                }
                 await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always')
             },
         )
@@ -649,6 +653,16 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
     protected getActiveEntityId(): string | undefined {
         return this.assignedEntityId ?? this.localSelectedEntityId
+    }
+
+    protected entityExistsInCrate(
+        crate: Record<string, any> | undefined,
+        entityId: string,
+    ): boolean {
+        const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+        return graph.some(
+            (entry) => entry && typeof entry === 'object' && String(entry['@id']) === entityId,
+        )
     }
 
     protected resolveInitialEntityId(optionEntityId?: string): string {
