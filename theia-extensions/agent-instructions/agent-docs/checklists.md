@@ -16,4 +16,6 @@
 4. `validate_crate` and capture summary.
 5. Call out remaining warnings with recommended fixes.
 6. State whether crate is publication-ready (`enforce_required`).
-7. Give a final summary of data added or updated, use table format when possible.
+7. If publication-ready and the user asked for Dataverse upload, run `upload_rocrate_to_dataverse(write=true)` using MCP defaults; do not ask for Dataverse URL/API key first.
+8. After successful Dataverse upload, show the returned `dataverseUrl` as the dataset link and retain the returned RO-Crate representation for follow-up file links.
+9. Give a final summary of data added or updated, use table format when possible.

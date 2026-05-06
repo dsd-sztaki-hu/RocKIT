@@ -17,7 +17,8 @@
     "watch": "tsc -b -w",
     "start": "node lib/server.js",
     "test": "yarn build && node test/test-core.js && node test/test-mcp-server.js",
-    "test:dashboard": "yarn build && node test/test-dashboard-collector.js && node test/test-dashboard-http.js"
+    "test:dashboard": "yarn build && node test/test-dashboard-collector.js && node test/test-dashboard-http.js",
+    "test:socket": "yarn build && node test/test-socket-lifecycle.js"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
