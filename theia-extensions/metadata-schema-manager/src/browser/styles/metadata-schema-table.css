@@ -193,6 +193,17 @@
 .schema-table__action-btn:hover {
     color: var(--theia-errorForeground) !important;
 }
+.theia-dark .schema-table__delete-btn,
+.theia-hc .schema-table__delete-btn {
+    color: rgba(255, 123, 114, 0.78) !important;
+}
+.theia-dark .schema-table__delete-btn:hover,
+.theia-dark .schema-table__delete-btn:focus-visible,
+.theia-hc .schema-table__delete-btn:hover,
+.theia-hc .schema-table__delete-btn:focus-visible {
+    color: #ff7b72 !important;
+    background-color: rgba(255, 123, 114, 0.1) !important;
+}
 .schema-table__delete-icon { font-size: 18px; }
 .schema-table__tooltip { z-index: 99999 !important; }
 
