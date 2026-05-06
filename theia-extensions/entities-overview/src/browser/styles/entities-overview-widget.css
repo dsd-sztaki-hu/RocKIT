@@ -1011,6 +1011,277 @@ body.entities-overview-filters-visible
   height: 100%;
 }
 
+body.vs-dark .entities-overview-edit-modal-body,
+body.vs-dark .entities-overview-advanced-modal-body,
+body.hc-black .entities-overview-edit-modal-body,
+body.hc-black .entities-overview-advanced-modal-body {
+  --entities-overview-modal-field-bg: var(--theia-input-background, #1f1f1f);
+  --entities-overview-modal-field-fg: var(--theia-input-foreground, #d4d4d4);
+  --entities-overview-modal-field-muted: var(--theia-input-placeholderForeground, #a6a6a6);
+  --entities-overview-modal-field-border: var(--theia-ui-border, rgba(127, 127, 127, 0.42));
+  --entities-overview-modal-field-hover-border: rgba(92, 207, 230, 0.62);
+  --entities-overview-modal-field-focus-shadow: 0 0 0 1px rgba(92, 207, 230, 0.2);
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-input,
+body.vs-dark .entities-overview-edit-modal-body .ant-input-affix-wrapper,
+body.vs-dark .entities-overview-edit-modal-body .ant-input-number,
+body.vs-dark .entities-overview-edit-modal-body .ant-input-number-input,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker-input > input,
+body.vs-dark .entities-overview-edit-modal-body .ant-select-selector,
+body.vs-dark .entities-overview-edit-modal-body .ant-select-selection-search-input,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input-affix-wrapper,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input-number,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input-number-input,
+body.vs-dark .entities-overview-advanced-modal-body .ant-picker,
+body.vs-dark .entities-overview-advanced-modal-body .ant-picker-input > input,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-selector,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-selection-search-input,
+body.hc-black .entities-overview-edit-modal-body .ant-input,
+body.hc-black .entities-overview-edit-modal-body .ant-input-affix-wrapper,
+body.hc-black .entities-overview-edit-modal-body .ant-input-number,
+body.hc-black .entities-overview-edit-modal-body .ant-input-number-input,
+body.hc-black .entities-overview-edit-modal-body .ant-picker,
+body.hc-black .entities-overview-edit-modal-body .ant-picker-input > input,
+body.hc-black .entities-overview-edit-modal-body .ant-select-selector,
+body.hc-black .entities-overview-edit-modal-body .ant-select-selection-search-input,
+body.hc-black .entities-overview-advanced-modal-body .ant-input,
+body.hc-black .entities-overview-advanced-modal-body .ant-input-affix-wrapper,
+body.hc-black .entities-overview-advanced-modal-body .ant-input-number,
+body.hc-black .entities-overview-advanced-modal-body .ant-input-number-input,
+body.hc-black .entities-overview-advanced-modal-body .ant-picker,
+body.hc-black .entities-overview-advanced-modal-body .ant-picker-input > input,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-selector,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-selection-search-input {
+  background-color: var(--entities-overview-modal-field-bg) !important;
+  border-color: var(--entities-overview-modal-field-border) !important;
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-input::placeholder,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker-input > input::placeholder,
+body.vs-dark .entities-overview-edit-modal-body .ant-select-selection-placeholder,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input::placeholder,
+body.vs-dark .entities-overview-advanced-modal-body .ant-picker-input > input::placeholder,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-selection-placeholder,
+body.hc-black .entities-overview-edit-modal-body .ant-input::placeholder,
+body.hc-black .entities-overview-edit-modal-body .ant-picker-input > input::placeholder,
+body.hc-black .entities-overview-edit-modal-body .ant-select-selection-placeholder,
+body.hc-black .entities-overview-advanced-modal-body .ant-input::placeholder,
+body.hc-black .entities-overview-advanced-modal-body .ant-picker-input > input::placeholder,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-selection-placeholder {
+  color: var(--entities-overview-modal-field-muted) !important;
+  opacity: 1 !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-select-arrow,
+body.vs-dark .entities-overview-edit-modal-body .ant-select-clear,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker-suffix,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker-clear,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-arrow,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-clear,
+body.vs-dark .entities-overview-advanced-modal-body .ant-picker-suffix,
+body.vs-dark .entities-overview-advanced-modal-body .ant-picker-clear,
+body.hc-black .entities-overview-edit-modal-body .ant-select-arrow,
+body.hc-black .entities-overview-edit-modal-body .ant-select-clear,
+body.hc-black .entities-overview-edit-modal-body .ant-picker-suffix,
+body.hc-black .entities-overview-edit-modal-body .ant-picker-clear,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-arrow,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-clear,
+body.hc-black .entities-overview-advanced-modal-body .ant-picker-suffix,
+body.hc-black .entities-overview-advanced-modal-body .ant-picker-clear {
+  color: var(--entities-overview-modal-field-muted) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-select-selection-item,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-selection-item,
+body.hc-black .entities-overview-edit-modal-body .ant-select-selection-item,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-selection-item {
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-select-multiple .ant-select-selection-item,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-multiple .ant-select-selection-item,
+body.hc-black .entities-overview-edit-modal-body .ant-select-multiple .ant-select-selection-item,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-multiple .ant-select-selection-item {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: var(--entities-overview-modal-field-border) !important;
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-select-selection-item-remove,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-selection-item-remove,
+body.hc-black .entities-overview-edit-modal-body .ant-select-selection-item-remove,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-selection-item-remove {
+  color: var(--entities-overview-modal-field-muted) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-select-focused .ant-select-selector,
+body.vs-dark .entities-overview-edit-modal-body .ant-select-selector:hover,
+body.vs-dark .entities-overview-edit-modal-body .ant-input:focus,
+body.vs-dark .entities-overview-edit-modal-body .ant-input:hover,
+body.vs-dark .entities-overview-edit-modal-body .ant-input-affix-wrapper:focus-within,
+body.vs-dark .entities-overview-edit-modal-body .ant-input-affix-wrapper:hover,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker-focused,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker:hover,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-focused .ant-select-selector,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-selector:hover,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input:focus,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input:hover,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input-affix-wrapper:focus-within,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input-affix-wrapper:hover,
+body.vs-dark .entities-overview-advanced-modal-body .ant-picker-focused,
+body.vs-dark .entities-overview-advanced-modal-body .ant-picker:hover,
+body.hc-black .entities-overview-edit-modal-body .ant-select-focused .ant-select-selector,
+body.hc-black .entities-overview-edit-modal-body .ant-select-selector:hover,
+body.hc-black .entities-overview-edit-modal-body .ant-input:focus,
+body.hc-black .entities-overview-edit-modal-body .ant-input:hover,
+body.hc-black .entities-overview-edit-modal-body .ant-input-affix-wrapper:focus-within,
+body.hc-black .entities-overview-edit-modal-body .ant-input-affix-wrapper:hover,
+body.hc-black .entities-overview-edit-modal-body .ant-picker-focused,
+body.hc-black .entities-overview-edit-modal-body .ant-picker:hover,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-focused .ant-select-selector,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-selector:hover,
+body.hc-black .entities-overview-advanced-modal-body .ant-input:focus,
+body.hc-black .entities-overview-advanced-modal-body .ant-input:hover,
+body.hc-black .entities-overview-advanced-modal-body .ant-input-affix-wrapper:focus-within,
+body.hc-black .entities-overview-advanced-modal-body .ant-input-affix-wrapper:hover,
+body.hc-black .entities-overview-advanced-modal-body .ant-picker-focused,
+body.hc-black .entities-overview-advanced-modal-body .ant-picker:hover {
+  border-color: var(--entities-overview-modal-field-hover-border) !important;
+  box-shadow: var(--entities-overview-modal-field-focus-shadow) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-default:not(:disabled),
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-dashed:not(:disabled),
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-default:not(:disabled),
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-dashed:not(:disabled),
+body.hc-black .entities-overview-edit-modal-body .ant-btn-default:not(:disabled),
+body.hc-black .entities-overview-edit-modal-body .ant-btn-dashed:not(:disabled),
+body.hc-black .entities-overview-advanced-modal-body .ant-btn-default:not(:disabled),
+body.hc-black .entities-overview-advanced-modal-body .ant-btn-dashed:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: var(--entities-overview-modal-field-border) !important;
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-default:disabled,
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-dashed:disabled,
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-default:disabled,
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-dashed:disabled,
+body.hc-black .entities-overview-edit-modal-body .ant-btn-default:disabled,
+body.hc-black .entities-overview-edit-modal-body .ant-btn-dashed:disabled,
+body.hc-black .entities-overview-advanced-modal-body .ant-btn-default:disabled,
+body.hc-black .entities-overview-advanced-modal-body .ant-btn-dashed:disabled {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  color: rgba(212, 212, 212, 0.52) !important;
+  box-shadow: none !important;
+}
+
+body.vs-dark .entities-overview-advanced-modal-body .entities-overview-advanced-group-header .ant-btn:disabled,
+body.vs-dark .entities-overview-advanced-modal-body .entities-overview-advanced-group-header .ant-btn[disabled],
+body.hc-black .entities-overview-advanced-modal-body .entities-overview-advanced-group-header .ant-btn:disabled,
+body.hc-black .entities-overview-advanced-modal-body .entities-overview-advanced-group-header .ant-btn[disabled] {
+  background: rgba(255, 255, 255, 0.015) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  color: rgba(212, 212, 212, 0.32) !important;
+  opacity: 1 !important;
+}
+
+body.vs-dark .entities-overview-advanced-modal-body .entities-overview-advanced-group-header .ant-btn:not(:disabled),
+body.hc-black .entities-overview-advanced-modal-body .entities-overview-advanced-group-header .ant-btn:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.34) !important;
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-advanced-modal-body .entities-overview-advanced-group-header .ant-btn-primary:not(:disabled),
+body.hc-black .entities-overview-advanced-modal-body .entities-overview-advanced-group-header .ant-btn-primary:not(:disabled) {
+  background: rgba(92, 207, 230, 0.22) !important;
+  border-color: rgba(92, 207, 230, 0.72) !important;
+  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.18) !important;
+  color: #ffffff !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-default:not(:disabled):hover,
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-default:not(:disabled):focus,
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-dashed:not(:disabled):hover,
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-dashed:not(:disabled):focus,
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-default:not(:disabled):hover,
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-default:not(:disabled):focus,
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-dashed:not(:disabled):hover,
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-dashed:not(:disabled):focus,
+body.hc-black .entities-overview-edit-modal-body .ant-btn-default:not(:disabled):hover,
+body.hc-black .entities-overview-edit-modal-body .ant-btn-default:not(:disabled):focus,
+body.hc-black .entities-overview-edit-modal-body .ant-btn-dashed:not(:disabled):hover,
+body.hc-black .entities-overview-edit-modal-body .ant-btn-dashed:not(:disabled):focus,
+body.hc-black .entities-overview-advanced-modal-body .ant-btn-default:not(:disabled):hover,
+body.hc-black .entities-overview-advanced-modal-body .ant-btn-default:not(:disabled):focus,
+body.hc-black .entities-overview-advanced-modal-body .ant-btn-dashed:not(:disabled):hover,
+body.hc-black .entities-overview-advanced-modal-body .ant-btn-dashed:not(:disabled):focus {
+  background: rgba(92, 207, 230, 0.1) !important;
+  border-color: rgba(92, 207, 230, 0.62) !important;
+  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.16) !important;
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-switch,
+body.vs-dark .entities-overview-advanced-modal-body .ant-switch,
+body.hc-black .entities-overview-edit-modal-body .ant-switch,
+body.hc-black .entities-overview-advanced-modal-body .ant-switch {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid var(--entities-overview-modal-field-border) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-switch .ant-switch-handle::before,
+body.vs-dark .entities-overview-advanced-modal-body .ant-switch .ant-switch-handle::before,
+body.hc-black .entities-overview-edit-modal-body .ant-switch .ant-switch-handle::before,
+body.hc-black .entities-overview-advanced-modal-body .ant-switch .ant-switch-handle::before {
+  background: rgba(255, 255, 255, 0.82) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-switch.ant-switch-checked,
+body.vs-dark .entities-overview-advanced-modal-body .ant-switch.ant-switch-checked,
+body.hc-black .entities-overview-edit-modal-body .ant-switch.ant-switch-checked,
+body.hc-black .entities-overview-advanced-modal-body .ant-switch.ant-switch-checked {
+  background: rgba(92, 207, 230, 0.34) !important;
+  border-color: rgba(92, 207, 230, 0.62) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-alert-info,
+body.vs-dark .entities-overview-edit-modal-body .ant-alert-warning,
+body.vs-dark .entities-overview-advanced-modal-body .ant-alert-info,
+body.vs-dark .entities-overview-advanced-modal-body .ant-alert-warning,
+body.hc-black .entities-overview-edit-modal-body .ant-alert-info,
+body.hc-black .entities-overview-edit-modal-body .ant-alert-warning,
+body.hc-black .entities-overview-advanced-modal-body .ant-alert-info,
+body.hc-black .entities-overview-advanced-modal-body .ant-alert-warning {
+  background: rgba(92, 207, 230, 0.08) !important;
+  border-color: rgba(92, 207, 230, 0.28) !important;
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-alert-message,
+body.vs-dark .entities-overview-edit-modal-body .ant-alert-description,
+body.vs-dark .entities-overview-advanced-modal-body .ant-alert-message,
+body.vs-dark .entities-overview-advanced-modal-body .ant-alert-description,
+body.hc-black .entities-overview-edit-modal-body .ant-alert-message,
+body.hc-black .entities-overview-edit-modal-body .ant-alert-description,
+body.hc-black .entities-overview-advanced-modal-body .ant-alert-message,
+body.hc-black .entities-overview-advanced-modal-body .ant-alert-description {
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-alert-close-icon,
+body.vs-dark .entities-overview-advanced-modal-body .ant-alert-close-icon,
+body.hc-black .entities-overview-edit-modal-body .ant-alert-close-icon,
+body.hc-black .entities-overview-advanced-modal-body .ant-alert-close-icon {
+  color: var(--entities-overview-modal-field-muted) !important;
+}
+
 .entities-overview-edit-modal-multi-text {
   display: flex;
   flex-direction: column;
@@ -1413,6 +1684,27 @@ body.entities-overview-filters-visible
   z-index: 6000;
 }
 
+body.vs-dark .entities-overview-edit-modal-dropdown,
+body.hc-black .entities-overview-edit-modal-dropdown {
+  background: var(--theia-dropdown-background, #252526) !important;
+  border: 1px solid var(--theia-ui-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-dropdown .ant-select-item,
+body.hc-black .entities-overview-edit-modal-dropdown .ant-select-item {
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-dropdown .ant-select-item-option-active,
+body.hc-black .entities-overview-edit-modal-dropdown .ant-select-item-option-active {
+  background: rgba(92, 207, 230, 0.12) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-dropdown .ant-select-item-option-selected,
+body.hc-black .entities-overview-edit-modal-dropdown .ant-select-item-option-selected {
+  background: rgba(92, 207, 230, 0.18) !important;
+}
+
 .entities-overview-edit-modal-dropdown .ant-select-item-group {
   font-size: 11px;
   font-weight: 700;
@@ -1492,4 +1784,63 @@ body.entities-overview-filters-visible
 
 .entities-overview-draggable-entity:active {
   cursor: grabbing;
+}
+
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn:not(:disabled):not(.ant-btn-disabled),
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn:not(:disabled):not(.ant-btn-disabled) {
+  background: rgba(92, 207, 230, 0.1) !important;
+  border-color: rgba(92, 207, 230, 0.48) !important;
+  color: #dffaff !important;
+  opacity: 1 !important;
+}
+
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn-primary:not(:disabled):not(.ant-btn-disabled),
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn-primary:not(:disabled):not(.ant-btn-disabled) {
+  background: rgba(92, 207, 230, 0.28) !important;
+  border-color: rgba(92, 207, 230, 0.8) !important;
+  box-shadow: inset 0 0 0 1px rgba(92, 207, 230, 0.24) !important;
+  color: #ffffff !important;
+}
+
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn:is(:disabled, .ant-btn-disabled),
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn[disabled],
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn:is(:disabled, .ant-btn-disabled),
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn[disabled] {
+  background: rgba(0, 0, 0, 0.18) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(212, 212, 212, 0.24) !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
 }
