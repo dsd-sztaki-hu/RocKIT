@@ -176,6 +176,12 @@
   box-shadow: 0 2px 8px var(--recrate-tab-rail-shadow) !important;
 }
 
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-quick-settings-header {
+  background: color-mix(in srgb, var(--recrate-tab-rail-bg) 92%, transparent) !important;
+  border-bottom-color: var(--recrate-border) !important;
+  box-shadow: 0 6px 14px var(--recrate-tab-rail-shadow) !important;
+}
+
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope input:not([type='checkbox']):not([type='radio']),
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope textarea,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope select,
