@@ -81,6 +81,23 @@
   color: var(--recrate-text) !important;
 }
 
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-typography,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-typography
+  h5,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  h5.ant-typography,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .text-center,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-flex,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .w-1\/2,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .w-12 {
+  color: var(--recrate-text) !important;
+}
+
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .bg-white {
   background-color: var(--recrate-input-bg) !important;
   border-color: var(--recrate-border) !important;
