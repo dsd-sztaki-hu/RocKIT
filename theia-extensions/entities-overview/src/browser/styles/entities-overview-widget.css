@@ -223,6 +223,30 @@ body.hc-black .entities-overview-filter-toggle .ant-btn-primary:not(:disabled) {
   color: var(--theia-ui-font-color1) !important;
 }
 
+body.hc-black .entities-overview-filter-toggle .ant-btn:not(:disabled) {
+  background: #000000 !important;
+  border-color: rgba(255, 255, 255, 0.62) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14) !important;
+}
+
+body.hc-black .entities-overview-filter-toggle .ant-btn-primary:not(:disabled) {
+  background: rgba(92, 207, 230, 0.34) !important;
+  border-color: #5ccfe6 !important;
+  color: #ffffff !important;
+  box-shadow:
+    inset 0 0 0 1px #5ccfe6,
+    0 0 0 1px rgba(92, 207, 230, 0.55) !important;
+}
+
+body.hc-black .entities-overview-filter-toggle .ant-btn:not(:disabled):hover,
+body.hc-black .entities-overview-filter-toggle .ant-btn:not(:disabled):focus,
+body.hc-black .entities-overview-filter-toggle .ant-btn:not(:disabled):focus-visible {
+  background: rgba(92, 207, 230, 0.16) !important;
+  border-color: #5ccfe6 !important;
+  color: #ffffff !important;
+}
+
 .entities-overview-advanced-button-wrap {
   flex: 1 1 0;
   max-width: 0;
