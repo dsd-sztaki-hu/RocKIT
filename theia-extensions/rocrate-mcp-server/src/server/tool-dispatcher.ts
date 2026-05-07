@@ -32,6 +32,8 @@ type DispatcherDeps = {
   summarizeDataverseUploadPayload: (
     payload: Record<string, unknown>,
   ) => Record<string, unknown>
+  parsePendingDataverseCrateAdoptionParams: (params: Record<string, unknown>) => unknown
+  adoptPendingDataverseRoCrate: (params: unknown) => Promise<Record<string, unknown>>
   parseDataverseDownloadParams: (params: Record<string, unknown>) => {
     responseMode: 'summary' | 'full'
   }
@@ -175,6 +177,8 @@ export function createToolDispatcher(deps: DispatcherDeps) {
     parseDataverseUploadParams,
     runDataverseUpload,
     summarizeDataverseUploadPayload,
+    parsePendingDataverseCrateAdoptionParams,
+    adoptPendingDataverseRoCrate,
     parseDataverseDownloadParams,
     runDataverseDownload,
     summarizeDataverseDownloadPayload,
@@ -387,6 +391,17 @@ export function createToolDispatcher(deps: DispatcherDeps) {
           return textResult(payload)
         }
         return textResult(summarizeDataverseUploadPayload(payload))
+      }
+
+      if (toolName === 'adopt_pending_dataverse_rocrate') {
+        const payload = await runInTelemetryContext(async () => {
+          const adoptParams = parsePendingDataverseCrateAdoptionParams(params)
+          return adoptPendingDataverseRoCrate(adoptParams)
+        })
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, payload)
+        }
+        return textResult(payload)
       }
 
       if (toolName === 'download_rocrate_from_dataverse') {

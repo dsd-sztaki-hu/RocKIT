@@ -12,6 +12,8 @@ type SocketLifecycleOptions = {
   onSocketConnection: (socket: net.Socket, socketPath: string) => void
 }
 
+const SHUTDOWN_CONTROL_MESSAGE = 'AROMA_ROCRATE_MCP_SHUTDOWN\n'
+
 function parseSocketPathFromArgs(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag)
   if (index < 0) {
@@ -93,7 +95,38 @@ function startSocketDaemon(socketPath: string, options: SocketLifecycleOptions):
     }
   }
   const server = net.createServer((socket) => {
-    options.onSocketConnection(socket, socketPath)
+    let handedOff = false
+    const handOffToMcp = (chunk?: Buffer) => {
+      if (handedOff) {
+        return
+      }
+      handedOff = true
+      socket.off('data', onFirstData)
+      socket.off('end', onProbeEnd)
+      if (chunk) {
+        socket.unshift(chunk)
+      }
+      options.onSocketConnection(socket, socketPath)
+    }
+    const shutdown = () => {
+      socket.end('OK\n', () => {
+        server.close(() => {
+          process.exit(0)
+        })
+      })
+    }
+    const onFirstData = (chunk: Buffer) => {
+      if (chunk.toString('utf8') === SHUTDOWN_CONTROL_MESSAGE) {
+        shutdown()
+        return
+      }
+      handOffToMcp(chunk)
+    }
+    const onProbeEnd = () => {
+      socket.destroy()
+    }
+    socket.once('data', onFirstData)
+    socket.once('end', onProbeEnd)
   })
   server.on('error', (error) => {
     options.stderr.write(

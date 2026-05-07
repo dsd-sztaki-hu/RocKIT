@@ -31,6 +31,7 @@ import {
 declare const __dirname: string
 
 const STATIC_DIR = __dirname
+const DEFAULT_DATAVERSE_BASE_URL = 'http://localhost:8080'
 type AccessMode = 'local' | 'remote'
 
 type SchemaRegistryStore = {
@@ -101,6 +102,32 @@ function parseQuery(url: string): Record<string, string> {
   }
 
   return query
+}
+
+function readOptionalEnv(name: string): string | undefined {
+  const value = process.env[name]
+  if (typeof value !== 'string') {
+    return undefined
+  }
+  const trimmed = value.trim()
+  return trimmed === '' ? undefined : trimmed
+}
+
+function getDataverseUploadConfig(): {
+  baseUrl: string
+  baseUrlSource: 'env' | 'default'
+  apiKey: string | null
+  apiKeySource: 'env' | 'unset'
+} {
+  const envBaseUrl = readOptionalEnv('DATAVERSE_BASE_URL')
+  const apiKey = readOptionalEnv('DATAVERSE_API_KEY')
+
+  return {
+    baseUrl: (envBaseUrl ?? DEFAULT_DATAVERSE_BASE_URL).replace(/\/+$/, ''),
+    baseUrlSource: envBaseUrl ? 'env' : 'default',
+    apiKey: apiKey ?? null,
+    apiKeySource: apiKey ? 'env' : 'unset',
+  }
 }
 
 /**
@@ -427,8 +454,10 @@ class DashboardApiHandlers {
   getConfig(req: http.IncomingMessage, res: http.ServerResponse): void {
     sendJson(res, {
       detailedToolCallLogging: this.config.detailedToolCallLogging,
+      keepDataverseUploadZips: this.config.keepDataverseUploadZips,
       retentionHours: this.config.retentionHours,
       enabled: this.config.enabled,
+      dataverse: getDataverseUploadConfig(),
     })
   }
 
@@ -584,11 +613,21 @@ class DashboardApiHandlers {
       }
     }
 
+    if ('keepDataverseUploadZips' in updates) {
+      const value = (updates as Record<string, unknown>).keepDataverseUploadZips
+      if (typeof value === 'boolean') {
+        this.config.keepDataverseUploadZips = value
+        process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS = value ? 'true' : 'false'
+        changes.keepDataverseUploadZips = value
+      }
+    }
+
     sendJson(res, {
       success: true,
       changes,
       config: {
         detailedToolCallLogging: this.config.detailedToolCallLogging,
+        keepDataverseUploadZips: this.config.keepDataverseUploadZips,
         retentionHours: this.config.retentionHours,
         enabled: this.config.enabled,
       },
@@ -760,8 +799,11 @@ export class DashboardHttpServer {
     config: DashboardConfig,
     schemaRegistry: SchemaRegistryStore,
   ) {
-    this.config = config
-    this.apiHandlers = new DashboardApiHandlers(collector, config, schemaRegistry)
+    this.config = {
+      ...config,
+      keepDataverseUploadZips: config.keepDataverseUploadZips ?? false,
+    }
+    this.apiHandlers = new DashboardApiHandlers(collector, this.config, schemaRegistry)
   }
 
   /**
@@ -960,6 +1002,8 @@ export function parseDashboardConfig(): DashboardConfig {
     ),
     detailedToolCallLogging:
       process.env.ROCRATE_DASHBOARD_DETAILED_LOGGING !== 'false',
+    keepDataverseUploadZips:
+      process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS === 'true',
   }
 }
 
