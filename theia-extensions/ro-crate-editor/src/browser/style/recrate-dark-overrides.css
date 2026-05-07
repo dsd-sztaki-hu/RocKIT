@@ -18,6 +18,8 @@
   --recrate-tab-rail-active-bg: rgba(37, 99, 235, 0.22);
   --recrate-tab-rail-active-fg: var(--theia-textLink-foreground, #60a5fa);
   --recrate-tab-rail-shadow: rgba(0, 0, 0, 0.36);
+  --recrate-quick-header-bg: var(--theia-editor-background, #1e1e1e);
+  --recrate-quick-header-shadow: rgba(0, 0, 0, 0.35);
 }
 
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope,

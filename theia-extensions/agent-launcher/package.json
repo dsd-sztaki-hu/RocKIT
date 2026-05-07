@@ -12,6 +12,7 @@
     "app-state": "0.0.1",
     "file-explorer": "0.0.0",
     "markdown-it": "^12.3.2",
+    "ro-crate-editor": "0.0.0",
     "tslib": "^2.6.2"
   },
   "publishConfig": {
