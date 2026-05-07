@@ -133,6 +133,48 @@
   opacity: 1;
 }
 
+body.hc-black .dataset-panel .ro-crate-entity-icon.file-icon {
+  opacity: 1;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--code,
+body.hc-black .dataset-panel .ro-crate-folder-icon--code,
+body.hc-black .dataset-panel .ro-crate-file-icon--media,
+body.hc-black .dataset-panel .ro-crate-folder-icon--media {
+  color: #8bdcff !important;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--script,
+body.hc-black .dataset-panel .ro-crate-folder-icon--test {
+  color: #7ee787 !important;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--data,
+body.hc-black .dataset-panel .ro-crate-folder-icon--package {
+  color: #79f2f2 !important;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--database,
+body.hc-black .dataset-panel .ro-crate-folder-icon--data {
+  color: #d8b4fe !important;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--document,
+body.hc-black .dataset-panel .ro-crate-folder-icon--document {
+  color: #ffd866 !important;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--text,
+body.hc-black .dataset-panel .ro-crate-file-icon--config,
+body.hc-black .dataset-panel .ro-crate-folder-icon--config {
+  color: #f2f2f2 !important;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--archive,
+body.hc-black .dataset-panel .ro-crate-file-icon--binary {
+  color: #ff8f8f !important;
+}
+
 .ro-crate-structure-validation-strip {
   position: sticky;
   top: 0;
