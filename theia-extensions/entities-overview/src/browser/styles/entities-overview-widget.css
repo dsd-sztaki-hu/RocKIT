@@ -1844,3 +1844,45 @@ body.hc-black
   opacity: 1 !important;
   box-shadow: none !important;
 }
+
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn:not(:disabled):not(.ant-btn-disabled) {
+  background: #000000 !important;
+  border-color: rgba(255, 255, 255, 0.55) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
+  opacity: 1 !important;
+}
+
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn-primary:not(:disabled):not(.ant-btn-disabled) {
+  background: rgba(92, 207, 230, 0.34) !important;
+  border-color: #5ccfe6 !important;
+  color: #ffffff !important;
+  box-shadow:
+    inset 0 0 0 1px #5ccfe6,
+    0 0 0 1px rgba(92, 207, 230, 0.55) !important;
+}
+
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn:is(:disabled, .ant-btn-disabled),
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn[disabled] {
+  background: transparent !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  color: rgba(255, 255, 255, 0.38) !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
