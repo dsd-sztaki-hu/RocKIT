@@ -622,6 +622,19 @@
   color: var(--recrate-text) !important;
 }
 
+.theia-dark .rocrate-editor .recrate-scope .bg-green-100 {
+  background-color: rgba(63, 185, 80, 0.1) !important;
+  border-color: rgba(63, 185, 80, 0.26) !important;
+  color: var(--recrate-text) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .bg-green-200,
+.theia-dark .rocrate-editor .recrate-scope .hover\:bg-green-200:hover {
+  background-color: rgba(63, 185, 80, 0.14) !important;
+  border-color: rgba(63, 185, 80, 0.34) !important;
+  color: var(--recrate-text) !important;
+}
+
 .theia-dark .rocrate-editor .recrate-scope .text-blue-600,
 .theia-dark
   .rocrate-editor
