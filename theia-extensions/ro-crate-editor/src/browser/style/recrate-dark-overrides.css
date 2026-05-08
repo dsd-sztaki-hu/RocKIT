@@ -1722,6 +1722,36 @@ body.hc-black
   color: var(--recrate-text, #ffffff) !important;
 }
 
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-rail-item,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-rail-item {
+  color: var(--recrate-text, #ffffff) !important;
+  outline: none !important;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-rail-item:hover,
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-rail-item:focus-visible,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-rail-item:hover,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-rail-item:focus-visible {
+  background: rgba(127, 127, 127, 0.18) !important;
+  outline: 1px dashed var(--theia-focusBorder, #f38518) !important;
+  outline-offset: -1px;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-rail-item-active,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-rail-item-active,
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-rail-item-active:hover,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-rail-item-active:hover {
+  background: #000000 !important;
+  color: var(--recrate-text, #ffffff) !important;
+  outline: 1px solid var(--theia-focusBorder, #f38518) !important;
+  outline-offset: -1px;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-rail-item-active::before,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-rail-item-active::before {
+  display: none !important;
+}
+
 .theia-hc .rocrate-editor .recrate-scope .describo-property-help,
 .theia-hc .rocrate-editor .recrate-scope .describo-property-help-more,
 .theia-hc .rocrate-editor .recrate-scope .describo-tab-description,
