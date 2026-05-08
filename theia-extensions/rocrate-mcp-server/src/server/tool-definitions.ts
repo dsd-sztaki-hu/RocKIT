@@ -130,6 +130,24 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
+    name: 'adopt_pending_dataverse_rocrate',
+    description:
+      'Replace the local RO-Crate metadata with a Dataverse-updated RO-Crate previously returned by upload_rocrate_to_dataverse as pendingDataverseCrate. Requires write=true.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pendingId: {
+          type: 'string',
+          description: 'The pendingDataverseCrate.id returned by upload_rocrate_to_dataverse.',
+        },
+        write: { type: 'boolean', enum: [true] },
+        indent: { type: 'number' },
+      },
+      required: ['pendingId', 'write'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'download_rocrate_from_dataverse',
     description:
       'Download crate JSON from Dataverse ARP API by PID. In local mode, requires write=true to persist on disk.',

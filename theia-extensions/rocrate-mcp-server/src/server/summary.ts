@@ -469,6 +469,8 @@ export function createSummaryHelpers(deps: SummaryDeps) {
       requestUrl: payload.requestUrl,
       pid: payload.pid,
       dataverseUrl: payload.dataverseUrl,
+      fileLinks: Array.isArray(payload.fileLinks) ? payload.fileLinks : [],
+      pendingDataverseCrate: payload.pendingDataverseCrate,
       ingestedCrateSummary: ingestedCrate
         ? summarizeCratePayload(
             ingestedCrate,

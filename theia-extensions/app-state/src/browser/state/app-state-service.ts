@@ -410,4 +410,11 @@ export class AppStateService {
     set entitiesOverviewFiltersVisible(value: AppState['entitiesOverviewFiltersVisible']) {
         this.updateState({ entitiesOverviewFiltersVisible: value })
     }
+
+    get nativeAgentActivityExpanded(): AppState['nativeAgentActivityExpanded'] {
+        return this.getState().nativeAgentActivityExpanded
+    }
+    set nativeAgentActivityExpanded(value: AppState['nativeAgentActivityExpanded']) {
+        this.updateState({ nativeAgentActivityExpanded: value })
+    }
 }

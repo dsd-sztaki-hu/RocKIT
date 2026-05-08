@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -44,6 +45,13 @@ type DataverseDeps = {
   uniqueStrings: (values: string[]) => string[]
   getTelemetryCollector: () => {
     getCurrentToolCallId: () => string | undefined
+    addToolCallArtifact?: (
+      toolCallId: string,
+      artifact: {
+        label: string
+        path: string
+      },
+    ) => void
     appendToolCallHttpLog: (
       toolCallId: string,
       log: {
@@ -73,12 +81,31 @@ type DataverseDeps = {
   } | null
 }
 
+type PendingDataverseCrate = {
+  id: string
+  tempPath: string
+  cratePath?: string
+  pid?: string
+  dataverseUrl?: string
+  createdAt: string
+  expiresAt: string
+  indent: number
+}
+
 /**
  * Builds Dataverse upload/download/validation handlers and parameter parsers.
  */
 export function createDataverseHandlers(deps: DataverseDeps) {
   const DATAVERSE_UPLOAD_TMP_PREFIX = 'rocrate-dataverse-upload-'
+  const DATAVERSE_PENDING_TMP_PREFIX = 'rocrate-dataverse-updated-'
   const REDACTED_HEADER_VALUE = '[REDACTED]'
+  const pendingDataverseCrates = new Map<string, PendingDataverseCrate>()
+  const DATAVERSE_FILE_CONTEXT: Record<string, string> = {
+    contentSize: 'https://schema.org/contentSize',
+    directoryLabel: 'https://dataverse.org/schema/file/directoryLabel',
+    encodingFormat: 'https://schema.org/encodingFormat',
+    hash: 'https://dataverse.org/schema/file/hash',
+  }
 
   /**
    * Handles extract conformsTo urls.
@@ -365,10 +392,21 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       if (
         data &&
         typeof data === 'object' &&
-        !Array.isArray(data) &&
-        Array.isArray((data as Record<string, unknown>)['@graph'])
+        !Array.isArray(data)
       ) {
-        return data as RoCrate
+        const dataRecord = data as Record<string, unknown>
+        if (Array.isArray(dataRecord['@graph'])) {
+          return data as RoCrate
+        }
+        const roCrate = dataRecord.roCrate
+        if (
+          roCrate &&
+          typeof roCrate === 'object' &&
+          !Array.isArray(roCrate) &&
+          Array.isArray((roCrate as Record<string, unknown>)['@graph'])
+        ) {
+          return roCrate as RoCrate
+        }
       }
     }
     return undefined
@@ -400,7 +438,45 @@ export function createDataverseHandlers(deps: DataverseDeps) {
     if (!pid) {
       return undefined
     }
-    return `${baseUrl}/dataset.xhtml?persistentId=${encodeURIComponent(pid)}#metadataMapTab`
+    return `${baseUrl}/dataset.xhtml?persistentId=${encodeURIComponent(pid)}`
+  }
+
+  function buildDataverseFileUrl(baseUrl: string, datasetPid: string, filePid?: string): string | undefined {
+    if (!filePid) {
+      return undefined
+    }
+    return `${baseUrl}/file.xhtml?persistentId=${encodeURIComponent(filePid)}&datasetPid=${encodeURIComponent(datasetPid)}`
+  }
+
+  function extractDataverseFileLinks(
+    crate: RoCrate | undefined,
+    baseUrl: string,
+    datasetPid: string | undefined,
+  ): Array<Record<string, unknown>> {
+    if (!crate || !datasetPid || !Array.isArray(crate['@graph'])) {
+      return []
+    }
+    return crate['@graph']
+      .filter((entity) => {
+        if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+          return false
+        }
+        return entityTypes(entity).includes('File')
+      })
+      .map((entity) => {
+        const pid = readOptionalEntityString(entity, '@arpPid')
+        const name = readOptionalEntityString(entity, 'name')
+        const directoryLabel = readOptionalEntityString(entity, 'directoryLabel')
+        const pathLabel = directoryLabel && name ? path.posix.join(directoryLabel, name) : name
+        return {
+          id: entity['@id'],
+          name,
+          directoryLabel,
+          path: pathLabel,
+          pid,
+          url: buildDataverseFileUrl(baseUrl, datasetPid, pid),
+        }
+      })
   }
 
   /**
@@ -441,10 +517,215 @@ export function createDataverseHandlers(deps: DataverseDeps) {
     return true
   }
 
+  function readOptionalEntityString(
+    entity: RoCrateEntity,
+    key: string,
+  ): string | undefined {
+    const value = entity[key]
+    return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+  }
+
+  function localCratePathFromEntityId(id: string): string | undefined {
+    if (id === '' || id === './' || id.startsWith('#')) {
+      return undefined
+    }
+
+    let rel = id
+    if (id.startsWith('file://./')) {
+      rel = id.slice('file://./'.length)
+    } else if (id.startsWith('./')) {
+      rel = id.slice(2)
+    } else if (id.includes(':')) {
+      return undefined
+    }
+
+    if (!isSafeRelativePath(rel)) {
+      return undefined
+    }
+    return rel.replace(/\\/g, '/')
+  }
+
+  function mimeTypeFromFilename(filename: string): string {
+    const lower = filename.toLowerCase()
+    if (lower.endsWith('.json')) return 'application/json'
+    if (lower.endsWith('.csv')) return 'text/csv'
+    if (lower.endsWith('.tsv')) return 'text/tab-separated-values'
+    if (lower.endsWith('.txt') || lower.endsWith('.md')) return 'text/plain'
+    if (lower.endsWith('.png')) return 'image/png'
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg'
+    if (lower.endsWith('.gif')) return 'image/gif'
+    if (lower.endsWith('.pdf')) return 'application/pdf'
+    if (lower.endsWith('.zip')) return 'application/zip'
+    return 'application/octet-stream'
+  }
+
+  function md5File(filePath: string): string {
+    const hash = createHash('md5')
+    const fd = fs.openSync(filePath, 'r')
+    const buffer = Buffer.allocUnsafe(64 * 1024)
+    try {
+      while (true) {
+        const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null)
+        if (bytesRead <= 0) {
+          break
+        }
+        hash.update(buffer.subarray(0, bytesRead))
+      }
+    } finally {
+      fs.closeSync(fd)
+    }
+    return hash.digest('hex')
+  }
+
+  function shouldKeepDataverseUploadZip(): boolean {
+    return process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS === 'true'
+  }
+
+  function createPendingDataverseCrate(
+    crate: RoCrate,
+    params: DataverseUploadParams,
+    pid?: string,
+    dataverseUrl?: string,
+  ): PendingDataverseCrate {
+    const id = `dv-crate-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), DATAVERSE_PENDING_TMP_PREFIX))
+    const tempPath = path.join(tempDir, 'ro-crate-metadata.json')
+    fs.writeFileSync(tempPath, `${JSON.stringify(crate, null, params.indent)}\n`, 'utf8')
+    const createdAtMs = Date.now()
+    const pending: PendingDataverseCrate = {
+      id,
+      tempPath,
+      cratePath: params.mode === 'local' ? params.cratePath : undefined,
+      pid,
+      dataverseUrl,
+      createdAt: new Date(createdAtMs).toISOString(),
+      expiresAt: new Date(createdAtMs + 24 * 60 * 60 * 1000).toISOString(),
+      indent: params.indent,
+    }
+    pendingDataverseCrates.set(id, pending)
+
+    const collector = deps.getTelemetryCollector()
+    const toolCallId = collector?.getCurrentToolCallId()
+    if (collector && toolCallId && collector.addToolCallArtifact) {
+      collector.addToolCallArtifact(toolCallId, {
+        label: 'Dataverse-updated RO-Crate metadata',
+        path: tempPath,
+      })
+    }
+    return pending
+  }
+
+  function parsePendingDataverseCrateAdoptionParams(params: Record<string, unknown>): {
+    pendingId: string
+    write: true
+    indent: number
+  } {
+    const pendingId = typeof params.pendingId === 'string' ? params.pendingId.trim() : ''
+    if (!pendingId) {
+      throw new Error('adopt_pending_dataverse_rocrate requires pendingId.')
+    }
+    if (params.write !== true) {
+      throw new Error('adopt_pending_dataverse_rocrate requires write=true.')
+    }
+    return {
+      pendingId,
+      write: true,
+      indent: Number.isFinite(params.indent) ? Number(params.indent) : 2,
+    }
+  }
+
+  async function adoptPendingDataverseRoCrate(params: {
+    pendingId: string
+    write: true
+    indent: number
+  }): Promise<Record<string, unknown>> {
+    const pending = pendingDataverseCrates.get(params.pendingId)
+    if (!pending) {
+      throw new Error(`No pending Dataverse-updated RO-Crate found for ${params.pendingId}.`)
+    }
+    if (!pending.cratePath) {
+      throw new Error(
+        'Pending Dataverse-updated RO-Crate has no local cratePath. Use local upload mode or copy pending tempPath manually.',
+      )
+    }
+    if (!fs.existsSync(pending.tempPath)) {
+      pendingDataverseCrates.delete(params.pendingId)
+      throw new Error(`Pending Dataverse-updated RO-Crate temp file is missing: ${pending.tempPath}`)
+    }
+    const crate = JSON.parse(fs.readFileSync(pending.tempPath, 'utf8')) as RoCrate
+    deps.writeCrateAtomic(pending.cratePath, crate, params.indent ?? pending.indent)
+    pendingDataverseCrates.delete(params.pendingId)
+    return {
+      mode: 'local',
+      writeApplied: true,
+      cratePath: pending.cratePath,
+      pendingId: pending.id,
+      tempPath: pending.tempPath,
+      pid: pending.pid,
+      dataverseUrl: pending.dataverseUrl,
+    }
+  }
+
+  function addZipFileEntry(
+    entries: Map<string, string>,
+    rootPath: string,
+    relativePath: string,
+  ): void {
+    const normalized = relativePath.replace(/\\/g, '/')
+    if (!isSafeRelativePath(normalized)) {
+      throw new Error(`Refusing to include unsafe ZIP path: ${relativePath}`)
+    }
+    entries.set(normalized, path.resolve(rootPath, normalized))
+  }
+
+  function walkDirectoryFiles(
+    rootPath: string,
+    relativePath: string,
+    entries: Map<string, string>,
+  ): void {
+    const directoryPath = path.resolve(rootPath, relativePath)
+    const children = fs.readdirSync(directoryPath, { withFileTypes: true })
+    for (const child of children) {
+      const childRelativePath = path.posix.join(
+        relativePath.replace(/\\/g, '/').replace(/\/+$/, ''),
+        child.name,
+      )
+      const childFsPath = path.resolve(rootPath, childRelativePath)
+      if (child.isDirectory()) {
+        walkDirectoryFiles(rootPath, childRelativePath, entries)
+      } else if (child.isFile()) {
+        entries.set(childRelativePath, childFsPath)
+      }
+    }
+  }
+
+  function dataverseFilePathFromEntity(entity: RoCrateEntity): string | undefined {
+    if (!entityTypes(entity).includes('File')) {
+      return undefined
+    }
+    const localIdPath = localCratePathFromEntityId(
+      typeof entity['@id'] === 'string' ? entity['@id'] : '',
+    )
+    if (localIdPath) {
+      return localIdPath
+    }
+    const name = readOptionalEntityString(entity, 'name')
+    if (!name || name.includes('/') || name.includes('\\')) {
+      return undefined
+    }
+    const directoryLabel = readOptionalEntityString(entity, 'directoryLabel')
+    const relativePath = directoryLabel
+      ? path.posix.join(directoryLabel.replace(/\\/g, '/'), name)
+      : name
+    return isSafeRelativePath(relativePath) ? relativePath : undefined
+  }
+
   /**
-   * Collects relative file paths from `File` entities for ZIP upload.
+   * Collects local graph entity paths for ZIP upload.
    *
-   * Only includes `./...` and `file://./...` ids that pass path-safety checks.
+   * RO-Crate file entities are often bare relative ids (`data/file.csv`),
+   * but some crates use `./...` or `file://./...`. All local path ids are
+   * considered; directory paths are expanded recursively when packaging.
    */
   function extractCrateFilePaths(crate: RoCrate): string[] {
     const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
@@ -453,27 +734,80 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
         continue
       }
-      const types = entityTypes(entity)
-      if (!types.includes('File')) {
-        continue
-      }
       const id = typeof entity['@id'] === 'string' ? entity['@id'] : ''
-      if (id === '') {
-        continue
-      }
-      let rel = ''
-      if (id.startsWith('file://./')) {
-        rel = id.slice('file://./'.length)
-      } else if (id.startsWith('./')) {
-        rel = id.slice(2)
-      } else {
-        continue
-      }
-      if (isSafeRelativePath(rel)) {
-        files.add(rel.replace(/\\/g, '/'))
+      const localPath = dataverseFilePathFromEntity(entity) ?? localCratePathFromEntityId(id)
+      if (localPath) {
+        files.add(localPath)
       }
     }
     return Array.from(files).sort((a, b) => a.localeCompare(b))
+  }
+
+  function ensureDataverseFileContext(crate: RoCrate): void {
+    const context = crate['@context']
+    if (Array.isArray(context)) {
+      const existingObject = context.find(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === 'object' && !Array.isArray(item),
+      )
+      if (existingObject) {
+        Object.assign(existingObject, DATAVERSE_FILE_CONTEXT)
+      } else {
+        context.push({ ...DATAVERSE_FILE_CONTEXT })
+      }
+      return
+    }
+    if (context && typeof context === 'object' && !Array.isArray(context)) {
+      Object.assign(context as Record<string, unknown>, DATAVERSE_FILE_CONTEXT)
+      return
+    }
+    crate['@context'] = context
+      ? [context, { ...DATAVERSE_FILE_CONTEXT }]
+      : ['https://w3id.org/ro/crate/1.1/context', { ...DATAVERSE_FILE_CONTEXT }]
+  }
+
+  function buildDataverseUploadCrate(crate: RoCrate, cratePath: string): RoCrate {
+    const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
+    const crateRoot = path.dirname(cratePath)
+    const graph = Array.isArray(uploadCrate['@graph']) ? uploadCrate['@graph'] : []
+    let enrichedFileCount = 0
+    for (const entity of graph) {
+      if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+        continue
+      }
+      if (!entityTypes(entity).includes('File')) {
+        continue
+      }
+      const relativePath = dataverseFilePathFromEntity(entity)
+      if (!relativePath) {
+        continue
+      }
+      const fsPath = path.resolve(crateRoot, relativePath)
+      const expectedPrefix = `${crateRoot}${path.sep}`
+      if (fsPath !== crateRoot && !fsPath.startsWith(expectedPrefix)) {
+        throw new Error(`Refusing to inspect path outside crate root: ${relativePath}`)
+      }
+      if (!fs.existsSync(fsPath) || !fs.statSync(fsPath).isFile()) {
+        continue
+      }
+      const parsed = path.posix.parse(relativePath.replace(/\\/g, '/'))
+      const stat = fs.statSync(fsPath)
+      entity.name = readOptionalEntityString(entity, 'name') ?? parsed.base
+      entity.hash = readOptionalEntityString(entity, 'hash') ?? md5File(fsPath)
+      entity.contentSize =
+        readOptionalEntityString(entity, 'contentSize') ?? String(stat.size)
+      entity.encodingFormat =
+        readOptionalEntityString(entity, 'encodingFormat') ??
+        mimeTypeFromFilename(relativePath)
+      if (!readOptionalEntityString(entity, 'directoryLabel') && parsed.dir) {
+        entity.directoryLabel = parsed.dir
+      }
+      enrichedFileCount += 1
+    }
+    if (enrichedFileCount > 0) {
+      ensureDataverseFileContext(uploadCrate)
+    }
+    return uploadCrate
   }
 
   /**
@@ -651,6 +985,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
   function buildDataverseUploadZip(crate: RoCrate, cratePath: string, outputPath: string, indent: number): void {
     const crateRoot = path.dirname(cratePath)
     const entries: StoredZipEntry[] = []
+    const fileEntries = new Map<string, string>()
     const metadataPayload = `${JSON.stringify(crate, null, indent)}\n`
     entries.push({
       name: 'ro-crate-metadata.json',
@@ -670,13 +1005,16 @@ export function createDataverseHandlers(deps: DataverseDeps) {
         throw new Error(`Referenced file not found for ZIP upload: ${relativePath}`)
       }
       const stat = fs.statSync(fsPath)
-      if (!stat.isFile()) {
-        continue
+      if (stat.isDirectory()) {
+        walkDirectoryFiles(crateRoot, relativePath, fileEntries)
+      } else if (stat.isFile()) {
+        addZipFileEntry(fileEntries, crateRoot, relativePath)
       }
-      entries.push({
-        name: relativePath.replace(/\\/g, '/'),
-        filePath: fsPath,
-      })
+    }
+    for (const [name, filePath] of Array.from(fileEntries.entries()).sort((a, b) =>
+      a[0].localeCompare(b[0]),
+    )) {
+      entries.push({ name, filePath })
     }
     writeStoredZipToFile(entries, outputPath)
   }
@@ -1019,8 +1357,12 @@ export function createDataverseHandlers(deps: DataverseDeps) {
         `Upload blocked by @context coverage. Missing mappings for used term(s): ${blockingMissingTerms.join(', ')}. Use suggest_context_terms and mergeContext before upload.`,
       )
     }
+    const dataverseUploadCrate =
+      creatingDataset && params.mode === 'local' && params.cratePath
+        ? buildDataverseUploadCrate(params.crate, params.cratePath)
+        : params.crate
     const dataversePreflight = await validateRoCrateViaDataverse(
-      params.crate,
+      dataverseUploadCrate,
       params.baseUrl,
       params.apiKey,
       params.timeoutMs,
@@ -1035,71 +1377,81 @@ export function createDataverseHandlers(deps: DataverseDeps) {
     let endpointUrl: URL
     let response: Response
     let tempUploadDir: string | undefined
-    if (creatingDataset) {
-      if (params.mode !== 'local' || !params.cratePath) {
-        throw new Error(
-          'Creating a new Dataverse dataset requires local mode so files can be zipped with ro-crate-metadata.json.',
-        )
-      }
-      endpoint = 'create'
-      endpointUrl = new URL('/api/arp/uploadRoCrateZip', `${params.baseUrl}/`)
-      endpointUrl.searchParams.set('ownerId', params.ownerId)
-      tempUploadDir = fs.mkdtempSync(path.join(os.tmpdir(), DATAVERSE_UPLOAD_TMP_PREFIX))
-      const zipPath = path.join(tempUploadDir, 'rocrate.zip')
-      buildDataverseUploadZip(
-        params.crate,
-        params.cratePath,
-        zipPath,
-        params.indent,
-      )
-      const boundary = `----rocrate-mcp-${Date.now().toString(16)}-${Math.random()
-        .toString(16)
-        .slice(2)}`
-      const multipart = buildMultipartFileUploadBody(
-        'file',
-        'rocrate.zip',
-        zipPath,
-        'application/zip',
-        boundary,
-      )
-      const headers: Record<string, string> = {
-        accept: 'application/json',
-        'content-length': String(multipart.contentLength),
-        'content-type': `multipart/form-data; boundary=${boundary}`,
-        'user-agent': 'rocrate-mcp-server/0.0.0',
-      }
-      if (params.apiKey) {
-        headers['x-dataverse-key'] = params.apiKey
-      }
-      response = await fetchDataverseWithTelemetry(endpointUrl.toString(), params.timeoutMs, {
-        method: 'POST',
-        duplex: 'half' as const,
-        headers,
-        body: multipart.body as unknown as RequestInit['body'],
-      }, {
-        requestBodyLog: `multipart/form-data upload: field=file; filename=rocrate.zip; temp-zip-path=${zipPath}; content-type=application/zip; content omitted; content-length=${multipart.contentLength}`,
-      })
-    } else {
-      endpoint = 'update'
-      endpointUrl = new URL(`/api/arp/rocrate/${params.pid}`, `${params.baseUrl}/`)
-      const headers: Record<string, string> = {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        'user-agent': 'rocrate-mcp-server/0.0.0',
-      }
-      if (params.apiKey) {
-        headers['x-dataverse-key'] = params.apiKey
-      }
-      const requestBody = JSON.stringify(params.crate)
-      response = await fetchDataverseWithTelemetry(endpointUrl.toString(), params.timeoutMs, {
-        method: 'POST',
-        headers,
-        body: requestBody,
-      }, {
-        requestBodyLog: buildBodySummary(requestBody, headers['content-type'], requestBody),
-      })
-    }
+    let zipPath: string | undefined
+    let uploadSucceeded = false
     try {
+      if (creatingDataset) {
+        if (params.mode !== 'local' || !params.cratePath) {
+          throw new Error(
+            'Creating a new Dataverse dataset requires local mode so files can be zipped with ro-crate-metadata.json.',
+          )
+        }
+        endpoint = 'create'
+        endpointUrl = new URL('/api/arp/uploadRoCrateZip', `${params.baseUrl}/`)
+        endpointUrl.searchParams.set('ownerId', params.ownerId)
+        tempUploadDir = fs.mkdtempSync(path.join(os.tmpdir(), DATAVERSE_UPLOAD_TMP_PREFIX))
+        zipPath = path.join(tempUploadDir, 'rocrate.zip')
+        const collector = deps.getTelemetryCollector()
+        const toolCallId = collector?.getCurrentToolCallId()
+        if (collector?.addToolCallArtifact && toolCallId) {
+          collector.addToolCallArtifact(toolCallId, {
+            label: 'Dataverse upload ZIP',
+            path: zipPath,
+          })
+        }
+        buildDataverseUploadZip(
+          dataverseUploadCrate,
+          params.cratePath,
+          zipPath,
+          params.indent,
+        )
+        const boundary = `----rocrate-mcp-${Date.now().toString(16)}-${Math.random()
+          .toString(16)
+          .slice(2)}`
+        const multipart = buildMultipartFileUploadBody(
+          'file',
+          'rocrate.zip',
+          zipPath,
+          'application/zip',
+          boundary,
+        )
+        const headers: Record<string, string> = {
+          accept: 'application/json',
+          'content-length': String(multipart.contentLength),
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+          'user-agent': 'rocrate-mcp-server/0.0.0',
+        }
+        if (params.apiKey) {
+          headers['x-dataverse-key'] = params.apiKey
+        }
+        response = await fetchDataverseWithTelemetry(endpointUrl.toString(), params.timeoutMs, {
+          method: 'POST',
+          duplex: 'half' as const,
+          headers,
+          body: multipart.body as unknown as RequestInit['body'],
+        }, {
+          requestBodyLog: `multipart/form-data upload: field=file; filename=rocrate.zip; temp-zip-path=${zipPath}; content-type=application/zip; content omitted; content-length=${multipart.contentLength}`,
+        })
+      } else {
+        endpoint = 'update'
+        endpointUrl = new URL(`/api/arp/rocrate/${params.pid}`, `${params.baseUrl}/`)
+        const headers: Record<string, string> = {
+          'content-type': 'application/json',
+          accept: 'application/json',
+          'user-agent': 'rocrate-mcp-server/0.0.0',
+        }
+        if (params.apiKey) {
+          headers['x-dataverse-key'] = params.apiKey
+        }
+        const requestBody = JSON.stringify(params.crate)
+        response = await fetchDataverseWithTelemetry(endpointUrl.toString(), params.timeoutMs, {
+          method: 'POST',
+          headers,
+          body: requestBody,
+        }, {
+          requestBodyLog: buildBodySummary(requestBody, headers['content-type'], requestBody),
+        })
+      }
       const payloadText = await response.text()
       let payload: unknown = payloadText
       try {
@@ -1133,12 +1485,12 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       const resolvedPid =
         (ingestedCrate ? extractArpPid(ingestedCrate) : undefined) ?? payloadPid
       const dataverseUrl = buildDataverseDatasetUrl(params.baseUrl, resolvedPid)
-      let writeApplied = false
-      if (params.mode === 'local' && ingestedCrate && params.cratePath) {
-        deps.writeCrateAtomic(params.cratePath, ingestedCrate, params.indent)
-        writeApplied = true
-      }
+      const writeApplied = false
+      const pendingDataverseCrate = ingestedCrate
+        ? createPendingDataverseCrate(ingestedCrate, params, resolvedPid, dataverseUrl)
+        : undefined
 
+      uploadSucceeded = true
       return {
         mode: params.mode,
         writeApplied,
@@ -1148,15 +1500,23 @@ export function createDataverseHandlers(deps: DataverseDeps) {
         requestUrl: response.url || endpointUrl.toString(),
         pid: resolvedPid ?? params.pid,
         dataverseUrl,
-        ingestedCrate,
+        fileLinks: extractDataverseFileLinks(ingestedCrate, params.baseUrl, resolvedPid),
+        pendingDataverseCrate,
+        ingestedCrate: params.responseMode === 'full' ? ingestedCrate : undefined,
         response: payload,
         note:
-          params.mode === 'remote'
-            ? 'Remote mode does not persist files. Use returned ingestedCrate payload.'
+          pendingDataverseCrate
+            ? 'Dataverse returned an updated RO-Crate. Ask the user whether to adopt it; if yes, call adopt_pending_dataverse_rocrate with pendingDataverseCrate.id and write=true.'
             : undefined,
       }
+    } catch (error) {
+      if (zipPath) {
+        const message = error instanceof Error ? error.message : String(error)
+        throw new Error(`${message} ZIP preserved at ${zipPath}`)
+      }
+      throw error
     } finally {
-      if (tempUploadDir) {
+      if (tempUploadDir && uploadSucceeded && !shouldKeepDataverseUploadZip()) {
         fs.rmSync(tempUploadDir, { recursive: true, force: true })
       }
     }
@@ -1228,7 +1588,9 @@ export function createDataverseHandlers(deps: DataverseDeps) {
   return {
     parseDataverseUploadParams,
     parseDataverseDownloadParams,
+    parsePendingDataverseCrateAdoptionParams,
     runDataverseUpload,
     runDataverseDownload,
+    adoptPendingDataverseRoCrate,
   }
 }

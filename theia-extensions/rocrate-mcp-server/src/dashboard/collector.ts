@@ -11,6 +11,7 @@ import type {
   ErrorEvent,
   DependencyUsage,
   HttpExchangeLog,
+  ToolCallArtifact,
   TransportMode,
   CollectorConfig,
 } from './types'
@@ -35,6 +36,7 @@ const DEFAULT_CONFIG: CollectorConfig = {
 }
 const MAX_HTTP_LOGS_PER_TOOL_CALL = 20
 const MAX_HTTP_DETAIL_CHARS = 16 * 1024
+const MAX_ARTIFACTS_PER_TOOL_CALL = 20
 
 type ToolCallContext = {
   toolCallId: string
@@ -379,6 +381,22 @@ export class TelemetryCollector {
       nextLogs.splice(0, nextLogs.length - MAX_HTTP_LOGS_PER_TOOL_CALL)
     }
     toolCall.httpLogs = nextLogs
+  }
+
+  addToolCallArtifact(toolCallId: string, artifact: ToolCallArtifact): void {
+    const toolCall = this.toolCalls.get(toolCallId)
+    if (!toolCall) {
+      return
+    }
+    const sanitized: ToolCallArtifact = {
+      label: artifact.label.slice(0, 120),
+      path: artifact.path.slice(0, 4096),
+    }
+    const nextArtifacts = [...(toolCall.artifacts ?? []), sanitized]
+    if (nextArtifacts.length > MAX_ARTIFACTS_PER_TOOL_CALL) {
+      nextArtifacts.splice(0, nextArtifacts.length - MAX_ARTIFACTS_PER_TOOL_CALL)
+    }
+    toolCall.artifacts = nextArtifacts
   }
 
   /**
