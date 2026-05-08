@@ -28,7 +28,8 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "recrate:dev": "yarn workspace @arpproject/recrate start",
-    "recrate:build": "yarn workspace @arpproject/recrate build",
+    "recrate:scope-css": "node theia-extensions/ro-crate-editor/scripts/generate-recrate-scoped-css.js",
+    "recrate:build": "yarn workspace @arpproject/recrate build && yarn run recrate:scope-css",
     "recrate:test": "yarn workspace @arpproject/recrate test",
     "recrate:publish": "yarn workspace @arpproject/recrate build && (cd dev-packages/recrate && npm publish)"
   },

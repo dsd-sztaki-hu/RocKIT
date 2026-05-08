@@ -45,6 +45,7 @@ export function resolveAppProjectPathFromLocation(
 export function getRocrateMcpServerPathCandidates(
   options: RocrateMcpConfigOptions = {},
 ): string[] {
+  const fsPath = getPathForPlatform(options.platform ?? getDefaultPlatform())
   const candidates: string[] = []
 
   if (options.serverPathOverride) {
@@ -57,7 +58,7 @@ export function getRocrateMcpServerPathCandidates(
       options.appProjectPath.endsWith('browser-app')
     ) {
       candidates.push(
-        path.resolve(
+        fsPath.resolve(
           options.appProjectPath,
           '..',
           'theia-extensions',
@@ -68,7 +69,7 @@ export function getRocrateMcpServerPathCandidates(
       )
     } else {
       candidates.push(
-        path.resolve(
+        fsPath.resolve(
           options.appProjectPath,
           'theia-extensions',
           'rocrate-mcp-server',
@@ -81,7 +82,7 @@ export function getRocrateMcpServerPathCandidates(
 
   if (options.resourcesPath) {
     candidates.push(
-      path.resolve(
+      fsPath.resolve(
         options.resourcesPath,
         'app',
         'theia-extensions',
@@ -91,7 +92,7 @@ export function getRocrateMcpServerPathCandidates(
       ),
     )
     candidates.push(
-      path.resolve(
+      fsPath.resolve(
         options.resourcesPath,
         'theia-extensions',
         'rocrate-mcp-server',
@@ -101,7 +102,7 @@ export function getRocrateMcpServerPathCandidates(
     )
   }
 
-  return [...new Set(candidates.filter((candidate) => path.isAbsolute(candidate)))]
+  return [...new Set(candidates.filter((candidate) => fsPath.isAbsolute(candidate)))]
 }
 
 export function resolveRocrateMcpSocketPath(
@@ -117,10 +118,35 @@ export function resolveRocrateMcpSocketPath(
     return `\\\\.\\pipe\\aroma-rocrate-mcp-${user}`
   }
 
+  const fsPath = getPathForPlatform(platform)
   const homeDir = options.homeDir
-  const base = homeDir ? path.join(homeDir, '.aroma') : path.join('/tmp', 'aroma')
-  return path.join(base, 'rocrate-mcp-server.sock')
+  const base = homeDir ? fsPath.join(homeDir, '.aroma') : fsPath.join('/tmp', 'aroma')
+  return fsPath.join(base, 'rocrate-mcp-server.sock')
 }
+
+export function resolveRocrateMcpPidPath(
+  options: RocrateMcpConfigOptions = {},
+): string {
+  const platform = options.platform ?? process.platform
+  const homeDir = options.homeDir
+  const env =
+    typeof process === 'undefined'
+      ? {}
+      : (process.env as Record<string, string | undefined>)
+  const fsPath = getPathForPlatform(platform)
+  const base =
+    platform === 'win32'
+      ? fsPath.join(
+          env.LOCALAPPDATA || env.TEMP || homeDir || 'C:\\Temp',
+          'AROMA',
+        )
+      : homeDir
+        ? fsPath.join(homeDir, '.aroma')
+        : fsPath.join('/tmp', 'aroma')
+  return fsPath.join(base, 'rocrate-mcp-server.pid')
+}
+
+export const ROCRATE_MCP_SHUTDOWN_CONTROL_MESSAGE = 'AROMA_ROCRATE_MCP_SHUTDOWN\n'
 
 function getDefaultPlatform(): NodeJS.Platform {
   return (
@@ -128,4 +154,8 @@ function getDefaultPlatform(): NodeJS.Platform {
       ? process.platform
       : 'darwin'
   )
+}
+
+function getPathForPlatform(platform: NodeJS.Platform): typeof path.posix {
+  return platform === 'win32' ? path.win32 : path.posix
 }

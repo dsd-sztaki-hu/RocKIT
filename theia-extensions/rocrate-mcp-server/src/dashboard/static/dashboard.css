@@ -600,6 +600,50 @@ body {
   gap: var(--spacing-sm);
 }
 
+.setting-value {
+  justify-content: flex-end;
+  min-width: 0;
+  max-width: 260px;
+}
+
+.setting-value code {
+  display: block;
+  max-width: 100%;
+  padding: 0.35rem 0.5rem;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.dataverse-settings {
+  margin-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.dataverse-settings h3 {
+  margin: var(--spacing-md) 0 0;
+  font-size: 0.95rem;
+}
+
+.artifact-row {
+  margin-bottom: var(--spacing-md);
+}
+
+.artifact-label {
+  margin-bottom: 0.35rem;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.artifact-path {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* Toggle Switch */
 .toggle {
   position: relative;

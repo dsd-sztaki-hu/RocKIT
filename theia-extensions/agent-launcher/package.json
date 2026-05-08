@@ -3,12 +3,16 @@
   "version": "0.0.0",
   "description": "AROMA coding agent launcher",
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.111",
     "@theia/core": "1.65.2",
     "@theia/filesystem": "1.65.2",
     "@theia/terminal": "1.65.2",
     "@theia/workspace": "1.65.2",
     "agent-instructions": "0.0.0",
+    "app-state": "0.0.1",
     "file-explorer": "0.0.0",
+    "markdown-it": "^12.3.2",
+    "ro-crate-editor": "0.0.0",
     "tslib": "^2.6.2"
   },
   "publishConfig": {
@@ -16,7 +20,8 @@
   },
   "theiaExtensions": [
     {
-      "frontendElectron": "lib/electron-browser/agent-launcher-module"
+      "frontendElectron": "lib/electron-browser/agent-launcher-module",
+      "backend": "lib/node/agent-launcher-backend-module"
     }
   ],
   "keywords": [
@@ -28,16 +33,19 @@
     "src"
   ],
   "scripts": {
-    "build": "theiaext build",
+    "build": "theiaext build && node scripts/copy-css.js",
     "postbuild": "rimraf tsconfig.tsbuildinfo",
     "clean": "theiaext clean",
-    "compile": "theiaext compile",
+    "compile": "theiaext compile && node scripts/copy-css.js",
     "lint": "theiaext lint",
     "test": "theiaext test",
-    "watch": "tsc -b -w --preserveWatchOutput"
+    "watch": "node scripts/copy-css.js && tsc -b -w --preserveWatchOutput"
   },
   "devDependencies": {
     "@theia/ext-scripts": "1.65.2",
+    "@types/markdown-it": "^12.2.3",
+    "@types/react": "18.3.27",
+    "@types/react-dom": "18.3.7",
     "rimraf": "6.0.0"
   },
   "nyc": {

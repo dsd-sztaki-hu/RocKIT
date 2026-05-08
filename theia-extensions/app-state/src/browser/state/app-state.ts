@@ -44,6 +44,7 @@ export const defaultAppState = {
   validationErrors: undefined as ValidationError[] | undefined,
   fileExplorerFiltersVisible: false,
   entitiesOverviewFiltersVisible: true,
+  nativeAgentActivityExpanded: false,
 }
 
 export type AppState = typeof defaultAppState

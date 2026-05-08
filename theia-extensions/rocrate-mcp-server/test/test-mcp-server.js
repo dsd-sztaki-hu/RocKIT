@@ -65,6 +65,35 @@ function parseMessages(onMessage) {
   }
 }
 
+function listStoredZipEntries(zipPath) {
+  return Array.from(readStoredZipEntries(zipPath).keys())
+}
+
+function readStoredZipEntries(zipPath) {
+  const data = fs.readFileSync(zipPath)
+  const entries = new Map()
+  let offset = 0
+  while (offset + 30 <= data.length) {
+    const signature = data.readUInt32LE(offset)
+    if (signature !== 0x04034b50) {
+      break
+    }
+    const compressedSize = data.readUInt32LE(offset + 18)
+    const fileNameLength = data.readUInt16LE(offset + 26)
+    const extraLength = data.readUInt16LE(offset + 28)
+    const nameStart = offset + 30
+    const nameEnd = nameStart + fileNameLength
+    const dataStart = nameEnd + extraLength
+    const dataEnd = dataStart + compressedSize
+    entries.set(
+      data.slice(nameStart, nameEnd).toString('utf8'),
+      data.slice(dataStart, dataEnd),
+    )
+    offset = nameEnd + extraLength + compressedSize
+  }
+  return entries
+}
+
 async function startMockWebToolsServer(profileUrl) {
   const dataverseState = {
     lastUploaded: null,
@@ -235,9 +264,40 @@ async function startMockWebToolsServer(profileUrl) {
     if (parsedUrl.pathname === '/api/arp/uploadRoCrateZip' && req.method === 'POST') {
       req.on('data', () => {})
       req.on('end', () => {
+        if (parsedUrl.searchParams.get('ownerId') === 'fail-upload') {
+          res.statusCode = 500
+          res.setHeader('content-type', 'application/json')
+          res.end(JSON.stringify({ status: 'ERROR', message: 'Mock upload failure' }))
+          return
+        }
         res.statusCode = 200
         res.setHeader('content-type', 'application/json')
-        res.end(JSON.stringify({ status: 'OK', pid: 'hdl:21.T15999/DSDDEV/MOCKPID' }))
+        res.end(
+          JSON.stringify({
+            status: 'OK',
+            data: {
+              message: 'RO-Crate uploaded',
+              roCrate: {
+                '@context': 'https://w3id.org/ro/crate/1.1/context',
+                '@graph': [
+                  {
+                    '@id': './',
+                    '@type': 'Dataset',
+                    name: 'Uploaded Root',
+                    '@arpPid': 'doi:10.5072/FK2/MOCKPID',
+                  },
+                  {
+                    '@id': 'https://example.org/arp/file/created',
+                    '@type': 'File',
+                    name: 'created.txt',
+                    directoryLabel: 'folder',
+                    '@arpPid': 'doi:10.5072/FK2/MOCKPID/FILE1',
+                  },
+                ],
+              },
+            },
+          }),
+        )
       })
       return
     }
@@ -423,6 +483,10 @@ async function run() {
   )
   fs.mkdirSync(path.join(tempRoot, 'folder'))
   fs.writeFileSync(path.join(tempRoot, 'folder', 'x.txt'), 'hello\n', 'utf8')
+  fs.writeFileSync(path.join(tempRoot, 'folder', 'bare.txt'), 'bare\n', 'utf8')
+  fs.mkdirSync(path.join(tempRoot, 'folder', 'nested'))
+  fs.writeFileSync(path.join(tempRoot, 'folder', 'nested', 'inside.txt'), 'inside\n', 'utf8')
+  fs.writeFileSync(path.join(tempRoot, 'folder', 'nested', 'arp.txt'), 'arp\n', 'utf8')
 
   const serverPath = path.resolve(__dirname, '../lib/server.js')
   const child = spawn('node', [serverPath], {
@@ -494,6 +558,10 @@ async function run() {
     assert.ok(
       toolNames.includes('upload_rocrate_to_dataverse'),
       'upload_rocrate_to_dataverse tool should exist',
+    )
+    assert.ok(
+      toolNames.includes('adopt_pending_dataverse_rocrate'),
+      'adopt_pending_dataverse_rocrate tool should exist',
     )
     assert.ok(
       toolNames.includes('download_rocrate_from_dataverse'),
@@ -905,6 +973,48 @@ async function run() {
     assert.ok(Array.isArray(searchPayload.results), 'search should return results array')
     assert.equal(searchPayload.results[0].url, 'https://example.org/mock')
 
+    const crateBeforeDataverseUpload = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    const rootBeforeDataverseUpload = crateBeforeDataverseUpload['@graph'].find(
+      (entity) => entity['@id'] === './',
+    )
+    rootBeforeDataverseUpload.hasPart = [
+      ...(Array.isArray(rootBeforeDataverseUpload.hasPart)
+        ? rootBeforeDataverseUpload.hasPart
+        : []),
+      { '@id': './folder/x.txt' },
+      { '@id': 'folder/bare.txt' },
+      { '@id': 'https://example.org/arp/file/1' },
+      { '@id': 'folder/' },
+    ]
+    crateBeforeDataverseUpload['@graph'].push(
+      {
+        '@id': './folder/x.txt',
+        '@type': 'File',
+        name: 'Prefixed file',
+      },
+      {
+        '@id': 'folder/bare.txt',
+        '@type': 'File',
+        name: 'Bare relative file',
+      },
+      {
+        '@id': 'https://example.org/arp/file/1',
+        '@type': 'File',
+        name: 'arp.txt',
+        directoryLabel: 'folder/nested',
+      },
+      {
+        '@id': 'folder/',
+        '@type': 'Dataset',
+        name: 'Folder dataset',
+      },
+    )
+    fs.writeFileSync(
+      cratePath,
+      `${JSON.stringify(crateBeforeDataverseUpload, null, 2)}\n`,
+      'utf8',
+    )
+
     const tempUploadPrefix = 'rocrate-dataverse-upload-'
     const tempEntriesBeforeUpload = fs
       .readdirSync(os.tmpdir(), { withFileTypes: true })
@@ -930,8 +1040,29 @@ async function run() {
     assert.equal(uploadDataversePayload.writeApplied, false)
     assert.equal(uploadDataversePayload.status, 200)
     assert.equal(uploadDataversePayload.endpoint, 'create')
-    assert.equal(uploadDataversePayload.pid, 'hdl:21.T15999/DSDDEV/MOCKPID')
-    assert.match(uploadDataversePayload.dataverseUrl, /dataset\.xhtml\?persistentId=/)
+    assert.equal(uploadDataversePayload.pid, 'doi:10.5072/FK2/MOCKPID')
+    assert.ok(uploadDataversePayload.pendingDataverseCrate, 'upload should return pending Dataverse crate metadata')
+    assert.ok(uploadDataversePayload.pendingDataverseCrate.id, 'pending Dataverse crate should include id')
+    assert.ok(
+      fs.existsSync(uploadDataversePayload.pendingDataverseCrate.tempPath),
+      'pending Dataverse crate temp file should exist',
+    )
+    assert.equal(uploadDataversePayload.pendingDataverseCrate.cratePath, cratePath)
+    assert.equal(
+      JSON.parse(fs.readFileSync(cratePath, 'utf8'))['@graph'][0].name,
+      crateBeforeDataverseUpload['@graph'][0].name,
+      'Dataverse upload should not replace local RO-Crate metadata without user confirmation',
+    )
+    assert.equal(
+      uploadDataversePayload.dataverseUrl,
+      `${webToolsMock.baseUrl}/dataset.xhtml?persistentId=doi%3A10.5072%2FFK2%2FMOCKPID`,
+    )
+    assert.equal(uploadDataversePayload.fileLinks.length, 1)
+    assert.equal(uploadDataversePayload.fileLinks[0].path, 'folder/created.txt')
+    assert.equal(
+      uploadDataversePayload.fileLinks[0].url,
+      `${webToolsMock.baseUrl}/file.xhtml?persistentId=doi%3A10.5072%2FFK2%2FMOCKPID%2FFILE1&datasetPid=doi%3A10.5072%2FFK2%2FMOCKPID`,
+    )
     const tempEntriesAfterUpload = fs
       .readdirSync(os.tmpdir(), { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && entry.name.startsWith(tempUploadPrefix))
@@ -942,6 +1073,91 @@ async function run() {
       tempEntriesBeforeUpload,
       'Dataverse ZIP temp directory should be cleaned up after upload',
     )
+    const adoptDataverseResponse = await request('tools/call', {
+      name: 'adopt_pending_dataverse_rocrate',
+      arguments: {
+        pendingId: uploadDataversePayload.pendingDataverseCrate.id,
+        write: true,
+      },
+    })
+    assert.ok(
+      adoptDataverseResponse.result,
+      `adopt_pending_dataverse_rocrate failed unexpectedly: ${JSON.stringify(adoptDataverseResponse)}`,
+    )
+    const adoptDataversePayload = JSON.parse(adoptDataverseResponse.result.content[0].text)
+    assert.equal(adoptDataversePayload.writeApplied, true)
+    assert.equal(adoptDataversePayload.cratePath, cratePath)
+    assert.equal(
+      JSON.parse(fs.readFileSync(cratePath, 'utf8'))['@graph'][0]['@arpPid'],
+      'doi:10.5072/FK2/MOCKPID',
+      'adopting pending Dataverse crate should replace local metadata with Dataverse-updated version',
+    )
+    fs.writeFileSync(
+      cratePath,
+      `${JSON.stringify(crateBeforeDataverseUpload, null, 2)}\n`,
+      'utf8',
+    )
+
+    const failedUploadResponse = await request('tools/call', {
+      name: 'upload_rocrate_to_dataverse',
+      arguments: {
+        cratePath,
+        write: true,
+        baseUrl: webToolsMock.baseUrl,
+        ownerId: 'fail-upload',
+      },
+    })
+    assert.ok(failedUploadResponse.error, 'failed upload should return an error')
+    const failedUploadMessage = failedUploadResponse.error.message
+    assert.match(failedUploadMessage, /Dataverse upload failed \(500\)/)
+    assert.match(failedUploadMessage, /ZIP preserved at /)
+    const preservedZipPath = failedUploadMessage.match(/ZIP preserved at (.+)$/)?.[1]
+    assert.ok(preservedZipPath, 'failed upload error should include preserved ZIP path')
+    assert.ok(fs.existsSync(preservedZipPath), 'failed upload should keep ZIP on disk')
+    const preservedZipMap = readStoredZipEntries(preservedZipPath)
+    const preservedZipEntries = Array.from(preservedZipMap.keys())
+    assert.ok(
+      preservedZipEntries.includes('folder/x.txt'),
+      'Dataverse ZIP should include ./-prefixed file entity paths',
+    )
+    assert.ok(
+      preservedZipEntries.includes('folder/bare.txt'),
+      'Dataverse ZIP should include bare relative file entity paths',
+    )
+    assert.equal(
+      preservedZipEntries.includes('folder/'),
+      false,
+      'Dataverse ZIP should not include directory entries as empty files',
+    )
+    assert.ok(
+      preservedZipEntries.includes('folder/nested/inside.txt'),
+      'Dataverse ZIP should recursively include files from referenced directories',
+    )
+    assert.ok(
+      preservedZipEntries.includes('folder/nested/arp.txt'),
+      'Dataverse ZIP should include Dataverse-style file entities from directoryLabel/name',
+    )
+    const zippedCrate = JSON.parse(
+      preservedZipMap.get('ro-crate-metadata.json').toString('utf8'),
+    )
+    const zippedArpFile = zippedCrate['@graph'].find(
+      (entity) => entity['@id'] === 'https://example.org/arp/file/1',
+    )
+    assert.equal(zippedArpFile.hash, '52ba4854ce5aa6ffc83fe901c7006426')
+    assert.equal(zippedArpFile.contentSize, '4')
+    assert.equal(zippedArpFile.encodingFormat, 'text/plain')
+    assert.equal(zippedArpFile.directoryLabel, 'folder/nested')
+    const zippedContext = Array.isArray(zippedCrate['@context'])
+      ? zippedCrate['@context'].find(
+          (entry) => entry && typeof entry === 'object' && !Array.isArray(entry),
+        )
+      : undefined
+    assert.equal(
+      zippedContext.directoryLabel,
+      'https://dataverse.org/schema/file/directoryLabel',
+    )
+    assert.equal(zippedContext.hash, 'https://dataverse.org/schema/file/hash')
+    fs.rmSync(path.dirname(preservedZipPath), { recursive: true, force: true })
 
     const crateWithArpPid = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
     const crateWithArpPidRoot = crateWithArpPid['@graph'].find((entity) => entity['@id'] === './')
@@ -1324,6 +1540,7 @@ async function run() {
         write: true,
         baseUrl: webToolsMock.baseUrl,
         pid: 'hdl:21.T15999/DSDDEV/REMOTEPID',
+        responseMode: 'full',
       },
     })
     const remoteUploadPayload = JSON.parse(remoteUploadResponse.result.content[0].text)
