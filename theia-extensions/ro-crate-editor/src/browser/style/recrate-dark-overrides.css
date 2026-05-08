@@ -1668,6 +1668,100 @@ body.hc-black
 }
 
 .theia-hc
+  .ant-select-dropdown
+  .ant-select-item-option-active:not(.ant-select-item-option-disabled):not(
+    :has(.ant-btn-color-green)
+  ),
+.theia-hc
+  .ant-select-dropdown
+  .ant-select-item-option-selected:not(.ant-select-item-option-disabled):not(
+    :has(.ant-btn-color-green)
+  ),
+body.hc-black
+  .ant-select-dropdown
+  .ant-select-item-option-active:not(.ant-select-item-option-disabled):not(
+    :has(.ant-btn-color-green)
+  ),
+body.hc-black
+  .ant-select-dropdown
+  .ant-select-item-option-selected:not(.ant-select-item-option-disabled):not(
+    :has(.ant-btn-color-green)
+  ) {
+  background-color: rgba(127, 127, 127, 0.18) !important;
+  outline: 1px dashed var(--theia-focusBorder, #f38518) !important;
+  outline-offset: -1px;
+}
+
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled) {
+  background-color: rgba(243, 133, 24, 0.16) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow: 0 0 0 1px rgba(243, 133, 24, 0.72) !important;
+  color: var(--recrate-text, #ffffff) !important;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .describo-property-help,
+.theia-hc .rocrate-editor .recrate-scope .describo-property-help-more,
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-description,
+body.hc-black .rocrate-editor .recrate-scope .describo-property-help,
+body.hc-black .rocrate-editor .recrate-scope .describo-property-help-more,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-description {
+  color: var(--recrate-text, #ffffff) !important;
+}
+
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled) {
+  background-color: rgba(243, 133, 24, 0.16) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow: 0 0 0 1px rgba(243, 133, 24, 0.72) !important;
+  color: var(--recrate-text, #ffffff) !important;
+}
+
+.theia-hc
   .rocrate-editor
   .recrate-scope
   input:not([type="checkbox"]):not([type="radio"]):focus,
@@ -1830,10 +1924,10 @@ body.hc-black
   .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
     :has(.anticon-link)
   ):hover:not(:disabled) {
-  background-color: rgba(92, 207, 230, 0.16) !important;
-  border-color: #5ccfe6 !important;
-  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.5) !important;
-  color: var(--recrate-text) !important;
+  background-color: rgba(243, 133, 24, 0.16) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow: 0 0 0 1px rgba(243, 133, 24, 0.72) !important;
+  color: var(--recrate-text, #ffffff) !important;
 }
 
 .theia-hc .rocrate-editor .recrate-scope .describo-render-item-link .anticon-link,
