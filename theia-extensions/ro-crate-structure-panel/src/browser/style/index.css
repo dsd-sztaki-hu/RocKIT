@@ -19,6 +19,45 @@
   color: var(--theia-ui-font-color1);
 }
 
+body.hc-black
+  .dataset-panel
+  .ant-tree
+  .ant-tree-node-content-wrapper.ant-tree-node-selected {
+  background: transparent !important;
+  border: 1px solid var(--theia-focusBorder, #f38518) !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+}
+
+body.hc-black
+  .dataset-panel
+  .ant-tree
+  .ant-tree-node-content-wrapper.ant-tree-node-selected:hover {
+  background: rgba(243, 133, 24, 0.08) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+}
+
+body.hc-black
+  .dataset-panel
+  .ant-tree
+  .ant-tree-node-content-wrapper.ant-tree-node-selected
+  > span,
+body.hc-black
+  .dataset-panel
+  .ant-tree
+  .ant-tree-node-content-wrapper.ant-tree-node-selected
+  .ro-crate-entity-icon.file-icon {
+  color: #ffffff !important;
+}
+
+body.hc-black
+  .dataset-panel
+  .ant-tree
+  .ant-tree-node-content-wrapper:not(.ant-tree-node-selected):hover {
+  outline: 1px dashed var(--theia-focusBorder, #f38518) !important;
+  outline-offset: -1px;
+}
+
 .dataset-panel .ant-tree .ant-tree-node-content-wrapper,
 .dataset-panel .ant-tree .ant-tree-title,
 .dataset-panel [data-entity-id] {
