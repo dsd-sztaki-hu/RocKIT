@@ -274,6 +274,45 @@
   color: var(--recrate-label) !important;
 }
 
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 52px !important;
+  align-items: center !important;
+  column-gap: 8px !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-title {
+  min-width: 0 !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-status {
+  display: grid !important;
+  grid-template-columns: 20px 24px !important;
+  align-items: center !important;
+  justify-content: end !important;
+  justify-self: end !important;
+  column-gap: 8px !important;
+  width: 52px !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-tab-rail-status
+  > :not(.describo-tab-rail-remove-button) {
+  grid-column: 1 !important;
+  justify-self: center !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-tab-rail-status
+  > .describo-tab-rail-remove-button {
+  grid-column: 2 !important;
+  justify-self: center !important;
+}
+
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-item:hover,
 :is(.theia-dark, .theia-hc)
   .rocrate-editor
