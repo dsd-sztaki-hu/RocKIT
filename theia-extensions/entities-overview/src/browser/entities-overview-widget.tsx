@@ -520,6 +520,14 @@ export class EntitiesOverviewWidget extends TreeWidget {
         this.update()
     }
 
+    hasExpandedEntityNodes(): boolean {
+        const root = this.model.root
+        if (!root || !CompositeTreeNode.is(root)) {
+            return false
+        }
+        return this.hasExpandedEntityNodeDescendants(root)
+    }
+
     async collapseAllEntityNodes(): Promise<void> {
         const root = this.model.root
         if (!root || !CompositeTreeNode.is(root)) {
@@ -529,6 +537,45 @@ export class EntitiesOverviewWidget extends TreeWidget {
         for (const child of root.children) {
             if (ExampleTreeNode.is(child)) {
                 await this.model.collapseAll(child)
+            }
+        }
+    }
+
+    async expandAllEntityNodes(): Promise<void> {
+        const root = this.model.root
+        if (!root || !CompositeTreeNode.is(root)) {
+            return
+        }
+        for (const child of root.children) {
+            if (ExampleTreeNode.is(child)) {
+                await this.expandEntityNode(child)
+            }
+        }
+    }
+
+    protected hasExpandedEntityNodeDescendants(node: CompositeTreeNode): boolean {
+        for (const child of node.children) {
+            if (!ExampleTreeNode.is(child)) {
+                continue
+            }
+            if (child.expanded) {
+                return true
+            }
+        }
+        return false
+    }
+
+    protected async expandEntityNode(node: ExampleTreeNode): Promise<void> {
+        let expandedNode = node
+        if (!node.expanded) {
+            const maybeExpanded = await this.model.expandNode(node)
+            if (maybeExpanded && ExampleTreeNode.is(maybeExpanded)) {
+                expandedNode = maybeExpanded
+            }
+        }
+        for (const child of expandedNode.children) {
+            if (ExampleTreeNode.is(child)) {
+                await this.expandEntityNode(child)
             }
         }
     }
