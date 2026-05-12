@@ -73,7 +73,11 @@ function collectWorkspaceEntries(
   const directories: string[] = []
   const files: string[] = []
 
-  const ignoredRootFiles = new Set(['ro-crate-metadata.json', 'ro-crate-preview.html'])
+  const ignoredRootFiles = new Set([
+    'ro-crate-metadata.json',
+    'ro-crate-preview.html',
+    'ro-crate-approval.json',
+  ])
 
   function walk(currentPath: string): void {
     const entries = fs.readdirSync(currentPath, { withFileTypes: true })

@@ -11,10 +11,22 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { MetadataSchemaManager, RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 import {
+    AROMA_IGNORE_DIR,
+    AROMA_IGNORE_FILE,
+    DEFAULT_IGNORED_ENTRIES,
+} from 'aroma2-common/lib/common/ro-crate-technical-files'
+import {
     AppStatePreferences,
     ROCrateExternalChangeAction,
     type ROCrateExternalChangeActionValue,
 } from '../../common/app-state-preferences'
+import {
+    collectRoCrateChangedProperties,
+    maintainRoCrateApprovalFile,
+    parseRoCrateApprovalFile,
+    RO_CRATE_APPROVAL_FILE,
+    type RoCrateApprovalFile,
+} from './ro-crate-approval'
 import { AppStateService } from './app-state-service'
 import { RoCrateHistoryService } from './ro-crate-history-service'
 import { ROCrateDialog } from './ro-crate-dialog'
@@ -23,15 +35,6 @@ import { RoCrateIdConversionDialog } from './ro-crate-id-conversion-dialog'
 // import { loadInitialCrateAndProfile } from './initial-state-loader'
 
 const REMOTE_RO_CRATE_CONVERSION_COMMAND_ID = 'RemoteRoCrateConversion.command'
-const AROMA_IGNORE_DIR = '.aroma'
-const AROMA_IGNORE_FILE = 'ignored.txt'
-const DEFAULT_IGNORED_ENTRIES = [
-    'ro-crate-preview.html',
-    'ro-crate-metadata.json',
-    'AGENTS.md',
-    'CLAUDE.md',
-    '.aroma/',
-] as const
 
 @injectable()
 export class RoCrateLoaderContribution implements FrontendApplicationContribution {
@@ -498,6 +501,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         if (normalized === this.lastKnownMetadataJson) {
             return
         }
+        await this.maintainApprovalForExternalCrateChange(metadataUri, parsed)
         const currentNormalized = this.normalizeCrate(this.appStateService.roCrate)
         if (normalized === currentNormalized) {
             this.lastKnownMetadataJson = normalized
@@ -551,6 +555,41 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             this.messageService.error(
                 'Failed to reload ro-crate-metadata.json after external change.',
             )
+        }
+    }
+
+    protected async maintainApprovalForExternalCrateChange(
+        metadataUri: URI,
+        nextCrate: Record<string, any>,
+    ): Promise<void> {
+        const changedProperties = collectRoCrateChangedProperties(
+            this.appStateService.roCrate,
+            nextCrate,
+        )
+
+        const approvalUri = metadataUri.parent.resolve(RO_CRATE_APPROVAL_FILE)
+        const existing = await this.readRoCrateApprovalFile(approvalUri)
+        const nextApproval = maintainRoCrateApprovalFile(existing, changedProperties)
+
+        await this.fileService.create(approvalUri, JSON.stringify(nextApproval, null, 2), {
+            overwrite: true,
+        })
+    }
+
+    protected async readRoCrateApprovalFile(
+        approvalUri: URI,
+    ): Promise<RoCrateApprovalFile | undefined> {
+        try {
+            const exists = await this.fileService.exists(approvalUri)
+            if (!exists) {
+                return undefined
+            }
+            const content = await this.fileService.read(approvalUri)
+            const parsed = JSON.parse(content.value)
+            return parseRoCrateApprovalFile(parsed)
+        } catch (error) {
+            console.warn('Failed to read ro-crate-approval.json:', error)
+            return undefined
         }
     }
 

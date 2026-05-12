@@ -12,8 +12,13 @@ export class AgentInstructionService {
   @inject(FileService) protected readonly fileService: FileService
 
   async ensureAgentFiles(directoryUri: URI, agentId: string): Promise<void> {
-    await this.ensureAgentInstructionsFile(directoryUri, agentId)
-    await this.ensureManagedAgentDocsBundle(directoryUri)
+    const targetUri = this.normalizeInstructionTargetUri(directoryUri)
+    await this.ensureAgentInstructionsFile(targetUri, agentId)
+    await this.ensureManagedAgentDocsBundle(targetUri)
+  }
+
+  protected normalizeInstructionTargetUri(directoryUri: URI): URI {
+    return directoryUri.path.base === AGENT_DOCS_DIR ? directoryUri.parent : directoryUri
   }
 
   protected async ensureAgentInstructionsFile(

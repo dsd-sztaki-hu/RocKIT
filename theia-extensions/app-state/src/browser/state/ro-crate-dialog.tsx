@@ -6,20 +6,15 @@ import type { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceCommands } from '@theia/workspace/lib/browser'
 import type { WorkspaceService } from '@theia/workspace/lib/browser'
 import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import {
+  AROMA_IGNORE_DIR,
+  AROMA_IGNORE_FILE,
+  DEFAULT_IGNORED_ENTRIES,
+} from 'aroma2-common/lib/common/ro-crate-technical-files'
 import * as mime from 'mime-types'
 import type * as React from 'react'
 import SparkMD5 from 'spark-md5'
 import { Message } from '@lumino/messaging'
-
-const AROMA_IGNORE_DIR = '.aroma'
-const AROMA_IGNORE_FILE = 'ignored.txt'
-const DEFAULT_IGNORED_ENTRIES = [
-  'ro-crate-preview.html',
-  'ro-crate-metadata.json',
-  'AGENTS.md',
-  'CLAUDE.md',
-  '.aroma/',
-] as const
 
 @injectable()
 export class ROCrateDialog extends ReactDialog<string> {
@@ -202,6 +197,7 @@ export class ROCrateDialog extends ReactDialog<string> {
         if (
           child.name === 'ro-crate-metadata.json' ||
           child.name === 'ro-crate-preview.html' ||
+          child.name === 'ro-crate-approval.json' ||
           child.name === 'AGENTS.md' ||
           child.name === 'CLAUDE.md' ||
           child.name === '.aroma' ||

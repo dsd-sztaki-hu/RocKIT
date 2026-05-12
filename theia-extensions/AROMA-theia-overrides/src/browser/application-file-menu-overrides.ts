@@ -29,15 +29,14 @@ import { FILE_WORKSPACE } from '@theia/workspace/lib/browser/workspace-frontend-
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-loader'
 import { ApplicationResetService, RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import {
+  AROMA_IGNORE_DIR,
+  AROMA_IGNORE_FILE,
+  DEFAULT_IGNORED_ENTRIES as SHARED_DEFAULT_IGNORED_ENTRIES,
+} from 'aroma2-common/lib/common/ro-crate-technical-files'
 
-const AROMA_IGNORE_DIR = '.aroma'
-const AROMA_IGNORE_FILE = 'ignored.txt'
 const DEFAULT_IGNORED_ENTRIES = [
-  'ro-crate-preview.html',
-  'ro-crate-metadata.json',
-  'AGENTS.md',
-  'CLAUDE.md',
-  '.aroma/',
+  ...SHARED_DEFAULT_IGNORED_ENTRIES,
   '.claude/',
 ] as const
 

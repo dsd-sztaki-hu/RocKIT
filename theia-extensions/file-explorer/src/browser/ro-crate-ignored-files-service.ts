@@ -6,6 +6,11 @@ import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { minimatch, MinimatchOptions } from 'minimatch'
 import { Disposable } from '@theia/core/lib/common/disposable'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import {
+  AROMA_IGNORE_DIR,
+  AROMA_IGNORE_FILE,
+  DEFAULT_IGNORED_ENTRIES as SHARED_DEFAULT_IGNORED_ENTRIES,
+} from 'aroma2-common/lib/common/ro-crate-technical-files'
 
 interface IgnoreRule {
   negated: boolean
@@ -16,15 +21,9 @@ interface IgnoreRule {
 
 @injectable()
 export class RoCrateIgnoredFilesService {
-  static readonly IGNORE_DIR = '.aroma'
-  static readonly IGNORE_FILE = 'ignored.txt'
-  static readonly DEFAULT_IGNORED_ENTRIES = [
-    'ro-crate-preview.html',
-    'ro-crate-metadata.json',
-    'AGENTS.md',
-    'CLAUDE.md',
-    '.aroma/',
-  ] as const
+  static readonly IGNORE_DIR = AROMA_IGNORE_DIR
+  static readonly IGNORE_FILE = AROMA_IGNORE_FILE
+  static readonly DEFAULT_IGNORED_ENTRIES = SHARED_DEFAULT_IGNORED_ENTRIES
 
   protected ignoredEntries: string[] = []
   protected ignoredRules: IgnoreRule[] = []

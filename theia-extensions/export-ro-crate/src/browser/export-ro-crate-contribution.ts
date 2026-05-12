@@ -18,6 +18,11 @@ import { FileDownloadService } from '@theia/filesystem/lib/common/download/file-
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { minimatch, MinimatchOptions } from 'minimatch'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import {
+  AROMA_IGNORE_DIR,
+  AROMA_IGNORE_FILE,
+  DEFAULT_IGNORED_ENTRIES as SHARED_DEFAULT_IGNORED_ENTRIES,
+} from 'aroma2-common/lib/common/ro-crate-technical-files'
 import { ExportRoCrateDialog, ExportRoCrateMode } from './export-ro-crate-dialog'
 
 export const ExportRoCrateCommand: Command = {
@@ -34,15 +39,9 @@ interface IgnoreRule {
 
 @injectable()
 export class ExportRoCrateCommandContribution implements CommandContribution {
-  protected static readonly IGNORE_DIR = '.aroma'
-  protected static readonly IGNORE_FILE = 'ignored.txt'
-  protected static readonly DEFAULT_IGNORED_ENTRIES = [
-    'ro-crate-preview.html',
-    'ro-crate-metadata.json',
-    'AGENTS.md',
-    'CLAUDE.md',
-    '.aroma/',
-  ] as const
+  protected static readonly IGNORE_DIR = AROMA_IGNORE_DIR
+  protected static readonly IGNORE_FILE = AROMA_IGNORE_FILE
+  protected static readonly DEFAULT_IGNORED_ENTRIES = SHARED_DEFAULT_IGNORED_ENTRIES
   protected static readonly FORCED_NORMAL_EXPORT_FILES = new Set([
     'ro-crate-metadata.json',
     'ro-crate-preview.html',
