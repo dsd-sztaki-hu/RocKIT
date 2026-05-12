@@ -561,7 +561,8 @@ body.vs .entities-overview-type-select .ant-select-selection-item-remove {
 }
 
 .lm-TabBar-toolbar .item > [id="entities-overview:toggle-filters"],
-.lm-TabBar-toolbar .item > [id="entities-overview:collapse-all"] {
+.lm-TabBar-toolbar .item > [id="entities-overview:collapse-all"],
+.lm-TabBar-toolbar .item > [id="entities-overview:expand-all"] {
   background-color: transparent !important;
   border-radius: 4px;
   width: calc(var(--theia-icon-size) + 4px);
@@ -584,7 +585,8 @@ body.vs .entities-overview-type-select .ant-select-selection-item-remove {
 }
 
 .lm-TabBar-toolbar .item > [id="entities-overview:toggle-filters"]:hover,
-.lm-TabBar-toolbar .item > [id="entities-overview:collapse-all"]:hover {
+.lm-TabBar-toolbar .item > [id="entities-overview:collapse-all"]:hover,
+.lm-TabBar-toolbar .item > [id="entities-overview:expand-all"]:hover {
   background-color: var(--theia-toolbar-hoverBackground) !important;
 }
 

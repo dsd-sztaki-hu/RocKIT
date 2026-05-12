@@ -289,6 +289,7 @@ export const DescriboCrateBuilderWrapper = ({
                 enableContextEditor={false}
                 enableCratePreview={false}
                 enableUrlMarkup={false}
+                enableBulkAdd={false}
                 language={'en'}
                 readonly={loading}
                 tabLocation={'left'}

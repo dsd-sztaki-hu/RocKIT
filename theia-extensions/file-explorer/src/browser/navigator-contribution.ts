@@ -19,6 +19,7 @@ import { AbstractViewContribution } from '@theia/core/lib/browser/shell/view-con
 import {
     CommonCommands,
     CompositeTreeNode,
+    ExpandableTreeNode,
     FrontendApplication,
     FrontendApplicationContribution,
     KeybindingRegistry,
@@ -377,8 +378,17 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         });
         registry.registerCommand(FileNavigatorCommands.COLLAPSE_ALL, {
             execute: widget => this.withWidget(widget, () => this.collapseFileNavigatorTree()),
-            isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
-            isVisible: widget => this.withWidget(widget, () => this.workspaceService.opened)
+            isEnabled: widget => this.withWidget(widget, navigator =>
+                this.workspaceService.opened && this.hasExpandedFileNavigatorBranches(navigator.model)),
+            isVisible: widget => this.withWidget(widget, navigator =>
+                this.workspaceService.opened && this.hasExpandedFileNavigatorBranches(navigator.model))
+        });
+        registry.registerCommand(FileNavigatorCommands.EXPAND_ALL, {
+            execute: widget => this.withWidget(widget, () => this.expandFileNavigatorTree()),
+            isEnabled: widget => this.withWidget(widget, navigator =>
+                this.workspaceService.opened && !this.hasExpandedFileNavigatorBranches(navigator.model)),
+            isVisible: widget => this.withWidget(widget, navigator =>
+                this.workspaceService.opened && !this.hasExpandedFileNavigatorBranches(navigator.model))
         });
         registry.registerCommand(FileNavigatorCommands.TOGGLE_SEARCH, {
             execute: widget => this.withWidget(widget, navigator => navigator.toggleSearch()),
@@ -1255,6 +1265,8 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
     }
 
     async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
+        const widget = await this.widget;
+        const onDidChange = widget.model.onChanged;
         toolbarRegistry.registerItem({
             id: FileNavigatorCommands.TOGGLE_SEARCH.id,
             command: FileNavigatorCommands.TOGGLE_SEARCH.id,
@@ -1272,6 +1284,14 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             command: FileNavigatorCommands.COLLAPSE_ALL.id,
             tooltip: nls.localizeByDefault('Collapse All'),
             priority: 1,
+            onDidChange,
+        });
+        toolbarRegistry.registerItem({
+            id: FileNavigatorCommands.EXPAND_ALL.id,
+            command: FileNavigatorCommands.EXPAND_ALL.id,
+            tooltip: nls.localizeByDefault('Expand All'),
+            priority: 1,
+            onDidChange,
         });
 
     }
@@ -1333,14 +1353,9 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
     async collapseFileNavigatorTree(): Promise<void> {
         const { model } = await this.widget;
 
-        // collapse all child nodes which are not the root (single root workspace)
-        // collapse all root nodes (multiple root workspace)
-        let root = model.root as CompositeTreeNode;
-        if (WorkspaceNode.is(root) && root.children.length === 1) {
-            const onlyChild = root.children[0];
-            if (CompositeTreeNode.is(onlyChild)) {
-                root = onlyChild;
-            }
+        const root = this.getFileNavigatorActionRoot(model);
+        if (!root) {
+            return;
         }
         root.children.forEach(child => CompositeTreeNode.is(child) && model.collapseAll(child));
 
@@ -1348,6 +1363,80 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         const firstChild = WorkspaceNode.is(root) ? root.children[0] : root;
         if (SelectableTreeNode.is(firstChild)) {
             model.selectNode(firstChild);
+        }
+    }
+
+    async expandFileNavigatorTree(): Promise<void> {
+        const { model } = await this.widget;
+        const root = this.getFileNavigatorActionRoot(model);
+        if (!root) {
+            return;
+        }
+
+        await this.expandFileNavigatorDescendants(model, root);
+
+        // select first visible node
+        const firstChild = WorkspaceNode.is(root) ? root.children[0] : root;
+        if (SelectableTreeNode.is(firstChild)) {
+            model.selectNode(firstChild);
+        }
+    }
+
+    protected getFileNavigatorActionRoot(model: FileNavigatorModel): CompositeTreeNode | undefined {
+        const modelRoot = model.root;
+        if (!CompositeTreeNode.is(modelRoot)) {
+            return undefined;
+        }
+        if (WorkspaceNode.is(modelRoot) && modelRoot.children.length === 1) {
+            const onlyChild = modelRoot.children[0];
+            if (CompositeTreeNode.is(onlyChild)) {
+                return onlyChild;
+            }
+        }
+        return modelRoot;
+    }
+
+    protected hasExpandedFileNavigatorBranches(model: FileNavigatorModel): boolean {
+        const root = this.getFileNavigatorActionRoot(model);
+        if (!root) {
+            return false;
+        }
+        return this.hasExpandedDescendant(root);
+    }
+
+    protected hasExpandedDescendant(node: CompositeTreeNode): boolean {
+        for (const child of node.children) {
+            if (!CompositeTreeNode.is(child)) {
+                continue;
+            }
+            if (ExpandableTreeNode.is(child)) {
+                if (ExpandableTreeNode.isExpanded(child)) {
+                    return true;
+                }
+                continue;
+            }
+            if (this.hasExpandedDescendant(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected async expandFileNavigatorDescendants(model: FileNavigatorModel, node: CompositeTreeNode): Promise<void> {
+        for (const child of node.children) {
+            if (!CompositeTreeNode.is(child)) {
+                continue;
+            }
+
+            let expandedChild = child;
+            if (ExpandableTreeNode.isCollapsed(child)) {
+                const maybeExpanded = await model.expandNode(child);
+                if (CompositeTreeNode.is(maybeExpanded)) {
+                    expandedChild = maybeExpanded;
+                }
+            }
+
+            await this.expandFileNavigatorDescendants(model, expandedChild);
         }
     }
 
