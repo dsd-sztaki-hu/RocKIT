@@ -83,6 +83,7 @@ export function maintainRoCrateApprovalFile(
   now = new Date().toISOString(),
 ): RoCrateApprovalFile {
   const previousItemsByKey = new Map<string, RoCrateApprovalItem>()
+  const previousEntityIdsByKey = new Map<string, string>()
 
   for (const entity of Array.isArray(existing) ? existing : []) {
     if (!entity || typeof entity !== 'object') {
@@ -105,11 +106,29 @@ export function maintainRoCrateApprovalFile(
           .filter((item) => item.propertyName)
       : []
     for (const item of approval) {
-      previousItemsByKey.set(approvalKey(entityId, item.propertyName), item)
+      const key = approvalKey(entityId, item.propertyName)
+      previousItemsByKey.set(key, item)
+      previousEntityIdsByKey.set(key, entityId)
     }
   }
 
   const nextEntitiesById = new Map<string, RoCrateApprovalEntity>()
+  for (const [key, item] of previousItemsByKey.entries()) {
+    if (!item.approved) {
+      continue
+    }
+    const entityId = previousEntityIdsByKey.get(key)
+    if (!entityId) {
+      continue
+    }
+    const entity = nextEntitiesById.get(entityId) ?? {
+      '@id': entityId,
+      approval: [],
+    }
+    entity.approval.push(item)
+    nextEntitiesById.set(entityId, entity)
+  }
+
   for (const change of changedProperties) {
     const entity = nextEntitiesById.get(change.entityId) ?? {
       '@id': change.entityId,
@@ -128,7 +147,14 @@ export function maintainRoCrateApprovalFile(
       approved: isSameOutstandingChange ? previousItem.approved : false,
       timestamp: isSameOutstandingChange ? previousItem.timestamp : now,
     }
-    entity.approval.push(nextItem)
+    const existingIndex = entity.approval.findIndex(
+      (item) => item.propertyName === change.propertyName,
+    )
+    if (existingIndex >= 0) {
+      entity.approval[existingIndex] = nextItem
+    } else {
+      entity.approval.push(nextItem)
+    }
     entity.approval.sort((left, right) => left.propertyName.localeCompare(right.propertyName))
     nextEntitiesById.set(change.entityId, entity)
   }
