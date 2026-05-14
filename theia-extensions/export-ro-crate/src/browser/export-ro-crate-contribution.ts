@@ -5,20 +5,30 @@ import {
   Command,
   CommandContribution,
   CommandRegistry,
+  CommandService,
   MenuContribution,
   MenuModelRegistry,
   MessageService,
   URI,
 } from '@theia/core/lib/common'
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
+import { FileUri } from '@theia/core/lib/common/file-uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { FileDownloadService } from '@theia/filesystem/lib/common/download/file-download'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { minimatch, MinimatchOptions } from 'minimatch'
+import {
+  collectRoCrateExportFileReferences,
+  RoCrateExportFileSource,
+} from 'aroma2-common/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { ExportRoCrateDialog, ExportRoCrateMode } from './export-ro-crate-dialog'
+import {
+  ExportRoCrateDialog,
+  ExportRoCrateMode,
+  ExportRoCrateOptions,
+} from './export-ro-crate-dialog'
 
 export const ExportRoCrateCommand: Command = {
   id: 'ExportRoCrate.command',
@@ -66,24 +76,79 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
   @inject(AppStateService)
   protected readonly appStateService!: AppStateService
 
+  @inject(CommandService)
+  protected readonly commandService!: CommandService
+
   registerCommands(registry: CommandRegistry): void {
     registry.registerCommand(ExportRoCrateCommand, {
       execute: async () => {
-        const dialog = new ExportRoCrateDialog()
-        const mode = await dialog.open()
-        if (!mode) return
+        const dialog = new ExportRoCrateDialog({
+          hasUnsavedChanges: () => this.hasUnsavedRoCrateChanges(),
+          saveChanges: () => this.saveRoCrateBeforeExport(),
+        })
+        const options = await dialog.open()
+        if (!options) return
 
-        if (mode === ExportRoCrateMode.Normal) {
-          await this.handleNormalExport()
+        if (options.mode === ExportRoCrateMode.Normal) {
+          await this.handleNormalExport(options)
           return
         }
 
-        await this.handleCleanExport()
+        await this.handleCleanExport(options)
       },
     })
   }
 
-  protected async handleNormalExport(): Promise<void> {
+  protected async saveRoCrateBeforeExport(): Promise<void> {
+    let saveError: unknown
+    const savePromise = this.commandService
+      .executeCommand('ro-crate.save')
+      .catch((error) => {
+        saveError = error
+      })
+    await Promise.race([
+      savePromise,
+      new Promise<void>((resolve) => window.setTimeout(resolve, 2000)),
+    ])
+    if (saveError) {
+      throw saveError
+    }
+  }
+
+  protected async hasUnsavedRoCrateChanges(): Promise<boolean> {
+    const appCrate = this.appStateService.roCrate
+    if (!appCrate) {
+      return false
+    }
+
+    const rootUri = this.getWorkspaceRoot()
+    if (!rootUri) {
+      return this.appStateService.dirty || this.appStateService.isRoCrateDirty(appCrate)
+    }
+
+    const metadataUri = rootUri.resolve('ro-crate-metadata.json')
+    try {
+      if (!(await this.fileService.exists(metadataUri))) {
+        return true
+      }
+      const diskContent = await this.fileService.readFile(metadataUri)
+      const diskCrate = JSON.parse(diskContent.value.toString())
+      return this.stringifyCrate(appCrate) !== this.stringifyCrate(diskCrate)
+    } catch (error) {
+      console.warn('Failed to compare RO-Crate metadata before export', error)
+      return true
+    }
+  }
+
+  protected stringifyCrate(crate: Record<string, any>): string | undefined {
+    try {
+      return JSON.stringify(crate)
+    } catch {
+      return undefined
+    }
+  }
+
+  protected async handleNormalExport(options: ExportRoCrateOptions): Promise<void> {
     const roots = this.workspaceService.tryGetRoots()
     if (!roots.length) {
       this.messageService.warn('No workspace is open.', { timeout: 3000 })
@@ -109,6 +174,12 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
       const prefix = multiRoot ? `${rootUri.path.base}/` : ''
       const shouldOmit = await this.createIgnoreMatcher(rootUri)
       await this.addDirectoryToZip(zip, rootUri, rootUri, prefix, shouldOmit)
+      if (options.includeReferencedLocalFiles) {
+        await this.addMetadataReferencedFilesToZip(zip, rootUri, prefix, shouldOmit, {
+          includeWorkspaceSources: false,
+          includeLocalSources: true,
+        })
+      }
     }
 
     try {
@@ -370,11 +441,126 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     return ['file', 'workspace', 'user-storage'].includes(scheme)
   }
 
+  protected async addMetadataReferencedFilesToZip(
+    zip: JSZip,
+    rootUri: URI,
+    prefix: string,
+    shouldOmit: (relativePath: string, isDirectory: boolean) => boolean,
+    options: {
+      crate?: Record<string, any>
+      includeWorkspaceSources?: boolean
+      includeLocalSources?: boolean
+    } = {},
+  ): Promise<number> {
+    const roCrate = options.crate ?? (await this.readMetadataCrate(rootUri))
+    if (!roCrate) {
+      return 0
+    }
+    const includeWorkspaceSources = options.includeWorkspaceSources !== false
+    const includeLocalSources = options.includeLocalSources === true
+
+    let added = 0
+    for (const reference of collectRoCrateExportFileReferences(roCrate)) {
+      if (
+        shouldOmit(reference.entryPath, false) &&
+        !this.isForcedNormalExportFile(reference.entryPath)
+      ) {
+        continue
+      }
+
+      const zipEntryPath = `${prefix}${reference.entryPath}`
+      if (zip.file(zipEntryPath)) {
+        continue
+      }
+
+      const sources = reference.sources.filter(
+        (source) =>
+          (source.kind === 'workspace' && includeWorkspaceSources) ||
+          (source.kind === 'local' && includeLocalSources),
+      )
+      if (!sources.length) {
+        continue
+      }
+
+      const content = await this.readReferencedFile(rootUri, sources)
+      if (!content) {
+        console.warn(
+          'Skipping unresolved file referenced in RO-Crate metadata',
+          reference.entityId,
+          reference.sources.map((source) => source.value),
+        )
+        continue
+      }
+
+      zip.file(zipEntryPath, content)
+      added += 1
+    }
+
+    return added
+  }
+
+  protected async readMetadataCrate(rootUri: URI): Promise<Record<string, any> | undefined> {
+    const metadataUri = rootUri.resolve('ro-crate-metadata.json')
+    try {
+      const metadataContent = await this.fileService.readFile(metadataUri)
+      return this.parseCrate(metadataContent.value)
+    } catch {
+      return undefined
+    }
+  }
+
+  protected async readReferencedFile(
+    rootUri: URI,
+    sources: readonly RoCrateExportFileSource[],
+  ): Promise<Uint8Array | undefined> {
+    for (const source of sources) {
+      try {
+        const uri =
+          source.kind === 'workspace'
+            ? rootUri.resolve(source.value)
+            : this.toLocalFileUri(source.value)
+        if (!uri || !(await this.fileService.exists(uri))) {
+          continue
+        }
+
+        const stat = await this.fileService.resolve(uri)
+        if (stat.isDirectory) {
+          continue
+        }
+
+        const content = await this.fileService.readFile(uri)
+        return content.value.buffer
+      } catch (error) {
+        console.warn('Failed to read referenced RO-Crate file', source.value, error)
+      }
+    }
+
+    return undefined
+  }
+
+  protected toLocalFileUri(value: string): URI | undefined {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return undefined
+    }
+    if (/^file:\/\//i.test(trimmed)) {
+      return new URI(trimmed)
+    }
+    if (
+      /^[a-zA-Z]:[\\/]/.test(trimmed) ||
+      /^[/\\]{2}[^/\\]/.test(trimmed) ||
+      /^\/[^/]/.test(trimmed)
+    ) {
+      return new URI(FileUri.create(trimmed).toString())
+    }
+    return undefined
+  }
+
   // ----------------------------
   // Clean export implementation
   // ----------------------------
 
-  protected async handleCleanExport(): Promise<void> {
+  protected async handleCleanExport(options: ExportRoCrateOptions): Promise<void> {
     const rootUri = this.getWorkspaceRoot()
     if (!rootUri) {
       this.messageService.warn('No workspace root available for Clean export.', {
@@ -415,26 +601,11 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
 
     await this.addOptionalFileToZip(zip, rootUri, 'ro-crate-preview.html')
     const shouldOmit = await this.createIgnoreMatcher(rootUri)
-
-    // Collect all workspace files referenced by @graph entity name
-    const files = await this.collectWorkspaceFilesFromGraphByName(
-      crate['@graph'],
-      rootUri,
-      shouldOmit,
-    )
-
-    for (const file of files) {
-      try {
-        const fileContent = await this.fileService.readFile(file.uri)
-        zip.file(file.relativePath, fileContent.value.buffer)
-      } catch (error) {
-        console.warn(
-          'Skipping unreadable file during Clean export',
-          file.uri.toString(),
-          error,
-        )
-      }
-    }
+    await this.addMetadataReferencedFilesToZip(zip, rootUri, '', shouldOmit, {
+      crate,
+      includeWorkspaceSources: true,
+      includeLocalSources: options.includeReferencedLocalFiles,
+    })
 
     try {
       const data = await zip.generateAsync({ type: 'uint8array' })
@@ -470,101 +641,6 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     }
   }
 
-  protected async collectWorkspaceFilesFromGraphByName(
-    graph: any,
-    rootUri: URI,
-    shouldOmit: (relativePath: string, isDirectory: boolean) => boolean,
-  ): Promise<Array<{ uri: URI; relativePath: string }>> {
-    if (!Array.isArray(graph)) {
-      return []
-    }
-
-    const seen = new Set<string>()
-    const results: Array<{ uri: URI; relativePath: string }> = []
-
-    for (const entry of graph) {
-      // We only care about entries that represent files in the crate
-      const rawType = entry?.['@type']
-      const types = Array.isArray(rawType) ? rawType : rawType ? [rawType] : []
-      const isFile = types.some((t: any) => String(t) === 'File')
-      if (!isFile) {
-        continue
-      }
-
-      const fileName = typeof entry?.name === 'string' ? entry.name.trim() : ''
-      if (!fileName) {
-        continue
-      }
-
-      // Where is it in the workspace?
-      // 1) Prefer directoryLabel if present (your example uses this)
-      // 2) Otherwise, try @reverse.hasPart.@id to infer folder (e.g. "elsokonyvtar/" or "./")
-      // 3) Otherwise, root
-      const directoryLabel =
-        typeof entry?.directoryLabel === 'string' ? entry.directoryLabel.trim() : ''
-
-      const inferredDir = this.inferDirectoryFromReverseHasPart(entry)
-      const dir = directoryLabel || inferredDir || ''
-
-      const relativePath = this.joinPosix(dir, fileName) // e.g. "elsokonyvtar/jargon.html" or "keyboard-interface.html"
-      if (
-        shouldOmit(relativePath, false) &&
-        !this.isForcedNormalExportFile(relativePath)
-      ) {
-        continue
-      }
-      const resolvedUri = rootUri.resolve(relativePath)
-
-      // Ensure it exists and is a file
-      try {
-        const stat = await this.fileService.resolve(resolvedUri)
-        if (stat.isDirectory) {
-          continue
-        }
-      } catch {
-        // If not found, skip (crate may reference something not present locally)
-        continue
-      }
-
-      const key = resolvedUri.toString()
-      if (seen.has(key)) {
-        continue
-      }
-      seen.add(key)
-
-      results.push({ uri: resolvedUri, relativePath })
-    }
-
-    return results
-  }
-
-  protected inferDirectoryFromReverseHasPart(entry: any): string {
-    // Your sample:
-    // "@reverse": { "hasPart": { "@id": "elsokonyvtar/" } }
-    // or "@id": "./"
-    const hp = entry?.['@reverse']?.hasPart
-    const hpId =
-      typeof hp?.['@id'] === 'string' ? hp['@id'] : typeof hp === 'string' ? hp : ''
-
-    if (!hpId) {
-      return ''
-    }
-
-    // Normalize "./" to root
-    if (hpId === './' || hpId === '.') {
-      return ''
-    }
-
-    // If it ends with "/", treat it as a folder label/path
-    const normalized = hpId.replace(/\\/g, '/')
-    return normalized.endsWith('/') ? normalized.slice(0, -1) : normalized
-  }
-
-  protected joinPosix(dir: string, file: string): string {
-    const d = (dir || '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '')
-    const f = (file || '').replace(/\\/g, '/').replace(/^\/+/, '')
-    return d ? `${d}/${f}` : f
-  }
 }
 
 @injectable()
