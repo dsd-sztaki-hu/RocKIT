@@ -5,6 +5,7 @@ import {
     Widget,
     WidgetManager,
 } from '@theia/core/lib/browser'
+import { MessageService } from '@theia/core/lib/common'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { codicon } from '@theia/core/lib/browser/widgets/widget'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
@@ -33,6 +34,15 @@ interface CrateNode {
     children: CrateNode[]
     encodingFormat?: string
     conformsToUrls?: string[]
+}
+
+type StructureEntityDragPayload = {
+    entityId?: string
+    entityIds?: string[]
+    entityName?: string
+    entityNames?: string[]
+    entityTypes?: string[][]
+    source?: string
 }
 
 export const RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU: MenuPath = [
@@ -266,6 +276,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected readonly multiEditDialogService: MultiEditDialogService
     @inject(RoCrateEntityDeleteService)
     protected readonly roCrateEntityDeleteService: RoCrateEntityDeleteService
+    @inject(MessageService)
+    protected readonly messageService: MessageService
 
     protected crateSubscription?: Disposable
     protected validationSubscription?: Disposable
@@ -1321,6 +1333,18 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                       data-entity-id={entityId}
                       data-node-key={String(item.key)}
                       title=""
+                      draggable={Boolean(entityId && entityId !== './')}
+                      onDragStart={(event) => {
+                          if (!entityId || entityId === './') {
+                              event.preventDefault()
+                              return
+                          }
+                          this.handleEntityDragStart(entityId, event)
+                      }}
+                      onDragEnd={(event) => {
+                          event.stopPropagation()
+                          ;(globalThis as any).__aromaEntityDragPayload = undefined
+                      }}
                       onDoubleClick={(event) => {
                           if (!entityId) {
                               return
@@ -1374,7 +1398,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         }
         event.preventDefault()
         event.stopPropagation()
-        event.dataTransfer.dropEffect = 'link'
+        event.dataTransfer.dropEffect = this.extractEntityDragPayload(event.dataTransfer)
+            ? event.altKey
+                ? 'copy'
+                : 'move'
+            : 'link'
 
         const crate = this.appStateService.roCrate
         if (!crate || !Array.isArray(crate['@graph'])) {
@@ -1414,6 +1442,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected async handleDropAsync(event: React.DragEvent): Promise<void> {
         const dataTransfer = event.dataTransfer
         if (!dataTransfer) {
+            return
+        }
+
+        const entityPayload = this.extractEntityDragPayload(dataTransfer)
+        if (entityPayload) {
+            await this.handleEntityDropAsync(event, entityPayload)
             return
         }
 
@@ -1468,6 +1502,311 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         })
         this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
         this.update()
+    }
+
+    protected handleEntityDragStart(
+        entityId: string,
+        event: React.DragEvent<HTMLElement>,
+    ): void {
+        event.stopPropagation()
+
+        const entityIds =
+            this.selectedEntityIds.has(entityId) && this.selectedEntityIds.size > 0
+                ? Array.from(this.selectedEntityIds).filter((id) => id !== './')
+                : [entityId]
+        if (!entityIds.length) {
+            event.preventDefault()
+            return
+        }
+        const crate = this.appStateService.roCrate
+        const graph = Array.isArray(crate?.['@graph'])
+            ? (crate['@graph'] as Record<string, any>[])
+            : []
+        const entityById = this.buildEntityById(graph)
+        const entityNames: string[] = []
+        const entityTypes: string[][] = []
+
+        for (const id of entityIds) {
+            const entity = entityById.get(id)
+            entityNames.push(entity?.name ?? entity?.title ?? id)
+            entityTypes.push(this.getEntityTypeNames(entity))
+        }
+
+        const payload: StructureEntityDragPayload = {
+            entityIds,
+            entityNames,
+            entityTypes,
+            source: 'ro-crate-structure-panel',
+        }
+
+        event.dataTransfer?.setData('application/x-aroma-entity-drag', JSON.stringify(payload))
+        event.dataTransfer?.setData('text/plain', JSON.stringify(payload))
+        if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = 'copyMove'
+        }
+        ;(globalThis as any).__aromaEntityDragPayload = payload
+    }
+
+    protected async handleEntityDropAsync(
+        event: React.DragEvent,
+        payload: StructureEntityDragPayload,
+    ): Promise<void> {
+        const crate = this.appStateService.roCrate
+        if (!crate || !Array.isArray(crate['@graph'])) {
+            return
+        }
+
+        const targetEntityId =
+            this.resolveDropTargetEntityIdWithFallback(event) ??
+            this.appStateService.selectedEntityId ??
+            './'
+        const datasetTargetEntityId = this.resolveDatasetTargetEntityId(crate, targetEntityId)
+        const copyMode = event.altKey
+        const result = this.applyDroppedEntitiesToCrate(
+            crate,
+            datasetTargetEntityId,
+            payload,
+            copyMode,
+        )
+
+        if (!result.changed) {
+            if (result.message) {
+                this.messageService.info(result.message, { timeout: 5000 })
+            }
+            return
+        }
+
+        this.roCrateHistoryService.applyRoCrateChange(result.crate, {
+            label: copyMode
+                ? 'Copy entities via drag-and-drop'
+                : 'Move entities via drag-and-drop',
+        })
+        this.appStateService.dirty = this.appStateService.isRoCrateDirty(result.crate)
+        this.invalidateTreeCache()
+        this.update()
+        this.messageService.info(result.message, { timeout: 5000 })
+    }
+
+    protected extractEntityDragPayload(
+        dataTransfer: DataTransfer,
+    ): StructureEntityDragPayload | undefined {
+        const rawPayload =
+            dataTransfer.getData('application/x-aroma-entity-drag') ||
+            dataTransfer.getData('text/plain')
+        const parsed = this.parseEntityDragPayload(rawPayload)
+        if (parsed) {
+            return parsed
+        }
+        return this.parseEntityDragPayload((globalThis as any).__aromaEntityDragPayload)
+    }
+
+    protected parseEntityDragPayload(value: unknown): StructureEntityDragPayload | undefined {
+        if (!value) {
+            return undefined
+        }
+        let payload = value
+        if (typeof value === 'string') {
+            try {
+                payload = JSON.parse(value)
+            } catch {
+                return undefined
+            }
+        }
+        if (!payload || typeof payload !== 'object') {
+            return undefined
+        }
+        const record = payload as StructureEntityDragPayload
+        const ids = this.getPayloadEntityIds(record)
+        return ids.length > 0 ? record : undefined
+    }
+
+    protected getPayloadEntityIds(payload: StructureEntityDragPayload): string[] {
+        const rawIds = Array.isArray(payload.entityIds)
+            ? payload.entityIds
+            : typeof payload.entityId === 'string'
+              ? [payload.entityId]
+              : []
+        return Array.from(
+            new Set(
+                rawIds
+                    .map((id) => (typeof id === 'string' ? id.trim() : ''))
+                    .filter((id) => Boolean(id)),
+            ),
+        )
+    }
+
+    protected applyDroppedEntitiesToCrate(
+        crate: Record<string, any>,
+        targetDatasetId: string,
+        payload: StructureEntityDragPayload,
+        copyMode: boolean,
+    ): { changed: boolean; crate: Record<string, any>; message: string } {
+        const graph = Array.isArray(crate['@graph']) ? [...crate['@graph']] : []
+        const entityIds = this.getPayloadEntityIds(payload)
+        const entityById = this.buildEntityById(graph)
+        const movableIds = entityIds.filter((id) => {
+            const entity = entityById.get(id)
+            return (
+                id !== './' &&
+                entity &&
+                (this.entityHasType(entity, 'Dataset') || this.entityHasType(entity, 'File'))
+            )
+        })
+
+        if (!movableIds.length) {
+            return {
+                changed: false,
+                crate,
+                message: 'No movable File or Dataset entities were dropped.',
+            }
+        }
+
+        const targetEntity = entityById.get(targetDatasetId)
+        if (!targetEntity || !this.entityHasType(targetEntity, 'Dataset')) {
+            return {
+                changed: false,
+                crate,
+                message: 'Drop target must be a Dataset entity.',
+            }
+        }
+
+        if (movableIds.includes(targetDatasetId)) {
+            return {
+                changed: false,
+                crate,
+                message: 'Cannot drop an entity onto itself.',
+            }
+        }
+
+        const existingTargetHasPartIds = new Set(
+            this.normalizeHasPart(targetEntity.hasPart).map((part) => part['@id']),
+        )
+        const entityIdsToLink = movableIds.filter((id) => !existingTargetHasPartIds.has(id))
+
+        if (!entityIdsToLink.length) {
+            return {
+                changed: false,
+                crate,
+                message: '',
+            }
+        }
+
+        if (!copyMode) {
+            const blockingSourceId = entityIdsToLink.find((id) =>
+                this.isReachableViaHasPart(graph, id, targetDatasetId),
+            )
+            if (blockingSourceId) {
+                return {
+                    changed: false,
+                    crate,
+                    message:
+                        'Move cancelled: the destination is only reachable through one of the dragged entities, so moving it there would split the RO-Crate graph.',
+                }
+            }
+        }
+
+        const targetIds = new Set(entityIdsToLink)
+        const updatedGraph = graph.map((entity) => {
+            if (!entity || typeof entity !== 'object') {
+                return entity
+            }
+
+            const entityId = String(entity['@id'] ?? '')
+            const isTarget = entityId === targetDatasetId
+            const isDataset = this.entityHasType(entity, 'Dataset')
+            if (!isDataset && !isTarget) {
+                return entity
+            }
+
+            const originalHasPart = this.normalizeHasPart(entity.hasPart)
+            let hasPart = [...originalHasPart]
+            if (!copyMode && isDataset) {
+                hasPart = hasPart.filter((part) => !targetIds.has(part['@id']))
+            }
+            if (isTarget) {
+                const existingIds = new Set(hasPart.map((part) => part['@id']))
+                for (const id of entityIdsToLink) {
+                    if (!existingIds.has(id)) {
+                        hasPart.push({ '@id': id })
+                        existingIds.add(id)
+                    }
+                }
+            }
+
+            if (
+                hasPart.length === originalHasPart.length &&
+                hasPart.every((part, index) => part['@id'] === originalHasPart[index]?.['@id'])
+            ) {
+                return entity
+            }
+
+            return {
+                ...entity,
+                hasPart,
+            }
+        })
+
+        const changed = JSON.stringify(graph) !== JSON.stringify(updatedGraph)
+        const action = copyMode ? 'Copied' : 'Moved'
+        const count = entityIdsToLink.length
+        return {
+            changed,
+            crate: { ...crate, '@graph': updatedGraph },
+            message: changed
+                ? `${action} ${count} ${count === 1 ? 'entity' : 'entities'}.`
+                : '',
+        }
+    }
+
+    protected buildEntityById(graph: Record<string, any>[]): Map<string, Record<string, any>> {
+        const entityById = new Map<string, Record<string, any>>()
+        for (const entity of graph) {
+            if (entity && typeof entity === 'object' && entity['@id']) {
+                entityById.set(String(entity['@id']), entity)
+            }
+        }
+        return entityById
+    }
+
+    protected getEntityTypeNames(entity: Record<string, any> | undefined): string[] {
+        const rawType = entity?.['@type']
+        if (!rawType) {
+            return []
+        }
+        const values = Array.isArray(rawType) ? rawType : [rawType]
+        return values
+            .filter((value): value is string => typeof value === 'string')
+            .map((value) => value.toLowerCase())
+    }
+
+    protected isReachableViaHasPart(
+        graph: Record<string, any>[],
+        sourceEntityId: string,
+        targetEntityId: string,
+    ): boolean {
+        const entityById = this.buildEntityById(graph)
+        const visited = new Set<string>()
+        const queue = [sourceEntityId]
+
+        while (queue.length) {
+            const currentId = queue.shift()
+            if (!currentId || visited.has(currentId)) {
+                continue
+            }
+            visited.add(currentId)
+            const entity = entityById.get(currentId)
+            for (const part of this.normalizeHasPart(entity?.hasPart)) {
+                const childId = part['@id']
+                if (childId === targetEntityId) {
+                    return true
+                }
+                if (!visited.has(childId)) {
+                    queue.push(childId)
+                }
+            }
+        }
+
+        return false
     }
 
     protected extractUrisFromDataTransfer(dataTransfer: DataTransfer): string[] {
