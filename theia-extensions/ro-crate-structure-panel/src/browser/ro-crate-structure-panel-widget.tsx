@@ -1291,12 +1291,17 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                             const entityId = (item as any).entityId as string | undefined
                             const isInvalid = Boolean(entityId && this.invalidEntityIds.has(entityId))
                             const isDatasetNode = (item as any).entityType === 'Dataset'
+                            const isDropTargetDataset =
+                                isDatasetNode && entityId === this.dropTargetDatasetId
                             const isExpanded = this.expandedKeys.includes(String(item.key))
                             const icon = this.renderEntityIcon(item, isExpanded)
 
                             return (
                                 <this.MemoTooltip title={entityId ?? displayName} placement="right">
                   <span
+                      className={`ro-crate-structure-node-title${
+                          isDropTargetDataset ? ' is-drop-target' : ''
+                      }`}
                       style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -1304,13 +1309,13 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                           padding: '2px 4px',
                           borderRadius: 4,
                           background:
-                              isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
-                                  ? 'rgba(24, 144, 255, 0.14)'
+                              isDropTargetDataset
+                                  ? 'var(--ro-crate-structure-drop-target-bg, rgba(24, 144, 255, 0.14))'
                                   : 'transparent',
                           outline: 'none',
                           boxShadow:
-                              isDatasetNode && (item as any).entityId === this.dropTargetDatasetId
-                                  ? '0 0 8px rgba(24, 144, 255, 0.35)'
+                              isDropTargetDataset
+                                  ? 'var(--ro-crate-structure-drop-target-shadow, 0 0 8px rgba(24, 144, 255, 0.35))'
                                   : 'none',
                       }}
                       data-entity-id={entityId}
