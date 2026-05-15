@@ -22,21 +22,25 @@ const ENTITIES_OVERVIEW_DND_MIME = 'application/x-aroma-entity-drag'
 
 export const DescriboCrateBuilderWrapper = ({
                                                 crate,
+                                                roCrateApproval,
                                                 profile,
                                                 entityId,
                                                 instanceId,
                                                 onSaveCrate,
+                                                onSaveRoCrateApproval,
                                                 onNavigation,
                                                 onOpenSchemaManager,
                                                 onRemoveProfile,
                                                 onDropEntityToHasPart,
                                             }: {
     crate: Record<string, any> | undefined
+    roCrateApproval: Record<string, any> | Record<string, any>[] | undefined
     profile: Record<string, any> | undefined
     entityId: string | undefined
     profileKey: number
     instanceId: string
     onSaveCrate: (data: any) => void
+    onSaveRoCrateApproval: (data: any) => void
     onNavigation: (entity: any) => void
     onOpenSchemaManager: (requested: boolean) => void
     onRemoveProfile: (tabData: any) => void
@@ -275,12 +279,14 @@ export const DescriboCrateBuilderWrapper = ({
 
             <DescriboCrateBuilder
                 crate={crate}
+                roCrateApproval={roCrateApproval}
                 profile={profile}
                 stateScopeKey={`theia:${instanceId}`}
                 onAddNewProfileRequest={handleAddNewProfileRequest}
                 onRemoveProfile={onRemoveProfile}
                 entityId={entityId}
                 onSaveCrate={onSaveCrate}
+                onSaveRoCrateApproval={onSaveRoCrateApproval}
                 onNavigation={handleNavigationWrapper}
                 onWarning={(w: any) => console.log('warning', w)}
                 onError={(e: any) => console.log('error', e)}

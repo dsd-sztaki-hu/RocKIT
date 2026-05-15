@@ -170,7 +170,8 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
                 if (exists) {
                     try {
                         const crate = await this.loadRoCrateWithNormalization(roCrateUri)
-                        this.updateState(crate, false)
+                        const approval = await this.loadRoCrateApprovalForMetadata(roCrateUri)
+                        this.updateState(crate, false, approval)
                         await this.refreshProfileList(crate)
                         await this.refreshCompleteProfile(crate)
                     } catch (parseError) {
@@ -233,7 +234,8 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
         try {
             const crate = await this.loadRoCrateWithNormalization(roCrateUri)
-            this.updateState(crate, false)
+            const approval = await this.loadRoCrateApprovalForMetadata(roCrateUri)
+            this.updateState(crate, false, approval)
             await this.refreshProfileList(crate)
             await this.refreshCompleteProfile(crate)
         } catch (error) {
@@ -413,10 +415,12 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     private updateState(
         content: Record<string, any> | undefined,
         isInvalid: boolean,
+        roCrateApproval?: RoCrateApprovalFile,
     ): void {
         this.roCrateHistoryService.clear()
         this.lastObservedConformsToKey = this.buildConformsToKey(content)
         this.appStateService.roCrate = content
+        this.appStateService.roCrateApproval = content ? roCrateApproval : undefined
         this.appStateService.isROCrateInvalid = isInvalid
         this.appStateService.setRoCrateSnapshot(content)
         this.appStateService.dirty = false
@@ -547,7 +551,8 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     protected async reloadExternalCrate(metadataUri: URI): Promise<void> {
         try {
             const crate = await this.loadRoCrateWithNormalization(metadataUri)
-            this.updateState(crate, false)
+            const approval = await this.loadRoCrateApprovalForMetadata(metadataUri)
+            this.updateState(crate, false, approval)
             await this.refreshProfileList(crate)
             await this.refreshCompleteProfile(crate)
         } catch (error) {
@@ -574,6 +579,13 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         await this.fileService.create(approvalUri, JSON.stringify(nextApproval, null, 2), {
             overwrite: true,
         })
+        this.appStateService.roCrateApproval = nextApproval
+    }
+
+    protected async loadRoCrateApprovalForMetadata(
+        metadataUri: URI,
+    ): Promise<RoCrateApprovalFile | undefined> {
+        return this.readRoCrateApprovalFile(metadataUri.parent.resolve(RO_CRATE_APPROVAL_FILE))
     }
 
     protected async readRoCrateApprovalFile(

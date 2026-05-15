@@ -21,6 +21,10 @@ import { Message } from '@lumino/messaging'
 import type { Disposable } from '@theia/core'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
+import {
+    RO_CRATE_APPROVAL_FILE,
+    type RoCrateApprovalFile,
+} from 'app-state/lib/browser/state/ro-crate-approval'
 
 import { DescriboCrateBuilderWrapper } from './recrate-wrapper'
 
@@ -79,12 +83,14 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     protected persistPromise?: Promise<void>
 
     protected crateSubscription?: Disposable
+    protected approvalSubscription?: Disposable
     protected completeProfileSubscription?: Disposable
     protected profileListSubscription?: Disposable
     protected eirceiaSubscription?: Disposable
     protected schemasSubscription?: Disposable
 
     protected localCrate: Record<string, any> | undefined
+    protected localRoCrateApproval: RoCrateApprovalFile | undefined
     protected localProfile: Record<string, any> | undefined
     protected baseProfile: Record<string, any> | undefined
     protected localCompleteProfile: Record<string, any> | undefined
@@ -379,6 +385,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         }
 
         this.localCrate = this.appStateService.roCrate
+        this.localRoCrateApproval = this.appStateService.roCrateApproval as
+            | RoCrateApprovalFile
+            | undefined
         this.localCompleteProfile = this.appStateService.completeProfile
         this.baseProfile = this.appStateService.getInitialProfileTemplate()
         this.localProfile = this.baseProfile
@@ -414,6 +423,13 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always')
             },
         )
+
+        this.approvalSubscription = this.appStateService.onDidChangeSelector(
+            (s) => s.roCrateApproval,
+        )((approval) => {
+            this.localRoCrateApproval = approval as RoCrateApprovalFile | undefined
+            this.update()
+        })
 
         this.completeProfileSubscription = this.appStateService.onDidChangeSelector(
             (s) => s.completeProfile,
@@ -612,6 +628,14 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             this.onContentChangedEmitter.fire()
         }
 
+        this.update()
+    }
+
+    protected handleSaveRoCrateApproval = async (saveData: any) => {
+        const approval = (saveData as any)?.roCrateApproval as RoCrateApprovalFile | undefined
+        this.localRoCrateApproval = approval
+        this.appStateService.roCrateApproval = approval
+        await this.writeRoCrateApprovalFile(approval)
         this.update()
     }
 
@@ -824,11 +848,13 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             >
                 <DescriboCrateBuilderWrapper
                     crate={this.localCrate}
+                    roCrateApproval={this.localRoCrateApproval}
                     profile={this.localProfile}
                     entityId={this.getActiveEntityId()}
                     profileKey={this.profileRevision}
                     instanceId={this.id}
                     onSaveCrate={this.handleSaveCrate}
+                    onSaveRoCrateApproval={this.handleSaveRoCrateApproval}
                     onNavigation={this.handleNavigation}
                     onOpenSchemaManager={this.handleOpenSchemaManager}
                     onRemoveProfile={this.handleRemoveProfile}
@@ -1662,6 +1688,9 @@ protected handleDropEntityToHasPart = async (
             })
             const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
             await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+            await this.writeRoCrateApprovalFile(
+                this.appStateService.roCrateApproval as RoCrateApprovalFile | undefined,
+            )
             this.appStateService.setRoCrateSnapshot(crateData)
             this.appStateService.dirty = false
             this.captureEntityBaseline(
@@ -1673,9 +1702,29 @@ protected handleDropEntityToHasPart = async (
         }
     }
 
+    protected async writeRoCrateApprovalFile(
+        approval: RoCrateApprovalFile | undefined,
+    ): Promise<void> {
+        const roots = this.workspaceService.tryGetRoots()
+        const rootUri = roots?.[0]?.resource
+        if (!rootUri) {
+            return
+        }
+
+        const approvalUri = rootUri.resolve(RO_CRATE_APPROVAL_FILE)
+        try {
+            await this.fileService.create(approvalUri, JSON.stringify(approval ?? [], null, 2), {
+                overwrite: true,
+            })
+        } catch (error) {
+            console.error('Failed to persist RO-Crate approval metadata:', error)
+        }
+    }
+
     dispose(): void {
         this.unregisterFromAppState()
         this.crateSubscription?.dispose()
+        this.approvalSubscription?.dispose()
         this.completeProfileSubscription?.dispose()
         this.profileListSubscription?.dispose()
         this.eirceiaSubscription?.dispose()
