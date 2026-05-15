@@ -11,7 +11,6 @@ import {
     TreeWidget,
     Widget,
     WidgetManager,
-    codicon,
 } from '@theia/core/lib/browser'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
@@ -22,12 +21,13 @@ import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import {
+    getSharedDatasetIconClass,
+    getSharedFileIconClass,
     MetadataSchemaManager,
     RoCrateEntityDeleteService,
 } from 'aroma2-common/lib/browser'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { MultiEditDialogService } from 'multi-edit/lib/browser/multi-edit-dialog-service'
-import * as mime from 'mime-types'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { AdvancedFiltersDialog } from './entities-overview-advanced-filters-dialog'
@@ -81,204 +81,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
     static readonly MAX_SELECTED_TYPES = 200
     static readonly MAX_TYPE_LABEL_LENGTH = 256
     static readonly ROOT_DATASET_ENTITY_ID = './'
-    private static readonly ARCHIVE_FILE_SUFFIXES = ['.tar.gz', '.tar.bz2', '.tar.xz', '.tar.zst']
-    private static readonly ARCHIVE_EXTENSIONS = new Set([
-        '.zip',
-        '.gz',
-        '.bz2',
-        '.xz',
-        '.zst',
-        '.7z',
-        '.rar',
-        '.tgz',
-        '.tar',
-        '.jar',
-        '.war',
-    ])
-    private static readonly MEDIA_EXTENSIONS = new Set([
-        '.png',
-        '.jpg',
-        '.jpeg',
-        '.gif',
-        '.webp',
-        '.svg',
-        '.bmp',
-        '.ico',
-        '.tif',
-        '.tiff',
-        '.mp4',
-        '.m4v',
-        '.mov',
-        '.avi',
-        '.mkv',
-        '.webm',
-        '.mp3',
-        '.wav',
-        '.flac',
-        '.ogg',
-        '.m4a',
-    ])
-    private static readonly DOCUMENT_EXTENSIONS = new Set([
-        '.md',
-        '.mdx',
-        '.rst',
-        '.adoc',
-        '.rtf',
-    ])
-    private static readonly DATA_EXTENSIONS = new Set([
-        '.json',
-        '.jsonc',
-        '.yaml',
-        '.yml',
-        '.toml',
-        '.xml',
-        '.xsd',
-        '.xsl',
-        '.csv',
-        '.tsv',
-    ])
-    private static readonly CODE_EXTENSIONS = new Set([
-        '.c',
-        '.cc',
-        '.cpp',
-        '.cxx',
-        '.h',
-        '.hh',
-        '.hpp',
-        '.hxx',
-        '.java',
-        '.kt',
-        '.kts',
-        '.scala',
-        '.go',
-        '.rs',
-        '.swift',
-        '.cs',
-        '.php',
-        '.py',
-        '.rb',
-        '.lua',
-        '.pl',
-        '.r',
-        '.dart',
-        '.js',
-        '.jsx',
-        '.mjs',
-        '.cjs',
-        '.ts',
-        '.tsx',
-        '.vue',
-        '.svelte',
-        '.html',
-        '.htm',
-        '.css',
-        '.scss',
-        '.sass',
-        '.less',
-    ])
-    private static readonly SCRIPT_EXTENSIONS = new Set([
-        '.sh',
-        '.bash',
-        '.zsh',
-        '.fish',
-        '.ps1',
-        '.psm1',
-        '.bat',
-        '.cmd',
-    ])
-    private static readonly DATABASE_EXTENSIONS = new Set([
-        '.sql',
-        '.sqlite',
-        '.sqlite3',
-        '.db',
-        '.duckdb',
-    ])
-    private static readonly CONFIG_EXTENSIONS = new Set([
-        '.ini',
-        '.conf',
-        '.config',
-        '.cfg',
-        '.properties',
-        '.env',
-        '.editorconfig',
-    ])
-    private static readonly CONFIG_FILE_NAMES = new Set([
-        '.env',
-        '.env.local',
-        '.env.development',
-        '.env.production',
-        '.gitignore',
-        '.gitattributes',
-        '.npmrc',
-        '.yarnrc',
-        '.editorconfig',
-        '.prettierrc',
-        '.eslintrc',
-        'dockerfile',
-        'compose.yml',
-        'compose.yaml',
-        'docker-compose.yml',
-        'docker-compose.yaml',
-        'makefile',
-    ])
-    private static readonly FOLDER_MEDIA_NAMES = new Set([
-        'images',
-        'image',
-        'img',
-        'media',
-        'assets',
-        'videos',
-        'video',
-        'audio',
-        'icons',
-    ])
-    private static readonly FOLDER_CODE_NAMES = new Set([
-        'src',
-        'source',
-        'js',
-        'javascript',
-        'ts',
-        'typescript',
-        'scripts',
-        'script',
-        'lib',
-        'app',
-        'apps',
-        'components',
-    ])
-    private static readonly FOLDER_DOC_NAMES = new Set(['docs', 'doc', 'documentation'])
-    private static readonly FOLDER_DATA_NAMES = new Set([
-        'data',
-        'datasets',
-        'dataset',
-        'db',
-        'database',
-        'schemas',
-        'schema',
-    ])
-    private static readonly FOLDER_CONFIG_NAMES = new Set([
-        'config',
-        'configs',
-        'settings',
-        '.github',
-        '.gitlab',
-        '.vscode',
-    ])
-    private static readonly FOLDER_PACKAGE_NAMES = new Set([
-        'node_modules',
-        'vendor',
-        'packages',
-        'plugins',
-        'extensions',
-    ])
-    private static readonly FOLDER_TEST_NAMES = new Set([
-        'test',
-        'tests',
-        '__tests__',
-        'spec',
-        'specs',
-    ])
-
     constructor(
         @inject(TreeProps) public override readonly props: TreeProps,
         @inject(TreeModel) public override readonly model: EntitiesOverviewModel,
@@ -389,35 +191,17 @@ export class EntitiesOverviewWidget extends TreeWidget {
     }
 
     protected getDatasetIconClass(displayName: string, entityId: string): string {
-        const folderName = this.getEntityNameCandidate(displayName, entityId).toLowerCase()
-        const folderGlyph = codicon('folder')
-        if (!folderName) {
-            return `${folderGlyph} entities-overview-entity-icon entities-overview-folder-icon`
-        }
-
-        if (EntitiesOverviewWidget.FOLDER_MEDIA_NAMES.has(folderName)) {
-            return `${folderGlyph} entities-overview-entity-icon entities-overview-folder-icon entities-overview-folder-icon--media`
-        }
-        if (EntitiesOverviewWidget.FOLDER_CODE_NAMES.has(folderName)) {
-            return `${folderGlyph} entities-overview-entity-icon entities-overview-folder-icon entities-overview-folder-icon--code`
-        }
-        if (EntitiesOverviewWidget.FOLDER_DOC_NAMES.has(folderName)) {
-            return `${folderGlyph} entities-overview-entity-icon entities-overview-folder-icon entities-overview-folder-icon--document`
-        }
-        if (EntitiesOverviewWidget.FOLDER_DATA_NAMES.has(folderName)) {
-            return `${folderGlyph} entities-overview-entity-icon entities-overview-folder-icon entities-overview-folder-icon--data`
-        }
-        if (EntitiesOverviewWidget.FOLDER_CONFIG_NAMES.has(folderName)) {
-            return `${folderGlyph} entities-overview-entity-icon entities-overview-folder-icon entities-overview-folder-icon--config`
-        }
-        if (EntitiesOverviewWidget.FOLDER_PACKAGE_NAMES.has(folderName)) {
-            return `${folderGlyph} entities-overview-entity-icon entities-overview-folder-icon entities-overview-folder-icon--package`
-        }
-        if (EntitiesOverviewWidget.FOLDER_TEST_NAMES.has(folderName)) {
-            return `${folderGlyph} entities-overview-entity-icon entities-overview-folder-icon entities-overview-folder-icon--test`
-        }
-
-        return `${folderGlyph} entities-overview-entity-icon entities-overview-folder-icon`
+        return getSharedDatasetIconClass(
+            this.getEntityNameCandidate(displayName, entityId),
+            false,
+            {
+                baseClass: 'entities-overview-entity-icon',
+                fileClass: 'entities-overview-file-icon',
+                folderClass: 'entities-overview-folder-icon',
+                fileModifierPrefix: 'entities-overview-file-icon--',
+                folderModifierPrefix: 'entities-overview-folder-icon--',
+            },
+        )
     }
 
     protected getFileIconClass(
@@ -425,87 +209,17 @@ export class EntitiesOverviewWidget extends TreeWidget {
         entityId: string,
         encodingFormat?: string,
     ): string {
-        const fileName = this.getEntityNameCandidate(displayName, entityId).toLowerCase()
-        const ext = this.resolveEntityFileExtension(fileName, encodingFormat)
-        const normalizedEncoding = `${encodingFormat ?? ''}`.trim().toLowerCase()
-
-        if (
-            normalizedEncoding.startsWith('image/') ||
-            normalizedEncoding.startsWith('video/') ||
-            normalizedEncoding.startsWith('audio/')
-        ) {
-            return `${codicon('file-media')} entities-overview-entity-icon entities-overview-file-icon entities-overview-file-icon--media`
-        }
-
-        if (normalizedEncoding === 'text/plain' || normalizedEncoding.startsWith('text/plain;')) {
-            return `${codicon('file-text')} entities-overview-entity-icon entities-overview-file-icon entities-overview-file-icon--text`
-        }
-
-        if (ext === '.pdf') {
-            return `${codicon('file-pdf')} entities-overview-entity-icon entities-overview-file-icon entities-overview-file-icon--document`
-        }
-        if (ext === '.txt') {
-            return `${codicon('file-text')} entities-overview-entity-icon entities-overview-file-icon entities-overview-file-icon--text`
-        }
-        if (
-            EntitiesOverviewWidget.ARCHIVE_EXTENSIONS.has(ext) ||
-            EntitiesOverviewWidget.ARCHIVE_FILE_SUFFIXES.some((suffix) =>
-                fileName.endsWith(suffix),
-            )
-        ) {
-            return `${codicon('file-zip')} entities-overview-entity-icon entities-overview-file-icon entities-overview-file-icon--archive`
-        }
-        if (EntitiesOverviewWidget.MEDIA_EXTENSIONS.has(ext)) {
-            return `${codicon('file-media')} entities-overview-entity-icon entities-overview-file-icon entities-overview-file-icon--media`
-        }
-        if (EntitiesOverviewWidget.DATABASE_EXTENSIONS.has(ext)) {
-            return `${codicon('database')} entities-overview-entity-icon entities-overview-file-icon entities-overview-file-icon--database`
-        }
-        if (
-            EntitiesOverviewWidget.CONFIG_EXTENSIONS.has(ext) ||
-            EntitiesOverviewWidget.CONFIG_FILE_NAMES.has(fileName)
-        ) {
-            return `${codicon('settings-gear')} entities-overview-entity-icon entities-overview-file-icon entities-overview-file-icon--config`
-        }
-        if (EntitiesOverviewWidget.DATA_EXTENSIONS.has(ext)) {
-            return `${codicon('json')} entities-overview-entity-icon entities-overview-file-icon entities-overview-file-icon--data`
-        }
-        if (EntitiesOverviewWidget.DOCUMENT_EXTENSIONS.has(ext)) {
-            return `${codicon('markdown')} entities-overview-entity-icon entities-overview-file-icon entities-overview-file-icon--document`
-        }
-        if (EntitiesOverviewWidget.SCRIPT_EXTENSIONS.has(ext)) {
-            return `${codicon('terminal')} entities-overview-entity-icon entities-overview-file-icon entities-overview-file-icon--script`
-        }
-        if (EntitiesOverviewWidget.CODE_EXTENSIONS.has(ext)) {
-            return `${codicon('file-code')} entities-overview-entity-icon entities-overview-file-icon entities-overview-file-icon--code`
-        }
-        if (ext === '.bin' || ext === '.dat') {
-            return `${codicon('file-binary')} entities-overview-entity-icon entities-overview-file-icon entities-overview-file-icon--binary`
-        }
-
-        return `${codicon('file')} entities-overview-entity-icon entities-overview-file-icon`
-    }
-
-    protected resolveEntityFileExtension(fileName: string, encodingFormat?: string): string {
-        const normalizedFileName = `${fileName ?? ''}`.trim().toLowerCase()
-        if (normalizedFileName.includes('.')) {
-            const suffix = normalizedFileName.slice(normalizedFileName.lastIndexOf('.'))
-            if (suffix) {
-                return suffix
-            }
-        }
-
-        const normalizedEncoding = `${encodingFormat ?? ''}`.trim().toLowerCase()
-        if (!normalizedEncoding) {
-            return ''
-        }
-
-        const extension = mime.extension(normalizedEncoding)
-        if (typeof extension === 'string' && extension.trim()) {
-            return `.${extension.trim().toLowerCase()}`
-        }
-
-        return ''
+        return getSharedFileIconClass(
+            this.getEntityNameCandidate(displayName, entityId),
+            encodingFormat,
+            {
+                baseClass: 'entities-overview-entity-icon',
+                fileClass: 'entities-overview-file-icon',
+                folderClass: 'entities-overview-folder-icon',
+                fileModifierPrefix: 'entities-overview-file-icon--',
+                folderModifierPrefix: 'entities-overview-folder-icon--',
+            },
+        )!
     }
 
     protected getEntityNameCandidate(displayName: string, entityId: string): string {

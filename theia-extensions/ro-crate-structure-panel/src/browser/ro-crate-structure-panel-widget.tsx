@@ -7,7 +7,6 @@ import {
 } from '@theia/core/lib/browser'
 import { MessageService } from '@theia/core/lib/common'
 import { ThemeService } from '@theia/core/lib/browser/theming'
-import { codicon } from '@theia/core/lib/browser/widgets/widget'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -16,7 +15,11 @@ import type { TreeDataNode } from 'antd'
 import { Tooltip, Tree } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
-import { RoCrateEntityDeleteService } from 'aroma2-common/lib/browser'
+import {
+    getSharedDatasetIconClass,
+    getSharedFileIconClass,
+    RoCrateEntityDeleteService,
+} from 'aroma2-common/lib/browser'
 import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
 import { MultiEditDialogService } from 'multi-edit/lib/browser/multi-edit-dialog-service'
 import { inject, injectable } from 'inversify'
@@ -52,204 +55,6 @@ export const RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU: MenuPath = [
 @injectable()
 export class RoCrateStructurePanelWidget extends ReactWidget {
     static readonly ID = 'dataset-panel:widget'
-    private static readonly ARCHIVE_FILE_SUFFIXES = ['.tar.gz', '.tar.bz2', '.tar.xz', '.tar.zst']
-    private static readonly ARCHIVE_EXTENSIONS = new Set([
-        '.zip',
-        '.gz',
-        '.bz2',
-        '.xz',
-        '.zst',
-        '.7z',
-        '.rar',
-        '.tgz',
-        '.tar',
-        '.jar',
-        '.war',
-    ])
-    private static readonly MEDIA_EXTENSIONS = new Set([
-        '.png',
-        '.jpg',
-        '.jpeg',
-        '.gif',
-        '.webp',
-        '.svg',
-        '.bmp',
-        '.ico',
-        '.tif',
-        '.tiff',
-        '.mp4',
-        '.m4v',
-        '.mov',
-        '.avi',
-        '.mkv',
-        '.webm',
-        '.mp3',
-        '.wav',
-        '.flac',
-        '.ogg',
-        '.m4a',
-    ])
-    private static readonly DOCUMENT_EXTENSIONS = new Set([
-        '.md',
-        '.mdx',
-        '.rst',
-        '.adoc',
-        '.rtf',
-    ])
-    private static readonly DATA_EXTENSIONS = new Set([
-        '.json',
-        '.jsonc',
-        '.yaml',
-        '.yml',
-        '.toml',
-        '.xml',
-        '.xsd',
-        '.xsl',
-        '.csv',
-        '.tsv',
-    ])
-    private static readonly CODE_EXTENSIONS = new Set([
-        '.c',
-        '.cc',
-        '.cpp',
-        '.cxx',
-        '.h',
-        '.hh',
-        '.hpp',
-        '.hxx',
-        '.java',
-        '.kt',
-        '.kts',
-        '.scala',
-        '.go',
-        '.rs',
-        '.swift',
-        '.cs',
-        '.php',
-        '.py',
-        '.rb',
-        '.lua',
-        '.pl',
-        '.r',
-        '.dart',
-        '.js',
-        '.jsx',
-        '.mjs',
-        '.cjs',
-        '.ts',
-        '.tsx',
-        '.vue',
-        '.svelte',
-        '.html',
-        '.htm',
-        '.css',
-        '.scss',
-        '.sass',
-        '.less',
-    ])
-    private static readonly SCRIPT_EXTENSIONS = new Set([
-        '.sh',
-        '.bash',
-        '.zsh',
-        '.fish',
-        '.ps1',
-        '.psm1',
-        '.bat',
-        '.cmd',
-    ])
-    private static readonly DATABASE_EXTENSIONS = new Set([
-        '.sql',
-        '.sqlite',
-        '.sqlite3',
-        '.db',
-        '.duckdb',
-    ])
-    private static readonly CONFIG_EXTENSIONS = new Set([
-        '.ini',
-        '.conf',
-        '.config',
-        '.cfg',
-        '.properties',
-        '.env',
-        '.editorconfig',
-    ])
-    private static readonly CONFIG_FILE_NAMES = new Set([
-        '.env',
-        '.env.local',
-        '.env.development',
-        '.env.production',
-        '.gitignore',
-        '.gitattributes',
-        '.npmrc',
-        '.yarnrc',
-        '.editorconfig',
-        '.prettierrc',
-        '.eslintrc',
-        'dockerfile',
-        'compose.yml',
-        'compose.yaml',
-        'docker-compose.yml',
-        'docker-compose.yaml',
-        'makefile',
-    ])
-    private static readonly FOLDER_MEDIA_NAMES = new Set([
-        'images',
-        'image',
-        'img',
-        'media',
-        'assets',
-        'videos',
-        'video',
-        'audio',
-        'icons',
-    ])
-    private static readonly FOLDER_CODE_NAMES = new Set([
-        'src',
-        'source',
-        'js',
-        'javascript',
-        'ts',
-        'typescript',
-        'scripts',
-        'script',
-        'lib',
-        'app',
-        'apps',
-        'components',
-    ])
-    private static readonly FOLDER_DOC_NAMES = new Set(['docs', 'doc', 'documentation'])
-    private static readonly FOLDER_DATA_NAMES = new Set([
-        'data',
-        'datasets',
-        'dataset',
-        'db',
-        'database',
-        'schemas',
-        'schema',
-    ])
-    private static readonly FOLDER_CONFIG_NAMES = new Set([
-        'config',
-        'configs',
-        'settings',
-        '.github',
-        '.gitlab',
-        '.vscode',
-    ])
-    private static readonly FOLDER_PACKAGE_NAMES = new Set([
-        'node_modules',
-        'vendor',
-        'packages',
-        'plugins',
-        'extensions',
-    ])
-    private static readonly FOLDER_TEST_NAMES = new Set([
-        'test',
-        'tests',
-        '__tests__',
-        'spec',
-        'specs',
-    ])
-
     protected instanceId: string = ''
     protected renderPerfSeq = 0
     protected cachedCrateRef: Record<string, any> | undefined
@@ -849,35 +654,17 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         entityId: string,
         isExpanded: boolean,
     ): string {
-        const folderName = this.getEntityNameCandidate(displayName, entityId).toLowerCase()
-        const folderGlyph = isExpanded ? codicon('folder-opened') : codicon('folder')
-        if (!folderName) {
-            return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon`
-        }
-
-        if (RoCrateStructurePanelWidget.FOLDER_MEDIA_NAMES.has(folderName)) {
-            return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--media`
-        }
-        if (RoCrateStructurePanelWidget.FOLDER_CODE_NAMES.has(folderName)) {
-            return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--code`
-        }
-        if (RoCrateStructurePanelWidget.FOLDER_DOC_NAMES.has(folderName)) {
-            return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--document`
-        }
-        if (RoCrateStructurePanelWidget.FOLDER_DATA_NAMES.has(folderName)) {
-            return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--data`
-        }
-        if (RoCrateStructurePanelWidget.FOLDER_CONFIG_NAMES.has(folderName)) {
-            return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--config`
-        }
-        if (RoCrateStructurePanelWidget.FOLDER_PACKAGE_NAMES.has(folderName)) {
-            return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--package`
-        }
-        if (RoCrateStructurePanelWidget.FOLDER_TEST_NAMES.has(folderName)) {
-            return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon ro-crate-folder-icon--test`
-        }
-
-        return `${folderGlyph} ro-crate-entity-icon ro-crate-folder-icon`
+        return getSharedDatasetIconClass(
+            this.getEntityNameCandidate(displayName, entityId),
+            isExpanded,
+            {
+                baseClass: 'ro-crate-entity-icon',
+                fileClass: 'ro-crate-file-icon',
+                folderClass: 'ro-crate-folder-icon',
+                fileModifierPrefix: 'ro-crate-file-icon--',
+                folderModifierPrefix: 'ro-crate-folder-icon--',
+            },
+        )
     }
 
     protected getFileIconClass(
@@ -885,94 +672,17 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         entityId: string,
         encodingFormat?: string,
     ): string {
-        const fileName = this.getEntityNameCandidate(displayName, entityId).toLowerCase()
-        const ext = this.resolveEntityFileExtension(fileName, encodingFormat)
-        const normalizedEncoding = `${encodingFormat ?? ''}`.trim().toLowerCase()
-
-        if (normalizedEncoding.startsWith('image/')
-            || normalizedEncoding.startsWith('video/')
-            || normalizedEncoding.startsWith('audio/')) {
-            return `${codicon('file-media')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--media`
-        }
-
-        if (normalizedEncoding === 'text/plain' || normalizedEncoding.startsWith('text/plain;')) {
-            return `${codicon('file-text')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--text`
-        }
-
-        if (ext === '.pdf') {
-            return `${codicon('file-pdf')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--document`
-        }
-
-        if (ext === '.txt') {
-            return `${codicon('file-text')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--text`
-        }
-
-        if (
-            RoCrateStructurePanelWidget.ARCHIVE_EXTENSIONS.has(ext)
-            || RoCrateStructurePanelWidget.ARCHIVE_FILE_SUFFIXES.some((suffix) =>
-                fileName.endsWith(suffix),
-            )
-        ) {
-            return `${codicon('file-zip')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--archive`
-        }
-
-        if (RoCrateStructurePanelWidget.MEDIA_EXTENSIONS.has(ext)) {
-            return `${codicon('file-media')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--media`
-        }
-
-        if (RoCrateStructurePanelWidget.DATABASE_EXTENSIONS.has(ext)) {
-            return `${codicon('database')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--database`
-        }
-
-        if (
-            RoCrateStructurePanelWidget.CONFIG_EXTENSIONS.has(ext)
-            || RoCrateStructurePanelWidget.CONFIG_FILE_NAMES.has(fileName)
-        ) {
-            return `${codicon('settings-gear')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--config`
-        }
-
-        if (RoCrateStructurePanelWidget.DATA_EXTENSIONS.has(ext)) {
-            return `${codicon('json')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--data`
-        }
-
-        if (RoCrateStructurePanelWidget.DOCUMENT_EXTENSIONS.has(ext)) {
-            return `${codicon('markdown')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--document`
-        }
-
-        if (RoCrateStructurePanelWidget.SCRIPT_EXTENSIONS.has(ext)) {
-            return `${codicon('terminal')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--script`
-        }
-
-        if (RoCrateStructurePanelWidget.CODE_EXTENSIONS.has(ext)) {
-            return `${codicon('file-code')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--code`
-        }
-
-        if (ext === '.bin' || ext === '.dat') {
-            return `${codicon('file-binary')} ro-crate-entity-icon ro-crate-file-icon ro-crate-file-icon--binary`
-        }
-
-        return `${codicon('file')} ro-crate-entity-icon ro-crate-file-icon`
-    }
-
-    protected resolveEntityFileExtension(fileName: string, encodingFormat?: string): string {
-        const normalizedFileName = `${fileName ?? ''}`.trim().toLowerCase()
-        if (normalizedFileName.includes('.')) {
-            const suffix = normalizedFileName.slice(normalizedFileName.lastIndexOf('.'))
-            if (suffix) {
-                return suffix
-            }
-        }
-
-        const normalizedEncoding = `${encodingFormat ?? ''}`.trim().toLowerCase()
-        if (!normalizedEncoding) {
-            return ''
-        }
-
-        const extension = mime.extension(normalizedEncoding)
-        if (typeof extension === 'string' && extension.trim()) {
-            return `.${extension.toLowerCase()}`
-        }
-        return ''
+        return getSharedFileIconClass(
+            this.getEntityNameCandidate(displayName, entityId),
+            encodingFormat,
+            {
+                baseClass: 'ro-crate-entity-icon',
+                fileClass: 'ro-crate-file-icon',
+                folderClass: 'ro-crate-folder-icon',
+                fileModifierPrefix: 'ro-crate-file-icon--',
+                folderModifierPrefix: 'ro-crate-folder-icon--',
+            },
+        )!
     }
 
     protected getEntityNameCandidate(displayName: string, entityId: string): string {
