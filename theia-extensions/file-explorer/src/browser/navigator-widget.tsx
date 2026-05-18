@@ -18,7 +18,6 @@ import { environment, isOSX } from '@theia/core'
 import {
   CompositeTreeNode,
   ContextMenuRenderer,
-  codicon,
   ExpandableTreeNode,
   Key,
   NodeProps,
@@ -41,7 +40,11 @@ import { FileSearchService } from '@theia/file-search/lib/common/file-search-ser
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
+import {
+  AntdThemeProvider,
+  getSharedDatasetIconClass,
+  getSharedFileIconClass,
+} from 'aroma2-common/lib/browser'
 import { DataSourceService } from 'data-sources/lib/browser/data-source-service'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
@@ -63,209 +66,6 @@ export const CLASS = 'theia-Files'
 export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   static SEARCH_VISIBLE_CLASS = 'navigator-search-visible'
   static BODY_SEARCH_VISIBLE_CLASS = 'navigator-search-visible'
-  private static readonly ARCHIVE_FILE_SUFFIXES = [
-    '.tar.gz',
-    '.tar.bz2',
-    '.tar.xz',
-    '.tar.zst',
-  ]
-  private static readonly ARCHIVE_EXTENSIONS = new Set([
-    '.zip',
-    '.gz',
-    '.bz2',
-    '.xz',
-    '.zst',
-    '.7z',
-    '.rar',
-    '.tgz',
-    '.tar',
-    '.jar',
-    '.war',
-  ])
-  private static readonly MEDIA_EXTENSIONS = new Set([
-    '.png',
-    '.jpg',
-    '.jpeg',
-    '.gif',
-    '.webp',
-    '.svg',
-    '.bmp',
-    '.ico',
-    '.tif',
-    '.tiff',
-    '.mp4',
-    '.m4v',
-    '.mov',
-    '.avi',
-    '.mkv',
-    '.webm',
-    '.mp3',
-    '.wav',
-    '.flac',
-    '.ogg',
-    '.m4a',
-  ])
-  private static readonly DOCUMENT_EXTENSIONS = new Set([
-    '.md',
-    '.mdx',
-    '.rst',
-    '.adoc',
-    '.rtf',
-  ])
-  private static readonly DATA_EXTENSIONS = new Set([
-    '.json',
-    '.jsonc',
-    '.yaml',
-    '.yml',
-    '.toml',
-    '.xml',
-    '.xsd',
-    '.xsl',
-    '.csv',
-    '.tsv',
-  ])
-  private static readonly CODE_EXTENSIONS = new Set([
-    '.c',
-    '.cc',
-    '.cpp',
-    '.cxx',
-    '.h',
-    '.hh',
-    '.hpp',
-    '.hxx',
-    '.java',
-    '.kt',
-    '.kts',
-    '.scala',
-    '.go',
-    '.rs',
-    '.swift',
-    '.cs',
-    '.php',
-    '.py',
-    '.rb',
-    '.lua',
-    '.pl',
-    '.r',
-    '.dart',
-    '.js',
-    '.jsx',
-    '.mjs',
-    '.cjs',
-    '.ts',
-    '.tsx',
-    '.vue',
-    '.svelte',
-    '.html',
-    '.htm',
-    '.css',
-    '.scss',
-    '.sass',
-    '.less',
-  ])
-  private static readonly SCRIPT_EXTENSIONS = new Set([
-    '.sh',
-    '.bash',
-    '.zsh',
-    '.fish',
-    '.ps1',
-    '.psm1',
-    '.bat',
-    '.cmd',
-  ])
-  private static readonly DATABASE_EXTENSIONS = new Set([
-    '.sql',
-    '.sqlite',
-    '.sqlite3',
-    '.db',
-    '.duckdb',
-  ])
-  private static readonly CONFIG_EXTENSIONS = new Set([
-    '.ini',
-    '.conf',
-    '.config',
-    '.cfg',
-    '.properties',
-    '.env',
-    '.editorconfig',
-  ])
-  private static readonly CONFIG_FILE_NAMES = new Set([
-    '.env',
-    '.env.local',
-    '.env.development',
-    '.env.production',
-    '.gitignore',
-    '.gitattributes',
-    '.npmrc',
-    '.yarnrc',
-    '.editorconfig',
-    '.prettierrc',
-    '.eslintrc',
-    'dockerfile',
-    'compose.yml',
-    'compose.yaml',
-    'docker-compose.yml',
-    'docker-compose.yaml',
-    'makefile',
-  ])
-  private static readonly FOLDER_MEDIA_NAMES = new Set([
-    'images',
-    'image',
-    'img',
-    'media',
-    'assets',
-    'videos',
-    'video',
-    'audio',
-    'icons',
-  ])
-  private static readonly FOLDER_CODE_NAMES = new Set([
-    'src',
-    'source',
-    'js',
-    'javascript',
-    'ts',
-    'typescript',
-    'scripts',
-    'script',
-    'lib',
-    'app',
-    'apps',
-    'components',
-  ])
-  private static readonly FOLDER_DOC_NAMES = new Set(['docs', 'doc', 'documentation'])
-  private static readonly FOLDER_DATA_NAMES = new Set([
-    'data',
-    'datasets',
-    'dataset',
-    'db',
-    'database',
-    'schemas',
-    'schema',
-  ])
-  private static readonly FOLDER_CONFIG_NAMES = new Set([
-    'config',
-    'configs',
-    'settings',
-    '.github',
-    '.gitlab',
-    '.vscode',
-  ])
-  private static readonly FOLDER_PACKAGE_NAMES = new Set([
-    'node_modules',
-    'vendor',
-    'packages',
-    'plugins',
-    'extensions',
-  ])
-  private static readonly FOLDER_TEST_NAMES = new Set([
-    'test',
-    'tests',
-    '__tests__',
-    'spec',
-    'specs',
-  ])
-
   @inject(CommandService) protected readonly commandService: CommandService
   @inject(NavigatorContextKeyService)
   protected readonly contextKeyService: NavigatorContextKeyService
@@ -598,63 +398,18 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
   private getMimeIconClass(node: FileStatNode): string | undefined {
     const fileName = node.fileStat.resource.path.base.toLowerCase()
-    const ext = node.fileStat.resource.path.ext.toLowerCase()
-
-    if (!fileName) {
-      return undefined
-    }
-
-    if (ext === '.pdf') {
-      return `${codicon('file-pdf')} navigator-file-icon navigator-file-icon--document`
-    }
-
-    if (ext === '.txt') {
-      return `${codicon('file-text')} navigator-file-icon navigator-file-icon--text`
-    }
-
-    if (
-      FileNavigatorWidget.ARCHIVE_EXTENSIONS.has(ext) ||
-      FileNavigatorWidget.ARCHIVE_FILE_SUFFIXES.some((suffix) => fileName.endsWith(suffix))
-    ) {
-      return `${codicon('file-zip')} navigator-file-icon navigator-file-icon--archive`
-    }
-
-    if (FileNavigatorWidget.MEDIA_EXTENSIONS.has(ext)) {
-      return `${codicon('file-media')} navigator-file-icon navigator-file-icon--media`
-    }
-
-    if (FileNavigatorWidget.DATABASE_EXTENSIONS.has(ext)) {
-      return `${codicon('database')} navigator-file-icon navigator-file-icon--database`
-    }
-
-    if (
-      FileNavigatorWidget.CONFIG_EXTENSIONS.has(ext) ||
-      FileNavigatorWidget.CONFIG_FILE_NAMES.has(fileName)
-    ) {
-      return `${codicon('settings-gear')} navigator-file-icon navigator-file-icon--config`
-    }
-
-    if (FileNavigatorWidget.DATA_EXTENSIONS.has(ext)) {
-      return `${codicon('json')} navigator-file-icon navigator-file-icon--data`
-    }
-
-    if (FileNavigatorWidget.DOCUMENT_EXTENSIONS.has(ext)) {
-      return `${codicon('markdown')} navigator-file-icon navigator-file-icon--document`
-    }
-
-    if (FileNavigatorWidget.SCRIPT_EXTENSIONS.has(ext)) {
-      return `${codicon('terminal')} navigator-file-icon navigator-file-icon--script`
-    }
-
-    if (FileNavigatorWidget.CODE_EXTENSIONS.has(ext)) {
-      return `${codicon('file-code')} navigator-file-icon navigator-file-icon--code`
-    }
-
-    if (ext === '.bin' || ext === '.dat') {
-      return `${codicon('file-binary')} navigator-file-icon navigator-file-icon--binary`
-    }
-
-    return undefined
+    return getSharedFileIconClass(
+      fileName,
+      undefined,
+      {
+        baseClass: '',
+        fileClass: 'navigator-file-icon',
+        folderClass: 'navigator-folder-icon',
+        fileModifierPrefix: 'navigator-file-icon--',
+        folderModifierPrefix: 'navigator-folder-icon--',
+      },
+      false,
+    )
   }
 
   private getFolderIconClass(node: DirNode): string | undefined {
@@ -663,37 +418,13 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       return undefined
     }
 
-    const folderGlyph = node.expanded ? codicon('folder-opened') : codicon('folder')
-
-    if (FileNavigatorWidget.FOLDER_MEDIA_NAMES.has(folderName)) {
-      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--media`
-    }
-
-    if (FileNavigatorWidget.FOLDER_CODE_NAMES.has(folderName)) {
-      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--code`
-    }
-
-    if (FileNavigatorWidget.FOLDER_DOC_NAMES.has(folderName)) {
-      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--document`
-    }
-
-    if (FileNavigatorWidget.FOLDER_DATA_NAMES.has(folderName)) {
-      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--data`
-    }
-
-    if (FileNavigatorWidget.FOLDER_CONFIG_NAMES.has(folderName)) {
-      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--config`
-    }
-
-    if (FileNavigatorWidget.FOLDER_PACKAGE_NAMES.has(folderName)) {
-      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--package`
-    }
-
-    if (FileNavigatorWidget.FOLDER_TEST_NAMES.has(folderName)) {
-      return `${folderGlyph} navigator-folder-icon navigator-folder-icon--test`
-    }
-
-    return `${folderGlyph} navigator-folder-icon`
+    return getSharedDatasetIconClass(folderName, Boolean(node.expanded), {
+      baseClass: '',
+      fileClass: 'navigator-file-icon',
+      folderClass: 'navigator-folder-icon',
+      fileModifierPrefix: 'navigator-file-icon--',
+      folderModifierPrefix: 'navigator-folder-icon--',
+    })
   }
 
   protected override createContainerAttributes(): React.HTMLAttributes<HTMLElement> {
