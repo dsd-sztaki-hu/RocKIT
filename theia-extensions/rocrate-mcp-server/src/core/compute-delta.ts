@@ -77,6 +77,7 @@ function collectWorkspaceEntries(
     'ro-crate-metadata.json',
     'ro-crate-preview.html',
     'ro-crate-approval.json',
+    '.aroma/ro-crate-approval.json',
   ])
 
   function walk(currentPath: string): void {
@@ -89,6 +90,9 @@ function collectWorkspaceEntries(
       const absoluteChild = path.join(currentPath, entry.name)
       const relativeChild = normalizePath(path.relative(rootPath, absoluteChild))
       if (!relativeChild) {
+        continue
+      }
+      if (relativeChild === '.aroma' || relativeChild.startsWith('.aroma/')) {
         continue
       }
       if (ignoredRootFiles.has(relativeChild)) {

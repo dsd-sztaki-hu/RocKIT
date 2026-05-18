@@ -23,6 +23,7 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import {
     RO_CRATE_APPROVAL_FILE,
+    RO_CRATE_APPROVAL_FILE_NAME,
     type RoCrateApprovalFile,
 } from 'app-state/lib/browser/state/ro-crate-approval'
 
@@ -1713,9 +1714,17 @@ protected handleDropEntityToHasPart = async (
 
         const approvalUri = rootUri.resolve(RO_CRATE_APPROVAL_FILE)
         try {
+            const approvalDirUri = approvalUri.parent
+            if (!(await this.fileService.exists(approvalDirUri))) {
+                await this.fileService.createFolder(approvalDirUri)
+            }
             await this.fileService.create(approvalUri, JSON.stringify(approval ?? [], null, 2), {
                 overwrite: true,
             })
+            const legacyApprovalUri = rootUri.resolve(RO_CRATE_APPROVAL_FILE_NAME)
+            if (await this.fileService.exists(legacyApprovalUri)) {
+                await this.fileService.delete(legacyApprovalUri)
+            }
         } catch (error) {
             console.error('Failed to persist RO-Crate approval metadata:', error)
         }

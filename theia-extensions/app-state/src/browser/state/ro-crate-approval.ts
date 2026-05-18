@@ -1,4 +1,7 @@
-export { RO_CRATE_APPROVAL_FILE } from 'aroma2-common/lib/common/ro-crate-technical-files'
+export {
+  RO_CRATE_APPROVAL_FILE,
+  RO_CRATE_APPROVAL_FILE_NAME,
+} from 'aroma2-common/lib/common/ro-crate-technical-files'
 
 export type RoCrateApprovalOperation = 'create' | 'update' | 'delete'
 

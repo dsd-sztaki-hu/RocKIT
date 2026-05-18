@@ -10,6 +10,7 @@ import {
   AROMA_IGNORE_DIR,
   AROMA_IGNORE_FILE,
   DEFAULT_IGNORED_ENTRIES,
+  RO_CRATE_APPROVAL_FILE_NAME,
 } from 'aroma2-common/lib/common/ro-crate-technical-files'
 import * as mime from 'mime-types'
 import type * as React from 'react'
@@ -197,7 +198,7 @@ export class ROCrateDialog extends ReactDialog<string> {
         if (
           child.name === 'ro-crate-metadata.json' ||
           child.name === 'ro-crate-preview.html' ||
-          child.name === 'ro-crate-approval.json' ||
+          child.name === RO_CRATE_APPROVAL_FILE_NAME ||
           child.name === 'AGENTS.md' ||
           child.name === 'CLAUDE.md' ||
           child.name === '.aroma' ||
