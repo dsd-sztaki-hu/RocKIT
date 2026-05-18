@@ -40,12 +40,25 @@
 }
 
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-property:hover,
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-property-background:hover {
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-property-background:hover {
   background-color: var(--recrate-panel) !important;
 }
 
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .bg-blue-200 {
   background-color: var(--recrate-panel) !important;
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .bg-indigo-200,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .bg-slate-300,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .bg-green-100,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .bg-green-200,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .bg-red-200 {
+  background-color: var(--recrate-panel) !important;
+  border-color: var(--recrate-border) !important;
   color: var(--recrate-text) !important;
 }
 
@@ -63,6 +76,46 @@
 
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .text-blue-600 {
   color: var(--recrate-label) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .text-black,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .hover\:text-black:hover {
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-typography,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-typography h5,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope h5.ant-typography,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .text-center,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-flex,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .w-1\/2,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .w-12 {
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .bg-white {
+  background-color: var(--recrate-input-bg) !important;
+  border-color: var(--recrate-border) !important;
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .text-green-600 {
+  color: #3fb950 !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .bg-green-500,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .bg-green-600 {
+  background-color: rgba(63, 185, 80, 0.16) !important;
+  border-color: rgba(63, 185, 80, 0.48) !important;
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .hover\:bg-green-200:hover,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .hover\:bg-green-600:hover,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .hover\:bg-green-700:hover {
+  background-color: rgba(63, 185, 80, 0.24) !important;
+  border-color: rgba(63, 185, 80, 0.62) !important;
+  color: var(--recrate-text) !important;
 }
 
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .text-gray-400,
@@ -84,12 +137,85 @@
   color: var(--recrate-muted) !important;
 }
 
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-pagination-total-text,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-pagination-item a,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-pagination-prev
+  .ant-pagination-item-link
+  .anticon,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-pagination-next
+  .ant-pagination-item-link
+  .anticon {
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-pagination-item,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-pagination-prev
+  .ant-pagination-item-link,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-pagination-next
+  .ant-pagination-item-link {
+  background-color: var(--recrate-input-bg) !important;
+  border-color: var(--recrate-border) !important;
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-pagination-item-active {
+  background-color: var(--recrate-panel-2) !important;
+  border-color: var(--recrate-accent) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-pagination-item-active a {
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-pagination-disabled
+  .ant-pagination-item-link,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-pagination-disabled
+  .ant-pagination-item-link
+  .anticon {
+  color: var(--recrate-muted) !important;
+  opacity: 0.7 !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
   .describo-tabs-vertical-center-add
   .ant-tabs-nav,
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-add-only-tabs .ant-tabs-nav,
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .recrate .ant-tabs-left > .ant-tabs-nav,
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .recrate .ant-tabs-right > .ant-tabs-nav {
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-add-only-tabs
+  .ant-tabs-nav,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .recrate
+  .ant-tabs-left
+  > .ant-tabs-nav,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .recrate
+  .ant-tabs-right
+  > .ant-tabs-nav {
   background-color: var(--recrate-bg) !important;
   border-inline-end: 1px solid var(--recrate-border) !important;
 }
@@ -148,21 +274,72 @@
   color: var(--recrate-label) !important;
 }
 
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 52px !important;
+  align-items: center !important;
+  column-gap: 8px !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-title {
+  min-width: 0 !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-status {
+  display: grid !important;
+  grid-template-columns: 20px 24px !important;
+  align-items: center !important;
+  justify-content: end !important;
+  justify-self: end !important;
+  column-gap: 8px !important;
+  width: 52px !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-tab-rail-status
+  > :not(.describo-tab-rail-remove-button) {
+  grid-column: 1 !important;
+  justify-self: center !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-tab-rail-status
+  > .describo-tab-rail-remove-button {
+  grid-column: 2 !important;
+  justify-self: center !important;
+}
+
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-item:hover,
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-item:focus-visible {
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-tab-rail-item:focus-visible {
   background: var(--recrate-tab-rail-hover) !important;
 }
 
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-item-active {
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-tab-rail-item-active {
   background: var(--recrate-tab-rail-active-bg) !important;
   color: var(--recrate-tab-rail-active-fg) !important;
 }
 
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-item-active::before {
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-tab-rail-item-active::before {
   background: var(--recrate-tab-rail-active-fg) !important;
 }
 
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-description {
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-tab-rail-description {
   color: var(--recrate-muted) !important;
 }
 
@@ -174,40 +351,164 @@
   background: linear-gradient(transparent, var(--recrate-tab-rail-bg)) !important;
 }
 
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-tab-rail-scroll-button {
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-tab-rail-scroll-button {
   box-shadow: 0 2px 8px var(--recrate-tab-rail-shadow) !important;
 }
 
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-quick-settings-header {
-  background: color-mix(in srgb, var(--recrate-tab-rail-bg) 92%, transparent) !important;
-  border-bottom-color: var(--recrate-border) !important;
-  box-shadow: 0 6px 14px var(--recrate-tab-rail-shadow) !important;
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-quick-settings-header {
+  background: var(--recrate-quick-header-bg) !important;
+  border-bottom: 1px solid var(--recrate-border) !important;
+  box-shadow: 0 6px 14px var(--recrate-quick-header-shadow) !important;
+  backdrop-filter: none !important;
 }
 
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope input:not([type='checkbox']):not([type='radio']),
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-quick-settings-actions
+  .ant-btn {
+  background-color: var(--recrate-panel) !important;
+  border-color: var(--recrate-input-border) !important;
+  color: var(--recrate-muted) !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-quick-settings-actions
+  .ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-quick-settings-actions
+  .ant-btn:not(:disabled):not(.ant-btn-disabled):focus {
+  background-color: var(--recrate-accent-bg) !important;
+  border-color: var(--recrate-accent) !important;
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-quick-settings-actions
+  .ant-btn:disabled,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-quick-settings-actions
+  .ant-btn.ant-btn-disabled {
+  background-color: var(--recrate-input-disabled) !important;
+  border-color: var(--recrate-input-border) !important;
+  color: var(--recrate-disabled-fg) !important;
+  opacity: 1 !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter {
+  background-color: var(--recrate-input-bg) !important;
+  border-color: var(--recrate-input-border) !important;
+  color: var(--recrate-text) !important;
+  box-shadow: none !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter
+  .ant-input {
+  background: transparent !important;
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter
+  .ant-input::placeholder {
+  color: var(--recrate-muted) !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter:hover,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter:focus-within {
+  border-color: var(--recrate-accent) !important;
+  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.24) !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  input:not([type="checkbox"]):not([type="radio"]),
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope textarea,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope select,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-input,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-input-affix-wrapper,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-select-selector,
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-select-selection-search-input {
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-select-selection-search-input {
   background-color: var(--recrate-input-bg) !important;
   color: var(--recrate-text) !important;
   border-color: var(--recrate-input-border) !important;
 }
 
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker input {
+  background-color: transparent !important;
+  color: var(--recrate-text) !important;
+}
+
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker .ant-picker-suffix,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker .ant-picker-clear,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-select .ant-select-arrow,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-select .ant-select-clear,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-select .anticon {
+  background-color: transparent !important;
+  color: var(--recrate-muted) !important;
+}
+
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope input::placeholder,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope textarea::placeholder,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-input::placeholder,
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-select-selection-placeholder {
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker input::placeholder,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-select-selection-placeholder {
   color: var(--recrate-muted) !important;
 }
 
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-input:focus,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-input-focused,
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-input-affix-wrapper-focused,
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-select-focused .ant-select-selector,
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .focus\:border-green-600:focus {
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper-focused,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker-focused,
+:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-picker:focus-within,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-select-focused
+  .ant-select-selector,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .focus\:border-green-600:focus {
   border-color: var(--recrate-border) !important;
   box-shadow: 0 0 0 1px rgba(127, 127, 127, 0.45) !important;
 }
@@ -226,8 +527,14 @@
   box-shadow: inset 0 0 0 1px var(--recrate-border) !important;
 }
 
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-btn.ant-btn-primary:hover:not(:disabled),
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-btn.ant-btn-primary:focus:not(:disabled) {
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn.ant-btn-primary:hover:not(:disabled),
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn.ant-btn-primary:focus:not(:disabled) {
   background-color: var(--recrate-panel-2) !important;
   border-color: var(--recrate-border) !important;
   box-shadow: none !important;
@@ -260,19 +567,22 @@
   color: var(--recrate-text) !important;
 }
 
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-btn[aria-label='Remove profile'],
 :is(.theia-dark, .theia-hc)
   .rocrate-editor
   .recrate-scope
-  .ant-btn[aria-label='Remove profile']:hover,
+  .ant-btn[aria-label="Remove profile"],
 :is(.theia-dark, .theia-hc)
   .rocrate-editor
   .recrate-scope
-  .ant-btn[aria-label='Remove profile']:focus,
+  .ant-btn[aria-label="Remove profile"]:hover,
 :is(.theia-dark, .theia-hc)
   .rocrate-editor
   .recrate-scope
-  .ant-btn[aria-label='Remove profile']:active {
+  .ant-btn[aria-label="Remove profile"]:focus,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn[aria-label="Remove profile"]:active {
   background: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
@@ -288,8 +598,14 @@
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope button[disabled],
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-btn:disabled,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-btn.ant-btn-disabled,
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-btn.ant-btn-primary:disabled,
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-btn.ant-btn-primary.ant-btn-disabled {
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn.ant-btn-primary:disabled,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn.ant-btn-primary.ant-btn-disabled {
   background-color: var(--recrate-input-disabled) !important;
   border-color: #3d4652 !important;
   color: var(--recrate-disabled-fg) !important;
@@ -299,7 +615,11 @@
 }
 
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-input[disabled],
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .ant-select-disabled .ant-select-selector,
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .ant-select-disabled
+  .ant-select-selector,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope input:disabled,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope textarea:disabled,
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope select:disabled {
@@ -315,7 +635,11 @@
   color: var(--recrate-text) !important;
 }
 
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-render-item-link .ant-card {
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-render-item-link
+  .ant-card {
   background: transparent !important;
   border: 1px solid var(--recrate-border) !important;
   border-left: 1px solid var(--recrate-border) !important;
@@ -368,7 +692,11 @@
   border-color: var(--recrate-border) !important;
 }
 
-:is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope .describo-render-item-link .ant-tag {
+:is(.theia-dark, .theia-hc)
+  .rocrate-editor
+  .recrate-scope
+  .describo-render-item-link
+  .ant-tag {
   background: var(--recrate-panel-2) !important;
   border: 1px solid var(--recrate-border) !important;
   color: var(--recrate-text) !important;
@@ -405,9 +733,239 @@
   background-color: var(--recrate-panel-2) !important;
 }
 
+.theia-dark .rocrate-editor .recrate-scope {
+  --recrate-accent: var(--theia-focusBorder, #3794ff);
+  --recrate-accent-soft: rgba(55, 148, 255, 0.14);
+  --recrate-accent-softer: rgba(55, 148, 255, 0.08);
+  --recrate-accent-border: rgba(55, 148, 255, 0.56);
+}
+
+.theia-dark .rocrate-editor .recrate-scope .bg-blue-200 {
+  background-color: var(--recrate-accent-softer) !important;
+  box-shadow: none !important;
+  color: var(--recrate-text) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .bg-green-100 {
+  background-color: rgba(63, 185, 80, 0.1) !important;
+  border-color: rgba(63, 185, 80, 0.26) !important;
+  color: var(--recrate-text) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .bg-green-200,
+.theia-dark .rocrate-editor .recrate-scope .hover\:bg-green-200:hover {
+  background-color: rgba(63, 185, 80, 0.14) !important;
+  border-color: rgba(63, 185, 80, 0.34) !important;
+  color: var(--recrate-text) !important;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .bg-green-100,
+body.hc-black .rocrate-editor .recrate-scope .bg-green-100 {
+  background-color: rgba(63, 185, 80, 0.16) !important;
+  border-color: rgba(126, 231, 135, 0.45) !important;
+  color: var(--recrate-text) !important;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .bg-green-200,
+.theia-hc .rocrate-editor .recrate-scope .hover\:bg-green-200:hover,
+body.hc-black .rocrate-editor .recrate-scope .bg-green-200,
+body.hc-black .rocrate-editor .recrate-scope .hover\:bg-green-200:hover {
+  background-color: rgba(63, 185, 80, 0.22) !important;
+  border-color: rgba(126, 231, 135, 0.62) !important;
+  color: var(--recrate-text) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .text-blue-600,
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property-name-id
+  .ant-btn.ant-btn-link:hover,
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property-name-id
+  .ant-btn.ant-btn-link:focus {
+  color: #8ab4f8 !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .describo-property:hover,
+.theia-dark .rocrate-editor .recrate-scope .describo-property-background:hover {
+  background-color: var(--recrate-accent-softer) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .hover\:bg-blue-100:hover,
+.theia-dark .rocrate-editor .recrate-scope .hover\:bg-blue-300:hover,
+.theia-dark .rocrate-editor .recrate-scope .hover\:bg-sky-100:hover {
+  background-color: transparent !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  input:not([type="checkbox"]):not([type="radio"]):focus,
+.theia-dark .rocrate-editor .recrate-scope textarea:focus,
+.theia-dark .rocrate-editor .recrate-scope select:focus,
+.theia-dark .rocrate-editor .recrate-scope .ant-input:focus,
+.theia-dark .rocrate-editor .recrate-scope .ant-input-focused,
+.theia-dark .rocrate-editor .recrate-scope .ant-input-affix-wrapper:focus,
+.theia-dark .rocrate-editor .recrate-scope .ant-input-affix-wrapper:focus-within,
+.theia-dark .rocrate-editor .recrate-scope .ant-input-affix-wrapper-focused,
+.theia-dark .rocrate-editor .recrate-scope .ant-picker-focused,
+.theia-dark .rocrate-editor .recrate-scope .ant-picker:focus-within,
+.theia-dark .rocrate-editor .recrate-scope .ant-select-focused .ant-select-selector,
+.theia-dark .rocrate-editor .recrate-scope .focus\:border-green-600:focus {
+  border-color: #5ccfe6 !important;
+  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.42) !important;
+  outline: none !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope button:hover:not(:disabled),
+.theia-dark .rocrate-editor .recrate-scope .ant-btn:hover:not(:disabled) {
+  background-color: rgba(55, 148, 255, 0.1) !important;
+  border-color: var(--recrate-accent-border) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property-background
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property-background
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):focus-visible:not(:disabled),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):focus-visible:not(:disabled),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property-background
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):focus-visible:not(:disabled),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property-background
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):focus-visible:not(:disabled) {
+  background-color: rgba(92, 207, 230, 0.1) !important;
+  border-color: rgba(92, 207, 230, 0.62) !important;
+  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.16) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property-name-id
+  .ant-btn.ant-btn-link:hover,
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-property-name-id
+  .ant-btn.ant-btn-link:focus,
+.theia-dark .rocrate-editor .recrate-scope .ant-btn[aria-label="Remove profile"]:hover,
+.theia-dark .rocrate-editor .recrate-scope .ant-btn[aria-label="Remove profile"]:focus {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .ant-btn .anticon-check,
+.theia-dark .rocrate-editor .recrate-scope button .anticon-check {
+  color: #3fb950 !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .ant-btn .anticon-delete,
+.theia-dark .rocrate-editor .recrate-scope button .anticon-delete,
+.theia-dark .rocrate-editor .recrate-scope .describo-render-item-link .anticon-link {
+  color: #ff7b72 !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:has(.anticon-check):hover:not(:disabled),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  button:has(.anticon-check):hover:not(:disabled) {
+  background-color: rgba(63, 185, 80, 0.1) !important;
+  border-color: rgba(63, 185, 80, 0.45) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:has(.anticon-delete):hover:not(:disabled),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  button:has(.anticon-delete):hover:not(:disabled) {
+  background-color: rgba(255, 123, 114, 0.1) !important;
+  border-color: rgba(255, 123, 114, 0.45) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-render-item-link
+  button:has(.anticon-link):hover:not(:disabled),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-render-item-link
+  .ant-btn:has(.anticon-link):hover:not(:disabled) {
+  background-color: rgba(255, 123, 114, 0.1) !important;
+  border-color: rgba(255, 123, 114, 0.45) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .ant-pagination-item-active {
+  background-color: var(--recrate-accent-soft) !important;
+  border-color: var(--recrate-accent-border) !important;
+  box-shadow: 0 0 0 1px rgba(55, 148, 255, 0.18) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .ant-pagination-item-active a {
+  color: var(--recrate-text) !important;
+}
+
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px'] {
+  .ant-drawer-content-wrapper[style*="width: 600px"] {
   --recrate-border: var(--theia-ui-border, rgba(127, 127, 127, 0.42));
   --recrate-text: var(--theia-ui-font-color1, #d4d4d4);
   --recrate-muted: var(--theia-ui-font-color2, #a6a6a6);
@@ -416,7 +974,7 @@
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-content {
   background-color: var(--theia-editor-background, #1e1e1e) !important;
   color: var(--theia-ui-font-color1, #d4d4d4) !important;
@@ -424,11 +982,11 @@
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-header,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-body {
   background-color: transparent !important;
   border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
@@ -436,7 +994,7 @@
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-header {
   min-height: 56px !important;
   padding: 14px 18px !important;
@@ -444,7 +1002,7 @@
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-header-title {
   align-items: center !important;
   gap: 10px !important;
@@ -452,7 +1010,7 @@
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-title
   .ant-typography {
   margin: 0 !important;
@@ -461,7 +1019,7 @@
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close {
   align-items: center !important;
   display: inline-flex !important;
@@ -475,38 +1033,38 @@
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-title,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-typography,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .text-black {
   color: var(--recrate-text) !important;
 }
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-typography.ant-typography-secondary {
   color: var(--recrate-muted) !important;
 }
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-input,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
-  input:not([type='checkbox']):not([type='radio']) {
+  .ant-drawer-content-wrapper[style*="width: 600px"]
+  input:not([type="checkbox"]):not([type="radio"]) {
   background-color: var(--theia-input-background, #1f1f1f) !important;
   color: var(--recrate-text) !important;
   border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
@@ -514,19 +1072,19 @@
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-input::placeholder,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
-  input:not([type='checkbox']):not([type='radio'])::placeholder {
+  .ant-drawer-content-wrapper[style*="width: 600px"]
+  input:not([type="checkbox"]):not([type="radio"])::placeholder {
   color: var(--theia-ui-font-color2, #b8b8b8) !important;
   opacity: 1 !important;
 }
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-btn {
   background-color: rgba(255, 255, 255, 0.08) !important;
   border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
@@ -535,7 +1093,7 @@
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-btn.ant-btn-primary {
   background-color: rgba(255, 255, 255, 0.06) !important;
   border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
@@ -543,44 +1101,44 @@
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .cursor-pointer:hover {
   background-color: rgba(255, 255, 255, 0.05) !important;
 }
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .border-b,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .border-gray-700 {
   border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
 }
 
 body:is(.theia-dark, .theia-hc):has(
     .ant-drawer.ant-drawer-open.ant-drawer-left
-      .ant-drawer-content-wrapper[style*='width: 600px']
+      .ant-drawer-content-wrapper[style*="width: 600px"]
   )
   .theia-sidepanel-toolbar
   .lm-TabBar-toolbar
   .item
-  > [id='navigator.toggle.search'],
+  > [id="navigator.toggle.search"],
 body:is(.theia-dark, .theia-hc):has(
     .ant-drawer.ant-drawer-open.ant-drawer-left
-      .ant-drawer-content-wrapper[style*='width: 600px']
+      .ant-drawer-content-wrapper[style*="width: 600px"]
   )
   .theia-sidepanel-toolbar
   .lm-TabBar-toolbar
   .item
-  > [id='navigator.collapse.all'] {
+  > [id="navigator.collapse.all"] {
   opacity: 0 !important;
   pointer-events: none !important;
 }
 
 .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close {
   align-items: center !important;
   border: 1px solid transparent !important;
@@ -601,7 +1159,7 @@ body:is(.theia-dark, .theia-hc):has(
 }
 
 .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close
   .anticon {
   align-items: center !important;
@@ -613,26 +1171,26 @@ body:is(.theia-dark, .theia-hc):has(
 }
 
 .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close
   *,
 .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close
   svg,
 .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close
   path {
   cursor: pointer !important;
 }
 
 .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close
   svg,
 .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close
   path {
   pointer-events: none !important;
@@ -640,11 +1198,11 @@ body:is(.theia-dark, .theia-hc):has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close:hover,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close:focus-visible {
   background-color: rgba(255, 255, 255, 0.14) !important;
   border-color: rgba(255, 255, 255, 0.22) !important;
@@ -653,20 +1211,20 @@ body:is(.theia-dark, .theia-hc):has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close:active {
   background-color: rgba(255, 255, 255, 0.2) !important;
 }
 
 .theia-light
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px'] {
+  .ant-drawer-content-wrapper[style*="width: 600px"] {
   z-index: 5000 !important;
 }
 
 .theia-light
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-header {
   min-height: 56px !important;
   padding: 14px 18px !important;
@@ -674,7 +1232,7 @@ body:is(.theia-dark, .theia-hc):has(
 
 .theia-light
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-header-title {
   align-items: center !important;
   gap: 10px !important;
@@ -682,7 +1240,7 @@ body:is(.theia-dark, .theia-hc):has(
 
 .theia-light
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-title
   .ant-typography {
   line-height: 1.3 !important;
@@ -691,11 +1249,11 @@ body:is(.theia-dark, .theia-hc):has(
 
 .theia-light
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close:hover,
 .theia-light
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close:focus-visible {
   background-color: rgba(9, 30, 66, 0.12) !important;
   border-color: rgba(9, 30, 66, 0.2) !important;
@@ -704,39 +1262,39 @@ body:is(.theia-dark, .theia-hc):has(
 
 .theia-light
   .ant-drawer.ant-drawer-left
-  .ant-drawer-content-wrapper[style*='width: 600px']
+  .ant-drawer-content-wrapper[style*="width: 600px"]
   .ant-drawer-close:active {
   background-color: rgba(9, 30, 66, 0.18) !important;
 }
 
 body.theia-light:has(
     .ant-drawer.ant-drawer-open.ant-drawer-left
-      .ant-drawer-content-wrapper[style*='width: 600px']
+      .ant-drawer-content-wrapper[style*="width: 600px"]
   )
   .theia-sidepanel-toolbar
   .lm-TabBar-toolbar
   .item
-  > [id='navigator.toggle.search'],
+  > [id="navigator.toggle.search"],
 body.theia-light:has(
     .ant-drawer.ant-drawer-open.ant-drawer-left
-      .ant-drawer-content-wrapper[style*='width: 600px']
+      .ant-drawer-content-wrapper[style*="width: 600px"]
   )
   .theia-sidepanel-toolbar
   .lm-TabBar-toolbar
   .item
-  > [id='navigator.collapse.all'] {
+  > [id="navigator.collapse.all"] {
   opacity: 0 !important;
   pointer-events: none !important;
 }
 
 body:has(
     .ant-drawer.ant-drawer-open.ant-drawer-left
-      .ant-drawer-content-wrapper[style*='width: 600px']
+      .ant-drawer-content-wrapper[style*="width: 600px"]
   )
   .theia-sidepanel-toolbar
   .lm-TabBar-toolbar
   .item
-  > [id='navigator.addDataSource.toolbar'] {
+  > [id="navigator.addDataSource.toolbar"] {
   opacity: 0 !important;
   pointer-events: none !important;
 }
@@ -744,7 +1302,7 @@ body:has(
 /* Right-side drawers used by reverse-links / related entity panels. */
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%']) {
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"]) {
   --recrate-border: var(--theia-ui-border, rgba(127, 127, 127, 0.42));
   --recrate-text: var(--theia-ui-font-color1, #d4d4d4);
   --recrate-muted: var(--theia-ui-font-color2, #a6a6a6);
@@ -753,7 +1311,7 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-drawer-content {
   background-color: var(--theia-editor-background, #1e1e1e) !important;
   color: var(--theia-ui-font-color1, #d4d4d4) !important;
@@ -761,11 +1319,11 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-drawer-header,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-drawer-body {
   background-color: transparent !important;
   border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
@@ -773,11 +1331,11 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-input,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-select-selector {
   background-color: var(--theia-input-background, #1f1f1f) !important;
   color: var(--recrate-text) !important;
@@ -786,7 +1344,7 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-input::placeholder {
   color: var(--theia-ui-font-color2, #b8b8b8) !important;
   opacity: 1 !important;
@@ -794,7 +1352,7 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-btn {
   background-color: rgba(255, 255, 255, 0.08) !important;
   border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
@@ -803,7 +1361,7 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-btn.ant-btn-primary {
   background-color: rgba(255, 255, 255, 0.06) !important;
   border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
@@ -811,7 +1369,7 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-card {
   background-color: var(--recrate-panel, #252526) !important;
   border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
@@ -819,19 +1377,19 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-card
   .ant-card-meta-title,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-typography {
   color: var(--recrate-text) !important;
 }
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-tag {
   background-color: rgba(255, 255, 255, 0.14) !important;
   border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
@@ -840,7 +1398,7 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-drawer-close {
   align-items: center !important;
   border: 1px solid transparent !important;
@@ -857,11 +1415,11 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-drawer-close:hover,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-drawer-close:focus-visible {
   background-color: rgba(255, 255, 255, 0.14) !important;
   border-color: rgba(255, 255, 255, 0.22) !important;
@@ -871,14 +1429,14 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-drawer-close:active {
   background-color: rgba(255, 255, 255, 0.2) !important;
 }
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-drawer-close
   .anticon {
   color: inherit !important;
@@ -886,16 +1444,16 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-pagination-item,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-pagination-prev
   .ant-pagination-item-link,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-pagination-next
   .ant-pagination-item-link {
   background-color: var(--theia-input-background, #1f1f1f) !important;
@@ -905,18 +1463,18 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-pagination-item
   a,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-pagination-prev
   .ant-pagination-item-link
   .anticon,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-pagination-next
   .ant-pagination-item-link
   .anticon {
@@ -925,7 +1483,7 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-pagination-item-active {
   background-color: rgba(255, 255, 255, 0.12) !important;
   border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
@@ -933,12 +1491,12 @@ body:has(
 
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-pagination-disabled
   .ant-pagination-item-link,
 :is(.theia-dark, .theia-hc)
   .ant-drawer.ant-drawer-right
-  .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+  .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   .ant-pagination-disabled
   .ant-pagination-item-link
   .anticon {
@@ -946,18 +1504,110 @@ body:has(
   opacity: 0.7 !important;
 }
 
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-panel-container,
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-panel,
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-header,
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-footer {
+  background-color: var(--theia-dropdown-background, #252526) !important;
+  border-color: var(--theia-ui-border, rgba(127, 127, 127, 0.42)) !important;
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-content th,
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-cell,
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-header button,
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-today-btn {
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+:is(.theia-dark, .theia-hc) .ant-picker-dropdown .ant-picker-cell-disabled,
+:is(.theia-dark, .theia-hc)
+  .ant-picker-dropdown
+  .ant-picker-cell-disabled
+  .ant-picker-cell-inner {
+  color: var(--theia-disabledForeground, rgba(204, 204, 204, 0.5)) !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .ant-picker-dropdown
+  .ant-picker-cell-in-view.ant-picker-cell-selected
+  .ant-picker-cell-inner,
+:is(.theia-dark, .theia-hc)
+  .ant-picker-dropdown
+  .ant-picker-cell-in-view.ant-picker-cell-range-start
+  .ant-picker-cell-inner,
+:is(.theia-dark, .theia-hc)
+  .ant-picker-dropdown
+  .ant-picker-cell-in-view.ant-picker-cell-range-end
+  .ant-picker-cell-inner {
+  background-color: var(--theia-focusBorder, #3794ff) !important;
+  color: var(--theia-button-foreground, #ffffff) !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .ant-picker-dropdown
+  .ant-picker-cell-in-view
+  .ant-picker-cell-inner:hover {
+  background-color: rgba(92, 207, 230, 0.16) !important;
+}
+
+:is(.theia-dark, .theia-hc) .ant-select-dropdown {
+  background-color: var(--theia-dropdown-background, #252526) !important;
+  border: 1px solid var(--theia-ui-border, rgba(127, 127, 127, 0.42)) !important;
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.42) !important;
+}
+
+:is(.theia-dark, .theia-hc) .ant-select-dropdown .ant-select-item,
+:is(.theia-dark, .theia-hc) .ant-select-dropdown .ant-select-item-group,
+:is(.theia-dark, .theia-hc) .ant-select-dropdown .ant-typography {
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+:is(.theia-dark, .theia-hc) .ant-select-dropdown .ant-select-item-group {
+  color: var(--theia-ui-font-color2, #a6a6a6) !important;
+}
+
+:is(.theia-dark, .theia-hc) .ant-select-dropdown .ant-select-item-option-active,
+:is(.theia-dark, .theia-hc) .ant-select-dropdown .ant-select-item-option-selected {
+  background-color: rgba(92, 207, 230, 0.14) !important;
+}
+
+:is(.theia-dark, .theia-hc)
+  .ant-select-dropdown
+  .ant-select-item-option:has(.ant-btn-color-green).ant-select-item-option-active,
+:is(.theia-dark, .theia-hc)
+  .ant-select-dropdown
+  .ant-select-item-option:has(.ant-btn-color-green).ant-select-item-option-selected {
+  background-color: transparent !important;
+}
+
+:is(.theia-dark, .theia-hc) .ant-select-dropdown .ant-btn-color-green,
+:is(.theia-dark, .theia-hc) .ant-select-dropdown .ant-btn.ant-btn-color-green {
+  background-color: rgba(63, 185, 80, 0.16) !important;
+  border-color: rgba(63, 185, 80, 0.48) !important;
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+:is(.theia-dark, .theia-hc) .ant-select-dropdown .ant-btn-color-green:hover,
+:is(.theia-dark, .theia-hc) .ant-select-dropdown .ant-btn.ant-btn-color-green:hover {
+  background-color: rgba(63, 185, 80, 0.24) !important;
+  border-color: rgba(63, 185, 80, 0.62) !important;
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
 body:has(
     .ant-drawer.ant-drawer-open.ant-drawer-right
-      .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+      .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   )
   .theia-sidepanel-toolbar
-  [id='entities-overview:toggle-filters'],
+  [id="entities-overview:toggle-filters"],
 body:has(
     .ant-drawer.ant-drawer-open.ant-drawer-right
-      .ant-drawer-content-wrapper:is([style*='width: 600px'], [style*='width: 60%'])
+      .ant-drawer-content-wrapper:is([style*="width: 600px"], [style*="width: 60%"])
   )
   .theia-sidepanel-toolbar
-  [id='entities-overview:collapse-all'] {
+  [id="entities-overview:collapse-all"] {
   opacity: 0 !important;
   pointer-events: none !important;
 }
@@ -1069,6 +1719,375 @@ body:is(.theia-dark, .theia-hc) .describo-add-property-drawer {
 }
 
 /* HC-specific interaction accents to match Theia high-contrast behavior. */
+.theia-hc .rocrate-editor .recrate-scope button:hover:not(:disabled),
+.theia-hc .rocrate-editor .recrate-scope .ant-btn:hover:not(:disabled),
+body.hc-black .rocrate-editor .recrate-scope button:hover:not(:disabled),
+body.hc-black .rocrate-editor .recrate-scope .ant-btn:hover:not(:disabled) {
+  background-color: rgba(92, 207, 230, 0.16) !important;
+  border-color: #5ccfe6 !important;
+  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.5) !important;
+  color: var(--recrate-text) !important;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .ant-btn .anticon-check,
+.theia-hc .rocrate-editor .recrate-scope button .anticon-check,
+body.hc-black .rocrate-editor .recrate-scope .ant-btn .anticon-check,
+body.hc-black .rocrate-editor .recrate-scope button .anticon-check {
+  color: #7ee787 !important;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .ant-btn .anticon-delete,
+.theia-hc .rocrate-editor .recrate-scope button .anticon-delete,
+body.hc-black .rocrate-editor .recrate-scope .ant-btn .anticon-delete,
+body.hc-black .rocrate-editor .recrate-scope button .anticon-delete {
+  color: #ff8f8f !important;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .describo-render-item-link .anticon-link,
+body.hc-black .rocrate-editor .recrate-scope .describo-render-item-link .anticon-link {
+  color: #ff8f8f !important;
+}
+
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:has(.anticon-check):hover:not(:disabled),
+.theia-hc .rocrate-editor .recrate-scope button:has(.anticon-check):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:has(.anticon-check):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  button:has(.anticon-check):hover:not(:disabled) {
+  background-color: rgba(63, 185, 80, 0.16) !important;
+  border-color: #7ee787 !important;
+  box-shadow: 0 0 0 1px rgba(126, 231, 135, 0.45) !important;
+}
+
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:has(.anticon-delete):hover:not(:disabled),
+.theia-hc .rocrate-editor .recrate-scope button:has(.anticon-delete):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:has(.anticon-delete):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  button:has(.anticon-delete):hover:not(:disabled) {
+  background-color: rgba(255, 123, 114, 0.16) !important;
+  border-color: #ff8f8f !important;
+  box-shadow: 0 0 0 1px rgba(255, 143, 143, 0.45) !important;
+}
+
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .describo-render-item-link
+  button:has(.anticon-link):hover:not(:disabled),
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .describo-render-item-link
+  .ant-btn:has(.anticon-link):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .describo-render-item-link
+  button:has(.anticon-link):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .describo-render-item-link
+  .ant-btn:has(.anticon-link):hover:not(:disabled) {
+  background-color: rgba(255, 123, 114, 0.16) !important;
+  border-color: #ff8f8f !important;
+  box-shadow: 0 0 0 1px rgba(255, 143, 143, 0.45) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter:hover,
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter:focus-within {
+  border-color: #5ccfe6 !important;
+  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.42) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter
+  .ant-input:focus,
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter
+  input:focus,
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter
+  input:focus-visible {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-quick-settings-actions
+  .ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .describo-quick-settings-actions
+  .ant-btn:not(:disabled):not(.ant-btn-disabled):focus {
+  background-color: rgba(92, 207, 230, 0.16) !important;
+  border-color: #5ccfe6 !important;
+  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.42) !important;
+  color: var(--recrate-text, #ffffff) !important;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .describo-quick-settings-header,
+body.hc-black .rocrate-editor .recrate-scope .describo-quick-settings-header {
+  background: #000000 !important;
+  border-bottom-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow: none !important;
+}
+
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter,
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter {
+  background-color: #000000 !important;
+  border-color: rgba(255, 255, 255, 0.62) !important;
+  color: #ffffff !important;
+}
+
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter:hover,
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter:focus-within,
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter:hover,
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .ant-input-affix-wrapper.describo-quick-settings-filter:focus-within {
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow: 0 0 0 1px rgba(243, 133, 24, 0.72) !important;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .describo-quick-settings-actions .ant-btn,
+body.hc-black .rocrate-editor .recrate-scope .describo-quick-settings-actions .ant-btn {
+  background-color: #000000 !important;
+  border-color: rgba(255, 255, 255, 0.55) !important;
+  color: #ffffff !important;
+}
+
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .describo-quick-settings-actions
+  .ant-btn:disabled,
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .describo-quick-settings-actions
+  .ant-btn.ant-btn-disabled,
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .describo-quick-settings-actions
+  .ant-btn:disabled,
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .describo-quick-settings-actions
+  .ant-btn.ant-btn-disabled {
+  background-color: #000000 !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  color: rgba(255, 255, 255, 0.38) !important;
+}
+
+.theia-hc
+  .ant-select-dropdown
+  .ant-select-item-option-active:not(.ant-select-item-option-disabled):not(
+    :has(.ant-btn-color-green)
+  ),
+.theia-hc
+  .ant-select-dropdown
+  .ant-select-item-option-selected:not(.ant-select-item-option-disabled):not(
+    :has(.ant-btn-color-green)
+  ),
+body.hc-black
+  .ant-select-dropdown
+  .ant-select-item-option-active:not(.ant-select-item-option-disabled):not(
+    :has(.ant-btn-color-green)
+  ),
+body.hc-black
+  .ant-select-dropdown
+  .ant-select-item-option-selected:not(.ant-select-item-option-disabled):not(
+    :has(.ant-btn-color-green)
+  ) {
+  background-color: rgba(127, 127, 127, 0.18) !important;
+  outline: 1px dashed var(--theia-focusBorder, #f38518) !important;
+  outline-offset: -1px;
+}
+
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled) {
+  background-color: rgba(243, 133, 24, 0.16) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow: 0 0 0 1px rgba(243, 133, 24, 0.72) !important;
+  color: var(--recrate-text, #ffffff) !important;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-rail-item,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-rail-item {
+  color: var(--recrate-text, #ffffff) !important;
+  outline: none !important;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-rail-item:hover,
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-rail-item:focus-visible,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-rail-item:hover,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-rail-item:focus-visible {
+  background: rgba(127, 127, 127, 0.18) !important;
+  outline: 1px dashed var(--theia-focusBorder, #f38518) !important;
+  outline-offset: -1px;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-rail-item-active,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-rail-item-active,
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-rail-item-active:hover,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-rail-item-active:hover {
+  background: #000000 !important;
+  color: var(--recrate-text, #ffffff) !important;
+  outline: 1px solid var(--theia-focusBorder, #f38518) !important;
+  outline-offset: -1px;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-rail-item-active::before,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-rail-item-active::before {
+  display: none !important;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .describo-property-help,
+.theia-hc .rocrate-editor .recrate-scope .describo-property-help-more,
+.theia-hc .rocrate-editor .recrate-scope .describo-tab-description,
+body.hc-black .rocrate-editor .recrate-scope .describo-property-help,
+body.hc-black .rocrate-editor .recrate-scope .describo-property-help-more,
+body.hc-black .rocrate-editor .recrate-scope .describo-tab-description {
+  color: var(--recrate-text, #ffffff) !important;
+}
+
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled) {
+  background-color: rgba(243, 133, 24, 0.16) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow: 0 0 0 1px rgba(243, 133, 24, 0.72) !important;
+  color: var(--recrate-text, #ffffff) !important;
+}
+
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  input:not([type="checkbox"]):not([type="radio"]):focus,
+.theia-hc .rocrate-editor .recrate-scope textarea:focus,
+.theia-hc .rocrate-editor .recrate-scope select:focus,
+.theia-hc .rocrate-editor .recrate-scope .ant-input:focus,
+.theia-hc .rocrate-editor .recrate-scope .ant-input-focused,
+.theia-hc .rocrate-editor .recrate-scope .ant-input-affix-wrapper:focus,
+.theia-hc .rocrate-editor .recrate-scope .ant-input-affix-wrapper:focus-within,
+.theia-hc .rocrate-editor .recrate-scope .ant-input-affix-wrapper-focused,
+.theia-hc .rocrate-editor .recrate-scope .ant-picker-focused,
+.theia-hc .rocrate-editor .recrate-scope .ant-picker:focus-within,
+.theia-hc .rocrate-editor .recrate-scope .ant-select-focused .ant-select-selector,
+.theia-hc .rocrate-editor .recrate-scope .focus\:border-green-600:focus,
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  input:not([type="checkbox"]):not([type="radio"]):focus,
+body.hc-black .rocrate-editor .recrate-scope textarea:focus,
+body.hc-black .rocrate-editor .recrate-scope select:focus,
+body.hc-black .rocrate-editor .recrate-scope .ant-input:focus,
+body.hc-black .rocrate-editor .recrate-scope .ant-input-focused,
+body.hc-black .rocrate-editor .recrate-scope .ant-input-affix-wrapper:focus,
+body.hc-black .rocrate-editor .recrate-scope .ant-input-affix-wrapper:focus-within,
+body.hc-black .rocrate-editor .recrate-scope .ant-input-affix-wrapper-focused,
+body.hc-black .rocrate-editor .recrate-scope .ant-picker-focused,
+body.hc-black .rocrate-editor .recrate-scope .ant-picker:focus-within,
+body.hc-black .rocrate-editor .recrate-scope .ant-select-focused .ant-select-selector,
+body.hc-black .rocrate-editor .recrate-scope .focus\:border-green-600:focus {
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow: 0 0 0 1px rgba(243, 133, 24, 0.72) !important;
+  outline: none !important;
+}
+
 .theia-hc .rocrate-editor .recrate-scope .describo-property,
 .theia-hc .rocrate-editor .recrate-scope .describo-property-background {
   border-width: 1px !important;
@@ -1085,7 +2104,11 @@ body:is(.theia-dark, .theia-hc) .describo-add-property-drawer {
 }
 
 .theia-hc .rocrate-editor .recrate-scope .recrate .ant-tabs-tab.ant-tabs-tab-active,
-.theia-hc .rocrate-editor .recrate-scope .recrate .ant-tabs-tab.ant-tabs-tab-active:hover {
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .recrate
+  .ant-tabs-tab.ant-tabs-tab-active:hover {
   border-color: var(--theia-focusBorder, #f38518) !important;
   border-style: solid !important;
 }
@@ -1155,4 +2178,78 @@ body:is(.theia-dark, .theia-hc) .describo-add-property-drawer {
   color: #ff7875;
   background: rgba(255, 77, 79, 0.12);
   border: 1px solid rgba(255, 77, 79, 0.45);
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  input.ant-select-selection-search-input:not([type="checkbox"]):not([type="radio"]):is(
+    :focus,
+    :focus-visible,
+    :active
+  ) {
+  border: 0 !important;
+  border-right: 1px solid #5ccfe6 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  button:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn:not(:has(.anticon-check)):not(:has(.anticon-delete)):not(
+    :has(.anticon-link)
+  ):hover:not(:disabled) {
+  background-color: rgba(243, 133, 24, 0.16) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow: 0 0 0 1px rgba(243, 133, 24, 0.72) !important;
+  color: var(--recrate-text, #ffffff) !important;
+}
+
+.theia-hc .rocrate-editor .recrate-scope .describo-render-item-link .anticon-link,
+body.hc-black .rocrate-editor .recrate-scope .describo-render-item-link .anticon-link {
+  color: #ff8f8f !important;
+}
+
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .describo-render-item-link
+  button:has(.anticon-link):hover:not(:disabled),
+.theia-hc
+  .rocrate-editor
+  .recrate-scope
+  .describo-render-item-link
+  .ant-btn:has(.anticon-link):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .describo-render-item-link
+  button:has(.anticon-link):hover:not(:disabled),
+body.hc-black
+  .rocrate-editor
+  .recrate-scope
+  .describo-render-item-link
+  .ant-btn:has(.anticon-link):hover:not(:disabled) {
+  background-color: rgba(255, 123, 114, 0.16) !important;
+  border-color: #ff8f8f !important;
+  box-shadow: 0 0 0 1px rgba(255, 143, 143, 0.45) !important;
 }

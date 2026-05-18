@@ -151,6 +151,9 @@ function createEntitiesData(
         }
 
         const typeEntries = getEntityTypeEntries(entry, profile)
+        const entityTypes = typeEntries.map((typeEntry) => typeEntry.key)
+        const encodingFormat =
+            typeof entry?.encodingFormat === 'string' ? String(entry.encodingFormat) : undefined
         if (normalizedTypeFilters.size > 0) {
             const hasMatchingType = typeEntries.some((typeEntry) =>
                 normalizedTypeFilters.has(typeEntry.label.toLowerCase()),
@@ -175,6 +178,8 @@ function createEntitiesData(
             group.items.push({
                 name: displayName,
                 entityId,
+                entityTypes,
+                encodingFormat,
                 description,
                 valid,
                 // keep main's stable ids

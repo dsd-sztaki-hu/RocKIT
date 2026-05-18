@@ -10,6 +10,8 @@ import { ExampleTreeLeaf, ExampleTreeNode } from './entities-overview-model';
 export interface Item {
   name: string // name of the category/container or item
   entityId?: string // entity identifier from the RO-Crate graph
+  entityTypes?: string[] // raw @type values from the RO-Crate graph
+  encodingFormat?: string // optional encodingFormat for File entities
   description?: string // optional description for later actions
   children?: Item[] // the directly contained items; only defined for categories/containers
   valid?: boolean // whether the item is valid (to demonstrate decoration, ...); only defined for items

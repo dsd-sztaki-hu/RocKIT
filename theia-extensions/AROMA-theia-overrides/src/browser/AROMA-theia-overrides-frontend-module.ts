@@ -8,6 +8,7 @@ import { RoCrateDefaultLayoutContribution } from './application-default-layout-c
 import { ApplicationEditMenuOverrides } from './application-edit-menu-overrides'
 import { ApplicationFileMenuOverrides } from './application-file-menu-overrides'
 import { ApplicationViewMenuOverrides } from './application-view-menu-overrides'
+import { FileEditorLanguageContribution } from './file-editor-language-contribution'
 
 export default new ContainerModule((bind) => {
   bind(ApplicationEditMenuOverrides).toSelf().inSingletonScope()
@@ -23,4 +24,6 @@ export default new ContainerModule((bind) => {
   bind(ShellLayoutTransformer).toService(ApplicationViewMenuOverrides)
   bind(RoCrateDefaultLayoutContribution).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(RoCrateDefaultLayoutContribution)
+  bind(FileEditorLanguageContribution).toSelf().inSingletonScope()
+  bind(FrontendApplicationContribution).toService(FileEditorLanguageContribution)
 })

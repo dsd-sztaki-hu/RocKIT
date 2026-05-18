@@ -1,0 +1,11 @@
+/*
+ * Multi Edit currently reuses the shared entities-overview-edit-modal-* class
+ * names from the entities overview modal system. The actual shared modal CSS is
+ * therefore still in:
+ *
+ *   theia-extensions/entities-overview/src/browser/styles/entities-overview-widget.css
+ *
+ * Keep this file as the Multi Edit styling entry point. Do not duplicate the
+ * shared rules here; move rules here only after the Multi Edit dialog receives
+ * its own multi-edit-* class names.
+ */
