@@ -28,7 +28,6 @@ export function collectRoCrateExportFileReferences(
       : []
 
   const includeMetadataFile = options.includeMetadataFile === true
-  const seenEntryPaths = new Set<string>()
   const references: RoCrateExportFileReference[] = []
 
   for (const entry of graph) {
@@ -42,17 +41,11 @@ export function collectRoCrateExportFileReferences(
       continue
     }
 
-    const dedupeKey = entryPath.toLowerCase()
-    if (seenEntryPaths.has(dedupeKey)) {
-      continue
-    }
-
     const sources = collectSources(entry, entityId, entryPath)
     if (!sources.length) {
       continue
     }
 
-    seenEntryPaths.add(dedupeKey)
     references.push({
       entityId: entityId || entryPath,
       entryPath,

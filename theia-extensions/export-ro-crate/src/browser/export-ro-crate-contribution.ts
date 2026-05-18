@@ -458,6 +458,9 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     }
     const includeWorkspaceSources = options.includeWorkspaceSources !== false
     const includeLocalSources = options.includeLocalSources === true
+    const usedEntryPaths = this.collectZipEntryPaths(zip)
+    const importedSourcePaths = new Map<string, string>()
+    let importedResourcesPrefix: string | undefined
 
     let added = 0
     for (const reference of collectRoCrateExportFileReferences(roCrate)) {
@@ -465,11 +468,6 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
         shouldOmit(reference.entryPath, false) &&
         !this.isForcedNormalExportFile(reference.entryPath)
       ) {
-        continue
-      }
-
-      const zipEntryPath = `${prefix}${reference.entryPath}`
-      if (zip.file(zipEntryPath)) {
         continue
       }
 
@@ -482,8 +480,8 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
         continue
       }
 
-      const content = await this.readReferencedFile(rootUri, sources)
-      if (!content) {
+      const resolved = await this.readReferencedFile(rootUri, sources)
+      if (!resolved) {
         console.warn(
           'Skipping unresolved file referenced in RO-Crate metadata',
           reference.entityId,
@@ -492,11 +490,115 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
         continue
       }
 
-      zip.file(zipEntryPath, content)
+      let zipEntryPath = `${prefix}${reference.entryPath}`
+      if (resolved.source.kind === 'local') {
+        const sourceKey = this.normalizeImportedSourceKey(resolved.source.value)
+        const existingImportedPath = importedSourcePaths.get(sourceKey)
+        if (existingImportedPath) {
+          continue
+        }
+
+        importedResourcesPrefix ??= await this.resolveImportedResourcesPrefix(
+          zip,
+          rootUri,
+          prefix,
+        )
+        zipEntryPath = this.createUniqueImportedResourceEntryPath(
+          importedResourcesPrefix,
+          reference,
+          resolved.source,
+          usedEntryPaths,
+        )
+        importedSourcePaths.set(sourceKey, zipEntryPath)
+      }
+
+      if (usedEntryPaths.has(zipEntryPath.toLowerCase()) || zip.file(zipEntryPath)) {
+        continue
+      }
+
+      zip.file(zipEntryPath, resolved.content)
+      usedEntryPaths.add(zipEntryPath.toLowerCase())
       added += 1
     }
 
     return added
+  }
+
+  protected collectZipEntryPaths(zip: JSZip): Set<string> {
+    const files = (zip as unknown as { files?: Record<string, unknown> }).files ?? {}
+    return new Set(Object.keys(files).map((entry) => entry.toLowerCase()))
+  }
+
+  protected async resolveImportedResourcesPrefix(
+    zip: JSZip,
+    rootUri: URI,
+    prefix: string,
+  ): Promise<string> {
+    const existing = this.collectZipEntryPaths(zip)
+    for (let index = 0; index < 1000; index += 1) {
+      const directoryName = index === 0 ? 'imported_resources' : `imported_resources_${index}`
+      const relativeDirectoryPath = `${directoryName}/`
+      const zipDirectoryPath = `${prefix}${relativeDirectoryPath}`
+      if (
+        existing.has(zipDirectoryPath.toLowerCase()) ||
+        this.hasZipEntryUnder(zip, zipDirectoryPath) ||
+        (await this.fileService.exists(rootUri.resolve(directoryName)))
+      ) {
+        continue
+      }
+      return zipDirectoryPath
+    }
+    return `${prefix}imported_resources_${Date.now()}/`
+  }
+
+  protected hasZipEntryUnder(zip: JSZip, directoryPath: string): boolean {
+    const normalized = directoryPath.toLowerCase()
+    return Array.from(this.collectZipEntryPaths(zip)).some((entry) =>
+      entry.startsWith(normalized),
+    )
+  }
+
+  protected createUniqueImportedResourceEntryPath(
+    importedResourcesPrefix: string,
+    reference: { entryPath: string },
+    source: RoCrateExportFileSource,
+    usedEntryPaths: Set<string>,
+  ): string {
+    const rawName = this.getImportedResourceFileName(reference.entryPath, source.value)
+    const { baseName, extension } = this.splitFileName(rawName)
+
+    for (let index = 0; index < 10000; index += 1) {
+      const candidateName =
+        index === 0 ? `${baseName}${extension}` : `${baseName}_${index}${extension}`
+      const candidatePath = `${importedResourcesPrefix}${candidateName}`
+      if (!usedEntryPaths.has(candidatePath.toLowerCase())) {
+        return candidatePath
+      }
+    }
+
+    return `${importedResourcesPrefix}${baseName}_${Date.now()}${extension}`
+  }
+
+  protected getImportedResourceFileName(entryPath: string, sourceValue: string): string {
+    const candidate = entryPath || sourceValue
+    const normalized = candidate.replace(/\\/g, '/').replace(/\/+$/, '')
+    const fileName = normalized.split('/').filter(Boolean).pop() || 'imported_resource'
+    return fileName.replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_') || 'imported_resource'
+  }
+
+  protected splitFileName(fileName: string): { baseName: string; extension: string } {
+    const lastDot = fileName.lastIndexOf('.')
+    if (lastDot <= 0 || lastDot === fileName.length - 1) {
+      return { baseName: fileName, extension: '' }
+    }
+    return {
+      baseName: fileName.slice(0, lastDot),
+      extension: fileName.slice(lastDot),
+    }
+  }
+
+  protected normalizeImportedSourceKey(value: string): string {
+    return value.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
   }
 
   protected async readMetadataCrate(rootUri: URI): Promise<Record<string, any> | undefined> {
@@ -512,7 +614,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
   protected async readReferencedFile(
     rootUri: URI,
     sources: readonly RoCrateExportFileSource[],
-  ): Promise<Uint8Array | undefined> {
+  ): Promise<{ content: Uint8Array; source: RoCrateExportFileSource } | undefined> {
     for (const source of sources) {
       try {
         const uri =
@@ -529,7 +631,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
         }
 
         const content = await this.fileService.readFile(uri)
-        return content.value.buffer
+        return { content: content.value.buffer, source }
       } catch (error) {
         console.warn('Failed to read referenced RO-Crate file', source.value, error)
       }
