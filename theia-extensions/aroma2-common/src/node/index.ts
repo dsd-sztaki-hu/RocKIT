@@ -4,6 +4,7 @@ export * from '../common/application-reset-protocol';
 export * from '../common/secure-storage-protocol';
 export * from '../common/schema-validator-protocol';
 export * from '../common/rocrate-mcp-config';
+export * from '../common/ro-crate-export-file-references';
 export * from './secure-storage-service-impl';
 export * from './application-reset-service-impl';
 export * from './rocrate-mcp-daemon-manager';
