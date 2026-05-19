@@ -52,14 +52,9 @@ export class ApplicationViewMenuOverrides
 
   protected readonly topViewItems: readonly ViewMenuItem[] = [
     {
-      commandId: 'schema-validator:command',
-      label: 'Schema Validator Widget',
-      order: 'a01',
-    },
-    {
       commandId: 'property-view:toggle',
       label: 'File Preview',
-      order: 'a02',
+      order: 'a01',
     },
   ]
 

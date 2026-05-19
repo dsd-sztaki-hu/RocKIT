@@ -35,24 +35,29 @@ export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
     order: 'a04',
   },
   {
+    commandId: 'schema-validator:command',
+    label: 'Validation Errors',
+    order: 'a05',
+  },
+  {
     commandId: 'metadata-schema-manager:open',
     label: 'Metadata Schema Manager',
-    order: 'a05',
+    order: 'a06',
   },
   {
     commandId: 'data-repository-manager:open',
     label: 'Data Repository Manager',
-    order: 'a06',
+    order: 'a07',
   },
   {
     commandId: 'RO-Crate Preview',
     label: 'RO-Crate Preview',
-    order: 'a07',
+    order: 'a08',
   },
   {
     commandId: 'RemoteRoCrateConversion.command',
     label: 'Remote to Locale Conversion',
-    order: 'a08',
+    order: 'a09',
   },
 ]
 
@@ -60,9 +65,9 @@ export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
 export class ApplicationRoCrateMenuContribution implements MenuContribution {
   registerMenus(menus: MenuModelRegistry): void {
     menus.registerSubmenu(RO_CRATE_MENU_PATH, 'RO-Crate')
-    this.registerMenuGroup(menus, RO_CRATE_WIDGETS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(0, 4))
-    this.registerMenuGroup(menus, RO_CRATE_MANAGERS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(4, 6))
-    this.registerMenuGroup(menus, RO_CRATE_TOOLS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(6))
+    this.registerMenuGroup(menus, RO_CRATE_WIDGETS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(0, 5))
+    this.registerMenuGroup(menus, RO_CRATE_MANAGERS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(5, 7))
+    this.registerMenuGroup(menus, RO_CRATE_TOOLS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(7))
   }
 
   protected registerMenuGroup(
