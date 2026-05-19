@@ -51,6 +51,11 @@ const ResetApplicationCommand: Command = {
   label: 'Reset the application',
 }
 
+const RevertToSavedRoCrateCommand: Command = {
+  id: 'aroma.ro-crate.revert-to-saved',
+  label: 'Revert to saved RO-Crate',
+}
+
 @injectable()
 export class ApplicationFileMenuOverrides implements FrontendApplicationContribution, CommandContribution, MenuContribution {
   @inject(MenuModelRegistry)
@@ -149,12 +154,23 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
   }
 
   registerCommands(commands: CommandRegistry): void {
+    commands.registerCommand(RevertToSavedRoCrateCommand, {
+      execute: () => this.revertToSavedRoCrate(),
+      isEnabled: () => Boolean(this.workspaceService.tryGetRoots()?.[0]?.resource),
+    })
+
     commands.registerCommand(ResetApplicationCommand, {
       execute: () => this.resetApplication(),
     })
   }
 
   registerMenus(menus: MenuModelRegistry): void {
+    menus.registerMenuAction(CommonMenus.FILE, {
+      commandId: RevertToSavedRoCrateCommand.id,
+      label: RevertToSavedRoCrateCommand.label,
+      order: 'z90',
+    })
+
     menus.registerMenuAction(CommonMenus.FILE, {
       commandId: ResetApplicationCommand.id,
       label: ResetApplicationCommand.label,
@@ -221,6 +237,37 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     this.keybindingRegistry.unregisterKeybinding(WorkspaceCommands.OPEN_WORKSPACE.id)
     this.keybindingRegistry.unregisterKeybinding(WorkspaceCommands.ADD_FOLDER.id)
     this.keybindingRegistry.unregisterKeybinding(WorkspaceCommands.SAVE_WORKSPACE_AS.id)
+  }
+
+  protected async revertToSavedRoCrate(): Promise<void> {
+    if (this.hasPotentialUnsavedRoCrateChanges()) {
+      const confirmed = await new ConfirmDialog({
+        title: 'Revert to saved RO-Crate',
+        msg:
+          'This will discard unsaved RO-Crate metadata changes and reload ro-crate-metadata.json from disk. Continue?',
+        ok: 'Revert',
+        cancel: Dialog.CANCEL,
+      }).open()
+
+      if (!confirmed) {
+        return
+      }
+    }
+
+    try {
+      await this.roCrateLoader.revertToSavedRoCrate()
+      await this.messageService.info('Reloaded saved RO-Crate metadata.', {
+        timeout: 3000,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.messageService.error(`Failed to reload saved RO-Crate: ${message}`)
+    }
+  }
+
+  protected hasPotentialUnsavedRoCrateChanges(): boolean {
+    const roCrate = this.appStateService.roCrate
+    return Boolean(roCrate) && this.appStateService.isRoCrateDirty(roCrate)
   }
 
   protected async resetApplication(): Promise<void> {
