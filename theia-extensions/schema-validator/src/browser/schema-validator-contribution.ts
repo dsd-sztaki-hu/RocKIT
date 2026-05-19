@@ -4,7 +4,7 @@ import { SchemaValidatorWidget } from './schema-validator-widget';
 import { AbstractViewContribution } from '@theia/core/lib/browser';
 import { Command, CommandRegistry } from '@theia/core/lib/common/command';
 
-export const SchemaValidatorCommand: Command = { id: 'schema-validator:command' };
+export const SchemaValidatorCommand: Command = { id: 'validation-errors:command' };
 
 @injectable()
 export class SchemaValidatorContribution extends AbstractViewContribution<SchemaValidatorWidget> {
