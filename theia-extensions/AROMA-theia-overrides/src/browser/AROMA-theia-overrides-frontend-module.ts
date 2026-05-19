@@ -7,6 +7,7 @@ import { ContainerModule } from '@theia/core/shared/inversify'
 import { RoCrateDefaultLayoutContribution } from './application-default-layout-contribution'
 import { ApplicationEditMenuOverrides } from './application-edit-menu-overrides'
 import { ApplicationFileMenuOverrides } from './application-file-menu-overrides'
+import { ApplicationRoCrateMenuContribution } from './application-ro-crate-menu-contribution'
 import { ApplicationViewMenuOverrides } from './application-view-menu-overrides'
 import { FileEditorLanguageContribution } from './file-editor-language-contribution'
 
@@ -19,6 +20,8 @@ export default new ContainerModule((bind) => {
   bind(FrontendApplicationContribution).toService(ApplicationFileMenuOverrides)
   bind(CommandContribution).toService(ApplicationFileMenuOverrides)
   bind(MenuContribution).toService(ApplicationFileMenuOverrides)
+  bind(ApplicationRoCrateMenuContribution).toSelf().inSingletonScope()
+  bind(MenuContribution).toService(ApplicationRoCrateMenuContribution)
   bind(ApplicationViewMenuOverrides).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(ApplicationViewMenuOverrides)
   bind(ShellLayoutTransformer).toService(ApplicationViewMenuOverrides)

@@ -11,6 +11,7 @@ import {
 } from '@theia/core/lib/common'
 import { ShellLayoutTransformer } from '@theia/core/lib/browser/shell/shell-layout-restorer'
 import { inject, injectable, named } from '@theia/core/shared/inversify'
+import { RO_CRATE_MENU_ITEMS } from './application-ro-crate-menu-contribution'
 
 type ViewMenuItem = {
   commandId: string
@@ -34,6 +35,11 @@ export class ApplicationViewMenuOverrides
     '0_before_primary_widgets',
   ]
 
+  protected readonly remoteRoCrateConversionMenuPath = [
+    ...CommonMenus.EDIT,
+    '9_remote_ro_crate_conversion',
+  ]
+
   @inject(ContributionProvider)
   @named(FrontendApplicationContribution)
   protected readonly frontendContributions: ContributionProvider<FrontendApplicationContribution>
@@ -45,49 +51,15 @@ export class ApplicationViewMenuOverrides
   protected readonly menuRegistry: MenuModelRegistry
 
   protected readonly topViewItems: readonly ViewMenuItem[] = [
-    { commandId: 'fileNavigator:toggle', label: 'Workspace', order: 'a01' },
-    {
-      commandId: 'theia-examples:treeview-example-view-command-id',
-      label: 'Entities',
-      order: 'a02',
-    },
-    {
-      commandId: 'dataset-panel:command',
-      label: 'Open New RO-Crate Structure Panel',
-      order: 'a03',
-    },
-    {
-      commandId: 'rocrate.openEditor',
-      label: 'Open New RO-Crate Editor',
-      order: 'a04',
-    },
     {
       commandId: 'schema-validator:command',
       label: 'Schema Validator Widget',
-      order: 'a05',
+      order: 'a01',
     },
     {
       commandId: 'property-view:toggle',
       label: 'File Preview',
-      order: 'a06',
-    },
-    {
-      commandId: 'schema-selector:command',
-      label: 'Property Selector Widget',
-      order: 'a07',
-    },
-  ]
-
-  protected readonly bottomViewItems: readonly ViewMenuItem[] = [
-    {
-      commandId: 'metadata-schema-manager:open',
-      label: 'Metadata Schema Manager',
-      order: 'z90',
-    },
-    {
-      commandId: 'data-repository-manager:open',
-      label: 'Data Repository Manager',
-      order: 'z91',
+      order: 'a02',
     },
   ]
 
@@ -97,8 +69,9 @@ export class ApplicationViewMenuOverrides
 
   onStart(): void {
     this.removeOutlineFromViewMenuAndCommands()
-    this.reorderViewMenuItems()
+    this.reorderMenuItems()
     window.setTimeout(() => this.removeOutlineFromViewMenuAndCommands(), 0)
+    window.setTimeout(() => this.reorderMenuItems(), 0)
   }
 
   transformLayoutOnRestore(layoutData: ApplicationShell.LayoutData): void {
@@ -111,13 +84,19 @@ export class ApplicationViewMenuOverrides
     }
   }
 
-  protected reorderViewMenuItems(): void {
-    const orderedItems = [...this.topViewItems, ...this.bottomViewItems]
+  protected reorderMenuItems(): void {
+    const orderedItems = [...this.topViewItems, ...RO_CRATE_MENU_ITEMS]
 
     for (const item of orderedItems) {
       this.menuRegistry.unregisterMenuAction(item.commandId, CommonMenus.VIEW_PRIMARY)
       this.menuRegistry.unregisterMenuAction(item.commandId, CommonMenus.VIEW_VIEWS)
       this.menuRegistry.unregisterMenuAction(item.commandId, CommonMenus.VIEW)
+      this.menuRegistry.unregisterMenuAction(item.commandId, CommonMenus.FILE)
+      this.menuRegistry.unregisterMenuAction(
+        item.commandId,
+        this.remoteRoCrateConversionMenuPath,
+      )
+      this.menuRegistry.unregisterMenuAction(item.commandId, this.viewWidgetsMenuPath)
     }
 
     for (const item of this.topViewItems) {
@@ -128,13 +107,16 @@ export class ApplicationViewMenuOverrides
       })
     }
 
-    for (const item of this.bottomViewItems) {
-      this.menuRegistry.registerMenuAction(CommonMenus.VIEW, {
-        commandId: item.commandId,
-        label: item.label,
-        order: item.order,
-      })
-    }
+    this.menuRegistry.unregisterMenuAction(
+      'schema-selector:command',
+      CommonMenus.VIEW_PRIMARY,
+    )
+    this.menuRegistry.unregisterMenuAction('schema-selector:command', CommonMenus.VIEW_VIEWS)
+    this.menuRegistry.unregisterMenuAction('schema-selector:command', CommonMenus.VIEW)
+    this.menuRegistry.unregisterMenuAction(
+      'schema-selector:command',
+      this.viewWidgetsMenuPath,
+    )
   }
 
   protected removeOutlineFromViewMenuAndCommands(): void {
