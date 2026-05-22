@@ -1,4 +1,5 @@
 import {
+  ApplicationShell,
   CommonCommands,
   CommonMenus,
   ConfirmDialog,
@@ -34,6 +35,7 @@ import {
   AROMA_IGNORE_FILE,
   DEFAULT_IGNORED_ENTRIES as SHARED_DEFAULT_IGNORED_ENTRIES,
 } from 'aroma2-common/lib/common/ro-crate-technical-files'
+import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 
 const DEFAULT_IGNORED_ENTRIES = [
   ...SHARED_DEFAULT_IGNORED_ENTRIES,
@@ -96,6 +98,9 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
 
   @inject(WindowService)
   protected readonly windowService: WindowService
+
+  @inject(ApplicationShell)
+  protected readonly shell: ApplicationShell
 
   protected persistPromise?: Promise<void>
 
@@ -256,6 +261,7 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
 
     try {
       await this.roCrateLoader.revertToSavedRoCrate()
+      this.clearRoCrateEditorDirtyFlags()
       await this.messageService.info('Reloaded saved RO-Crate metadata.', {
         timeout: 3000,
       })
@@ -268,6 +274,15 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
   protected hasPotentialUnsavedRoCrateChanges(): boolean {
     const roCrate = this.appStateService.roCrate
     return Boolean(roCrate) && this.appStateService.isRoCrateDirty(roCrate)
+  }
+
+  protected clearRoCrateEditorDirtyFlags(): void {
+    const crate = this.appStateService.roCrate
+    for (const widget of this.shell.widgets) {
+      if (widget instanceof RoCrateEditorWidget) {
+        widget.resetDirtyStateAfterRoCrateReload(crate)
+      }
+    }
   }
 
   protected async resetApplication(): Promise<void> {
