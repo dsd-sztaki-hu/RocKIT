@@ -1088,7 +1088,6 @@ export class NativeAgentChatWidget extends ReactWidget {
   protected promptHistory: string[] = []
   protected sessionRefreshTimer: number | undefined
   protected sessionRefreshUntil = 0
-  protected roCrateDiskRefreshTimer: number | undefined
   protected readonly deleteChatSessionButton: QuickInputButton = {
     iconClass: 'codicon-trashcan',
     tooltip: 'Delete chat',
@@ -1111,7 +1110,6 @@ export class NativeAgentChatWidget extends ReactWidget {
           this.session = event.session
           this.updateTitle()
           this.update()
-          this.scheduleRoCrateDiskRefresh()
           if (event.session.status === 'running') {
             this.keepRefreshingRunningSession()
           }
@@ -1139,7 +1137,6 @@ export class NativeAgentChatWidget extends ReactWidget {
     this.toDispose.push(
       this.connectionSource.onSocketDidOpen(() => {
         this.scheduleSessionRefresh(250)
-        this.scheduleRoCrateDiskRefresh(500)
       }),
     )
     void this.appStateService.ready.then(() => this.update())
@@ -1156,7 +1153,6 @@ export class NativeAgentChatWidget extends ReactWidget {
     await this.refreshPromptHistory()
     this.updateTitle()
     this.update()
-    this.scheduleRoCrateDiskRefresh()
     void this.maybePromptForDataverseCrateReplacement()
   }
 
@@ -1172,10 +1168,6 @@ export class NativeAgentChatWidget extends ReactWidget {
     if (this.sessionRefreshTimer !== undefined) {
       window.clearTimeout(this.sessionRefreshTimer)
       this.sessionRefreshTimer = undefined
-    }
-    if (this.roCrateDiskRefreshTimer !== undefined) {
-      window.clearTimeout(this.roCrateDiskRefreshTimer)
-      this.roCrateDiskRefreshTimer = undefined
     }
   }
 
@@ -1373,7 +1365,6 @@ export class NativeAgentChatWidget extends ReactWidget {
     await this.refreshPromptHistory()
     this.updateTitle()
     this.update()
-    this.scheduleRoCrateDiskRefresh()
   }
 
   protected async reopenChatSession(sessionId: string): Promise<void> {
@@ -1388,7 +1379,6 @@ export class NativeAgentChatWidget extends ReactWidget {
     await this.refreshPromptHistory()
     this.updateTitle()
     this.update()
-    this.scheduleRoCrateDiskRefresh()
   }
 
   protected truncateForPick(text: string, maxLength: number): string {
@@ -1508,7 +1498,6 @@ export class NativeAgentChatWidget extends ReactWidget {
         this.update()
         void this.maybePromptForDataverseCrateReplacement()
       }
-      this.scheduleRoCrateDiskRefresh()
       if (this.session?.status === 'running' && Date.now() < this.sessionRefreshUntil) {
         this.scheduleSessionRefresh(1000)
       }
@@ -1516,56 +1505,6 @@ export class NativeAgentChatWidget extends ReactWidget {
       if (Date.now() < this.sessionRefreshUntil) {
         this.scheduleSessionRefresh(1000)
       }
-    }
-  }
-
-  protected scheduleRoCrateDiskRefresh(delay = 750): void {
-    if (this.roCrateDiskRefreshTimer !== undefined) {
-      window.clearTimeout(this.roCrateDiskRefreshTimer)
-    }
-    this.roCrateDiskRefreshTimer = window.setTimeout(() => {
-      this.roCrateDiskRefreshTimer = undefined
-      void this.reloadRoCrateFromDiskIfChanged()
-    }, delay)
-  }
-
-  protected async reloadRoCrateFromDiskIfChanged(): Promise<void> {
-    if (this.isDisposed) {
-      return
-    }
-    const metadataUri =
-      this.workspaceService.tryGetRoots()?.[0]?.resource.resolve('ro-crate-metadata.json') ??
-      FileUri.create(this.cwd).resolve('ro-crate-metadata.json')
-    try {
-      if (!(await this.fileService.exists(metadataUri))) {
-        return
-      }
-      const content = await this.fileService.read(metadataUri)
-      const crate = JSON.parse(content.value)
-      const next = this.normalizeJson(crate)
-      if (!next || next === this.normalizeJson(this.appStateService.roCrate)) {
-        return
-      }
-      if (this.appStateService.isRoCrateDirty(this.appStateService.roCrate)) {
-        return
-      }
-      this.appStateService.roCrate = crate
-      this.appStateService.setRoCrateSnapshot(crate)
-      this.appStateService.dirty = false
-      this.update()
-    } catch (error) {
-      console.warn('NativeAgentChatWidget: failed to refresh RO-Crate from disk', error)
-    }
-  }
-
-  protected normalizeJson(value: unknown): string | undefined {
-    if (!value) {
-      return undefined
-    }
-    try {
-      return JSON.stringify(value)
-    } catch {
-      return undefined
     }
   }
 
@@ -1913,7 +1852,6 @@ export class NativeAgentChatWidget extends ReactWidget {
     await this.refreshPromptHistory()
     this.update()
     this.scheduleSessionRefresh(750)
-    this.scheduleRoCrateDiskRefresh()
     void this.maybePromptForDataverseCrateReplacement()
   }
 
