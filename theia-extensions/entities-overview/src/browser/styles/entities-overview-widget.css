@@ -191,6 +191,62 @@ body.hc-black .entities-overview-edit-button.ant-btn {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 
+body.vs-dark .entities-overview-edit-button.ant-btn:not(:disabled):hover,
+body.vs-dark .entities-overview-edit-button.ant-btn:not(:disabled):focus,
+body.vs-dark .entities-overview-edit-button.ant-btn:not(:disabled):focus-visible,
+body.vs-dark .entities-overview-filter-toggle .ant-btn:not(:disabled):hover,
+body.vs-dark .entities-overview-filter-toggle .ant-btn:not(:disabled):focus,
+body.vs-dark .entities-overview-filter-toggle .ant-btn:not(:disabled):focus-visible,
+body.vs-dark .entities-overview-advanced-button.ant-btn:not(:disabled):hover,
+body.vs-dark .entities-overview-advanced-button.ant-btn:not(:disabled):focus,
+body.vs-dark .entities-overview-advanced-button.ant-btn:not(:disabled):focus-visible,
+body.hc-black .entities-overview-edit-button.ant-btn:not(:disabled):hover,
+body.hc-black .entities-overview-edit-button.ant-btn:not(:disabled):focus,
+body.hc-black .entities-overview-edit-button.ant-btn:not(:disabled):focus-visible,
+body.hc-black .entities-overview-filter-toggle .ant-btn:not(:disabled):hover,
+body.hc-black .entities-overview-filter-toggle .ant-btn:not(:disabled):focus,
+body.hc-black .entities-overview-filter-toggle .ant-btn:not(:disabled):focus-visible,
+body.hc-black .entities-overview-advanced-button.ant-btn:not(:disabled):hover,
+body.hc-black .entities-overview-advanced-button.ant-btn:not(:disabled):focus,
+body.hc-black .entities-overview-advanced-button.ant-btn:not(:disabled):focus-visible {
+  background: rgba(92, 207, 230, 0.1) !important;
+  border-color: rgba(92, 207, 230, 0.62) !important;
+  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.16) !important;
+  color: var(--theia-ui-font-color1) !important;
+}
+
+body.vs-dark .entities-overview-filter-toggle .ant-btn-primary:not(:disabled),
+body.hc-black .entities-overview-filter-toggle .ant-btn-primary:not(:disabled) {
+  background: rgba(92, 207, 230, 0.16) !important;
+  border-color: rgba(92, 207, 230, 0.72) !important;
+  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.22) !important;
+  color: var(--theia-ui-font-color1) !important;
+}
+
+body.hc-black .entities-overview-filter-toggle .ant-btn:not(:disabled) {
+  background: #000000 !important;
+  border-color: rgba(255, 255, 255, 0.62) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14) !important;
+}
+
+body.hc-black .entities-overview-filter-toggle .ant-btn-primary:not(:disabled) {
+  background: rgba(243, 133, 24, 0.34) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  color: #ffffff !important;
+  box-shadow:
+    inset 0 0 0 1px var(--theia-focusBorder, #f38518),
+    0 0 0 1px rgba(243, 133, 24, 0.72) !important;
+}
+
+body.hc-black .entities-overview-filter-toggle .ant-btn:not(:disabled):hover,
+body.hc-black .entities-overview-filter-toggle .ant-btn:not(:disabled):focus,
+body.hc-black .entities-overview-filter-toggle .ant-btn:not(:disabled):focus-visible {
+  background: rgba(243, 133, 24, 0.16) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  color: #ffffff !important;
+}
+
 .entities-overview-advanced-button-wrap {
   flex: 1 1 0;
   max-width: 0;
@@ -219,21 +275,28 @@ body.hc-black .entities-overview-edit-button.ant-btn {
 }
 
 .entities-overview-filter-actions.is-advanced .entities-overview-filter-clear {
-  flex: 1 1 0;
+  flex: 0.9 1 0;
   min-width: 0;
-  width: 0;
+  width: auto;
   max-width: none;
   order: 2;
 }
 
 .entities-overview-filter-actions.is-advanced .entities-overview-advanced-button-wrap {
-  flex: 1 1 0;
+  flex: 1.1 1 0;
   min-width: 0;
-  width: 0;
+  width: auto;
 }
 
 .entities-overview-filter-actions.is-advanced .entities-overview-advanced-button {
   width: 100%;
+  white-space: nowrap;
+  padding-inline: 12px;
+}
+
+.entities-overview-filter-actions.is-advanced .entities-overview-filter-clear.ant-btn {
+  white-space: nowrap;
+  padding-inline: 10px;
 }
 
 .entities-overview-filter-clear {
@@ -256,6 +319,7 @@ body.hc-black .entities-overview-edit-button.ant-btn {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .entities-overview-filter-label {
@@ -268,6 +332,8 @@ body.hc-black .entities-overview-edit-button.ant-btn {
 
 .entities-overview-filter-input {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 4px 6px;
   border-radius: 4px;
   border: 1px solid var(--theia-ui-border);
@@ -286,10 +352,12 @@ body.hc-black .entities-overview-edit-button.ant-btn {
 
 .entities-overview-type-select {
   width: 100%;
+  min-width: 0;
 }
 
 .entities-overview-validity-select {
   width: 100%;
+  min-width: 0;
   height: 32px !important;
   min-height: 32px !important;
 }
@@ -391,10 +459,90 @@ body.hc-black .entities-overview-edit-button.ant-btn {
   color: var(--theia-selection-foreground, var(--theia-ui-font-color1));
 }
 
+body.hc-black .entities-overview-filter-input,
+body.hc-black .entities-overview-type-select .ant-select-selector,
+body.hc-black .entities-overview-validity-select .ant-select-selector {
+  background: #000000 !important;
+  border-color: rgba(255, 255, 255, 0.62) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
+}
+
+body.hc-black .entities-overview-filter-input:hover,
+body.hc-black .entities-overview-type-select .ant-select-selector:hover,
+body.hc-black .entities-overview-validity-select .ant-select-selector:hover {
+  border-color: rgba(255, 255, 255, 0.86) !important;
+}
+
+body.hc-black .entities-overview-filter-input:focus {
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  outline: none !important;
+  box-shadow:
+    inset 0 0 0 1px var(--theia-focusBorder, #f38518),
+    0 0 0 1px rgba(243, 133, 24, 0.72) !important;
+}
+
+body.hc-black .entities-overview-type-select.ant-select-focused .ant-select-selector,
+body.hc-black .entities-overview-validity-select.ant-select-focused .ant-select-selector,
+body.hc-black .entities-overview-type-select.ant-select-open .ant-select-selector,
+body.hc-black .entities-overview-validity-select.ant-select-open .ant-select-selector {
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow:
+    inset 0 0 0 1px var(--theia-focusBorder, #f38518),
+    0 0 0 1px rgba(243, 133, 24, 0.72) !important;
+}
+
+body.hc-black .entities-overview-filter-input::placeholder,
+body.hc-black .entities-overview-type-select .ant-select-selection-placeholder,
+body.hc-black .entities-overview-validity-select .ant-select-selection-placeholder {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+body.hc-black .entities-overview-filter-dropdown {
+  background: #000000;
+  border-color: rgba(255, 255, 255, 0.62);
+}
+
+body.hc-black .entities-overview-filter-dropdown .ant-select-item {
+  color: #ffffff;
+}
+
+body.hc-black
+  .entities-overview-filter-dropdown
+  .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+body.hc-black
+  .entities-overview-filter-dropdown
+  .ant-select-item-option:not(.ant-select-item-option-disabled):hover {
+  background: rgba(243, 133, 24, 0.18) !important;
+}
+
+body.hc-black
+  .entities-overview-filter-dropdown
+  .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background: rgba(243, 133, 24, 0.28) !important;
+  outline: 1px solid var(--theia-focusBorder, #f38518);
+  outline-offset: -1px;
+}
+
+body.hc-black
+  .entities-overview-filter-dropdown
+  .ant-select-item-option-selected.ant-select-item-option-active:not(
+    .ant-select-item-option-disabled
+  ),
+body.hc-black
+  .entities-overview-filter-dropdown
+  .ant-select-item-option-selected:not(.ant-select-item-option-disabled):hover {
+  background: rgba(243, 133, 24, 0.34) !important;
+}
+
 body.vs-dark .entities-overview-type-select .ant-select-selection-item,
 body.hc-black .entities-overview-type-select .ant-select-selection-item {
   background: rgba(255, 255, 255, 0.08) !important;
   color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.entities-overview-entity-icon {
+  margin-right: 2px;
 }
 
 body.vs .entities-overview-type-select .ant-select-selection-item {
@@ -413,7 +561,8 @@ body.vs .entities-overview-type-select .ant-select-selection-item-remove {
 }
 
 .lm-TabBar-toolbar .item > [id="entities-overview:toggle-filters"],
-.lm-TabBar-toolbar .item > [id="entities-overview:collapse-all"] {
+.lm-TabBar-toolbar .item > [id="entities-overview:collapse-all"],
+.lm-TabBar-toolbar .item > [id="entities-overview:expand-all"] {
   background-color: transparent !important;
   border-radius: 4px;
   width: calc(var(--theia-icon-size) + 4px);
@@ -436,7 +585,8 @@ body.vs .entities-overview-type-select .ant-select-selection-item-remove {
 }
 
 .lm-TabBar-toolbar .item > [id="entities-overview:toggle-filters"]:hover,
-.lm-TabBar-toolbar .item > [id="entities-overview:collapse-all"]:hover {
+.lm-TabBar-toolbar .item > [id="entities-overview:collapse-all"]:hover,
+.lm-TabBar-toolbar .item > [id="entities-overview:expand-all"]:hover {
   background-color: var(--theia-toolbar-hoverBackground) !important;
 }
 
@@ -467,10 +617,100 @@ body.entities-overview-filters-visible
   justify-content: center;
   width: 18px;
   height: 18px;
-  margin-right: 6px;
+  margin-right: 2px;
   color: #d32f2f;
   line-height: 18px;
   font-size: 16px;
+}
+
+.entities-overview-entity-icon.file-icon {
+  margin-right: 4px;
+  opacity: 0.9;
+}
+
+.entities-overview-file-icon--code,
+.entities-overview-folder-icon--code,
+.entities-overview-file-icon--media,
+.entities-overview-folder-icon--media {
+  color: var(--theia-terminal-ansiBlue, #4ea8de);
+}
+
+.entities-overview-file-icon--script,
+.entities-overview-folder-icon--test {
+  color: var(--theia-terminal-ansiYellow, #d7ba7d);
+}
+
+.entities-overview-file-icon--data,
+.entities-overview-folder-icon--package {
+  color: var(--theia-terminal-ansiMagenta, #c586c0);
+}
+
+.entities-overview-file-icon--database,
+.entities-overview-folder-icon--data {
+  color: var(--theia-terminal-ansiCyan, #4ec9b0);
+}
+
+.entities-overview-file-icon--document,
+.entities-overview-folder-icon--document {
+  color: var(--theia-terminal-ansiGreen, #89d185);
+}
+
+.entities-overview-file-icon--text,
+.entities-overview-file-icon--config,
+.entities-overview-folder-icon--config {
+  color: var(--theia-terminal-ansiWhite, #d4d4d4);
+}
+
+.entities-overview-file-icon--archive,
+.entities-overview-file-icon--binary {
+  color: var(--theia-terminal-ansiRed, #f48771);
+}
+
+.theia-TreeNode.theia-mod-selected .entities-overview-entity-icon.file-icon {
+  color: inherit;
+  opacity: 1;
+}
+
+body.hc-black .entities-overview-entity-icon.file-icon {
+  opacity: 1;
+}
+
+body.hc-black .entities-overview-file-icon--code,
+body.hc-black .entities-overview-folder-icon--code,
+body.hc-black .entities-overview-file-icon--media,
+body.hc-black .entities-overview-folder-icon--media {
+  color: #66c2ff;
+}
+
+body.hc-black .entities-overview-file-icon--script,
+body.hc-black .entities-overview-folder-icon--test {
+  color: #ffd866;
+}
+
+body.hc-black .entities-overview-file-icon--data,
+body.hc-black .entities-overview-folder-icon--package {
+  color: #e6a8ff;
+}
+
+body.hc-black .entities-overview-file-icon--database,
+body.hc-black .entities-overview-folder-icon--data {
+  color: #5ce1d8;
+}
+
+body.hc-black .entities-overview-file-icon--document,
+body.hc-black .entities-overview-folder-icon--document {
+  color: #7ee787;
+}
+
+body.hc-black .entities-overview-file-icon--text,
+body.hc-black .entities-overview-file-icon--config,
+body.hc-black .entities-overview-folder-icon--config {
+  color: #ffffff;
+}
+
+body.hc-black .entities-overview-file-icon--archive,
+body.hc-black .entities-overview-file-icon--binary {
+  color: #ff8f8f;
 }
 
 .entities-overview-edit-modal-body {
@@ -866,7 +1106,9 @@ body.entities-overview-filters-visible
 .entities-overview-edit-modal-row-order {
   width: 24px;
   display: flex;
-  align-self: stretch;
+  align-self: flex-start;
+  height: 36px;
+  min-height: 36px;
   align-items: center;
   justify-content: center;
   text-align: center;
@@ -878,6 +1120,60 @@ body.entities-overview-filters-visible
 .entities-overview-edit-modal-value {
   flex: 1 1 auto;
   min-width: 320px;
+}
+
+.entities-overview-edit-modal-value-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.entities-overview-edit-modal-value-kind {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.entities-overview-edit-modal-value-kind-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  border: 1px solid rgba(22, 119, 255, 0.28);
+  border-radius: 6px;
+  background: rgba(22, 119, 255, 0.12);
+  color: #1677ff;
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.entities-overview-edit-modal-value-kind-button .codicon {
+  font-size: 12px;
+}
+
+.entities-overview-edit-modal-value-kind-button:hover {
+  background: rgba(22, 119, 255, 0.2);
+  border-color: rgba(22, 119, 255, 0.4);
+}
+
+.entities-overview-edit-modal-value-kind-button.is-active {
+  background: #1677ff;
+  border-color: #1677ff;
+  color: #ffffff;
+}
+
+.entities-overview-edit-modal-value-kind-button:focus,
+.entities-overview-edit-modal-value-kind-button:focus-visible {
+  outline: 2px solid rgba(22, 119, 255, 0.35);
+  outline-offset: 1px;
 }
 
 .entities-overview-edit-modal-value .ant-select,
@@ -914,6 +1210,345 @@ body.entities-overview-filters-visible
 
 .entities-overview-edit-modal-value .ant-input-outlined input {
   height: 100%;
+}
+
+body.vs-dark .entities-overview-edit-modal-body,
+body.vs-dark .entities-overview-advanced-modal-body,
+body.hc-black .entities-overview-edit-modal-body,
+body.hc-black .entities-overview-advanced-modal-body {
+  --entities-overview-modal-field-bg: var(--theia-input-background, #1f1f1f);
+  --entities-overview-modal-field-fg: var(--theia-input-foreground, #d4d4d4);
+  --entities-overview-modal-field-muted: var(
+    --theia-input-placeholderForeground,
+    #a6a6a6
+  );
+  --entities-overview-modal-field-border: var(
+    --theia-ui-border,
+    rgba(127, 127, 127, 0.42)
+  );
+  --entities-overview-modal-field-hover-border: rgba(92, 207, 230, 0.62);
+  --entities-overview-modal-field-focus-shadow: 0 0 0 1px rgba(92, 207, 230, 0.2);
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-input,
+body.vs-dark .entities-overview-edit-modal-body .ant-input-affix-wrapper,
+body.vs-dark .entities-overview-edit-modal-body .ant-input-number,
+body.vs-dark .entities-overview-edit-modal-body .ant-input-number-input,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker-input > input,
+body.vs-dark .entities-overview-edit-modal-body .ant-select-selector,
+body.vs-dark .entities-overview-edit-modal-body .ant-select-selection-search-input,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input-affix-wrapper,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input-number,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input-number-input,
+body.vs-dark .entities-overview-advanced-modal-body .ant-picker,
+body.vs-dark .entities-overview-advanced-modal-body .ant-picker-input > input,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-selector,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-selection-search-input,
+body.hc-black .entities-overview-edit-modal-body .ant-input,
+body.hc-black .entities-overview-edit-modal-body .ant-input-affix-wrapper,
+body.hc-black .entities-overview-edit-modal-body .ant-input-number,
+body.hc-black .entities-overview-edit-modal-body .ant-input-number-input,
+body.hc-black .entities-overview-edit-modal-body .ant-picker,
+body.hc-black .entities-overview-edit-modal-body .ant-picker-input > input,
+body.hc-black .entities-overview-edit-modal-body .ant-select-selector,
+body.hc-black .entities-overview-edit-modal-body .ant-select-selection-search-input,
+body.hc-black .entities-overview-advanced-modal-body .ant-input,
+body.hc-black .entities-overview-advanced-modal-body .ant-input-affix-wrapper,
+body.hc-black .entities-overview-advanced-modal-body .ant-input-number,
+body.hc-black .entities-overview-advanced-modal-body .ant-input-number-input,
+body.hc-black .entities-overview-advanced-modal-body .ant-picker,
+body.hc-black .entities-overview-advanced-modal-body .ant-picker-input > input,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-selector,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-selection-search-input {
+  background-color: var(--entities-overview-modal-field-bg) !important;
+  border-color: var(--entities-overview-modal-field-border) !important;
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-input::placeholder,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker-input > input::placeholder,
+body.vs-dark .entities-overview-edit-modal-body .ant-select-selection-placeholder,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input::placeholder,
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .ant-picker-input
+  > input::placeholder,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-selection-placeholder,
+body.hc-black .entities-overview-edit-modal-body .ant-input::placeholder,
+body.hc-black .entities-overview-edit-modal-body .ant-picker-input > input::placeholder,
+body.hc-black .entities-overview-edit-modal-body .ant-select-selection-placeholder,
+body.hc-black .entities-overview-advanced-modal-body .ant-input::placeholder,
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .ant-picker-input
+  > input::placeholder,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-selection-placeholder {
+  color: var(--entities-overview-modal-field-muted) !important;
+  opacity: 1 !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-select-arrow,
+body.vs-dark .entities-overview-edit-modal-body .ant-select-clear,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker-suffix,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker-clear,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-arrow,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-clear,
+body.vs-dark .entities-overview-advanced-modal-body .ant-picker-suffix,
+body.vs-dark .entities-overview-advanced-modal-body .ant-picker-clear,
+body.hc-black .entities-overview-edit-modal-body .ant-select-arrow,
+body.hc-black .entities-overview-edit-modal-body .ant-select-clear,
+body.hc-black .entities-overview-edit-modal-body .ant-picker-suffix,
+body.hc-black .entities-overview-edit-modal-body .ant-picker-clear,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-arrow,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-clear,
+body.hc-black .entities-overview-advanced-modal-body .ant-picker-suffix,
+body.hc-black .entities-overview-advanced-modal-body .ant-picker-clear {
+  color: var(--entities-overview-modal-field-muted) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-select-selection-item,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-selection-item,
+body.hc-black .entities-overview-edit-modal-body .ant-select-selection-item,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-selection-item {
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark
+  .entities-overview-edit-modal-body
+  .ant-select-multiple
+  .ant-select-selection-item,
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .ant-select-multiple
+  .ant-select-selection-item,
+body.hc-black
+  .entities-overview-edit-modal-body
+  .ant-select-multiple
+  .ant-select-selection-item,
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .ant-select-multiple
+  .ant-select-selection-item {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: var(--entities-overview-modal-field-border) !important;
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-select-selection-item-remove,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-selection-item-remove,
+body.hc-black .entities-overview-edit-modal-body .ant-select-selection-item-remove,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-selection-item-remove {
+  color: var(--entities-overview-modal-field-muted) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-select-focused .ant-select-selector,
+body.vs-dark .entities-overview-edit-modal-body .ant-select-selector:hover,
+body.vs-dark .entities-overview-edit-modal-body .ant-input:focus,
+body.vs-dark .entities-overview-edit-modal-body .ant-input:hover,
+body.vs-dark .entities-overview-edit-modal-body .ant-input-affix-wrapper:focus-within,
+body.vs-dark .entities-overview-edit-modal-body .ant-input-affix-wrapper:hover,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker-focused,
+body.vs-dark .entities-overview-edit-modal-body .ant-picker:hover,
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .ant-select-focused
+  .ant-select-selector,
+body.vs-dark .entities-overview-advanced-modal-body .ant-select-selector:hover,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input:focus,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input:hover,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input-affix-wrapper:focus-within,
+body.vs-dark .entities-overview-advanced-modal-body .ant-input-affix-wrapper:hover,
+body.vs-dark .entities-overview-advanced-modal-body .ant-picker-focused,
+body.vs-dark .entities-overview-advanced-modal-body .ant-picker:hover,
+body.hc-black .entities-overview-edit-modal-body .ant-select-focused .ant-select-selector,
+body.hc-black .entities-overview-edit-modal-body .ant-select-selector:hover,
+body.hc-black .entities-overview-edit-modal-body .ant-input:focus,
+body.hc-black .entities-overview-edit-modal-body .ant-input:hover,
+body.hc-black .entities-overview-edit-modal-body .ant-input-affix-wrapper:focus-within,
+body.hc-black .entities-overview-edit-modal-body .ant-input-affix-wrapper:hover,
+body.hc-black .entities-overview-edit-modal-body .ant-picker-focused,
+body.hc-black .entities-overview-edit-modal-body .ant-picker:hover,
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .ant-select-focused
+  .ant-select-selector,
+body.hc-black .entities-overview-advanced-modal-body .ant-select-selector:hover,
+body.hc-black .entities-overview-advanced-modal-body .ant-input:focus,
+body.hc-black .entities-overview-advanced-modal-body .ant-input:hover,
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .ant-input-affix-wrapper:focus-within,
+body.hc-black .entities-overview-advanced-modal-body .ant-input-affix-wrapper:hover,
+body.hc-black .entities-overview-advanced-modal-body .ant-picker-focused,
+body.hc-black .entities-overview-advanced-modal-body .ant-picker:hover {
+  border-color: var(--entities-overview-modal-field-hover-border) !important;
+  box-shadow: var(--entities-overview-modal-field-focus-shadow) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-default:not(:disabled),
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-dashed:not(:disabled),
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-default:not(:disabled),
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-dashed:not(:disabled),
+body.hc-black .entities-overview-edit-modal-body .ant-btn-default:not(:disabled),
+body.hc-black .entities-overview-edit-modal-body .ant-btn-dashed:not(:disabled),
+body.hc-black .entities-overview-advanced-modal-body .ant-btn-default:not(:disabled),
+body.hc-black .entities-overview-advanced-modal-body .ant-btn-dashed:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: var(--entities-overview-modal-field-border) !important;
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-default:disabled,
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-dashed:disabled,
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-default:disabled,
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-dashed:disabled,
+body.hc-black .entities-overview-edit-modal-body .ant-btn-default:disabled,
+body.hc-black .entities-overview-edit-modal-body .ant-btn-dashed:disabled,
+body.hc-black .entities-overview-advanced-modal-body .ant-btn-default:disabled,
+body.hc-black .entities-overview-advanced-modal-body .ant-btn-dashed:disabled {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  color: rgba(212, 212, 212, 0.52) !important;
+  box-shadow: none !important;
+}
+
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn:disabled,
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn[disabled],
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn:disabled,
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn[disabled] {
+  background: rgba(255, 255, 255, 0.015) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  color: rgba(212, 212, 212, 0.32) !important;
+  opacity: 1 !important;
+}
+
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn:not(:disabled),
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.34) !important;
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-primary:not(:disabled),
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-primary:not(:disabled) {
+  background: rgba(92, 207, 230, 0.22) !important;
+  border-color: rgba(92, 207, 230, 0.72) !important;
+  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.18) !important;
+  color: #ffffff !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-default:not(:disabled):hover,
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-default:not(:disabled):focus,
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-dashed:not(:disabled):hover,
+body.vs-dark .entities-overview-edit-modal-body .ant-btn-dashed:not(:disabled):focus,
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-default:not(:disabled):hover,
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-default:not(:disabled):focus,
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-dashed:not(:disabled):hover,
+body.vs-dark .entities-overview-advanced-modal-body .ant-btn-dashed:not(:disabled):focus,
+body.hc-black .entities-overview-edit-modal-body .ant-btn-default:not(:disabled):hover,
+body.hc-black .entities-overview-edit-modal-body .ant-btn-default:not(:disabled):focus,
+body.hc-black .entities-overview-edit-modal-body .ant-btn-dashed:not(:disabled):hover,
+body.hc-black .entities-overview-edit-modal-body .ant-btn-dashed:not(:disabled):focus,
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .ant-btn-default:not(:disabled):hover,
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .ant-btn-default:not(:disabled):focus,
+body.hc-black .entities-overview-advanced-modal-body .ant-btn-dashed:not(:disabled):hover,
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .ant-btn-dashed:not(:disabled):focus {
+  background: rgba(92, 207, 230, 0.1) !important;
+  border-color: rgba(92, 207, 230, 0.62) !important;
+  box-shadow: 0 0 0 1px rgba(92, 207, 230, 0.16) !important;
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-switch,
+body.vs-dark .entities-overview-advanced-modal-body .ant-switch,
+body.hc-black .entities-overview-edit-modal-body .ant-switch,
+body.hc-black .entities-overview-advanced-modal-body .ant-switch {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid var(--entities-overview-modal-field-border) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-switch .ant-switch-handle::before,
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .ant-switch
+  .ant-switch-handle::before,
+body.hc-black .entities-overview-edit-modal-body .ant-switch .ant-switch-handle::before,
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .ant-switch
+  .ant-switch-handle::before {
+  background: rgba(255, 255, 255, 0.82) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-switch.ant-switch-checked,
+body.vs-dark .entities-overview-advanced-modal-body .ant-switch.ant-switch-checked,
+body.hc-black .entities-overview-edit-modal-body .ant-switch.ant-switch-checked,
+body.hc-black .entities-overview-advanced-modal-body .ant-switch.ant-switch-checked {
+  background: rgba(92, 207, 230, 0.34) !important;
+  border-color: rgba(92, 207, 230, 0.62) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-alert-info,
+body.vs-dark .entities-overview-edit-modal-body .ant-alert-warning,
+body.vs-dark .entities-overview-advanced-modal-body .ant-alert-info,
+body.vs-dark .entities-overview-advanced-modal-body .ant-alert-warning,
+body.hc-black .entities-overview-edit-modal-body .ant-alert-info,
+body.hc-black .entities-overview-edit-modal-body .ant-alert-warning,
+body.hc-black .entities-overview-advanced-modal-body .ant-alert-info,
+body.hc-black .entities-overview-advanced-modal-body .ant-alert-warning {
+  background: rgba(92, 207, 230, 0.08) !important;
+  border-color: rgba(92, 207, 230, 0.28) !important;
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-alert-message,
+body.vs-dark .entities-overview-edit-modal-body .ant-alert-description,
+body.vs-dark .entities-overview-advanced-modal-body .ant-alert-message,
+body.vs-dark .entities-overview-advanced-modal-body .ant-alert-description,
+body.hc-black .entities-overview-edit-modal-body .ant-alert-message,
+body.hc-black .entities-overview-edit-modal-body .ant-alert-description,
+body.hc-black .entities-overview-advanced-modal-body .ant-alert-message,
+body.hc-black .entities-overview-advanced-modal-body .ant-alert-description {
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-body .ant-alert-close-icon,
+body.vs-dark .entities-overview-advanced-modal-body .ant-alert-close-icon,
+body.hc-black .entities-overview-edit-modal-body .ant-alert-close-icon,
+body.hc-black .entities-overview-advanced-modal-body .ant-alert-close-icon {
+  color: var(--entities-overview-modal-field-muted) !important;
 }
 
 .entities-overview-edit-modal-multi-text {
@@ -1318,6 +1953,27 @@ body.entities-overview-filters-visible
   z-index: 6000;
 }
 
+body.vs-dark .entities-overview-edit-modal-dropdown,
+body.hc-black .entities-overview-edit-modal-dropdown {
+  background: var(--theia-dropdown-background, #252526) !important;
+  border: 1px solid var(--theia-ui-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-dropdown .ant-select-item,
+body.hc-black .entities-overview-edit-modal-dropdown .ant-select-item {
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-dropdown .ant-select-item-option-active,
+body.hc-black .entities-overview-edit-modal-dropdown .ant-select-item-option-active {
+  background: rgba(92, 207, 230, 0.12) !important;
+}
+
+body.vs-dark .entities-overview-edit-modal-dropdown .ant-select-item-option-selected,
+body.hc-black .entities-overview-edit-modal-dropdown .ant-select-item-option-selected {
+  background: rgba(92, 207, 230, 0.18) !important;
+}
+
 .entities-overview-edit-modal-dropdown .ant-select-item-group {
   font-size: 11px;
   font-weight: 700;
@@ -1389,4 +2045,143 @@ body.entities-overview-filters-visible
 
 .ant-select-selection-overflow-item {
   height: 32px;
+}
+
+.entities-overview-draggable-entity {
+  cursor: grab;
+}
+
+.entities-overview-draggable-entity:active {
+  cursor: grabbing;
+}
+
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn:not(:disabled):not(.ant-btn-disabled),
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn:not(:disabled):not(.ant-btn-disabled) {
+  background: rgba(92, 207, 230, 0.1) !important;
+  border-color: rgba(92, 207, 230, 0.48) !important;
+  color: #dffaff !important;
+  opacity: 1 !important;
+}
+
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn-primary:not(:disabled):not(.ant-btn-disabled),
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn-primary:not(:disabled):not(.ant-btn-disabled) {
+  background: rgba(92, 207, 230, 0.28) !important;
+  border-color: rgba(92, 207, 230, 0.8) !important;
+  box-shadow: inset 0 0 0 1px rgba(92, 207, 230, 0.24) !important;
+  color: #ffffff !important;
+}
+
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn:is(:disabled, .ant-btn-disabled),
+body.vs-dark
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn[disabled],
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn:is(:disabled, .ant-btn-disabled),
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn[disabled] {
+  background: rgba(0, 0, 0, 0.18) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(212, 212, 212, 0.24) !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn:not(:disabled):not(.ant-btn-disabled) {
+  background: #000000 !important;
+  border-color: rgba(255, 255, 255, 0.55) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
+  opacity: 1 !important;
+}
+
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn-primary:not(:disabled):not(.ant-btn-disabled) {
+  background: rgba(243, 133, 24, 0.34) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  color: #ffffff !important;
+  box-shadow:
+    inset 0 0 0 1px var(--theia-focusBorder, #f38518),
+    0 0 0 1px rgba(243, 133, 24, 0.72) !important;
+}
+
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn:is(:disabled, .ant-btn-disabled),
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn[disabled] {
+  background: transparent !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  color: rgba(255, 255, 255, 0.38) !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+body.hc-black .entities-overview-filter-toggle .ant-btn-primary:not(:disabled),
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn-primary:not(:disabled):not(.ant-btn-disabled) {
+  background: rgba(243, 133, 24, 0.34) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  color: #ffffff !important;
+  box-shadow:
+    inset 0 0 0 1px var(--theia-focusBorder, #f38518),
+    0 0 0 1px rgba(243, 133, 24, 0.72) !important;
+}
+
+body.hc-black .entities-overview-filter-toggle .ant-btn-primary:not(:disabled):hover,
+body.hc-black .entities-overview-filter-toggle .ant-btn-primary:not(:disabled):focus,
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn-primary:not(:disabled):not(.ant-btn-disabled):hover,
+body.hc-black
+  .entities-overview-advanced-modal-body
+  .entities-overview-advanced-group-header
+  .ant-btn-group
+  .ant-btn-primary:not(:disabled):not(.ant-btn-disabled):focus {
+  background: rgba(243, 133, 24, 0.42) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
 }

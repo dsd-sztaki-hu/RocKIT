@@ -50,6 +50,7 @@ export class AppStateService {
                 if (stored) {
                     const {
                         roCrate,
+                        roCrateApproval,
                         ignoreList,
                         profile,
                         selectedEntityId,
@@ -130,6 +131,7 @@ export class AppStateService {
     private toPersistableState(state: AppState): Partial<AppState> {
         const {
             roCrate,
+            roCrateApproval,
             ignoreList,
             profile,
             completeProfile,
@@ -198,6 +200,13 @@ export class AppStateService {
     }
     set roCrate(value: AppState['roCrate']) {
         this.updateState({ roCrate: value })
+    }
+
+    get roCrateApproval(): AppState['roCrateApproval'] {
+        return this.getState().roCrateApproval
+    }
+    set roCrateApproval(value: AppState['roCrateApproval']) {
+        this.updateState({ roCrateApproval: value })
     }
 
     get ignoreList(): AppState['ignoreList'] {
@@ -409,5 +418,12 @@ export class AppStateService {
     }
     set entitiesOverviewFiltersVisible(value: AppState['entitiesOverviewFiltersVisible']) {
         this.updateState({ entitiesOverviewFiltersVisible: value })
+    }
+
+    get nativeAgentActivityExpanded(): AppState['nativeAgentActivityExpanded'] {
+        return this.getState().nativeAgentActivityExpanded
+    }
+    set nativeAgentActivityExpanded(value: AppState['nativeAgentActivityExpanded']) {
+        this.updateState({ nativeAgentActivityExpanded: value })
     }
 }

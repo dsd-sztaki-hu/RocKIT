@@ -5,21 +5,17 @@ import { injectable } from '@theia/core/shared/inversify'
 import type { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceCommands } from '@theia/workspace/lib/browser'
 import type { WorkspaceService } from '@theia/workspace/lib/browser'
+import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import {
+  AROMA_IGNORE_DIR,
+  AROMA_IGNORE_FILE,
+  DEFAULT_IGNORED_ENTRIES,
+  RO_CRATE_APPROVAL_FILE_NAME,
+} from 'aroma2-common/lib/common/ro-crate-technical-files'
 import * as mime from 'mime-types'
 import type * as React from 'react'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 import SparkMD5 from 'spark-md5'
 import { Message } from '@lumino/messaging'
-
-const AROMA_IGNORE_DIR = '.aroma'
-const AROMA_IGNORE_FILE = 'ignored.txt'
-const DEFAULT_IGNORED_ENTRIES = [
-  'ro-crate-preview.html',
-  'ro-crate-metadata.json',
-  'AGENTS.md',
-  'CLAUDE.md',
-  '.aroma/',
-] as const
 
 @injectable()
 export class ROCrateDialog extends ReactDialog<string> {
@@ -202,6 +198,7 @@ export class ROCrateDialog extends ReactDialog<string> {
         if (
           child.name === 'ro-crate-metadata.json' ||
           child.name === 'ro-crate-preview.html' ||
+          child.name === RO_CRATE_APPROVAL_FILE_NAME ||
           child.name === 'AGENTS.md' ||
           child.name === 'CLAUDE.md' ||
           child.name === '.aroma' ||
@@ -213,8 +210,15 @@ export class ROCrateDialog extends ReactDialog<string> {
       }
     }
 
+    // Add directoryLabel and hash which are non-schema.org properties but are Dataverse specific
     const roCrate = {
-      '@context': 'https://w3id.org/ro/crate/1.1/context',
+      '@context': [
+        'https://w3id.org/ro/crate/1.1/context',
+        {
+          directoryLabel: 'https://dataverse.org/schema/file/directoryLabel',
+          hash: 'https://dataverse.org/schema/file/hash',
+        },
+      ],
       '@graph': graph,
     }
 
@@ -329,7 +333,11 @@ export class ROCrateDialog extends ReactDialog<string> {
     }
   }
 
-  private buildEntityId(directoryLabel: string, name: string, isDirectory: boolean): string | undefined {
+  private buildEntityId(
+    directoryLabel: string,
+    name: string,
+    isDirectory: boolean,
+  ): string | undefined {
     if (!name) {
       return undefined
     }

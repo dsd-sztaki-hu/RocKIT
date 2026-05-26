@@ -1,0 +1,31 @@
+{
+  "name": "multi-edit",
+  "keywords": [
+    "theia-extension"
+  ],
+  "version": "0.0.0",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "dependencies": {
+    "@theia/core": "1.65.2",
+    "antd": "^5.29.1",
+    "app-state": "0.0.1",
+    "aroma2-common": "0.0.0"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.0",
+    "typescript": "~5.4.5"
+  },
+  "scripts": {
+    "clean": "rimraf lib",
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/multi-edit-frontend-module"
+    }
+  ]
+}

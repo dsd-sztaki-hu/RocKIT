@@ -203,18 +203,17 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                             </Tooltip>
                         )}
                         {onDelete && (
-                            <Tooltip title={isTransient ? 'Abort / Remove' : 'Delete Schema'} classes={{ tooltip: 'schema-table__tooltip' }} placement="top">
-                                <IconButton 
-                                    size="small" 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDelete([record.id]);
-                                    }}
-                                    className="schema-table__action-btn"
-                                >
-                                    <DeleteOutlineIcon className="schema-table__delete-icon" />
-                                </IconButton>
-                            </Tooltip>
+                            <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDelete([record.id]);
+                                }}
+                                className="schema-table__action-btn schema-table__delete-btn"
+                                aria-label={isTransient ? 'Abort or remove schema task' : 'Delete schema'}
+                            >
+                                <DeleteOutlineIcon className="schema-table__delete-icon" />
+                            </IconButton>
                         )}
                     </div>
                 );

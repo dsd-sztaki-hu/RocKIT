@@ -24,22 +24,9 @@ export interface RoCrateWorkspaceResource {
 
 export interface IncludeResourcesResult {
   /**
-   * Whether `appState.roCrate` was available and processed.
-   * `false` means only ignored-rule app state was updated.
+   * Whether ignored rules changed in memory.
    */
-  metadataLoaded: boolean
-  /**
-   * Number of newly created `File` entities.
-   */
-  addedFiles: number
-  /**
-   * Number of newly created `Dataset` entities.
-   */
-  addedDatasets: number
-  /**
-   * Number of `hasPart` links that were added.
-   */
-  linkedReferences: number
+  updatedIgnoredRules: boolean
 }
 
 export interface OmitResourcesResult {
@@ -109,161 +96,25 @@ export class RoCrateDescriptionOperationsService {
    * Includes resources back into RO-Crate:
    * 1. Removes omit effect for selected resources from ignored-rule app state
    *    (via include/negation semantics)
-   * 2. Recreates missing `Dataset`/`File` entities
-   * 3. Rebuilds missing `hasPart` links
    *
-   * Returns counters for what changed so callers can decide UI messaging.
+   * Does not create RO-Crate metadata entities automatically.
    */
   async includeResources(
     resources: readonly RoCrateWorkspaceResource[],
   ): Promise<IncludeResourcesResult> {
     const normalizedResources = this.normalizeResources(resources)
     if (!normalizedResources.length) {
-      return {
-        metadataLoaded: false,
-        addedFiles: 0,
-        addedDatasets: 0,
-        linkedReferences: 0,
-      }
+      return { updatedIgnoredRules: false }
     }
 
+    const before = JSON.stringify([...this.roCrateIgnoredFilesService.getIgnoredPaths()].sort())
     const ignoreEntries = normalizedResources.map((resource) =>
       resource.isDirectory ? `${resource.path}/` : resource.path,
     )
     await this.roCrateIgnoredFilesService.removeIgnoredPaths(ignoreEntries)
+    const after = JSON.stringify([...this.roCrateIgnoredFilesService.getIgnoredPaths()].sort())
 
-    const crate = this.appStateService.roCrate
-    if (!crate || !Array.isArray(crate['@graph'])) {
-      return {
-        metadataLoaded: false,
-        addedFiles: 0,
-        addedDatasets: 0,
-        linkedReferences: 0,
-      }
-    }
-
-    const graph = this.cloneValue(crate['@graph']) as Record<string, any>[]
-    const rootEntity = graph.find(
-      (entry) =>
-        entry &&
-        typeof entry === 'object' &&
-        typeof entry['@id'] === 'string' &&
-        entry['@id'] === './',
-    ) as Record<string, any> | undefined
-
-    const inclusionPaths = await this.collectInclusionPaths(normalizedResources)
-    const filePaths = [...inclusionPaths.filePaths]
-    const directoryPaths = [...inclusionPaths.directoryPaths].sort((left, right) => {
-      const depthDiff = this.countPathSegments(left) - this.countPathSegments(right)
-      return depthDiff !== 0 ? depthDiff : left.localeCompare(right)
-    })
-
-    const datasetEntitiesByPath = new Map<string, Record<string, any>>()
-    const fileEntityPaths = new Set<string>()
-    for (const entry of graph) {
-      if (!entry || typeof entry !== 'object') {
-        continue
-      }
-      const entryId = typeof entry['@id'] === 'string' ? entry['@id'] : ''
-      if (!entryId || entryId === './') {
-        continue
-      }
-
-      const relativePath = this.deriveRelativePathFromEntityId(entryId)
-      if (!relativePath) {
-        continue
-      }
-      const normalizedPath = this.normalizeRelativePath(relativePath).toLowerCase()
-      if (!normalizedPath) {
-        continue
-      }
-
-      if (this.entityHasType(entry, 'Dataset')) {
-        datasetEntitiesByPath.set(normalizedPath, entry)
-      }
-      if (this.entityHasType(entry, 'File')) {
-        fileEntityPaths.add(normalizedPath)
-      }
-    }
-
-    let addedFiles = 0
-    let addedDatasets = 0
-    let linkedReferences = 0
-
-    for (const directoryPath of directoryPaths) {
-      const normalizedPath = this.normalizeRelativePath(directoryPath).toLowerCase()
-      if (!normalizedPath || datasetEntitiesByPath.has(normalizedPath)) {
-        continue
-      }
-      const datasetEntity = this.buildDatasetEntity(directoryPath)
-      graph.push(datasetEntity)
-      datasetEntitiesByPath.set(normalizedPath, datasetEntity)
-      addedDatasets += 1
-    }
-
-    for (const filePath of filePaths) {
-      const normalizedPath = this.normalizeRelativePath(filePath).toLowerCase()
-      if (!normalizedPath || fileEntityPaths.has(normalizedPath)) {
-        continue
-      }
-      graph.push(await this.buildFileEntity(filePath))
-      fileEntityPaths.add(normalizedPath)
-      addedFiles += 1
-    }
-
-    for (const directoryPath of directoryPaths) {
-      const normalizedPath = this.normalizeRelativePath(directoryPath).toLowerCase()
-      if (!normalizedPath) {
-        continue
-      }
-      const datasetEntity = datasetEntitiesByPath.get(normalizedPath)
-      if (!datasetEntity) {
-        continue
-      }
-      const datasetId =
-        typeof datasetEntity['@id'] === 'string'
-          ? datasetEntity['@id']
-          : `${directoryPath}/`
-      const parentContainer = this.resolveInclusionParentContainer(
-        directoryPath,
-        datasetEntitiesByPath,
-        rootEntity,
-      )
-      if (!parentContainer || parentContainer === datasetEntity) {
-        continue
-      }
-      if (this.ensureHasPartReference(parentContainer, datasetId)) {
-        linkedReferences += 1
-      }
-    }
-
-    for (const filePath of filePaths) {
-      const parentContainer = this.resolveInclusionParentContainer(
-        filePath,
-        datasetEntitiesByPath,
-        rootEntity,
-      )
-      if (!parentContainer) {
-        continue
-      }
-      if (this.ensureHasPartReference(parentContainer, filePath)) {
-        linkedReferences += 1
-      }
-    }
-
-    const changed = addedFiles > 0 || addedDatasets > 0 || linkedReferences > 0
-    if (changed) {
-      const updatedCrate = { ...crate, '@graph': graph }
-      this.appStateService.roCrate = updatedCrate
-      this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
-    }
-
-    return {
-      metadataLoaded: true,
-      addedFiles,
-      addedDatasets,
-      linkedReferences,
-    }
+    return { updatedIgnoredRules: before !== after }
   }
 
   /**

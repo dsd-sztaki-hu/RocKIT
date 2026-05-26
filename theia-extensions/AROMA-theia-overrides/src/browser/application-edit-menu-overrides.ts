@@ -21,7 +21,6 @@ const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager'
 const FILE_NAVIGATOR_WIDGET_ID = 'files'
 const FILE_NAVIGATOR_VIEW_CONTAINER_ID = 'explorer-view-container'
 const RO_CRATE_EDITOR_WIDGET_ID_PREFIX = 'rocrate-editor-widget'
-const REMOTE_RO_CRATE_CONVERSION_COMMAND_ID = 'RemoteRoCrateConversion.command'
 
 type EditCommandScope = 'all' | 'clipboard'
 
@@ -121,16 +120,6 @@ export class ApplicationEditMenuOverrides
       targetCommandId: CommonCommands.COPY_PATH.id,
       menuPath: CommonMenus.EDIT_CLIPBOARD,
       order: '3',
-      scope: 'all',
-    },
-    {
-      proxy: {
-        id: 'aroma.edit.remote-ro-crate-conversion.proxy',
-        label: 'ROC Remote to Locale Conversion',
-      },
-      targetCommandId: REMOTE_RO_CRATE_CONVERSION_COMMAND_ID,
-      menuPath: [...CommonMenus.EDIT, '9_remote_ro_crate_conversion'],
-      order: 'zzzz',
       scope: 'all',
     },
   ]

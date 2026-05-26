@@ -17,11 +17,15 @@ import {
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 
-import '@arpproject/recrate/style.css'
 import { Message } from '@lumino/messaging'
 import type { Disposable } from '@theia/core'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
+import {
+    RO_CRATE_APPROVAL_FILE,
+    RO_CRATE_APPROVAL_FILE_NAME,
+    type RoCrateApprovalFile,
+} from 'app-state/lib/browser/state/ro-crate-approval'
 
 import { DescriboCrateBuilderWrapper } from './recrate-wrapper'
 
@@ -32,6 +36,13 @@ interface RoCrateEditorWidgetOptions {
 
 type NavigationEntity = { ['@id']?: string } & Record<string, unknown>
 type ProfileValidationMode = 'none' | 'always'
+
+type EntityOverviewDropPayload = {
+    entityId?: string
+    entityName?: string
+    entityTypes?: string[]
+    source?: 'entities-overview'
+}
 
 @injectable()
 export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
@@ -73,12 +84,14 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     protected persistPromise?: Promise<void>
 
     protected crateSubscription?: Disposable
+    protected approvalSubscription?: Disposable
     protected completeProfileSubscription?: Disposable
     protected profileListSubscription?: Disposable
     protected eirceiaSubscription?: Disposable
     protected schemasSubscription?: Disposable
 
     protected localCrate: Record<string, any> | undefined
+    protected localRoCrateApproval: RoCrateApprovalFile | undefined
     protected localProfile: Record<string, any> | undefined
     protected baseProfile: Record<string, any> | undefined
     protected localCompleteProfile: Record<string, any> | undefined
@@ -373,6 +386,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         }
 
         this.localCrate = this.appStateService.roCrate
+        this.localRoCrateApproval = this.appStateService.roCrateApproval as
+            | RoCrateApprovalFile
+            | undefined
         this.localCompleteProfile = this.appStateService.completeProfile
         this.baseProfile = this.appStateService.getInitialProfileTemplate()
         this.localProfile = this.baseProfile
@@ -401,15 +417,39 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 if (!entityId) {
                     return
                 }
+                if (!this.entityExistsInCrate(crate, entityId)) {
+                    this.close()
+                    return
+                }
                 await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always')
             },
         )
+
+        this.approvalSubscription = this.appStateService.onDidChangeSelector(
+            (s) => s.roCrateApproval,
+        )((approval) => {
+            this.localRoCrateApproval = approval as RoCrateApprovalFile | undefined
+            this.update()
+        })
 
         this.completeProfileSubscription = this.appStateService.onDidChangeSelector(
             (s) => s.completeProfile,
         )((profile) => {
             this.localCompleteProfile = profile
             this.updateTitleLabel()
+
+            if (!this.baseProfile || !this.localCrate) {
+                this.update()
+                return
+            }
+            const entityId = this.getActiveEntityId()
+            if (!entityId) {
+                this.update()
+                return
+            }
+
+            this.lastAppliedEntityId = undefined
+            void this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'none')
         })
 
         this.profileListSubscription = this.appStateService.onDidChangeSelector(
@@ -592,6 +632,14 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         this.update()
     }
 
+    protected handleSaveRoCrateApproval = async (saveData: any) => {
+        const approval = (saveData as any)?.roCrateApproval as RoCrateApprovalFile | undefined
+        this.localRoCrateApproval = approval
+        this.appStateService.roCrateApproval = approval
+        await this.writeRoCrateApprovalFile(approval)
+        this.update()
+    }
+
     protected areCratesEquivalent(
         a: Record<string, any> | undefined,
         b: Record<string, any> | undefined,
@@ -630,6 +678,16 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
     protected getActiveEntityId(): string | undefined {
         return this.assignedEntityId ?? this.localSelectedEntityId
+    }
+
+    protected entityExistsInCrate(
+        crate: Record<string, any> | undefined,
+        entityId: string,
+    ): boolean {
+        const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : []
+        return graph.some(
+            (entry) => entry && typeof entry === 'object' && String(entry['@id']) === entityId,
+        )
     }
 
     protected resolveInitialEntityId(optionEntityId?: string): string {
@@ -780,16 +838,28 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
     render(): React.ReactNode {
         return (
-            <div style={{ padding: '1rem' }}>
+            <div
+                style={{
+                    height: '100%',
+                    minHeight: 0,
+                    overflow: 'hidden',
+                    padding: 10,
+                    boxSizing: 'border-box',
+                }}
+            >
                 <DescriboCrateBuilderWrapper
                     crate={this.localCrate}
+                    roCrateApproval={this.localRoCrateApproval}
                     profile={this.localProfile}
                     entityId={this.getActiveEntityId()}
                     profileKey={this.profileRevision}
+                    instanceId={this.id}
                     onSaveCrate={this.handleSaveCrate}
+                    onSaveRoCrateApproval={this.handleSaveRoCrateApproval}
                     onNavigation={this.handleNavigation}
                     onOpenSchemaManager={this.handleOpenSchemaManager}
                     onRemoveProfile={this.handleRemoveProfile}
+                    onDropEntityToHasPart={this.handleDropEntityToHasPart}
                 />
             </div>
         )
@@ -885,6 +955,20 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         const currentSnapshot = this.serializeEntitySnapshot(entityId, crate)
         const isDirtyForEntity = currentSnapshot !== this.baselineEntitySnapshot
         this.setDirtyState(isDirtyForEntity)
+    }
+
+    public resetDirtyStateAfterRoCrateReload(
+        crate: Record<string, any> | undefined = this.appStateService.roCrate,
+    ): void {
+        this.localCrate = crate
+        const entityId = this.assignedEntityId ?? this.localSelectedEntityId
+        if (entityId) {
+            this.captureEntityBaseline(entityId, crate)
+        } else {
+            this.setDirtyState(false)
+        }
+        this.updateTitleLabel()
+        this.update()
     }
 
     protected serializeEntitySnapshot(
@@ -1097,6 +1181,128 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         return result
     }
 
+    protected getEntityTypeNames(entity: Record<string, any>): string[] {
+        const rawTypes = entity?.['@type']
+        const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
+        return typeList
+            .map((type) => String(type ?? '').trim())
+            .filter((type) => type.length > 0)
+            .map((type) => {
+                const tail = type.split(/[\/#]/).pop() || type
+                return tail.toLowerCase()
+            })
+    }
+
+    protected isFileOrDatasetEntity(entity: Record<string, any>): boolean {
+        const typeNames = this.getEntityTypeNames(entity)
+        return typeNames.includes('file') || typeNames.includes('dataset')
+    }
+
+    protected isDatasetEntity(entity: Record<string, any>): boolean {
+        return this.getEntityTypeNames(entity).includes('dataset')
+    }
+
+protected handleDropEntityToHasPart = async (
+    payload: EntityOverviewDropPayload,
+    destinationEntityId: string,
+): Promise<void> => {
+    const sourceEntityId =
+        typeof payload?.entityId === 'string' ? payload.entityId.trim() : ''
+    const targetEntityId =
+        typeof destinationEntityId === 'string' ? destinationEntityId.trim() : ''
+
+    if (!sourceEntityId || !targetEntityId) {
+        throw new Error('Missing source or destination entity id for drop operation.')
+    }
+
+    if (sourceEntityId === targetEntityId) {
+        throw new Error('Cannot link an entity to itself via hasPart.')
+    }
+
+    const crate = this.appStateService.roCrate ?? this.localCrate
+    const graph = Array.isArray(crate?.['@graph'])
+        ? (crate['@graph'] as Record<string, any>[])
+        : []
+
+    if (!crate || graph.length === 0) {
+        throw new Error('RO-Crate is not available.')
+    }
+
+    const sourceEntity = graph.find(
+        (entry) => String(entry?.['@id']) === sourceEntityId,
+    )
+
+    if (!sourceEntity || !this.isFileOrDatasetEntity(sourceEntity)) {
+        console.warn('[DND][Widget] invalid source entity', {
+            sourceEntityId,
+            found: Boolean(sourceEntity),
+            sourceTypes: sourceEntity
+                ? this.getEntityTypeNames(sourceEntity)
+                : [],
+        })
+        throw new Error('Only File and Dataset entities can be dropped.')
+    }
+
+    const targetIndex = graph.findIndex(
+        (entry) => String(entry?.['@id']) === targetEntityId,
+    )
+
+    if (targetIndex < 0) {
+        throw new Error('Destination entity was not found in the current RO-Crate.')
+    }
+
+    const targetEntity = graph[targetIndex]
+
+    if (!targetEntity || !this.isDatasetEntity(targetEntity)) {
+        console.warn('[DND][Widget] invalid destination entity', {
+            targetEntityId,
+            targetTypes: targetEntity
+                ? this.getEntityTypeNames(targetEntity)
+                : [],
+        })
+        throw new Error('Drop target must be a Dataset entity.')
+    }
+
+    const existingHasPart = this.normalizeReferenceArray(targetEntity.hasPart)
+
+    if (existingHasPart.some((entry) => entry['@id'] === sourceEntityId)) {
+        this.messageService.info('Entity is already linked in hasPart.', {
+            timeout: 4000,
+        })
+        return
+    }
+
+    const updatedTargetEntity = {
+        ...targetEntity,
+        hasPart: [...existingHasPart, { '@id': sourceEntityId }],
+    }
+
+    const updatedGraph = [...graph]
+    updatedGraph[targetIndex] = updatedTargetEntity
+
+    const updatedCrate = {
+        ...crate,
+        '@graph': updatedGraph,
+    }
+
+    await this.handleSaveCrate(
+        {
+            crate: updatedCrate,
+            entityId: targetEntityId,
+        },
+        'Add hasPart via drag-and-drop',
+    )
+
+    const droppedName =
+        typeof payload?.entityName === 'string' && payload.entityName.trim()
+            ? payload.entityName.trim()
+            : sourceEntityId
+
+    this.messageService.info(`Added "${droppedName}" to hasPart.`, {
+        timeout: 5000,
+    })
+}
+
     protected isSameStringSet(a: string[], b: string[]): boolean {
         let result = true
         if (a.length !== b.length) {
@@ -1157,7 +1363,13 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             }
 
             if (!conformsTos || conformsTos.length === 0) {
-                const nextProfile = JSON.parse(JSON.stringify(baseProfile))
+                const fallbackProfile =
+                    !this.isFileOrDatasetEntity(entity) && this.localCompleteProfile
+                        ? this.localCompleteProfile
+                        : baseProfile
+                const nextProfile = JSON.parse(
+                    JSON.stringify(fallbackProfile ?? baseProfile),
+                )
                 const didProfileChange = this.localProfile !== nextProfile
 
                 this.localProfile = nextProfile
@@ -1491,6 +1703,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             })
             const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
             await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+            await this.writeRoCrateApprovalFile(
+                this.appStateService.roCrateApproval as RoCrateApprovalFile | undefined,
+            )
             this.appStateService.setRoCrateSnapshot(crateData)
             this.appStateService.dirty = false
             this.captureEntityBaseline(
@@ -1502,9 +1717,37 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         }
     }
 
+    protected async writeRoCrateApprovalFile(
+        approval: RoCrateApprovalFile | undefined,
+    ): Promise<void> {
+        const roots = this.workspaceService.tryGetRoots()
+        const rootUri = roots?.[0]?.resource
+        if (!rootUri) {
+            return
+        }
+
+        const approvalUri = rootUri.resolve(RO_CRATE_APPROVAL_FILE)
+        try {
+            const approvalDirUri = approvalUri.parent
+            if (!(await this.fileService.exists(approvalDirUri))) {
+                await this.fileService.createFolder(approvalDirUri)
+            }
+            await this.fileService.create(approvalUri, JSON.stringify(approval ?? [], null, 2), {
+                overwrite: true,
+            })
+            const legacyApprovalUri = rootUri.resolve(RO_CRATE_APPROVAL_FILE_NAME)
+            if (await this.fileService.exists(legacyApprovalUri)) {
+                await this.fileService.delete(legacyApprovalUri)
+            }
+        } catch (error) {
+            console.error('Failed to persist RO-Crate approval metadata:', error)
+        }
+    }
+
     dispose(): void {
         this.unregisterFromAppState()
         this.crateSubscription?.dispose()
+        this.approvalSubscription?.dispose()
         this.completeProfileSubscription?.dispose()
         this.profileListSubscription?.dispose()
         this.eirceiaSubscription?.dispose()

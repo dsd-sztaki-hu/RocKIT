@@ -13,21 +13,16 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import {
+  AROMA_IGNORE_DIR,
+  AROMA_IGNORE_FILE,
+  DEFAULT_IGNORED_ENTRIES,
+} from 'aroma2-common/lib/common/ro-crate-technical-files'
 import { EditorWidget } from '@theia/editor/lib/browser'
 import { SaveableService } from '@theia/core/lib/browser/saveable-service'
 
 // Make sure this string matches exactly what is defined in your EditorWidget
 const RO_CRATE_EDITOR_ID = 'rocrate-editor-widget'; 
-
-const AROMA_IGNORE_DIR = '.aroma'
-const AROMA_IGNORE_FILE = 'ignored.txt'
-const DEFAULT_IGNORED_ENTRIES = [
-  'ro-crate-preview.html',
-  'ro-crate-metadata.json',
-  'AGENTS.md',
-  'CLAUDE.md',
-  '.aroma/',
-] as const
 
 export const SaveRoCrateCommand: Command = {
   id: 'ro-crate.save',
