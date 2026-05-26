@@ -1,4 +1,6 @@
 //  EIRCEIA - editor id to RO-Crate entity id associations
+import type { RoCrateApprovalFile } from './ro-crate-approval'
+
 export type EIRCEIA = Record<string, string>
 export type ValidationError = {
   path: string;
@@ -25,6 +27,7 @@ export type ProfileListItem = {
 // Define the default application state. This defines the shape of the state and initial values.
 export const defaultAppState = {
   roCrate: undefined as Record<string, any> | undefined,
+  roCrateApproval: undefined as RoCrateApprovalFile | undefined,
   ignoreList: undefined as string[] | undefined,
   profile: undefined as Record<string, any> | undefined,
   selectedEntityId: undefined as string | undefined,
@@ -44,6 +47,7 @@ export const defaultAppState = {
   validationErrors: undefined as ValidationError[] | undefined,
   fileExplorerFiltersVisible: false,
   entitiesOverviewFiltersVisible: true,
+  nativeAgentActivityExpanded: false,
 }
 
 export type AppState = typeof defaultAppState

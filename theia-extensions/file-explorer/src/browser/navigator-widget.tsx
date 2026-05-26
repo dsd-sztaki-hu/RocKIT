@@ -28,17 +28,23 @@ import {
 } from '@theia/core/lib/browser'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { CommandService } from '@theia/core/lib/common'
+import { Disposable } from '@theia/core/lib/common/disposable'
 import { nls } from '@theia/core/lib/common/nls'
 import URI from '@theia/core/lib/common/uri'
 import { Message } from '@theia/core/shared/@lumino/messaging'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { DirNode, FileStatNode, FileStatNodeData } from '@theia/filesystem/lib/browser'
+import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { FileSearchService } from '@theia/file-search/lib/common/file-search-service'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import { Button, Select } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
+import {
+  AntdThemeProvider,
+  getSharedDatasetIconClass,
+  getSharedFileIconClass,
+} from 'aroma2-common/lib/browser'
 import { DataSourceService } from 'data-sources/lib/browser/data-source-service'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'
@@ -60,7 +66,6 @@ export const CLASS = 'theia-Files'
 export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   static SEARCH_VISIBLE_CLASS = 'navigator-search-visible'
   static BODY_SEARCH_VISIBLE_CLASS = 'navigator-search-visible'
-
   @inject(CommandService) protected readonly commandService: CommandService
   @inject(NavigatorContextKeyService)
   protected readonly contextKeyService: NavigatorContextKeyService
@@ -70,6 +75,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   @inject(DataSourceService) protected readonly dataSourceService: DataSourceService
   @inject(ThemeService) protected readonly themeService: ThemeService
   @inject(FileSearchService) protected readonly fileSearchService: FileSearchService
+  @inject(FileService) protected readonly fileService: FileService
   @inject(RoCrateIgnoredFilesService)
   protected readonly roCrateIgnoredFilesService: RoCrateIgnoredFilesService
 
@@ -93,6 +99,11 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   protected orphanFilePaths = new Set<string>()
   protected orphanDirectoryPaths = new Set<string>()
   protected orphanScanToken = 0
+  protected workspaceFilesWatchDisposable?: Disposable
+  protected workspaceFilesChangeDisposable?: Disposable
+  protected workspaceFilesWatchRoot?: string
+  protected workspaceFilesWatchRootUri?: URI
+  protected pendingOrphanRefresh?: number
 
   constructor(
     @inject(TreeProps) props: TreeProps,
@@ -141,6 +152,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         this.update()
       }),
       this.workspaceService.onWorkspaceChanged(() => {
+        this.ensureWorkspaceFileWatch()
         void this.refreshOrphanHighlights()
         void this.model.refresh()
       }),
@@ -152,9 +164,80 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       dispose: () =>
         document.body.classList.remove(FileNavigatorWidget.BODY_SEARCH_VISIBLE_CLASS),
     })
+    this.toDispose.push({
+      dispose: () => this.disposeWorkspaceFileWatch(),
+    })
     this.roCratePathIndex = this.buildRoCrateEntityPathIndex(this.appStateService.roCrate)
+    this.ensureWorkspaceFileWatch()
     void this.refreshOrphanHighlights()
     this.updateSearchVisibilityClass()
+  }
+
+  protected ensureWorkspaceFileWatch(): void {
+    const rootUri = this.getPrimaryWorkspaceRootUri()
+    if (!rootUri) {
+      this.disposeWorkspaceFileWatch()
+      return
+    }
+
+    const rootKey = rootUri.toString()
+    if (
+      this.workspaceFilesWatchRoot === rootKey &&
+      this.workspaceFilesWatchDisposable &&
+      this.workspaceFilesChangeDisposable
+    ) {
+      return
+    }
+
+    this.disposeWorkspaceFileWatch()
+    this.workspaceFilesWatchRoot = rootKey
+    this.workspaceFilesWatchRootUri = rootUri
+    this.workspaceFilesWatchDisposable = this.fileService.watch(rootUri)
+    this.workspaceFilesChangeDisposable = this.fileService.onDidFilesChange((event) => {
+      const watchedRootUri = this.workspaceFilesWatchRootUri
+      if (!watchedRootUri) {
+        return
+      }
+
+      const changedInWatchedRoot = event.changes.some((change) =>
+        watchedRootUri.isEqualOrParent(change.resource),
+      )
+      if (!changedInWatchedRoot) {
+        return
+      }
+
+      this.scheduleOrphanRefresh()
+    })
+  }
+
+  protected disposeWorkspaceFileWatch(): void {
+    this.workspaceFilesWatchDisposable?.dispose()
+    this.workspaceFilesChangeDisposable?.dispose()
+    this.workspaceFilesWatchDisposable = undefined
+    this.workspaceFilesChangeDisposable = undefined
+    this.workspaceFilesWatchRoot = undefined
+    this.workspaceFilesWatchRootUri = undefined
+    this.cancelPendingOrphanRefresh()
+  }
+
+  protected scheduleOrphanRefresh(): void {
+    this.cancelPendingOrphanRefresh()
+    this.pendingOrphanRefresh = window.setTimeout(() => {
+      this.pendingOrphanRefresh = undefined
+      void this.refreshOrphanHighlights()
+    }, 200)
+  }
+
+  protected cancelPendingOrphanRefresh(): void {
+    if (this.pendingOrphanRefresh) {
+      clearTimeout(this.pendingOrphanRefresh)
+      this.pendingOrphanRefresh = undefined
+    }
+  }
+
+  protected getPrimaryWorkspaceRootUri(): URI | undefined {
+    const roots = this.workspaceService.tryGetRoots()
+    return roots && roots.length > 0 ? roots[0].resource : undefined
   }
 
   protected override doUpdateRows(): void {
@@ -288,6 +371,60 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         </button>
       </div>
     )
+  }
+
+  protected override toNodeIcon(node: TreeNode): string {
+    const icon = super.toNodeIcon(node)
+    if (!FileStatNode.is(node)) {
+      return icon
+    }
+
+    if (DirNode.is(node)) {
+      if (icon && !icon.includes('default-folder-icon')) {
+        return icon
+      }
+      const mappedFolderIcon = this.getFolderIconClass(node)
+      return mappedFolderIcon ?? icon
+    }
+
+    // Respect active icon themes that already provide a file-specific icon.
+    if (icon && !icon.includes('default-file-icon')) {
+      return icon
+    }
+
+    const mapped = this.getMimeIconClass(node)
+    return mapped ?? icon
+  }
+
+  private getMimeIconClass(node: FileStatNode): string | undefined {
+    const fileName = node.fileStat.resource.path.base.toLowerCase()
+    return getSharedFileIconClass(
+      fileName,
+      undefined,
+      {
+        baseClass: '',
+        fileClass: 'navigator-file-icon',
+        folderClass: 'navigator-folder-icon',
+        fileModifierPrefix: 'navigator-file-icon--',
+        folderModifierPrefix: 'navigator-folder-icon--',
+      },
+      false,
+    )
+  }
+
+  private getFolderIconClass(node: DirNode): string | undefined {
+    const folderName = node.fileStat.resource.path.base.toLowerCase()
+    if (!folderName) {
+      return undefined
+    }
+
+    return getSharedDatasetIconClass(folderName, Boolean(node.expanded), {
+      baseClass: '',
+      fileClass: 'navigator-file-icon',
+      folderClass: 'navigator-folder-icon',
+      fileModifierPrefix: 'navigator-file-icon--',
+      folderModifierPrefix: 'navigator-folder-icon--',
+    })
   }
 
   protected override createContainerAttributes(): React.HTMLAttributes<HTMLElement> {
@@ -580,6 +717,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
     const files = new Set<string>()
     const directories = new Set<string>()
+    let hasSupportedLocalId = false
+    let hasUnsupportedSchemeId = false
 
     for (const entry of graph) {
       if (!entry || typeof entry !== 'object') {
@@ -606,9 +745,13 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
       const derived = this.deriveRelativePathFromEntityId(rawId)
       if (!derived || derived.path === '') {
+        if (this.hasUnsupportedEntityIdScheme(rawId)) {
+          hasUnsupportedSchemeId = true
+        }
         continue
       }
 
+      hasSupportedLocalId = true
       if (derived.isDirectory) {
         directories.add(derived.path.toLowerCase())
       } else {
@@ -616,7 +759,26 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
       }
     }
 
+    // Only enable orphan highlighting for crates with a consistent local-path ID style.
+    // Mixed/foreign scheme styles should not produce orphan decorations.
+    if (!hasSupportedLocalId || hasUnsupportedSchemeId) {
+      return { files: new Set(), directories: new Set() }
+    }
+
     return { files, directories }
+  }
+
+  private hasUnsupportedEntityIdScheme(id: string): boolean {
+    const candidate = id.trim()
+    if (!candidate) {
+      return false
+    }
+
+    if (candidate.startsWith('./')) {
+      return false
+    }
+
+    return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(candidate)
   }
 
   private deriveRelativePathFromEntityId(

@@ -19,6 +19,7 @@ import { AbstractViewContribution } from '@theia/core/lib/browser/shell/view-con
 import {
     CommonCommands,
     CompositeTreeNode,
+    ExpandableTreeNode,
     FrontendApplication,
     FrontendApplicationContribution,
     KeybindingRegistry,
@@ -73,6 +74,7 @@ import { FileNavigatorCommands } from './file-navigator-commands';
 import { WorkspacePreferences } from '@theia/workspace/lib/common';
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
+import { AddDataSourceCommand } from 'data-sources/lib/browser';
 import { RoCrateIgnoredFilesService } from './ro-crate-ignored-files-service';
 import {
     IncludeResourcesResult,
@@ -114,6 +116,7 @@ export namespace NavigatorContextMenu {
 
     export const SEARCH = [...NAVIGATOR_CONTEXT_MENU, '4_search'];
     export const CLIPBOARD = [...NAVIGATOR_CONTEXT_MENU, '5_cutcopypaste'];
+    export const AGENTS = [...NAVIGATOR_CONTEXT_MENU, '6_agents'];
 
     export const MODIFICATION = [...NAVIGATOR_CONTEXT_MENU, '7_modification'];
     /** @deprecated use MODIFICATION */
@@ -375,14 +378,28 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         });
         registry.registerCommand(FileNavigatorCommands.COLLAPSE_ALL, {
             execute: widget => this.withWidget(widget, () => this.collapseFileNavigatorTree()),
-            isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
-            isVisible: widget => this.withWidget(widget, () => this.workspaceService.opened)
+            isEnabled: widget => this.withWidget(widget, navigator =>
+                this.workspaceService.opened && this.hasExpandedFileNavigatorBranches(navigator.model)),
+            isVisible: widget => this.withWidget(widget, navigator =>
+                this.workspaceService.opened && this.hasExpandedFileNavigatorBranches(navigator.model))
+        });
+        registry.registerCommand(FileNavigatorCommands.EXPAND_ALL, {
+            execute: widget => this.withWidget(widget, () => this.expandFileNavigatorTree()),
+            isEnabled: widget => this.withWidget(widget, navigator =>
+                this.workspaceService.opened && !this.hasExpandedFileNavigatorBranches(navigator.model)),
+            isVisible: widget => this.withWidget(widget, navigator =>
+                this.workspaceService.opened && !this.hasExpandedFileNavigatorBranches(navigator.model))
         });
         registry.registerCommand(FileNavigatorCommands.TOGGLE_SEARCH, {
             execute: widget => this.withWidget(widget, navigator => navigator.toggleSearch()),
             isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
             isVisible: widget => this.withWidget(widget, () => this.workspaceService.opened),
             isToggled: widget => this.withWidget(widget, navigator => navigator.isSearchVisible())
+        });
+        registry.registerCommand(FileNavigatorCommands.ADD_DATA_SOURCE_TOOLBAR, {
+            execute: (...args) => registry.executeCommand(AddDataSourceCommand.id, ...args),
+            isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
+            isVisible: widget => this.withWidget(widget, () => this.workspaceService.opened)
         });
         registry.registerCommand(FileNavigatorCommands.REFRESH_NAVIGATOR, {
             execute: widget => this.withWidget(widget, () => this.refreshWorkspace()),
@@ -469,13 +486,9 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         if (!selectedResources.length) {
             return false;
         }
-        const crate = this.appStateService.roCrate;
-        const graph = crate && Array.isArray(crate['@graph'])
-            ? (crate['@graph'] as Record<string, any>[])
-            : [];
         const ignoredEntries = [...this.roCrateIgnoredFilesService.getIgnoredPaths()];
 
-        return selectedResources.some(resource => this.canIncludeResource(resource, graph, ignoredEntries));
+        return selectedResources.some(resource => this.canIncludeResource(resource, ignoredEntries));
     }
 
     protected canOmitSelectedFiles(): boolean {
@@ -487,8 +500,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
     }
 
     protected canIncludeResource(
-        resource: { path: string; isDirectory: boolean; uri: URI },
-        graph: ReadonlyArray<Record<string, any>>,
+        resource: { path: string; isDirectory: boolean; uri?: URI },
         ignoredEntries: readonly string[],
     ): boolean {
         const normalizedPath = this.normalizeRelativePath(resource.path).toLowerCase();
@@ -496,18 +508,8 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             return false;
         }
 
-        if (!resource.isDirectory) {
-            if (this.roCrateIgnoredFilesService.isIgnoredPath(normalizedPath)) {
-                return true;
-            }
-            return this.findFileEntityMatchesByRelativePath([...graph], normalizedPath).length === 0;
-        }
-
-        if (this.hasIgnoredChildrenInDirectory(normalizedPath, ignoredEntries)) {
-            return true;
-        }
-
-        return this.findDatasetEntityMatchesByRelativePath([...graph], normalizedPath).length === 0;
+        return this.roCrateIgnoredFilesService.isIgnoredPath(normalizedPath)
+            || (resource.isDirectory && this.hasIgnoredChildrenInDirectory(normalizedPath, ignoredEntries));
     }
 
     protected hasIgnoredChildrenInDirectory(
@@ -582,24 +584,29 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             }
             return undefined;
         }
-        const result = await this.roCrateDescriptionOperationsService.includeResources(selectedResources);
+
+        const ignoredEntries = [...this.roCrateIgnoredFilesService.getIgnoredPaths()];
+        const includeableResources = selectedResources.filter(resource =>
+            this.canIncludeResource(resource, ignoredEntries),
+        );
+        if (!includeableResources.length) {
+            if (!silent) {
+                this.messageService.info('Selected files/folders are not currently omitted.');
+            }
+            return undefined;
+        }
+
+        const result = await this.roCrateDescriptionOperationsService.includeResources(includeableResources);
         if (silent) {
             return result;
         }
 
-        if (!result.metadataLoaded) {
-            this.messageService.info('Updated include rules in memory. Save to persist changes to .aroma/ignored.txt.');
+        if (!result.updatedIgnoredRules) {
+            this.messageService.info('Selected files/folders are not currently omitted.');
             return result;
         }
 
-        if (result.addedFiles === 0 && result.addedDatasets === 0 && result.linkedReferences === 0) {
-            this.messageService.info('Updated include rules in memory. RO-Crate descriptions were already up to date.');
-            return result;
-        }
-
-        const fileLabel = result.addedFiles === 1 ? '1 file' : `${result.addedFiles} files`;
-        const datasetLabel = result.addedDatasets === 1 ? '1 dataset' : `${result.addedDatasets} datasets`;
-        this.messageService.info(`Included ${fileLabel} and ${datasetLabel} in RO-Crate description.`);
+        this.messageService.info('Removed omit rules in memory. Save to persist changes to .aroma/ignored.txt.');
         return result;
     }
 
@@ -1258,6 +1265,8 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
     }
 
     async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
+        const widget = await this.widget;
+        const onDidChange = widget.model.onChanged;
         toolbarRegistry.registerItem({
             id: FileNavigatorCommands.TOGGLE_SEARCH.id,
             command: FileNavigatorCommands.TOGGLE_SEARCH.id,
@@ -1265,10 +1274,24 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             priority: 0,
         });
         toolbarRegistry.registerItem({
+            id: FileNavigatorCommands.ADD_DATA_SOURCE_TOOLBAR.id,
+            command: FileNavigatorCommands.ADD_DATA_SOURCE_TOOLBAR.id,
+            tooltip: AddDataSourceCommand.label,
+            priority: 0,
+        });
+        toolbarRegistry.registerItem({
             id: FileNavigatorCommands.COLLAPSE_ALL.id,
             command: FileNavigatorCommands.COLLAPSE_ALL.id,
             tooltip: nls.localizeByDefault('Collapse All'),
             priority: 1,
+            onDidChange,
+        });
+        toolbarRegistry.registerItem({
+            id: FileNavigatorCommands.EXPAND_ALL.id,
+            command: FileNavigatorCommands.EXPAND_ALL.id,
+            tooltip: nls.localizeByDefault('Expand All'),
+            priority: 1,
+            onDidChange,
         });
 
     }
@@ -1330,14 +1353,9 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
     async collapseFileNavigatorTree(): Promise<void> {
         const { model } = await this.widget;
 
-        // collapse all child nodes which are not the root (single root workspace)
-        // collapse all root nodes (multiple root workspace)
-        let root = model.root as CompositeTreeNode;
-        if (WorkspaceNode.is(root) && root.children.length === 1) {
-            const onlyChild = root.children[0];
-            if (CompositeTreeNode.is(onlyChild)) {
-                root = onlyChild;
-            }
+        const root = this.getFileNavigatorActionRoot(model);
+        if (!root) {
+            return;
         }
         root.children.forEach(child => CompositeTreeNode.is(child) && model.collapseAll(child));
 
@@ -1345,6 +1363,80 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         const firstChild = WorkspaceNode.is(root) ? root.children[0] : root;
         if (SelectableTreeNode.is(firstChild)) {
             model.selectNode(firstChild);
+        }
+    }
+
+    async expandFileNavigatorTree(): Promise<void> {
+        const { model } = await this.widget;
+        const root = this.getFileNavigatorActionRoot(model);
+        if (!root) {
+            return;
+        }
+
+        await this.expandFileNavigatorDescendants(model, root);
+
+        // select first visible node
+        const firstChild = WorkspaceNode.is(root) ? root.children[0] : root;
+        if (SelectableTreeNode.is(firstChild)) {
+            model.selectNode(firstChild);
+        }
+    }
+
+    protected getFileNavigatorActionRoot(model: FileNavigatorModel): CompositeTreeNode | undefined {
+        const modelRoot = model.root;
+        if (!CompositeTreeNode.is(modelRoot)) {
+            return undefined;
+        }
+        if (WorkspaceNode.is(modelRoot) && modelRoot.children.length === 1) {
+            const onlyChild = modelRoot.children[0];
+            if (CompositeTreeNode.is(onlyChild)) {
+                return onlyChild;
+            }
+        }
+        return modelRoot;
+    }
+
+    protected hasExpandedFileNavigatorBranches(model: FileNavigatorModel): boolean {
+        const root = this.getFileNavigatorActionRoot(model);
+        if (!root) {
+            return false;
+        }
+        return this.hasExpandedDescendant(root);
+    }
+
+    protected hasExpandedDescendant(node: CompositeTreeNode): boolean {
+        for (const child of node.children) {
+            if (!CompositeTreeNode.is(child)) {
+                continue;
+            }
+            if (ExpandableTreeNode.is(child)) {
+                if (ExpandableTreeNode.isExpanded(child)) {
+                    return true;
+                }
+                continue;
+            }
+            if (this.hasExpandedDescendant(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected async expandFileNavigatorDescendants(model: FileNavigatorModel, node: CompositeTreeNode): Promise<void> {
+        for (const child of node.children) {
+            if (!CompositeTreeNode.is(child)) {
+                continue;
+            }
+
+            let expandedChild = child;
+            if (ExpandableTreeNode.isCollapsed(child)) {
+                const maybeExpanded = await model.expandNode(child);
+                if (CompositeTreeNode.is(maybeExpanded)) {
+                    expandedChild = maybeExpanded;
+                }
+            }
+
+            await this.expandFileNavigatorDescendants(model, expandedChild);
         }
     }
 

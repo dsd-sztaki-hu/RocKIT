@@ -1,9 +1,19 @@
 import { Message } from '@lumino/messaging'
-import { AbstractDialog } from '@theia/core/lib/browser/dialogs'
+import { AbstractDialog, DialogMode } from '@theia/core/lib/browser/dialogs'
 
 export enum ExportRoCrateMode {
   Normal = 'normal',
   Clean = 'clean',
+}
+
+export interface ExportRoCrateOptions {
+  mode: ExportRoCrateMode
+  includeReferencedLocalFiles: boolean
+}
+
+export interface ExportRoCrateDialogOptions {
+  hasUnsavedChanges: () => Promise<boolean>
+  saveChanges: () => Promise<void>
 }
 
 const MODE_DETAILS: Record<ExportRoCrateMode, { label: string; description: string }> = {
@@ -19,13 +29,20 @@ const MODE_DETAILS: Record<ExportRoCrateMode, { label: string; description: stri
   },
 }
 
-export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateMode> {
+export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
   protected readonly radios: Record<ExportRoCrateMode, HTMLInputElement> = {
     [ExportRoCrateMode.Normal]: document.createElement('input'),
     [ExportRoCrateMode.Clean]: document.createElement('input'),
   }
 
-  constructor() {
+  protected readonly includeReferencedLocalFiles = document.createElement('input')
+  protected readonly unsavedChangesNode = document.createElement('div')
+  protected readonly unsavedChangesTextNode = document.createElement('span')
+  protected readonly saveChangesButton = document.createElement('button')
+  protected saveError: string | undefined
+  protected saveInProgress = false
+
+  constructor(protected readonly options: ExportRoCrateDialogOptions) {
     super({ title: 'Export RO-Crate' })
 
     this.appendCloseButton()
@@ -36,6 +53,28 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateMode> {
     container.style.display = 'flex'
     container.style.flexDirection = 'column'
     container.style.gap = '1rem'
+
+    this.unsavedChangesNode.classList.add('export-unsaved-changes')
+    this.unsavedChangesNode.style.display = 'none'
+
+    this.unsavedChangesTextNode.textContent =
+      'RO-Crate metadata has unsaved changes. Save before exporting.'
+    this.unsavedChangesTextNode.classList.add('export-unsaved-changes-message')
+
+    this.saveChangesButton.type = 'button'
+    this.saveChangesButton.classList.add(
+      'theia-button',
+      'secondary',
+      'export-unsaved-changes-save',
+    )
+    this.saveChangesButton.textContent = 'Save'
+    this.saveChangesButton.addEventListener('click', () => {
+      void this.saveAndRefresh()
+    })
+
+    this.unsavedChangesNode.appendChild(this.unsavedChangesTextNode)
+    this.unsavedChangesNode.appendChild(this.saveChangesButton)
+    container.appendChild(this.unsavedChangesNode)
 
     for (const mode of [ExportRoCrateMode.Normal, ExportRoCrateMode.Clean]) {
       const details = MODE_DETAILS[mode]
@@ -86,17 +125,86 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateMode> {
       container.appendChild(section)
     }
 
+    const includeSection = document.createElement('label')
+    includeSection.classList.add('export-include-referenced-local-files')
+    includeSection.style.display = 'flex'
+    includeSection.style.alignItems = 'flex-start'
+    includeSection.style.gap = '0.5rem'
+    includeSection.style.cursor = 'pointer'
+    includeSection.style.userSelect = 'none'
+
+    this.includeReferencedLocalFiles.type = 'checkbox'
+    this.includeReferencedLocalFiles.checked = false
+
+    const includeText = document.createElement('span')
+    includeText.textContent =
+      'Include referenced local files that are outside the RO-Crate folder'
+
+    includeSection.appendChild(this.includeReferencedLocalFiles)
+    includeSection.appendChild(includeText)
+    container.appendChild(includeSection)
+
     this.contentNode.appendChild(container)
   }
 
   protected onAfterAttach(msg: Message): void {
     super.onAfterAttach(msg)
     this.radios[ExportRoCrateMode.Normal]?.focus()
+    void this.refreshUnsavedChangesState()
   }
 
-  get value(): ExportRoCrateMode {
-    return this.radios[ExportRoCrateMode.Clean]?.checked
+  protected async saveAndRefresh(): Promise<void> {
+    if (this.saveInProgress) {
+      return
+    }
+    this.saveInProgress = true
+    this.saveError = undefined
+    this.saveChangesButton.disabled = true
+    this.saveChangesButton.textContent = 'Saving...'
+
+    try {
+      await this.options.saveChanges()
+    } catch (error) {
+      console.error('Failed to save RO-Crate before export', error)
+      this.saveError = `Save failed: ${error}`
+    } finally {
+      this.saveInProgress = false
+      this.saveChangesButton.disabled = false
+      this.saveChangesButton.textContent = 'Save'
+      await this.refreshUnsavedChangesState()
+    }
+  }
+
+  protected async refreshUnsavedChangesState(): Promise<void> {
+    const hasUnsavedChanges = await this.options.hasUnsavedChanges()
+    this.unsavedChangesNode.style.display = hasUnsavedChanges ? 'flex' : 'none'
+    this.unsavedChangesTextNode.textContent =
+      this.saveError ??
+      'RO-Crate metadata has unsaved changes. Save before exporting.'
+
+    if (this.acceptButton) {
+      this.acceptButton.disabled = hasUnsavedChanges
+    }
+    this.update()
+  }
+
+  protected override async isValid(
+    _value: ExportRoCrateOptions,
+    _mode: DialogMode,
+  ): Promise<string> {
+    if (await this.options.hasUnsavedChanges()) {
+      return 'Save RO-Crate metadata before exporting.'
+    }
+    return ''
+  }
+
+  get value(): ExportRoCrateOptions {
+    const mode = this.radios[ExportRoCrateMode.Clean]?.checked
       ? ExportRoCrateMode.Clean
       : ExportRoCrateMode.Normal
+    return {
+      mode,
+      includeReferencedLocalFiles: this.includeReferencedLocalFiles.checked,
+    }
   }
 }

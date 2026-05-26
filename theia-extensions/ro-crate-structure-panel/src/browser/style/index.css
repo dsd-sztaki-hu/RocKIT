@@ -6,6 +6,26 @@
   text-transform: uppercase;
 }
 
+.dataset-panel {
+  --ro-crate-structure-drop-target-bg: rgba(24, 144, 255, 0.14);
+  --ro-crate-structure-drop-target-shadow: 0 0 8px rgba(24, 144, 255, 0.35);
+}
+
+body.vs-dark .dataset-panel,
+body.theia-dark .dataset-panel {
+  --ro-crate-structure-drop-target-bg: rgba(92, 207, 230, 0.22);
+  --ro-crate-structure-drop-target-shadow:
+    0 0 0 1px rgba(92, 207, 230, 0.34),
+    0 0 10px rgba(92, 207, 230, 0.46);
+}
+
+body.hc-black .dataset-panel {
+  --ro-crate-structure-drop-target-bg: rgba(243, 133, 24, 0.28);
+  --ro-crate-structure-drop-target-shadow:
+    inset 0 0 0 1px var(--theia-focusBorder, #f38518),
+    0 0 0 1px rgba(243, 133, 24, 0.72);
+}
+
 .dataset-panel .ant-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
   background: rgba(24, 144, 255, 0.35);
   border: 1px solid rgba(24, 144, 255, 0.65);
@@ -17,6 +37,45 @@
 
 .dataset-panel .ant-tree .ant-tree-node-content-wrapper.ant-tree-node-selected > span {
   color: var(--theia-ui-font-color1);
+}
+
+body.hc-black
+  .dataset-panel
+  .ant-tree
+  .ant-tree-node-content-wrapper.ant-tree-node-selected {
+  background: transparent !important;
+  border: 1px solid var(--theia-focusBorder, #f38518) !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+}
+
+body.hc-black
+  .dataset-panel
+  .ant-tree
+  .ant-tree-node-content-wrapper.ant-tree-node-selected:hover {
+  background: rgba(243, 133, 24, 0.08) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+}
+
+body.hc-black
+  .dataset-panel
+  .ant-tree
+  .ant-tree-node-content-wrapper.ant-tree-node-selected
+  > span,
+body.hc-black
+  .dataset-panel
+  .ant-tree
+  .ant-tree-node-content-wrapper.ant-tree-node-selected
+  .ro-crate-entity-icon.file-icon {
+  color: #ffffff !important;
+}
+
+body.hc-black
+  .dataset-panel
+  .ant-tree
+  .ant-tree-node-content-wrapper:not(.ant-tree-node-selected):hover {
+  outline: 1px dashed var(--theia-focusBorder, #f38518) !important;
+  outline-offset: -1px;
 }
 
 .dataset-panel .ant-tree .ant-tree-node-content-wrapper,
@@ -57,6 +116,122 @@
 .dataset-panel .ro-crate-structure-tree .ant-tree-list-holder {
   overflow-y: scroll !important;
   scrollbar-gutter: stable;
+}
+
+.dataset-panel .ro-crate-entity-icon.file-icon {
+  opacity: 0.95;
+}
+
+.dataset-panel .ro-crate-file-icon--code {
+  color: var(--theia-terminal-ansiBlue, #5aa9ff);
+}
+
+.dataset-panel .ro-crate-file-icon--script {
+  color: var(--theia-terminal-ansiGreen, #5cc290);
+}
+
+.dataset-panel .ro-crate-file-icon--data {
+  color: var(--theia-terminal-ansiCyan, #44b3c2);
+}
+
+.dataset-panel .ro-crate-file-icon--database {
+  color: var(--theia-terminal-ansiMagenta, #c678dd);
+}
+
+.dataset-panel .ro-crate-file-icon--text {
+  color: var(--theia-terminal-ansiWhite, #b9c0cc);
+}
+
+.dataset-panel .ro-crate-file-icon--document {
+  color: var(--theia-terminal-ansiYellow, #d4a959);
+}
+
+.dataset-panel .ro-crate-file-icon--config {
+  color: var(--theia-terminal-ansiWhite, #b9c0cc);
+}
+
+.dataset-panel .ro-crate-file-icon--archive,
+.dataset-panel .ro-crate-file-icon--binary {
+  color: var(--theia-terminal-ansiRed, #e57373);
+}
+
+.dataset-panel .ro-crate-file-icon--media {
+  color: var(--theia-terminal-ansiBlue, #4ea8de);
+}
+
+.dataset-panel .ro-crate-folder-icon--code {
+  color: var(--theia-terminal-ansiBlue, #5aa9ff);
+}
+
+.dataset-panel .ro-crate-folder-icon--document {
+  color: var(--theia-terminal-ansiYellow, #d4a959);
+}
+
+.dataset-panel .ro-crate-folder-icon--data {
+  color: var(--theia-terminal-ansiMagenta, #c678dd);
+}
+
+.dataset-panel .ro-crate-folder-icon--config {
+  color: var(--theia-terminal-ansiWhite, #b9c0cc);
+}
+
+.dataset-panel .ro-crate-folder-icon--package {
+  color: var(--theia-terminal-ansiCyan, #44b3c2);
+}
+
+.dataset-panel .ro-crate-folder-icon--test {
+  color: var(--theia-terminal-ansiGreen, #5cc290);
+}
+
+.dataset-panel .ro-crate-folder-icon--media {
+  color: var(--theia-terminal-ansiBlue, #4ea8de);
+}
+
+.dataset-panel .ant-tree .ant-tree-node-content-wrapper.ant-tree-node-selected .ro-crate-entity-icon.file-icon {
+  color: inherit;
+  opacity: 1;
+}
+
+body.hc-black .dataset-panel .ro-crate-entity-icon.file-icon {
+  opacity: 1;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--code,
+body.hc-black .dataset-panel .ro-crate-folder-icon--code,
+body.hc-black .dataset-panel .ro-crate-file-icon--media,
+body.hc-black .dataset-panel .ro-crate-folder-icon--media {
+  color: #8bdcff !important;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--script,
+body.hc-black .dataset-panel .ro-crate-folder-icon--test {
+  color: #7ee787 !important;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--data,
+body.hc-black .dataset-panel .ro-crate-folder-icon--package {
+  color: #79f2f2 !important;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--database,
+body.hc-black .dataset-panel .ro-crate-folder-icon--data {
+  color: #d8b4fe !important;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--document,
+body.hc-black .dataset-panel .ro-crate-folder-icon--document {
+  color: #ffd866 !important;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--text,
+body.hc-black .dataset-panel .ro-crate-file-icon--config,
+body.hc-black .dataset-panel .ro-crate-folder-icon--config {
+  color: #f2f2f2 !important;
+}
+
+body.hc-black .dataset-panel .ro-crate-file-icon--archive,
+body.hc-black .dataset-panel .ro-crate-file-icon--binary {
+  color: #ff8f8f !important;
 }
 
 .ro-crate-structure-validation-strip {

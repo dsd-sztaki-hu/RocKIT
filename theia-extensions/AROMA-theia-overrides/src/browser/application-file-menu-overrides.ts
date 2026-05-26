@@ -1,6 +1,8 @@
 import {
+  ApplicationShell,
   CommonCommands,
   CommonMenus,
+  ConfirmDialog,
   ConfirmSaveDialog,
   Dialog,
   FrontendApplication,
@@ -10,10 +12,15 @@ import {
 import { KeybindingRegistry } from '@theia/core/lib/browser/keybinding'
 import { SaveReason } from '@theia/core/lib/browser/saveable'
 import { SaveableService } from '@theia/core/lib/browser/saveable-service'
+import { WindowService } from '@theia/core/lib/browser/window/window-service'
 import {
+  Command,
+  CommandContribution,
   CommandRegistry,
   CommandService,
+  MenuContribution,
   MenuModelRegistry,
+  MessageService,
 } from '@theia/core/lib/common'
 import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
@@ -22,16 +29,17 @@ import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browse
 import { FILE_WORKSPACE } from '@theia/workspace/lib/browser/workspace-frontend-contribution'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-loader'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { ApplicationResetService, RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import {
+  AROMA_IGNORE_DIR,
+  AROMA_IGNORE_FILE,
+  DEFAULT_IGNORED_ENTRIES as SHARED_DEFAULT_IGNORED_ENTRIES,
+} from 'aroma2-common/lib/common/ro-crate-technical-files'
+import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 
-const AROMA_IGNORE_DIR = '.aroma'
-const AROMA_IGNORE_FILE = 'ignored.txt'
 const DEFAULT_IGNORED_ENTRIES = [
-  'ro-crate-preview.html',
-  'ro-crate-metadata.json',
-  'AGENTS.md',
-  'CLAUDE.md',
-  '.aroma/',
+  ...SHARED_DEFAULT_IGNORED_ENTRIES,
+  '.claude/',
 ] as const
 
 type UnsavedCloseState = {
@@ -40,8 +48,18 @@ type UnsavedCloseState = {
   ignoreListUnsaved: boolean
 }
 
+const ResetApplicationCommand: Command = {
+  id: 'aroma.application.reset',
+  label: 'Reset the application',
+}
+
+const RevertToSavedRoCrateCommand: Command = {
+  id: 'aroma.ro-crate.revert-to-saved',
+  label: 'Revert to saved RO-Crate',
+}
+
 @injectable()
-export class ApplicationFileMenuOverrides implements FrontendApplicationContribution {
+export class ApplicationFileMenuOverrides implements FrontendApplicationContribution, CommandContribution, MenuContribution {
   @inject(MenuModelRegistry)
   protected readonly menuRegistry: MenuModelRegistry
 
@@ -71,6 +89,18 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
 
   @inject(SaveableService)
   protected readonly saveableService: SaveableService
+
+  @inject(ApplicationResetService)
+  protected readonly applicationResetService: ApplicationResetService
+
+  @inject(MessageService)
+  protected readonly messageService: MessageService
+
+  @inject(WindowService)
+  protected readonly windowService: WindowService
+
+  @inject(ApplicationShell)
+  protected readonly shell: ApplicationShell
 
   protected persistPromise?: Promise<void>
 
@@ -126,6 +156,31 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
       prepare: () => this.detectUnsavedStateFromDisk(),
       action: (prepared) => this.handleUnsavedCloseAction(prepared),
     }
+  }
+
+  registerCommands(commands: CommandRegistry): void {
+    commands.registerCommand(RevertToSavedRoCrateCommand, {
+      execute: () => this.revertToSavedRoCrate(),
+      isEnabled: () => Boolean(this.workspaceService.tryGetRoots()?.[0]?.resource),
+    })
+
+    commands.registerCommand(ResetApplicationCommand, {
+      execute: () => this.resetApplication(),
+    })
+  }
+
+  registerMenus(menus: MenuModelRegistry): void {
+    menus.registerMenuAction(CommonMenus.FILE, {
+      commandId: RevertToSavedRoCrateCommand.id,
+      label: RevertToSavedRoCrateCommand.label,
+      order: 'z90',
+    })
+
+    menus.registerMenuAction(CommonMenus.FILE, {
+      commandId: ResetApplicationCommand.id,
+      label: ResetApplicationCommand.label,
+      order: 'z99',
+    })
   }
 
   protected updateWorkspaceLabels(): void {
@@ -189,6 +244,73 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     this.keybindingRegistry.unregisterKeybinding(WorkspaceCommands.SAVE_WORKSPACE_AS.id)
   }
 
+  protected async revertToSavedRoCrate(): Promise<void> {
+    if (this.hasPotentialUnsavedRoCrateChanges()) {
+      const confirmed = await new ConfirmDialog({
+        title: 'Revert to saved RO-Crate',
+        msg:
+          'This will discard unsaved RO-Crate metadata changes and reload ro-crate-metadata.json from disk. Continue?',
+        ok: 'Revert',
+        cancel: Dialog.CANCEL,
+      }).open()
+
+      if (!confirmed) {
+        return
+      }
+    }
+
+    try {
+      await this.roCrateLoader.revertToSavedRoCrate()
+      this.clearRoCrateEditorDirtyFlags()
+      await this.messageService.info('Reloaded saved RO-Crate metadata.', {
+        timeout: 3000,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.messageService.error(`Failed to reload saved RO-Crate: ${message}`)
+    }
+  }
+
+  protected hasPotentialUnsavedRoCrateChanges(): boolean {
+    const roCrate = this.appStateService.roCrate
+    return Boolean(roCrate) && this.appStateService.isRoCrateDirty(roCrate)
+  }
+
+  protected clearRoCrateEditorDirtyFlags(): void {
+    const crate = this.appStateService.roCrate
+    for (const widget of this.shell.widgets) {
+      if (widget instanceof RoCrateEditorWidget) {
+        widget.resetDirtyStateAfterRoCrateReload(crate)
+      }
+    }
+  }
+
+  protected async resetApplication(): Promise<void> {
+    const confirmed = await new ConfirmDialog({
+      title: 'Reset the application',
+      msg:
+        'This will delete the application configuration directory in your user folder and restart AROMA. Unsaved changes will be lost. Continue?',
+      ok: 'Reset and restart',
+      cancel: Dialog.CANCEL,
+    }).open()
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      await this.applicationResetService.resetApplication()
+      if (this.workspaceService.opened) {
+        await this.commandService.executeCommand(WorkspaceCommands.CLOSE.id)
+      } else {
+        this.windowService.reload()
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.messageService.error(`Failed to reset the application: ${message}`)
+    }
+  }
+
   protected async persistRoCrateToDisk(): Promise<void> {
     if (
       !this.appStateService.roCrate &&
@@ -210,7 +332,9 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
   protected hasPotentialUnsavedChanges(): boolean {
     const roCrate = this.appStateService.roCrate
     const roCrateDirty = Boolean(roCrate) && this.appStateService.isRoCrateDirty(roCrate)
-    const ignoreListDirty = this.appStateService.isIgnoreListDirty(this.appStateService.ignoreList)
+    const ignoreListDirty = this.appStateService.isIgnoreListDirty(
+      this.appStateService.ignoreList,
+    )
     return roCrateDirty || ignoreListDirty
   }
 
@@ -229,7 +353,9 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     }
   }
 
-  protected async handleUnsavedCloseAction(prepared: UnsavedCloseState): Promise<boolean> {
+  protected async handleUnsavedCloseAction(
+    prepared: UnsavedCloseState,
+  ): Promise<boolean> {
     if (!prepared.hasUnsaved) {
       return true
     }
@@ -244,7 +370,7 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
 
     const messageNode = document.createElement('div')
     const intro = document.createElement('div')
-    intro.textContent = "You have unsaved changes in:"
+    intro.textContent = 'You have unsaved changes in:'
     messageNode.appendChild(intro)
 
     const list = document.createElement('ul')
@@ -296,8 +422,12 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
 
   protected async isIgnoreListUnsaved(rootUri: URI): Promise<boolean> {
     const ignoredUri = rootUri.resolve(AROMA_IGNORE_DIR).resolve(AROMA_IGNORE_FILE)
-    const diskEntries = this.withDefaultIgnoredEntries(await this.readIgnoredEntries(ignoredUri))
-    const stateEntries = this.withDefaultIgnoredEntries(this.appStateService.ignoreList ?? [])
+    const diskEntries = this.withDefaultIgnoredEntries(
+      await this.readIgnoredEntries(ignoredUri),
+    )
+    const stateEntries = this.withDefaultIgnoredEntries(
+      this.appStateService.ignoreList ?? [],
+    )
     return !this.sameEntries(stateEntries, diskEntries)
   }
 

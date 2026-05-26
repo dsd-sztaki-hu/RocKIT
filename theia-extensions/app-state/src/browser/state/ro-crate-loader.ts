@@ -11,10 +11,24 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { MetadataSchemaManager, RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 import {
+    AROMA_IGNORE_DIR,
+    AROMA_IGNORE_FILE,
+    DEFAULT_IGNORED_ENTRIES,
+    RO_CRATE_PREVIEW_FILE,
+} from 'aroma2-common/lib/common/ro-crate-technical-files'
+import {
     AppStatePreferences,
     ROCrateExternalChangeAction,
     type ROCrateExternalChangeActionValue,
 } from '../../common/app-state-preferences'
+import {
+    collectRoCrateChangedProperties,
+    maintainRoCrateApprovalFile,
+    parseRoCrateApprovalFile,
+    RO_CRATE_APPROVAL_FILE,
+    RO_CRATE_APPROVAL_FILE_NAME,
+    type RoCrateApprovalFile,
+} from './ro-crate-approval'
 import { AppStateService } from './app-state-service'
 import { RoCrateHistoryService } from './ro-crate-history-service'
 import { ROCrateDialog } from './ro-crate-dialog'
@@ -23,15 +37,6 @@ import { RoCrateIdConversionDialog } from './ro-crate-id-conversion-dialog'
 // import { loadInitialCrateAndProfile } from './initial-state-loader'
 
 const REMOTE_RO_CRATE_CONVERSION_COMMAND_ID = 'RemoteRoCrateConversion.command'
-const AROMA_IGNORE_DIR = '.aroma'
-const AROMA_IGNORE_FILE = 'ignored.txt'
-const DEFAULT_IGNORED_ENTRIES = [
-    'ro-crate-preview.html',
-    'ro-crate-metadata.json',
-    'AGENTS.md',
-    'CLAUDE.md',
-    '.aroma/',
-] as const
 
 @injectable()
 export class RoCrateLoaderContribution implements FrontendApplicationContribution {
@@ -72,6 +77,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     protected metadataFileUri?: URI
     protected pendingExternalCheck?: ReturnType<typeof setTimeout>
     protected lastKnownMetadataJson?: string
+    protected externalMetadataPromptInFlight?: string
 
     protected pendingAppStateProfileRefresh?: ReturnType<typeof setTimeout>
     protected pendingAppStateProfileRefreshCrate?: Record<string, any>
@@ -135,6 +141,42 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         await this.syncRoCrateFromWorkspace()
     }
 
+    public async revertToSavedRoCrate(): Promise<boolean> {
+        const roots = this.workspaceService.tryGetRoots()
+        const rootUri = roots?.[0]?.resource
+        if (!rootUri) {
+            return false
+        }
+
+        this.ensureMetadataWatch(rootUri)
+
+        const roCrateUri = rootUri.resolve('ro-crate-metadata.json')
+        const exists = await this.fileService.exists(roCrateUri)
+        if (!exists) {
+            this.updateState(undefined, false)
+            await this.refreshProfileList(undefined)
+            await this.refreshCompleteProfile(undefined)
+            void this.promptForCrateRecovery(rootUri, false)
+            return false
+        }
+
+        try {
+            const crate = await this.loadRoCrateWithNormalization(roCrateUri)
+            const approval = await this.loadRoCrateApprovalForMetadata(roCrateUri)
+            const changed = this.applyRevertedState(crate, approval)
+            await this.refreshProfileList(crate)
+            await this.refreshCompleteProfile(crate)
+            return changed
+        } catch (parseError) {
+            console.error('Parsing error: ', parseError)
+            this.updateState(undefined, true)
+            await this.refreshProfileList(undefined)
+            await this.refreshCompleteProfile(undefined)
+            void this.promptForCrateRecovery(rootUri, true)
+            return false
+        }
+    }
+
     protected async syncRoCrateFromWorkspace(): Promise<void> {
         const startedAt = this.nowMs()
         const seq = ++this.perfSeq
@@ -167,7 +209,8 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
                 if (exists) {
                     try {
                         const crate = await this.loadRoCrateWithNormalization(roCrateUri)
-                        this.updateState(crate, false)
+                        const approval = await this.loadRoCrateApprovalForMetadata(roCrateUri)
+                        this.updateState(crate, false, approval)
                         await this.refreshProfileList(crate)
                         await this.refreshCompleteProfile(crate)
                     } catch (parseError) {
@@ -230,7 +273,8 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
         try {
             const crate = await this.loadRoCrateWithNormalization(roCrateUri)
-            this.updateState(crate, false)
+            const approval = await this.loadRoCrateApprovalForMetadata(roCrateUri)
+            this.updateState(crate, false, approval)
             await this.refreshProfileList(crate)
             await this.refreshCompleteProfile(crate)
         } catch (error) {
@@ -410,14 +454,33 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     private updateState(
         content: Record<string, any> | undefined,
         isInvalid: boolean,
+        roCrateApproval?: RoCrateApprovalFile,
     ): void {
         this.roCrateHistoryService.clear()
         this.lastObservedConformsToKey = this.buildConformsToKey(content)
         this.appStateService.roCrate = content
+        this.appStateService.roCrateApproval = content ? roCrateApproval : undefined
         this.appStateService.isROCrateInvalid = isInvalid
         this.appStateService.setRoCrateSnapshot(content)
         this.appStateService.dirty = false
         this.lastKnownMetadataJson = this.normalizeCrate(content)
+    }
+
+    private applyRevertedState(
+        content: Record<string, any>,
+        roCrateApproval?: RoCrateApprovalFile,
+    ): boolean {
+        this.lastObservedConformsToKey = this.buildConformsToKey(content)
+        const changed = this.roCrateHistoryService.applyRoCrateChange(content, {
+            label: 'Revert to saved RO-Crate',
+            trackHistory: true,
+        })
+        this.appStateService.roCrateApproval = roCrateApproval
+        this.appStateService.isROCrateInvalid = false
+        this.appStateService.setRoCrateSnapshot(content)
+        this.appStateService.dirty = false
+        this.lastKnownMetadataJson = this.normalizeCrate(content)
+        return changed
     }
 
     protected ensureMetadataWatch(rootUri: URI): void {
@@ -508,9 +571,8 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             return
         }
 
-        this.lastKnownMetadataJson = normalized
-
         if (action === 'off') {
+            this.lastKnownMetadataJson = normalized
             return
         }
 
@@ -522,28 +584,76 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             return
         }
 
-        const choice = await this.messageService.info(
-            'ro-crate-metadata.json changed outside the application. Reload changes?',
-            'Reload',
-            'Always Reload',
-            'Ignore',
-        )
-        if (choice === 'Always Reload') {
-            await this.preferenceService.set(
-                ROCrateExternalChangeAction,
-                'auto',
-                PreferenceScope.User,
-            )
+        if (this.externalMetadataPromptInFlight === normalized) {
+            return
         }
-        if (choice === 'Reload' || choice === 'Always Reload') {
-            await this.reloadExternalCrate(metadataUri)
+
+        this.externalMetadataPromptInFlight = normalized
+        try {
+            const choice = await this.messageService.info(
+                'ro-crate-metadata.json changed outside the application. Reload changes?',
+                'Reload',
+                'Always Reload',
+                'Ignore',
+            )
+            if (choice === 'Always Reload') {
+                await this.preferenceService.set(
+                    ROCrateExternalChangeAction,
+                    'auto',
+                    PreferenceScope.User,
+                )
+            }
+            if (choice === 'Reload' || choice === 'Always Reload') {
+                await this.reloadExternalCrate(metadataUri)
+                return
+            }
+            if (choice === 'Ignore') {
+                await this.discardExternalCrateChange(metadataUri)
+            }
+        } finally {
+            if (this.externalMetadataPromptInFlight === normalized) {
+                this.externalMetadataPromptInFlight = undefined
+            }
+        }
+    }
+
+    protected async discardExternalCrateChange(metadataUri: URI): Promise<void> {
+        const crate = this.appStateService.roCrate
+        if (!crate) {
+            this.messageService.warn(
+                'Cannot ignore external ro-crate-metadata.json changes because no RO-Crate is loaded.',
+            )
+            return
+        }
+
+        try {
+            const approval = this.appStateService.roCrateApproval
+            const previewUri = metadataUri.parent.resolve(RO_CRATE_PREVIEW_FILE)
+
+            this.lastKnownMetadataJson = this.normalizeCrate(crate)
+            await this.fileService.create(metadataUri, JSON.stringify(crate, null, 2), {
+                overwrite: true,
+            })
+            await this.writeRoCrateApprovalFile(metadataUri, approval)
+            await this.deleteLegacyRoCrateApprovalFile(metadataUri)
+            const htmlContent = this.roCrateHtmlGenerator.generate(crate)
+            await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+        } catch (error) {
+            console.error('Failed to ignore external RO-Crate change:', error)
+            this.messageService.error(
+                'Failed to restore ro-crate-metadata.json after ignoring external changes.',
+            )
         }
     }
 
     protected async reloadExternalCrate(metadataUri: URI): Promise<void> {
         try {
             const crate = await this.loadRoCrateWithNormalization(metadataUri)
-            this.updateState(crate, false)
+            const approval = await this.maintainApprovalForExternalCrateChange(
+                metadataUri,
+                crate,
+            )
+            this.updateState(crate, false, approval)
             await this.refreshProfileList(crate)
             await this.refreshCompleteProfile(crate)
         } catch (error) {
@@ -551,6 +661,93 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             this.messageService.error(
                 'Failed to reload ro-crate-metadata.json after external change.',
             )
+        }
+    }
+
+    protected async maintainApprovalForExternalCrateChange(
+        metadataUri: URI,
+        nextCrate: Record<string, any>,
+    ): Promise<RoCrateApprovalFile> {
+        const changedProperties = collectRoCrateChangedProperties(
+            this.appStateService.roCrate,
+            nextCrate,
+        )
+
+        const existing = await this.loadRoCrateApprovalForMetadata(metadataUri)
+        const nextApproval = maintainRoCrateApprovalFile(existing, changedProperties)
+
+        await this.writeRoCrateApprovalFile(metadataUri, nextApproval)
+        return nextApproval
+    }
+
+    protected async loadRoCrateApprovalForMetadata(
+        metadataUri: URI,
+    ): Promise<RoCrateApprovalFile | undefined> {
+        const approvalUri = this.getRoCrateApprovalUri(metadataUri)
+        const approval = await this.readRoCrateApprovalFile(approvalUri)
+        if (approval) {
+            await this.deleteLegacyRoCrateApprovalFile(metadataUri)
+            return approval
+        }
+
+        const legacyApprovalUri = this.getLegacyRoCrateApprovalUri(metadataUri)
+        const legacyApproval = await this.readRoCrateApprovalFile(legacyApprovalUri)
+        if (!legacyApproval) {
+            return undefined
+        }
+
+        await this.writeRoCrateApprovalFile(metadataUri, legacyApproval)
+        await this.deleteLegacyRoCrateApprovalFile(metadataUri)
+        return legacyApproval
+    }
+
+    protected getRoCrateApprovalUri(metadataUri: URI): URI {
+        return metadataUri.parent.resolve(RO_CRATE_APPROVAL_FILE)
+    }
+
+    protected getLegacyRoCrateApprovalUri(metadataUri: URI): URI {
+        return metadataUri.parent.resolve(RO_CRATE_APPROVAL_FILE_NAME)
+    }
+
+    protected async writeRoCrateApprovalFile(
+        metadataUri: URI,
+        approval: RoCrateApprovalFile | undefined,
+    ): Promise<void> {
+        const approvalUri = this.getRoCrateApprovalUri(metadataUri)
+        const approvalDirUri = approvalUri.parent
+        if (!(await this.fileService.exists(approvalDirUri))) {
+            await this.fileService.createFolder(approvalDirUri)
+        }
+        await this.fileService.create(approvalUri, JSON.stringify(approval ?? [], null, 2), {
+            overwrite: true,
+        })
+    }
+
+    protected async deleteLegacyRoCrateApprovalFile(metadataUri: URI): Promise<void> {
+        const legacyApprovalUri = this.getLegacyRoCrateApprovalUri(metadataUri)
+        try {
+            if (await this.fileService.exists(legacyApprovalUri)) {
+                await this.fileService.delete(legacyApprovalUri)
+            }
+        } catch (error) {
+            console.warn('Failed to remove legacy root-level ro-crate-approval.json:', error)
+        }
+    }
+
+    protected async readRoCrateApprovalFile(
+        approvalUri: URI,
+    ): Promise<RoCrateApprovalFile | undefined> {
+        try {
+            const exists = await this.fileService.exists(approvalUri)
+            if (!exists) {
+                return undefined
+            }
+            const content = await this.fileService.read(approvalUri)
+            const parsed = JSON.parse(content.value)
+            return parseRoCrateApprovalFile(parsed)
+        } catch (error) {
+            console.warn('Failed to read ro-crate-approval.json:', error)
+            return undefined
         }
     }
 
