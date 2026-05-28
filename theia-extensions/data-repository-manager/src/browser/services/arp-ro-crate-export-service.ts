@@ -18,9 +18,12 @@ export interface ArpRoCrateExportResult {
 
 const DATAVERSE_FILE_CONTEXT: Record<string, string> = {
     contentSize: 'https://schema.org/contentSize',
+    dateModified: 'https://schema.org/dateModified',
+    description: 'https://schema.org/description',
     directoryLabel: 'https://dataverse.org/schema/file/directoryLabel',
     encodingFormat: 'https://schema.org/encodingFormat',
-    hash: 'https://dataverse.org/schema/file/hash'
+    hash: 'https://dataverse.org/schema/file/hash',
+    url: 'https://schema.org/url'
 };
 
 @injectable()
@@ -134,9 +137,7 @@ export class ArpRoCrateExportService {
             enrichedFileCount += 1;
         }
 
-        if (enrichedFileCount > 0) {
-            this.ensureDataverseFileContext(uploadCrate);
-        }
+        this.ensureDataverseFileContext(uploadCrate);
         return uploadCrate;
     }
 
