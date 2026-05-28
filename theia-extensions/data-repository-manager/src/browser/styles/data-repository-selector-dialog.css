@@ -173,33 +173,3 @@
     white-space: nowrap;
 }
 
-/* Footer */
-.data-repo-selector__footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 20px;
-    background-color: var(--theia-layout-color2);
-    border-top: 1px solid var(--theia-panel-border);
-    flex-shrink: 0;
-}
-
-.data-repo-selector__manage-btn {
-    display: flex;
-    align-items: center;
-    border: none;
-    background: transparent;
-    padding: 4px 8px;
-    color: var(--theia-textLink-foreground);
-    cursor: pointer;
-    font-size: var(--theia-ui-font-size0);
-}
-
-.data-repo-selector__manage-btn:hover {
-    text-decoration: underline;
-}
-
-.data-repo-selector__cancel-btn {
-    min-width: 80px;
-    border: 1px solid var(--theia-button-border, #ccc);
-}

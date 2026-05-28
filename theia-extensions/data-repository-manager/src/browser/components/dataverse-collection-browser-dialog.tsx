@@ -114,6 +114,7 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                     <DataverseTree
                         collectionService={collectionService}
                         roleIds={roleIds}
+                        selectedCollectionId={selectedCollection?.id}
                         onCollectionSelected={handleCollectionSelected}
                     />
                 ) : (

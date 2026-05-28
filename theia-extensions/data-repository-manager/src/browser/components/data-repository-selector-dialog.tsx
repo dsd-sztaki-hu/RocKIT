@@ -5,7 +5,6 @@ import { createRoot, Root } from 'react-dom/client';
 import DnsIcon from '@mui/icons-material/Dns';
 import StorageIcon from '@mui/icons-material/Storage';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import AddLinkIcon from '@mui/icons-material/AddLink';
 import { DataRepositoryConfig } from '../types';
 import { DataRepositoryConfigDialog } from './data-repository-config-dialog';
 import { DataRepositoryStoreService } from '../services/data-repository-store-service';
@@ -29,6 +28,10 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryC
         this.contentNode.style.width = '500px';
         this.contentNode.style.height = '400px';
         this.contentNode.style.padding = '0';
+
+        const addButton = this.appendButton('Add Repository', true);
+        addButton.addEventListener('click', () => void this.handleAddRepository());
+        this.appendCloseButton();
 
         // Automatically refresh list when store changes
         const listener = this.storeService.onDidChange(() => this.loadRepositories());
@@ -90,13 +93,6 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryC
                                     <p className="data-repo-selector__empty-desc">
                                         You haven't configured any data repositories yet.
                                     </p>
-                                    <button 
-                                        className="theia-button" 
-                                        onClick={() => this.handleAddRepository()}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                                    >
-                                        <AddLinkIcon fontSize="small" /> Add Repository
-                                    </button>
                                 </div>
                             </div>
                         ) : (
@@ -121,16 +117,6 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryC
                             ))
                         )}
                     </div>
-                </div>
-
-                <div className="data-repo-selector__footer">
-                    <div />
-                    <button 
-                        className="theia-button secondary data-repo-selector__cancel-btn"
-                        onClick={() => this.close()}
-                    >
-                        Cancel
-                    </button>
                 </div>
             </div>
         );

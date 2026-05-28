@@ -75,8 +75,12 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     }
 
     public async handleExportToRemote(): Promise<void> {
+        const repositories = await this.storeService.loadRepositories();
+        this.repositories = repositories;
+        this.update();
+
         // Show repository selector first, matching the UX requested.
-        const selector = new DataRepositorySelectorDialog(this.repositories, this.storeService, this.dataverseService);
+        const selector = new DataRepositorySelectorDialog(repositories, this.storeService, this.dataverseService);
         const selectedRepo = await selector.open();
 
         if (!selectedRepo) {

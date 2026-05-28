@@ -30,6 +30,7 @@ export type DataverseTreeProps = {
     onCollectionSelected: (collection: DataverseCollection) => void;
     collectionService: DataverseCollectionService;
     roleIds: string[];
+    selectedCollectionId?: string;
 };
 
 const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
@@ -99,6 +100,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
     };
 
     const onNodeClick = async (node: TreeNode, e: React.MouseEvent) => {
+        e.preventDefault();
         e.stopPropagation();
         
         const canWrite = await props.collectionService.canAddDataset(node.id);
@@ -161,7 +163,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                 nodeId={node.id}
                 label={
                     <div 
-                        className="dataverse-tree__node"
+                        className={`dataverse-tree__node${props.selectedCollectionId === node.id ? ' dataverse-tree__node--selected' : ''}`}
                         onClick={(e) => onNodeClick(node, e)}
                     >
                         <span className="dataverse-tree__node-icon">
@@ -176,16 +178,26 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                 sx={{
                     color: 'var(--theia-foreground)',
                     '& .MuiTreeItem-content': {
-                        padding: '0px 8px',
-                        borderRadius: '3px',
+                        padding: 0,
+                        borderRadius: 0,
+                        outline: 'none !important',
                         '&.Mui-selected': {
                             backgroundColor: 'transparent !important',
                             color: 'var(--theia-foreground) !important',
+                        },
+                        '&.Mui-focused': {
+                            backgroundColor: 'transparent !important',
+                        },
+                        '&.Mui-selected.Mui-focused': {
+                            backgroundColor: 'transparent !important',
                         },
                         '&:hover': {
                             backgroundColor: 'transparent !important',
                             color: 'var(--theia-foreground)',
                         }
+                    },
+                    '& .MuiTreeItem-label': {
+                        padding: 0,
                     }
                 }}
             >
@@ -257,7 +269,15 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                         defaultExpandIcon={<ChevronRightIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
                         expanded={expandedNodes}
                         onNodeToggle={handleToggle}
-                        sx={{ flexGrow: 1, overflowY: 'auto', outline: 'none' }}
+                        selected={props.selectedCollectionId ?? ''}
+                        sx={{
+                            flexGrow: 1,
+                            overflowY: 'auto',
+                            outline: 'none !important',
+                            border: 'none !important',
+                            '&:focus': { outline: 'none !important' },
+                            '&:focus-visible': { outline: 'none !important' }
+                        }}
                     >
                         {renderTree(filteredNodes)}
                     </TreeView>

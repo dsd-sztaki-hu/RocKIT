@@ -77,7 +77,22 @@
 .dataverse-tree__node {
     display: flex;
     align-items: center;
-    padding: 4px 0;
+    width: 100%;
+    min-height: 28px;
+    padding: 4px 8px;
+    box-sizing: border-box;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.dataverse-tree__node:hover {
+    background-color: var(--theia-list-hoverBackground);
+}
+
+.dataverse-tree__node--selected,
+.dataverse-tree__node--selected:hover {
+    background-color: var(--theia-list-inactiveSelectionBackground, var(--theia-list-hoverBackground));
+    color: var(--theia-list-inactiveSelectionForeground, var(--theia-foreground));
 }
 
 .dataverse-tree__node-icon {
