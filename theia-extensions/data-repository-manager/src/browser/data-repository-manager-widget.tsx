@@ -15,6 +15,7 @@ import { DataRepositoryStoreService } from './services/data-repository-store-ser
 import { DataverseService } from './services/dataverse-service';
 import { DataverseCollectionService } from './services/dataverse-collection-service';
 import { DataRepositoryConfig } from './types';
+import { ArpRoCrateExportService } from './services/arp-ro-crate-export-service';
 import './styles/index.css';
 
 export const DATA_REPOSITORY_MANAGER_WIDGET_ID = 'data-repository-manager:widget';
@@ -35,7 +36,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         @inject(MessageService) protected readonly messageService: MessageService,
         @inject(DataRepositoryStoreService) protected readonly storeService: DataRepositoryStoreService,
         @inject(DataverseService) protected readonly dataverseService: DataverseService,
-        @inject(DataverseCollectionService) protected readonly collectionService: DataverseCollectionService
+        @inject(DataverseCollectionService) protected readonly collectionService: DataverseCollectionService,
+        @inject(ArpRoCrateExportService) protected readonly arpExportService: ArpRoCrateExportService
     ) {
         super();
         this.id = DATA_REPOSITORY_MANAGER_WIDGET_ID;
@@ -96,9 +98,18 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         const result = await dialog.open();
 
         if (result) {
-            this.messageService.info(`Destination selected: ${result.name}. Export functionality will be available soon.`);
-            // Store the selection in widget state for future upload implementation
-            console.log('User selected destination for export:', result, 'on repository:', selectedRepo);
+            const progress = await this.messageService.showProgress({ text: `Exporting RO-Crate to ${result.name}...` });
+            try {
+                const exportResult = await this.arpExportService.exportToArp(selectedRepo, result);
+                const target = exportResult.dataverseUrl || exportResult.pid || exportResult.requestUrl;
+                this.messageService.info(`RO-Crate export completed: ${target}`, { timeout: 8000 });
+                console.log('RO-Crate exported to ARP:', exportResult);
+            } catch (error) {
+                console.error('RO-Crate export failed:', error);
+                this.messageService.error(`RO-Crate export failed: ${error instanceof Error ? error.message : String(error)}`, { timeout: 10000 });
+            } finally {
+                progress.cancel();
+            }
         }
     }
 

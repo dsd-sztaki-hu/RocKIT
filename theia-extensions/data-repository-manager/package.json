@@ -23,6 +23,7 @@
       "@emotion/react": "^11.11.0",
       "@emotion/styled": "^11.11.0",
       "@iqss/dataverse-client-javascript": "2.1.0",
+      "jszip": "^3.10.1",
       "aroma2-common": "0.0.0"
     },
   "devDependencies": {

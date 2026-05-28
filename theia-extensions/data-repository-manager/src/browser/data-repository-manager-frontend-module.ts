@@ -7,12 +7,14 @@ import { DataRepositoryManagerContribution } from './data-repository-manager-con
 import { DataRepositoryStoreService } from './services/data-repository-store-service';
 import { DataverseService } from './services/dataverse-service';
 import { DataverseCollectionService } from './services/dataverse-collection-service';
+import { ArpRoCrateExportService } from './services/arp-ro-crate-export-service';
 
 export default new ContainerModule(bind => {
     // 1. Services
     bind(DataRepositoryStoreService).toSelf().inSingletonScope();
     bind(DataverseService).toSelf().inSingletonScope();
     bind(DataverseCollectionService).toSelf().inSingletonScope();
+    bind(ArpRoCrateExportService).toSelf().inSingletonScope();
 
     // 2. Widget
     bind(DataRepositoryManagerWidget).toSelf().inTransientScope();
