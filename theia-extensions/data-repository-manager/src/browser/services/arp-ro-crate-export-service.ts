@@ -2,6 +2,7 @@ import JSZip = require('jszip');
 import { inject, injectable } from 'inversify';
 import { URI } from '@theia/core/lib/common/uri';
 import { FileUri } from '@theia/core/lib/common/file-uri';
+import { BinaryBuffer } from '@theia/core/lib/common/buffer';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { localizeExternalRoCrateFileReferences, RoCrateExportFileSource } from 'aroma2-common/lib/common/ro-crate-export-file-references';
@@ -52,6 +53,7 @@ export class ArpRoCrateExportService {
         await this.validateRoCrate(uploadCrate, baseUrl, repository.apiKey);
 
         const zip = await this.buildDataverseUploadZip(uploadCrate, rootUri, externalFileEntries);
+        await this.saveDebugUploadZip(rootUri, zip);
         const uploadUrl = new URL('/api/arp/uploadRoCrateZip', `${baseUrl}/`);
         uploadUrl.searchParams.set('ownerId', collection.alias || collection.id);
 
@@ -174,6 +176,11 @@ export class ArpRoCrateExportService {
         }
 
         return zip.generateAsync({ type: 'uint8array', compression: 'STORE' });
+    }
+
+    protected async saveDebugUploadZip(rootUri: URI, zip: Uint8Array): Promise<void> {
+        const debugZipUri = rootUri.resolve('arp-upload-debug.zip');
+        await this.fileService.writeFile(debugZipUri, BinaryBuffer.wrap(zip));
     }
 
     protected async localizeExternalLocalFileReferences(crate: RoCrate, rootUri: URI): Promise<Map<string, URI>> {
