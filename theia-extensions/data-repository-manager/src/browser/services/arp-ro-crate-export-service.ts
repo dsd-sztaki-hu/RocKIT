@@ -1,8 +1,10 @@
 import JSZip = require('jszip');
 import { inject, injectable } from 'inversify';
 import { URI } from '@theia/core/lib/common/uri';
+import { FileUri } from '@theia/core/lib/common/file-uri';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
+import { localizeExternalRoCrateFileReferences, RoCrateExportFileSource } from 'aroma2-common/lib/common/ro-crate-export-file-references';
 import { DataRepositoryConfig, DataverseCollection } from '../types';
 
 type RoCrateEntity = Record<string, any>;
@@ -46,9 +48,10 @@ export class ArpRoCrateExportService {
         }
 
         const uploadCrate = await this.buildDataverseUploadCrate(crate, rootUri);
+        const externalFileEntries = await this.localizeExternalLocalFileReferences(uploadCrate, rootUri);
         await this.validateRoCrate(uploadCrate, baseUrl, repository.apiKey);
 
-        const zip = await this.buildDataverseUploadZip(uploadCrate, rootUri);
+        const zip = await this.buildDataverseUploadZip(uploadCrate, rootUri, externalFileEntries);
         const uploadUrl = new URL('/api/arp/uploadRoCrateZip', `${baseUrl}/`);
         uploadUrl.searchParams.set('ownerId', collection.alias || collection.id);
 
@@ -141,13 +144,13 @@ export class ArpRoCrateExportService {
         return uploadCrate;
     }
 
-    protected async buildDataverseUploadZip(crate: RoCrate, rootUri: URI): Promise<Uint8Array> {
+    protected async buildDataverseUploadZip(crate: RoCrate, rootUri: URI, externalFileEntries = new Map<string, URI>()): Promise<Uint8Array> {
         const zip = new JSZip();
         zip.file('ro-crate-metadata.json', `${JSON.stringify(crate, null, 2)}\n`);
 
-        const fileEntries = new Map<string, URI>();
+        const fileEntries = new Map(externalFileEntries);
         for (const relativePath of this.extractCrateFilePaths(crate)) {
-            if (relativePath === 'ro-crate-metadata.json') {
+            if (relativePath === 'ro-crate-metadata.json' || fileEntries.has(relativePath)) {
                 continue;
             }
             const uri = rootUri.resolve(relativePath);
@@ -171,6 +174,45 @@ export class ArpRoCrateExportService {
         }
 
         return zip.generateAsync({ type: 'uint8array', compression: 'STORE' });
+    }
+
+    protected async localizeExternalLocalFileReferences(crate: RoCrate, rootUri: URI): Promise<Map<string, URI>> {
+        const externalFileEntries = new Map<string, URI>();
+        const localizedReferences = await localizeExternalRoCrateFileReferences(crate, {
+            existingEntryPaths: this.extractCrateFilePaths(crate),
+            resolveLocalSource: async sources => {
+                const resolved = await this.resolveFirstReadableLocalSource(sources);
+                return resolved ? { source: resolved.source, value: resolved.uri } : undefined;
+            }
+        });
+
+        for (const reference of localizedReferences) {
+            externalFileEntries.set(reference.importedPath, reference.resolvedSource);
+        }
+
+        return externalFileEntries;
+    }
+
+    protected async resolveFirstReadableLocalSource(sources: readonly RoCrateExportFileSource[]): Promise<{ uri: URI; source: RoCrateExportFileSource } | undefined> {
+        for (const source of sources) {
+            const uri = this.toLocalFileUri(source.value);
+            if (!uri) {
+                continue;
+            }
+            try {
+                if (!(await this.fileService.exists(uri))) {
+                    continue;
+                }
+                const stat = await this.fileService.resolve(uri);
+                if (stat.isDirectory) {
+                    continue;
+                }
+                return { uri, source };
+            } catch (error) {
+                console.warn('Failed to resolve external RO-Crate file reference', source.value, error);
+            }
+        }
+        return undefined;
     }
 
     protected async walkDirectoryFiles(rootUri: URI, relativePath: string, entries: Map<string, URI>): Promise<void> {
@@ -331,6 +373,20 @@ export class ArpRoCrateExportService {
             return undefined;
         }
         return this.isSafeRelativePath(rel) ? rel.replace(/\\/g, '/') : undefined;
+    }
+
+    protected toLocalFileUri(value: string): URI | undefined {
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return undefined;
+        }
+        if (/^file:\/\//i.test(trimmed)) {
+            return new URI(trimmed);
+        }
+        if (/^[a-zA-Z]:[\\/]/.test(trimmed) || /^[/\\]{2}[^/\\]/.test(trimmed) || /^\/[^/]/.test(trimmed)) {
+            return new URI(FileUri.create(trimmed).toString());
+        }
+        return undefined;
     }
 
     protected ensureDataverseFileContext(crate: RoCrate): void {

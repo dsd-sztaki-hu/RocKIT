@@ -2,8 +2,7 @@ import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { IconButton, Tooltip, CircularProgress } from '@mui/material';
-import CancelIcon from '@mui/icons-material/Cancel';
+import { CircularProgress } from '@mui/material';
 
 import { DataverseCollectionService } from '../services/dataverse-collection-service';
 import DataverseTree from './dataverse-tree';
@@ -103,10 +102,6 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
         setSelectedCollection(collection);
     };
 
-    const handleDeselect = () => {
-        setSelectedCollection(null);
-    };
-
     return (
         <div className="dataverse-browser-dialog">
             <div className="dataverse-browser-dialog__tree-container">
@@ -128,18 +123,9 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
             <div className="dataverse-browser-dialog__footer">
                 <div className="dataverse-browser-dialog__selection-info">
                     {selectedCollection ? (
-                        <>
-                            <div className="dataverse-browser-dialog__controls">
-                                <Tooltip title="Deselect">
-                                    <IconButton size="small" onClick={handleDeselect} style={{ padding: 2, color: 'var(--theia-errorForeground)' }}>
-                                        <CancelIcon fontSize="small" />
-                                    </IconButton>
-                                </Tooltip>
-                            </div>
-                            <span className="dataverse-browser-dialog__selected-name">
-                                {selectedCollection.name} {selectedCollection.isWritable === false && '(No Write Access)'}
-                            </span>
-                        </>
+                        <span className="dataverse-browser-dialog__selected-name">
+                            {selectedCollection.name} {selectedCollection.isWritable === false && '(No Write Access)'}
+                        </span>
                     ) : (
                         <span className="dataverse-browser-dialog__placeholder">
                             Select a destination collection...
