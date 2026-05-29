@@ -35,7 +35,7 @@ export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
     order: 'a04',
   },
   {
-    commandId: 'schema-validator:command',
+    commandId: 'validation-errors:command',
     label: 'Validation Errors',
     order: 'a05',
   },
