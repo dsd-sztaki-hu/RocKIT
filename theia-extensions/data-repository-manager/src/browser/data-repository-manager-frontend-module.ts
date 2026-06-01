@@ -8,6 +8,7 @@ import { DataRepositoryStoreService } from './services/data-repository-store-ser
 import { DataverseService } from './services/dataverse-service';
 import { DataverseCollectionService } from './services/dataverse-collection-service';
 import { ArpRoCrateExportService } from './services/arp-ro-crate-export-service';
+import { NativeDataverseExportService } from './services/native-dataverse-export-service';
 
 export default new ContainerModule(bind => {
     // 1. Services
@@ -15,6 +16,7 @@ export default new ContainerModule(bind => {
     bind(DataverseService).toSelf().inSingletonScope();
     bind(DataverseCollectionService).toSelf().inSingletonScope();
     bind(ArpRoCrateExportService).toSelf().inSingletonScope();
+    bind(NativeDataverseExportService).toSelf().inSingletonScope();
 
     // 2. Widget
     bind(DataRepositoryManagerWidget).toSelf().inTransientScope();

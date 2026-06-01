@@ -14,8 +14,8 @@ import { DataverseCollectionBrowserDialog } from './components/dataverse-collect
 import { DataRepositoryStoreService } from './services/data-repository-store-service';
 import { DataverseService } from './services/dataverse-service';
 import { DataverseCollectionService } from './services/dataverse-collection-service';
+import { NativeDataverseExportService } from './services/native-dataverse-export-service';
 import { DataRepositoryConfig } from './types';
-import { ArpRoCrateExportService } from './services/arp-ro-crate-export-service';
 import './styles/index.css';
 
 export const DATA_REPOSITORY_MANAGER_WIDGET_ID = 'data-repository-manager:widget';
@@ -37,7 +37,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         @inject(DataRepositoryStoreService) protected readonly storeService: DataRepositoryStoreService,
         @inject(DataverseService) protected readonly dataverseService: DataverseService,
         @inject(DataverseCollectionService) protected readonly collectionService: DataverseCollectionService,
-        @inject(ArpRoCrateExportService) protected readonly arpExportService: ArpRoCrateExportService
+        @inject(NativeDataverseExportService) protected readonly nativeExportService: NativeDataverseExportService
     ) {
         super();
         this.id = DATA_REPOSITORY_MANAGER_WIDGET_ID;
@@ -98,15 +98,15 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         const result = await dialog.open();
 
         if (result) {
-            const progress = await this.messageService.showProgress({ text: `Exporting RO-Crate to ${result.name}...` });
+            const progress = await this.messageService.showProgress({ text: `Creating Dataverse dataset in ${result.name}...` });
             try {
-                const exportResult = await this.arpExportService.exportToArp(selectedRepo, result);
-                const target = exportResult.dataverseUrl || exportResult.pid || exportResult.requestUrl;
-                this.messageService.info(`RO-Crate export completed: ${target}`, { timeout: 8000 });
-                console.log('RO-Crate exported to ARP:', exportResult);
+                const creationResult = await this.nativeExportService.createDataset(selectedRepo, result);
+                const createdDataset = creationResult.persistentId || creationResult.datasetId || creationResult.requestUrl;
+                this.messageService.info(`Dataverse dataset created: ${createdDataset}. Uploaded ${creationResult.uploadedFiles.length} files.`, { timeout: 8000 });
+                console.log('Dataverse dataset created through native API:', creationResult);
             } catch (error) {
-                console.error('RO-Crate export failed:', error);
-                this.messageService.error(`RO-Crate export failed: ${error instanceof Error ? error.message : String(error)}`, { timeout: 10000 });
+                console.error('Native Dataverse dataset creation failed:', error);
+                this.messageService.error(`Dataverse dataset creation failed: ${error instanceof Error ? error.message : String(error)}`, { timeout: 10000 });
             } finally {
                 progress.cancel();
             }
