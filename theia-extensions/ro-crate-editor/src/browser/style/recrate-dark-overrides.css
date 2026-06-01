@@ -1438,6 +1438,210 @@
   color: #d7ffe8 !important;
 }
 
+:is(.theia-hc, body.hc-black) .rocrate-editor .recrate-scope .describo-ai-entity-diff-card,
+:is(.theia-hc, body.hc-black) .rocrate-editor .recrate-scope .describo-ai-field-diff {
+  background: #000000 !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  border-left-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-card-delete,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-card-delete
+  .describo-ai-entity-diff-head {
+  border-color: #ff8f8f !important;
+  border-left-color: #ff8f8f !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-card-unlink,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-card-unlink
+  .describo-ai-entity-diff-head {
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  border-left-color: var(--theia-focusBorder, #f38518) !important;
+}
+
+:is(.theia-hc, body.hc-black) .rocrate-editor .recrate-scope .describo-ai-entity-diff-head,
+:is(.theia-hc, body.hc-black) .rocrate-editor .recrate-scope .describo-ai-field-diff-head {
+  background: #000000 !important;
+  border-bottom-color: var(--theia-focusBorder, #f38518) !important;
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-card-delete
+  .describo-ai-entity-diff-head {
+  color: #ff8f8f !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-card-unlink
+  .describo-ai-entity-diff-head,
+:is(.theia-hc, body.hc-black) .rocrate-editor .recrate-scope .describo-ai-field-diff-chip {
+  color: var(--theia-focusBorder, #f38518) !important;
+}
+
+:is(.theia-hc, body.hc-black) .rocrate-editor .recrate-scope .describo-ai-entity-diff-line,
+:is(.theia-hc, body.hc-black) .rocrate-editor .recrate-scope .describo-ai-field-diff-line,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-line-context,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-line-removed,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-line-added,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-field-diff-line-removed,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-field-diff-line-added {
+  background: #000000 !important;
+  border-bottom-color: rgba(255, 255, 255, 0.62) !important;
+}
+
+:is(.theia-hc, body.hc-black) .rocrate-editor .recrate-scope .describo-ai-entity-diff-marker,
+:is(.theia-hc, body.hc-black) .rocrate-editor .recrate-scope .describo-ai-field-diff-marker,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-line-context
+  .describo-ai-entity-diff-marker,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-line-removed
+  .describo-ai-entity-diff-marker,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-line-added
+  .describo-ai-entity-diff-marker,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-field-diff-line-removed
+  .describo-ai-field-diff-marker,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-field-diff-line-added
+  .describo-ai-field-diff-marker {
+  background: #000000 !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.62) !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-line-context
+  .describo-ai-entity-diff-marker {
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-line-removed
+  .describo-ai-entity-diff-marker,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-field-diff-line-removed
+  .describo-ai-field-diff-marker {
+  color: #ff8f8f !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-line-added
+  .describo-ai-entity-diff-marker,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-field-diff-line-added
+  .describo-ai-field-diff-marker {
+  color: #7ee787 !important;
+}
+
+:is(.theia-hc, body.hc-black) .rocrate-editor .recrate-scope .describo-ai-entity-diff-key,
+:is(.theia-hc, body.hc-black) .rocrate-editor .recrate-scope .describo-ai-entity-diff-value,
+:is(.theia-hc, body.hc-black) .rocrate-editor .recrate-scope .describo-ai-field-diff-value {
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black) .rocrate-editor .recrate-scope .describo-ai-field-diff-empty {
+  color: rgba(255, 255, 255, 0.76) !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-button.ant-btn {
+  background: #000000 !important;
+  border: 1px solid #7ee787 !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-button-reject.ant-btn {
+  border-color: #ff8f8f !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-button.ant-btn:hover,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-button.ant-btn:focus-visible {
+  background: rgba(63, 185, 80, 0.16) !important;
+  border-color: #7ee787 !important;
+  box-shadow: 0 0 0 1px rgba(126, 231, 135, 0.45) !important;
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-button-reject.ant-btn:hover,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .describo-ai-entity-diff-button-reject.ant-btn:focus-visible {
+  background: rgba(255, 123, 114, 0.16) !important;
+  border-color: #ff8f8f !important;
+  box-shadow: 0 0 0 1px rgba(255, 143, 143, 0.45) !important;
+}
+
 :is(.theia-dark, .theia-hc)
   .rocrate-editor
   .recrate-scope
