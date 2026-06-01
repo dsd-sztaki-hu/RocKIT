@@ -5,21 +5,23 @@ import { createRoot, Root } from 'react-dom/client';
 import DnsIcon from '@mui/icons-material/Dns';
 import StorageIcon from '@mui/icons-material/Storage';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { DataRepositoryConfig } from '../types';
+import { DataRepositoryConfig, DataRepositorySelection } from '../types';
 import { DataRepositoryConfigDialog } from './data-repository-config-dialog';
 import { DataRepositoryStoreService } from '../services/data-repository-store-service';
 import { DataverseService } from '../services/dataverse-service';
+import { DataverseCapabilityService } from '../services/dataverse-capability-service';
 import '../styles/data-repository-selector-dialog.css';
 
-export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryConfig | undefined> {
+export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositorySelection | undefined> {
 
     private reactRoot: Root | undefined;
-    private result: DataRepositoryConfig | undefined;
+    private result: DataRepositorySelection | undefined;
 
     constructor(
         private repositories: DataRepositoryConfig[],
         private readonly storeService: DataRepositoryStoreService,
-        private readonly dataverseService: DataverseService
+        private readonly dataverseService: DataverseService,
+        private readonly capabilityService: DataverseCapabilityService
     ) {
         super({
             title: 'Select Data Repository'
@@ -38,7 +40,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryC
         this.toDispose.push(listener);
     }
 
-    get value(): DataRepositoryConfig | undefined {
+    get value(): DataRepositorySelection | undefined {
         return this.result;
     }
 
@@ -51,8 +53,9 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryC
         }
     }
 
-    protected handleSelect(repo: DataRepositoryConfig) {
-        this.result = repo;
+    protected async handleSelect(repo: DataRepositoryConfig) {
+        const supportsArpRoCrateZipUpload = await this.capabilityService.supportsArpRoCrateZipUpload(repo.baseUrl);
+        this.result = { repository: repo, supportsArpRoCrateZipUpload };
         this.accept();
     }
 
@@ -100,7 +103,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryC
                                 <button
                                     key={repo.id}
                                     className="data-repo-selector__item"
-                                    onClick={() => this.handleSelect(repo)}
+                                    onClick={() => void this.handleSelect(repo)}
                                     title={repo.baseUrl}
                                 >
                                     <div className="data-repo-selector__item-content">

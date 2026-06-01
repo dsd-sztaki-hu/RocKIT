@@ -51,6 +51,14 @@ interface NativeDataverseUploadFile {
     content: Uint8Array;
 }
 
+export interface NativeDataverseExportProgress {
+    completedSteps: number;
+    totalSteps: number;
+    message: string;
+}
+
+export type NativeDataverseExportProgressReporter = (progress: NativeDataverseExportProgress) => void;
+
 @injectable()
 export class NativeDataverseExportService {
 
@@ -62,7 +70,8 @@ export class NativeDataverseExportService {
     public async createDataset(
         repository: DataRepositoryConfig,
         collection: DataverseCollection,
-        metadataLanguage: string
+        metadataLanguage: string,
+        reportProgress?: NativeDataverseExportProgressReporter
     ): Promise<NativeDataverseDatasetCreationResult> {
         const baseUrl = this.normalizeBaseUrl(repository.baseUrl);
         const collectionId = collection.alias || collection.id;
@@ -71,6 +80,13 @@ export class NativeDataverseExportService {
         const allowedMetadataLanguages = await this.getAllowedMetadataLanguages(baseUrl, collectionId, repository.apiKey);
         this.validateMetadataLanguage(metadataLanguage, allowedMetadataLanguages);
         const payload = this.buildDatasetCreationPayload(crate, metadataLanguage);
+        const uploadFiles = await this.collectRoCrateUploadFiles(crate, rootUri);
+        const totalSteps = uploadFiles.length + 1;
+        reportProgress?.({
+            completedSteps: 0,
+            totalSteps,
+            message: `Creating Dataverse dataset in ${collection.name}...`
+        });
         const requestUrl = `${baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/datasets`;
         const headers: Record<string, string> = {
             accept: 'application/json',
@@ -93,7 +109,12 @@ export class NativeDataverseExportService {
         if (!persistentId) {
             throw new Error('Dataverse created the dataset but did not return a persistentId. File upload cannot continue.');
         }
-        const uploadedFiles = await this.uploadRoCrateFiles(baseUrl, repository.apiKey, persistentId, crate, rootUri);
+        reportProgress?.({
+            completedSteps: 1,
+            totalSteps,
+            message: 'Dataverse dataset created.'
+        });
+        const uploadedFiles = await this.uploadRoCrateFiles(baseUrl, repository.apiKey, persistentId, uploadFiles, reportProgress);
 
         return {
             datasetId: responsePayload.data?.id,
@@ -212,9 +233,31 @@ export class NativeDataverseExportService {
         baseUrl: string,
         apiKey: string | undefined,
         persistentId: string,
+        uploadFiles: NativeDataverseUploadFile[],
+        reportProgress?: NativeDataverseExportProgressReporter
+    ): Promise<NativeDataverseFileUploadResult[]> {
+        const results: NativeDataverseFileUploadResult[] = [];
+        const totalSteps = uploadFiles.length + 1;
+        for (const [index, file] of uploadFiles.entries()) {
+            reportProgress?.({
+                completedSteps: index + 1,
+                totalSteps,
+                message: `Uploading ${file.entryPath}...`
+            });
+            results.push(await this.uploadFile(baseUrl, apiKey, persistentId, file));
+            reportProgress?.({
+                completedSteps: index + 2,
+                totalSteps,
+                message: `Uploaded ${file.entryPath}.`
+            });
+        }
+        return results;
+    }
+
+    protected async collectRoCrateUploadFiles(
         crate: RoCrate,
         rootUri: URI
-    ): Promise<NativeDataverseFileUploadResult[]> {
+    ): Promise<NativeDataverseUploadFile[]> {
         const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate;
         const externalFiles = new Map<string, URI>();
         const localizedReferences = await localizeExternalRoCrateFileReferences(uploadCrate, {
@@ -251,11 +294,7 @@ export class NativeDataverseExportService {
         }
         await this.addReferencedDirectoryFiles(uploadCrate, rootUri, uploadFiles);
 
-        const results: NativeDataverseFileUploadResult[] = [];
-        for (const file of Array.from(uploadFiles.values()).sort((a, b) => a.entryPath.localeCompare(b.entryPath))) {
-            results.push(await this.uploadFile(baseUrl, apiKey, persistentId, file));
-        }
-        return results;
+        return Array.from(uploadFiles.values()).sort((a, b) => a.entryPath.localeCompare(b.entryPath));
     }
 
     protected async addReferencedDirectoryFiles(

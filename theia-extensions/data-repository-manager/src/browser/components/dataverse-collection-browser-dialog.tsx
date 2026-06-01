@@ -16,7 +16,8 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
 
     constructor(
         private readonly repository: DataRepositoryConfig,
-        private readonly collectionService: DataverseCollectionService
+        private readonly collectionService: DataverseCollectionService,
+        private readonly supportsArpRoCrateZipUpload: boolean
     ) {
         super({
             title: `Browse ${repository.title}`
@@ -49,6 +50,7 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
             <BrowserContent
                 repository={this.repository}
                 collectionService={this.collectionService}
+                supportsArpRoCrateZipUpload={this.supportsArpRoCrateZipUpload}
                 onAccept={(selection) => this.handleAccept(selection)}
                 onCancel={() => this.handleClose()}
             />
@@ -72,6 +74,7 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
 interface BrowserContentProps {
     repository: DataRepositoryConfig;
     collectionService: DataverseCollectionService;
+    supportsArpRoCrateZipUpload: boolean;
     onAccept: (selection: DataverseCollectionSelection) => void;
     onCancel: () => void;
 }
@@ -79,6 +82,7 @@ interface BrowserContentProps {
 const BrowserContent: React.FC<BrowserContentProps> = ({
     repository,
     collectionService,
+    supportsArpRoCrateZipUpload,
     onAccept,
     onCancel
 }) => {
@@ -123,19 +127,23 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
 
             <div className="dataverse-browser-dialog__footer">
                 <div className="dataverse-browser-dialog__selection-info">
-                    <label className="dataverse-browser-dialog__language-label" htmlFor="dataverse-metadata-language">
-                        Dataset language
-                    </label>
-                    <select
-                        id="dataverse-metadata-language"
-                        className="theia-select dataverse-browser-dialog__language-select"
-                        value={metadataLanguage}
-                        onChange={event => setMetadataLanguage(event.target.value as '' | DataverseCollectionSelection['metadataLanguage'])}
-                    >
-                        <option value="">None</option>
-                        <option value="hu">Hungarian</option>
-                        <option value="en">English</option>
-                    </select>
+                    {!supportsArpRoCrateZipUpload && (
+                        <>
+                            <label className="dataverse-browser-dialog__language-label" htmlFor="dataverse-metadata-language">
+                                Dataset language
+                            </label>
+                            <select
+                                id="dataverse-metadata-language"
+                                className="theia-select dataverse-browser-dialog__language-select"
+                                value={metadataLanguage}
+                                onChange={event => setMetadataLanguage(event.target.value as '' | NonNullable<DataverseCollectionSelection['metadataLanguage']>)}
+                            >
+                                <option value="">None</option>
+                                <option value="hu">Hungarian</option>
+                                <option value="en">English</option>
+                            </select>
+                        </>
+                    )}
                 </div>
 
                 <div className="dataverse-browser-dialog__actions">
@@ -147,8 +155,8 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                     </button>
                     <button
                         className="theia-button main dataverse-browser-dialog__btn-select"
-                        onClick={() => selectedCollection && metadataLanguage && onAccept({ collection: selectedCollection, metadataLanguage })}
-                        disabled={!selectedCollection || !metadataLanguage || selectedCollection.isWritable === false}
+                        onClick={() => selectedCollection && onAccept({ collection: selectedCollection, metadataLanguage: metadataLanguage || undefined })}
+                        disabled={!selectedCollection || (!supportsArpRoCrateZipUpload && !metadataLanguage) || selectedCollection.isWritable === false}
                     >
                         Select
                     </button>

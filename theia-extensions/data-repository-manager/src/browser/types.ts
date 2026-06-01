@@ -47,5 +47,10 @@ export interface DataverseCollectionBrowserState {
 
 export interface DataverseCollectionSelection {
     collection: DataverseCollection;
-    metadataLanguage: 'en' | 'hu';
+    metadataLanguage?: 'en' | 'hu';
+}
+
+export interface DataRepositorySelection {
+    repository: DataRepositoryConfig;
+    supportsArpRoCrateZipUpload: boolean;
 }

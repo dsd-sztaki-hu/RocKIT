@@ -15,6 +15,9 @@ import { DataRepositoryStoreService } from './services/data-repository-store-ser
 import { DataverseService } from './services/dataverse-service';
 import { DataverseCollectionService } from './services/dataverse-collection-service';
 import { NativeDataverseExportService } from './services/native-dataverse-export-service';
+import { ArpRoCrateExportService } from './services/arp-ro-crate-export-service';
+import { DataverseCapabilityService } from './services/dataverse-capability-service';
+import { RoCrateFileHashService } from './services/ro-crate-file-hash-service';
 import { DataRepositoryConfig } from './types';
 import './styles/index.css';
 
@@ -37,7 +40,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         @inject(DataRepositoryStoreService) protected readonly storeService: DataRepositoryStoreService,
         @inject(DataverseService) protected readonly dataverseService: DataverseService,
         @inject(DataverseCollectionService) protected readonly collectionService: DataverseCollectionService,
-        @inject(NativeDataverseExportService) protected readonly nativeExportService: NativeDataverseExportService
+        @inject(NativeDataverseExportService) protected readonly nativeExportService: NativeDataverseExportService,
+        @inject(ArpRoCrateExportService) protected readonly arpExportService: ArpRoCrateExportService,
+        @inject(DataverseCapabilityService) protected readonly capabilityService: DataverseCapabilityService,
+        @inject(RoCrateFileHashService) protected readonly fileHashService: RoCrateFileHashService
     ) {
         super();
         this.id = DATA_REPOSITORY_MANAGER_WIDGET_ID;
@@ -77,30 +83,70 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     }
 
     public async handleExportToRemote(): Promise<void> {
+        try {
+            await this.fileHashService.persistMissingFileHashes();
+        } catch (error) {
+            console.error('Failed to calculate file hashes before remote export:', error);
+            this.messageService.error(`Remote export preparation failed: ${error instanceof Error ? error.message : String(error)}`, { timeout: 10000 });
+            return;
+        }
+
         const repositories = await this.storeService.loadRepositories();
         this.repositories = repositories;
         this.update();
 
         // Show repository selector first, matching the UX requested.
-        const selector = new DataRepositorySelectorDialog(repositories, this.storeService, this.dataverseService);
-        const selectedRepo = await selector.open();
+        const selector = new DataRepositorySelectorDialog(repositories, this.storeService, this.dataverseService, this.capabilityService);
+        const repositorySelection = await selector.open();
 
-        if (!selectedRepo) {
+        if (!repositorySelection) {
             return; // User cancelled
         }
+        const selectedRepo = repositorySelection.repository;
 
         if (selectedRepo.type !== 'ARP Dataverse') {
             this.messageService.error(`Export to '${selectedRepo.type}' is not supported yet.`);
             return;
         }
 
-        const dialog = new DataverseCollectionBrowserDialog(selectedRepo, this.collectionService);
+        const dialog = new DataverseCollectionBrowserDialog(selectedRepo, this.collectionService, repositorySelection.supportsArpRoCrateZipUpload);
         const result = await dialog.open();
 
         if (result) {
+            if (repositorySelection.supportsArpRoCrateZipUpload) {
+                const progress = await this.messageService.showProgress({ text: `Exporting RO-Crate ZIP to ${result.collection.name}...` });
+                try {
+                    const exportResult = await this.arpExportService.exportToArp(selectedRepo, result.collection);
+                    const target = exportResult.dataverseUrl || exportResult.pid || exportResult.requestUrl;
+                    this.messageService.info(`RO-Crate ZIP export completed: ${target}`, { timeout: 8000 });
+                    console.log('RO-Crate ZIP exported to ARP:', exportResult);
+                } catch (error) {
+                    console.error('RO-Crate ZIP export failed:', error);
+                    this.messageService.error(`RO-Crate ZIP export failed: ${error instanceof Error ? error.message : String(error)}`, { timeout: 10000 });
+                } finally {
+                    progress.cancel();
+                }
+                return;
+            }
+
+            if (!result.metadataLanguage) {
+                this.messageService.error('Dataset language is required for Dataverse export.');
+                return;
+            }
             const progress = await this.messageService.showProgress({ text: `Creating Dataverse dataset in ${result.collection.name}...` });
             try {
-                const creationResult = await this.nativeExportService.createDataset(selectedRepo, result.collection, result.metadataLanguage);
+                const creationResult = await this.nativeExportService.createDataset(
+                    selectedRepo,
+                    result.collection,
+                    result.metadataLanguage,
+                    update => progress.report({
+                        message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+                        work: {
+                            done: update.completedSteps,
+                            total: update.totalSteps
+                        }
+                    })
+                );
                 const createdDataset = creationResult.persistentId || creationResult.datasetId || creationResult.requestUrl;
                 this.messageService.info(`Dataverse dataset created: ${createdDataset}. Uploaded ${creationResult.uploadedFiles.length} files.`, { timeout: 8000 });
                 console.log('Dataverse dataset created through native API:', creationResult);
