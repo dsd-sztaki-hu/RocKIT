@@ -44,3 +44,8 @@ export interface DataverseCollectionBrowserState {
     selectedCollection?: DataverseCollection;
     repository: DataRepositoryConfig;
 }
+
+export interface DataverseCollectionSelection {
+    collection: DataverseCollection;
+    metadataLanguage: 'en' | 'hu';
+}

@@ -6,13 +6,13 @@ import { CircularProgress } from '@mui/material';
 
 import { DataverseCollectionService } from '../services/dataverse-collection-service';
 import DataverseTree from './dataverse-tree';
-import { DataRepositoryConfig, DataverseCollection } from '../types';
+import { DataRepositoryConfig, DataverseCollection, DataverseCollectionSelection } from '../types';
 import '../styles/dataverse-collection-browser-dialog.css';
 
-export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCollection | undefined> {
+export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCollectionSelection | undefined> {
 
     private reactRoot: Root | undefined;
-    private result: DataverseCollection | undefined;
+    private result: DataverseCollectionSelection | undefined;
 
     constructor(
         private readonly repository: DataRepositoryConfig,
@@ -27,11 +27,11 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
         this.contentNode.style.padding = '0';
     }
 
-    get value(): DataverseCollection | undefined {
+    get value(): DataverseCollectionSelection | undefined {
         return this.result;
     }
 
-    protected handleAccept(value: DataverseCollection) {
+    protected handleAccept(value: DataverseCollectionSelection) {
         this.result = value;
         this.accept();
     }
@@ -49,7 +49,7 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
             <BrowserContent
                 repository={this.repository}
                 collectionService={this.collectionService}
-                onAccept={(collection) => this.handleAccept(collection)}
+                onAccept={(selection) => this.handleAccept(selection)}
                 onCancel={() => this.handleClose()}
             />
         );
@@ -72,7 +72,7 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
 interface BrowserContentProps {
     repository: DataRepositoryConfig;
     collectionService: DataverseCollectionService;
-    onAccept: (collection: DataverseCollection) => void;
+    onAccept: (selection: DataverseCollectionSelection) => void;
     onCancel: () => void;
 }
 
@@ -84,6 +84,7 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
 }) => {
     const [roleIds, setRoleIds] = React.useState<string[]>([]);
     const [selectedCollection, setSelectedCollection] = React.useState<DataverseCollection | null>(null);
+    const [metadataLanguage, setMetadataLanguage] = React.useState<'' | DataverseCollectionSelection['metadataLanguage']>('');
     const [isLoadingRoles, setIsLoadingRoles] = React.useState(true);
 
     React.useEffect(() => {
@@ -122,15 +123,19 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
 
             <div className="dataverse-browser-dialog__footer">
                 <div className="dataverse-browser-dialog__selection-info">
-                    {selectedCollection ? (
-                        <span className="dataverse-browser-dialog__selected-name">
-                            {selectedCollection.name} {selectedCollection.isWritable === false && '(No Write Access)'}
-                        </span>
-                    ) : (
-                        <span className="dataverse-browser-dialog__placeholder">
-                            Select a destination collection...
-                        </span>
-                    )}
+                    <label className="dataverse-browser-dialog__language-label" htmlFor="dataverse-metadata-language">
+                        Dataset language
+                    </label>
+                    <select
+                        id="dataverse-metadata-language"
+                        className="theia-select dataverse-browser-dialog__language-select"
+                        value={metadataLanguage}
+                        onChange={event => setMetadataLanguage(event.target.value as '' | DataverseCollectionSelection['metadataLanguage'])}
+                    >
+                        <option value="">None</option>
+                        <option value="hu">Hungarian</option>
+                        <option value="en">English</option>
+                    </select>
                 </div>
 
                 <div className="dataverse-browser-dialog__actions">
@@ -142,8 +147,8 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                     </button>
                     <button
                         className="theia-button main dataverse-browser-dialog__btn-select"
-                        onClick={() => selectedCollection && onAccept(selectedCollection)}
-                        disabled={!selectedCollection || selectedCollection.isWritable === false}
+                        onClick={() => selectedCollection && metadataLanguage && onAccept({ collection: selectedCollection, metadataLanguage })}
+                        disabled={!selectedCollection || !metadataLanguage || selectedCollection.isWritable === false}
                     >
                         Select
                     </button>

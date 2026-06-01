@@ -98,9 +98,9 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         const result = await dialog.open();
 
         if (result) {
-            const progress = await this.messageService.showProgress({ text: `Creating Dataverse dataset in ${result.name}...` });
+            const progress = await this.messageService.showProgress({ text: `Creating Dataverse dataset in ${result.collection.name}...` });
             try {
-                const creationResult = await this.nativeExportService.createDataset(selectedRepo, result);
+                const creationResult = await this.nativeExportService.createDataset(selectedRepo, result.collection, result.metadataLanguage);
                 const createdDataset = creationResult.persistentId || creationResult.datasetId || creationResult.requestUrl;
                 this.messageService.info(`Dataverse dataset created: ${createdDataset}. Uploaded ${creationResult.uploadedFiles.length} files.`, { timeout: 8000 });
                 console.log('Dataverse dataset created through native API:', creationResult);

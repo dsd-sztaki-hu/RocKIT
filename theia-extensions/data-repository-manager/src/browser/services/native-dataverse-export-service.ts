@@ -61,14 +61,16 @@ export class NativeDataverseExportService {
 
     public async createDataset(
         repository: DataRepositoryConfig,
-        collection: DataverseCollection
+        collection: DataverseCollection,
+        metadataLanguage: string
     ): Promise<NativeDataverseDatasetCreationResult> {
         const baseUrl = this.normalizeBaseUrl(repository.baseUrl);
         const collectionId = collection.alias || collection.id;
         const rootUri = this.getWorkspaceRoot();
         const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'));
         const allowedMetadataLanguages = await this.getAllowedMetadataLanguages(baseUrl, collectionId, repository.apiKey);
-        const payload = this.buildDatasetCreationPayload(crate, allowedMetadataLanguages);
+        this.validateMetadataLanguage(metadataLanguage, allowedMetadataLanguages);
+        const payload = this.buildDatasetCreationPayload(crate, metadataLanguage);
         const requestUrl = `${baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/datasets`;
         const headers: Record<string, string> = {
             accept: 'application/json',
@@ -123,7 +125,7 @@ export class NativeDataverseExportService {
         }
     }
 
-    protected buildDatasetCreationPayload(crate: RoCrate, allowedMetadataLanguages: string[]): Record<string, unknown> {
+    protected buildDatasetCreationPayload(crate: RoCrate, metadataLanguage: string): Record<string, unknown> {
         const graph = this.readGraph(crate);
         const root = graph.find(entity => entity['@id'] === './');
         if (!root) {
@@ -166,9 +168,8 @@ export class NativeDataverseExportService {
             }
         ];
 
-        const metadataLanguage = this.selectMetadataLanguage(root, allowedMetadataLanguages);
         return {
-            ...(metadataLanguage ? { metadataLanguage } : {}),
+            metadataLanguage,
             datasetVersion: {
                 metadataBlocks: {
                     citation: {
@@ -412,15 +413,13 @@ export class NativeDataverseExportService {
             : { dir: normalized.slice(0, index), base: normalized.slice(index + 1) };
     }
 
-    protected selectMetadataLanguage(root: RoCrateEntity, allowedMetadataLanguages: string[]): string | undefined {
-        if (!allowedMetadataLanguages.length) {
-            return undefined;
+    protected validateMetadataLanguage(metadataLanguage: string, allowedMetadataLanguages: string[]): void {
+        if (!metadataLanguage) {
+            throw new Error('Dataset language is required.');
         }
-        const preferredLanguages = this.readStrings(root.metadataLanguage ?? root.inLanguage);
-        return preferredLanguages
-            .map(preferred => allowedMetadataLanguages.find(allowed => allowed.toLowerCase() === preferred.toLowerCase()))
-            .find((language): language is string => !!language)
-            ?? allowedMetadataLanguages[0];
+        if (allowedMetadataLanguages.length && !allowedMetadataLanguages.some(allowed => allowed.toLowerCase() === metadataLanguage.toLowerCase())) {
+            throw new Error(`Dataset language '${metadataLanguage}' is not allowed in the selected Dataverse collection.`);
+        }
     }
 
     protected extractAuthors(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {

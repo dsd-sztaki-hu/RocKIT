@@ -230,7 +230,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                             }}
                         />
                     ) : (
-                        <Tooltip title="Search Collections">
+                        <Tooltip title="Search Collections" slotProps={{ popper: { sx: { zIndex: 2147483647 } } }}>
                             <IconButton size="small" onClick={() => setIsSearchExpanded(true)} style={{ color: 'var(--theia-icon-foreground)' }}>
                                 <SearchIcon fontSize="small" />
                             </IconButton>
@@ -239,12 +239,12 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                 </div>
 
                 <div className="dataverse-tree__toolbar">
-                    <Tooltip title="Expand All">
+                    <Tooltip title="Expand All" slotProps={{ popper: { sx: { zIndex: 2147483647 } } }}>
                         <IconButton size="small" onClick={handleExpandAll} style={{ color: 'var(--theia-icon-foreground)' }}>
                             <UnfoldMoreIcon fontSize="small" />
                         </IconButton>
                     </Tooltip>
-                    <Tooltip title="Collapse All">
+                    <Tooltip title="Collapse All" slotProps={{ popper: { sx: { zIndex: 2147483647 } } }}>
                         <IconButton size="small" onClick={handleCollapseAll} style={{ color: 'var(--theia-icon-foreground)' }}>
                             <UnfoldLessIcon fontSize="small" />
                         </IconButton>
