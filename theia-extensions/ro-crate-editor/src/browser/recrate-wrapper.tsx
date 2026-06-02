@@ -1,4 +1,4 @@
-import { DescriboCrateBuilder } from '@arpproject/recrate'
+import DescriboCrateBuilder from '@arpproject/recrate'
 import * as React from 'react'
 
 import '../../src/browser/style/recrate-scoped.css'
@@ -105,14 +105,6 @@ export const DescriboCrateBuilderWrapper = ({
             }
         }
     }, [entityId, loading, currentEntityId])
-
-    React.useEffect(() => {
-        requestAnimationFrame(() => {
-            containerRef.current?.scrollTo({ top: 0, behavior: 'auto' })
-            containerRef.current?.closest('.rocrate-editor')?.scrollTo({ top: 0, behavior: 'auto' })
-            window.scrollTo({ top: 0, behavior: 'auto' })
-        })
-    }, [currentEntityId])
 
     React.useEffect(() => {
         const node = containerRef.current
