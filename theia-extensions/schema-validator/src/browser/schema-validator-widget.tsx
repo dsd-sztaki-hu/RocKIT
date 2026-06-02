@@ -12,8 +12,8 @@ import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor
 @injectable()
 export class SchemaValidatorWidget extends ReactWidget {
 
-    static readonly ID = 'schema-validator:widget';
-    static readonly LABEL = 'Schema Validator Widget';
+    static readonly ID = 'validation-errors:widget';
+    static readonly LABEL = 'Validation Errors';
 
     @inject(MessageService)
     protected readonly messageService!: MessageService;

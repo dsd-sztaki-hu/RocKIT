@@ -141,6 +141,42 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         await this.syncRoCrateFromWorkspace()
     }
 
+    public async revertToSavedRoCrate(): Promise<boolean> {
+        const roots = this.workspaceService.tryGetRoots()
+        const rootUri = roots?.[0]?.resource
+        if (!rootUri) {
+            return false
+        }
+
+        this.ensureMetadataWatch(rootUri)
+
+        const roCrateUri = rootUri.resolve('ro-crate-metadata.json')
+        const exists = await this.fileService.exists(roCrateUri)
+        if (!exists) {
+            this.updateState(undefined, false)
+            await this.refreshProfileList(undefined)
+            await this.refreshCompleteProfile(undefined)
+            void this.promptForCrateRecovery(rootUri, false)
+            return false
+        }
+
+        try {
+            const crate = await this.loadRoCrateWithNormalization(roCrateUri)
+            const approval = await this.loadRoCrateApprovalForMetadata(roCrateUri)
+            const changed = this.applyRevertedState(crate, approval)
+            await this.refreshProfileList(crate)
+            await this.refreshCompleteProfile(crate)
+            return changed
+        } catch (parseError) {
+            console.error('Parsing error: ', parseError)
+            this.updateState(undefined, true)
+            await this.refreshProfileList(undefined)
+            await this.refreshCompleteProfile(undefined)
+            void this.promptForCrateRecovery(rootUri, true)
+            return false
+        }
+    }
+
     protected async syncRoCrateFromWorkspace(): Promise<void> {
         const startedAt = this.nowMs()
         const seq = ++this.perfSeq
@@ -428,6 +464,23 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         this.appStateService.setRoCrateSnapshot(content)
         this.appStateService.dirty = false
         this.lastKnownMetadataJson = this.normalizeCrate(content)
+    }
+
+    private applyRevertedState(
+        content: Record<string, any>,
+        roCrateApproval?: RoCrateApprovalFile,
+    ): boolean {
+        this.lastObservedConformsToKey = this.buildConformsToKey(content)
+        const changed = this.roCrateHistoryService.applyRoCrateChange(content, {
+            label: 'Revert to saved RO-Crate',
+            trackHistory: true,
+        })
+        this.appStateService.roCrateApproval = roCrateApproval
+        this.appStateService.isROCrateInvalid = false
+        this.appStateService.setRoCrateSnapshot(content)
+        this.appStateService.dirty = false
+        this.lastKnownMetadataJson = this.normalizeCrate(content)
+        return changed
     }
 
     protected ensureMetadataWatch(rootUri: URI): void {
