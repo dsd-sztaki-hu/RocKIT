@@ -54,8 +54,8 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
     }
 
     protected async handleSelect(repo: DataRepositoryConfig) {
-        const supportsArpRoCrateZipUpload = await this.capabilityService.supportsArpRoCrateZipUpload(repo.baseUrl);
-        this.result = { repository: repo, supportsArpRoCrateZipUpload };
+        const capabilities = await this.capabilityService.detectRepositoryCapabilities(repo.baseUrl);
+        this.result = { repository: repo, capabilities };
         this.accept();
     }
 

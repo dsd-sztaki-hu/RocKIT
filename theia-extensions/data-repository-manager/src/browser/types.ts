@@ -52,5 +52,13 @@ export interface DataverseCollectionSelection {
 
 export interface DataRepositorySelection {
     repository: DataRepositoryConfig;
+    capabilities: DataRepositoryCapabilities;
+}
+
+export type DataRepositoryKind = 'arp-dataverse' | 'dataverse' | 'unknown';
+
+export interface DataRepositoryCapabilities {
+    kind: DataRepositoryKind;
     supportsArpRoCrateZipUpload: boolean;
+    supportsNativeDataverseApi: boolean;
 }

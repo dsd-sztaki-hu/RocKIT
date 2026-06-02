@@ -103,17 +103,22 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             return; // User cancelled
         }
         const selectedRepo = repositorySelection.repository;
+        const capabilities = repositorySelection.capabilities;
 
         if (selectedRepo.type !== 'ARP Dataverse') {
             this.messageService.error(`Export to '${selectedRepo.type}' is not supported yet.`);
             return;
         }
+        if (!capabilities.supportsNativeDataverseApi) {
+            this.messageService.error(`Repository '${selectedRepo.title}' does not expose a supported Dataverse API.`, { timeout: 10000 });
+            return;
+        }
 
-        const dialog = new DataverseCollectionBrowserDialog(selectedRepo, this.collectionService, repositorySelection.supportsArpRoCrateZipUpload);
+        const dialog = new DataverseCollectionBrowserDialog(selectedRepo, this.collectionService, capabilities.supportsArpRoCrateZipUpload);
         const result = await dialog.open();
 
         if (result) {
-            if (repositorySelection.supportsArpRoCrateZipUpload) {
+            if (capabilities.supportsArpRoCrateZipUpload) {
                 const progress = await this.messageService.showProgress({ text: `Exporting RO-Crate ZIP to ${result.collection.name}...` });
                 try {
                     const exportResult = await this.arpExportService.exportToArp(selectedRepo, result.collection);
