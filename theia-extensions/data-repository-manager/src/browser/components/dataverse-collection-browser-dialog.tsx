@@ -12,7 +12,7 @@ import '../styles/dataverse-collection-browser-dialog.css';
 export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCollectionSelection | undefined> {
 
     private reactRoot: Root | undefined;
-    private result: DataverseCollectionSelection | undefined;
+    private selection: DataverseCollectionSelection | undefined;
 
     constructor(
         private readonly repository: DataRepositoryConfig,
@@ -26,19 +26,24 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
         this.contentNode.style.width = '600px';
         this.contentNode.style.height = '550px';
         this.contentNode.style.padding = '0';
+
+        this.appendCloseButton();
+        this.appendAcceptButton('Select');
     }
 
     get value(): DataverseCollectionSelection | undefined {
-        return this.result;
+        return this.selection;
     }
 
-    protected handleAccept(value: DataverseCollectionSelection) {
-        this.result = value;
-        this.accept();
+    protected handleSelectionChanged(value: DataverseCollectionSelection) {
+        this.selection = value;
+        this.update();
     }
 
-    protected handleClose() {
-        this.close();
+    protected isValid(value: DataverseCollectionSelection | undefined): boolean {
+        return !!value?.collection
+            && value.collection.isWritable !== false
+            && (this.supportsArpRoCrateZipUpload || !!value.metadataLanguage);
     }
 
     protected render(): void {
@@ -51,8 +56,7 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
                 repository={this.repository}
                 collectionService={this.collectionService}
                 supportsArpRoCrateZipUpload={this.supportsArpRoCrateZipUpload}
-                onAccept={(selection) => this.handleAccept(selection)}
-                onCancel={() => this.handleClose()}
+                onSelectionChanged={(selection) => this.handleSelectionChanged(selection)}
             />
         );
     }
@@ -75,16 +79,14 @@ interface BrowserContentProps {
     repository: DataRepositoryConfig;
     collectionService: DataverseCollectionService;
     supportsArpRoCrateZipUpload: boolean;
-    onAccept: (selection: DataverseCollectionSelection) => void;
-    onCancel: () => void;
+    onSelectionChanged: (selection: DataverseCollectionSelection) => void;
 }
 
 const BrowserContent: React.FC<BrowserContentProps> = ({
     repository,
     collectionService,
     supportsArpRoCrateZipUpload,
-    onAccept,
-    onCancel
+    onSelectionChanged
 }) => {
     const [roleIds, setRoleIds] = React.useState<string[]>([]);
     const [selectedCollection, setSelectedCollection] = React.useState<DataverseCollection | null>(null);
@@ -105,6 +107,15 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
 
     const handleCollectionSelected = (collection: DataverseCollection) => {
         setSelectedCollection(collection);
+        onSelectionChanged({ collection, metadataLanguage: metadataLanguage || undefined });
+    };
+
+    const handleMetadataLanguageChanged = (event: React.ChangeEvent<HTMLSelectElement>) => {
+        const language = event.target.value as '' | NonNullable<DataverseCollectionSelection['metadataLanguage']>;
+        setMetadataLanguage(language);
+        if (selectedCollection) {
+            onSelectionChanged({ collection: selectedCollection, metadataLanguage: language || undefined });
+        }
     };
 
     return (
@@ -125,43 +136,23 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                 )}
             </div>
 
-            <div className="dataverse-browser-dialog__footer">
+            {!supportsArpRoCrateZipUpload && (
                 <div className="dataverse-browser-dialog__selection-info">
-                    {!supportsArpRoCrateZipUpload && (
-                        <>
-                            <label className="dataverse-browser-dialog__language-label" htmlFor="dataverse-metadata-language">
-                                Dataset language
-                            </label>
-                            <select
-                                id="dataverse-metadata-language"
-                                className="theia-select dataverse-browser-dialog__language-select"
-                                value={metadataLanguage}
-                                onChange={event => setMetadataLanguage(event.target.value as '' | NonNullable<DataverseCollectionSelection['metadataLanguage']>)}
-                            >
-                                <option value="">None</option>
-                                <option value="hu">Hungarian</option>
-                                <option value="en">English</option>
-                            </select>
-                        </>
-                    )}
-                </div>
-
-                <div className="dataverse-browser-dialog__actions">
-                    <button
-                        className="theia-button secondary dataverse-browser-dialog__btn-cancel"
-                        onClick={onCancel}
+                    <label className="dataverse-browser-dialog__language-label" htmlFor="dataverse-metadata-language">
+                        Dataset language
+                    </label>
+                    <select
+                        id="dataverse-metadata-language"
+                        className="theia-select dataverse-browser-dialog__language-select"
+                        value={metadataLanguage}
+                        onChange={handleMetadataLanguageChanged}
                     >
-                        Cancel
-                    </button>
-                    <button
-                        className="theia-button main dataverse-browser-dialog__btn-select"
-                        onClick={() => selectedCollection && onAccept({ collection: selectedCollection, metadataLanguage: metadataLanguage || undefined })}
-                        disabled={!selectedCollection || (!supportsArpRoCrateZipUpload && !metadataLanguage) || selectedCollection.isWritable === false}
-                    >
-                        Select
-                    </button>
+                        <option value="">None</option>
+                        <option value="hu">Hungarian</option>
+                        <option value="en">English</option>
+                    </select>
                 </div>
-            </div>
+            )}
         </div>
     );
 };

@@ -117,24 +117,13 @@
     background-color: rgba(255, 0, 0, 0.05);
 }
 
-/* Footer Alignment */
-.dataverse-browser-dialog__footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 20px;
-    background-color: var(--theia-layout-color2);
-    border-top: 1px solid var(--theia-panel-border);
-    flex-shrink: 0;
-}
-
 .dataverse-browser-dialog__selection-info {
-    flex: 1;
     display: flex;
     align-items: center;
     gap: 8px;
-    overflow: hidden;
-    margin-right: 15px;
+    padding: 10px 20px;
+    border-top: 1px solid var(--theia-panel-border);
+    flex-shrink: 0;
 }
 
 .dataverse-browser-dialog__language-label {
@@ -145,18 +134,3 @@
     min-width: 140px;
 }
 
-.dataverse-browser-dialog__actions {
-    display: flex;
-    gap: 10px;
-}
-
-.dataverse-browser-dialog__btn-cancel {
-    min-width: 80px;
-    background-color: var(--theia-button-secondaryBackground, transparent) !important;
-    color: var(--theia-button-secondaryForeground, inherit) !important;
-    border: 1px solid var(--theia-button-border, #ccc) !important;
-}
-
-.dataverse-browser-dialog__btn-select {
-    min-width: 80px;
-}
