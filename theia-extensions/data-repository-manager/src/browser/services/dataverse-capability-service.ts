@@ -58,7 +58,7 @@ export class DataverseCapabilityService {
             return false;
         }
         try {
-            const response = await fetch(`${normalizedBaseUrl}/api/info/version`, {
+            const response = await fetch(`${normalizedBaseUrl}/api/v1/dataverses/:root`, {
                 headers: { accept: 'application/json' }
             });
             if (!response.ok) {
@@ -66,9 +66,14 @@ export class DataverseCapabilityService {
             }
             const payload = await response.json() as {
                 status?: unknown;
-                data?: { version?: unknown };
+                data?: {
+                    id?: unknown;
+                    alias?: unknown;
+                };
             };
-            return payload.status === 'OK' && typeof payload.data?.version === 'string';
+            return payload.status === 'OK'
+                && typeof payload.data?.id === 'number'
+                && payload.data.alias === 'root';
         } catch (error) {
             console.warn('Failed to detect native Dataverse API capability:', error);
             return false;
