@@ -124,6 +124,18 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                     const exportResult = await this.arpExportService.exportToArp(selectedRepo, result.collection);
                     const target = exportResult.dataverseUrl || exportResult.pid || exportResult.requestUrl;
                     this.messageService.info(`RO-Crate ZIP export completed: ${target}`, { timeout: 8000 });
+                    if (exportResult.unmappedEntityIds.length) {
+                        const previewLimit = 15;
+                        const idPreview = exportResult.unmappedEntityIds
+                            .slice(0, previewLimit)
+                            .map(id => `- ${id.length > 80 ? `${id.slice(0, 77)}...` : id}`)
+                            .join('\n');
+                        const remainingCount = exportResult.unmappedEntityIds.length - previewLimit;
+                        this.messageService.warn(
+                            `RO-Crate export completed, but ${exportResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .aroma/mapping.json.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
+                            { timeout: 10000 }
+                        );
+                    }
                     console.log('RO-Crate ZIP exported to ARP:', exportResult);
                 } catch (error) {
                     console.error('RO-Crate ZIP export failed:', error);

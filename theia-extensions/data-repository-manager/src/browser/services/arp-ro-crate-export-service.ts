@@ -10,6 +10,12 @@ import { DataRepositoryConfig, DataverseCollection } from '../types';
 
 type RoCrateEntity = Record<string, any>;
 type RoCrate = Record<string, any>;
+type RoCrateEntityIdMapping = Record<string, string>;
+
+interface LocalizedExternalFileReferences {
+    entries: Map<string, URI>;
+    originalToUploadIds: Map<string, string>;
+}
 
 export interface ArpRoCrateExportResult {
     pid?: string;
@@ -17,6 +23,7 @@ export interface ArpRoCrateExportResult {
     requestUrl: string;
     response: unknown;
     ingestedCrate?: RoCrate;
+    unmappedEntityIds: string[];
 }
 
 const DATAVERSE_FILE_CONTEXT: Record<string, string> = {
@@ -49,10 +56,10 @@ export class ArpRoCrateExportService {
         }
 
         const uploadCrate = await this.buildDataverseUploadCrate(crate, rootUri);
-        const externalFileEntries = await this.localizeExternalLocalFileReferences(uploadCrate, rootUri);
+        const localizedExternalFiles = await this.localizeExternalLocalFileReferences(uploadCrate, rootUri);
         await this.validateRoCrate(uploadCrate, baseUrl, repository.apiKey);
 
-        const zip = await this.buildDataverseUploadZip(uploadCrate, rootUri, externalFileEntries);
+        const zip = await this.buildDataverseUploadZip(uploadCrate, rootUri, localizedExternalFiles.entries);
         await this.saveDebugUploadZip(rootUri, zip);
         const uploadUrl = new URL('/api/arp/uploadRoCrateZip', `${baseUrl}/`);
         uploadUrl.searchParams.set('ownerId', collection.alias || collection.id);
@@ -78,13 +85,23 @@ export class ArpRoCrateExportService {
         const ingestedCrate = this.extractDataverseCrate(payload);
         const payloadPid = this.extractPayloadPid(payload);
         const pid = (ingestedCrate ? this.extractArpPid(ingestedCrate) : undefined) || payloadPid;
+        if (!ingestedCrate) {
+            throw new Error('ARP upload completed, but the response did not contain the ingested RO-Crate needed to create .aroma/mapping.json.');
+        }
+        const uploadIdMapping = this.buildEntityIdMapping(uploadCrate, ingestedCrate);
+        const metadataIdMapping = this.toMetadataEntityIdMapping(crate, uploadIdMapping, localizedExternalFiles.originalToUploadIds);
+        await this.saveEntityIdMapping(rootUri, metadataIdMapping);
+        const unmappedEntityIds = Object.entries(metadataIdMapping)
+            .filter(([, ingestedId]) => !ingestedId)
+            .map(([metadataId]) => metadataId);
 
         return {
             pid,
             dataverseUrl: this.buildDataverseDatasetUrl(baseUrl, pid),
             requestUrl: response.url || uploadUrl.toString(),
             response: payload,
-            ingestedCrate
+            ingestedCrate,
+            unmappedEntityIds
         };
     }
 
@@ -183,8 +200,9 @@ export class ArpRoCrateExportService {
         await this.fileService.writeFile(debugZipUri, BinaryBuffer.wrap(zip));
     }
 
-    protected async localizeExternalLocalFileReferences(crate: RoCrate, rootUri: URI): Promise<Map<string, URI>> {
+    protected async localizeExternalLocalFileReferences(crate: RoCrate, rootUri: URI): Promise<LocalizedExternalFileReferences> {
         const externalFileEntries = new Map<string, URI>();
+        const originalToUploadIds = new Map<string, string>();
         const localizedReferences = await localizeExternalRoCrateFileReferences(crate, {
             existingEntryPaths: this.extractCrateFilePaths(crate),
             resolveLocalSource: async sources => {
@@ -195,9 +213,232 @@ export class ArpRoCrateExportService {
 
         for (const reference of localizedReferences) {
             externalFileEntries.set(reference.importedPath, reference.resolvedSource);
+            originalToUploadIds.set(reference.reference.entityId, reference.importedPath);
         }
 
-        return externalFileEntries;
+        await this.enrichLocalizedExternalFiles(crate, externalFileEntries);
+        return { entries: externalFileEntries, originalToUploadIds };
+    }
+
+    protected async enrichLocalizedExternalFiles(crate: RoCrate, entries: Map<string, URI>): Promise<void> {
+        const entitiesById = new Map(this.readGraphEntities(crate).map(entity => [this.requireEntityId(entity), entity]));
+        for (const [entryPath, uri] of entries) {
+            const entity = entitiesById.get(entryPath);
+            if (!entity || !this.entityTypes(entity).includes('File')) {
+                continue;
+            }
+            const content = await this.fileService.readFile(uri);
+            const parsed = this.parsePosixPath(entryPath);
+            entity.name = this.readOptionalEntityString(entity, 'name') ?? parsed.base;
+            entity.hash = this.readOptionalEntityString(entity, 'hash') ?? this.md5(content.value.buffer);
+            entity.contentSize = this.readOptionalEntityString(entity, 'contentSize') ?? String(content.value.buffer.byteLength);
+            entity.encodingFormat = this.readOptionalEntityString(entity, 'encodingFormat') ?? this.mimeTypeFromFilename(entryPath);
+            if (!this.readOptionalEntityString(entity, 'directoryLabel') && parsed.dir) {
+                entity.directoryLabel = parsed.dir;
+            }
+        }
+    }
+
+    protected buildEntityIdMapping(sourceCrate: RoCrate, ingestedCrate: RoCrate): RoCrateEntityIdMapping {
+        const sourceEntities = this.readGraphEntities(sourceCrate);
+        const ingestedEntities = this.readGraphEntities(ingestedCrate);
+        const mapping = new Map<string, string>();
+        const mappedIngestedIds = new Set<string>();
+        const sourceParentIds = this.collectDatasetParentIds(sourceEntities);
+        const ingestedParentIds = this.collectDatasetParentIds(ingestedEntities);
+
+        if (sourceEntities.some(entity => entity['@id'] === './') && ingestedEntities.some(entity => entity['@id'] === './')) {
+            mapping.set('./', './');
+            mappedIngestedIds.add('./');
+        }
+
+        let previousSize = -1;
+        while (mapping.size !== previousSize) {
+            previousSize = mapping.size;
+            this.mapFilesBySignatureAndParents(
+                sourceEntities.filter(entity => this.entityTypes(entity).includes('File')),
+                ingestedEntities.filter(entity => this.entityTypes(entity).includes('File')),
+                sourceParentIds,
+                ingestedParentIds,
+                mapping,
+                mappedIngestedIds
+            );
+            this.mapDatasetsByMappedChildren(
+                sourceEntities.filter(entity => this.entityTypes(entity).includes('Dataset') && entity['@id'] !== './'),
+                ingestedEntities.filter(entity => this.entityTypes(entity).includes('Dataset') && entity['@id'] !== './'),
+                mapping,
+                mappedIngestedIds
+            );
+        }
+
+        const unmappedIds = sourceEntities
+            .filter(entity => this.shouldPersistEntityMapping(entity))
+            .map(entity => this.requireEntityId(entity))
+            .filter(id => !mapping.has(id));
+        for (const id of unmappedIds) {
+            mapping.set(id, '');
+        }
+
+        return Object.fromEntries(Array.from(mapping.entries()).sort((a, b) => a[0].localeCompare(b[0])));
+    }
+
+    protected mapFilesBySignatureAndParents(
+        sourceFiles: RoCrateEntity[],
+        ingestedFiles: RoCrateEntity[],
+        sourceParentIds: Map<string, string[]>,
+        ingestedParentIds: Map<string, string[]>,
+        mapping: Map<string, string>,
+        mappedIngestedIds: Set<string>
+    ): void {
+        const availableBySignature = new Map<string, RoCrateEntity[]>();
+        for (const entity of ingestedFiles) {
+            const id = this.requireEntityId(entity);
+            const key = !mappedIngestedIds.has(id) ? this.fileMappingSignature(entity) : undefined;
+            if (key) {
+                availableBySignature.set(key, [...(availableBySignature.get(key) ?? []), entity]);
+            }
+        }
+
+        for (const sourceFile of sourceFiles) {
+            const sourceId = this.requireEntityId(sourceFile);
+            const key = !mapping.has(sourceId) ? this.fileMappingSignature(sourceFile) : undefined;
+            if (!key) {
+                continue;
+            }
+            const mappedParentIds = (sourceParentIds.get(sourceId) ?? [])
+                .map(parentId => mapping.get(parentId))
+                .filter((parentId): parentId is string => !!parentId);
+            const matches = (availableBySignature.get(key) ?? [])
+                .filter(entity => !mappedIngestedIds.has(this.requireEntityId(entity)))
+                .filter(entity => {
+                    const candidateParentIds = new Set(ingestedParentIds.get(this.requireEntityId(entity)) ?? []);
+                    return mappedParentIds.every(parentId => candidateParentIds.has(parentId));
+                });
+            if (matches.length === 1) {
+                const ingestedId = this.requireEntityId(matches[0]);
+                mapping.set(sourceId, ingestedId);
+                mappedIngestedIds.add(ingestedId);
+            }
+        }
+    }
+
+    protected mapDatasetsByMappedChildren(
+        sourceDatasets: RoCrateEntity[],
+        ingestedDatasets: RoCrateEntity[],
+        mapping: Map<string, string>,
+        mappedIngestedIds: Set<string>
+    ): void {
+        for (const sourceDataset of sourceDatasets) {
+            const sourceId = this.requireEntityId(sourceDataset);
+            if (mapping.has(sourceId)) {
+                continue;
+            }
+            const mappedChildIds = this.readEntityReferenceIds(sourceDataset['hasPart'])
+                .map(childId => mapping.get(childId))
+                .filter((childId): childId is string => !!childId);
+            if (!mappedChildIds.length) {
+                continue;
+            }
+            const matches = ingestedDatasets
+                .filter(entity => !mappedIngestedIds.has(this.requireEntityId(entity)))
+                .filter(entity => {
+                    const candidateChildIds = new Set(this.readEntityReferenceIds(entity['hasPart']));
+                    return mappedChildIds.every(childId => candidateChildIds.has(childId));
+                });
+            if (matches.length === 1) {
+                const ingestedId = this.requireEntityId(matches[0]);
+                mapping.set(sourceId, ingestedId);
+                mappedIngestedIds.add(ingestedId);
+            }
+        }
+    }
+
+    protected collectDatasetParentIds(entities: RoCrateEntity[]): Map<string, string[]> {
+        const parentIds = new Map<string, string[]>();
+        for (const entity of entities) {
+            if (!this.entityTypes(entity).includes('Dataset')) {
+                continue;
+            }
+            const parentId = this.requireEntityId(entity);
+            for (const childId of this.readEntityReferenceIds(entity['hasPart'])) {
+                parentIds.set(childId, [...(parentIds.get(childId) ?? []), parentId]);
+            }
+        }
+        return parentIds;
+    }
+
+    protected fileMappingSignature(entity: RoCrateEntity): string | undefined {
+        const hash = this.readOptionalEntityString(entity, 'hash')?.toLowerCase().replace(/^md5:/, '');
+        if (!hash) {
+            return undefined;
+        }
+        const directoryLabel = (this.readOptionalEntityString(entity, 'directoryLabel') ?? '')
+            .replace(/\\/g, '/')
+            .replace(/^\/+|\/+$/g, '');
+        return `${hash}\0${directoryLabel}`;
+    }
+
+    protected toMetadataEntityIdMapping(
+        metadataCrate: RoCrate,
+        uploadIdMapping: RoCrateEntityIdMapping,
+        originalToUploadIds: Map<string, string>
+    ): RoCrateEntityIdMapping {
+        const mapping: RoCrateEntityIdMapping = {};
+        for (const entity of this.readGraphEntities(metadataCrate)) {
+            if (!this.shouldPersistEntityMapping(entity)) {
+                continue;
+            }
+            const metadataId = this.requireEntityId(entity);
+            const uploadId = originalToUploadIds.get(metadataId) ?? metadataId;
+            mapping[metadataId] = uploadIdMapping[uploadId] ?? '';
+        }
+        return Object.fromEntries(Object.entries(mapping).sort((a, b) => a[0].localeCompare(b[0])));
+    }
+
+    protected shouldPersistEntityMapping(entity: RoCrateEntity): boolean {
+        const id = this.requireEntityId(entity);
+        const types = this.entityTypes(entity);
+        return id !== './' && (types.includes('Dataset') || types.includes('File'));
+    }
+
+    protected readEntityReferenceIds(value: unknown): string[] {
+        const values = Array.isArray(value) ? value : value ? [value] : [];
+        return values.flatMap(item => {
+            if (typeof item === 'string') {
+                return item.trim() ? [item.trim()] : [];
+            }
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+                return [];
+            }
+            const id = this.readOptionalEntityString(item as RoCrateEntity, '@id');
+            return id ? [id] : [];
+        });
+    }
+
+    protected async saveEntityIdMapping(rootUri: URI, mapping: RoCrateEntityIdMapping): Promise<void> {
+        const aromaUri = rootUri.resolve('.aroma');
+        if (!(await this.fileService.exists(aromaUri))) {
+            await this.fileService.createFolder(aromaUri);
+        }
+        await this.fileService.writeFile(
+            aromaUri.resolve('mapping.json'),
+            BinaryBuffer.fromString(`${JSON.stringify(mapping, null, 2)}\n`)
+        );
+    }
+
+    protected readGraphEntities(crate: RoCrate): RoCrateEntity[] {
+        const graph = crate['@graph'];
+        return Array.isArray(graph)
+            ? graph.filter((entity): entity is RoCrateEntity => !!entity && typeof entity === 'object' && !Array.isArray(entity))
+            : [];
+    }
+
+    protected requireEntityId(entity: RoCrateEntity): string {
+        const id = this.readOptionalEntityString(entity, '@id');
+        if (!id) {
+            throw new Error('ARP upload completed, but .aroma/mapping.json could not be created. An RO-Crate entity has no @id.');
+        }
+        return id;
     }
 
     protected async resolveFirstReadableLocalSource(sources: readonly RoCrateExportFileSource[]): Promise<{ uri: URI; source: RoCrateExportFileSource } | undefined> {
