@@ -122,7 +122,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                 const progress = await this.messageService.showProgress({ text: `Exporting RO-Crate ZIP to ${result.collection.name}...` });
                 try {
                     const exportResult = await this.arpExportService.exportToArp(selectedRepo, result.collection);
-                    const target = exportResult.dataverseUrl || exportResult.pid || exportResult.requestUrl;
+                    const target = exportResult.target || exportResult.dataverseUrl || exportResult.pid || exportResult.requestUrl;
                     this.messageService.info(`RO-Crate ZIP export completed: ${target}`, { timeout: 8000 });
                     if (exportResult.unmappedEntityIds.length) {
                         const previewLimit = 15;
@@ -132,7 +132,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                             .join('\n');
                         const remainingCount = exportResult.unmappedEntityIds.length - previewLimit;
                         this.messageService.warn(
-                            `RO-Crate export completed, but ${exportResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .aroma/mapping.json.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
+                            `RO-Crate export completed, but ${exportResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .aroma/${exportResult.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
                             { timeout: 10000 }
                         );
                     }

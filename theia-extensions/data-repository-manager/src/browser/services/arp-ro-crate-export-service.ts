@@ -17,12 +17,22 @@ interface LocalizedExternalFileReferences {
     originalToUploadIds: Map<string, string>;
 }
 
+interface ExportLogEntry {
+    target: string;
+    repository: string;
+    mappingFile: string;
+    syncType: 'create' | 'update';
+    syncedAt: string;
+}
+
 export interface ArpRoCrateExportResult {
     pid?: string;
+    target?: string;
     dataverseUrl?: string;
     requestUrl: string;
     response: unknown;
     ingestedCrate?: RoCrate;
+    mappingFileName: string;
     unmappedEntityIds: string[];
 }
 
@@ -35,6 +45,7 @@ const DATAVERSE_FILE_CONTEXT: Record<string, string> = {
     hash: 'https://dataverse.org/schema/file/hash',
     url: 'https://schema.org/url'
 };
+const EXPORT_LOG_FILE_NAME = 'export-log.json';
 
 @injectable()
 export class ArpRoCrateExportService {
@@ -86,21 +97,33 @@ export class ArpRoCrateExportService {
         const payloadPid = this.extractPayloadPid(payload);
         const pid = (ingestedCrate ? this.extractArpPid(ingestedCrate) : undefined) || payloadPid;
         if (!ingestedCrate) {
-            throw new Error('ARP upload completed, but the response did not contain the ingested RO-Crate needed to create .aroma/mapping.json.');
+            throw new Error('ARP upload completed, but the response did not contain the ingested RO-Crate needed to create an entity mapping file.');
         }
         const uploadIdMapping = this.buildEntityIdMapping(uploadCrate, ingestedCrate);
         const metadataIdMapping = this.toMetadataEntityIdMapping(crate, uploadIdMapping, localizedExternalFiles.originalToUploadIds);
-        await this.saveEntityIdMapping(rootUri, metadataIdMapping);
+        const mappingFileName = await this.createUniqueMappingFileName(rootUri);
+        await this.saveEntityIdMapping(rootUri, mappingFileName, metadataIdMapping);
+        const dataverseUrl = this.buildDataverseDatasetUrl(baseUrl, pid);
+        const target = this.buildDatasetPidTarget(pid) || dataverseUrl || response.url || uploadUrl.toString();
+        await this.appendExportLog(rootUri, {
+            target,
+            repository: repository.title || repository.baseUrl,
+            mappingFile: mappingFileName,
+            syncType: 'create',
+            syncedAt: new Date().toISOString()
+        });
         const unmappedEntityIds = Object.entries(metadataIdMapping)
             .filter(([, ingestedId]) => !ingestedId)
             .map(([metadataId]) => metadataId);
 
         return {
             pid,
-            dataverseUrl: this.buildDataverseDatasetUrl(baseUrl, pid),
+            target,
+            dataverseUrl,
             requestUrl: response.url || uploadUrl.toString(),
             response: payload,
             ingestedCrate,
+            mappingFileName,
             unmappedEntityIds
         };
     }
@@ -415,15 +438,77 @@ export class ArpRoCrateExportService {
         });
     }
 
-    protected async saveEntityIdMapping(rootUri: URI, mapping: RoCrateEntityIdMapping): Promise<void> {
+    protected async createUniqueMappingFileName(rootUri: URI): Promise<string> {
+        const aromaUri = rootUri.resolve('.aroma');
+        if (!(await this.fileService.exists(aromaUri))) {
+            await this.fileService.createFolder(aromaUri);
+        }
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+            const fileName = `${this.randomId(16)}.json`;
+            if (!(await this.fileService.exists(aromaUri.resolve(fileName)))) {
+                return fileName;
+            }
+        }
+        return `${Date.now()}-${this.randomId(16)}.json`;
+    }
+
+    protected async saveEntityIdMapping(rootUri: URI, mappingFileName: string, mapping: RoCrateEntityIdMapping): Promise<void> {
         const aromaUri = rootUri.resolve('.aroma');
         if (!(await this.fileService.exists(aromaUri))) {
             await this.fileService.createFolder(aromaUri);
         }
         await this.fileService.writeFile(
-            aromaUri.resolve('mapping.json'),
+            aromaUri.resolve(mappingFileName),
             BinaryBuffer.fromString(`${JSON.stringify(mapping, null, 2)}\n`)
         );
+    }
+
+    protected async appendExportLog(
+        rootUri: URI,
+        entry: ExportLogEntry
+    ): Promise<void> {
+        const aromaUri = rootUri.resolve('.aroma');
+        if (!(await this.fileService.exists(aromaUri))) {
+            await this.fileService.createFolder(aromaUri);
+        }
+        const historyUri = aromaUri.resolve(EXPORT_LOG_FILE_NAME);
+        const entries = await this.readExportLogEntries(historyUri);
+        entries.push(entry);
+        await this.fileService.writeFile(historyUri, BinaryBuffer.fromString(`${JSON.stringify(entries, null, 2)}\n`));
+    }
+
+    protected async readExportLogEntries(historyUri: URI): Promise<ExportLogEntry[]> {
+        if (!(await this.fileService.exists(historyUri))) {
+            return [];
+        }
+        try {
+            const parsed = JSON.parse((await this.fileService.readFile(historyUri)).value.toString());
+            return Array.isArray(parsed) ? parsed.filter((entry): entry is ExportLogEntry => !!entry && typeof entry === 'object' && !Array.isArray(entry)) : [];
+        } catch (error) {
+            console.warn('Failed to parse .aroma/export-log.json; starting a new export log.', error);
+            return [];
+        }
+    }
+
+    protected buildDatasetPidTarget(pid?: string): string | undefined {
+        if (!pid) {
+            return undefined;
+        }
+        const trimmed = pid.trim();
+        if (/^https?:\/\//i.test(trimmed)) {
+            return trimmed;
+        }
+        if (/^hdl:/i.test(trimmed)) {
+            return `https://hdl.handle.net/${trimmed.slice('hdl:'.length)}`;
+        }
+        return trimmed;
+    }
+
+    protected randomId(length: number): string {
+        const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        const bytes = new Uint8Array(length);
+        window.crypto.getRandomValues(bytes);
+        return Array.from(bytes, byte => alphabet[byte % alphabet.length]).join('');
     }
 
     protected readGraphEntities(crate: RoCrate): RoCrateEntity[] {
@@ -436,7 +521,7 @@ export class ArpRoCrateExportService {
     protected requireEntityId(entity: RoCrateEntity): string {
         const id = this.readOptionalEntityString(entity, '@id');
         if (!id) {
-            throw new Error('ARP upload completed, but .aroma/mapping.json could not be created. An RO-Crate entity has no @id.');
+            throw new Error('ARP upload completed, but an entity mapping file could not be created. An RO-Crate entity has no @id.');
         }
         return id;
     }
