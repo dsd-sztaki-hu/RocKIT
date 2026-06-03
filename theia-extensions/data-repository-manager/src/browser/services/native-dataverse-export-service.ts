@@ -1,5 +1,6 @@
 import { URI } from '@theia/core/lib/common/uri';
 import { FileUri } from '@theia/core/lib/common/file-uri';
+import { BinaryBuffer } from '@theia/core/lib/common/buffer';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { inject, injectable } from 'inversify';
@@ -12,6 +13,20 @@ import { DataRepositoryConfig, DataverseCollection } from '../types';
 
 type RoCrateEntity = Record<string, unknown>;
 type RoCrate = Record<string, unknown>;
+type RoCrateEntityIdMapping = Record<string, string>;
+
+interface NativeDataverseUploadCollection {
+    files: NativeDataverseUploadFile[];
+    metadataCrate: RoCrate;
+    uploadEntryPathByEntityId: Map<string, string>;
+}
+
+interface NativeDataverseRemoteFileReference {
+    md5: string;
+    directoryLabel: string;
+    label: string;
+    remoteId: string;
+}
 
 interface DataverseMetadataField {
     typeName: string;
@@ -34,9 +49,12 @@ interface NativeDataverseResponse {
 export interface NativeDataverseDatasetCreationResult {
     datasetId?: number;
     persistentId?: string;
+    target?: string;
     uploadedFiles: NativeDataverseFileUploadResult[];
     requestUrl: string;
     response: NativeDataverseResponse;
+    mappingFileName: string;
+    unmappedEntityIds: string[];
 }
 
 export interface NativeDataverseFileUploadResult {
@@ -51,6 +69,14 @@ interface NativeDataverseUploadFile {
     content: Uint8Array;
 }
 
+interface ExportLogEntry {
+    target: string;
+    repository: string;
+    mappingFile: string;
+    syncType: 'create' | 'update';
+    syncedAt: string;
+}
+
 export interface NativeDataverseExportProgress {
     completedSteps: number;
     totalSteps: number;
@@ -58,6 +84,8 @@ export interface NativeDataverseExportProgress {
 }
 
 export type NativeDataverseExportProgressReporter = (progress: NativeDataverseExportProgress) => void;
+
+const EXPORT_LOG_FILE_NAME = 'export-log.json';
 
 @injectable()
 export class NativeDataverseExportService {
@@ -80,8 +108,9 @@ export class NativeDataverseExportService {
         const allowedMetadataLanguages = await this.getAllowedMetadataLanguages(baseUrl, collectionId, repository.apiKey);
         this.validateMetadataLanguage(metadataLanguage, allowedMetadataLanguages);
         const payload = this.buildDatasetCreationPayload(crate, metadataLanguage);
-        const uploadFiles = await this.collectRoCrateUploadFiles(crate, rootUri);
-        const totalSteps = uploadFiles.length + 1;
+        const uploadCollection = await this.collectRoCrateUploadFiles(crate, rootUri);
+        const uploadFiles = uploadCollection.files;
+        const totalSteps = uploadFiles.length + 2;
         reportProgress?.({
             completedSteps: 0,
             totalSteps,
@@ -114,14 +143,44 @@ export class NativeDataverseExportService {
             totalSteps,
             message: 'Dataverse dataset created.'
         });
-        const uploadedFiles = await this.uploadRoCrateFiles(baseUrl, repository.apiKey, persistentId, uploadFiles, reportProgress);
+        const uploadedDataFiles = await this.uploadRoCrateFiles(baseUrl, repository.apiKey, persistentId, uploadFiles, reportProgress, 1, totalSteps);
+        const mappingFileName = await this.createUniqueMappingFileName(rootUri);
+        const entityIdMapping = this.buildEntityIdMapping(uploadCollection.metadataCrate, uploadedDataFiles, uploadCollection.uploadEntryPathByEntityId);
+        await this.saveEntityIdMapping(rootUri, mappingFileName, entityIdMapping);
+        const metadataUpload = this.buildRewrittenMetadataUploadFile(uploadCollection.metadataCrate, uploadedDataFiles);
+        reportProgress?.({
+            completedSteps: uploadFiles.length + 1,
+            totalSteps,
+            message: 'Uploading rewritten ro-crate-metadata.json...'
+        });
+        const uploadedMetadata = await this.uploadFile(baseUrl, repository.apiKey, persistentId, metadataUpload);
+        const uploadedFiles = [...uploadedDataFiles, uploadedMetadata];
+        reportProgress?.({
+            completedSteps: totalSteps,
+            totalSteps,
+            message: 'Uploaded rewritten ro-crate-metadata.json.'
+        });
+        const target = this.buildPidTarget(persistentId) || persistentId;
+        await this.appendExportLog(rootUri, {
+            target,
+            repository: repository.title || repository.baseUrl,
+            mappingFile: mappingFileName,
+            syncType: 'create',
+            syncedAt: new Date().toISOString()
+        });
+        const unmappedEntityIds = Object.entries(entityIdMapping)
+            .filter(([, remoteId]) => !remoteId)
+            .map(([entityId]) => entityId);
 
         return {
             datasetId: responsePayload.data?.id,
             persistentId,
+            target,
             uploadedFiles,
             requestUrl,
-            response: responsePayload
+            response: responsePayload,
+            mappingFileName,
+            unmappedEntityIds
         };
     }
 
@@ -234,19 +293,20 @@ export class NativeDataverseExportService {
         apiKey: string | undefined,
         persistentId: string,
         uploadFiles: NativeDataverseUploadFile[],
-        reportProgress?: NativeDataverseExportProgressReporter
+        reportProgress?: NativeDataverseExportProgressReporter,
+        completedOffset = 1,
+        totalSteps = uploadFiles.length + completedOffset
     ): Promise<NativeDataverseFileUploadResult[]> {
         const results: NativeDataverseFileUploadResult[] = [];
-        const totalSteps = uploadFiles.length + 1;
         for (const [index, file] of uploadFiles.entries()) {
             reportProgress?.({
-                completedSteps: index + 1,
+                completedSteps: completedOffset + index,
                 totalSteps,
                 message: `Uploading ${file.entryPath}...`
             });
             results.push(await this.uploadFile(baseUrl, apiKey, persistentId, file));
             reportProgress?.({
-                completedSteps: index + 2,
+                completedSteps: completedOffset + index + 1,
                 totalSteps,
                 message: `Uploaded ${file.entryPath}.`
             });
@@ -257,9 +317,10 @@ export class NativeDataverseExportService {
     protected async collectRoCrateUploadFiles(
         crate: RoCrate,
         rootUri: URI
-    ): Promise<NativeDataverseUploadFile[]> {
+    ): Promise<NativeDataverseUploadCollection> {
         const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate;
         const externalFiles = new Map<string, URI>();
+        const uploadEntryPathByEntityId = new Map<string, string>();
         const localizedReferences = await localizeExternalRoCrateFileReferences(uploadCrate, {
             existingEntryPaths: collectRoCrateExportFileReferences(uploadCrate).map(reference => reference.entryPath),
             resolveLocalSource: async sources => {
@@ -269,15 +330,13 @@ export class NativeDataverseExportService {
         });
         for (const reference of localizedReferences) {
             externalFiles.set(reference.importedPath, reference.resolvedSource);
+            uploadEntryPathByEntityId.set(reference.reference.entityId, reference.importedPath);
         }
 
         const uploadFiles = new Map<string, NativeDataverseUploadFile>();
-        uploadFiles.set('ro-crate-metadata.json', {
-            entryPath: 'ro-crate-metadata.json',
-            content: new TextEncoder().encode(`${JSON.stringify(uploadCrate, null, 2)}\n`)
-        });
 
         for (const reference of collectRoCrateExportFileReferences(uploadCrate)) {
+            uploadEntryPathByEntityId.set(reference.entityId, reference.entryPath);
             const externalUri = externalFiles.get(reference.entryPath);
             const resolved = externalUri
                 ? { uri: externalUri }
@@ -294,7 +353,11 @@ export class NativeDataverseExportService {
         }
         await this.addReferencedDirectoryFiles(uploadCrate, rootUri, uploadFiles);
 
-        return Array.from(uploadFiles.values()).sort((a, b) => a.entryPath.localeCompare(b.entryPath));
+        return {
+            files: Array.from(uploadFiles.values()).sort((a, b) => a.entryPath.localeCompare(b.entryPath)),
+            metadataCrate: uploadCrate,
+            uploadEntryPathByEntityId
+        };
     }
 
     protected async addReferencedDirectoryFiles(
@@ -379,6 +442,339 @@ export class NativeDataverseExportService {
             fileName: base,
             response: payload
         };
+    }
+
+    protected buildRewrittenMetadataUploadFile(
+        metadataCrate: RoCrate,
+        uploadedFiles: NativeDataverseFileUploadResult[]
+    ): NativeDataverseUploadFile {
+        const rewrittenCrate = JSON.parse(JSON.stringify(metadataCrate)) as RoCrate;
+        const remoteFileMapping = this.buildRemoteFileMapping(rewrittenCrate, uploadedFiles);
+        for (const entity of this.readGraph(rewrittenCrate)) {
+            const oldId = this.readStrings(entity['@id'])[0];
+            const remoteFile = oldId ? remoteFileMapping.get(oldId) : undefined;
+            if (oldId && remoteFile) {
+                if (remoteFile.label) {
+                    entity.name = remoteFile.label;
+                }
+                if (remoteFile.directoryLabel) {
+                    entity.directoryLabel = remoteFile.directoryLabel;
+                } else {
+                    delete entity.directoryLabel;
+                }
+                this.rewriteEntityIdReferences(rewrittenCrate, oldId, remoteFile.remoteId);
+            }
+        }
+        return {
+            entryPath: 'ro-crate-metadata.json',
+            content: new TextEncoder().encode(`${JSON.stringify(rewrittenCrate, null, 2)}\n`)
+        };
+    }
+
+    protected buildEntityIdMapping(
+        crate: RoCrate,
+        uploadedFiles: NativeDataverseFileUploadResult[],
+        uploadEntryPathByEntityId = new Map<string, string>()
+    ): RoCrateEntityIdMapping {
+        const remoteFileMapping = this.buildRemoteFileMapping(crate, uploadedFiles, uploadEntryPathByEntityId);
+        const mapping: RoCrateEntityIdMapping = {};
+        for (const entity of this.readGraph(crate)) {
+            if (!this.shouldPersistEntityMapping(entity)) {
+                continue;
+            }
+            const entityId = this.requireEntityId(entity);
+            mapping[entityId] = remoteFileMapping.get(entityId)?.remoteId ?? '';
+        }
+        return Object.fromEntries(Object.entries(mapping).sort((a, b) => a[0].localeCompare(b[0])));
+    }
+
+    protected buildRemoteFileMapping(
+        crate: RoCrate,
+        uploadedFiles: NativeDataverseFileUploadResult[],
+        uploadEntryPathByEntityId = new Map<string, string>()
+    ): Map<string, NativeDataverseRemoteFileReference> {
+        const remoteFilesByHashAndDirectory = this.groupRemoteFilesByHashAndDirectory(uploadedFiles);
+        const remoteFilesBySignature = this.groupRemoteFilesBySignature(uploadedFiles);
+        const mapping = new Map<string, NativeDataverseRemoteFileReference>();
+        for (const entity of this.readGraph(crate)) {
+            if (!this.shouldPersistEntityMapping(entity)) {
+                continue;
+            }
+            const entityId = this.requireEntityId(entity);
+            const hashAndDirectorySignature = this.fileEntityHashAndDirectorySignature(entity, uploadEntryPathByEntityId);
+            const hashDirectoryMatches = hashAndDirectorySignature ? remoteFilesByHashAndDirectory.get(hashAndDirectorySignature) ?? [] : [];
+            const sourceSignature = this.fileEntityMappingSignature(entity, uploadEntryPathByEntityId);
+            const signatureMatches = sourceSignature ? remoteFilesBySignature.get(sourceSignature) ?? [] : [];
+            const matches = hashDirectoryMatches.length > 1 ? signatureMatches : hashDirectoryMatches;
+            if (this.entityTypes(entity).includes('File') && matches.length === 1) {
+                mapping.set(entityId, matches[0]);
+            }
+        }
+        return mapping;
+    }
+
+    protected fileEntityHashAndDirectorySignature(entity: RoCrateEntity, uploadEntryPathByEntityId: Map<string, string>): string | undefined {
+        const hash = this.fileEntityHash(entity);
+        if (!hash) {
+            return undefined;
+        }
+        return this.fileHashAndDirectorySignature(hash, this.sourceFileDirectoryLabel(entity, uploadEntryPathByEntityId));
+    }
+
+    protected fileEntityMappingSignature(entity: RoCrateEntity, uploadEntryPathByEntityId: Map<string, string>): string | undefined {
+        const hash = this.fileEntityHash(entity);
+        if (!hash) {
+            return undefined;
+        }
+        return this.fileMappingSignature(
+            hash,
+            this.sourceFileDirectoryLabel(entity, uploadEntryPathByEntityId),
+            this.sourceFileLabel(entity, uploadEntryPathByEntityId)
+        );
+    }
+
+    protected sourceFileDirectoryLabel(entity: RoCrateEntity, uploadEntryPathByEntityId: Map<string, string>): string {
+        const uploadEntryPath = uploadEntryPathByEntityId.get(this.requireEntityId(entity));
+        if (uploadEntryPath) {
+            return this.parsePosixPath(uploadEntryPath).dir;
+        }
+        const idPath = this.localCratePathFromEntityId(this.requireEntityId(entity));
+        if (idPath) {
+            return this.parsePosixPath(idPath).dir;
+        }
+        return this.readOptionalString(entity.directoryLabel) ?? '';
+    }
+
+    protected sourceFileLabel(entity: RoCrateEntity, uploadEntryPathByEntityId: Map<string, string>): string {
+        const uploadEntryPath = uploadEntryPathByEntityId.get(this.requireEntityId(entity));
+        if (uploadEntryPath) {
+            return this.parsePosixPath(uploadEntryPath).base;
+        }
+        const idPath = this.localCratePathFromEntityId(this.requireEntityId(entity));
+        if (idPath) {
+            return this.parsePosixPath(idPath).base;
+        }
+        return this.readOptionalString(entity.name) ?? '';
+    }
+
+    protected fileEntityHash(entity: RoCrateEntity): string | undefined {
+        return this.readOptionalString(entity.hash)?.toLowerCase().replace(/^md5:/, '');
+    }
+
+    protected fileHashAndDirectorySignature(md5: string, directoryLabel: string | undefined): string {
+        return `${md5.toLowerCase().replace(/^md5:/, '')}\0${this.normalizeDirectoryLabel(directoryLabel ?? '')}`;
+    }
+
+    protected fileMappingSignature(md5: string, directoryLabel: string | undefined, label: string | undefined): string {
+        return `${this.fileHashAndDirectorySignature(md5, directoryLabel)}\0${label ?? ''}`;
+    }
+
+    protected normalizeDirectoryLabel(value: string): string {
+        return value.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    }
+
+    protected groupRemoteFilesByHashAndDirectory(uploadedFiles: NativeDataverseFileUploadResult[]): Map<string, NativeDataverseRemoteFileReference[]> {
+        const remoteFilesBySignature = new Map<string, NativeDataverseRemoteFileReference[]>();
+        for (const file of uploadedFiles) {
+            for (const reference of this.extractRemoteFileReferences(file.response)) {
+                const signature = this.fileHashAndDirectorySignature(reference.md5, reference.directoryLabel);
+                remoteFilesBySignature.set(signature, [...(remoteFilesBySignature.get(signature) ?? []), reference]);
+            }
+        }
+        return remoteFilesBySignature;
+    }
+
+    protected groupRemoteFilesBySignature(uploadedFiles: NativeDataverseFileUploadResult[]): Map<string, NativeDataverseRemoteFileReference[]> {
+        const remoteFilesBySignature = new Map<string, NativeDataverseRemoteFileReference[]>();
+        for (const file of uploadedFiles) {
+            for (const reference of this.extractRemoteFileReferences(file.response)) {
+                const signature = this.fileMappingSignature(reference.md5, reference.directoryLabel, reference.label);
+                remoteFilesBySignature.set(signature, [...(remoteFilesBySignature.get(signature) ?? []), reference]);
+            }
+        }
+        return remoteFilesBySignature;
+    }
+
+    protected extractRemoteFileReferences(value: unknown): NativeDataverseRemoteFileReference[] {
+        if (Array.isArray(value)) {
+            return value.flatMap(item => this.extractRemoteFileReferences(item));
+        }
+        if (!value || typeof value !== 'object') {
+            return [];
+        }
+        const record = value as Record<string, unknown>;
+        const dataFile = record.dataFile;
+        if (dataFile && typeof dataFile === 'object' && !Array.isArray(dataFile)) {
+            const dataFileRecord = dataFile as Record<string, unknown>;
+            const md5 = this.extractMd5(dataFileRecord);
+            const remoteId = this.buildPidTarget(this.extractPersistentId(dataFileRecord))
+                ?? this.readOptionalString(dataFileRecord.id);
+            const directoryLabel = this.readOptionalString(dataFileRecord.directoryLabel)
+                ?? this.readOptionalString(record.directoryLabel)
+                ?? '';
+            const label = this.readOptionalString(record.label)
+                ?? this.readOptionalString(dataFileRecord.filename)
+                ?? '';
+            if (md5 && remoteId) {
+                return [{ md5, directoryLabel: this.normalizeDirectoryLabel(directoryLabel), label, remoteId }];
+            }
+        }
+        return Object.values(record).flatMap(child => this.extractRemoteFileReferences(child));
+    }
+
+    protected extractMd5(record: Record<string, unknown>): string | undefined {
+        const md5 = this.readOptionalString(record.md5);
+        if (md5) {
+            return md5.toLowerCase().replace(/^md5:/, '');
+        }
+        const checksum = record.checksum;
+        if (checksum && typeof checksum === 'object' && !Array.isArray(checksum)) {
+            const checksumRecord = checksum as Record<string, unknown>;
+            const type = this.readOptionalString(checksumRecord.type)?.toLowerCase();
+            const value = this.readOptionalString(checksumRecord.value);
+            if (type === 'md5' && value) {
+                return value.toLowerCase().replace(/^md5:/, '');
+            }
+        }
+        return undefined;
+    }
+
+    protected shouldPersistEntityMapping(entity: RoCrateEntity): boolean {
+        const id = this.requireEntityId(entity);
+        const types = this.entityTypes(entity);
+        return id !== './' && types.includes('File');
+    }
+
+    protected rewriteEntityIdReferences(value: unknown, oldId: string, newId: string): void {
+        if (Array.isArray(value)) {
+            for (const item of value) {
+                this.rewriteEntityIdReferences(item, oldId, newId);
+            }
+            return;
+        }
+        if (!value || typeof value !== 'object') {
+            return;
+        }
+        const record = value as Record<string, unknown>;
+        for (const [key, child] of Object.entries(record)) {
+            if (key === '@id' && child === oldId) {
+                record[key] = newId;
+                continue;
+            }
+            this.rewriteEntityIdReferences(child, oldId, newId);
+        }
+    }
+
+    protected requireEntityId(entity: RoCrateEntity): string {
+        const id = this.readStrings(entity['@id'])[0];
+        if (!id) {
+            throw new Error('Dataverse dataset created, but an entity mapping file could not be created. An RO-Crate entity has no @id.');
+        }
+        return id;
+    }
+
+    protected readOptionalString(value: unknown): string | undefined {
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            return trimmed ? trimmed : undefined;
+        }
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return String(value);
+        }
+        return undefined;
+    }
+
+    protected extractPersistentId(value: unknown): string | undefined {
+        if (!value || typeof value !== 'object') {
+            return undefined;
+        }
+        if (Array.isArray(value)) {
+            return value.map(item => this.extractPersistentId(item)).find((item): item is string => !!item);
+        }
+        const record = value as Record<string, unknown>;
+        for (const key of ['persistentId', 'global_id', 'globalId', 'pid']) {
+            const raw = record[key];
+            if (typeof raw === 'string' && raw.trim()) {
+                return raw.trim();
+            }
+        }
+        for (const child of Object.values(record)) {
+            const nested = this.extractPersistentId(child);
+            if (nested) {
+                return nested;
+            }
+        }
+        return undefined;
+    }
+
+    protected async createUniqueMappingFileName(rootUri: URI): Promise<string> {
+        const aromaUri = rootUri.resolve('.aroma');
+        if (!(await this.fileService.exists(aromaUri))) {
+            await this.fileService.createFolder(aromaUri);
+        }
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+            const fileName = `${this.randomId(16)}.json`;
+            if (!(await this.fileService.exists(aromaUri.resolve(fileName)))) {
+                return fileName;
+            }
+        }
+        return `${Date.now()}-${this.randomId(16)}.json`;
+    }
+
+    protected async saveEntityIdMapping(rootUri: URI, mappingFileName: string, mapping: RoCrateEntityIdMapping): Promise<void> {
+        const aromaUri = rootUri.resolve('.aroma');
+        if (!(await this.fileService.exists(aromaUri))) {
+            await this.fileService.createFolder(aromaUri);
+        }
+        await this.fileService.writeFile(
+            aromaUri.resolve(mappingFileName),
+            BinaryBuffer.fromString(`${JSON.stringify(mapping, null, 2)}\n`)
+        );
+    }
+
+    protected async appendExportLog(rootUri: URI, entry: ExportLogEntry): Promise<void> {
+        const aromaUri = rootUri.resolve('.aroma');
+        if (!(await this.fileService.exists(aromaUri))) {
+            await this.fileService.createFolder(aromaUri);
+        }
+        const logUri = aromaUri.resolve(EXPORT_LOG_FILE_NAME);
+        const entries = await this.readExportLogEntries(logUri);
+        entries.push(entry);
+        await this.fileService.writeFile(logUri, BinaryBuffer.fromString(`${JSON.stringify(entries, null, 2)}\n`));
+    }
+
+    protected async readExportLogEntries(logUri: URI): Promise<ExportLogEntry[]> {
+        if (!(await this.fileService.exists(logUri))) {
+            return [];
+        }
+        try {
+            const parsed = JSON.parse((await this.fileService.readFile(logUri)).value.toString());
+            return Array.isArray(parsed) ? parsed.filter((entry): entry is ExportLogEntry => !!entry && typeof entry === 'object' && !Array.isArray(entry)) : [];
+        } catch (error) {
+            console.warn('Failed to parse .aroma/export-log.json; starting a new export log.', error);
+            return [];
+        }
+    }
+
+    protected buildPidTarget(pid?: string): string | undefined {
+        if (!pid) {
+            return undefined;
+        }
+        const trimmed = pid.trim();
+        if (/^https?:\/\//i.test(trimmed)) {
+            return trimmed;
+        }
+        if (/^hdl:/i.test(trimmed)) {
+            return `https://hdl.handle.net/${trimmed.slice('hdl:'.length)}`;
+        }
+        return trimmed;
+    }
+
+    protected randomId(length: number): string {
+        const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        const bytes = new Uint8Array(length);
+        window.crypto.getRandomValues(bytes);
+        return Array.from(bytes, byte => alphabet[byte % alphabet.length]).join('');
     }
 
     protected async resolveFirstReadableFileSource(

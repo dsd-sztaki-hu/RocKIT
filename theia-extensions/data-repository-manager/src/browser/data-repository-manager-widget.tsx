@@ -105,10 +105,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         const selectedRepo = repositorySelection.repository;
         const capabilities = repositorySelection.capabilities;
 
-        if (selectedRepo.type !== 'ARP Dataverse') {
-            this.messageService.error(`Export to '${selectedRepo.type}' is not supported yet.`);
-            return;
-        }
         if (!capabilities.supportsNativeDataverseApi) {
             this.messageService.error(`Repository '${selectedRepo.title}' does not expose a supported Dataverse API.`, { timeout: 10000 });
             return;
@@ -165,7 +161,19 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                     })
                 );
                 const createdDataset = creationResult.persistentId || creationResult.datasetId || creationResult.requestUrl;
-                this.messageService.info(`Dataverse dataset created: ${createdDataset}. Uploaded ${creationResult.uploadedFiles.length} files.`, { timeout: 8000 });
+                this.messageService.info(`Dataverse dataset created: ${creationResult.target || createdDataset}. Uploaded ${creationResult.uploadedFiles.length} files.`, { timeout: 8000 });
+                if (creationResult.unmappedEntityIds.length) {
+                    const previewLimit = 15;
+                    const idPreview = creationResult.unmappedEntityIds
+                        .slice(0, previewLimit)
+                        .map(id => `- ${id.length > 80 ? `${id.slice(0, 77)}...` : id}`)
+                        .join('\n');
+                    const remainingCount = creationResult.unmappedEntityIds.length - previewLimit;
+                    this.messageService.warn(
+                        `Dataverse dataset created, but ${creationResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .aroma/${creationResult.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
+                        { timeout: 10000 }
+                    );
+                }
                 console.log('Dataverse dataset created through native API:', creationResult);
             } catch (error) {
                 console.error('Native Dataverse dataset creation failed:', error);
