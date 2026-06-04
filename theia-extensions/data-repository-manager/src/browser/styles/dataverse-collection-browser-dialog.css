@@ -117,20 +117,3 @@
     background-color: rgba(255, 0, 0, 0.05);
 }
 
-.dataverse-browser-dialog__selection-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    border-top: 1px solid var(--theia-panel-border);
-    flex-shrink: 0;
-}
-
-.dataverse-browser-dialog__language-label {
-    font-size: var(--theia-ui-font-size1);
-}
-
-.dataverse-browser-dialog__language-select {
-    min-width: 140px;
-}
-

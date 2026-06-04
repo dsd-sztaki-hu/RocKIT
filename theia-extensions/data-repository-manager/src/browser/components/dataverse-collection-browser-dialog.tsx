@@ -16,8 +16,7 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
 
     constructor(
         private readonly repository: DataRepositoryConfig,
-        private readonly collectionService: DataverseCollectionService,
-        private readonly supportsArpRoCrateZipUpload: boolean
+        private readonly collectionService: DataverseCollectionService
     ) {
         super({
             title: `Browse ${repository.title}`
@@ -42,8 +41,7 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
 
     protected isValid(value: DataverseCollectionSelection | undefined): boolean {
         return !!value?.collection
-            && value.collection.isWritable !== false
-            && (this.supportsArpRoCrateZipUpload || !!value.metadataLanguage);
+            && value.collection.isWritable !== false;
     }
 
     protected render(): void {
@@ -55,7 +53,6 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
             <BrowserContent
                 repository={this.repository}
                 collectionService={this.collectionService}
-                supportsArpRoCrateZipUpload={this.supportsArpRoCrateZipUpload}
                 onSelectionChanged={(selection) => this.handleSelectionChanged(selection)}
             />
         );
@@ -78,19 +75,16 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
 interface BrowserContentProps {
     repository: DataRepositoryConfig;
     collectionService: DataverseCollectionService;
-    supportsArpRoCrateZipUpload: boolean;
     onSelectionChanged: (selection: DataverseCollectionSelection) => void;
 }
 
 const BrowserContent: React.FC<BrowserContentProps> = ({
     repository,
     collectionService,
-    supportsArpRoCrateZipUpload,
     onSelectionChanged
 }) => {
     const [roleIds, setRoleIds] = React.useState<string[]>([]);
     const [selectedCollection, setSelectedCollection] = React.useState<DataverseCollection | null>(null);
-    const [metadataLanguage, setMetadataLanguage] = React.useState<'' | DataverseCollectionSelection['metadataLanguage']>('');
     const [isLoadingRoles, setIsLoadingRoles] = React.useState(true);
 
     React.useEffect(() => {
@@ -107,15 +101,7 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
 
     const handleCollectionSelected = (collection: DataverseCollection) => {
         setSelectedCollection(collection);
-        onSelectionChanged({ collection, metadataLanguage: metadataLanguage || undefined });
-    };
-
-    const handleMetadataLanguageChanged = (event: React.ChangeEvent<HTMLSelectElement>) => {
-        const language = event.target.value as '' | NonNullable<DataverseCollectionSelection['metadataLanguage']>;
-        setMetadataLanguage(language);
-        if (selectedCollection) {
-            onSelectionChanged({ collection: selectedCollection, metadataLanguage: language || undefined });
-        }
+        onSelectionChanged({ collection });
     };
 
     return (
@@ -136,23 +122,6 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                 )}
             </div>
 
-            {!supportsArpRoCrateZipUpload && (
-                <div className="dataverse-browser-dialog__selection-info">
-                    <label className="dataverse-browser-dialog__language-label" htmlFor="dataverse-metadata-language">
-                        Dataset language
-                    </label>
-                    <select
-                        id="dataverse-metadata-language"
-                        className="theia-select dataverse-browser-dialog__language-select"
-                        value={metadataLanguage}
-                        onChange={handleMetadataLanguageChanged}
-                    >
-                        <option value="">None</option>
-                        <option value="hu">Hungarian</option>
-                        <option value="en">English</option>
-                    </select>
-                </div>
-            )}
         </div>
     );
 };

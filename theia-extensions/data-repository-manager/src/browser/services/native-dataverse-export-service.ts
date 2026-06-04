@@ -57,6 +57,15 @@ export interface NativeDataverseDatasetCreationResult {
     unmappedEntityIds: string[];
 }
 
+export interface NativeDataverseDatasetMetadata {
+    metadataLanguage: '' | 'en' | 'hu';
+    title: string;
+    authorNames: string[];
+    contactEmails: string[];
+    descriptions: string[];
+    subjects: string[];
+}
+
 export interface NativeDataverseFileUploadResult {
     entryPath: string;
     directoryLabel?: string;
@@ -98,7 +107,7 @@ export class NativeDataverseExportService {
     public async createDataset(
         repository: DataRepositoryConfig,
         collection: DataverseCollection,
-        metadataLanguage: string,
+        datasetMetadata: NativeDataverseDatasetMetadata,
         reportProgress?: NativeDataverseExportProgressReporter
     ): Promise<NativeDataverseDatasetCreationResult> {
         const baseUrl = this.normalizeBaseUrl(repository.baseUrl);
@@ -106,8 +115,8 @@ export class NativeDataverseExportService {
         const rootUri = this.getWorkspaceRoot();
         const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'));
         const allowedMetadataLanguages = await this.getAllowedMetadataLanguages(baseUrl, collectionId, repository.apiKey);
-        this.validateMetadataLanguage(metadataLanguage, allowedMetadataLanguages);
-        const payload = this.buildDatasetCreationPayload(crate, metadataLanguage);
+        this.validateMetadataLanguage(datasetMetadata.metadataLanguage, allowedMetadataLanguages);
+        const payload = this.buildDatasetCreationPayload(datasetMetadata);
         const uploadCollection = await this.collectRoCrateUploadFiles(crate, rootUri);
         const uploadFiles = uploadCollection.files;
         const totalSteps = uploadFiles.length + 2;
@@ -184,6 +193,31 @@ export class NativeDataverseExportService {
         };
     }
 
+    public async getDatasetCreationMetadataDefaults(): Promise<NativeDataverseDatasetMetadata> {
+        const rootUri = this.getWorkspaceRoot();
+        const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'));
+        const graph = this.readGraph(crate);
+        const root = graph.find(entity => entity['@id'] === './');
+        if (!root) {
+            return {
+                metadataLanguage: '',
+                title: '',
+                authorNames: [],
+                contactEmails: [],
+                descriptions: [],
+                subjects: []
+            };
+        }
+        return {
+            metadataLanguage: '',
+            title: this.firstMeaningfulString(root.title, root.name) ?? '',
+            authorNames: this.uniqueStrings(this.extractAuthors(root, graph)),
+            contactEmails: this.uniqueStrings(this.extractContactEmails(root, graph)),
+            descriptions: this.uniqueStrings(this.extractDescriptions(root, graph)),
+            subjects: this.uniqueStrings(this.readStrings(root.subject))
+        };
+    }
+
     protected getWorkspaceRoot(): URI {
         const roots = this.workspaceService.tryGetRoots();
         const rootUri = roots?.[0]?.resource;
@@ -205,18 +239,12 @@ export class NativeDataverseExportService {
         }
     }
 
-    protected buildDatasetCreationPayload(crate: RoCrate, metadataLanguage: string): Record<string, unknown> {
-        const graph = this.readGraph(crate);
-        const root = graph.find(entity => entity['@id'] === './');
-        if (!root) {
-            throw new Error('The RO-Crate root dataset entity (@id: "./") was not found.');
-        }
-
-        const title = this.firstMeaningfulString(root.title, root.name);
-        const authors = this.extractAuthors(root, graph);
-        const contactEmails = this.extractContactEmails(root, graph);
-        const descriptions = this.extractDescriptions(root, graph);
-        const subjects = this.readStrings(root.subject);
+    protected buildDatasetCreationPayload(datasetMetadata: NativeDataverseDatasetMetadata): Record<string, unknown> {
+        const title = datasetMetadata.title.trim();
+        const authors = this.uniqueStrings(datasetMetadata.authorNames.map(value => value.trim()));
+        const contactEmails = this.uniqueStrings(datasetMetadata.contactEmails.map(value => value.trim()));
+        const descriptions = this.uniqueStrings(datasetMetadata.descriptions.map(value => value.trim()));
+        const subjects = this.uniqueStrings(datasetMetadata.subjects.map(value => value.trim()));
         const missing: string[] = [];
 
         if (!title) missing.push('Title');
@@ -226,11 +254,11 @@ export class NativeDataverseExportService {
         if (!subjects.length) missing.push('Subject');
 
         if (missing.length) {
-            throw new Error(`Cannot create Dataverse dataset. Missing required RO-Crate metadata: ${missing.join(', ')}.`);
+            throw new Error(`Cannot create Dataverse dataset. Missing required metadata: ${missing.join(', ')}.`);
         }
 
         const fields: DataverseMetadataField[] = [
-            this.primitiveField('title', false, title as string),
+            this.primitiveField('title', false, title),
             this.compoundField('author', authors.map(authorName => ({
                 authorName: this.primitiveField('authorName', false, authorName)
             }))),
@@ -249,7 +277,7 @@ export class NativeDataverseExportService {
         ];
 
         return {
-            metadataLanguage,
+            metadataLanguage: datasetMetadata.metadataLanguage,
             datasetVersion: {
                 metadataBlocks: {
                     citation: {
