@@ -4,12 +4,26 @@ import { DataRepositoryCapabilities } from '../types';
 @injectable()
 export class DataverseCapabilityService {
 
-    public async detectRepositoryCapabilities(_baseUrl: string): Promise<DataRepositoryCapabilities> {
-        // Temporarily force native Dataverse export while testing that path.
+    public async detectRepositoryCapabilities(baseUrl: string): Promise<DataRepositoryCapabilities> {
+        const supportsArpRoCrateZipUpload = await this.supportsArpRoCrateZipUpload(baseUrl);
+        if (supportsArpRoCrateZipUpload) {
+            return {
+                kind: 'arp-dataverse',
+                supportsArpRoCrateZipUpload: true,
+                supportsNativeDataverseApi: true
+            };
+        }
+        if (await this.supportsNativeDataverseApi(baseUrl)) {
+            return {
+                kind: 'dataverse',
+                supportsArpRoCrateZipUpload: false,
+                supportsNativeDataverseApi: true
+            };
+        }
         return {
-            kind: 'dataverse',
+            kind: 'unknown',
             supportsArpRoCrateZipUpload: false,
-            supportsNativeDataverseApi: true
+            supportsNativeDataverseApi: false
         };
     }
 
