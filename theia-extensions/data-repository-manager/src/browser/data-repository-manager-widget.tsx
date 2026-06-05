@@ -130,6 +130,51 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       return
     }
 
+    if (capabilities.supportsArpRoCrateZipUpload) {
+      const progress = await this.messageService.showProgress({
+        text: `Checking existing ARP export for ${selectedRepo.title}...`,
+      })
+      try {
+        const updateResult =
+          await this.arpExportService.updateArp(selectedRepo)
+        if (updateResult) {
+          this.messageService.info(
+            `ARP file update completed for ${updateResult.target}. Uploaded ${updateResult.addedFileCount} new file(s), removed ${updateResult.removedFileCount} file(s). Metadata JSON upload is temporarily disabled.`,
+            { timeout: 10000 },
+          )
+          if (updateResult.unmappedEntityIds.length && updateResult.mappingFileName) {
+            const previewLimit = 15
+            const idPreview = updateResult.unmappedEntityIds
+              .slice(0, previewLimit)
+              .map((id) => `- ${id.length > 80 ? `${id.slice(0, 77)}...` : id}`)
+              .join('\n')
+            const remainingCount = updateResult.unmappedEntityIds.length - previewLimit
+            this.messageService.warn(
+              `ARP update completed, but ${updateResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .aroma/${updateResult.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
+              { timeout: 10000 },
+            )
+          }
+          if (updateResult.changedFileCount) {
+            this.messageService.warn(
+              `${updateResult.changedFileCount} changed existing file(s) were detected but not replaced in this step.`,
+              { timeout: 10000 },
+            )
+          }
+          console.log('ARP file update completed:', updateResult)
+          return
+        }
+      } catch (error) {
+        console.error('ARP file update failed:', error)
+        this.messageService.error(
+          `ARP file update failed: ${error instanceof Error ? error.message : String(error)}`,
+          { timeout: 10000 },
+        )
+        return
+      } finally {
+        progress.cancel()
+      }
+    }
+
     const dialog = new DataverseCollectionBrowserDialog(
       selectedRepo,
       this.collectionService,
