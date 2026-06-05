@@ -1,5 +1,6 @@
 import type { McpToolTextResult, TransportMode } from './types'
 import type { SchemaRegistryEntry } from './schema-registry-store'
+import { readAgentWorkflowDoc } from './workflow-docs'
 
 type ToolCallTelemetryContext = {
   sessionKey: string
@@ -354,6 +355,14 @@ export function createToolDispatcher(deps: DispatcherDeps) {
           return collector.runWithToolCallContext(telemetryId, fn)
         }
         return fn()
+      }
+
+      if (toolName === 'read_agent_workflow_doc') {
+        const result = readAgentWorkflowDoc(params)
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
       }
 
       if (toolName === 'search') {

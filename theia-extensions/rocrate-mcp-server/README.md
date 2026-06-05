@@ -252,6 +252,17 @@ Profile activation:
 - After profile activation, use normal profile-aware edit/validate flow
   (`apply_changes`, `validate_crate`).
 
+## Agent workflow docs
+
+The server provides its RO-Crate editing workflow through MCP so agents do not
+need copied instruction files in the dataset directory.
+
+- Call `read_agent_workflow_doc()` first to read `rocrate_workflow.md`.
+- Then call `read_agent_workflow_doc({ "name": "<doc-name>" })` for the step
+  docs referenced by `rocrate_workflow.md`.
+- The tool response includes `availableDocs` with all valid doc names.
+- Unknown doc names fail with an error that lists the available docs.
+
 ## Build, test, run
 
 ```bash

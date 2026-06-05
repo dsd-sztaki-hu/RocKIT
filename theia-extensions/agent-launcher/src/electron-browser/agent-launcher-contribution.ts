@@ -25,6 +25,10 @@ import {
   resolveAppProjectPathFromLocation,
   resolveRocrateMcpSocketPath,
 } from '../../../aroma2-common/lib/common/rocrate-mcp-config'
+import {
+  AROMA_AGENT_INSTRUCTIONS_COPY_TO_WORKSPACE,
+  AgentLauncherPreferences,
+} from '../common/agent-launcher-preferences'
 import { NativeAgentProvider } from '../common/native-agent-protocol'
 import { NativeAgentChatWidget } from './native-agent-chat-widget'
 
@@ -161,6 +165,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   @inject(EnvVariablesServer) protected readonly envVariablesServer: EnvVariablesServer
   @inject(WidgetManager) protected readonly widgetManager: WidgetManager
   @inject(ApplicationShell) protected readonly shell: ApplicationShell
+  @inject(AgentLauncherPreferences)
+  protected readonly preferences: AgentLauncherPreferences
   @inject('AgentInstructionService')
   protected readonly agentInstructionService: AgentInstructionPort
 
@@ -274,7 +280,9 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     if (!mcpReady) {
       return
     }
-    await this.agentInstructionService.ensureAgentFiles(directoryUri, agentId)
+    if (this.shouldCopyAgentInstructions()) {
+      await this.agentInstructionService.ensureAgentFiles(directoryUri, agentId)
+    }
     const widget = await this.widgetManager.getOrCreateWidget(NativeAgentChatWidget.ID, {
       instanceId: `${NativeAgentChatWidget.ID}:${agentId}:${Date.now().toString(36)}`,
       provider: agentId,
@@ -311,8 +319,12 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       return
     }
 
-    this.setAgentTerminalStatus(terminal, agentId, 'Updating instructions...')
-    await this.agentInstructionService.ensureAgentFiles(directoryUri, agentId)
+    if (this.shouldCopyAgentInstructions()) {
+      this.setAgentTerminalStatus(terminal, agentId, 'Updating instructions...')
+      await this.agentInstructionService.ensureAgentFiles(directoryUri, agentId)
+    } else {
+      this.setAgentTerminalStatus(terminal, agentId, 'Using MCP workflow docs...')
+    }
 
     this.setAgentTerminalStatus(terminal, agentId, `Starting ${executable}...`)
     const launchArgs = this.buildAgentLaunchArgs(agentId, executable)
@@ -339,6 +351,10 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected formatAgentName(agentId: string): string {
     return agentId.charAt(0).toUpperCase() + agentId.slice(1)
+  }
+
+  protected shouldCopyAgentInstructions(): boolean {
+    return this.preferences[AROMA_AGENT_INSTRUCTIONS_COPY_TO_WORKSPACE] === true
   }
 
   protected buildAgentLaunchArgs(agentId: string, executable: string): string[] {

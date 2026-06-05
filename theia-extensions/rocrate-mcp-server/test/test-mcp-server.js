@@ -556,6 +556,10 @@ async function run() {
     assert.ok(toolNames.includes('search'), 'search tool should exist')
     assert.ok(toolNames.includes('download_url'), 'download_url tool should exist')
     assert.ok(
+      toolNames.includes('read_agent_workflow_doc'),
+      'read_agent_workflow_doc tool should exist',
+    )
+    assert.ok(
       toolNames.includes('upload_rocrate_to_dataverse'),
       'upload_rocrate_to_dataverse tool should exist',
     )
@@ -585,6 +589,45 @@ async function run() {
       toolNames.includes('update_profile_conforms_to'),
       'update_profile_conforms_to tool should exist',
     )
+    assert.match(
+      initialize.result.instructions,
+      /read_agent_workflow_doc.*rocrate_workflow\.md/,
+      'initialize instructions should direct agents to the MCP workflow doc',
+    )
+
+    const workflowDocResponse = await request('tools/call', {
+      name: 'read_agent_workflow_doc',
+      arguments: {},
+    })
+    const workflowDocPayload = JSON.parse(workflowDocResponse.result.content[0].text)
+    assert.equal(workflowDocPayload.name, 'rocrate_workflow.md')
+    assert.match(workflowDocPayload.content, /# RO-Crate Agent Workflow/)
+    assert.ok(
+      workflowDocPayload.availableDocs.includes('profile-first-workflow.md'),
+      'workflow doc response should list available step docs',
+    )
+
+    const profileWorkflowResponse = await request('tools/call', {
+      name: 'read_agent_workflow_doc',
+      arguments: {
+        name: 'profile-first-workflow.md',
+      },
+    })
+    const profileWorkflowPayload = JSON.parse(
+      profileWorkflowResponse.result.content[0].text,
+    )
+    assert.equal(profileWorkflowPayload.name, 'profile-first-workflow.md')
+    assert.match(profileWorkflowPayload.content, /# Profile-First Workflow/)
+
+    const unknownWorkflowDocResponse = await request('tools/call', {
+      name: 'read_agent_workflow_doc',
+      arguments: {
+        name: 'missing.md',
+      },
+    })
+    assert.ok(unknownWorkflowDocResponse.error, 'unknown workflow doc should fail')
+    assert.match(unknownWorkflowDocResponse.error.message, /Unknown workflow doc: missing\.md/)
+    assert.match(unknownWorkflowDocResponse.error.message, /rocrate_workflow\.md/)
 
     const localReadSummaryResponse = await request('tools/call', {
       name: 'read_crate',

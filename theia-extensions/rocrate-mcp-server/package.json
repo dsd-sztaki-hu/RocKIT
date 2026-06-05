@@ -12,9 +12,9 @@
     "rocrate-mcp-server": "lib/server.js"
   },
   "scripts": {
-    "build": "tsc -b && shx mkdir -p lib/dashboard/static && shx cp -r src/dashboard/static/. lib/dashboard/static/",
+    "build": "node scripts/generate-workflow-docs-bundle.js && tsc -b && shx mkdir -p lib/dashboard/static && shx cp -r src/dashboard/static/. lib/dashboard/static/",
     "clean": "rimraf lib tsconfig.tsbuildinfo",
-    "watch": "tsc -b -w",
+    "watch": "node scripts/generate-workflow-docs-bundle.js && tsc -b -w",
     "start": "node lib/server.js",
     "test": "yarn build && node test/test-core.js && node test/test-mcp-server.js",
     "test:dashboard": "yarn build && node test/test-dashboard-collector.js && node test/test-dashboard-http.js",

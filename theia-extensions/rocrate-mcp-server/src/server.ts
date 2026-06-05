@@ -11,30 +11,26 @@ import {
   writeCrateAtomic,
 } from './core'
 import type { RoCrate, RoCrateEntity } from './core/types'
-import { CHANGE_SET_ALLOWED_KEYS, tools } from './server/tool-definitions'
-import { createToolDispatcher } from './server/tool-dispatcher'
-import { createProfileContextStore } from './server/profile-context'
-import { createSummaryHelpers } from './server/summary'
-import { startServerWithTransports } from './server/transports'
-import { createDataverseHandlers } from './server/dataverse'
+// Dashboard telemetry imports (optional, disabled by default)
+import { getGlobalCollector } from './dashboard/collector'
+import { startDashboardIfNeeded } from './dashboard/http-server'
 import { createContextReconciliationHelpers } from './server/context-reconciliation'
-import { createProfileValidationHelpers } from './server/profile-validation'
-import { createProfileResolutionHelpers } from './server/profile-resolution'
 import { createCrateOpsHelpers } from './server/crate-ops'
-import { createWebHandlers } from './server/web'
+import { createDataverseHandlers } from './server/dataverse'
 import { createOntologyHelpers } from './server/ontology'
+import { createProfileContextStore } from './server/profile-context'
+import { createProfileResolutionHelpers } from './server/profile-resolution'
+import { createProfileValidationHelpers } from './server/profile-validation'
 import {
   createSchemaRegistryStore,
   type SchemaRegistryEntry,
 } from './server/schema-registry-store'
-import type {
-  AccessMode,
-  ProfileResolutionInputs,
-} from './server/types'
-
-// Dashboard telemetry imports (optional, disabled by default)
-import { getGlobalCollector } from './dashboard/collector'
-import { startDashboardIfNeeded } from './dashboard/http-server'
+import { createSummaryHelpers } from './server/summary'
+import { CHANGE_SET_ALLOWED_KEYS, tools } from './server/tool-definitions'
+import { createToolDispatcher } from './server/tool-dispatcher'
+import { startServerWithTransports } from './server/transports'
+import type { AccessMode, ProfileResolutionInputs } from './server/types'
+import { createWebHandlers } from './server/web'
 
 /**
  * rocrate-mcp-server architecture (single-file entrypoint)
@@ -51,7 +47,6 @@ import { startDashboardIfNeeded } from './dashboard/http-server'
  * MCP transport -> SDK request handlers -> handleToolCall ->
  * run* tool implementation -> structured MCP tool result
  */
-
 
 const ROCRATE_CONFORMS_TO_URL = 'https://w3id.org/ro/crate/1.1'
 const DEFAULT_SCHEMA_INDEX_FILENAME = 'metadata-schema-index.json'
@@ -327,13 +322,10 @@ const {
   collectProfileUrls,
 })
 
-const {
-  collectDeclaredContextTerms,
-  applyContextModePatch,
-  buildContextTermSuggestion,
-} = createContextReconciliationHelpers({
-  defaultContextKnownTerms: DEFAULT_CONTEXT_KNOWN_TERMS,
-})
+const { collectDeclaredContextTerms, applyContextModePatch, buildContextTermSuggestion } =
+  createContextReconciliationHelpers({
+    defaultContextKnownTerms: DEFAULT_CONTEXT_KNOWN_TERMS,
+  })
 
 const {
   buildProfileConstraints,
@@ -428,7 +420,9 @@ function listSchemaRegistry(params: Record<string, unknown>): Record<string, unk
 /**
  * Registers one schema entry in persisted registry storage.
  */
-function registerSchemaRegistry(params: Record<string, unknown>): Record<string, unknown> {
+function registerSchemaRegistry(
+  params: Record<string, unknown>,
+): Record<string, unknown> {
   const mode = parseSchemaRegistryMode(params)
   const result = schemaRegistryStore.register(mode, {
     id: typeof params.id === 'string' ? params.id : '',
@@ -507,7 +501,10 @@ function buildRoCrateContext(
             Object.fromEntries(
               Array.from(propertyValueSets.entries())
                 .sort((a, b) => a[0].localeCompare(b[0]))
-                .map(([propertyName, values]) => [propertyName, Array.from(values).sort()]),
+                .map(([propertyName, values]) => [
+                  propertyName,
+                  Array.from(values).sort(),
+                ]),
             ),
           ]),
       ),
@@ -577,14 +574,37 @@ const handleToolCall = createToolDispatcher({
   getRegisteredSchemasForMode,
 })
 
+function getDashboardUrl(): string {
+  const host = process.env.ROCRATE_DASHBOARD_HOST || '127.0.0.1'
+  const port = process.env.ROCRATE_DASHBOARD_PORT || '9393'
+  return `http://${host}:${port}`
+}
+
+function getMcpServerInstructions(): string {
+  return `Before RO-Crate editing/advice, call read_agent_workflow_doc with name "rocrate_workflow.md" and follow it.
+Read the referenced step doc before each workflow step.
+Primary artifact is ro-crate-metadata.json.
+Prefer RO-Crate tools over ad-hoc edits.
+The RO-Crate MCP dashboard is available at ${getDashboardUrl()}; open it when the user asks to inspect MCP activity or dashboard telemetry.
+First edit step is get_rocrate_context to discover active profile constraints; do not start with web search.
+Use update_profile_conforms_to to change profile URLs on conformsTo; apply_changes must not edit conformsTo.
+apply_changes writes by default; set dryRun=true to preview without persisting.
+Treat profile scope as entity-local (only entities explicitly declaring that profile URL in conformsTo).
+Do not fan out profile-field edits by class unless user explicitly asks.
+Detect profile URLs from conformsTo on Dataset/File entities, resolve them via metadata-schema-index, and keep edits limited to profile-allowed entity types/properties.
+Every entity should have a human-friendly name and new entity IDs must be descriptive and unique.
+Do not invent factual metadata unless the user explicitly asks for examples.
+Destructive apply_changes operations require explicit user approval and confirmDestructive=true.
+write_crate_atomic also supports contextMode auto context reconciliation (default auto_reconcile).`
+}
+
 /**
  * Handles start server.
  */
 async function startServer(): Promise<void> {
   await startServerWithTransports({
     tools,
-    instructions:
-      'Primary artifact is ro-crate-metadata.json. Prefer RO-Crate tools over ad-hoc edits. First step before edits is get_rocrate_context to discover active profile constraints; do not start with web search. Use update_profile_conforms_to to change profile URLs on conformsTo; apply_changes must not edit conformsTo. apply_changes writes by default; set dryRun=true to preview without persisting. Treat profile scope as entity-local (only entities explicitly declaring that profile URL in conformsTo). Do not fan out profile-field edits by class unless user explicitly asks. Detect profile URLs from conformsTo on Dataset/File entities, resolve them via metadata-schema-index, and keep edits limited to profile-allowed entity types/properties. Every entity should have a human-friendly name and new entity IDs must be descriptive and unique. Do not invent factual metadata unless the user explicitly asks for examples. Destructive apply_changes operations require explicit user approval and confirmDestructive=true. write_crate_atomic also supports contextMode auto context reconciliation (default auto_reconcile).',
+    instructions: getMcpServerInstructions(),
     asRecord,
     handleToolCall,
     getTelemetryCollector,
@@ -601,7 +621,9 @@ async function startServer(): Promise<void> {
         })
         .catch((err) => {
           const errorMsg = err instanceof Error ? err.message : String(err)
-          process.stderr.write(`rocrate-mcp-server: dashboard failed to start: ${errorMsg}\n`)
+          process.stderr.write(
+            `rocrate-mcp-server: dashboard failed to start: ${errorMsg}\n`,
+          )
         })
     },
   })

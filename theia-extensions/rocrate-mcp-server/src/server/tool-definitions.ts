@@ -56,6 +56,22 @@ export const CHANGE_SET_INPUT_SCHEMA: Record<string, unknown> = {
 
 export const tools: ToolDefinition[] = [
   {
+    name: 'read_agent_workflow_doc',
+    description:
+      'Read RO-Crate agent workflow guidance bundled with this MCP server. Call without name first to read rocrate_workflow.md, then read referenced step docs before editing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description:
+            'Workflow doc name. Defaults to rocrate_workflow.md. Use returned availableDocs for valid names.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'search',
     description:
       'Search the web using Tavily. Requires TAVILY_API_KEY environment variable.',
