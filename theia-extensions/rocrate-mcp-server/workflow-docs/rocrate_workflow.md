@@ -43,6 +43,19 @@ Plan: Fill required, then optional, then other allowed fields.
 Operational guardrails and metadata-quality rules are defined in the step docs
 returned by `read_agent_workflow_doc` and must be followed at the relevant step.
 
+## Optional Online AROMA Review
+
+After completing and validating edits to `ro-crate-metadata.json`, offer to open
+the crate in the online AROMA SPA for visual inspection and manual refinement.
+
+If the user agrees:
+
+1. Call `open_aroma_for_local_file` with the local path to `ro-crate-metadata.json`.
+2. Open the returned `aromaUrl` in the browser.
+3. Do not reopen AROMA after later metadata edits in the same session unless the
+   user asks. The opened AROMA tab listens for local file changes and refreshes
+   automatically.
+
 ## Human in the Loop
 
 1. Try to solve the user's task in one coherent pass.

@@ -24,6 +24,7 @@ import {
   filterByTimeWindow,
   computeTimeSeries,
 } from './aggregates'
+import { handleLocalFileBridgeRequest } from './local-file-bridge'
 
 // Get the directory of this module for static file serving
 // In CommonJS compiled output, the static files are in lib/dashboard/static
@@ -58,7 +59,8 @@ function sendJson(res: http.ServerResponse, data: unknown, status = 200): void {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, If-Match',
+    'Access-Control-Allow-Private-Network': 'true',
   })
   res.end(JSON.stringify(data))
 }
@@ -812,12 +814,19 @@ export class DashboardHttpServer {
   start(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.server = http.createServer((req, res) => {
+        const urlPath = (req.url || '/').split('?')[0]
+        if (urlPath === '/local-file' || urlPath === '/local-file/events') {
+          void handleLocalFileBridgeRequest(req, res)
+          return
+        }
+
         // CORS preflight
         if (req.method === 'OPTIONS') {
           res.writeHead(200, {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+            'Access-Control-Allow-Headers': 'Authorization, Content-Type, If-Match',
+            'Access-Control-Allow-Private-Network': 'true',
           })
           res.end()
           return
@@ -844,9 +853,8 @@ export class DashboardHttpServer {
       })
 
       this.server.listen(this.config.port, this.config.host, () => {
-        // eslint-disable-next-line no-console
-        console.log(
-          `Dashboard server listening on http://${this.config.host}:${this.config.port}`,
+        process.stderr.write(
+          `Dashboard server listening on http://${this.config.host}:${this.config.port}\n`,
         )
         resolve()
       })
@@ -979,8 +987,7 @@ export class DashboardHttpServer {
 
     return new Promise((resolve) => {
       this.server!.close(() => {
-        // eslint-disable-next-line no-console
-        console.log('Dashboard server stopped')
+        process.stderr.write('Dashboard server stopped\n')
         resolve()
       })
     })

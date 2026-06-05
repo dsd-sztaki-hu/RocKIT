@@ -3,7 +3,10 @@
  */
 
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
 const http = require('node:http')
+const os = require('node:os')
+const path = require('node:path')
 
 async function testHttpServer() {
   console.log('Testing dashboard HTTP server...')
@@ -11,13 +14,20 @@ async function testHttpServer() {
   const originalDataverseBaseUrl = process.env.DATAVERSE_BASE_URL
   const originalDataverseApiKey = process.env.DATAVERSE_API_KEY
   const originalKeepUploadZips = process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
+  const originalDashboardPort = process.env.ROCRATE_DASHBOARD_PORT
+  const originalDashboardEnabled = process.env.ROCRATE_DASHBOARD_ENABLED
+  const originalBridgeEnabled = process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED
+  const originalAllowedOrigins = process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS
   process.env.DATAVERSE_BASE_URL = 'https://dataverse.example.test/'
   process.env.DATAVERSE_API_KEY = 'test-dataverse-key'
   delete process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
+  delete process.env.ROCRATE_DASHBOARD_ENABLED
+  delete process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED
 
   // Import modules
   const { TelemetryCollector } = await import('../lib/dashboard/collector.js')
   const { DashboardHttpServer } = await import('../lib/dashboard/http-server.js')
+  const { registerLocalFileForAroma } = await import('../lib/dashboard/local-file-bridge.js')
 
   // Create a collector with some test data
   const collector = new TelemetryCollector({
@@ -65,6 +75,7 @@ async function testHttpServer() {
     })
 
   const port = await getPort()
+  process.env.ROCRATE_DASHBOARD_PORT = String(port)
 
   // Create and start the HTTP server
   const dashboard = new DashboardHttpServer(collector, {
@@ -132,7 +143,7 @@ async function testHttpServer() {
       })
     })
 
-  const requestWithBody = (method, reqPath, bodyObj) =>
+  const requestWithBody = (method, reqPath, bodyObj, extraHeaders = {}) =>
     new Promise((resolve, reject) => {
       const body = bodyObj ? JSON.stringify(bodyObj) : ''
       const req = http.request(
@@ -144,6 +155,7 @@ async function testHttpServer() {
           headers: {
             'content-type': 'application/json',
             'content-length': Buffer.byteLength(body),
+            ...extraHeaders,
           },
         },
         (res) => {
@@ -301,6 +313,72 @@ async function testHttpServer() {
     )
     assert.strictEqual(deleteResp.status, 200)
 
+    // Test local-file bridge endpoints used by online AROMA
+    console.log('  Testing /local-file bridge endpoints...')
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rocrate-local-file-'))
+    const cratePath = path.join(tmpDir, 'ro-crate-metadata.json')
+    const initialCrate = {
+      '@context': 'https://w3id.org/ro/crate/1.1/context',
+      '@graph': [
+        {
+          '@id': './',
+          '@type': 'Dataset',
+          name: 'Initial crate',
+        },
+      ],
+    }
+    fs.writeFileSync(cratePath, `${JSON.stringify(initialCrate, null, 2)}\n`, 'utf8')
+
+    process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS = 'https://repo.researchdata.hu'
+    const registration = registerLocalFileForAroma({ path: cratePath })
+    assert.strictEqual(
+      registration.aromaUrl.startsWith('https://repo.researchdata.hu/aroma?localFile='),
+      true,
+    )
+    assert.strictEqual(
+      registration.localFileUrl.startsWith(`http://127.0.0.1:${port}/local-file?id=`),
+      true,
+    )
+
+    const bridgePath = new URL(registration.localFileUrl).pathname
+      + new URL(registration.localFileUrl).search
+    const getBridgeResp = await get(bridgePath)
+    assert.strictEqual(getBridgeResp.status, 200)
+    assert.strictEqual(
+      getBridgeResp.headers['access-control-allow-origin'],
+      'https://repo.researchdata.hu',
+    )
+    const bridgeData = JSON.parse(getBridgeResp.data)
+    assert.strictEqual(bridgeData.path, cratePath)
+    assert.strictEqual(bridgeData.content['@graph'][0].name, 'Initial crate')
+    assert.strictEqual(typeof bridgeData.etag, 'string')
+
+    const missingIfMatchResp = await requestWithBody(
+      'PUT',
+      bridgePath,
+      initialCrate,
+    )
+    assert.strictEqual(missingIfMatchResp.status, 428)
+
+    const updatedCrate = {
+      ...initialCrate,
+      '@graph': [{ ...initialCrate['@graph'][0], name: 'Updated crate' }],
+    }
+    const saveResp = await requestWithBody('PUT', bridgePath, updatedCrate, {
+      'if-match': bridgeData.etag,
+    })
+    assert.strictEqual(saveResp.status, 200)
+    const saveData = JSON.parse(saveResp.data)
+    assert.strictEqual(saveData.ok, true)
+    assert.notStrictEqual(saveData.etag, bridgeData.etag)
+    const written = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    assert.strictEqual(written['@graph'][0].name, 'Updated crate')
+
+    const staleResp = await requestWithBody('PUT', bridgePath, initialCrate, {
+      'if-match': bridgeData.etag,
+    })
+    assert.strictEqual(staleResp.status, 412)
+
     // Test CORS headers
     console.log('  Testing CORS headers...')
     const corsResp = await get('/health')
@@ -352,6 +430,26 @@ async function testHttpServer() {
       delete process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
     } else {
       process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS = originalKeepUploadZips
+    }
+    if (originalDashboardPort === undefined) {
+      delete process.env.ROCRATE_DASHBOARD_PORT
+    } else {
+      process.env.ROCRATE_DASHBOARD_PORT = originalDashboardPort
+    }
+    if (originalDashboardEnabled === undefined) {
+      delete process.env.ROCRATE_DASHBOARD_ENABLED
+    } else {
+      process.env.ROCRATE_DASHBOARD_ENABLED = originalDashboardEnabled
+    }
+    if (originalBridgeEnabled === undefined) {
+      delete process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED
+    } else {
+      process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED = originalBridgeEnabled
+    }
+    if (originalAllowedOrigins === undefined) {
+      delete process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS
+    } else {
+      process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS = originalAllowedOrigins
     }
   }
 }

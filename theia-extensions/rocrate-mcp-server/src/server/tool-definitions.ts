@@ -72,6 +72,27 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
+    name: 'open_aroma_for_local_file',
+    description:
+      'Register a local ro-crate-metadata.json file with the local bridge and return an online AROMA URL that can read, save, and auto-refresh that file.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Absolute or relative path to a local ro-crate-metadata.json file.',
+        },
+        aromaBaseUrl: {
+          type: 'string',
+          description:
+            'Optional online AROMA base URL. Defaults to https://repo.researchdata.hu/aroma.',
+        },
+      },
+      required: ['path'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'search',
     description:
       'Search the web using Tavily. Requires TAVILY_API_KEY environment variable.',

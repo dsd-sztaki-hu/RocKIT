@@ -5,6 +5,16 @@ const path = require('node:path')
 const http = require('node:http')
 const { spawn } = require('node:child_process')
 
+function getUnusedPort() {
+  return new Promise((resolve) => {
+    const server = http.createServer()
+    server.listen(0, () => {
+      const { port } = server.address()
+      server.close(() => resolve(port))
+    })
+  })
+}
+
 function encodeMessage(message, mode = 'lf') {
   if (mode === 'jsonl') {
     return Buffer.from(`${JSON.stringify(message)}\n`, 'utf8')
@@ -488,6 +498,7 @@ async function run() {
   fs.writeFileSync(path.join(tempRoot, 'folder', 'nested', 'inside.txt'), 'inside\n', 'utf8')
   fs.writeFileSync(path.join(tempRoot, 'folder', 'nested', 'arp.txt'), 'arp\n', 'utf8')
 
+  const dashboardPort = await getUnusedPort()
   const serverPath = path.resolve(__dirname, '../lib/server.js')
   const child = spawn('node', [serverPath], {
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -496,6 +507,7 @@ async function run() {
       TAVILY_API_KEY: 'test-key',
       TAVILY_API_URL: `${webToolsMock.baseUrl}/search`,
       AROMA_ROOT_PATH: aromaRoot,
+      ROCRATE_DASHBOARD_PORT: String(dashboardPort),
     },
   })
 
@@ -558,6 +570,10 @@ async function run() {
     assert.ok(
       toolNames.includes('read_agent_workflow_doc'),
       'read_agent_workflow_doc tool should exist',
+    )
+    assert.ok(
+      toolNames.includes('open_aroma_for_local_file'),
+      'open_aroma_for_local_file tool should exist',
     )
     assert.ok(
       toolNames.includes('upload_rocrate_to_dataverse'),
@@ -628,6 +644,34 @@ async function run() {
     assert.ok(unknownWorkflowDocResponse.error, 'unknown workflow doc should fail')
     assert.match(unknownWorkflowDocResponse.error.message, /Unknown workflow doc: missing\.md/)
     assert.match(unknownWorkflowDocResponse.error.message, /rocrate_workflow\.md/)
+
+    const aromaBridgeResponse = await request('tools/call', {
+      name: 'open_aroma_for_local_file',
+      arguments: {
+        path: cratePath,
+      },
+    })
+    assert.ok(aromaBridgeResponse.result, 'open_aroma_for_local_file should return URLs')
+    const aromaBridgePayload = JSON.parse(aromaBridgeResponse.result.content[0].text)
+    assert.equal(aromaBridgePayload.path, cratePath)
+    assert.ok(
+      aromaBridgePayload.aromaUrl.startsWith(
+        'https://repo.researchdata.hu/aroma?localFile=',
+      ),
+      'open_aroma_for_local_file should default to the production AROMA URL',
+    )
+    assert.ok(
+      aromaBridgePayload.localFileUrl.startsWith(
+        `http://127.0.0.1:${dashboardPort}/local-file?id=`,
+      ),
+      'open_aroma_for_local_file should point localFileUrl at the dashboard HTTP server',
+    )
+    assert.ok(
+      aromaBridgePayload.eventsUrl.startsWith(
+        `http://127.0.0.1:${dashboardPort}/local-file/events?id=`,
+      ),
+      'open_aroma_for_local_file should include the matching SSE URL',
+    )
 
     const localReadSummaryResponse = await request('tools/call', {
       name: 'read_crate',
