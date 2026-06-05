@@ -104,6 +104,14 @@ const AGENT_SPECS: AgentSpec[] = [
 
 const sharedAvailableAgents = new Map<string, string>()
 const AGENT_TERMINAL_ICON_CLASS = 'codicon codicon-hubot'
+const INSIDE_AROMA_AGENT_CONTEXT_PROMPT = [
+  'You are launched from inside AROMA.',
+  '',
+  'Before doing RO-Crate work, call the RO-Crate MCP tool `set_agent_session_context` with:',
+  '{"launchContext":"inside_aroma","aromaAlreadyOpen":true}',
+  '',
+  'Because AROMA is already open for this session, do not suggest opening AROMA after edits.',
+].join('\n')
 
 function arraysEqual(a: string[] | undefined, b: string[] | undefined): boolean {
   if (!a || !b || a.length !== b.length) {
@@ -366,13 +374,17 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   }
 
   protected buildRawAgentLaunchArgs(agentId: string, executable: string): string[] {
-    if (agentId === 'qwen') {
-      return [executable, '--prompt-interactive', 'Hi!']
+    if (agentId === 'codex') {
+      return [
+        executable,
+        '-c',
+        `developer_instructions=${toTomlBasicString(INSIDE_AROMA_AGENT_CONTEXT_PROMPT)}`,
+      ]
     }
-    if (agentId === 'opencode') {
-      return [executable]
+    if (agentId === 'claude') {
+      return [executable, '--append-system-prompt', INSIDE_AROMA_AGENT_CONTEXT_PROMPT]
     }
-    return [executable, 'Hi!']
+    return [executable]
   }
 
   protected buildAgentFallbackCommand(agentId: string, executable: string): string {

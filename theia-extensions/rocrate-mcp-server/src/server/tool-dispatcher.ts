@@ -2,6 +2,10 @@ import type { McpToolTextResult, TransportMode } from './types'
 import type { SchemaRegistryEntry } from './schema-registry-store'
 import { readAgentWorkflowDoc } from './workflow-docs'
 import { registerLocalFileForAroma } from '../dashboard/local-file-bridge'
+import {
+  getAgentSessionContext,
+  setAgentSessionContext,
+} from './agent-session-context'
 
 type ToolCallTelemetryContext = {
   sessionKey: string
@@ -358,8 +362,19 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         return fn()
       }
 
+      if (toolName === 'set_agent_session_context') {
+        const result = setAgentSessionContext(telemetryContext?.sessionKey, params)
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
+      }
+
       if (toolName === 'read_agent_workflow_doc') {
-        const result = readAgentWorkflowDoc(params)
+        const result = readAgentWorkflowDoc(
+          params,
+          getAgentSessionContext(telemetryContext?.sessionKey),
+        )
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, result)
         }

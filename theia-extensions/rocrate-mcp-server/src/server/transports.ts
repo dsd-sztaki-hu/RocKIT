@@ -5,6 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { handleSocketLifecycleArgs } from '../bootstrap/socket-lifecycle'
+import { clearAgentSessionContext } from './agent-session-context'
 import type { McpToolTextResult, ToolDefinition, TransportMode } from './types'
 
 type TelemetryCollector = {
@@ -156,6 +157,7 @@ export async function startServerWithTransports(options: StartServerOptions): Pr
 
     const collector = options.getTelemetryCollector()
     const closeSession = () => {
+      clearAgentSessionContext(sessionKey)
       if (collector) {
         collector.deactivateSession(sessionKey)
       }

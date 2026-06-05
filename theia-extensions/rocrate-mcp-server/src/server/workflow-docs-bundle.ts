@@ -49,10 +49,16 @@ Plan: Fill required, then optional, then other allowed fields.
 Operational guardrails and metadata-quality rules are defined in the step docs
 returned by \`read_agent_workflow_doc\` and must be followed at the relevant step.
 
-## Optional Online AROMA Review
+## Online AROMA Review
 
-After completing and validating edits to \`ro-crate-metadata.json\`, offer to open
-the crate in the online AROMA SPA for visual inspection and manual refinement.
+After completing and validating edits to \`ro-crate-metadata.json\`, the final
+response must ask whether the user wants to open the crate in the online AROMA
+SPA for visual inspection and manual refinement.
+
+Exception: if this workflow doc includes a "Current Session Context" section
+stating that AROMA is already open for this session, do not suggest opening
+AROMA and do not call \`open_aroma_for_local_file\` unless the user explicitly
+asks.
 
 If the user agrees:
 
@@ -88,7 +94,7 @@ If the user agrees:
 7. If publication-ready and the user asked for Dataverse upload, run \`upload_rocrate_to_dataverse(write=true)\` using MCP defaults; do not ask for Dataverse URL/API key first.
 8. After successful Dataverse upload, show the returned \`dataverseUrl\` as the dataset link and retain the returned RO-Crate representation for follow-up file links.
 9. Give a final summary of data added or updated; use table format when possible.
-10. After validation, ask whether the user wants to open the crate in online AROMA.
+10. If AROMA is not already open for this session, ask whether the user wants to open the crate in online AROMA.
 11. If yes, call \`open_aroma_for_local_file\` and open the returned \`aromaUrl\`.
 12. Once AROMA is open, assume it will auto-refresh when the local JSON changes; do not reopen it unless the user asks.
 `,

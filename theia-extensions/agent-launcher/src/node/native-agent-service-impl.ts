@@ -24,8 +24,13 @@ import {
 } from '../common/native-agent-protocol'
 import { JsonRpcChildProcess, JsonRpcMessage } from './json-rpc-child-process'
 
-const CLAUDE_SYSTEM_PROMPT =
-  'You are embedded in AROMA as an RO-Crate data steward. Prefer RO-Crate MCP tools for metadata edits and keep responses concise.'
+const AROMA_AGENT_CONTEXT_PROMPT =
+  [
+    'You are embedded in AROMA as an RO-Crate data steward. Prefer RO-Crate MCP tools for metadata edits and keep responses concise.',
+    'You are launched from inside AROMA.',
+    'Before doing RO-Crate work, call the RO-Crate MCP tool `set_agent_session_context` with {"launchContext":"inside_aroma","aromaAlreadyOpen":true}.',
+    'Because AROMA is already open for this session, do not suggest opening AROMA after edits.',
+  ].join('\n')
 const RESTORED_CHAT_CONTEXT_MAX_CHARS = 24000
 
 type Adapter = {
@@ -311,8 +316,7 @@ class CodexNativeAdapter implements Adapter {
       cwd: this.record.session.cwd,
       approvalPolicy: 'never',
       sandbox: 'danger-full-access',
-      developerInstructions:
-        'You are embedded in AROMA as an RO-Crate data steward. Prefer RO-Crate MCP tools for metadata edits and keep responses concise.',
+      developerInstructions: AROMA_AGENT_CONTEXT_PROMPT,
     })) as any
     this.providerThreadId = started?.thread?.id
     if (!this.providerThreadId) {
@@ -542,7 +546,7 @@ class ClaudeNativeAdapter implements Adapter {
       systemPrompt: {
         type: 'preset',
         preset: 'claude_code',
-        append: CLAUDE_SYSTEM_PROMPT,
+        append: AROMA_AGENT_CONTEXT_PROMPT,
       },
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,

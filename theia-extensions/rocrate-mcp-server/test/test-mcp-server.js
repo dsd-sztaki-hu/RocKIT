@@ -572,6 +572,10 @@ async function run() {
       'read_agent_workflow_doc tool should exist',
     )
     assert.ok(
+      toolNames.includes('set_agent_session_context'),
+      'set_agent_session_context tool should exist',
+    )
+    assert.ok(
       toolNames.includes('open_aroma_for_local_file'),
       'open_aroma_for_local_file tool should exist',
     )
@@ -644,6 +648,33 @@ async function run() {
     assert.ok(unknownWorkflowDocResponse.error, 'unknown workflow doc should fail')
     assert.match(unknownWorkflowDocResponse.error.message, /Unknown workflow doc: missing\.md/)
     assert.match(unknownWorkflowDocResponse.error.message, /rocrate_workflow\.md/)
+
+    const sessionContextResponse = await request('tools/call', {
+      name: 'set_agent_session_context',
+      arguments: {
+        launchContext: 'inside_aroma',
+        aromaAlreadyOpen: true,
+      },
+    })
+    const sessionContextPayload = JSON.parse(sessionContextResponse.result.content[0].text)
+    assert.equal(sessionContextPayload.launchContext, 'inside_aroma')
+    assert.equal(sessionContextPayload.aromaAlreadyOpen, true)
+
+    const workflowDocWithContextResponse = await request('tools/call', {
+      name: 'read_agent_workflow_doc',
+      arguments: {},
+    })
+    const workflowDocWithContextPayload = JSON.parse(
+      workflowDocWithContextResponse.result.content[0].text,
+    )
+    assert.equal(
+      workflowDocWithContextPayload.sessionContext.launchContext,
+      'inside_aroma',
+    )
+    assert.match(
+      workflowDocWithContextPayload.content,
+      /Do not suggest opening AROMA after edits/,
+    )
 
     const aromaBridgeResponse = await request('tools/call', {
       name: 'open_aroma_for_local_file',

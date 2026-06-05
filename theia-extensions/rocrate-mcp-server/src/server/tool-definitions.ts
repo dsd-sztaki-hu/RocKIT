@@ -56,6 +56,28 @@ export const CHANGE_SET_INPUT_SCHEMA: Record<string, unknown> = {
 
 export const tools: ToolDefinition[] = [
   {
+    name: 'set_agent_session_context',
+    description:
+      'Set per-session agent launch context. Agents launched from AROMA should call this with launchContext="inside_aroma" before reading workflow docs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        launchContext: {
+          type: 'string',
+          enum: ['inside_aroma', 'external'],
+          description: 'Where the agent session was launched from.',
+        },
+        aromaAlreadyOpen: {
+          type: 'boolean',
+          description:
+            'Whether AROMA is already open for this editing workflow. Defaults to true for inside_aroma.',
+        },
+      },
+      required: ['launchContext'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'read_agent_workflow_doc',
     description:
       'Read RO-Crate agent workflow guidance bundled with this MCP server. Call without name first to read rocrate_workflow.md, then read referenced step docs before editing.',
