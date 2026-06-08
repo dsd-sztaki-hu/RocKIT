@@ -7,13 +7,13 @@ import {
   MenuModelRegistry,
   SelectionService,
   URI,
+  UriSelection,
 } from '@theia/core'
 import { ApplicationShell, CommonCommands, WidgetManager } from '@theia/core/lib/browser'
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables'
 import { FileUri } from '@theia/core/lib/common/file-uri'
 import { isWindows } from '@theia/core/lib/common/os'
-import { UriAwareCommandHandler } from '@theia/core/lib/common/uri-command-handler'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service'
@@ -187,17 +187,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       })
       commands.registerCommand(
         command,
-        UriAwareCommandHandler.MonoSelect(this.selectionService, {
-          execute: async (uri) => {
-            await this.openAgentForUri(uri, spec.id)
+        {
+          execute: async (uri?: URI) => {
+            const targetUri = this.resolveAgentTargetUri(uri)
+            if (targetUri) {
+              await this.openAgentForUri(targetUri, spec.id)
+            }
           },
-          isEnabled: (uri) =>
-            !!this.workspaceService.getWorkspaceRootUri(uri) &&
-            sharedAvailableAgents.has(spec.id),
-          isVisible: (uri) =>
-            !!this.workspaceService.getWorkspaceRootUri(uri) &&
-            sharedAvailableAgents.has(spec.id),
-        }),
+          isEnabled: () => this.canOpenAgent(spec.id),
+          isVisible: () => this.canOpenAgent(spec.id),
+        },
       )
 
       const terminalCommand: Command = Command.toDefaultLocalizedCommand({
@@ -207,18 +206,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       })
       commands.registerCommand(
         terminalCommand,
-        UriAwareCommandHandler.MonoSelect(this.selectionService, {
-          execute: async (uri) => {
-            await this.openAgentForUri(uri, spec.id)
+        {
+          execute: async (uri?: URI) => {
+            const targetUri = this.resolveAgentTargetUri(uri)
+            if (targetUri) {
+              await this.openAgentForUri(targetUri, spec.id)
+            }
           },
-          isEnabled: (uri) =>
-            !!this.workspaceService.getWorkspaceRootUri(uri) &&
-            sharedAvailableAgents.has(spec.id),
-          isVisible: (uri) =>
-            supportsNativeChat(spec.id) &&
-            !!this.workspaceService.getWorkspaceRootUri(uri) &&
-            sharedAvailableAgents.has(spec.id),
-        }),
+          isEnabled: () => this.canOpenAgent(spec.id),
+          isVisible: () => supportsNativeChat(spec.id) && this.canOpenAgent(spec.id),
+        },
       )
 
       if (supportsNativeChat(spec.id)) {
@@ -230,17 +227,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         })
         commands.registerCommand(
           chatCommand,
-          UriAwareCommandHandler.MonoSelect(this.selectionService, {
-            execute: async (uri) => {
-              await this.openNativeChatForUri(uri, nativeAgentId)
+          {
+            execute: async (uri?: URI) => {
+              const targetUri = this.resolveAgentTargetUri(uri)
+              if (targetUri) {
+                await this.openNativeChatForUri(targetUri, nativeAgentId)
+              }
             },
-            isEnabled: (uri) =>
-              !!this.workspaceService.getWorkspaceRootUri(uri) &&
-              sharedAvailableAgents.has(spec.id),
-            isVisible: (uri) =>
-              !!this.workspaceService.getWorkspaceRootUri(uri) &&
-              sharedAvailableAgents.has(spec.id),
-          }),
+            isEnabled: () => this.canOpenAgent(spec.id),
+            isVisible: () => this.canOpenAgent(spec.id),
+          },
         )
       }
     }
@@ -278,6 +274,24 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         order: `${orderPrefix}.a`,
       })
     }
+  }
+
+  protected canOpenAgent(agentId: string): boolean {
+    return (
+      sharedAvailableAgents.has(agentId) &&
+      this.workspaceService.tryGetRoots().length > 0
+    )
+  }
+
+  protected resolveAgentTargetUri(explicitUri?: URI): URI | undefined {
+    const selectedUri =
+      explicitUri instanceof URI
+        ? explicitUri
+        : UriSelection.getUri(this.selectionService.selection)
+    if (selectedUri && this.workspaceService.getWorkspaceRootUri(selectedUri)) {
+      return selectedUri
+    }
+    return this.workspaceService.tryGetRoots()[0]?.resource
   }
 
   protected async openNativeChatForUri(
