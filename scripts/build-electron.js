@@ -1,13 +1,10 @@
 #!/usr/bin/env node
 
 const path = require('path');
+const fs = require('fs');
 const { spawnSync } = require('child_process');
 
-const root = path.resolve(__dirname, '..');
-const canonicalRoot =
-    process.platform === 'win32'
-        ? root.replace(/^([A-Z]):/, (_, drive) => `${drive.toLowerCase()}:`)
-        : root;
+const canonicalRoot = fs.realpathSync.native(path.resolve(__dirname, '..'));
 
 const env = {
     ...process.env,
@@ -15,26 +12,43 @@ const env = {
     PWD: canonicalRoot
 };
 
-const result =
-    process.platform === 'win32'
-        ? spawnSync(
+const yarnCommands = process.argv.includes('--rebuild')
+    ? [
+        ['run', 'clean'],
+        ['install'],
+        ['run', 'build:electron:impl']
+    ]
+    : [['run', 'build:electron:impl']];
+
+const runYarn = args => {
+    if (process.platform === 'win32') {
+        return spawnSync(
             process.env.ComSpec || 'cmd.exe',
-            ['/d', '/c', 'yarn.cmd run build:electron:impl'],
+            ['/d', '/c', 'yarn.cmd', ...args],
             {
                 cwd: canonicalRoot,
                 env,
                 stdio: 'inherit'
             }
-        )
-        : spawnSync('yarn', ['run', 'build:electron:impl'], {
-            cwd: canonicalRoot,
-            env,
-            stdio: 'inherit'
-        });
+        );
+    }
 
-if (result.error) {
-    console.error(result.error.message);
-    process.exit(1);
+    return spawnSync('yarn', args, {
+        cwd: canonicalRoot,
+        env,
+        stdio: 'inherit'
+    });
+};
+
+for (const args of yarnCommands) {
+    const result = runYarn(args);
+
+    if (result.error) {
+        console.error(result.error.message);
+        process.exit(1);
+    }
+
+    if (result.status !== 0) {
+        process.exit(result.status ?? 1);
+    }
 }
-
-process.exit(result.status ?? 1);
