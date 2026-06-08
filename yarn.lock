@@ -144,10 +144,10 @@
   dependencies:
     json-schema-to-ts "^3.1.1"
 
-"@arpproject/recrate@0.1.32-test2":
-  version "0.1.32-test2"
-  resolved "https://registry.yarnpkg.com/@arpproject/recrate/-/recrate-0.1.32-test2.tgz#c33f5a2330e20be4ea16b17cfc23319f1cf03839"
-  integrity sha512-JpphY7Nqq4vXQwgXraBTUMm9AybwV8xPNFho5Y1epIOhYQ0f1xji0E+wX/w5FlOnJadBdOD8WdkwkZah4e2avQ==
+"@arpproject/recrate@0.1.37":
+  version "0.1.37"
+  resolved "https://registry.yarnpkg.com/@arpproject/recrate/-/recrate-0.1.37.tgz#3c0807cfb0864d4593940c36b4a8e00f18dfe324"
+  integrity sha512-Y/9QnYLDxecnhKBslqYhXyT94rJTIVwW5Atvl0HlcTkxDF1fqMvyTl/uQcHsMbahrK1a9wF+frZEPwDEa4R0wQ==
   dependencies:
     "@codemirror/lang-javascript" "^6.2.3"
     "@codemirror/state" "^6.5.2"
