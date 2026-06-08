@@ -12,6 +12,7 @@ import { ApplicationFileMenuOverrides } from './application-file-menu-overrides'
 import { ApplicationRoCrateMenuContribution } from './application-ro-crate-menu-contribution'
 import { ApplicationViewMenuOverrides } from './application-view-menu-overrides'
 import { FileEditorLanguageContribution } from './file-editor-language-contribution'
+import '../../src/browser/style/panel-backgrounds.css'
 
 export default new ContainerModule((bind) => {
   bindAromaSplashPreferences(bind)
