@@ -2,6 +2,7 @@ import {
   Command,
   CommandContribution,
   CommandRegistry,
+  MAIN_MENU_BAR,
   MenuContribution,
   MenuModelRegistry,
   SelectionService,
@@ -18,7 +19,6 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service'
 import { TerminalWidget } from '@theia/terminal/lib/browser/base/terminal-widget'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { NavigatorContextMenu } from 'file-explorer/lib/browser/navigator-contribution'
 import * as path from 'path'
 import {
   getRocrateMcpServerPathCandidates,
@@ -100,6 +100,12 @@ const AGENT_SPECS: AgentSpec[] = [
 
 const sharedAvailableAgents = new Map<string, string>()
 const AGENT_TERMINAL_ICON_CLASS = 'codicon codicon-hubot'
+const EDIT_WITH_AI_MENU_PATH = [
+  ...MAIN_MENU_BAR,
+  '4z_ro_crate',
+  '3_tools',
+  'edit_with_ai',
+]
 
 function arraysEqual(a: string[] | undefined, b: string[] | undefined): boolean {
   if (!a || !b || a.length !== b.length) {
@@ -241,25 +247,35 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   }
 
   registerMenus(menus: MenuModelRegistry): void {
-    for (const spec of AGENT_SPECS) {
+    menus.registerSubmenu(EDIT_WITH_AI_MENU_PATH, 'Edit with AI tool', {
+      sortString: 'a10',
+    })
+
+    for (const [index, spec] of AGENT_SPECS.entries()) {
+      const orderPrefix = String(index).padStart(2, '0')
       if (supportsNativeChat(spec.id)) {
-        const submenu = [...NavigatorContextMenu.AGENTS, spec.id]
-        menus.registerSubmenu(submenu, spec.menuLabel)
-        menus.registerMenuAction(submenu, {
+        menus.registerMenuAction(EDIT_WITH_AI_MENU_PATH, {
           commandId: agentChatCommandId(spec.id),
-          label: 'Chat in AROMA',
-          order: 'a',
+          label:
+            spec.id === 'codex'
+              ? 'Chat in AROMA'
+              : `Chat in AROMA with ${this.formatAgentName(spec.id)}`,
+          order: `${orderPrefix}.a`,
         })
-        menus.registerMenuAction(submenu, {
+        menus.registerMenuAction(EDIT_WITH_AI_MENU_PATH, {
           commandId: agentTerminalCommandId(spec.id),
-          label: 'Open in Terminal',
-          order: 'b',
+          label:
+            spec.id === 'codex'
+              ? 'Open in Terminal'
+              : `Open ${this.formatAgentName(spec.id)} in Terminal`,
+          order: `${orderPrefix}.b`,
         })
         continue
       }
-      menus.registerMenuAction(NavigatorContextMenu.AGENTS, {
+      menus.registerMenuAction(EDIT_WITH_AI_MENU_PATH, {
         commandId: agentCommandId(spec.id),
         label: spec.menuLabel,
+        order: `${orderPrefix}.a`,
       })
     }
   }
