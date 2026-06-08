@@ -1,4 +1,4 @@
-import { DescriboCrateBuilder } from '@arpproject/recrate'
+import DescriboCrateBuilder from '@arpproject/recrate'
 import * as React from 'react'
 
 import '../../src/browser/style/recrate-scoped.css'

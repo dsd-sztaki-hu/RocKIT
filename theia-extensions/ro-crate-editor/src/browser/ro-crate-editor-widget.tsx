@@ -957,6 +957,20 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         this.setDirtyState(isDirtyForEntity)
     }
 
+    public resetDirtyStateAfterRoCrateReload(
+        crate: Record<string, any> | undefined = this.appStateService.roCrate,
+    ): void {
+        this.localCrate = crate
+        const entityId = this.assignedEntityId ?? this.localSelectedEntityId
+        if (entityId) {
+            this.captureEntityBaseline(entityId, crate)
+        } else {
+            this.setDirtyState(false)
+        }
+        this.updateTitleLabel()
+        this.update()
+    }
+
     protected serializeEntitySnapshot(
         entityId: string,
         crate: Record<string, any> | undefined,
