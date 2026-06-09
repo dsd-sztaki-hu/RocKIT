@@ -100,5 +100,6 @@ rootNode.walkRules((rule) => {
   }
 })
 
-fs.writeFileSync(outPath, rootNode.toString(), 'utf8')
+const outputCss = rootNode.toString().replace(/\r\n?/g, '\n')
+fs.writeFileSync(outPath, outputCss, 'utf8')
 console.log('Generated:', outPath)
