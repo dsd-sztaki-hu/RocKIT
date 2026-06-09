@@ -43,6 +43,11 @@
     max-height: 100% !important;
 }
 
+.schema-table-container .ant-table-cell {
+    white-space: nowrap;
+    word-break: normal;
+}
+
 /* --- 2. Theia Native Table Overrides --- */
 .schema-table-wrapper .ant-table,
 .schema-table-wrapper .ant-table-container {
