@@ -4,7 +4,11 @@ const path = require('path');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
 
-const canonicalRoot = fs.realpathSync.native(path.resolve(__dirname, '..'));
+const resolvedRoot = fs.realpathSync.native(path.resolve(__dirname, '..'));
+const canonicalRoot =
+    process.platform === 'win32'
+        ? resolvedRoot.replace(/^([A-Z]):/, (_, drive) => `${drive.toLowerCase()}:`)
+        : resolvedRoot;
 
 const env = {
     ...process.env,
