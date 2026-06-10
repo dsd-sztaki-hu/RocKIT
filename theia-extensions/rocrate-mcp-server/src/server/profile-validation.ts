@@ -374,7 +374,8 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
    *
    * Reports:
    * - profile resolution/load failures
-   * - disallowed classes/properties
+   * - disallowed classes
+   * - custom properties outside active profile/schema rules (warnings)
    * - missing required properties (mode-dependent)
    * - missing/unknown @context term issues (via reconciliation suggestions)
    */
@@ -529,7 +530,8 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
             }
             if (!isKnownContextTerm(key)) {
               errors.push(
-                `Entity ${entityId} contains property not defined by @context: ${key}`,
+                `Entity ${entityId} contains custom property without @context mapping: ${key}. ` +
+                  'Add an inline @context mapping or reference a context URL that defines it.',
               )
             }
           }
@@ -571,7 +573,10 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
         if (allowedProperties.has(key)) {
           continue
         }
-        errors.push(`Entity ${entityId} contains disallowed property: ${key}`)
+        warnings.push(
+          `Entity ${entityId} contains custom property outside active profile/schema rules: ${key}. ` +
+            'Keep it if the user wants this metadata; do not remove it automatically.',
+        )
       }
 
       const valueSetsByProperty = new Map<string, Set<string>>()
@@ -663,7 +668,10 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
       if (externalContextCoverage && usage && !usage.profiled && usage.unprofiled) {
         continue
       }
-      errors.push(`Missing @context mapping for used term: ${term}`)
+      errors.push(
+        `Missing @context mapping for custom term: ${term}. ` +
+          'Add an inline @context mapping or reference a context URL that defines it; do not remove the property automatically.',
+      )
     }
     for (const term of contextSuggestion.unknownTerms) {
       warnings.push(

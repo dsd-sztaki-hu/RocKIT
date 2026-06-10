@@ -9,7 +9,7 @@ Always follow this sequence when curating RO-Crate metadata:
 4. Build a short plan:
    - required fields still missing
    - recommended optional fields
-   - fields explicitly disallowed by profile
+   - custom fields outside the active profile/schema, if relevant
 5. Only after planning, run web `search` if needed for missing values.
 6. Only then start metadata writes with `apply_changes` (default persists in local mode).
    - Use `dryRun=true` when you want preview-only execution.

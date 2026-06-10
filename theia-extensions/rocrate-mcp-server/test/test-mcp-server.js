@@ -406,6 +406,11 @@ async function run() {
             inputs: [
               { name: 'title', id: 'http://purl.org/dc/terms/title', required: true },
               { name: 'author', id: 'http://purl.org/dc/terms/creator', required: true },
+              {
+                name: 'subject',
+                id: 'http://purl.org/dc/terms/subject',
+                values: ['Computer and Information Science'],
+              },
               { name: 'customTerm', id: 'https://example.org/vocab/customTerm' },
             ],
           },
@@ -1101,22 +1106,22 @@ async function run() {
         : []),
       { '@id': './folder/x.txt' },
       { '@id': 'folder/bare.txt' },
-      { '@id': 'https://example.org/arp/file/1' },
+      { '@id': 'https://example.org/arp/file/arp.txt' },
       { '@id': 'folder/' },
     ]
     crateBeforeDataverseUpload['@graph'].push(
       {
         '@id': './folder/x.txt',
         '@type': 'File',
-        name: 'Prefixed file',
+        name: 'x.txt',
       },
       {
         '@id': 'folder/bare.txt',
         '@type': 'File',
-        name: 'Bare relative file',
+        name: 'bare.txt',
       },
       {
-        '@id': 'https://example.org/arp/file/1',
+        '@id': 'https://example.org/arp/file/arp.txt',
         '@type': 'File',
         name: 'arp.txt',
         directoryLabel: 'folder/nested',
@@ -1259,7 +1264,7 @@ async function run() {
       preservedZipMap.get('ro-crate-metadata.json').toString('utf8'),
     )
     const zippedArpFile = zippedCrate['@graph'].find(
-      (entity) => entity['@id'] === 'https://example.org/arp/file/1',
+      (entity) => entity['@id'] === 'https://example.org/arp/file/arp.txt',
     )
     assert.equal(zippedArpFile.hash, '52ba4854ce5aa6ffc83fe901c7006426')
     assert.equal(zippedArpFile.contentSize, '4')
@@ -1443,15 +1448,16 @@ async function run() {
     })
     assert.ok(
       scopedApplyResponse.error,
-      'scoped apply should fail when any non-required profile violation exists',
+      'scoped apply should fail when an existing custom property lacks @context mapping',
     )
-    assert.match(scopedApplyResponse.error.message, /Profile conformance failed/)
+    assert.match(scopedApplyResponse.error.message, /custom property without @context mapping|Missing @context mapping/)
 
     const scopedCleanupResponse = await request('tools/call', {
       name: 'apply_changes',
       arguments: {
         cratePath,
         write: true,
+        confirmDestructive: true,
         changeSet: {
           updateEntities: [{ '@id': './', unset: ['forbiddenExisting'] }],
         },
@@ -1465,12 +1471,17 @@ async function run() {
         cratePath,
         write: true,
         changeSet: {
+          mergeContext: {
+            forbiddenField: 'https://example.org/vocab/forbiddenField',
+          },
           updateEntities: [{ '@id': './', merge: { forbiddenField: 'x' } }],
         },
       },
     })
-    assert.ok(disallowedEditResponse.error, 'disallowed profile edit should fail')
-    assert.match(disallowedEditResponse.error.message, /Profile conformance failed/)
+    assert.ok(
+      disallowedEditResponse.result,
+      'custom profile property edit should be advisory, not a hard failure',
+    )
 
     const strictContextModeResponse = await request('tools/call', {
       name: 'apply_changes',
@@ -1483,8 +1494,11 @@ async function run() {
         },
       },
     })
-    assert.ok(strictContextModeResponse.error, 'strict context mode should fail on missing mappings')
-    assert.match(strictContextModeResponse.error.message, /Missing @context mapping for used term: customTerm/)
+    assert.ok(
+      strictContextModeResponse.error,
+      'strict context mode should fail on custom terms without @context mappings',
+    )
+    assert.match(strictContextModeResponse.error.message, /Missing @context mapping for custom term: customTerm/)
 
     const autoReconcileContextModeResponse = await request('tools/call', {
       name: 'apply_changes',
@@ -1815,12 +1829,17 @@ async function run() {
         write: true,
         profileContextId,
         changeSet: {
+          mergeContext: {
+            forbiddenRemote: 'https://example.org/vocab/forbiddenRemote',
+          },
           updateEntities: [{ '@id': './', merge: { forbiddenRemote: 'x' } }],
         },
       },
     })
-    assert.ok(remoteDisallowedEditResponse.error, 'remote disallowed profile edit should fail')
-    assert.match(remoteDisallowedEditResponse.error.message, /Profile conformance failed/)
+    assert.ok(
+      remoteDisallowedEditResponse.result,
+      'remote custom profile property edit should be advisory, not a hard failure',
+    )
 
     const remoteValidateResponse = await request('tools/call', {
       name: 'validate_crate',
