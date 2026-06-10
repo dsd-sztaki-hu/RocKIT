@@ -58,7 +58,7 @@ export class DataverseCapabilityService {
             return false;
         }
         try {
-            const response = await fetch(`${normalizedBaseUrl}/api/v1/dataverses/:root`, {
+            const response = await fetch(`${normalizedBaseUrl}/api/dataverses/root`, {
                 headers: { accept: 'application/json' }
             });
             if (!response.ok) {

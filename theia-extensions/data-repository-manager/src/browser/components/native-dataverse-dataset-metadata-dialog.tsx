@@ -26,7 +26,6 @@ const DATAVERSE_SUBJECTS = [
 export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<NativeDataverseDatasetMetadata | undefined> {
 
     private reactRoot: Root | undefined;
-    private metadataLanguageValue: '' | NativeDataverseDatasetMetadata['metadataLanguage'];
     private titleValue: string;
     private authorNamesValue: string;
     private contactEmailsValue: string;
@@ -36,7 +35,6 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<NativeD
     constructor(defaults: NativeDataverseDatasetMetadata) {
         super({ title: 'Required Dataverse Dataset Metadata' });
 
-        this.metadataLanguageValue = defaults.metadataLanguage;
         this.titleValue = defaults.title;
         this.authorNamesValue = defaults.authorNames.join('\n');
         this.contactEmailsValue = defaults.contactEmails.join('\n');
@@ -54,7 +52,6 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<NativeD
 
     get value(): NativeDataverseDatasetMetadata | undefined {
         return this.isValid(undefined) ? {
-            metadataLanguage: this.metadataLanguageValue as NativeDataverseDatasetMetadata['metadataLanguage'],
             title: this.titleValue.trim(),
             authorNames: this.lines(this.authorNamesValue),
             contactEmails: this.lines(this.contactEmailsValue),
@@ -64,8 +61,7 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<NativeD
     }
 
     protected isValid(_value: NativeDataverseDatasetMetadata | undefined): boolean {
-        return !!this.metadataLanguageValue
-            && !!this.titleValue.trim()
+        return !!this.titleValue.trim()
             && this.lines(this.authorNamesValue).length > 0
             && this.lines(this.contactEmailsValue).length > 0
             && this.lines(this.descriptionsValue).length > 0
@@ -84,23 +80,6 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<NativeD
                     Values found in the RO-Crate root entity are used as defaults.
                 </p>
                 <div className="native-dv-metadata__form">
-                    <label className="native-dv-metadata__field">
-                        <span className="native-dv-metadata__label">Dataset Language <span className="native-dv-metadata__required">*</span></span>
-                        <Select
-                            className="native-dv-metadata__select"
-                            value={this.metadataLanguageValue}
-                            options={[
-                                { value: '', label: 'None' },
-                                { value: 'hu', label: 'Hungarian' },
-                                { value: 'en', label: 'English' }
-                            ]}
-                            popupClassName="native-dv-metadata__select-dropdown"
-                            onChange={value => {
-                                this.metadataLanguageValue = value as NativeDataverseDatasetMetadata['metadataLanguage'];
-                                this.refresh();
-                            }}
-                        />
-                    </label>
                     {this.renderInput('Title', this.titleValue, value => { this.titleValue = value; }, true)}
                     {this.renderTextarea('Author Name', this.authorNamesValue, value => { this.authorNamesValue = value; })}
                     {this.renderTextarea('Point of Contact Email', this.contactEmailsValue, value => { this.contactEmailsValue = value; })}

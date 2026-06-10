@@ -3,7 +3,6 @@ import type { Key } from 'react';
 export interface DataRepositoryConfig {
     id: string;
     title: string;
-    type: 'ARP Dataverse' | string;
     baseUrl: string;
     apiKey?: string;
 }

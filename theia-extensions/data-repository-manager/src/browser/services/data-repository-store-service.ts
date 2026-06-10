@@ -93,7 +93,12 @@ export class DataRepositoryStoreService {
         const uri = await this.getConfigUri();
         const { keytarService } = await this.getEnvConfig();
 
-        const cleanConfigs = repositories.map(({ apiKey, ...safeConfig }) => safeConfig);
+        const cleanConfigs = repositories.map(repository => {
+            const { apiKey, type: _legacyType, ...safeConfig } = repository as DataRepositoryConfig & {
+                type?: string;
+            };
+            return safeConfig;
+        });
         const content = JSON.stringify(cleanConfigs, null, 4);
         
         try {

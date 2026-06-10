@@ -6,7 +6,6 @@ import LinkIcon from '@mui/icons-material/Link';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import CategoryIcon from '@mui/icons-material/Category';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { IconButton } from '@mui/material';
 
@@ -23,7 +22,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
     private titleValue: string = '';
     private baseUrlValue: string = '';
     private apiKeyValue: string = '';
-    private typeValue: string = 'ARP Dataverse';
     
     private isEditingKey = true; 
     private showKey = false; 
@@ -49,7 +47,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         if (repoToEdit) {
             this.titleValue = repoToEdit.title;
             this.baseUrlValue = repoToEdit.baseUrl;
-            this.typeValue = repoToEdit.type;
             this.apiKeyValue = repoToEdit.apiKey || '';
             this.isEditingKey = false; 
         }
@@ -95,10 +92,8 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         let expirationDate: string | undefined = undefined;
 
         try {
-            if (this.typeValue === 'ARP Dataverse') {
-                const result = await this.dataverseService.validateToken(cleanBaseUrl, cleanApiKey);
-                expirationDate = result.expirationDate;
-            }
+            const result = await this.dataverseService.validateToken(cleanBaseUrl, cleanApiKey);
+            expirationDate = result.expirationDate;
 
             const successDialog = new DataRepositorySuccessDialog(cleanTitle, expirationDate);
             const confirmed = await successDialog.open();
@@ -108,7 +103,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                     id: this.repoToEdit ? this.repoToEdit.id : Date.now().toString(),
                     title: cleanTitle,
                     baseUrl: cleanBaseUrl,
-                    type: this.typeValue,
                     apiKey: cleanApiKey
                 };
                 this.accept(); 
@@ -189,20 +183,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                 disabled={this.isTesting}
                                 onChange={(e) => { this.baseUrlValue = e.target.value; this.render(); }}
                             />
-                        </div>
-
-                        <div>
-                            <label className="data-repo-config__label">
-                                <CategoryIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Type
-                            </label>
-                            <select 
-                                className="theia-select data-repo-config__select" 
-                                value={this.typeValue}
-                                disabled={this.isTesting}
-                                onChange={(e) => { this.typeValue = e.target.value; this.render(); }}
-                            >
-                                <option value="ARP Dataverse">ARP Dataverse</option>
-                            </select>
                         </div>
 
                         <div>

@@ -177,6 +177,42 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
     }
 
+    if (!capabilities.supportsArpRoCrateZipUpload) {
+      const progress = await this.messageService.showProgress({
+        text: `Updating the uploaded RO-Crate in ${selectedRepo.title}`,
+      })
+      try {
+        const updateResult = await this.nativeExportService.updateDataset(
+          selectedRepo,
+          (update) =>
+            progress.report({
+              message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+              work: {
+                done: update.completedSteps,
+                total: update.totalSteps,
+              },
+            }),
+        )
+        if (updateResult) {
+          this.messageService.info(
+            `Dataverse update completed for ${updateResult.target}. Uploaded ${updateResult.addedFileCount} new file(s), replaced ${updateResult.replacedFileCount} changed file(s), and removed ${updateResult.removedFileCount} file(s).`,
+            { timeout: 10000 },
+          )
+          console.log('Native Dataverse update completed:', updateResult)
+          return
+        }
+      } catch (error) {
+        console.error('Native Dataverse update failed:', error)
+        this.messageService.error(
+          `Dataverse update failed: ${error instanceof Error ? error.message : String(error)}`,
+          { timeout: 10000 },
+        )
+        return
+      } finally {
+        progress.cancel()
+      }
+    }
+
     const dialog = new DataverseCollectionBrowserDialog(
       selectedRepo,
       this.collectionService,
