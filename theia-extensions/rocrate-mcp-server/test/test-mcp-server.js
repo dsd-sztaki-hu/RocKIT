@@ -573,6 +573,26 @@ async function run() {
     assert.ok(toolNames.includes('search'), 'search tool should exist')
     assert.ok(toolNames.includes('download_url'), 'download_url tool should exist')
     assert.ok(
+      toolNames.includes('list_well_known_schemas'),
+      'list_well_known_schemas tool should exist',
+    )
+    assert.ok(
+      toolNames.includes('import_well_known_schema'),
+      'import_well_known_schema tool should exist',
+    )
+    assert.ok(
+      toolNames.includes('list_metadata_profiles'),
+      'list_metadata_profiles tool should exist',
+    )
+    assert.ok(
+      toolNames.includes('import_metadata_profile'),
+      'import_metadata_profile tool should exist',
+    )
+    assert.ok(
+      toolNames.includes('delete_metadata_profile'),
+      'delete_metadata_profile tool should exist',
+    )
+    assert.ok(
       toolNames.includes('read_agent_workflow_doc'),
       'read_agent_workflow_doc tool should exist',
     )

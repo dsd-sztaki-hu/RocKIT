@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /Users/balazs/Documents/work/sztaki/arp/dev/aroma-2/theia-extensions/rocrate-mcp-server && npm run build 2>&1)",
+      "Bash(npm run:*)",
+      "Bash(node:*)",
+      "Bash(head:*)",
+      "Bash(yarn workspace:*)",
+      "Bash(cp:*)",
+      "Bash(find . -name \"*.ts\" -type f -exec grep -l \"native-agent-chat-widget\" {})",
+      "Bash(find . -name \"*.ts\" -exec grep -l \"native-agent-chat-widget\" {})",
+      "Bash(find . -name \"*.ts\" -exec grep -l \"native-agent-chat-widget\\\\|NativeAgentChatWidget\" {})",
+      "WebSearch",
+      "mcp__web-reader__webReader",
+      "Bash(rtk grep *)"
+    ]
+  }
+}

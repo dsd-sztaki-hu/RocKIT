@@ -18,6 +18,9 @@ async function testHttpServer() {
   const originalDashboardEnabled = process.env.ROCRATE_DASHBOARD_ENABLED
   const originalBridgeEnabled = process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED
   const originalAllowedOrigins = process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS
+  const originalAromaRootPath = process.env.AROMA_ROOT_PATH
+  const originalProviderConfigFile = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+  const originalProviderKeytarService = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
   process.env.DATAVERSE_BASE_URL = 'https://dataverse.example.test/'
   process.env.DATAVERSE_API_KEY = 'test-dataverse-key'
   delete process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
@@ -76,6 +79,29 @@ async function testHttpServer() {
 
   const port = await getPort()
   process.env.ROCRATE_DASHBOARD_PORT = String(port)
+  process.env.AROMA_ROOT_PATH = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'rocrate-dashboard-aroma-'),
+  )
+  process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = 'remote-schema-providers.json'
+  process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'AROMA2.RemoteSchemaProvider'
+  fs.writeFileSync(
+    path.join(process.env.AROMA_ROOT_PATH, 'remote-schema-providers.json'),
+    JSON.stringify(
+      [
+        {
+          id: 'dashboard-provider',
+          title: 'Dashboard Provider',
+          baseUrl: 'https://cedar.example.test/',
+          domainBase: 'example.test',
+          type: 'CEDAR',
+          apiKey: 'must-not-leak',
+        },
+      ],
+      null,
+      2,
+    ),
+    'utf8',
+  )
 
   // Create and start the HTTP server
   const dashboard = new DashboardHttpServer(collector, {
@@ -284,6 +310,61 @@ async function testHttpServer() {
     assert.strictEqual(configUpdateData.config.keepDataverseUploadZips, true)
     assert.strictEqual(process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS, 'true')
 
+    // Test metadata profile endpoints
+    console.log('  Testing /metadata-profiles endpoints...')
+    const profileStatusResp = await get('/metadata-profiles/storage-status')
+    assert.strictEqual(profileStatusResp.status, 200)
+    const profileStatus = JSON.parse(profileStatusResp.data)
+    assert.strictEqual(profileStatus.storage.rootPath, process.env.AROMA_ROOT_PATH)
+
+    const profilesResp = await get('/metadata-profiles')
+    assert.strictEqual(profilesResp.status, 200)
+    const profilesData = JSON.parse(profilesResp.data)
+    assert.strictEqual(Array.isArray(profilesData.profiles), true)
+
+    const providersResp = await get('/metadata-profiles/providers')
+    assert.strictEqual(providersResp.status, 200)
+    const providersData = JSON.parse(providersResp.data)
+    assert.strictEqual(Array.isArray(providersData.providers), true)
+    assert.strictEqual(providersData.providers[0].id, 'arp-prod')
+    assert.strictEqual(
+      providersData.providers.some((provider) => provider.id === 'dashboard-provider'),
+      true,
+    )
+    assert.strictEqual(
+      providersData.providers.some((provider) => provider.apiKey === 'must-not-leak'),
+      false,
+    )
+
+    const saveProviderResp = await requestWithBody('POST', '/metadata-profiles/providers', {
+      id: 'saved-provider',
+      title: 'Saved Provider',
+      baseUrl: 'https://saved.example.test/',
+      domainBase: 'saved.example.test',
+    })
+    assert.strictEqual(saveProviderResp.status, 200)
+    const savedProviderData = JSON.parse(saveProviderResp.data)
+    assert.strictEqual(
+      savedProviderData.providers.some((provider) => provider.id === 'saved-provider'),
+      true,
+    )
+
+    const deleteProviderResp = await requestWithBody(
+      'DELETE',
+      '/metadata-profiles/providers/saved-provider',
+      {},
+    )
+    assert.strictEqual(deleteProviderResp.status, 200)
+    const deletedProviderData = JSON.parse(deleteProviderResp.data)
+    assert.strictEqual(deletedProviderData.deleted, true)
+
+    const remoteFolderResp = await get('/metadata-profiles/remote-folder?providerId=missing-provider')
+    assert.strictEqual(remoteFolderResp.status, 400)
+    assert.strictEqual(
+      JSON.parse(remoteFolderResp.data).error.includes('Unknown CEDAR provider'),
+      true,
+    )
+
     // Test schema registry endpoints
     console.log('  Testing /schema-registry endpoints...')
     const listBefore = await get('/schema-registry')
@@ -450,6 +531,21 @@ async function testHttpServer() {
       delete process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS
     } else {
       process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS = originalAllowedOrigins
+    }
+    if (originalAromaRootPath === undefined) {
+      delete process.env.AROMA_ROOT_PATH
+    } else {
+      process.env.AROMA_ROOT_PATH = originalAromaRootPath
+    }
+    if (originalProviderConfigFile === undefined) {
+      delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+    } else {
+      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = originalProviderConfigFile
+    }
+    if (originalProviderKeytarService === undefined) {
+      delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
+    } else {
+      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = originalProviderKeytarService
     }
   }
 }

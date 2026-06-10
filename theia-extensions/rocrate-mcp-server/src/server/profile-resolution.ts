@@ -1,6 +1,7 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { ensureProfileStorage } from 'metadata-profile-core'
 import type {
   ContextMode,
   ProfileContextRecord,
@@ -246,6 +247,7 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
     warning?: string
   } {
     const { rootPath, indexPath } = resolveSchemaIndexPath()
+    ensureProfileStorage(rootPath)
     if (!fs.existsSync(indexPath)) {
       return {
         index: { profiles: [], conformsToIndex: {} },

@@ -26,6 +26,11 @@
     "typescript": "~5.4.5"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1"
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "cedar-template-converter": "1.0.0",
+    "metadata-profile-core": "0.0.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

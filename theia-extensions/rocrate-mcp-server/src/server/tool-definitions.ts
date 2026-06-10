@@ -152,6 +152,90 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
+    name: 'list_well_known_schemas',
+    description:
+      'Browse/search configured CEDAR registry providers for well-known Dataverse metadata schemas.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string' },
+        rootPath: {
+          type: 'string',
+          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+        },
+        provider: { type: 'object' },
+      },
+    },
+  },
+  {
+    name: 'import_well_known_schema',
+    description:
+      'Import a well-known CEDAR schema by name/template URL/conformsTo into the shared metadata profile store.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        templateIdOrUrl: { type: 'string' },
+        url: { type: 'string' },
+        conformsTo: { type: 'string' },
+        rootPath: {
+          type: 'string',
+          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+        },
+        provider: { type: 'object' },
+      },
+    },
+  },
+  {
+    name: 'list_metadata_profiles',
+    description:
+      'List persisted CEDAR/recrate metadata profiles from the shared metadata-schema-index.json store.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rootPath: {
+          type: 'string',
+          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+        },
+      },
+    },
+  },
+  {
+    name: 'import_metadata_profile',
+    description:
+      'Import a CEDAR metadata profile from a direct URL or local source path into the shared profile store.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string' },
+        sourcePath: { type: 'string' },
+        conformsTo: { type: 'string' },
+        rootPath: {
+          type: 'string',
+          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+        },
+        provider: { type: 'object' },
+      },
+    },
+  },
+  {
+    name: 'delete_metadata_profile',
+    description:
+      'Delete one persisted CEDAR/recrate metadata profile and its source/converted files. Requires confirmDestructive=true.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        rootPath: {
+          type: 'string',
+          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+        },
+        confirmDestructive: { type: 'boolean' },
+      },
+      required: ['id', 'confirmDestructive'],
+    },
+  },
+  {
     name: 'upload_rocrate_to_dataverse',
     description:
       'Upload to Dataverse ARP API. New dataset (no pid) uploads ZIP (ro-crate-metadata.json + referenced files, local mode only). Existing dataset (pid) posts JSON metadata update.',

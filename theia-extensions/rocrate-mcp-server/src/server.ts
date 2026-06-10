@@ -17,6 +17,7 @@ import { startDashboardIfNeeded } from './dashboard/http-server'
 import { createContextReconciliationHelpers } from './server/context-reconciliation'
 import { createCrateOpsHelpers } from './server/crate-ops'
 import { createDataverseHandlers } from './server/dataverse'
+import { createMetadataProfileHandlers } from './server/metadata-profiles'
 import { createOntologyHelpers } from './server/ontology'
 import { createProfileContextStore } from './server/profile-context'
 import { createProfileResolutionHelpers } from './server/profile-resolution'
@@ -371,6 +372,17 @@ const {
 
 const { runOntologyTool } = createOntologyHelpers()
 
+const {
+  resolveMissingMetadataProfiles,
+  listWellKnownSchemas,
+  importWellKnownSchema,
+  listMetadataProfiles,
+  importMetadataProfile,
+  deleteMetadataProfileTool,
+} = createMetadataProfileHandlers({
+  collectProfileUrls,
+})
+
 /**
  * Loads default schema registry entries from the shared ontology package.
  */
@@ -559,6 +571,12 @@ const handleToolCall = createToolDispatcher({
   validateCrateAgainstProfileConstraints,
   parseAccessMode,
   asRoCrate,
+  resolveMissingMetadataProfiles,
+  listWellKnownSchemas,
+  importWellKnownSchema,
+  listMetadataProfiles,
+  importMetadataProfile,
+  deleteMetadataProfileTool,
   summarizeProfileResolution,
   buildRoCrateContext,
   summarizeRoCrateContext,

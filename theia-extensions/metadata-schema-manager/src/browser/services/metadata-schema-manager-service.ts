@@ -435,6 +435,73 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     }
   }
 
+  private async fetchWithAuthFallback(url: string, apiKey?: string, signal?: AbortSignal): Promise<{ content: string, finalUrl: string }> {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json' 
+    };
+
+    const fetchAttempt = async (useKey: boolean): Promise<Response> => {
+      const currentHeaders: Record<string, string> = { ...headers as Record<string, string> };
+      if (useKey && apiKey) {
+        currentHeaders['Authorization'] = `apiKey ${apiKey}`;
+      }
+      return fetch(url, { method: 'GET', headers: currentHeaders, signal });
+    };
+
+    let response: Response;
+    if (apiKey) {
+      response = await fetchAttempt(true);
+      if (response.status === 401 || response.status === 403) {
+        response = await fetchAttempt(false);
+      }
+    } else {
+      response = await fetchAttempt(false);
+    }
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(`Unauthorized access to ${url}. Please configure a Remote Provider.`);
+      }
+      if (response.status === 404) {
+        throw new Error(`Resource not found at ${url}.`);
+      }
+      throw new Error(`Fetch failed: ${response.status} ${response.statusText}`);
+    }
+
+    const content = await response.text();
+    return { content, finalUrl: response.url };
+  }
+
+  private async resolveConformanceUrl(url: string, apiKey?: string, signal?: AbortSignal): Promise<{ content: string, finalUrl: string }> {
+    const effectiveKey = apiKey || await this.determineApiKeyForUrl(url);
+    const { content, finalUrl } = await this.fetchWithAuthFallback(url, effectiveKey, signal);
+
+    try {
+      JSON.parse(content);
+      return { content, finalUrl };
+    } catch (e) { /* HTML fallback logic */ }
+
+    let fixedUrl = finalUrl;
+    if (finalUrl.includes('openview.')) {
+      fixedUrl = finalUrl.replace('openview.', 'open.');
+    } else if (finalUrl.includes('/artifacts/')) {
+       fixedUrl = finalUrl.replace('/artifacts/', '/templates/');
+    }
+
+    if (fixedUrl !== finalUrl) {
+      const retry = await this.fetchWithAuthFallback(fixedUrl, effectiveKey, signal);
+      try {
+        JSON.parse(retry.content);
+        return retry; 
+      } catch (e) {
+        throw new Error(`Could not resolve JSON from ${url}.`);
+      }
+    }
+
+    throw new Error(`The URL ${url} returned HTML, and no JSON endpoint could be determined.`);
+  }
+
   private async determineApiKeyForUrl(url: string): Promise<string | undefined> {
     try {
       const providers = await this.providerStoreService.loadProviders();
@@ -528,73 +595,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         throw error;
       }
     }
-  }
-
-  private async fetchWithAuthFallback(url: string, apiKey?: string, signal?: AbortSignal): Promise<{ content: string, finalUrl: string }> {
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json' 
-    };
-
-    const fetchAttempt = async (useKey: boolean): Promise<Response> => {
-      const currentHeaders: Record<string, string> = { ...headers as Record<string, string> };
-      if (useKey && apiKey) {
-        currentHeaders['Authorization'] = `apiKey ${apiKey}`;
-      }
-      return fetch(url, { method: 'GET', headers: currentHeaders, signal });
-    };
-
-    let response: Response;
-    if (apiKey) {
-      response = await fetchAttempt(true);
-      if (response.status === 401 || response.status === 403) {
-        response = await fetchAttempt(false);
-      }
-    } else {
-      response = await fetchAttempt(false);
-    }
-
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        throw new Error(`Unauthorized access to ${url}. Please configure a Remote Provider.`);
-      }
-      if (response.status === 404) {
-        throw new Error(`Resource not found at ${url}.`);
-      }
-      throw new Error(`Fetch failed: ${response.status} ${response.statusText}`);
-    }
-
-    const content = await response.text();
-    return { content, finalUrl: response.url };
-  }
-
-  private async resolveConformanceUrl(url: string, apiKey?: string, signal?: AbortSignal): Promise<{ content: string, finalUrl: string }> {
-    const effectiveKey = apiKey || await this.determineApiKeyForUrl(url);
-    const { content, finalUrl } = await this.fetchWithAuthFallback(url, effectiveKey, signal);
-
-    try {
-      JSON.parse(content);
-      return { content, finalUrl };
-    } catch (e) { /* HTML fallback logic */ }
-
-    let fixedUrl = finalUrl;
-    if (finalUrl.includes('openview.')) {
-      fixedUrl = finalUrl.replace('openview.', 'open.');
-    } else if (finalUrl.includes('/artifacts/')) {
-       fixedUrl = finalUrl.replace('/artifacts/', '/templates/');
-    }
-
-    if (fixedUrl !== finalUrl) {
-      const retry = await this.fetchWithAuthFallback(fixedUrl, effectiveKey, signal);
-      try {
-        JSON.parse(retry.content);
-        return retry; 
-      } catch (e) {
-        throw new Error(`Could not resolve JSON from ${url}.`);
-      }
-    }
-
-    throw new Error(`The URL ${url} returned HTML, and no JSON endpoint could be determined.`);
   }
 
   protected async checkAndDownloadSchemas(roCrate: any): Promise<void> {

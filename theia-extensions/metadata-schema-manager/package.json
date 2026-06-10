@@ -8,7 +8,8 @@
   ],
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/metadata-schema-manager-frontend-module.js"
+      "frontend": "lib/browser/metadata-schema-manager-frontend-module.js",
+      "backend": "lib/node/metadata-schema-manager-backend-module.js"
     }
   ],
   "dependencies": {
@@ -16,6 +17,7 @@
     "@theia/core": "1.65.2",
     "@theia/filesystem": "1.65.2",
     "cedar-template-converter": "1.0.0",
+    "metadata-profile-core": "0.0.0",
     "app-state": "0.0.1",
     "aroma2-common": "0.0.0",
     "axios": "^1.6.0",

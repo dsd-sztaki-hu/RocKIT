@@ -25,6 +25,20 @@ import {
   computeTimeSeries,
 } from './aggregates'
 import { handleLocalFileBridgeRequest } from './local-file-bridge'
+import {
+  defaultCedarProvider,
+  deleteMetadataProfile,
+  importCedarTemplateFromUrl,
+  importRemoteSchema,
+  loadCedarProviders,
+  listCedarFolder,
+  listLocalProfiles,
+  listRemoteSchemas,
+  resolveProfileStorage,
+  saveCedarProvider,
+  deleteCedarProvider,
+  type CedarProvider,
+} from 'metadata-profile-core'
 
 // Get the directory of this module for static file serving
 // In CommonJS compiled output, the static files are in lib/dashboard/static
@@ -190,6 +204,52 @@ async function parseJsonObjectBody(
  */
 function parseMode(value: unknown): AccessMode {
   return value === 'remote' ? 'remote' : 'local'
+}
+
+function parseMetadataProfileProvider(value: unknown): CedarProvider | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+  const record = value as Record<string, unknown>
+  return {
+    id: typeof record.id === 'string' ? record.id : undefined,
+    title: typeof record.title === 'string' ? record.title : undefined,
+    displayUrl: typeof record.displayUrl === 'string' ? record.displayUrl : undefined,
+    domainBase: typeof record.domainBase === 'string' ? record.domainBase : undefined,
+    resourceBaseUrl:
+      typeof record.resourceBaseUrl === 'string' ? record.resourceBaseUrl : undefined,
+    registryFolderId:
+      typeof record.registryFolderId === 'string' ? record.registryFolderId : undefined,
+    apiKey: typeof record.apiKey === 'string' ? record.apiKey : undefined,
+  }
+}
+
+function parseMetadataProviderBody(body: Record<string, unknown>): CedarProvider {
+  const id = typeof body.id === 'string' ? body.id.trim() : ''
+  const title = typeof body.title === 'string' ? body.title.trim() : ''
+  const baseUrl = typeof body.baseUrl === 'string' ? body.baseUrl.trim() : ''
+  const domainBase = typeof body.domainBase === 'string' ? body.domainBase.trim() : ''
+  return {
+    id,
+    title,
+    baseUrl,
+    displayUrl: baseUrl,
+    domainBase,
+    type: 'CEDAR',
+    apiKey: typeof body.apiKey === 'string' && body.apiKey.trim() !== '' ? body.apiKey.trim() : undefined,
+  }
+}
+
+function readProviderId(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+}
+
+function redactMetadataProfileProvider(provider: CedarProvider): CedarProvider & { apiKeyPresent: boolean } {
+  const { apiKey, ...safeProvider } = provider
+  return {
+    ...safeProvider,
+    apiKeyPresent: Boolean(apiKey),
+  }
 }
 
 /**
@@ -651,6 +711,233 @@ class DashboardApiHandlers {
     })
   }
 
+  metadataProfilesList(req: http.IncomingMessage, res: http.ServerResponse): void {
+    try {
+      const listing = listLocalProfiles()
+      sendJson(res, {
+        storage: listing.storage,
+        count: listing.profiles.length,
+        profiles: listing.profiles,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: message }, 400)
+    }
+  }
+
+  metadataProfileProviders(req: http.IncomingMessage, res: http.ServerResponse): void {
+    void loadCedarProviders()
+      .then((result) => {
+        sendJson(res, {
+          storage: result.storage,
+          configPath: result.configPath,
+          keytarService: result.keytarService,
+          providers: result.providers.map(redactMetadataProfileProvider),
+          warnings: result.warnings,
+        })
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error)
+        sendJson(res, { error: message }, 400)
+      })
+  }
+
+  async metadataProfileProviderSave(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    try {
+      const body = await parseJsonObjectBody(req)
+      const result = await saveCedarProvider(parseMetadataProviderBody(body))
+      sendJson(res, {
+        saved: redactMetadataProfileProvider(result.saved),
+        storage: result.storage,
+        configPath: result.configPath,
+        keytarService: result.keytarService,
+        providers: result.providers.map(redactMetadataProfileProvider),
+        warnings: result.warnings,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: message }, 400)
+    }
+  }
+
+  async metadataProfileProviderRemove(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    const match = (req.url || '').match(/^\/metadata-profiles\/providers\/([^/?]+)(?:\?(.*))?$/)
+    if (!match) {
+      sendJson(res, { error: 'Invalid provider ID' }, 400)
+      return
+    }
+    try {
+      const result = await deleteCedarProvider(decodeURIComponent(match[1]))
+      sendJson(res, {
+        deleted: result.deleted,
+        storage: result.storage,
+        configPath: result.configPath,
+        keytarService: result.keytarService,
+        providers: result.providers.map(redactMetadataProfileProvider),
+        warnings: result.warnings,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: message }, 400)
+    }
+  }
+
+  metadataProfileStorageStatus(req: http.IncomingMessage, res: http.ServerResponse): void {
+    sendJson(res, {
+      storage: resolveProfileStorage(),
+    })
+  }
+
+  async metadataProfileRemoteSchemas(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    try {
+      const query = parseQuery(req.url || '')
+      const provider = await this.resolveMetadataProfileProvider(query.providerId)
+      const result = await listRemoteSchemas(provider, query.query)
+      sendJson(res, {
+        provider: redactMetadataProfileProvider(result.provider),
+        storage: result.storage,
+        count: result.schemas.length,
+        schemas: result.schemas,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: message }, 400)
+    }
+  }
+
+  async metadataProfileRemoteFolder(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    try {
+      const query = parseQuery(req.url || '')
+      const provider = await this.resolveMetadataProfileProvider(query.providerId)
+      const result = await listCedarFolder({
+        provider,
+        folderId: readProviderId(query.folderId),
+      })
+      sendJson(res, {
+        provider: redactMetadataProfileProvider(result.provider),
+        storage: result.storage,
+        folderId: result.folderId,
+        resources: result.resources,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: message }, 400)
+    }
+  }
+
+  async metadataProfileImportUrl(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    try {
+      const body = await parseJsonObjectBody(req)
+      const url = typeof body.url === 'string' ? body.url.trim() : ''
+      if (url === '') {
+        throw new Error('url is required.')
+      }
+      const result = await importCedarTemplateFromUrl({
+        url,
+        provider:
+          parseMetadataProfileProvider(body.provider) ??
+          (await this.resolveMetadataProfileProvider(readProviderId(body.providerId))),
+        conformsTo: typeof body.conformsTo === 'string' ? body.conformsTo : undefined,
+      })
+      sendJson(res, {
+        imported: true,
+        storage: result.storage,
+        profile: result.profile,
+        sourcePath: result.sourcePath,
+        convertedPath: result.convertedPath,
+        warnings: result.warnings,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: message }, 400)
+    }
+  }
+
+  async metadataProfileImportKnown(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    try {
+      const body = await parseJsonObjectBody(req)
+      const templateIdOrUrl =
+        typeof body.templateIdOrUrl === 'string'
+          ? body.templateIdOrUrl.trim()
+          : typeof body.url === 'string'
+            ? body.url.trim()
+            : ''
+      if (templateIdOrUrl === '') {
+        throw new Error('templateIdOrUrl is required.')
+      }
+      const result = await importRemoteSchema({
+        templateIdOrUrl,
+        provider:
+          parseMetadataProfileProvider(body.provider) ??
+          (await this.resolveMetadataProfileProvider(readProviderId(body.providerId))),
+        conformsTo: typeof body.conformsTo === 'string' ? body.conformsTo : undefined,
+      })
+      sendJson(res, {
+        imported: true,
+        storage: result.storage,
+        profile: result.profile,
+        sourcePath: result.sourcePath,
+        convertedPath: result.convertedPath,
+        warnings: result.warnings,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: message }, 400)
+    }
+  }
+
+  async metadataProfileRemove(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    const match = (req.url || '').match(/^\/metadata-profiles\/([^/?]+)(?:\?(.*))?$/)
+    if (!match) {
+      sendJson(res, { error: 'Invalid metadata profile ID' }, 400)
+      return
+    }
+    try {
+      const result = await deleteMetadataProfile({ id: decodeURIComponent(match[1]) })
+      sendJson(res, {
+        deleted: Boolean(result.removed),
+        storage: result.storage,
+        removed: result.removed,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: message }, 400)
+    }
+  }
+
+  private async resolveMetadataProfileProvider(providerId?: string): Promise<CedarProvider> {
+    const listing = await loadCedarProviders()
+    if (!providerId) {
+      return listing.providers[0] ?? defaultCedarProvider()
+    }
+    const match = listing.providers.find((provider) => provider.id === providerId)
+    if (!match) {
+      throw new Error(`Unknown CEDAR provider: ${providerId}`)
+    }
+    return match
+  }
+
   /**
    * POST /schema-registry - Register or replace one schema entry.
    */
@@ -888,6 +1175,91 @@ export class DashboardHttpServer {
     if (urlPath === '/test/tavily-search') {
       if (method === 'POST') {
         void this.apiHandlers.testTavilySearch(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    if (urlPath === '/metadata-profiles') {
+      if (method === 'GET') {
+        this.apiHandlers.metadataProfilesList(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    if (urlPath === '/metadata-profiles/import-url') {
+      if (method === 'POST') {
+        void this.apiHandlers.metadataProfileImportUrl(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    if (urlPath === '/metadata-profiles/import-known') {
+      if (method === 'POST') {
+        void this.apiHandlers.metadataProfileImportKnown(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    if (urlPath === '/metadata-profiles/providers') {
+      if (method === 'GET') {
+        this.apiHandlers.metadataProfileProviders(req, res)
+        return
+      }
+      if (method === 'POST' || method === 'PUT') {
+        void this.apiHandlers.metadataProfileProviderSave(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    if (urlPath.startsWith('/metadata-profiles/providers/') && urlPath !== '/metadata-profiles/providers') {
+      if (method === 'DELETE') {
+        void this.apiHandlers.metadataProfileProviderRemove(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    if (urlPath === '/metadata-profiles/remote-schemas') {
+      if (method === 'GET') {
+        void this.apiHandlers.metadataProfileRemoteSchemas(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    if (urlPath === '/metadata-profiles/remote-folder') {
+      if (method === 'GET') {
+        void this.apiHandlers.metadataProfileRemoteFolder(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    if (urlPath === '/metadata-profiles/storage-status') {
+      if (method === 'GET') {
+        this.apiHandlers.metadataProfileStorageStatus(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    if (urlPath.startsWith('/metadata-profiles/') && urlPath !== '/metadata-profiles') {
+      if (method === 'DELETE') {
+        void this.apiHandlers.metadataProfileRemove(req, res)
         return
       }
       sendJson(res, { error: 'Method not allowed' }, 405)

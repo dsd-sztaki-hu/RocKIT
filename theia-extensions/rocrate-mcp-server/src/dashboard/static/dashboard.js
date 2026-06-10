@@ -9,6 +9,22 @@ const API_BASE = window.location.origin;
 // State
 let currentMinutes = 15;
 let autoRefreshInterval = null;
+let metadataProfileProviders = [];
+let currentMetadataProfileProviderId = '';
+let metadataProfilesState = {
+  profiles: [],
+  page: 1,
+  pageSize: 10,
+};
+let cedarBrowserState = {
+  providerId: '',
+  selectedTemplateId: '',
+  selectedTemplateName: '',
+  nodes: [],
+  expanded: new Set(),
+  loading: new Set(),
+  query: '',
+};
 
 // DOM Elements
 const elements = {
@@ -24,6 +40,7 @@ const elements = {
   dependenciesTableBody: document.querySelector('#dependenciesTable tbody'),
   timeRange: document.getElementById('timeRange'),
   refreshBtn: document.getElementById('refreshBtn'),
+  metadataProfilesBtn: document.getElementById('metadataProfilesBtn'),
   settingsBtn: document.getElementById('settingsBtn'),
   errorBanner: document.getElementById('errorBanner'),
   sessionModal: document.getElementById('sessionModal'),
@@ -41,11 +58,58 @@ const elements = {
   retentionHoursInput: document.getElementById('retentionHoursInput'),
   cancelSettingsBtn: document.getElementById('cancelSettingsBtn'),
   closeSettingsModal: document.getElementById('closeSettingsModal'),
+  metadataProfilesModal: document.getElementById('metadataProfilesModal'),
+  closeMetadataProfilesModal: document.getElementById('closeMetadataProfilesModal'),
   settingsMessage: document.getElementById('settingsMessage'),
   dataverseBaseUrlValue: document.getElementById('dataverseBaseUrlValue'),
   dataverseBaseUrlSource: document.getElementById('dataverseBaseUrlSource'),
   dataverseApiKeyValue: document.getElementById('dataverseApiKeyValue'),
   dataverseApiKeySource: document.getElementById('dataverseApiKeySource'),
+  metadataProfileStorageValue: document.getElementById('metadataProfileStorageValue'),
+  metadataProfilesTableBody: document.querySelector('#metadataProfilesTable tbody'),
+  metadataProfilesPagination: document.getElementById('metadataProfilesPagination'),
+  metadataProfilesPrevPageBtn: document.getElementById('metadataProfilesPrevPageBtn'),
+  metadataProfilesNextPageBtn: document.getElementById('metadataProfilesNextPageBtn'),
+  metadataProfilesPageValue: document.getElementById('metadataProfilesPageValue'),
+  metadataProfilesPageSizeSelect: document.getElementById('metadataProfilesPageSizeSelect'),
+  metadataProfileUrlInput: document.getElementById('metadataProfileUrlInput'),
+  importMetadataProfileBtn: document.getElementById('importMetadataProfileBtn'),
+  browseMetadataProfilesBtn: document.getElementById('browseMetadataProfilesBtn'),
+  manageMetadataProvidersBtn: document.getElementById('manageMetadataProvidersBtn'),
+  reloadMetadataProfilesBtn: document.getElementById('reloadMetadataProfilesBtn'),
+  metadataProfilesMessage: document.getElementById('metadataProfilesMessage'),
+  remoteProviderSelectModal: document.getElementById('remoteProviderSelectModal'),
+  closeRemoteProviderSelectModal: document.getElementById('closeRemoteProviderSelectModal'),
+  cancelRemoteProviderSelectBtn: document.getElementById('cancelRemoteProviderSelectBtn'),
+  openManageProvidersFromSelectBtn: document.getElementById('openManageProvidersFromSelectBtn'),
+  remoteProviderSelectList: document.getElementById('remoteProviderSelectList'),
+  manageRemoteProvidersModal: document.getElementById('manageRemoteProvidersModal'),
+  closeManageRemoteProvidersModal: document.getElementById('closeManageRemoteProvidersModal'),
+  closeManageRemoteProvidersBtn: document.getElementById('closeManageRemoteProvidersBtn'),
+  addRemoteProviderBtn: document.getElementById('addRemoteProviderBtn'),
+  remoteProviderManageList: document.getElementById('remoteProviderManageList'),
+  remoteProviderForm: document.getElementById('remoteProviderForm'),
+  remoteProviderOriginalId: document.getElementById('remoteProviderOriginalId'),
+  remoteProviderIdInput: document.getElementById('remoteProviderIdInput'),
+  remoteProviderTitleInput: document.getElementById('remoteProviderTitleInput'),
+  remoteProviderBaseUrlInput: document.getElementById('remoteProviderBaseUrlInput'),
+  remoteProviderDomainInput: document.getElementById('remoteProviderDomainInput'),
+  remoteProviderApiKeyInput: document.getElementById('remoteProviderApiKeyInput'),
+  cancelRemoteProviderFormBtn: document.getElementById('cancelRemoteProviderFormBtn'),
+  remoteProviderManageMessage: document.getElementById('remoteProviderManageMessage'),
+  cedarBrowserModal: document.getElementById('cedarBrowserModal'),
+  cedarBrowserTitle: document.getElementById('cedarBrowserTitle'),
+  closeCedarBrowserModal: document.getElementById('closeCedarBrowserModal'),
+  cedarSearchToggleBtn: document.getElementById('cedarSearchToggleBtn'),
+  cedarSearchInput: document.getElementById('cedarSearchInput'),
+  cedarExpandAllBtn: document.getElementById('cedarExpandAllBtn'),
+  cedarCollapseAllBtn: document.getElementById('cedarCollapseAllBtn'),
+  cedarBrowserTree: document.getElementById('cedarBrowserTree'),
+  cedarLocateSelectedBtn: document.getElementById('cedarLocateSelectedBtn'),
+  cedarClearSelectionBtn: document.getElementById('cedarClearSelectionBtn'),
+  cedarBrowserSelectionText: document.getElementById('cedarBrowserSelectionText'),
+  cancelCedarBrowserBtn: document.getElementById('cancelCedarBrowserBtn'),
+  addCedarTemplateBtn: document.getElementById('addCedarTemplateBtn'),
   schemaRegistryTableBody: document.querySelector('#schemaRegistryTable tbody'),
   schemaIdInput: document.getElementById('schemaIdInput'),
   schemaDisplayNameInput: document.getElementById('schemaDisplayNameInput'),
@@ -680,6 +744,16 @@ function showSchemaRegistryMessage(message, type) {
   }, 3000);
 }
 
+function showMetadataProfilesMessage(message, type) {
+  elements.metadataProfilesMessage.textContent = message;
+  elements.metadataProfilesMessage.className = `settings-message ${type}`;
+  elements.metadataProfilesMessage.classList.remove('hidden');
+
+  setTimeout(() => {
+    elements.metadataProfilesMessage.classList.add('hidden');
+  }, 3000);
+}
+
 function splitCsv(input) {
   return (input || '')
     .split(',')
@@ -711,6 +785,521 @@ async function loadSchemaRegistry() {
     `).join('');
   } catch (err) {
     elements.schemaRegistryTableBody.innerHTML = `<tr><td colspan="6" class="text-danger">Failed to load schema registry: ${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+async function loadMetadataProfiles() {
+  if (!elements.metadataProfilesTableBody) return;
+  try {
+    const data = await fetchAPI('/metadata-profiles');
+    const storage = data.storage || {};
+    elements.metadataProfileStorageValue.textContent = `${storage.rootPath || ''} (${storage.indexPath || ''})`;
+    metadataProfilesState.profiles = data.profiles || [];
+    renderMetadataProfilesTable();
+  } catch (err) {
+    elements.metadataProfilesTableBody.innerHTML = `<tr><td colspan="7" class="text-danger">Failed to load metadata profiles: ${escapeHtml(err.message)}</td></tr>`;
+    updateMetadataProfilesPagination(0);
+  }
+}
+
+function renderUrlCell(value) {
+  const text = value || '';
+  if (!text) {
+    return '<span class="text-muted">-</span>';
+  }
+  const escaped = escapeHtml(text);
+  if (/^https?:\/\//i.test(text)) {
+    return `<a class="url-cell" href="${escaped}" target="_blank" rel="noopener noreferrer" title="${escaped}">${escaped}</a>`;
+  }
+  return `<code class="url-cell" title="${escaped}">${escaped}</code>`;
+}
+
+function renderMetadataProfilesTable() {
+  if (!elements.metadataProfilesTableBody) return;
+  const profiles = metadataProfilesState.profiles || [];
+  const totalPages = Math.max(1, Math.ceil(profiles.length / metadataProfilesState.pageSize));
+  metadataProfilesState.page = Math.min(Math.max(1, metadataProfilesState.page), totalPages);
+
+  if (profiles.length === 0) {
+    elements.metadataProfilesTableBody.innerHTML = '<tr><td colspan="7" class="empty">No metadata profiles imported</td></tr>';
+    updateMetadataProfilesPagination(0);
+    return;
+  }
+
+  const start = (metadataProfilesState.page - 1) * metadataProfilesState.pageSize;
+  const pageProfiles = profiles.slice(start, start + metadataProfilesState.pageSize);
+  elements.metadataProfilesTableBody.innerHTML = pageProfiles.map((profile) => {
+    const reference = profile.aux?.reference || profile.downloadUrl || '';
+    const conformsTo = profile.conformsTo || '';
+    return `
+      <tr>
+        <td><span class="badge badge-success">Ready</span></td>
+        <td>${escapeHtml(profile.name)}</td>
+        <td>${escapeHtml(profile.version || '')}</td>
+        <td><span class="badge badge-neutral">${escapeHtml(profile.source || '')}</span></td>
+        <td>${renderUrlCell(reference)}</td>
+        <td>${renderUrlCell(conformsTo)}</td>
+        <td>
+          <button class="btn btn-sm" onclick='deleteMetadataProfile(${JSON.stringify(profile.id)})'>Delete</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  updateMetadataProfilesPagination(profiles.length);
+}
+
+function updateMetadataProfilesPagination(total) {
+  if (!elements.metadataProfilesPagination) return;
+  const totalPages = Math.max(1, Math.ceil(total / metadataProfilesState.pageSize));
+  elements.metadataProfilesPageValue.textContent = String(metadataProfilesState.page);
+  elements.metadataProfilesPrevPageBtn.disabled = metadataProfilesState.page <= 1;
+  elements.metadataProfilesNextPageBtn.disabled = metadataProfilesState.page >= totalPages || total === 0;
+  elements.metadataProfilesPageSizeSelect.value = String(metadataProfilesState.pageSize);
+}
+
+async function loadMetadataProfileProviders() {
+  try {
+    const data = await fetchAPI('/metadata-profiles/providers');
+    metadataProfileProviders = data.providers || [];
+    const providers = metadataProfileProviders;
+    if (providers.length === 0) {
+      if (elements.remoteProviderSelectList) {
+        elements.remoteProviderSelectList.innerHTML = '<div class="empty">No CEDAR providers are configured</div>';
+      }
+      if (elements.remoteProviderManageList) {
+        elements.remoteProviderManageList.innerHTML = '<div class="empty">No CEDAR providers are configured</div>';
+      }
+      showMetadataProfilesMessage('No CEDAR providers are configured.', 'error');
+      return providers;
+    }
+    const keyedProvider = providers.find((provider) => provider.apiKeyPresent);
+    currentMetadataProfileProviderId = keyedProvider?.id || providers[0]?.id || '';
+    renderRemoteProviderSelectList();
+    renderRemoteProviderManageList();
+    if (data.warnings && data.warnings.length > 0) {
+      showMetadataProfilesMessage(data.warnings.join(' '), 'error');
+    }
+    return providers;
+  } catch (err) {
+    if (elements.remoteProviderSelectList) {
+      elements.remoteProviderSelectList.innerHTML = '<div class="text-danger">Provider load failed</div>';
+    }
+    if (elements.remoteProviderManageList) {
+      elements.remoteProviderManageList.innerHTML = '<div class="text-danger">Provider load failed</div>';
+    }
+    showMetadataProfilesMessage(`Failed to load CEDAR providers: ${err.message}`, 'error');
+    return [];
+  }
+}
+
+function renderRemoteProviderSelectList() {
+  if (!elements.remoteProviderSelectList) return;
+  if (metadataProfileProviders.length === 0) {
+    elements.remoteProviderSelectList.innerHTML = '<div class="empty">No CEDAR providers are configured</div>';
+    return;
+  }
+  elements.remoteProviderSelectList.innerHTML = metadataProfileProviders.map((provider) => `
+    <div class="provider-row clickable" onclick='selectRemoteProvider(${JSON.stringify(provider.id || '')})'>
+      <div class="provider-row-icon provider-server-icon"></div>
+      <div>
+        <div class="provider-row-title">${escapeHtml(provider.title || provider.id || 'CEDAR Provider')}${provider.apiKeyPresent ? ' <span class="badge badge-success">key</span>' : ''}</div>
+        <div class="provider-row-url">${escapeHtml(provider.displayUrl || provider.baseUrl || provider.domainBase || '')}</div>
+      </div>
+      <div class="provider-arrow">›</div>
+    </div>
+  `).join('');
+}
+
+function renderRemoteProviderManageList() {
+  if (!elements.remoteProviderManageList) return;
+  if (metadataProfileProviders.length === 0) {
+    elements.remoteProviderManageList.innerHTML = '<div class="empty">No CEDAR providers are configured</div>';
+    return;
+  }
+  elements.remoteProviderManageList.innerHTML = metadataProfileProviders.map((provider) => `
+    <div class="provider-row">
+      <div class="provider-row-icon provider-server-icon"></div>
+      <div>
+        <div class="provider-row-title">${escapeHtml(provider.title || provider.id || 'CEDAR Provider')}${provider.apiKeyPresent ? ' <span class="badge badge-success">key configured</span>' : ''}</div>
+        <div class="provider-row-url">${escapeHtml(provider.displayUrl || provider.baseUrl || provider.domainBase || '')}</div>
+      </div>
+      <div class="provider-row-actions">
+        <button type="button" class="btn btn-sm" onclick='editRemoteProvider(${JSON.stringify(provider.id || '')})'>Edit</button>
+        <button type="button" class="btn btn-sm" onclick='deleteRemoteProvider(${JSON.stringify(provider.id || '')})'>Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function showRemoteProviderManageMessage(message, type = 'success') {
+  if (!elements.remoteProviderManageMessage) return;
+  elements.remoteProviderManageMessage.textContent = message;
+  elements.remoteProviderManageMessage.className = `settings-message ${type}`;
+  elements.remoteProviderManageMessage.classList.remove('hidden');
+}
+
+function hideRemoteProviderManageMessage() {
+  if (elements.remoteProviderManageMessage) {
+    elements.remoteProviderManageMessage.classList.add('hidden');
+  }
+}
+
+async function openRemoteProviderSelect() {
+  await loadMetadataProfileProviders();
+  elements.remoteProviderSelectModal.classList.remove('hidden');
+}
+
+function closeRemoteProviderSelect() {
+  elements.remoteProviderSelectModal.classList.add('hidden');
+}
+
+async function openManageRemoteProviders() {
+  closeRemoteProviderSelect();
+  await loadMetadataProfileProviders();
+  hideRemoteProviderForm();
+  hideRemoteProviderManageMessage();
+  elements.manageRemoteProvidersModal.classList.remove('hidden');
+}
+
+function closeManageRemoteProviders() {
+  elements.manageRemoteProvidersModal.classList.add('hidden');
+}
+
+async function selectRemoteProvider(providerId) {
+  currentMetadataProfileProviderId = providerId || '';
+  closeRemoteProviderSelect();
+  await openCedarBrowser(providerId);
+}
+
+async function openCedarBrowser(providerId) {
+  const provider = metadataProfileProviders.find((item) => item.id === providerId) || {};
+  cedarBrowserState = {
+    providerId: providerId || '',
+    selectedTemplateId: '',
+    selectedTemplateName: '',
+    nodes: [],
+    expanded: new Set(),
+    loading: new Set(),
+    query: '',
+  };
+  elements.cedarBrowserTitle.textContent = `Browse ${provider.title || provider.id || 'Remote'}`;
+  elements.cedarSearchInput.value = '';
+  elements.cedarSearchInput.classList.add('hidden');
+  elements.cedarBrowserModal.classList.remove('hidden');
+  updateCedarSelection();
+  elements.cedarBrowserTree.innerHTML = '<div class="loading">Loading repository...</div>';
+  try {
+    cedarBrowserState.nodes = await fetchCedarFolder('');
+    renderCedarTree();
+  } catch (err) {
+    elements.cedarBrowserTree.innerHTML = `<div class="text-danger">Failed to load repository: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function closeCedarBrowser() {
+  elements.cedarBrowserModal.classList.add('hidden');
+}
+
+async function fetchCedarFolder(folderId) {
+  const params = new URLSearchParams();
+  if (cedarBrowserState.providerId) params.set('providerId', cedarBrowserState.providerId);
+  if (folderId) params.set('folderId', folderId);
+  const data = await fetchAPI(`/metadata-profiles/remote-folder?${params.toString()}`);
+  return (data.resources || []).map((resource) => ({
+    id: resource.id,
+    name: resource.name,
+    resourceType: resource.resourceType,
+    isFolder: resource.resourceType === 'folder',
+    conformsTo: resource.conformsTo || '',
+    alreadyImported: Boolean(resource.alreadyImported),
+    children: [],
+    childrenLoaded: false,
+    error: '',
+  }));
+}
+
+function renderCedarTree() {
+  const query = cedarBrowserState.query.trim().toLowerCase();
+  const nodes = query ? filterCedarNodes(cedarBrowserState.nodes, query) : cedarBrowserState.nodes;
+  if (nodes.length === 0) {
+    elements.cedarBrowserTree.innerHTML = `<div class="empty">${query ? 'No results found.' : 'No templates found.'}</div>`;
+    return;
+  }
+  elements.cedarBrowserTree.innerHTML = `<ul class="cedar-tree-list">${renderCedarNodes(nodes)}</ul>`;
+}
+
+function renderCedarNodes(nodes) {
+  return nodes.map((node) => {
+    const expanded = cedarBrowserState.expanded.has(node.id);
+    const loading = cedarBrowserState.loading.has(node.id);
+    const selected = cedarBrowserState.selectedTemplateId === node.id;
+    const disabled = node.alreadyImported && !node.isFolder;
+    const childrenHtml = node.isFolder && expanded
+      ? `<ul class="cedar-tree-children">${loading ? '<li class="cedar-tree-loading">Loading...</li>' : node.error ? `<li class="cedar-tree-error">${escapeHtml(node.error)}</li>` : renderCedarNodes(node.children)}</ul>`
+      : '';
+    return `
+      <li class="cedar-tree-node" id="cedar-node-${escapeAttr(node.id)}">
+        <div class="cedar-tree-row ${selected ? 'selected' : ''} ${disabled ? 'disabled' : ''}" onclick='handleCedarNodeClick(${JSON.stringify(node.id)})'>
+          <button type="button" class="cedar-tree-toggle ${node.isFolder ? '' : 'placeholder'}" onclick='handleCedarToggle(event, ${JSON.stringify(node.id)})'>${node.isFolder ? (expanded ? '⌄' : '›') : ''}</button>
+          <span class="cedar-tree-icon ${node.isFolder ? 'folder' : 'template'}"></span>
+          <span class="cedar-tree-name">${escapeHtml(node.name)}${node.alreadyImported ? ' <span class="badge badge-success">Imported</span>' : ''}</span>
+        </div>
+        ${childrenHtml}
+      </li>
+    `;
+  }).join('');
+}
+
+function filterCedarNodes(nodes, query) {
+  return nodes.map((node) => {
+    const ownMatch = node.name.toLowerCase().includes(query);
+    const childMatches = filterCedarNodes(node.children || [], query);
+    if (ownMatch || childMatches.length > 0) {
+      return { ...node, children: childMatches };
+    }
+    return null;
+  }).filter(Boolean);
+}
+
+function findCedarNode(nodes, id) {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    const found = findCedarNode(node.children || [], id);
+    if (found) return found;
+  }
+  return null;
+}
+
+async function handleCedarToggle(event, nodeId) {
+  event.stopPropagation();
+  const node = findCedarNode(cedarBrowserState.nodes, nodeId);
+  if (!node || !node.isFolder) return;
+  if (cedarBrowserState.expanded.has(nodeId)) {
+    cedarBrowserState.expanded.delete(nodeId);
+    renderCedarTree();
+    return;
+  }
+  cedarBrowserState.expanded.add(nodeId);
+  if (!node.childrenLoaded) {
+    cedarBrowserState.loading.add(nodeId);
+    renderCedarTree();
+    try {
+      node.children = await fetchCedarFolder(node.id);
+      node.childrenLoaded = true;
+      node.error = '';
+    } catch (err) {
+      node.error = err.message;
+    } finally {
+      cedarBrowserState.loading.delete(nodeId);
+    }
+  }
+  renderCedarTree();
+}
+
+async function handleCedarNodeClick(nodeId) {
+  const node = findCedarNode(cedarBrowserState.nodes, nodeId);
+  if (!node) return;
+  if (node.isFolder) {
+    cedarBrowserState.selectedTemplateId = '';
+    cedarBrowserState.selectedTemplateName = '';
+    updateCedarSelection();
+    await handleCedarToggle({ stopPropagation() {} }, nodeId);
+    return;
+  }
+  if (node.alreadyImported) return;
+  cedarBrowserState.selectedTemplateId = node.id;
+  cedarBrowserState.selectedTemplateName = node.name;
+  updateCedarSelection();
+  renderCedarTree();
+}
+
+function updateCedarSelection() {
+  const hasSelection = Boolean(cedarBrowserState.selectedTemplateId);
+  elements.addCedarTemplateBtn.disabled = !hasSelection;
+  elements.cedarBrowserSelectionText.textContent = hasSelection
+    ? cedarBrowserState.selectedTemplateName
+    : 'Select a template to import...';
+  elements.cedarBrowserSelectionText.classList.toggle('cedar-browser-placeholder', !hasSelection);
+  elements.cedarLocateSelectedBtn.classList.toggle('hidden', !hasSelection);
+  elements.cedarClearSelectionBtn.classList.toggle('hidden', !hasSelection);
+}
+
+function clearCedarSelection() {
+  cedarBrowserState.selectedTemplateId = '';
+  cedarBrowserState.selectedTemplateName = '';
+  updateCedarSelection();
+  renderCedarTree();
+}
+
+function locateCedarSelection() {
+  if (!cedarBrowserState.selectedTemplateId) return;
+  document.getElementById(`cedar-node-${cedarBrowserState.selectedTemplateId}`)?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center',
+  });
+}
+
+async function expandAllCedarNodes(nodes = cedarBrowserState.nodes) {
+  for (const node of nodes) {
+    if (!node.isFolder) continue;
+    cedarBrowserState.expanded.add(node.id);
+    if (!node.childrenLoaded) {
+      cedarBrowserState.loading.add(node.id);
+      renderCedarTree();
+      try {
+        node.children = await fetchCedarFolder(node.id);
+        node.childrenLoaded = true;
+        node.error = '';
+      } catch (err) {
+        node.error = err.message;
+      } finally {
+        cedarBrowserState.loading.delete(node.id);
+      }
+    }
+    await expandAllCedarNodes(node.children);
+  }
+  renderCedarTree();
+}
+
+function collapseAllCedarNodes() {
+  cedarBrowserState.expanded = new Set();
+  renderCedarTree();
+}
+
+async function addSelectedCedarTemplate() {
+  if (!cedarBrowserState.selectedTemplateId) return;
+  try {
+    elements.addCedarTemplateBtn.disabled = true;
+    await postAPI('/metadata-profiles/import-known', {
+      templateIdOrUrl: cedarBrowserState.selectedTemplateId,
+      providerId: cedarBrowserState.providerId,
+    });
+    closeCedarBrowser();
+    showMetadataProfilesMessage('Remote metadata profile imported.', 'success');
+    await loadMetadataProfiles();
+  } catch (err) {
+    showMetadataProfilesMessage(`Failed to import remote profile: ${err.message}`, 'error');
+    elements.addCedarTemplateBtn.disabled = false;
+  }
+}
+
+function showRemoteProviderForm(provider = null) {
+  elements.remoteProviderForm.classList.remove('hidden');
+  elements.remoteProviderOriginalId.value = provider?.id || '';
+  elements.remoteProviderIdInput.value = provider?.id || '';
+  elements.remoteProviderTitleInput.value = provider?.title || '';
+  elements.remoteProviderBaseUrlInput.value = provider?.displayUrl || provider?.baseUrl || '';
+  elements.remoteProviderDomainInput.value = provider?.domainBase || '';
+  elements.remoteProviderApiKeyInput.value = '';
+  hideRemoteProviderManageMessage();
+}
+
+function hideRemoteProviderForm() {
+  elements.remoteProviderForm.classList.add('hidden');
+}
+
+function editRemoteProvider(providerId) {
+  const provider = metadataProfileProviders.find((item) => item.id === providerId);
+  if (provider) {
+    showRemoteProviderForm(provider);
+  }
+}
+
+async function saveRemoteProvider(event) {
+  event.preventDefault();
+  const payload = {
+    id: (elements.remoteProviderIdInput.value || '').trim(),
+    title: (elements.remoteProviderTitleInput.value || '').trim(),
+    baseUrl: (elements.remoteProviderBaseUrlInput.value || '').trim(),
+    domainBase: (elements.remoteProviderDomainInput.value || '').trim(),
+    apiKey: (elements.remoteProviderApiKeyInput.value || '').trim(),
+  };
+  if (!payload.id || !payload.title || !payload.baseUrl || !payload.domainBase) {
+    showRemoteProviderManageMessage('Provider id, title, base URL and domain base are required.', 'error');
+    return;
+  }
+  try {
+    const originalId = elements.remoteProviderOriginalId.value;
+    if (originalId && originalId !== payload.id) {
+      await deleteAPI(`/metadata-profiles/providers/${encodeURIComponent(originalId)}`);
+    }
+    const data = await postAPI('/metadata-profiles/providers', payload);
+    metadataProfileProviders = data.providers || [];
+    renderRemoteProviderManageList();
+    renderRemoteProviderSelectList();
+    hideRemoteProviderForm();
+    if (data.warnings && data.warnings.length > 0) {
+      showRemoteProviderManageMessage(data.warnings.join(' '), 'error');
+    } else {
+      showRemoteProviderManageMessage('Provider saved.', 'success');
+    }
+  } catch (err) {
+    showRemoteProviderManageMessage(`Failed to save provider: ${err.message}`, 'error');
+  }
+}
+
+async function deleteRemoteProvider(providerId) {
+  if (!window.confirm(`Delete remote provider '${providerId}'?`)) {
+    return;
+  }
+  try {
+    const data = await deleteAPI(`/metadata-profiles/providers/${encodeURIComponent(providerId)}`);
+    metadataProfileProviders = data.providers || [];
+    renderRemoteProviderManageList();
+    renderRemoteProviderSelectList();
+    showRemoteProviderManageMessage('Provider deleted.', 'success');
+  } catch (err) {
+    showRemoteProviderManageMessage(`Failed to delete provider: ${err.message}`, 'error');
+  }
+}
+
+function selectedMetadataProfileProviderId() {
+  return currentMetadataProfileProviderId || metadataProfileProviders[0]?.id || '';
+}
+
+async function importMetadataProfileUrl() {
+  const url = (elements.metadataProfileUrlInput.value || '').trim();
+  if (!url) {
+    showMetadataProfilesMessage('Profile URL is required.', 'error');
+    return;
+  }
+  try {
+    await postAPI('/metadata-profiles/import-url', {
+      url,
+      providerId: selectedMetadataProfileProviderId(),
+    });
+    elements.metadataProfileUrlInput.value = '';
+    showMetadataProfilesMessage('Metadata profile imported.', 'success');
+    await loadMetadataProfiles();
+  } catch (err) {
+    showMetadataProfilesMessage(`Failed to import profile: ${err.message}`, 'error');
+  }
+}
+
+async function importKnownMetadataProfile(templateIdOrUrl, conformsTo) {
+  try {
+    await postAPI('/metadata-profiles/import-known', {
+      templateIdOrUrl,
+      conformsTo,
+      providerId: selectedMetadataProfileProviderId(),
+    });
+    showMetadataProfilesMessage('Remote metadata profile imported.', 'success');
+    await loadMetadataProfiles();
+  } catch (err) {
+    showMetadataProfilesMessage(`Failed to import remote profile: ${err.message}`, 'error');
+  }
+}
+
+async function deleteMetadataProfile(id) {
+  if (!window.confirm(`Delete metadata profile '${id}' and its files?`)) {
+    return;
+  }
+  try {
+    await deleteAPI(`/metadata-profiles/${encodeURIComponent(id)}`);
+    showMetadataProfilesMessage('Metadata profile deleted.', 'success');
+    await loadMetadataProfiles();
+  } catch (err) {
+    showMetadataProfilesMessage(`Failed to delete metadata profile: ${err.message}`, 'error');
   }
 }
 
@@ -795,6 +1384,17 @@ function closeSettings() {
   elements.settingsModal.classList.add('hidden');
 }
 
+function openMetadataProfiles() {
+  loadMetadataProfileProviders();
+  loadMetadataProfiles();
+  elements.metadataProfilesModal.classList.remove('hidden');
+  elements.metadataProfilesMessage.classList.add('hidden');
+}
+
+function closeMetadataProfiles() {
+  elements.metadataProfilesModal.classList.add('hidden');
+}
+
 function closeOpenModals() {
   if (elements.sessionModal && !elements.sessionModal.classList.contains('hidden')) {
     elements.sessionModal.classList.add('hidden');
@@ -804,6 +1404,18 @@ function closeOpenModals() {
   }
   if (elements.settingsModal && !elements.settingsModal.classList.contains('hidden')) {
     elements.settingsModal.classList.add('hidden');
+  }
+  if (elements.metadataProfilesModal && !elements.metadataProfilesModal.classList.contains('hidden')) {
+    elements.metadataProfilesModal.classList.add('hidden');
+  }
+  if (elements.remoteProviderSelectModal && !elements.remoteProviderSelectModal.classList.contains('hidden')) {
+    elements.remoteProviderSelectModal.classList.add('hidden');
+  }
+  if (elements.manageRemoteProvidersModal && !elements.manageRemoteProvidersModal.classList.contains('hidden')) {
+    elements.manageRemoteProvidersModal.classList.add('hidden');
+  }
+  if (elements.cedarBrowserModal && !elements.cedarBrowserModal.classList.contains('hidden')) {
+    elements.cedarBrowserModal.classList.add('hidden');
   }
 }
 
@@ -837,6 +1449,10 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function escapeAttr(str) {
+  return String(str || '').replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
 // Refresh all data
@@ -893,12 +1509,20 @@ if (elements.settingsBtn) {
   elements.settingsBtn.addEventListener('click', openSettings);
 }
 
+if (elements.metadataProfilesBtn) {
+  elements.metadataProfilesBtn.addEventListener('click', openMetadataProfiles);
+}
+
 if (elements.closeSettingsModal) {
   elements.closeSettingsModal.addEventListener('click', closeSettings);
 }
 
 if (elements.cancelSettingsBtn) {
   elements.cancelSettingsBtn.addEventListener('click', closeSettings);
+}
+
+if (elements.closeMetadataProfilesModal) {
+  elements.closeMetadataProfilesModal.addEventListener('click', closeMetadataProfiles);
 }
 
 if (elements.settingsForm) {
@@ -913,12 +1537,164 @@ if (elements.settingsModal) {
   });
 }
 
+if (elements.metadataProfilesModal) {
+  elements.metadataProfilesModal.addEventListener('click', (e) => {
+    if (e.target === elements.metadataProfilesModal) {
+      closeMetadataProfiles();
+    }
+  });
+}
+
+if (elements.remoteProviderSelectModal) {
+  elements.remoteProviderSelectModal.addEventListener('click', (e) => {
+    if (e.target === elements.remoteProviderSelectModal) {
+      closeRemoteProviderSelect();
+    }
+  });
+}
+
+if (elements.manageRemoteProvidersModal) {
+  elements.manageRemoteProvidersModal.addEventListener('click', (e) => {
+    if (e.target === elements.manageRemoteProvidersModal) {
+      closeManageRemoteProviders();
+    }
+  });
+}
+
+if (elements.cedarBrowserModal) {
+  elements.cedarBrowserModal.addEventListener('click', (e) => {
+    if (e.target === elements.cedarBrowserModal) {
+      closeCedarBrowser();
+    }
+  });
+}
+
 if (elements.addSchemaBtn) {
   elements.addSchemaBtn.addEventListener('click', addOrReplaceSchema);
 }
 
 if (elements.reloadSchemaBtn) {
   elements.reloadSchemaBtn.addEventListener('click', loadSchemaRegistry);
+}
+
+if (elements.importMetadataProfileBtn) {
+  elements.importMetadataProfileBtn.addEventListener('click', importMetadataProfileUrl);
+}
+
+if (elements.browseMetadataProfilesBtn) {
+  elements.browseMetadataProfilesBtn.addEventListener('click', openRemoteProviderSelect);
+}
+
+if (elements.manageMetadataProvidersBtn) {
+  elements.manageMetadataProvidersBtn.addEventListener('click', openManageRemoteProviders);
+}
+
+if (elements.reloadMetadataProfilesBtn) {
+  elements.reloadMetadataProfilesBtn.addEventListener('click', loadMetadataProfiles);
+}
+
+if (elements.metadataProfilesPrevPageBtn) {
+  elements.metadataProfilesPrevPageBtn.addEventListener('click', () => {
+    metadataProfilesState.page = Math.max(1, metadataProfilesState.page - 1);
+    renderMetadataProfilesTable();
+  });
+}
+
+if (elements.metadataProfilesNextPageBtn) {
+  elements.metadataProfilesNextPageBtn.addEventListener('click', () => {
+    metadataProfilesState.page += 1;
+    renderMetadataProfilesTable();
+  });
+}
+
+if (elements.metadataProfilesPageSizeSelect) {
+  elements.metadataProfilesPageSizeSelect.addEventListener('change', (event) => {
+    metadataProfilesState.pageSize = Number(event.target.value) || 10;
+    metadataProfilesState.page = 1;
+    renderMetadataProfilesTable();
+  });
+}
+
+if (elements.closeRemoteProviderSelectModal) {
+  elements.closeRemoteProviderSelectModal.addEventListener('click', closeRemoteProviderSelect);
+}
+
+if (elements.cancelRemoteProviderSelectBtn) {
+  elements.cancelRemoteProviderSelectBtn.addEventListener('click', closeRemoteProviderSelect);
+}
+
+if (elements.openManageProvidersFromSelectBtn) {
+  elements.openManageProvidersFromSelectBtn.addEventListener('click', openManageRemoteProviders);
+}
+
+if (elements.closeManageRemoteProvidersModal) {
+  elements.closeManageRemoteProvidersModal.addEventListener('click', closeManageRemoteProviders);
+}
+
+if (elements.closeManageRemoteProvidersBtn) {
+  elements.closeManageRemoteProvidersBtn.addEventListener('click', closeManageRemoteProviders);
+}
+
+if (elements.addRemoteProviderBtn) {
+  elements.addRemoteProviderBtn.addEventListener('click', () => showRemoteProviderForm());
+}
+
+if (elements.cancelRemoteProviderFormBtn) {
+  elements.cancelRemoteProviderFormBtn.addEventListener('click', hideRemoteProviderForm);
+}
+
+if (elements.remoteProviderForm) {
+  elements.remoteProviderForm.addEventListener('submit', saveRemoteProvider);
+}
+
+if (elements.closeCedarBrowserModal) {
+  elements.closeCedarBrowserModal.addEventListener('click', closeCedarBrowser);
+}
+
+if (elements.cancelCedarBrowserBtn) {
+  elements.cancelCedarBrowserBtn.addEventListener('click', closeCedarBrowser);
+}
+
+if (elements.cedarSearchToggleBtn) {
+  elements.cedarSearchToggleBtn.addEventListener('click', () => {
+    elements.cedarSearchInput.classList.toggle('hidden');
+    if (!elements.cedarSearchInput.classList.contains('hidden')) {
+      elements.cedarSearchInput.focus();
+    } else {
+      elements.cedarSearchInput.value = '';
+      cedarBrowserState.query = '';
+      renderCedarTree();
+    }
+  });
+}
+
+if (elements.cedarSearchInput) {
+  elements.cedarSearchInput.addEventListener('input', () => {
+    cedarBrowserState.query = elements.cedarSearchInput.value || '';
+    renderCedarTree();
+  });
+}
+
+if (elements.cedarExpandAllBtn) {
+  elements.cedarExpandAllBtn.addEventListener('click', () => {
+    expandAllCedarNodes();
+  });
+}
+
+if (elements.cedarCollapseAllBtn) {
+  elements.cedarCollapseAllBtn.addEventListener('click', collapseAllCedarNodes);
+}
+
+if (elements.cedarLocateSelectedBtn) {
+  elements.cedarLocateSelectedBtn.addEventListener('click', locateCedarSelection);
+}
+
+if (elements.cedarClearSelectionBtn) {
+  elements.cedarClearSelectionBtn.addEventListener('click', clearCedarSelection);
+}
+
+if (elements.addCedarTemplateBtn) {
+  elements.addCedarTemplateBtn.addEventListener('click', addSelectedCedarTemplate);
 }
 
 // Tavily test form event listeners
@@ -941,6 +1717,13 @@ window.viewSession = viewSession;
 window.viewToolCall = viewToolCall;
 window.editSchema = editSchema;
 window.deleteSchema = deleteSchema;
+window.deleteMetadataProfile = deleteMetadataProfile;
+window.importKnownMetadataProfile = importKnownMetadataProfile;
+window.selectRemoteProvider = selectRemoteProvider;
+window.editRemoteProvider = editRemoteProvider;
+window.deleteRemoteProvider = deleteRemoteProvider;
+window.handleCedarToggle = handleCedarToggle;
+window.handleCedarNodeClick = handleCedarNodeClick;
 
 // Tavily search test functions
 async function testTavilySearch(e) {
