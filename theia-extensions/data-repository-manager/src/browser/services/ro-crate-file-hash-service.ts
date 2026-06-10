@@ -24,7 +24,7 @@ export class RoCrateFileHashService {
         @inject(FileService) protected readonly fileService: FileService
     ) { }
 
-    public async persistMissingFileHashes(): Promise<number> {
+    public async persistFileMetadata(): Promise<number> {
         const crate = this.appStateService.roCrate;
         if (!crate) {
             return 0;
@@ -36,16 +36,38 @@ export class RoCrateFileHashService {
 
         for (const reference of collectRoCrateExportFileReferences(updatedCrate)) {
             const entity = entitiesById.get(reference.entityId);
-            if (!entity || this.hasHash(entity)) {
+            if (!entity) {
                 continue;
             }
             const fileUri = await this.resolveFirstReadableFileSource(rootUri, reference.sources);
             if (!fileUri) {
                 continue;
             }
-            const content = await this.fileService.read(fileUri);
-            entity.hash = SparkMD5.hash(content.value);
-            updatedCount += 1;
+            const content = await this.fileService.readFile(fileUri);
+            const stat = await this.fileService.resolve(fileUri);
+            const bytes = content.value.buffer;
+            const arrayBuffer = bytes.buffer.slice(
+                bytes.byteOffset,
+                bytes.byteOffset + bytes.byteLength
+            ) as ArrayBuffer;
+            const nextValues: Record<string, string> = {
+                hash: SparkMD5.ArrayBuffer.hash(arrayBuffer),
+                contentSize: String(content.value.byteLength),
+                encodingFormat: this.mimeTypeFromFilename(reference.entryPath)
+            };
+            if (stat.mtime) {
+                nextValues.dateModified = new Date(stat.mtime).toISOString();
+            }
+            let entityUpdated = false;
+            for (const [key, value] of Object.entries(nextValues)) {
+                if (entity[key] !== value) {
+                    entity[key] = value;
+                    entityUpdated = true;
+                }
+            }
+            if (entityUpdated) {
+                updatedCount += 1;
+            }
         }
 
         if (!updatedCount) {
@@ -53,7 +75,7 @@ export class RoCrateFileHashService {
         }
 
         this.historyService.applyRoCrateChange(updatedCrate, {
-            label: 'Add missing file hashes before remote export'
+            label: 'Refresh file metadata before remote export'
         });
         await this.persistRoCrate(rootUri, updatedCrate);
         return updatedCount;
@@ -74,10 +96,6 @@ export class RoCrateFileHashService {
                 .filter((entity): entity is RoCrateEntity => !!entity && typeof entity === 'object' && !Array.isArray(entity) && typeof entity['@id'] === 'string')
                 .map(entity => [entity['@id'], entity])
         );
-    }
-
-    protected hasHash(entity: RoCrateEntity): boolean {
-        return typeof entity.hash === 'string' && entity.hash.trim() !== '';
     }
 
     protected async resolveFirstReadableFileSource(rootUri: URI, sources: readonly RoCrateExportFileSource[]): Promise<URI | undefined> {
@@ -122,5 +140,21 @@ export class RoCrateFileHashService {
         });
         this.appStateService.setRoCrateSnapshot(crate);
         this.appStateService.dirty = false;
+    }
+
+    protected mimeTypeFromFilename(filename: string): string {
+        const lower = filename.toLowerCase();
+        if (lower.endsWith('.json')) return 'application/json';
+        if (lower.endsWith('.csv')) return 'text/csv';
+        if (lower.endsWith('.tsv')) return 'text/tab-separated-values';
+        if (lower.endsWith('.txt')) return 'text/plain';
+        if (lower.endsWith('.md')) return 'text/markdown';
+        if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'text/html';
+        if (lower.endsWith('.png')) return 'image/png';
+        if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+        if (lower.endsWith('.gif')) return 'image/gif';
+        if (lower.endsWith('.pdf')) return 'application/pdf';
+        if (lower.endsWith('.zip')) return 'application/zip';
+        return 'application/octet-stream';
     }
 }

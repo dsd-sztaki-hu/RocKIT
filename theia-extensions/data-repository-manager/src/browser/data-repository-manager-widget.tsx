@@ -93,7 +93,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
   public async handleExportToRemote(): Promise<void> {
     try {
-      await this.fileHashService.persistMissingFileHashes()
+      await this.fileHashService.persistFileMetadata()
     } catch (error) {
       console.error('Failed to calculate file hashes before remote export:', error)
       this.messageService.error(
@@ -132,14 +132,22 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     if (capabilities.supportsArpRoCrateZipUpload) {
       const progress = await this.messageService.showProgress({
-        text: `Checking existing ARP export for ${selectedRepo.title}...`,
+        text: `Updating the uploaded RO-Crate in ${selectedRepo.title}`,
       })
       try {
         const updateResult =
-          await this.arpExportService.updateArp(selectedRepo)
+          await this.arpExportService.updateArp(selectedRepo, (update) =>
+            progress.report({
+              message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+              work: {
+                done: update.completedSteps,
+                total: update.totalSteps,
+              },
+            }),
+          )
         if (updateResult) {
           this.messageService.info(
-            `ARP file update completed for ${updateResult.target}. Uploaded ${updateResult.addedFileCount} new file(s), removed ${updateResult.removedFileCount} file(s). Metadata JSON upload is temporarily disabled.`,
+            `ARP update completed for ${updateResult.target}. Uploaded ${updateResult.addedFileCount} new file(s), replaced ${updateResult.changedFileCount} changed file(s), and removed ${updateResult.removedFileCount} file(s).`,
             { timeout: 10000 },
           )
           if (updateResult.unmappedEntityIds.length && updateResult.mappingFileName) {
@@ -151,12 +159,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             const remainingCount = updateResult.unmappedEntityIds.length - previewLimit
             this.messageService.warn(
               `ARP update completed, but ${updateResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .aroma/${updateResult.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
-              { timeout: 10000 },
-            )
-          }
-          if (updateResult.changedFileCount) {
-            this.messageService.warn(
-              `${updateResult.changedFileCount} changed existing file(s) were detected but not replaced in this step.`,
               { timeout: 10000 },
             )
           }
