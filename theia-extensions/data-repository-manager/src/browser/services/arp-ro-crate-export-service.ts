@@ -166,7 +166,6 @@ export class ArpRoCrateExportService {
       ingestedCrate,
       uploadIdMapping,
     )
-    await this.updateRemoteRoCrate(baseUrl, repository.apiKey, pid, restoredCrate)
     const dataverseUrl = this.buildDataverseDatasetUrl(baseUrl, pid)
     const target =
       this.buildDatasetPidTarget(pid) ||
@@ -248,10 +247,7 @@ export class ArpRoCrateExportService {
       (file: Record<string, any>) => file.changes?.hash,
     )
     const totalSteps =
-      diff.newFiles.length +
-      changedFilesToReplace.length +
-      diff.removedFiles.length +
-      2
+      diff.newFiles.length + changedFilesToReplace.length + diff.removedFiles.length + 2
     let completedSteps = 1
     reportProgress?.({
       completedSteps,
