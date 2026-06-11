@@ -103,6 +103,7 @@ const SCHEMA_TYPE_DEFINITIONS = schemaTypeDefinitions as Record<
 const SCHEMA_ORG_SCHEMA_ID = '__schemaorg__'
 const SCHEMA_ORG_LABEL = 'schema.org'
 const OTHER_ONTOLOGIES_LABEL = 'Other ontologies'
+const ENTITY_LIST_RENDER_LIMIT = 1_000
 
 const OPERATOR_LABELS: Record<BulkOperator, string> = {
   add: 'Add',
@@ -142,6 +143,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   protected schemaConformsLookupCache?: Map<string, string>
 
   protected schemaOrgEnabled = false
+  protected schemaOrgFieldsInitialized = false
   protected selectedEntities: Record<string, any>[] = []
 
   protected startButton?: HTMLButtonElement
@@ -194,7 +196,6 @@ export class MultiEditDialog extends ReactDialog<string> {
       return
     }
 
-    this.entitySummaries = this.buildEntitySummaries(crate, profile)
     this.selectedEntities = this.collectSelectedEntities(crate)
 
     const entityTypes = this.collectEntityTypes(crate)
@@ -208,11 +209,6 @@ export class MultiEditDialog extends ReactDialog<string> {
     for (const field of fields) {
       this.fieldsByKey.set(field.key, field)
     }
-    const schemaOrgFields = this.buildSchemaOrgFields(crate, profile)
-    for (const field of schemaOrgFields) {
-      this.schemaOrgFieldsByKey.set(field.key, field)
-    }
-
     this.schemaOptions = this.mergeSchemaOptions(schemas)
     this.selectedSchemaIds = new Set()
 
@@ -312,7 +308,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   /**
-   * Collects selected entity records for field applicability checks.
+   * Collects one selected entity per unique type combination for field applicability checks.
    * @param crate Active RO-Crate document.
    * @returns Selected entity objects.
    * @protected
@@ -323,11 +319,17 @@ export class MultiEditDialog extends ReactDialog<string> {
       : []
     const selected = new Set(this.entityIds)
     const entities: Record<string, any>[] = []
+    const typeSignatures = new Set<string>()
     for (const entity of graph) {
       const id = typeof entity?.['@id'] === 'string' ? entity['@id'] : ''
       if (!id || !selected.has(id)) {
         continue
       }
+      const typeSignature = this.getEntityTypeNames(entity).sort().join('\u0000')
+      if (typeSignatures.has(typeSignature)) {
+        continue
+      }
+      typeSignatures.add(typeSignature)
       entities.push(entity)
     }
     return entities
@@ -1179,8 +1181,33 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected toggleSchemaOrg = (enabled: boolean) => {
+    if (enabled) {
+      this.initializeSchemaOrgFields()
+    }
     this.schemaOrgEnabled = enabled
     this.update()
+  }
+
+  /**
+   * Builds optional schema.org fields only when the user enables them.
+   * @returns void
+   * @protected
+   */
+  protected initializeSchemaOrgFields(): void {
+    if (this.schemaOrgFieldsInitialized) {
+      return
+    }
+    this.schemaOrgFieldsInitialized = true
+
+    const crate = this.appStateService.roCrate
+    const profile = this.profileData
+    if (!crate || !profile) {
+      return
+    }
+
+    for (const field of this.buildSchemaOrgFields(crate, profile)) {
+      this.schemaOrgFieldsByKey.set(field.key, field)
+    }
   }
 
   /**
@@ -1218,6 +1245,13 @@ export class MultiEditDialog extends ReactDialog<string> {
    */
   protected toggleEntityList = () => {
     this.showEntityList = !this.showEntityList
+    if (this.showEntityList && this.entitySummaries.length === 0) {
+      const crate = this.appStateService.roCrate
+      const profile = this.profileData
+      if (crate && profile) {
+        this.entitySummaries = this.buildEntitySummaries(crate, profile)
+      }
+    }
     this.update()
   }
 
@@ -1765,7 +1799,14 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
 
     const maps: Array<Map<string, FieldDefinition>> = []
+    const processedTypeSignatures = new Set<string>()
     for (const entity of selectedEntities) {
+      const typeSignature = this.getEntityTypeNames(entity).sort().join('\u0000')
+      if (processedTypeSignatures.has(typeSignature)) {
+        continue
+      }
+      processedTypeSignatures.add(typeSignature)
+
       const map = this.buildSchemaOrgFieldMapForEntity(entity, profileClasses)
       if (map.size === 0) {
         return []
@@ -3338,7 +3379,7 @@ export class MultiEditDialog extends ReactDialog<string> {
           </Button>
         </div>
 
-        {(() => {
+        {this.showEntityList && (() => {
           const normalizedSearch = this.entitySearch.trim().toLowerCase()
           const filteredEntities =
             normalizedSearch.length === 0
@@ -3346,12 +3387,10 @@ export class MultiEditDialog extends ReactDialog<string> {
               : this.entitySummaries.filter((entity) =>
                   entity.name.toLowerCase().includes(normalizedSearch),
                 )
+          const displayedEntities = filteredEntities.slice(0, ENTITY_LIST_RENDER_LIMIT)
           return (
             <div
-              className={`entities-overview-edit-modal-entity-window${
-                this.showEntityList ? '' : ' is-hidden'
-              }`}
-              aria-hidden={!this.showEntityList}
+              className="entities-overview-edit-modal-entity-window"
             >
               <div className="entities-overview-edit-modal-entity-window-header">
                 <span>Selected entities</span>
@@ -3375,7 +3414,8 @@ export class MultiEditDialog extends ReactDialog<string> {
                   allowClear
                 />
                 <span className="entities-overview-edit-modal-entity-window-count">
-                  {filteredEntities.length} / {this.entitySummaries.length}
+                  {displayedEntities.length} shown / {filteredEntities.length} matching /{' '}
+                  {this.entitySummaries.length} selected
                 </span>
               </div>
               <div className="entities-overview-edit-modal-entity-window-body">
@@ -3387,7 +3427,7 @@ export class MultiEditDialog extends ReactDialog<string> {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredEntities.map((entity) => (
+                    {displayedEntities.map((entity) => (
                       <tr key={entity.id} title={entity.id}>
                         <td>{entity.name}</td>
                         <td>
