@@ -45,24 +45,33 @@ returned by `read_agent_workflow_doc` and must be followed at the relevant step.
 
 ## Online AROMA Review
 
-After completing and validating edits to `ro-crate-metadata.json`, the final
-response must ask whether the user wants to open the crate in the online AROMA
-SPA for visual inspection and manual refinement.
+After completing and validating edits to `ro-crate-metadata.json`, call
+`open_aroma_for_local_file` with the local `ro-crate-metadata.json` path and
+include the returned `aromaUrl` in the final response as a plain URL. This lets
+the user open the crate in the online AROMA SPA for visual inspection and manual
+refinement.
 
 Exception: if this workflow doc includes a "Current Session Context" section
 stating that AROMA is already open for this session, do not suggest opening
 AROMA and do not call `open_aroma_for_local_file` unless the user explicitly
 asks.
 
-If the user agrees:
+When generating the review URL:
 
 1. Call `open_aroma_for_local_file` with the local path to `ro-crate-metadata.json`.
-2. Open the returned `aromaUrl` in the browser.
-3. Do not reopen AROMA after later metadata edits in the same session unless the
-   user asks. The opened AROMA tab listens for local file changes and refreshes
-   automatically.
+2. Put the returned `aromaUrl` in the final response as a plain URL.
+3. Do not automatically open the browser unless the user asks.
+4. Do not generate another URL after later metadata edits in the same session
+   unless the user asks. The opened AROMA tab listens for local file changes and
+   refreshes automatically.
 
 ## Human in the Loop
 
 1. Try to solve the user's task in one coherent pass.
 2. If you need a decision from the user, provide a short menu they can choose from.
+3. For RO-Crate metadata authoring, always check and offer schemas/profiles
+   because they guide FAIR metadata creation for both users and agents.
+4. When no active `conformsTo` profile exists, offer available local metadata
+   profiles and relevant well-known schemas. List every available local profile
+   by name, version, and `conformsTo` URL before offering choices to provide
+   another schema URL or explicitly continue without a profile.

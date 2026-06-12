@@ -639,6 +639,11 @@ async function run() {
       /read_agent_workflow_doc.*rocrate_workflow\.md/,
       'initialize instructions should direct agents to the MCP workflow doc',
     )
+    assert.match(
+      initialize.result.instructions,
+      /outside AROMA, call open_aroma_for_local_file and include the returned aromaUrl/,
+      'initialize instructions should require AROMA URL generation outside AROMA',
+    )
 
     const workflowDocResponse = await request('tools/call', {
       name: 'read_agent_workflow_doc',
@@ -647,6 +652,16 @@ async function run() {
     const workflowDocPayload = JSON.parse(workflowDocResponse.result.content[0].text)
     assert.equal(workflowDocPayload.name, 'rocrate_workflow.md')
     assert.match(workflowDocPayload.content, /# RO-Crate Agent Workflow/)
+    assert.match(
+      workflowDocPayload.content,
+      /call\s+`open_aroma_for_local_file`[\s\S]*returned `aromaUrl`/,
+      'workflow doc should require generating the AROMA review URL',
+    )
+    assert.doesNotMatch(
+      workflowDocPayload.content,
+      /must ask whether the user wants to open the crate/,
+      'workflow doc should not tell outside-AROMA agents to only ask about AROMA review',
+    )
     assert.ok(
       workflowDocPayload.availableDocs.includes('profile-first-workflow.md'),
       'workflow doc response should list available step docs',

@@ -44,6 +44,12 @@ Operational guardrails and metadata-quality rules are defined in the step docs i
 
 1. Try to solve the task the use gives you in one go.
 2. If you need a decision from the user, provide a menu they can choose from with easy selection.
+3. For RO-Crate metadata authoring, always check and offer schemas/profiles
+   because they guide FAIR metadata creation for both users and agents.
+4. When no active \`conformsTo\` profile exists, offer available local metadata
+   profiles and relevant well-known schemas. List every available local profile
+   by name, version, and \`conformsTo\` URL before offering choices to provide
+   another schema URL or explicitly continue without a profile.
 
 <!-- AROMA_MANAGED_SECTION_END: Users may add custom rules below this line. Do not modify lines above. -->
 `;

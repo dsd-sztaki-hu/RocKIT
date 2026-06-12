@@ -51,27 +51,36 @@ returned by \`read_agent_workflow_doc\` and must be followed at the relevant ste
 
 ## Online AROMA Review
 
-After completing and validating edits to \`ro-crate-metadata.json\`, the final
-response must ask whether the user wants to open the crate in the online AROMA
-SPA for visual inspection and manual refinement.
+After completing and validating edits to \`ro-crate-metadata.json\`, call
+\`open_aroma_for_local_file\` with the local \`ro-crate-metadata.json\` path and
+include the returned \`aromaUrl\` in the final response as a plain URL. This lets
+the user open the crate in the online AROMA SPA for visual inspection and manual
+refinement.
 
 Exception: if this workflow doc includes a "Current Session Context" section
 stating that AROMA is already open for this session, do not suggest opening
 AROMA and do not call \`open_aroma_for_local_file\` unless the user explicitly
 asks.
 
-If the user agrees:
+When generating the review URL:
 
 1. Call \`open_aroma_for_local_file\` with the local path to \`ro-crate-metadata.json\`.
-2. Open the returned \`aromaUrl\` in the browser.
-3. Do not reopen AROMA after later metadata edits in the same session unless the
-   user asks. The opened AROMA tab listens for local file changes and refreshes
-   automatically.
+2. Put the returned \`aromaUrl\` in the final response as a plain URL.
+3. Do not automatically open the browser unless the user asks.
+4. Do not generate another URL after later metadata edits in the same session
+   unless the user asks. The opened AROMA tab listens for local file changes and
+   refreshes automatically.
 
 ## Human in the Loop
 
 1. Try to solve the user's task in one coherent pass.
 2. If you need a decision from the user, provide a short menu they can choose from.
+3. For RO-Crate metadata authoring, always check and offer schemas/profiles
+   because they guide FAIR metadata creation for both users and agents.
+4. When no active \`conformsTo\` profile exists, offer available local metadata
+   profiles and relevant well-known schemas. List every available local profile
+   by name, version, and \`conformsTo\` URL before offering choices to provide
+   another schema URL or explicitly continue without a profile.
 `,
   'checklists.md': `# Checklists
 
@@ -94,9 +103,9 @@ If the user agrees:
 7. If publication-ready and the user asked for Dataverse upload, run \`upload_rocrate_to_dataverse(write=true)\` using MCP defaults; do not ask for Dataverse URL/API key first.
 8. After successful Dataverse upload, show the returned \`dataverseUrl\` as the dataset link and retain the returned RO-Crate representation for follow-up file links.
 9. Give a final summary of data added or updated; use table format when possible.
-10. If AROMA is not already open for this session, ask whether the user wants to open the crate in online AROMA.
-11. If yes, call \`open_aroma_for_local_file\` and open the returned \`aromaUrl\`.
-12. Once AROMA is open, assume it will auto-refresh when the local JSON changes; do not reopen it unless the user asks.
+10. If AROMA is not already open for this session, call \`open_aroma_for_local_file\` with the local \`ro-crate-metadata.json\` path.
+11. Include the returned \`aromaUrl\` in the final response as a plain URL so the user can open the crate in online AROMA for visual inspection.
+12. Once AROMA is open, assume it will auto-refresh when the local JSON changes; do not generate another URL unless the user asks.
 `,
   'entity-quality-and-id-rules.md': `# Entity Quality and ID Rules
 
@@ -143,18 +152,32 @@ Always follow this sequence when curating RO-Crate metadata:
 
 0. Use MCP \`rocrate\` tools for metadata edits and validation. Do not edit JSON directly.
 1. Call \`get_rocrate_context\` before any edit.
-2. Read active profile constraints from \`profileRules.allowedPropertiesByClass\`.
-3. If constraints are missing or unclear, call \`resolve_profile_schema\`.
-4. Build a short plan:
+2. Identify whether the crate already has active \`conformsTo\` profile URLs.
+3. For RO-Crate metadata authoring, always check and offer schemas/profiles because they guide FAIR metadata creation for both users and agents.
+4. If no active profile is present:
+   - call \`list_metadata_profiles\` to show locally available metadata profiles,
+   - if useful, call \`list_well_known_schemas\` to show known remote CEDAR schemas,
+   - present every available local profile returned by \`list_metadata_profiles\` by name, version, and \`conformsTo\` URL,
+   - present any relevant well-known schemas separately by name, version, and derived \`conformsTo\` URL,
+   - do not collapse the list to only the profile you recommend,
+   - if one profile seems best, mark it as recommended while still listing the other available profiles,
+   - offer a numbered menu in this order: all listed profiles/schemas first, then "provide another schema/profile URL", then "continue without a profile",
+   - stop and wait for the user's choice before planning fields, searching the web, or writing metadata,
+   - import or attach the selected schema only after the user chooses it,
+   - if no profiles/schemas can be listed because of an error, report the error and still offer the user a chance to provide a schema URL.
+5. Do not silently continue without a profile after listing available profiles. Continuing without a profile requires the user's explicit choice.
+6. Read active profile constraints from \`profileRules.allowedPropertiesByClass\`.
+7. If constraints are missing or unclear, call \`resolve_profile_schema\`.
+8. Build a short plan:
    - required fields still missing
    - recommended optional fields
    - custom fields outside the active profile/schema, if relevant
-5. Only after planning, run web \`search\` if needed for missing values.
-6. Only then start metadata writes with \`apply_changes\` (default persists in local mode).
+9. Only after planning, run web \`search\` if needed for missing values.
+10. Only then start metadata writes with \`apply_changes\` (default persists in local mode).
    - Use \`dryRun=true\` when you want preview-only execution.
-7. Do not use destructive mutations unless user explicitly requested them and approved \`confirmDestructive=true\`.
-8. After writes, call \`read_crate\` to verify.
-9. Call \`validate_crate\`:
+11. Do not use destructive mutations unless user explicitly requested them and approved \`confirmDestructive=true\`.
+12. After writes, call \`read_crate\` to verify.
+13. Call \`validate_crate\`:
    - iterative edits: \`profileRequiredMode=allow_missing\`
    - final publication gate: \`profileRequiredMode=enforce_required\`
 
