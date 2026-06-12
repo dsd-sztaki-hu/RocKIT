@@ -27,7 +27,8 @@
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/AROMA-theia-overrides-frontend-module"
+      "frontend": "lib/browser/AROMA-theia-overrides-frontend-module",
+      "electronMain": "lib/electron-main/renderer-failure-module"
     }
   ]
 }
