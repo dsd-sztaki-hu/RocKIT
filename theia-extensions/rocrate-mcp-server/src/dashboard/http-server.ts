@@ -220,6 +220,12 @@ function parseMetadataProfileProvider(value: unknown): CedarProvider | undefined
       typeof record.resourceBaseUrl === 'string' ? record.resourceBaseUrl : undefined,
     registryFolderId:
       typeof record.registryFolderId === 'string' ? record.registryFolderId : undefined,
+    accessMode:
+      record.accessMode === 'apiKey' || record.accessMode === 'dataverseProxy'
+        ? record.accessMode
+        : undefined,
+    dataverseProxyBaseUrl:
+      typeof record.dataverseProxyBaseUrl === 'string' ? record.dataverseProxyBaseUrl : undefined,
     apiKey: typeof record.apiKey === 'string' ? record.apiKey : undefined,
   }
 }
@@ -235,6 +241,14 @@ function parseMetadataProviderBody(body: Record<string, unknown>): CedarProvider
     baseUrl,
     displayUrl: baseUrl,
     domainBase,
+    accessMode:
+      body.accessMode === 'apiKey' || body.accessMode === 'dataverseProxy'
+        ? body.accessMode
+        : undefined,
+    dataverseProxyBaseUrl:
+      typeof body.dataverseProxyBaseUrl === 'string' && body.dataverseProxyBaseUrl.trim() !== ''
+        ? body.dataverseProxyBaseUrl.trim()
+        : undefined,
     type: 'CEDAR',
     apiKey: typeof body.apiKey === 'string' && body.apiKey.trim() !== '' ? body.apiKey.trim() : undefined,
   }

@@ -94,6 +94,8 @@ const elements = {
   remoteProviderTitleInput: document.getElementById('remoteProviderTitleInput'),
   remoteProviderBaseUrlInput: document.getElementById('remoteProviderBaseUrlInput'),
   remoteProviderDomainInput: document.getElementById('remoteProviderDomainInput'),
+  remoteProviderAccessModeInput: document.getElementById('remoteProviderAccessModeInput'),
+  remoteProviderProxyBaseUrlInput: document.getElementById('remoteProviderProxyBaseUrlInput'),
   remoteProviderApiKeyInput: document.getElementById('remoteProviderApiKeyInput'),
   cancelRemoteProviderFormBtn: document.getElementById('cancelRemoteProviderFormBtn'),
   remoteProviderManageMessage: document.getElementById('remoteProviderManageMessage'),
@@ -872,8 +874,9 @@ async function loadMetadataProfileProviders() {
       showMetadataProfilesMessage('No CEDAR providers are configured.', 'error');
       return providers;
     }
+    const proxyProvider = providers.find((provider) => provider.accessMode === 'dataverseProxy');
     const keyedProvider = providers.find((provider) => provider.apiKeyPresent);
-    currentMetadataProfileProviderId = keyedProvider?.id || providers[0]?.id || '';
+    currentMetadataProfileProviderId = proxyProvider?.id || keyedProvider?.id || providers[0]?.id || '';
     renderRemoteProviderSelectList();
     renderRemoteProviderManageList();
     if (data.warnings && data.warnings.length > 0) {
@@ -902,7 +905,7 @@ function renderRemoteProviderSelectList() {
     <div class="provider-row clickable" onclick='selectRemoteProvider(${JSON.stringify(provider.id || '')})'>
       <div class="provider-row-icon provider-server-icon"></div>
       <div>
-        <div class="provider-row-title">${escapeHtml(provider.title || provider.id || 'CEDAR Provider')}${provider.apiKeyPresent ? ' <span class="badge badge-success">key</span>' : ''}</div>
+        <div class="provider-row-title">${escapeHtml(provider.title || provider.id || 'CEDAR Provider')}${providerAccessBadge(provider)}</div>
         <div class="provider-row-url">${escapeHtml(provider.displayUrl || provider.baseUrl || provider.domainBase || '')}</div>
       </div>
       <div class="provider-arrow">›</div>
@@ -920,7 +923,7 @@ function renderRemoteProviderManageList() {
     <div class="provider-row">
       <div class="provider-row-icon provider-server-icon"></div>
       <div>
-        <div class="provider-row-title">${escapeHtml(provider.title || provider.id || 'CEDAR Provider')}${provider.apiKeyPresent ? ' <span class="badge badge-success">key configured</span>' : ''}</div>
+        <div class="provider-row-title">${escapeHtml(provider.title || provider.id || 'CEDAR Provider')}${providerAccessBadge(provider, true)}</div>
         <div class="provider-row-url">${escapeHtml(provider.displayUrl || provider.baseUrl || provider.domainBase || '')}</div>
       </div>
       <div class="provider-row-actions">
@@ -942,6 +945,17 @@ function hideRemoteProviderManageMessage() {
   if (elements.remoteProviderManageMessage) {
     elements.remoteProviderManageMessage.classList.add('hidden');
   }
+}
+
+function providerAccessBadge(provider, verbose = false) {
+  const mode = provider.accessMode || (provider.apiKeyPresent ? 'apiKey' : 'dataverseProxy');
+  if (mode === 'dataverseProxy') {
+    return ` <span class="badge badge-success">${verbose ? 'Dataverse proxy' : 'proxy'}</span>`;
+  }
+  if (provider.apiKeyPresent) {
+    return ` <span class="badge badge-success">${verbose ? 'key configured' : 'key'}</span>`;
+  }
+  return ` <span class="badge">${verbose ? 'API key' : 'key'}</span>`;
 }
 
 async function openRemoteProviderSelect() {
@@ -1190,12 +1204,55 @@ function showRemoteProviderForm(provider = null) {
   elements.remoteProviderTitleInput.value = provider?.title || '';
   elements.remoteProviderBaseUrlInput.value = provider?.displayUrl || provider?.baseUrl || '';
   elements.remoteProviderDomainInput.value = provider?.domainBase || '';
+  elements.remoteProviderAccessModeInput.value = provider?.accessMode || (provider?.apiKeyPresent ? 'apiKey' : 'dataverseProxy');
+  elements.remoteProviderProxyBaseUrlInput.value = provider?.dataverseProxyBaseUrl || deriveDataverseProxyBaseUrl(provider?.domainBase || provider?.displayUrl || provider?.baseUrl || '');
   elements.remoteProviderApiKeyInput.value = '';
+  updateRemoteProviderAccessFields();
   hideRemoteProviderManageMessage();
 }
 
 function hideRemoteProviderForm() {
   elements.remoteProviderForm.classList.add('hidden');
+}
+
+function updateRemoteProviderAccessFields() {
+  const mode = elements.remoteProviderAccessModeInput.value || 'dataverseProxy';
+  elements.remoteProviderProxyBaseUrlInput.classList.toggle('hidden', mode !== 'dataverseProxy');
+  elements.remoteProviderApiKeyInput.classList.toggle('hidden', mode !== 'apiKey');
+  if (mode === 'dataverseProxy' && !elements.remoteProviderProxyBaseUrlInput.value) {
+    elements.remoteProviderProxyBaseUrlInput.value = deriveDataverseProxyBaseUrl(
+      elements.remoteProviderDomainInput.value || elements.remoteProviderBaseUrlInput.value,
+    );
+  }
+}
+
+function deriveDataverseProxyBaseUrl(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return 'https://repo.researchdata.hu';
+  try {
+    const url = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`);
+    const parts = url.hostname.split('.');
+    const first = (parts[0] || '').toLowerCase();
+    if (first === 'schema') {
+      parts[0] = 'repo';
+    } else if (['cedar', 'resource', 'open', 'openview'].includes(first)) {
+      parts.shift();
+      if ((parts[0] || '').toLowerCase() === 'schema') {
+        parts[0] = 'repo';
+      } else {
+        parts.unshift('repo');
+      }
+    } else if (first !== 'repo') {
+      parts.unshift('repo');
+    }
+    url.hostname = parts.join('.');
+    url.pathname = '';
+    url.search = '';
+    url.hash = '';
+    return url.origin;
+  } catch {
+    return trimmed;
+  }
 }
 
 function editRemoteProvider(providerId) {
@@ -1212,11 +1269,18 @@ async function saveRemoteProvider(event) {
     title: (elements.remoteProviderTitleInput.value || '').trim(),
     baseUrl: (elements.remoteProviderBaseUrlInput.value || '').trim(),
     domainBase: (elements.remoteProviderDomainInput.value || '').trim(),
-    apiKey: (elements.remoteProviderApiKeyInput.value || '').trim(),
+    accessMode: elements.remoteProviderAccessModeInput.value,
+    dataverseProxyBaseUrl: (elements.remoteProviderProxyBaseUrlInput.value || '').trim(),
+    apiKey: elements.remoteProviderAccessModeInput.value === 'apiKey'
+      ? (elements.remoteProviderApiKeyInput.value || '').trim()
+      : '',
   };
   if (!payload.id || !payload.title || !payload.baseUrl || !payload.domainBase) {
     showRemoteProviderManageMessage('Provider id, title, base URL and domain base are required.', 'error');
     return;
+  }
+  if (payload.accessMode === 'dataverseProxy' && !payload.dataverseProxyBaseUrl) {
+    payload.dataverseProxyBaseUrl = deriveDataverseProxyBaseUrl(payload.domainBase || payload.baseUrl);
   }
   try {
     const originalId = elements.remoteProviderOriginalId.value;
@@ -1641,6 +1705,30 @@ if (elements.addRemoteProviderBtn) {
 
 if (elements.cancelRemoteProviderFormBtn) {
   elements.cancelRemoteProviderFormBtn.addEventListener('click', hideRemoteProviderForm);
+}
+
+if (elements.remoteProviderAccessModeInput) {
+  elements.remoteProviderAccessModeInput.addEventListener('change', updateRemoteProviderAccessFields);
+}
+
+if (elements.remoteProviderBaseUrlInput) {
+  elements.remoteProviderBaseUrlInput.addEventListener('input', () => {
+    if (elements.remoteProviderAccessModeInput.value === 'dataverseProxy') {
+      elements.remoteProviderProxyBaseUrlInput.value = deriveDataverseProxyBaseUrl(
+        elements.remoteProviderDomainInput.value || elements.remoteProviderBaseUrlInput.value,
+      );
+    }
+  });
+}
+
+if (elements.remoteProviderDomainInput) {
+  elements.remoteProviderDomainInput.addEventListener('input', () => {
+    if (elements.remoteProviderAccessModeInput.value === 'dataverseProxy') {
+      elements.remoteProviderProxyBaseUrlInput.value = deriveDataverseProxyBaseUrl(
+        elements.remoteProviderDomainInput.value || elements.remoteProviderBaseUrlInput.value,
+      );
+    }
+  });
 }
 
 if (elements.remoteProviderForm) {

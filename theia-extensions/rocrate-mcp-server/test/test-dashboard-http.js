@@ -84,24 +84,6 @@ async function testHttpServer() {
   )
   process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = 'remote-schema-providers.json'
   process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'AROMA2.RemoteSchemaProvider'
-  fs.writeFileSync(
-    path.join(process.env.AROMA_ROOT_PATH, 'remote-schema-providers.json'),
-    JSON.stringify(
-      [
-        {
-          id: 'dashboard-provider',
-          title: 'Dashboard Provider',
-          baseUrl: 'https://cedar.example.test/',
-          domainBase: 'example.test',
-          type: 'CEDAR',
-          apiKey: 'must-not-leak',
-        },
-      ],
-      null,
-      2,
-    ),
-    'utf8',
-  )
 
   // Create and start the HTTP server
   const dashboard = new DashboardHttpServer(collector, {
@@ -328,12 +310,14 @@ async function testHttpServer() {
     assert.strictEqual(Array.isArray(providersData.providers), true)
     assert.strictEqual(providersData.providers[0].id, 'arp-prod')
     assert.strictEqual(
-      providersData.providers.some((provider) => provider.id === 'dashboard-provider'),
+      fs.existsSync(path.join(process.env.AROMA_ROOT_PATH, 'remote-schema-providers.json')),
       true,
     )
     assert.strictEqual(
-      providersData.providers.some((provider) => provider.apiKey === 'must-not-leak'),
-      false,
+      JSON.parse(
+        fs.readFileSync(path.join(process.env.AROMA_ROOT_PATH, 'remote-schema-providers.json'), 'utf8'),
+      )[0].id,
+      'arp-prod',
     )
 
     const saveProviderResp = await requestWithBody('POST', '/metadata-profiles/providers', {
@@ -341,12 +325,17 @@ async function testHttpServer() {
       title: 'Saved Provider',
       baseUrl: 'https://saved.example.test/',
       domainBase: 'saved.example.test',
+      apiKey: 'must-not-leak',
     })
     assert.strictEqual(saveProviderResp.status, 200)
     const savedProviderData = JSON.parse(saveProviderResp.data)
     assert.strictEqual(
       savedProviderData.providers.some((provider) => provider.id === 'saved-provider'),
       true,
+    )
+    assert.strictEqual(
+      savedProviderData.providers.some((provider) => provider.apiKey === 'must-not-leak'),
+      false,
     )
 
     const deleteProviderResp = await requestWithBody(

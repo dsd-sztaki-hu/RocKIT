@@ -11,6 +11,13 @@ async function main() {
   assert.ok(fs.existsSync(storage.cedarDir), 'cedar directory should exist')
   assert.ok(fs.existsSync(storage.roCrateDir), 'ro-crate directory should exist')
   assert.ok(fs.existsSync(storage.indexPath), 'schema index should exist')
+  const providerConfigPath = path.join(root, 'remote-schema-providers.json')
+  assert.ok(fs.existsSync(providerConfigPath), 'remote schema provider config should exist')
+  const seededProviders = JSON.parse(fs.readFileSync(providerConfigPath, 'utf8'))
+  assert.equal(seededProviders.length, 1)
+  assert.equal(seededProviders[0].id, 'arp-prod')
+  assert.equal(seededProviders[0].accessMode, 'dataverseProxy')
+  assert.equal(seededProviders[0].dataverseProxyBaseUrl, 'https://repo.researchdata.hu')
 
   const fixturePath = path.resolve(
     __dirname,
@@ -34,7 +41,7 @@ async function main() {
   ])
 
   fs.writeFileSync(
-    path.join(root, 'remote-schema-providers.json'),
+    providerConfigPath,
     JSON.stringify(
       [
         {
@@ -51,9 +58,17 @@ async function main() {
     'utf8',
   )
   const providers = await core.loadCedarProviders(root)
-  assert.equal(providers.providers.some((provider) => provider.id === 'arp-prod'), true)
+  assert.equal(providers.providers.some((provider) => provider.id === 'arp-prod'), false)
   assert.equal(providers.providers.some((provider) => provider.id === 'local-provider'), true)
-  assert.equal(providers.configPath, path.join(root, 'remote-schema-providers.json'))
+  assert.equal(providers.configPath, providerConfigPath)
+  assert.equal(
+    core.deriveDataverseProxyBaseUrl('schema.researchdata.hu'),
+    'https://repo.researchdata.hu',
+  )
+  assert.equal(
+    core.deriveDataverseProxyBaseUrl('https://resource.schema.researchdata.hu/templates/123'),
+    'https://repo.researchdata.hu',
+  )
 
   await core.saveCedarProvider(
     {
@@ -61,6 +76,8 @@ async function main() {
       title: 'ARP Prod',
       baseUrl: 'https://cedar.schema.researchdata.hu/',
       domainBase: 'schema.researchdata.hu',
+      accessMode: 'dataverseProxy',
+      dataverseProxyBaseUrl: 'http://localhost:8080',
       type: 'CEDAR',
     },
     root,
@@ -71,6 +88,11 @@ async function main() {
       (provider) => provider.displayUrl === 'https://cedar.schema.researchdata.hu/',
     ).length,
     1,
+  )
+  assert.equal(
+    dedupedProviders.providers.find((provider) => provider.displayUrl === 'https://cedar.schema.researchdata.hu/')
+      .dataverseProxyBaseUrl,
+    'http://localhost:8080',
   )
 
   const deletedProvider = await core.deleteCedarProvider('local-provider', root)

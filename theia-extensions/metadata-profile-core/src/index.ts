@@ -60,6 +60,8 @@ export type CedarProvider = {
   domainBase?: string
   resourceBaseUrl?: string
   registryFolderId?: string
+  accessMode?: 'apiKey' | 'dataverseProxy'
+  dataverseProxyBaseUrl?: string
   apiKey?: string
   type?: string
 }
@@ -150,6 +152,7 @@ export function ensureProfileStorage(rootPath?: string): MetadataProfileStorage 
   if (!fs.existsSync(storage.indexPath)) {
     writeJsonAtomic(storage.indexPath, { profiles: [], conformsToIndex: {} }, 4)
   }
+  ensureDefaultCedarProviderConfig(storage.rootPath)
   return storage
 }
 
@@ -473,6 +476,8 @@ export function defaultCedarProvider(): CedarProvider {
     displayUrl: 'https://cedar.schema.researchdata.hu/',
     domainBase: 'schema.researchdata.hu',
     resourceBaseUrl: 'https://resource.schema.researchdata.hu',
+    accessMode: 'dataverseProxy',
+    dataverseProxyBaseUrl: 'https://repo.researchdata.hu',
     registryFolderId: DEFAULT_REGISTRY_FOLDER,
   }
 }
@@ -514,14 +519,6 @@ export async function loadCedarProviders(rootPath?: string): Promise<CedarProvid
   const keytarCredentials = await loadKeytarCredentials(keytarService, warnings)
   const envApiKey = readEnvSecret('CEDAR_API_KEY') ?? readEnvSecret('AROMA_CEDAR_API_KEY')
   const providersByIdentity = new Map<string, CedarProvider>()
-
-  for (const provider of defaultCedarProviders()) {
-    const id = provider.id ?? 'arp-prod'
-    addProviderByIdentity(providersByIdentity, {
-      ...provider,
-      apiKey: keytarCredentials.get(id) ?? envApiKey,
-    })
-  }
 
   for (const provider of configuredProviders) {
     const normalized = normalizeProvider(provider)
@@ -685,9 +682,15 @@ async function fetchWithOptionalAuth(url: string, provider: CedarProvider): Prom
   const headers: Record<string, string> = {
     Accept: 'application/json',
   }
-  let response = await fetch(url, { headers })
-  if ((response.status === 400 || response.status === 401 || response.status === 403) && provider.apiKey) {
-    response = await fetch(url, {
+  const fetchUrl = effectiveCedarFetchUrl(url, provider)
+  const accessMode = effectiveProviderAccessMode(provider)
+  let response = await fetch(fetchUrl, { headers })
+  if (
+    accessMode === 'apiKey' &&
+    (response.status === 400 || response.status === 401 || response.status === 403) &&
+    provider.apiKey
+  ) {
+    response = await fetch(fetchUrl, {
       headers: {
         ...headers,
         Authorization: `apiKey ${provider.apiKey}`,
@@ -699,13 +702,31 @@ async function fetchWithOptionalAuth(url: string, provider: CedarProvider): Prom
       response.status === 400 || response.status === 401 || response.status === 403
         ? provider.apiKey
           ? 'configured API key was rejected'
-          : 'configure a CEDAR provider API key'
+          : accessMode === 'dataverseProxy'
+            ? 'Dataverse CEDAR proxy rejected the request'
+            : 'configure a CEDAR provider API key'
         : response.status === 404
           ? 'resource not found'
           : response.statusText
-    throw new Error(`Fetch failed for ${url}: HTTP ${response.status} (${authHint}).`)
+    throw new Error(`Fetch failed for ${fetchUrl}: HTTP ${response.status} (${authHint}).`)
   }
   return response
+}
+
+function effectiveProviderAccessMode(provider: CedarProvider): 'apiKey' | 'dataverseProxy' {
+  if (provider.accessMode === 'apiKey' || provider.accessMode === 'dataverseProxy') {
+    return provider.accessMode
+  }
+  return provider.apiKey ? 'apiKey' : 'dataverseProxy'
+}
+
+function effectiveCedarFetchUrl(url: string, provider: CedarProvider): string {
+  if (effectiveProviderAccessMode(provider) !== 'dataverseProxy') {
+    return url
+  }
+  const proxyBaseUrl =
+    provider.dataverseProxyBaseUrl ?? deriveDataverseProxyBaseUrl(provider.domainBase ?? provider.displayUrl ?? url)
+  return `${proxyBaseUrl.replace(/\/+$/, '')}/api/arp/cedarResourceProxy?url=${encodeURIComponent(url)}`
 }
 
 function toResourceTemplateUrl(inputUrl: string, provider: CedarProvider): string {
@@ -726,6 +747,7 @@ function resourceBaseUrl(provider: CedarProvider): string {
 
 function normalizeProvider(provider: CedarProvider): CedarProvider {
   const defaults = defaultCedarProvider()
+  const domainBase = provider.domainBase ?? defaults.domainBase
   return {
     ...defaults,
     ...provider,
@@ -733,6 +755,10 @@ function normalizeProvider(provider: CedarProvider): CedarProvider {
     title: provider.title ?? provider.id ?? defaults.title,
     displayUrl: provider.displayUrl ?? provider.baseUrl ?? defaults.displayUrl,
     resourceBaseUrl: provider.resourceBaseUrl ?? resourceBaseUrl(provider),
+    accessMode: provider.accessMode ?? (provider.apiKey ? 'apiKey' : defaults.accessMode),
+    dataverseProxyBaseUrl:
+      provider.dataverseProxyBaseUrl ??
+      deriveDataverseProxyBaseUrl(domainBase ?? provider.displayUrl ?? defaults.displayUrl ?? ''),
   }
 }
 
@@ -756,6 +782,11 @@ function normalizeConfiguredProvider(value: unknown): CedarProvider | undefined 
     domainBase,
     resourceBaseUrl: readString(record.resourceBaseUrl),
     registryFolderId: readString(record.registryFolderId) ?? DEFAULT_REGISTRY_FOLDER,
+    accessMode:
+      record.accessMode === 'apiKey' || record.accessMode === 'dataverseProxy'
+        ? record.accessMode
+        : undefined,
+    dataverseProxyBaseUrl: readString(record.dataverseProxyBaseUrl),
     type: readString(record.type),
     apiKey: readString(record.apiKey),
   }
@@ -791,19 +822,83 @@ async function writeConfiguredCedarProviders(
   configPath: string,
 ): Promise<void> {
   fs.mkdirSync(path.dirname(configPath), { recursive: true })
-  const defaultKey = providerIdentity(defaultCedarProvider())
   const safeProviders = providers
-    .filter((provider) => providerIdentity(provider) !== defaultKey || provider.id !== 'arp-prod')
     .map((provider) => ({
       id: provider.id,
       title: provider.title,
       baseUrl: provider.displayUrl ?? provider.baseUrl,
       domainBase: provider.domainBase,
       type: provider.type ?? 'CEDAR',
+      ...(provider.accessMode ? { accessMode: provider.accessMode } : {}),
+      ...(provider.dataverseProxyBaseUrl
+        ? { dataverseProxyBaseUrl: provider.dataverseProxyBaseUrl }
+        : {}),
       ...(provider.resourceBaseUrl ? { resourceBaseUrl: provider.resourceBaseUrl } : {}),
       ...(provider.registryFolderId ? { registryFolderId: provider.registryFolderId } : {}),
     }))
   writeJsonAtomic(configPath, safeProviders, 4)
+}
+
+function ensureDefaultCedarProviderConfig(rootPath: string): string {
+  const configFileName =
+    process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE ||
+    DEFAULT_REMOTE_PROVIDER_CONFIG_FILENAME
+  const configPath = path.isAbsolute(configFileName)
+    ? configFileName
+    : path.join(rootPath, configFileName)
+  if (!fs.existsSync(configPath)) {
+    writeConfiguredCedarProvidersSync(defaultCedarProviders(), configPath)
+  }
+  return configPath
+}
+
+function writeConfiguredCedarProvidersSync(providers: CedarProvider[], configPath: string): void {
+  fs.mkdirSync(path.dirname(configPath), { recursive: true })
+  const safeProviders = providers.map((provider) => ({
+    id: provider.id,
+    title: provider.title,
+    baseUrl: provider.displayUrl ?? provider.baseUrl,
+    domainBase: provider.domainBase,
+    type: provider.type ?? 'CEDAR',
+    ...(provider.accessMode ? { accessMode: provider.accessMode } : {}),
+    ...(provider.dataverseProxyBaseUrl
+      ? { dataverseProxyBaseUrl: provider.dataverseProxyBaseUrl }
+      : {}),
+    ...(provider.resourceBaseUrl ? { resourceBaseUrl: provider.resourceBaseUrl } : {}),
+    ...(provider.registryFolderId ? { registryFolderId: provider.registryFolderId } : {}),
+  }))
+  writeJsonAtomic(configPath, safeProviders, 4)
+}
+
+export function deriveDataverseProxyBaseUrl(value: string): string {
+  const trimmed = value.trim()
+  if (trimmed === '') {
+    return 'https://repo.researchdata.hu'
+  }
+  try {
+    const url = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`)
+    const parts = url.hostname.split('.')
+    const first = parts[0]?.toLowerCase()
+    if (first === 'schema') {
+      parts[0] = 'repo'
+    } else if (['cedar', 'resource', 'open', 'openview'].includes(first)) {
+      parts.shift()
+      if (parts[0]?.toLowerCase() === 'schema') {
+        parts[0] = 'repo'
+      } else {
+        parts.unshift('repo')
+      }
+    } else if (first !== 'repo') {
+      parts.unshift('repo')
+    }
+    url.hostname = parts.join('.')
+    url.pathname = ''
+    url.search = ''
+    url.hash = ''
+    return url.origin
+  } catch {
+    return trimmed
+  }
 }
 
 async function loadKeytarCredentials(

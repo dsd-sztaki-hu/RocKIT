@@ -117,10 +117,10 @@ export class RemoteSchemaProviderStoreService {
     /**
      * Verifies connection using the calculated domainBase.
      */
-    public async testConnection(domainBase: string, apiKey?: string): Promise<string[]> {
+    public async testConnection(domainBase: string, apiKey?: string, proxyUrl?: string): Promise<string[]> {
         try {
             let domain = domainBase.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
-            const api = new SchemaApi({ domainBase: domain, apiKey: apiKey });
+            const api = new SchemaApi({ domainBase: domain, apiKey: apiKey, proxyUrl });
             
             const templates = await api.listAllSchema();
             

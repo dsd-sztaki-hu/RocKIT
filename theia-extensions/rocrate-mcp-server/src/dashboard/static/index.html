@@ -508,6 +508,11 @@
             <input type="text" id="remoteProviderTitleInput" class="text-input" placeholder="Display name">
             <input type="text" id="remoteProviderBaseUrlInput" class="text-input" placeholder="https://cedar.schema.researchdata.hu/">
             <input type="text" id="remoteProviderDomainInput" class="text-input" placeholder="schema.researchdata.hu">
+            <select id="remoteProviderAccessModeInput" class="text-input">
+              <option value="dataverseProxy">Dataverse proxy (read-only)</option>
+              <option value="apiKey">CEDAR API key</option>
+            </select>
+            <input type="text" id="remoteProviderProxyBaseUrlInput" class="text-input" placeholder="https://repo.researchdata.hu">
             <input type="password" id="remoteProviderApiKeyInput" class="text-input provider-form-wide" placeholder="API key (stored in keytar when available)">
           </div>
           <div class="setting-actions">

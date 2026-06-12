@@ -55,5 +55,9 @@ export interface RemoteSchemaProviderConfig {
   baseUrl: string;
   domainBase: string;
   type: 'CEDAR';
+  resourceBaseUrl?: string;
+  registryFolderId?: string;
+  accessMode?: 'apiKey' | 'dataverseProxy';
+  dataverseProxyBaseUrl?: string;
   apiKey?: string;
 }

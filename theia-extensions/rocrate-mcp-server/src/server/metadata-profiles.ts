@@ -32,6 +32,12 @@ function parseProvider(params: Record<string, unknown>): CedarProvider | undefin
       typeof record.resourceBaseUrl === 'string' ? record.resourceBaseUrl : undefined,
     registryFolderId:
       typeof record.registryFolderId === 'string' ? record.registryFolderId : undefined,
+    accessMode:
+      record.accessMode === 'apiKey' || record.accessMode === 'dataverseProxy'
+        ? record.accessMode
+        : undefined,
+    dataverseProxyBaseUrl:
+      typeof record.dataverseProxyBaseUrl === 'string' ? record.dataverseProxyBaseUrl : undefined,
     apiKey: typeof record.apiKey === 'string' ? record.apiKey : undefined,
   }
 }

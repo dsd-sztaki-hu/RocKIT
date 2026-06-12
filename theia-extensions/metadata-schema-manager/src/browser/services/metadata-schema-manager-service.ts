@@ -303,8 +303,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     this.onDidChangeSchemasEmitter.fire();
 
     try {
-      const apiKey = await this.determineApiKeyForUrl(schema.downloadUrl);
-      const { content, finalUrl } = await this.fetchWithAuthFallback(schema.downloadUrl, apiKey, controller.signal);
+      const provider = await this.determineProviderForUrl(schema.downloadUrl);
+      const apiKey = this.providerApiKey(provider);
+      const proxyUrl = this.providerProxyUrl(provider);
+      const { content, finalUrl } = await this.fetchWithAuthFallback(schema.downloadUrl, apiKey, controller.signal, proxyUrl);
 
       try { JSON.parse(content); } catch (e) {
         throw new Error('The URL returned invalid content (likely HTML instead of JSON).');
@@ -344,7 +346,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   }
 
   public async downloadRemoteSchema(templateId: string, provider?: RemoteSchemaProviderConfig): Promise<void> {
-    let apiKey = provider?.apiKey;
+    let apiKey = provider?.accessMode === 'apiKey' ? provider?.apiKey : undefined;
     let domainBase = provider?.domainBase || provider?.baseUrl;
 
     if (!provider) {
@@ -355,7 +357,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     const api = new SchemaApi({
         domainBase: domainBase,
-        apiKey: apiKey
+        apiKey: apiKey,
+        proxyUrl: this.providerProxyUrl(provider)
     });
 
     const url = `https://resource.${domainBase}/templates/${encodeURIComponent(templateId)}`;
@@ -435,7 +438,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     }
   }
 
-  private async fetchWithAuthFallback(url: string, apiKey?: string, signal?: AbortSignal): Promise<{ content: string, finalUrl: string }> {
+  private async fetchWithAuthFallback(url: string, apiKey?: string, signal?: AbortSignal, proxyUrl?: string): Promise<{ content: string, finalUrl: string }> {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       'Accept': 'application/json' 
@@ -446,11 +449,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       if (useKey && apiKey) {
         currentHeaders['Authorization'] = `apiKey ${apiKey}`;
       }
-      return fetch(url, { method: 'GET', headers: currentHeaders, signal });
+      const actualUrl = proxyUrl ? proxyUrl + encodeURIComponent(url) : url;
+      return fetch(actualUrl, { method: 'GET', headers: currentHeaders, signal });
     };
 
     let response: Response;
-    if (apiKey) {
+    if (apiKey && !proxyUrl) {
       response = await fetchAttempt(true);
       if (response.status === 401 || response.status === 403) {
         response = await fetchAttempt(false);
@@ -474,8 +478,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   }
 
   private async resolveConformanceUrl(url: string, apiKey?: string, signal?: AbortSignal): Promise<{ content: string, finalUrl: string }> {
-    const effectiveKey = apiKey || await this.determineApiKeyForUrl(url);
-    const { content, finalUrl } = await this.fetchWithAuthFallback(url, effectiveKey, signal);
+    const provider = await this.determineProviderForUrl(url);
+    const effectiveKey = apiKey || this.providerApiKey(provider);
+    const proxyUrl = this.providerProxyUrl(provider);
+    const { content, finalUrl } = await this.fetchWithAuthFallback(url, effectiveKey, signal, proxyUrl);
 
     try {
       JSON.parse(content);
@@ -490,7 +496,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     }
 
     if (fixedUrl !== finalUrl) {
-      const retry = await this.fetchWithAuthFallback(fixedUrl, effectiveKey, signal);
+      const retry = await this.fetchWithAuthFallback(fixedUrl, effectiveKey, signal, proxyUrl);
       try {
         JSON.parse(retry.content);
         return retry; 
@@ -502,7 +508,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     throw new Error(`The URL ${url} returned HTML, and no JSON endpoint could be determined.`);
   }
 
-  private async determineApiKeyForUrl(url: string): Promise<string | undefined> {
+  private async determineProviderForUrl(url: string): Promise<RemoteSchemaProviderConfig | undefined> {
     try {
       const providers = await this.providerStoreService.loadProviders();
       const targetHost = new URL(url).hostname.toLowerCase();
@@ -510,18 +516,58 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       const matchedProvider = providers.find(p => {
         try {
           const sourceUrl = p.domainBase || p.baseUrl;
-          const providerHost = new URL(sourceUrl).hostname.toLowerCase();
-          return targetHost.includes(providerHost) || providerHost.includes(targetHost);
+          const providerHost = new URL(/^https?:\/\//i.test(sourceUrl) ? sourceUrl : `https://${sourceUrl}`).hostname.toLowerCase();
+          const domainHost = sourceUrl.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '').toLowerCase();
+          return targetHost.includes(providerHost) || providerHost.includes(targetHost) || targetHost.includes(domainHost);
         } catch { return false; }
       });
 
-      if (matchedProvider && matchedProvider.apiKey) {
-        return matchedProvider.apiKey;
-      }
+      return matchedProvider;
     } catch (e) {
-      console.error("Error determining API key for URL", e);
+      console.error("Error determining provider for URL", e);
     }
     return undefined;
+  }
+
+  private providerApiKey(provider?: RemoteSchemaProviderConfig): string | undefined {
+    const accessMode = provider?.accessMode || (provider?.apiKey ? 'apiKey' : 'dataverseProxy');
+    return accessMode === 'apiKey' ? provider?.apiKey : undefined;
+  }
+
+  private providerProxyUrl(provider?: RemoteSchemaProviderConfig): string | undefined {
+    const accessMode = provider?.accessMode || (provider?.apiKey ? 'apiKey' : 'dataverseProxy');
+    if (accessMode !== 'dataverseProxy') return undefined;
+    const baseUrl = provider?.dataverseProxyBaseUrl || this.deriveDataverseProxyBaseUrl(provider?.domainBase || provider?.baseUrl || '');
+    return `${baseUrl.replace(/\/+$/, '')}/api/arp/cedarResourceProxy?url=`;
+  }
+
+  private deriveDataverseProxyBaseUrl(value: string): string {
+    const trimmed = value.trim();
+    if (!trimmed) return 'https://repo.researchdata.hu';
+    try {
+      const url = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`);
+      const parts = url.hostname.split('.');
+      const first = parts[0]?.toLowerCase();
+      if (first === 'schema') {
+        parts[0] = 'repo';
+      } else if (['cedar', 'resource', 'open', 'openview'].includes(first)) {
+        parts.shift();
+        if (parts[0]?.toLowerCase() === 'schema') {
+          parts[0] = 'repo';
+        } else {
+          parts.unshift('repo');
+        }
+      } else if (first !== 'repo') {
+        parts.unshift('repo');
+      }
+      url.hostname = parts.join('.');
+      url.pathname = '';
+      url.search = '';
+      url.hash = '';
+      return url.origin;
+    } catch {
+      return trimmed;
+    }
   }
 
   public async importFromUrl(url: string, progress: TaskProgress): Promise<string> {
@@ -552,13 +598,15 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     
     try {
       progress.report({ message: 'Resolving access...', work: { done: 10, total: 100 } });
-      const apiKey = await this.determineApiKeyForUrl(url);
+      const provider = await this.determineProviderForUrl(url);
+      const apiKey = this.providerApiKey(provider);
+      const proxyUrl = this.providerProxyUrl(provider);
       
       pendingSchema.statusMessage = 'Downloading schema...';
       this.onDidChangeSchemasEmitter.fire();
       progress.report({ message: 'Downloading...', work: { done: 30, total: 100 } });
 
-      const { content, finalUrl } = await this.fetchWithAuthFallback(url, apiKey, controller.signal);
+      const { content, finalUrl } = await this.fetchWithAuthFallback(url, apiKey, controller.signal, proxyUrl);
 
       try { JSON.parse(content); } catch (e) {
         throw new Error('The URL returned invalid content (likely HTML instead of JSON).');

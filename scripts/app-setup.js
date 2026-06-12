@@ -12,6 +12,7 @@
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const { ensureProfileStorage } = require('metadata-profile-core');
 
 // --- CENTRALIZED CONFIGURATION ---
 const APP_FOLDER_NAME = '.aroma'; 
@@ -94,35 +95,18 @@ class AppSetup {
         // 1. Resolve Paths
         const userHome = os.homedir();
         const aromaRootPath = path.join(userHome, APP_FOLDER_NAME);
-        const schemasRoot = path.join(aromaRootPath, 'metadata-schemas');
 
         const paths = {
-            root: aromaRootPath,
-            schemas: schemasRoot,
-            cedarRoot: path.join(schemasRoot, 'cedar'),
-            roCrateRoot: path.join(schemasRoot, 'ro-crate'),
-            schemaIndex: path.join(aromaRootPath, METADATA_SCHEMA_INDEX_FILENAME)
+            root: aromaRootPath
         };
 
         console.log(`[AppSetup] Enforcing root directory: ${paths.root}`);
 
         // 2. Create Directories & Base Files
         try {
-            if (!fs.existsSync(paths.root)) fs.mkdirSync(paths.root, { recursive: true });
-            if (!fs.existsSync(paths.schemas)) fs.mkdirSync(paths.schemas, { recursive: true });
-            
-            if (!fs.existsSync(paths.cedarRoot)) fs.mkdirSync(paths.cedarRoot, { recursive: true });
-            if (!fs.existsSync(paths.roCrateRoot)) fs.mkdirSync(paths.roCrateRoot, { recursive: true });
-
-            // Seed the central schema index file if it doesn't exist
-            if (!fs.existsSync(paths.schemaIndex)) {
-                const defaultIndex = {
-                    profiles: [],
-                    conformsToIndex: {}
-                };
-                fs.writeFileSync(paths.schemaIndex, JSON.stringify(defaultIndex, null, 4), 'utf8');
-                console.log(`[AppSetup] Initialized empty schema index at: ${METADATA_SCHEMA_INDEX_FILENAME}`);
-            }
+            process.env.AROMA_METADATA_SCHEMA_INDEX_FILE = METADATA_SCHEMA_INDEX_FILENAME;
+            process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME;
+            ensureProfileStorage(paths.root);
 
             console.log('[AppSetup] Filesystem verified.');
         } catch (error) {
