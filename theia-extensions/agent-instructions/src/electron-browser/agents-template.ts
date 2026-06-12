@@ -47,9 +47,12 @@ Operational guardrails and metadata-quality rules are defined in the step docs i
 3. For RO-Crate metadata authoring, always check and offer schemas/profiles
    because they guide FAIR metadata creation for both users and agents.
 4. When no active \`conformsTo\` profile exists, offer available local metadata
-   profiles and relevant well-known schemas. List every available local profile
-   by name, version, and \`conformsTo\` URL before offering choices to provide
-   another schema URL or explicitly continue without a profile.
+   profiles first, then browse configured remote CEDAR providers with
+   \`list_remote_schema_tree\` and offer unimported leaf templates in a simplified
+   folder tree. After the user selects a remote template, import it with
+   \`import_well_known_schema\` using \`templateIdOrUrl=<selected templateId>\`,
+   then associate the returned \`profile.conformsTo\` with the crate using
+   \`update_profile_conforms_to(write=true)\`.
 
 <!-- AROMA_MANAGED_SECTION_END: Users may add custom rules below this line. Do not modify lines above. -->
 `;

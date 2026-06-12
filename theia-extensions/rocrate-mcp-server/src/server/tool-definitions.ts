@@ -168,6 +168,33 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
+    name: 'list_remote_schema_tree',
+    description:
+      'Browse configured CEDAR providers as a folder tree and list only unimported template leaves for profile selection.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Optional case-insensitive filter matched against folder/template paths.',
+        },
+        maxDepth: {
+          type: 'number',
+          description: 'Maximum CEDAR folder depth to traverse. Default 4, maximum 8.',
+        },
+        maxNodes: {
+          type: 'number',
+          description: 'Maximum folders/templates to return. Default 200, maximum 1000.',
+        },
+        rootPath: {
+          type: 'string',
+          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+        },
+        provider: { type: 'object' },
+      },
+    },
+  },
+  {
     name: 'import_well_known_schema',
     description:
       'Import a well-known CEDAR schema by name/template URL/conformsTo into the shared metadata profile store.',

@@ -375,6 +375,7 @@ const { runOntologyTool } = createOntologyHelpers()
 const {
   resolveMissingMetadataProfiles,
   listWellKnownSchemas,
+  listRemoteSchemaTree,
   importWellKnownSchema,
   listMetadataProfiles,
   importMetadataProfile,
@@ -573,6 +574,7 @@ const handleToolCall = createToolDispatcher({
   asRoCrate,
   resolveMissingMetadataProfiles,
   listWellKnownSchemas,
+  listRemoteSchemaTree,
   importWellKnownSchema,
   listMetadataProfiles,
   importMetadataProfile,

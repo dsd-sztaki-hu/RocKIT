@@ -577,6 +577,10 @@ async function run() {
       'list_well_known_schemas tool should exist',
     )
     assert.ok(
+      toolNames.includes('list_remote_schema_tree'),
+      'list_remote_schema_tree tool should exist',
+    )
+    assert.ok(
       toolNames.includes('import_well_known_schema'),
       'import_well_known_schema tool should exist',
     )

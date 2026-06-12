@@ -134,6 +134,7 @@ type DispatcherDeps = {
     params?: Record<string, unknown>,
   ) => Promise<unknown>
   listWellKnownSchemas: (params: Record<string, unknown>) => Promise<Record<string, unknown>>
+  listRemoteSchemaTree: (params: Record<string, unknown>) => Promise<Record<string, unknown>>
   importWellKnownSchema: (params: Record<string, unknown>) => Promise<Record<string, unknown>>
   listMetadataProfiles: (params: Record<string, unknown>) => Record<string, unknown>
   importMetadataProfile: (params: Record<string, unknown>) => Promise<Record<string, unknown>>
@@ -223,6 +224,7 @@ export function createToolDispatcher(deps: DispatcherDeps) {
     asRoCrate,
     resolveMissingMetadataProfiles,
     listWellKnownSchemas,
+    listRemoteSchemaTree,
     importWellKnownSchema,
     listMetadataProfiles,
     importMetadataProfile,
@@ -429,6 +431,14 @@ export function createToolDispatcher(deps: DispatcherDeps) {
 
       if (toolName === 'list_well_known_schemas') {
         const result = await runInTelemetryContext(async () => listWellKnownSchemas(params))
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
+      }
+
+      if (toolName === 'list_remote_schema_tree') {
+        const result = await runInTelemetryContext(async () => listRemoteSchemaTree(params))
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, result)
         }

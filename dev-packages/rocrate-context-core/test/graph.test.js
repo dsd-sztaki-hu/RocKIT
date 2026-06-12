@@ -59,6 +59,26 @@ test('SchemaLoader parses JSON-LD content with mock fetch', async () => {
   assert.equal(schema['@graph'][0]['@id'], 'schema:Thing')
 })
 
+test('SchemaLoader parses Turtle content with vendored parser', async () => {
+  const ttl = [
+    '@prefix schema: <https://schema.org/> .',
+    '@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .',
+    '@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .',
+    'schema:Thing rdf:type rdfs:Class .',
+    ''
+  ].join('\n')
+
+  const loader = new SchemaLoader(async () =>
+    new Response(ttl, {
+      headers: { 'Content-Type': 'text/turtle' }
+    })
+  )
+
+  const schema = await loader.load('https://example.org/schema.ttl')
+  assert.equal(schema['@graph'][0]['@id'], 'schema:Thing')
+  assert.equal(schema['@graph'][0]['@type'], 'rdfs:Class')
+})
+
 test('SchemaResolver forceLoad uses registered schemas and spec gating', async () => {
   const loader = new SchemaLoader(async () =>
     new Response(

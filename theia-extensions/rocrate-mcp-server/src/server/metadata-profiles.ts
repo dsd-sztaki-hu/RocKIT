@@ -6,9 +6,12 @@ import {
   importCedarTemplateContent,
   importCedarTemplateFromUrl,
   importRemoteSchema,
+  listCedarFolder,
   listLocalProfiles,
+  loadCedarProviders,
   listRemoteSchemas,
   resolveMissingConformsToUrls,
+  type RemoteCedarResource,
   type CedarProvider,
 } from 'metadata-profile-core'
 import type { RoCrate } from '../core/types'
@@ -59,6 +62,36 @@ function parseProviders(params: Record<string, unknown>): CedarProvider[] {
   return providers.length > 0 ? providers : defaultCedarProviders()
 }
 
+function parsePositiveInteger(value: unknown, fallback: number, max: number): number {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return fallback
+  }
+  return Math.min(Math.floor(numeric), max)
+}
+
+async function resolveProvider(params: Record<string, unknown>): Promise<CedarProvider> {
+  const explicitProvider = parseProvider(params)
+  if (explicitProvider) {
+    return explicitProvider
+  }
+  const listing = await loadCedarProviders(parseRootPath(params))
+  return listing.providers[0] ?? defaultCedarProvider()
+}
+
+type RemoteSchemaTreeNode = {
+  type: 'folder' | 'template'
+  name: string
+  path: string
+  id: string
+  folderId?: string
+  templateId?: string
+  templateUrl?: string
+  conformsTo?: string
+  children?: RemoteSchemaTreeNode[]
+  truncated?: boolean
+}
+
 export function createMetadataProfileHandlers(deps: MetadataProfilesDeps) {
   async function resolveMissingMetadataProfiles(
     crate: RoCrate,
@@ -80,7 +113,7 @@ export function createMetadataProfileHandlers(deps: MetadataProfilesDeps) {
   }
 
   async function listWellKnownSchemas(params: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const provider = parseProvider(params) ?? defaultCedarProvider()
+    const provider = await resolveProvider(params)
     const query = typeof params.query === 'string' ? params.query : undefined
     const result = await listRemoteSchemas(provider, query, parseRootPath(params))
     return {
@@ -88,6 +121,109 @@ export function createMetadataProfileHandlers(deps: MetadataProfilesDeps) {
       storage: result.storage,
       count: result.schemas.length,
       schemas: result.schemas,
+    }
+  }
+
+  async function listRemoteSchemaTree(params: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const provider = await resolveProvider(params)
+    const rootPath = parseRootPath(params)
+    const maxDepth = parsePositiveInteger(params.maxDepth, 4, 8)
+    const maxNodes = parsePositiveInteger(params.maxNodes, 200, 1000)
+    const query = typeof params.query === 'string' && params.query.trim() !== ''
+      ? params.query.trim().toLowerCase()
+      : undefined
+    let visited = 0
+    let skippedImported = 0
+    let truncated = false
+
+    const matchesQuery = (path: string, resource: RemoteCedarResource): boolean => {
+      if (!query) {
+        return true
+      }
+      return path.toLowerCase().includes(query) || resource.name.toLowerCase().includes(query)
+    }
+
+    const walkFolder = async (
+      folderId: string | undefined,
+      pathParts: string[],
+      depth: number,
+    ): Promise<{ nodes: RemoteSchemaTreeNode[]; folderId: string }> => {
+      const result = await listCedarFolder({ provider, folderId, rootPath })
+      const nodes: RemoteSchemaTreeNode[] = []
+      for (const resource of result.resources) {
+        if (visited >= maxNodes) {
+          truncated = true
+          break
+        }
+        const resourcePathParts = [...pathParts, resource.name]
+        const resourcePath = resourcePathParts.join(' / ')
+        if (resource.resourceType === 'template') {
+          if (resource.alreadyImported) {
+            skippedImported += 1
+            continue
+          }
+          if (!matchesQuery(resourcePath, resource)) {
+            continue
+          }
+          visited += 1
+          nodes.push({
+            type: 'template',
+            name: resource.name,
+            path: resourcePath,
+            id: resource.id,
+            templateId: resource.id,
+            templateUrl: resource.id,
+            conformsTo: resource.conformsTo,
+          })
+          continue
+        }
+
+        if (depth >= maxDepth) {
+          visited += 1
+          nodes.push({
+            type: 'folder',
+            name: resource.name,
+            path: resourcePath,
+            id: resource.id,
+            folderId: resource.id,
+            children: [],
+            truncated: true,
+          })
+          truncated = true
+          continue
+        }
+
+        const child = await walkFolder(resource.id, resourcePathParts, depth + 1)
+        if (child.nodes.length === 0 && query) {
+          continue
+        }
+        if (child.nodes.length === 0) {
+          continue
+        }
+        visited += 1
+        nodes.push({
+          type: 'folder',
+          name: resource.name,
+          path: resourcePath,
+          id: resource.id,
+          folderId: resource.id,
+          children: child.nodes,
+        })
+      }
+      return { nodes, folderId: result.folderId }
+    }
+
+    const tree = await walkFolder(undefined, [], 1)
+    return {
+      provider,
+      rootFolderId: tree.folderId,
+      maxDepth,
+      maxNodes,
+      truncated,
+      skippedImported,
+      count: visited,
+      tree: tree.nodes,
+      note: 'Only unimported template leaves are listed. Import a selected template by calling import_well_known_schema with templateIdOrUrl=<templateId>, then associate profile.conformsTo with update_profile_conforms_to(write=true).',
     }
   }
 
@@ -100,11 +236,11 @@ export function createMetadataProfileHandlers(deps: MetadataProfilesDeps) {
           : typeof params.conformsTo === 'string'
             ? params.conformsTo.trim()
             : ''
-    const provider = parseProvider(params)
+    const provider = await resolveProvider(params)
     if (templateIdOrUrl === '' && typeof params.name === 'string') {
       const query = params.name.trim()
       if (query !== '') {
-        const remote = await listRemoteSchemas(provider ?? defaultCedarProvider(), query, parseRootPath(params))
+        const remote = await listRemoteSchemas(provider, query, parseRootPath(params))
         const lower = query.toLowerCase()
         const match =
           remote.schemas.find((schema) => schema.name.toLowerCase() === lower) ??
@@ -198,6 +334,7 @@ export function createMetadataProfileHandlers(deps: MetadataProfilesDeps) {
   return {
     resolveMissingMetadataProfiles,
     listWellKnownSchemas,
+    listRemoteSchemaTree,
     importWellKnownSchema,
     listMetadataProfiles,
     importMetadataProfile,
