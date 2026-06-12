@@ -407,11 +407,27 @@ async function run() {
               { name: 'title', id: 'http://purl.org/dc/terms/title', required: true },
               { name: 'author', id: 'http://purl.org/dc/terms/creator', required: true },
               {
+                name: 'datasetContact',
+                id: 'https://dataverse.org/schema/citation/datasetContact',
+                type: ['datasetContact'],
+                required: true,
+              },
+              {
                 name: 'subject',
                 id: 'http://purl.org/dc/terms/subject',
                 values: ['Computer and Information Science'],
               },
               { name: 'customTerm', id: 'https://example.org/vocab/customTerm' },
+            ],
+          },
+          datasetContact: {
+            inputs: [
+              { name: 'datasetContactName', id: 'https://dataverse.org/schema/citation/datasetContactName' },
+              {
+                name: 'datasetContactEmail',
+                id: 'https://dataverse.org/schema/citation/datasetContactEmail',
+                required: true,
+              },
             ],
           },
           File: {
@@ -479,8 +495,16 @@ async function run() {
             name: 'Root',
             title: 'Root dataset title',
             author: 'Example Author',
+            datasetContact: [{ '@id': '#dataset-contact-hun-ren-arp' }],
             hasPart: [],
             conformsTo: [{ '@id': profileUrl }],
+          },
+          {
+            '@id': '#dataset-contact-hun-ren-arp',
+            '@type': 'datasetContact',
+            name: 'HUN-REN ARP contact',
+            datasetContactName: 'HUN-REN ARP',
+            datasetContactEmail: 'contact@example.org',
           },
           {
             '@id': 'ro-crate-metadata.json',
@@ -620,6 +644,10 @@ async function run() {
       toolNames.includes('download_rocrate_from_dataverse'),
       'download_rocrate_from_dataverse tool should exist',
     )
+    assert.ok(
+      toolNames.includes('create_default_rocrate'),
+      'create_default_rocrate tool should exist',
+    )
     assert.ok(toolNames.includes('get_rocrate_context'), 'get_rocrate_context tool should exist')
     assert.ok(toolNames.includes('suggest_context_terms'), 'suggest_context_terms tool should exist')
     assert.ok(toolNames.includes('resolve_profile_schema'), 'resolve_profile_schema tool should exist')
@@ -648,6 +676,11 @@ async function run() {
       /outside AROMA, call open_aroma_for_local_file and include the returned aromaUrl/,
       'initialize instructions should require AROMA URL generation outside AROMA',
     )
+    assert.match(
+      initialize.result.instructions,
+      /offer create_default_rocrate/,
+      'initialize instructions should offer default RO-Crate creation when metadata is missing',
+    )
 
     const workflowDocResponse = await request('tools/call', {
       name: 'read_agent_workflow_doc',
@@ -656,6 +689,11 @@ async function run() {
     const workflowDocPayload = JSON.parse(workflowDocResponse.result.content[0].text)
     assert.equal(workflowDocPayload.name, 'rocrate_workflow.md')
     assert.match(workflowDocPayload.content, /# RO-Crate Agent Workflow/)
+    assert.match(
+      workflowDocPayload.content,
+      /create_default_rocrate/,
+      'workflow doc should mention default RO-Crate creation for directories without metadata',
+    )
     assert.match(
       workflowDocPayload.content,
       /call\s+`open_aroma_for_local_file`[\s\S]*returned `aromaUrl`/,
@@ -746,6 +784,58 @@ async function run() {
         `http://127.0.0.1:${dashboardPort}/local-file/events?id=`,
       ),
       'open_aroma_for_local_file should include the matching SSE URL',
+    )
+
+    const defaultCrateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'rocrate-mcp-default-'))
+    fs.mkdirSync(path.join(defaultCrateRoot, 'data'))
+    fs.writeFileSync(path.join(defaultCrateRoot, 'data', 'example.txt'), 'hello\n', 'utf8')
+    fs.writeFileSync(path.join(defaultCrateRoot, 'ro-crate-preview.html'), '<html></html>', 'utf8')
+    const defaultCrateResponse = await request('tools/call', {
+      name: 'create_default_rocrate',
+      arguments: {
+        directoryPath: defaultCrateRoot,
+      },
+    })
+    assert.ok(defaultCrateResponse.result, 'create_default_rocrate should succeed')
+    const defaultCratePayload = JSON.parse(defaultCrateResponse.result.content[0].text)
+    const defaultCratePath = path.join(defaultCrateRoot, 'ro-crate-metadata.json')
+    const defaultIgnoredPath = path.join(defaultCrateRoot, '.aroma', 'ignored.txt')
+    assert.equal(defaultCratePayload.writeApplied, true)
+    assert.equal(defaultCratePayload.cratePath, defaultCratePath)
+    assert.equal(defaultCratePayload.ignoredFilePath, defaultIgnoredPath)
+    assert.ok(fs.existsSync(defaultCratePath), 'Default crate metadata should be written')
+    assert.ok(fs.existsSync(defaultIgnoredPath), 'Default ignored.txt should be written')
+    const defaultCrate = JSON.parse(fs.readFileSync(defaultCratePath, 'utf8'))
+    assert.ok(
+      defaultCrate['@graph'].some((entity) => entity['@id'] === 'data/example.txt'),
+      'Default crate should include scanned file entity',
+    )
+    assert.ok(
+      !defaultCrate['@graph'].some((entity) => entity['@id'] === 'ro-crate-preview.html'),
+      'Default crate should omit technical preview file',
+    )
+    const defaultValidateResponse = await request('tools/call', {
+      name: 'validate_crate',
+      arguments: {
+        cratePath: defaultCratePath,
+        strict: true,
+      },
+    })
+    const defaultValidatePayload = JSON.parse(defaultValidateResponse.result.content[0].text)
+    assert.equal(
+      defaultValidatePayload.summary.errors,
+      0,
+      'Generated default crate should validate cleanly',
+    )
+    const defaultCrateOverwriteResponse = await request('tools/call', {
+      name: 'create_default_rocrate',
+      arguments: {
+        directoryPath: defaultCrateRoot,
+      },
+    })
+    assert.ok(
+      defaultCrateOverwriteResponse.error,
+      'create_default_rocrate should refuse overwrite by default',
     )
 
     const localReadSummaryResponse = await request('tools/call', {
@@ -1413,10 +1503,57 @@ async function run() {
     assert.ok(Array.isArray(suggestContextPayload.missingTerms))
     assert.ok(typeof suggestContextPayload.mergeContext === 'object')
 
+    const profileValidationCratePath = path.join(tempRoot, 'profile-validation-crate.json')
+    fs.writeFileSync(
+      profileValidationCratePath,
+      `${JSON.stringify(
+        {
+          '@context': [
+            'https://w3id.org/ro/crate/1.1/context',
+            {
+              datasetContact: 'https://dataverse.org/schema/citation/datasetContact',
+              datasetContactEmail: 'https://dataverse.org/schema/citation/datasetContactEmail',
+              datasetContactName: 'https://dataverse.org/schema/citation/datasetContactName',
+            },
+          ],
+          '@graph': [
+            {
+              '@id': './',
+              '@type': 'Dataset',
+              name: 'Research data package',
+              title: 'Root dataset title',
+              author: 'Example Author',
+              datasetContact: [{ '@id': '#dataset-contact-hun-ren-arp' }],
+              hasPart: [],
+              conformsTo: [{ '@id': profileUrl }],
+              subject: ['Computer and Information Science'],
+            },
+            {
+              '@id': '#dataset-contact-hun-ren-arp',
+              '@type': 'datasetContact',
+              name: 'HUN-REN ARP contact',
+              datasetContactName: 'HUN-REN ARP',
+              datasetContactEmail: 'contact@example.org',
+            },
+            {
+              '@id': 'ro-crate-metadata.json',
+              '@type': 'CreativeWork',
+              name: 'RO-Crate metadata descriptor',
+              conformsTo: { '@id': 'https://w3id.org/ro/crate/1.1' },
+              about: { '@id': './' },
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    )
+
     const strictValidateResponse = await request('tools/call', {
       name: 'validate_crate',
       arguments: {
-        cratePath,
+        cratePath: profileValidationCratePath,
         strict: true,
       },
     })
@@ -1424,6 +1561,113 @@ async function run() {
     assert.equal(typeof strictValidatePayload.valid, 'boolean')
     assert.ok(Array.isArray(strictValidatePayload.errors))
     assert.ok(Array.isArray(strictValidatePayload.warnings))
+    assert.equal(strictValidatePayload.valid, true, 'baseline profiled crate should validate')
+
+    const crateMissingRootRequired = JSON.parse(
+      fs.readFileSync(profileValidationCratePath, 'utf8'),
+    )
+    const rootMissingTitle = crateMissingRootRequired['@graph'].find(
+      (entity) => entity['@id'] === './',
+    )
+    delete rootMissingTitle.title
+    fs.writeFileSync(
+      profileValidationCratePath,
+      `${JSON.stringify(crateMissingRootRequired, null, 2)}\n`,
+      'utf8',
+    )
+    const missingRootRequiredResponse = await request('tools/call', {
+      name: 'validate_crate',
+      arguments: {
+        cratePath: profileValidationCratePath,
+        strict: true,
+      },
+    })
+    const missingRootRequiredPayload = JSON.parse(
+      missingRootRequiredResponse.result.content[0].text,
+    )
+    assert.equal(missingRootRequiredPayload.valid, false)
+    assert.ok(
+      missingRootRequiredPayload.errors.some(
+        (message) =>
+          typeof message === 'string' &&
+          message.includes('Entity ./ is missing required property: title'),
+      ),
+      'validate_crate should honor input-level required fields on root profiled entities',
+    )
+
+    const crateMissingContactEmail = JSON.parse(
+      fs.readFileSync(profileValidationCratePath, 'utf8'),
+    )
+    const rootRestoredTitle = crateMissingContactEmail['@graph'].find(
+      (entity) => entity['@id'] === './',
+    )
+    rootRestoredTitle.title = 'Root dataset title'
+    const contactMissingEmail = crateMissingContactEmail['@graph'].find(
+      (entity) => entity['@id'] === '#dataset-contact-hun-ren-arp',
+    )
+    delete contactMissingEmail.datasetContactEmail
+    fs.writeFileSync(
+      profileValidationCratePath,
+      `${JSON.stringify(crateMissingContactEmail, null, 2)}\n`,
+      'utf8',
+    )
+    const missingContactStrictResponse = await request('tools/call', {
+      name: 'validate_crate',
+      arguments: {
+        cratePath: profileValidationCratePath,
+        strict: true,
+      },
+    })
+    const missingContactStrictPayload = JSON.parse(
+      missingContactStrictResponse.result.content[0].text,
+    )
+    assert.equal(missingContactStrictPayload.valid, false)
+    assert.ok(
+      missingContactStrictPayload.errors.some(
+        (message) =>
+          typeof message === 'string' &&
+          message.includes('Entity #dataset-contact-hun-ren-arp is missing required property: datasetContactEmail'),
+      ),
+      'validate_crate should enforce required fields on referenced compound entities',
+    )
+
+    const missingContactAllowMissingResponse = await request('tools/call', {
+      name: 'validate_crate',
+      arguments: {
+        cratePath: profileValidationCratePath,
+        profileRequiredMode: 'allow_missing',
+      },
+    })
+    const missingContactAllowMissingPayload = JSON.parse(
+      missingContactAllowMissingResponse.result.content[0].text,
+    )
+    assert.equal(missingContactAllowMissingPayload.valid, true)
+    assert.ok(
+      missingContactAllowMissingPayload.warnings.some(
+        (message) =>
+          typeof message === 'string' &&
+          message.includes('Entity #dataset-contact-hun-ren-arp is missing required property: datasetContactEmail'),
+      ),
+      'allow_missing should report referenced compound required fields as warnings',
+    )
+
+    contactMissingEmail.datasetContactEmail = 'contact@example.org'
+    fs.writeFileSync(
+      profileValidationCratePath,
+      `${JSON.stringify(crateMissingContactEmail, null, 2)}\n`,
+      'utf8',
+    )
+    const restoredContactStrictResponse = await request('tools/call', {
+      name: 'validate_crate',
+      arguments: {
+        cratePath: profileValidationCratePath,
+        strict: true,
+      },
+    })
+    const restoredContactStrictPayload = JSON.parse(
+      restoredContactStrictResponse.result.content[0].text,
+    )
+    assert.equal(restoredContactStrictPayload.valid, true)
 
     const crateWithInvalidSubject = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
     const rootWithInvalidSubject = crateWithInvalidSubject['@graph'].find(
