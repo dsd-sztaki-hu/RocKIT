@@ -12,11 +12,10 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { RoCrateHtmlGenerator, withDefaultIgnoredEntries } from 'aroma2-common/lib/browser'
 import {
   AROMA_IGNORE_DIR,
   AROMA_IGNORE_FILE,
-  DEFAULT_IGNORED_ENTRIES,
 } from 'aroma2-common/lib/common/ro-crate-technical-files'
 import { EditorWidget } from '@theia/editor/lib/browser'
 import { SaveableService } from '@theia/core/lib/browser/saveable-service'
@@ -157,7 +156,7 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
   }
 
   protected async persistIgnoredEntries(rootUri: URI, entries: readonly string[]): Promise<void> {
-    const normalized = this.withDefaultIgnoredEntries(entries)
+    const normalized = withDefaultIgnoredEntries(entries)
     const aromaUri = rootUri.resolve(AROMA_IGNORE_DIR)
     if (!(await this.fileService.exists(aromaUri))) {
       await this.fileService.createFolder(aromaUri)
@@ -167,47 +166,6 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
     await this.fileService.create(ignoredUri, payload, { overwrite: true })
     this.appStateService.ignoreList = normalized
     this.appStateService.setIgnoreListSnapshot(normalized)
-  }
-
-  protected withDefaultIgnoredEntries(entries: readonly string[]): string[] {
-    const normalizedEntries = entries
-      .map((entry) => this.normalizeIgnoredEntry(entry))
-      .filter((entry): entry is string => Boolean(entry))
-
-    const defaults = DEFAULT_IGNORED_ENTRIES.map((entry) =>
-      this.normalizeIgnoredEntry(entry),
-    ).filter((entry): entry is string => Boolean(entry))
-
-    const existingPositive = new Set(
-      normalizedEntries.filter((entry) => !entry.startsWith('!')),
-    )
-    const missingDefaults = defaults.filter((entry) => !existingPositive.has(entry))
-    if (!missingDefaults.length) {
-      return normalizedEntries
-    }
-    return [...missingDefaults, ...normalizedEntries]
-  }
-
-  protected normalizeIgnoredEntry(value: string): string | undefined {
-    const trimmed = (value || '').trim()
-    if (!trimmed || trimmed.startsWith('#')) {
-      return undefined
-    }
-
-    const negated = trimmed.startsWith('!')
-    let normalized = negated ? trimmed.slice(1) : trimmed
-    normalized = normalized.replace(/\\/g, '/')
-    normalized = normalized.replace(/^\.\//, '')
-    normalized = normalized.replace(/^\/+/, '')
-    normalized = normalized.replace(/\/{2,}/g, '/')
-    const isDirectory = normalized.endsWith('/')
-    if (isDirectory) {
-      normalized = normalized.replace(/\/+$/, '')
-    }
-    if (!normalized) {
-      return undefined
-    }
-    return `${negated ? '!' : ''}${normalized}${isDirectory ? '/' : ''}`.toLowerCase()
   }
 
   registerMenus(menus: MenuModelRegistry): void {

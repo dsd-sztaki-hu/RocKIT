@@ -47,6 +47,9 @@ type DispatcherDeps = {
   summarizeDataverseDownloadPayload: (
     payload: Record<string, unknown>,
   ) => Record<string, unknown>
+  runCreateDefaultRoCrate: (
+    params: Record<string, unknown>,
+  ) => Promise<Record<string, unknown>>
   loadCrateFromParams: (params: Record<string, unknown>) => {
     mode: 'local' | 'remote'
     crate: any
@@ -199,6 +202,7 @@ export function createToolDispatcher(deps: DispatcherDeps) {
     parseDataverseDownloadParams,
     runDataverseDownload,
     summarizeDataverseDownloadPayload,
+    runCreateDefaultRoCrate,
     loadCrateFromParams,
     parseResponseMode,
     summarizeCratePayload,
@@ -535,6 +539,27 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         return textResult(
           summarizeCratePayload(loaded.crate, loaded.mode, loaded.cratePath),
         )
+      }
+
+      if (toolName === 'create_default_rocrate') {
+        const payload = await runCreateDefaultRoCrate(params)
+        const responseMode = parseResponseMode(params, 'summary')
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, payload)
+        }
+        if (responseMode === 'full') {
+          return textResult(payload)
+        }
+        return textResult({
+          ok: payload.ok,
+          mode: payload.mode,
+          writeApplied: payload.writeApplied,
+          directoryPath: payload.directoryPath,
+          cratePath: payload.cratePath,
+          ignoredFilePath: payload.ignoredFilePath,
+          summary: payload.summary,
+          crateSummary: payload.crateSummary,
+        })
       }
 
       if (toolName === 'apply_changes') {

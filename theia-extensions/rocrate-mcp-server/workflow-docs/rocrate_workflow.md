@@ -16,6 +16,13 @@ Use MCP `rocrate` tools for metadata edits and validation. Do not edit
 `ro-crate-metadata.json` directly unless the user explicitly asks for raw JSON
 editing and accepts the risk.
 
+If the user starts work in a local directory and `ro-crate-metadata.json` is not
+present, offer to initialize the directory with `create_default_rocrate` before
+other metadata work. Explain that it scans the directory, writes
+`ro-crate-metadata.json`, and bootstraps `.aroma/ignored.txt`. Do not overwrite
+an existing metadata file unless the user explicitly asks and the tool call uses
+`overwrite=true`.
+
 ## Managed Workflow
 
 Before each step, output a brief summary after reading the referenced workflow

@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import * as fs from 'node:fs'
 import * as path from 'node:path'
+import {
+  createDefaultRoCrateWorkspace,
+  type DefaultRoCrateFileContent,
+  type DefaultRoCrateWorkspaceAdapter,
+} from 'aroma2-common/lib/common/default-ro-crate'
 import {
   applyChangeSet,
   normalizeCrate,
@@ -323,6 +329,123 @@ const {
   collectProfileUrls,
 })
 
+/**
+ * Creates a default RO-Crate for a local directory using the shared bootstrap module.
+ */
+async function runCreateDefaultRoCrate(
+  params: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const directoryPath = resolveDefaultRoCrateDirectory(params)
+  const cratePath = path.join(directoryPath, 'ro-crate-metadata.json')
+  const overwrite = params.overwrite === true
+  if (fs.existsSync(cratePath) && !overwrite) {
+    throw new Error(
+      `ro-crate-metadata.json already exists: ${cratePath}. Re-run with overwrite=true to replace it.`,
+    )
+  }
+
+  const result = await createDefaultRoCrateWorkspace(
+    createNodeDefaultRoCrateAdapter(directoryPath),
+    {
+      writeIgnoredFile: params.writeIgnoredFile !== false,
+    },
+  )
+  const indent = typeof params.indent === 'number' ? params.indent : 2
+
+  let ignoredFilePath: string | undefined
+  if (result.ignoredFile) {
+    const ignoredDirectoryPath = path.join(directoryPath, result.ignoredFile.directoryPath)
+    ignoredFilePath = path.join(directoryPath, result.ignoredFile.filePath)
+    fs.mkdirSync(ignoredDirectoryPath, { recursive: true })
+    fs.writeFileSync(ignoredFilePath, result.ignoredFile.payload, 'utf8')
+  }
+
+  writeCrateAtomic(cratePath, result.crate as RoCrate, indent)
+  const crate = normalizeCrate(result.crate)
+  return {
+    ok: true,
+    mode: 'local',
+    writeApplied: true,
+    directoryPath,
+    cratePath,
+    ignoredFilePath,
+    summary: result.summary,
+    crateSummary: summarizeCratePayload(crate, 'local', cratePath),
+    crate,
+  }
+}
+
+function resolveDefaultRoCrateDirectory(params: Record<string, unknown>): string {
+  const directoryPath =
+    typeof params.directoryPath === 'string' && params.directoryPath.trim() !== ''
+      ? path.resolve(params.directoryPath)
+      : undefined
+  if (directoryPath) {
+    return assertExistingDirectory(directoryPath)
+  }
+
+  if (typeof params.cratePath === 'string' && params.cratePath.trim() !== '') {
+    const resolved = path.resolve(params.cratePath)
+    if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
+      return resolved
+    }
+    if (path.basename(resolved) === 'ro-crate-metadata.json') {
+      return assertExistingDirectory(path.dirname(resolved))
+    }
+    return assertExistingDirectory(resolved)
+  }
+
+  return assertExistingDirectory(path.dirname(resolveCratePath()))
+}
+
+function assertExistingDirectory(directoryPath: string): string {
+  if (!fs.existsSync(directoryPath)) {
+    throw new Error(`Directory does not exist: ${directoryPath}`)
+  }
+  if (!fs.statSync(directoryPath).isDirectory()) {
+    throw new Error(`Path is not a directory: ${directoryPath}`)
+  }
+  return directoryPath
+}
+
+function createNodeDefaultRoCrateAdapter(rootPath: string): DefaultRoCrateWorkspaceAdapter {
+  const normalizePath = (value: string): string => value.replace(/\\/g, '/')
+  const absolutePathFor = (relativePath: string): string =>
+    relativePath ? path.join(rootPath, relativePath) : rootPath
+
+  return {
+    rootName: path.basename(rootPath) || './',
+    listChildren: async (relativeDirectoryPath: string) => {
+      const directoryPath = absolutePathFor(relativeDirectoryPath)
+      return fs
+        .readdirSync(directoryPath, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() || entry.isFile())
+        .map((entry) => {
+          const absoluteChildPath = path.join(directoryPath, entry.name)
+          const stat = fs.statSync(absoluteChildPath)
+          return {
+            name: entry.name,
+            relativePath: normalizePath(path.relative(rootPath, absoluteChildPath)),
+            kind: entry.isDirectory() ? 'directory' as const : 'file' as const,
+            size: stat.size,
+            mtimeMs: stat.mtimeMs,
+          }
+        })
+    },
+    readFileContent: async (relativeFilePath: string) =>
+      fs.readFileSync(absolutePathFor(relativeFilePath)),
+    hashContent: (content: DefaultRoCrateFileContent) =>
+      createHash('md5').update(content).digest('hex'),
+    readTextFile: async (relativeFilePath: string) => {
+      const filePath = absolutePathFor(relativeFilePath)
+      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+        return undefined
+      }
+      return fs.readFileSync(filePath, 'utf8')
+    },
+  }
+}
+
 const { collectDeclaredContextTerms, applyContextModePatch, buildContextTermSuggestion } =
   createContextReconciliationHelpers({
     defaultContextKnownTerms: DEFAULT_CONTEXT_KNOWN_TERMS,
@@ -549,6 +672,7 @@ const handleToolCall = createToolDispatcher({
   parseDataverseDownloadParams,
   runDataverseDownload,
   summarizeDataverseDownloadPayload,
+  runCreateDefaultRoCrate,
   loadCrateFromParams,
   parseResponseMode,
   summarizeCratePayload,
@@ -604,6 +728,7 @@ function getMcpServerInstructions(): string {
   return `Before RO-Crate editing/advice, call read_agent_workflow_doc with name "rocrate_workflow.md" and follow it.
 Read the referenced step doc before each workflow step.
 Primary artifact is ro-crate-metadata.json.
+If no ro-crate-metadata.json exists in a local directory, offer create_default_rocrate before other metadata work; never overwrite existing metadata unless explicitly requested with overwrite=true.
 Prefer RO-Crate tools over ad-hoc edits.
 The RO-Crate MCP dashboard is available at ${getDashboardUrl()}; open it when the user asks to inspect MCP activity or dashboard telemetry.
 First edit step is get_rocrate_context to discover active profile constraints; do not start with web search.

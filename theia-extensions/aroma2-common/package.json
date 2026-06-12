@@ -28,6 +28,7 @@
   "scripts": {
     "build": "tsc -b",
     "clean": "rimraf lib tsconfig.tsbuildinfo",
+    "test": "yarn build && node test/default-ro-crate.test.js",
     "watch": "tsc -b -w"
   },
   "theiaExtensions": [

@@ -362,6 +362,38 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
+    name: 'create_default_rocrate',
+    description:
+      'Create an initial ro-crate-metadata.json for a directory that does not yet have one. Scans files, bootstraps .aroma/ignored.txt, and writes metadata atomically.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        directoryPath: {
+          type: 'string',
+          description: 'Directory to scan and initialize as an RO-Crate.',
+        },
+        cratePath: {
+          type: 'string',
+          description:
+            'Alternative target. May be a directory or a ro-crate-metadata.json path; the containing directory is initialized.',
+        },
+        overwrite: {
+          type: 'boolean',
+          description:
+            'If true, replace an existing ro-crate-metadata.json. Default false.',
+        },
+        writeIgnoredFile: {
+          type: 'boolean',
+          description:
+            'If false, skip writing .aroma/ignored.txt. Default true.',
+        },
+        indent: { type: 'number' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'apply_changes',
     description:
       'Apply compact change-set to crate. By default, local mode persists changes. Set dryRun=true to preview without writing. cratePath must be the ro-crate-metadata.json location to write to in local mode; in remote mode, cratePath is ignored and crate payload is required.',

@@ -5,14 +5,12 @@ import { injectable } from '@theia/core/shared/inversify'
 import type { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceCommands } from '@theia/workspace/lib/browser'
 import type { WorkspaceService } from '@theia/workspace/lib/browser'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
 import {
-  AROMA_IGNORE_DIR,
-  AROMA_IGNORE_FILE,
-  DEFAULT_IGNORED_ENTRIES,
-  RO_CRATE_APPROVAL_FILE_NAME,
-} from 'aroma2-common/lib/common/ro-crate-technical-files'
-import * as mime from 'mime-types'
+  createDefaultRoCrateWorkspace,
+  RoCrateHtmlGenerator,
+  type DefaultRoCrateFileContent,
+  type DefaultRoCrateWorkspaceAdapter,
+} from 'aroma2-common/lib/browser'
 import type * as React from 'react'
 import SparkMD5 from 'spark-md5'
 import { Message } from '@lumino/messaging'
@@ -106,60 +104,6 @@ export class ROCrateDialog extends ReactDialog<string> {
     }
   }
 
-  private async scanAndBuildEntities(
-    dirUri: URI,
-    rootUri: URI,
-    graph: any[],
-    parentHasPart: { '@id': string }[],
-  ): Promise<void> {
-    const fileStat = await this.fileService.resolve(dirUri, { resolveMetadata: true })
-    const relativePath =
-      (await this.workspaceService.getWorkspaceRelativePath(dirUri)) ?? ''
-    const { directoryLabel, name } = this.splitDirectoryInfo(relativePath)
-    if (!name) {
-      return
-    }
-
-    if (fileStat.isDirectory) {
-      const entityId = this.buildEntityId(directoryLabel, name, true)
-      if (!entityId) {
-        return
-      }
-      const dirEntity = {
-        '@id': entityId,
-        '@type': 'Dataset',
-        name: fileStat.name,
-        directoryLabel,
-        hasPart: [] as { '@id': string }[],
-      }
-      graph.push(dirEntity)
-      parentHasPart.push({ '@id': dirEntity['@id'] })
-
-      for (const child of fileStat.children || []) {
-        await this.scanAndBuildEntities(child.resource, rootUri, graph, dirEntity.hasPart)
-      }
-    } else {
-      const content = await this.fileService.read(dirUri)
-      const mimeType = mime.lookup(fileStat.name) || 'application/octet-stream'
-      const entityId = this.buildEntityId(directoryLabel, name, false)
-      if (!entityId) {
-        return
-      }
-      const fileEntity = {
-        '@id': entityId,
-        '@type': 'File',
-        name: fileStat.name,
-        directoryLabel,
-        encodingFormat: mimeType,
-        contentSize: fileStat.size ? `${fileStat.size}` : undefined,
-        dateModified: fileStat.mtime ? new Date(fileStat.mtime).toISOString() : undefined,
-        hash: SparkMD5.hash(content.value),
-      }
-      graph.push(fileEntity)
-      parentHasPart.push({ '@id': fileEntity['@id'] })
-    }
-  }
-
   protected async createDefaultCrate(): Promise<void> {
     const roots = this.workspaceService.tryGetRoots()
     if (!roots || roots.length === 0) {
@@ -167,63 +111,24 @@ export class ROCrateDialog extends ReactDialog<string> {
     }
 
     const rootUri = roots[0].resource
-    await this.ensureDefaultIgnoredEntries(rootUri)
-
-    const graph: any[] = []
-    const rootHasPart: { '@id': string }[] = []
-
-    const rootDataset = {
-      '@id': './',
-      '@type': 'Dataset',
-      name: './',
-      description: `RO-Crate for the workspace: ${rootUri.path.base}`,
-      datePublished: new Date().toISOString(),
-      hasPart: rootHasPart,
-    }
-    graph.push(rootDataset)
-
-    const metadataDescriptor = {
-      '@id': this.buildEntityId('', 'ro-crate-metadata.json', false),
-      '@type': 'CreativeWork',
-      conformsTo: { '@id': 'https://w3id.org/ro/crate/1.1' },
-      about: { '@id': './' },
-      directoryLabel: '',
-      name: 'ro-crate-metadata.json',
-    }
-    graph.push(metadataDescriptor)
-
-    const rootStat = await this.fileService.resolve(rootUri, { resolveMetadata: true })
-    if (rootStat.children) {
-      for (const child of rootStat.children) {
-        if (
-          child.name === 'ro-crate-metadata.json' ||
-          child.name === 'ro-crate-preview.html' ||
-          child.name === RO_CRATE_APPROVAL_FILE_NAME ||
-          child.name === 'AGENTS.md' ||
-          child.name === 'CLAUDE.md' ||
-          child.name === '.aroma' ||
-          child.name.startsWith('.')
-        ) {
-          continue
-        }
-        await this.scanAndBuildEntities(child.resource, rootUri, graph, rootHasPart)
-      }
-    }
-
-    // Add directoryLabel and hash which are non-schema.org properties but are Dataverse specific
-    const roCrate = {
-      '@context': [
-        'https://w3id.org/ro/crate/1.1/context',
-        {
-          directoryLabel: 'https://dataverse.org/schema/file/directoryLabel',
-          hash: 'https://dataverse.org/schema/file/hash',
-        },
-      ],
-      '@graph': graph,
-    }
+    const result = await createDefaultRoCrateWorkspace(
+      this.createWorkspaceAdapter(rootUri),
+    )
+    const roCrate = result.crate
 
     const metadataUri = rootUri.resolve('ro-crate-metadata.json')
     const previewUri = rootUri.resolve('ro-crate-preview.html')
+    if (result.ignoredFile) {
+      const aromaUri = rootUri.resolve(result.ignoredFile.directoryPath)
+      if (!(await this.fileService.exists(aromaUri))) {
+        await this.fileService.createFolder(aromaUri)
+      }
+      await this.fileService.create(
+        rootUri.resolve(result.ignoredFile.filePath),
+        result.ignoredFile.payload,
+        { overwrite: true },
+      )
+    }
 
     await this.fileService.create(metadataUri, JSON.stringify(roCrate, null, 2), {
       overwrite: true,
@@ -233,133 +138,49 @@ export class ROCrateDialog extends ReactDialog<string> {
     await this.fileService.create(previewUri, htmlContent, { overwrite: true })
   }
 
-  protected async ensureDefaultIgnoredEntries(rootUri: URI): Promise<void> {
-    const aromaUri = rootUri.resolve(AROMA_IGNORE_DIR)
-    if (!(await this.fileService.exists(aromaUri))) {
-      await this.fileService.createFolder(aromaUri)
-    }
+  protected createWorkspaceAdapter(rootUri: URI): DefaultRoCrateWorkspaceAdapter {
+    const resolveRelative = (relativePath: string): URI =>
+      relativePath ? rootUri.resolve(relativePath) : rootUri
 
-    const ignoredUri = aromaUri.resolve(AROMA_IGNORE_FILE)
-    if (!(await this.fileService.exists(ignoredUri))) {
-      await this.fileService.create(ignoredUri, '', { overwrite: true })
-    }
+    const relativePathFor = async (uri: URI): Promise<string> =>
+      (await this.workspaceService.getWorkspaceRelativePath(uri)) ?? ''
 
-    const currentEntries = await this.readIgnoredEntries(ignoredUri)
-    const nextEntries = this.withDefaultIgnoredEntries(currentEntries)
-
-    if (!this.sameEntries(currentEntries, nextEntries)) {
-      const payload = nextEntries.join('\n')
-      await this.fileService.create(ignoredUri, payload ? `${payload}\n` : '', {
-        overwrite: true,
-      })
-    }
-  }
-
-  protected async readIgnoredEntries(ignoreFileUri: URI): Promise<string[]> {
-    try {
-      const content = await this.fileService.read(ignoreFileUri)
-      const text = `${content.value ?? ''}`
-      return text
-        .split(/\r?\n/g)
-        .map((line) => this.normalizeIgnoredEntry(line))
-        .filter((line): line is string => Boolean(line))
-    } catch {
-      return []
-    }
-  }
-
-  protected normalizeIgnoredEntry(value: string): string | undefined {
-    const trimmed = (value || '').trim()
-    if (!trimmed || trimmed.startsWith('#')) {
-      return undefined
-    }
-
-    const negated = trimmed.startsWith('!')
-    let normalized = negated ? trimmed.slice(1) : trimmed
-    normalized = normalized.replace(/\\/g, '/')
-    normalized = normalized.replace(/^\.\//, '')
-    normalized = normalized.replace(/^\/+/, '')
-    normalized = normalized.replace(/\/{2,}/g, '/')
-
-    const isDirectory = normalized.endsWith('/')
-    if (isDirectory) {
-      normalized = normalized.replace(/\/+$/, '')
-    }
-    if (!normalized) {
-      return undefined
-    }
-
-    return `${negated ? '!' : ''}${normalized}${isDirectory ? '/' : ''}`.toLowerCase()
-  }
-
-  protected withDefaultIgnoredEntries(entries: string[]): string[] {
-    const defaults = DEFAULT_IGNORED_ENTRIES.map((entry) =>
-      this.normalizeIgnoredEntry(entry),
-    ).filter((entry): entry is string => Boolean(entry))
-    const existingPositive = new Set(
-      entries.filter((entry) => !entry.startsWith('!')),
-    )
-    const missingDefaults = defaults.filter((entry) => !existingPositive.has(entry))
-    if (!missingDefaults.length) {
-      return entries
-    }
-    return [...missingDefaults, ...entries]
-  }
-
-  protected sameEntries(a: readonly string[], b: readonly string[]): boolean {
-    if (a.length !== b.length) {
-      return false
-    }
-    for (let index = 0; index < a.length; index += 1) {
-      if (a[index] !== b[index]) {
-        return false
-      }
-    }
-    return true
-  }
-
-  private splitDirectoryInfo(relativePath: string): { directoryLabel: string; name: string } {
-    const normalized = this.normalizeRelativePathForId(relativePath)
-    if (!normalized) {
-      return { directoryLabel: '', name: '' }
-    }
-    const lastSlashIndex = normalized.lastIndexOf('/')
-    if (lastSlashIndex === -1) {
-      return { directoryLabel: '', name: normalized }
-    }
     return {
-      directoryLabel: normalized.slice(0, lastSlashIndex + 1),
-      name: normalized.slice(lastSlashIndex + 1),
+      rootName: rootUri.path.base,
+      listChildren: async (relativeDirectoryPath: string) => {
+        const directoryUri = resolveRelative(relativeDirectoryPath)
+        const fileStat = await this.fileService.resolve(directoryUri, {
+          resolveMetadata: true,
+        })
+        const children = fileStat.children ?? []
+        return Promise.all(
+          children.map(async (child) => ({
+            name: child.name,
+            relativePath: await relativePathFor(child.resource),
+            kind: child.isDirectory ? 'directory' as const : 'file' as const,
+            size: child.size,
+            mtimeMs: child.mtime,
+          })),
+        )
+      },
+      readFileContent: async (relativeFilePath: string) => {
+        const content = await this.fileService.read(resolveRelative(relativeFilePath))
+        return `${content.value ?? ''}`
+      },
+      hashContent: (content: DefaultRoCrateFileContent) =>
+        SparkMD5.hash(typeof content === 'string' ? content : String.fromCharCode(...content)),
+      readTextFile: async (relativeFilePath: string) => {
+        try {
+          const uri = resolveRelative(relativeFilePath)
+          if (!(await this.fileService.exists(uri))) {
+            return undefined
+          }
+          const content = await this.fileService.read(uri)
+          return `${content.value ?? ''}`
+        } catch {
+          return undefined
+        }
+      },
     }
-  }
-
-  private buildEntityId(
-    directoryLabel: string,
-    name: string,
-    isDirectory: boolean,
-  ): string | undefined {
-    if (!name) {
-      return undefined
-    }
-    let combined = `${directoryLabel}${name}`
-    combined = this.normalizeRelativePathForId(combined)
-    if (!combined) {
-      return undefined
-    }
-    if (isDirectory && !combined.endsWith('/')) {
-      combined = `${combined}/`
-    }
-    return combined
-  }
-
-  private normalizeRelativePathForId(path: string): string {
-    let normalized = (path || '').replace(/\\/g, '/').trim()
-    normalized = normalized.replace(/^\.\//, '')
-    normalized = normalized.replace(/^\/+/, '')
-    normalized = normalized.replace(/\/{2,}/g, '/')
-    if (normalized.endsWith('/')) {
-      normalized = normalized.slice(0, -1)
-    }
-    return normalized
   }
 }
