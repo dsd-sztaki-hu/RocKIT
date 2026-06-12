@@ -251,6 +251,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             this.fileService,
             this.roCrateHtmlGenerator,
             this.commandService,
+            this.messageService,
             jsonExists,
         )
         await dialog.open()

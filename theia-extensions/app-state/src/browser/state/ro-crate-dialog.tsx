@@ -1,4 +1,5 @@
 import { CommandService } from '@theia/core/lib/common/command'
+import { MessageService } from '@theia/core/lib/common/message-service'
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import type { URI } from '@theia/core/lib/common/uri'
 import { injectable } from '@theia/core/shared/inversify'
@@ -20,12 +21,15 @@ import { Message } from '@lumino/messaging'
 @injectable()
 export class ROCrateDialog extends ReactDialog<string> {
   protected closeRoCrateButton?: HTMLButtonElement
+  protected generating = false
+  protected scannedFileCount = 0
 
   constructor(
     protected readonly workspaceService: WorkspaceService,
     protected readonly fileService: FileService,
     protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator,
     protected readonly commandService: CommandService,
+    protected readonly messageService: MessageService,
     protected readonly jsonExists: boolean = true,
   ) {
     super({
@@ -84,11 +88,29 @@ export class ROCrateDialog extends ReactDialog<string> {
   }
 
   protected async accept(): Promise<void> {
+    if (this.generating) {
+      return
+    }
+
+    this.generating = true
+    this.scannedFileCount = 0
+    this.setGenerationControls(true)
+    this.setErrorMessage('')
+
     try {
       await this.createDefaultCrate()
       await super.accept()
     } catch (err) {
       console.error('Failed to generate RO-Crate:', err)
+      this.setErrorMessage(
+        `Could not generate a new RO-Crate: ${this.getErrorMessage(err)}`,
+      )
+      if (this.acceptButton) {
+        this.acceptButton.disabled = false
+      }
+    } finally {
+      this.generating = false
+      this.setGenerationControls(false)
     }
   }
 
@@ -139,7 +161,7 @@ export class ROCrateDialog extends ReactDialog<string> {
         await this.scanAndBuildEntities(child.resource, rootUri, graph, dirEntity.hasPart)
       }
     } else {
-      const content = await this.fileService.read(dirUri)
+      const content = await this.fileService.readFile(dirUri)
       const mimeType = mime.lookup(fileStat.name) || 'application/octet-stream'
       const entityId = this.buildEntityId(directoryLabel, name, false)
       if (!entityId) {
@@ -153,10 +175,15 @@ export class ROCrateDialog extends ReactDialog<string> {
         encodingFormat: mimeType,
         contentSize: fileStat.size ? `${fileStat.size}` : undefined,
         dateModified: fileStat.mtime ? new Date(fileStat.mtime).toISOString() : undefined,
-        hash: SparkMD5.hash(content.value),
+        hash: this.hashFileContent(content.value.buffer),
       }
       graph.push(fileEntity)
       parentHasPart.push({ '@id': fileEntity['@id'] })
+      this.scannedFileCount += 1
+      if (this.scannedFileCount % 100 === 0) {
+        this.updateGenerationProgress()
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+      }
     }
   }
 
@@ -229,8 +256,51 @@ export class ROCrateDialog extends ReactDialog<string> {
       overwrite: true,
     })
 
-    const htmlContent = this.roCrateHtmlGenerator.generate(roCrate)
-    await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+    try {
+      const htmlContent = this.roCrateHtmlGenerator.generate(roCrate)
+      await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+    } catch (error) {
+      console.warn('Failed to generate RO-Crate preview:', error)
+      this.messageService.warn(
+        'The new RO-Crate metadata was created successfully, but the HTML preview could not be generated because the crate is too large.',
+      )
+    }
+  }
+
+  protected setGenerationControls(generating: boolean): void {
+    if (this.acceptButton) {
+      this.acceptButton.disabled = generating
+      this.acceptButton.textContent = generating
+        ? 'Generating...'
+        : this.jsonExists
+          ? 'Generate valid JSON file'
+          : 'Generate JSON file'
+    }
+    if (this.closeRoCrateButton) {
+      this.closeRoCrateButton.disabled = generating
+    }
+  }
+
+  protected updateGenerationProgress(): void {
+    if (this.acceptButton) {
+      this.acceptButton.textContent =
+        `Generating metadata... ${this.scannedFileCount.toLocaleString()} files processed`
+    }
+  }
+
+  protected hashFileContent(content: Uint8Array): string {
+    const arrayBuffer = content.buffer.slice(
+      content.byteOffset,
+      content.byteOffset + content.byteLength,
+    ) as ArrayBuffer
+    return SparkMD5.ArrayBuffer.hash(arrayBuffer)
+  }
+
+  protected getErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message.trim()) {
+      return error.message
+    }
+    return String(error)
   }
 
   protected async ensureDefaultIgnoredEntries(rootUri: URI): Promise<void> {
