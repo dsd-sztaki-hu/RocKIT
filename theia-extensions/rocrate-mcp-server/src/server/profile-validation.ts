@@ -624,6 +624,39 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
       return []
     }
 
+    const formatInvalidReferenceValue = (value: unknown): string => {
+      if (typeof value === 'string') {
+        return JSON.stringify(value)
+      }
+      if (value === null) {
+        return 'null'
+      }
+      if (value === undefined) {
+        return 'undefined'
+      }
+      try {
+        return JSON.stringify(value)
+      } catch {
+        return String(value)
+      }
+    }
+
+    const collectInvalidReferenceValueDescriptions = (value: unknown): string[] => {
+      if (!hasMeaningfulValue(value)) {
+        return []
+      }
+      if (Array.isArray(value)) {
+        return value.flatMap((entry) => collectInvalidReferenceValueDescriptions(entry))
+      }
+      if (value && typeof value === 'object') {
+        const id = (value as Record<string, unknown>)['@id']
+        return typeof id === 'string' && id.trim() !== ''
+          ? []
+          : [formatInvalidReferenceValue(value)]
+      }
+      return [formatInvalidReferenceValue(value)]
+    }
+
     const addRequiredMessage = (message: string): void => {
       if (options.requiredMode === 'enforce_required') {
         errors.push(message)
@@ -820,6 +853,20 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
         }
       }
       for (const propertyName of referenceProperties.keys()) {
+        const invalidReferenceValueDescriptions = collectInvalidReferenceValueDescriptions(
+          entity[propertyName],
+        )
+        if (invalidReferenceValueDescriptions.length > 0) {
+          const expectedTypes = Array.from(referenceProperties.get(propertyName) ?? [])
+            .sort()
+            .join(', ')
+          errors.push(
+            `Entity ${entityId} has invalid reference value(s) for ${propertyName}: ` +
+              `${Array.from(new Set(invalidReferenceValueDescriptions)).join(', ')}. ` +
+              `profile type(s): ${expectedTypes}. Each value must be an object with @id.`,
+          )
+          continue
+        }
         for (const referencedId of collectReferencedIds(entity[propertyName])) {
           const referencedEntity = entityById.get(referencedId)
           if (!referencedEntity) {

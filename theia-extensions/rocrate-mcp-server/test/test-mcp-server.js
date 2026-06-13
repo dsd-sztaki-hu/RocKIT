@@ -413,6 +413,11 @@ async function run() {
                 required: true,
               },
               {
+                name: 'keyword',
+                id: 'https://dataverse.org/schema/citation/keyword',
+                type: ['keyword'],
+              },
+              {
                 name: 'subject',
                 id: 'http://purl.org/dc/terms/subject',
                 values: ['Computer and Information Science'],
@@ -427,6 +432,14 @@ async function run() {
                 name: 'datasetContactEmail',
                 id: 'https://dataverse.org/schema/citation/datasetContactEmail',
                 required: true,
+              },
+            ],
+          },
+          keyword: {
+            inputs: [
+              {
+                name: 'keywordValue',
+                id: 'https://dataverse.org/schema/citation/keywordValue',
               },
             ],
           },
@@ -1668,6 +1681,67 @@ async function run() {
       restoredContactStrictResponse.result.content[0].text,
     )
     assert.equal(restoredContactStrictPayload.valid, true)
+
+    const crateWithMalformedCompoundReference = JSON.parse(
+      fs.readFileSync(profileValidationCratePath, 'utf8'),
+    )
+    const rootWithMalformedKeyword = crateWithMalformedCompoundReference['@graph'].find(
+      (entity) => entity['@id'] === './',
+    )
+    rootWithMalformedKeyword.keyword = ['research data repository']
+    fs.writeFileSync(
+      profileValidationCratePath,
+      `${JSON.stringify(crateWithMalformedCompoundReference, null, 2)}\n`,
+      'utf8',
+    )
+    const malformedCompoundReferenceResponse = await request('tools/call', {
+      name: 'validate_crate',
+      arguments: {
+        cratePath: profileValidationCratePath,
+        strict: true,
+      },
+    })
+    const malformedCompoundReferencePayload = JSON.parse(
+      malformedCompoundReferenceResponse.result.content[0].text,
+    )
+    assert.equal(malformedCompoundReferencePayload.valid, false)
+    assert.ok(
+      malformedCompoundReferencePayload.errors.some(
+        (message) =>
+          typeof message === 'string' &&
+          message.includes('Entity ./ has invalid reference value(s) for keyword') &&
+          message.includes('profile type(s): keyword') &&
+          message.includes('Each value must be an object with @id'),
+      ),
+      'validate_crate should reject primitive values for profile compound fields',
+    )
+
+    rootWithMalformedKeyword.keyword = [{ start: '2024', end: '2026' }]
+    fs.writeFileSync(
+      profileValidationCratePath,
+      `${JSON.stringify(crateWithMalformedCompoundReference, null, 2)}\n`,
+      'utf8',
+    )
+    const anonymousCompoundReferenceResponse = await request('tools/call', {
+      name: 'validate_crate',
+      arguments: {
+        cratePath: profileValidationCratePath,
+        strict: true,
+      },
+    })
+    const anonymousCompoundReferencePayload = JSON.parse(
+      anonymousCompoundReferenceResponse.result.content[0].text,
+    )
+    assert.equal(anonymousCompoundReferencePayload.valid, false)
+    assert.ok(
+      anonymousCompoundReferencePayload.errors.some(
+        (message) =>
+          typeof message === 'string' &&
+          message.includes('Entity ./ has invalid reference value(s) for keyword') &&
+          message.includes('{"start":"2024","end":"2026"}'),
+      ),
+      'validate_crate should reject anonymous objects for profile compound fields',
+    )
 
     const crateWithInvalidSubject = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
     const rootWithInvalidSubject = crateWithInvalidSubject['@graph'].find(
