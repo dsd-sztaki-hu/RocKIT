@@ -62,6 +62,34 @@ function waitForOutput(child, pattern) {
   })
 }
 
+function waitForExitWithOutput(child, pattern) {
+  return new Promise((resolve, reject) => {
+    child.__stderrText = child.__stderrText || ''
+    if (!child.__stderrCollectorAttached) {
+      child.__stderrCollectorAttached = true
+      child.stderr.on('data', (chunk) => {
+        child.__stderrText += chunk.toString('utf8')
+      })
+    }
+    const timer = setTimeout(() => {
+      child.kill()
+      reject(new Error(`Timed out waiting for exit output: ${pattern}`))
+    }, 5000)
+    child.once('exit', (code) => {
+      clearTimeout(timer)
+      if (child.__stderrText.includes(pattern)) {
+        resolve(code)
+      } else {
+        reject(
+          new Error(
+            `Server exited without expected output: ${pattern}\n${child.__stderrText}`,
+          ),
+        )
+      }
+    })
+  })
+}
+
 function sendShutdown(socketPath) {
   return new Promise((resolve, reject) => {
     let response = ''
@@ -125,6 +153,22 @@ async function run() {
       child,
       `Dashboard server listening on http://127.0.0.1:${dashboardPort}`,
     )
+
+    if (process.platform !== 'win32') {
+      const competingChild = spawn(process.execPath, [serverPath, '--listen', socketPath], {
+        env: {
+          ...process.env,
+          ROCRATE_DASHBOARD_ENABLED: 'false',
+        },
+        stdio: ['ignore', 'ignore', 'pipe'],
+      })
+      const competingCode = await waitForExitWithOutput(
+        competingChild,
+        `socket already in use at ${socketPath}`,
+      )
+      assert.equal(competingCode, 1)
+    }
+
     await sendShutdown(socketPath)
     const code = await waitForExit(child)
     assert.equal(code, 0)
