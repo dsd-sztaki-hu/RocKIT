@@ -8,6 +8,7 @@ import {
   type DefaultRoCrateFileContent,
   type DefaultRoCrateWorkspaceAdapter,
 } from 'aroma2-common/lib/common/default-ro-crate'
+import { DEFAULT_REGISTERED_SCHEMAS } from 'rocrate-context-core'
 import {
   applyChangeSet,
   normalizeCrate,
@@ -511,21 +512,10 @@ const {
  * Loads default schema registry entries from the shared ontology package.
  */
 function loadDefaultRegistrySchemas(): SchemaRegistryEntry[] {
-  const modulePath = path.resolve(
-    __dirname,
-    '../../../dev-packages/rocrate-context-core/lib/index.js',
-  )
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const loaded = require(modulePath) as {
-    DEFAULT_REGISTERED_SCHEMAS?: SchemaRegistryEntry[]
-  }
-  const defaults = loaded.DEFAULT_REGISTERED_SCHEMAS
-  if (!Array.isArray(defaults)) {
-    throw new Error(
-      `Failed to load DEFAULT_REGISTERED_SCHEMAS from ${modulePath}. Build rocrate-context-core first.`,
-    )
-  }
-  return defaults
+  return DEFAULT_REGISTERED_SCHEMAS.map((schema) => ({
+    ...schema,
+    activeOnSpec: [...schema.activeOnSpec],
+  }))
 }
 
 const schemaRegistryStore = createSchemaRegistryStore({

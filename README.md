@@ -8,6 +8,47 @@ Please install all necessary [prerequisites](https://github.com/eclipse-theia/th
 3. yarn build:electron
 4. yarn start:electron
 
+## Building and packaging the standalone RO-Crate MCP server
+
+The RO-Crate MCP server can be built as a standalone npm CLI package without
+building the full Electron application.
+
+From the repo root:
+
+    yarn build:rocrate-mcp-standalone
+
+This creates a publishable package directory at:
+
+    theia-extensions/rocrate-mcp-server/dist/npm
+
+To create the npm tarball:
+
+    yarn pack:rocrate-mcp-standalone
+
+The tarball is written to:
+
+    theia-extensions/rocrate-mcp-server/rocrate-mcp-server-<version>.tgz
+
+For example, if the MCP package version is `0.0.1`, install the local tarball
+from the repo root with:
+
+    npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-0.0.1.tgz
+
+To publish the standalone MCP server to npm, publish the generated package
+directory, not the raw workspace package:
+
+    cd theia-extensions/rocrate-mcp-server/dist/npm
+    npm publish
+
+After publishing, users can install and run it with:
+
+    npm install -g rocrate-mcp-server
+    rocrate-mcp-server
+
+The standalone package bundles the internal workspace code needed by the MCP
+server. The normal Theia/Electron build still uses the workspace package and
+its `lib/` output.
+
 ## Working on `recrate` (vendored in `dev-packages/recrate`)
 
 ### One-time setup
