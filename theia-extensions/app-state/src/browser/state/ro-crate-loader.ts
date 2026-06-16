@@ -153,6 +153,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         const roCrateUri = rootUri.resolve('ro-crate-metadata.json')
         const exists = await this.fileService.exists(roCrateUri)
         if (!exists) {
+            await this.deleteRoCrateApprovalFiles(roCrateUri)
             this.updateState(undefined, false)
             await this.refreshProfileList(undefined)
             await this.refreshCompleteProfile(undefined)
@@ -223,6 +224,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
                     return
                 }
 
+                await this.deleteRoCrateApprovalFiles(roCrateUri)
                 this.updateState(undefined, false)
                 await this.refreshProfileList(undefined)
                 await this.refreshCompleteProfile(undefined)
@@ -531,11 +533,18 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         const metadataUri = root.resolve('ro-crate-metadata.json')
         const exists = await this.fileService.exists(metadataUri)
         if (!exists) {
-            if (this.lastKnownMetadataJson) {
-                this.lastKnownMetadataJson = undefined
+            const shouldWarn = Boolean(
+                this.appStateService.roCrate || this.lastKnownMetadataJson,
+            )
+            await this.deleteRoCrateApprovalFiles(metadataUri)
+            this.updateState(undefined, false)
+            await this.refreshProfileList(undefined)
+            await this.refreshCompleteProfile(undefined)
+            if (shouldWarn) {
                 this.messageService.warn(
                     'ro-crate-metadata.json was removed or is missing on disk.',
                 )
+                void this.promptForCrateRecovery(root, false)
             }
             return
         }
@@ -731,6 +740,23 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             }
         } catch (error) {
             console.warn('Failed to remove legacy root-level ro-crate-approval.json:', error)
+        }
+    }
+
+    protected async deleteRoCrateApprovalFiles(metadataUri: URI): Promise<void> {
+        const approvalUris = [
+            this.getRoCrateApprovalUri(metadataUri),
+            this.getLegacyRoCrateApprovalUri(metadataUri),
+        ]
+
+        for (const approvalUri of approvalUris) {
+            try {
+                if (await this.fileService.exists(approvalUri)) {
+                    await this.fileService.delete(approvalUri)
+                }
+            } catch (error) {
+                console.warn('Failed to remove ro-crate-approval.json:', error)
+            }
         }
     }
 
