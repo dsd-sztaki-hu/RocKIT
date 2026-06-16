@@ -9,7 +9,7 @@ import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { MetadataSchemaManager, RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { MetadataSchemaManager, RoCrateHtmlGenerator, writeUtf8TextFile } from 'aroma2-common/lib/browser'
 import {
     AROMA_IGNORE_DIR,
     AROMA_IGNORE_FILE,
@@ -632,13 +632,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             const previewUri = metadataUri.parent.resolve(RO_CRATE_PREVIEW_FILE)
 
             this.lastKnownMetadataJson = this.normalizeCrate(crate)
-            await this.fileService.create(metadataUri, JSON.stringify(crate, null, 2), {
-                overwrite: true,
-            })
+            await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(crate, null, 2))
             await this.writeRoCrateApprovalFile(metadataUri, approval)
             await this.deleteLegacyRoCrateApprovalFile(metadataUri)
             const htmlContent = this.roCrateHtmlGenerator.generate(crate)
-            await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+            await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
         } catch (error) {
             console.error('Failed to ignore external RO-Crate change:', error)
             this.messageService.error(
@@ -719,9 +717,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         if (!(await this.fileService.exists(approvalDirUri))) {
             await this.fileService.createFolder(approvalDirUri)
         }
-        await this.fileService.create(approvalUri, JSON.stringify(approval ?? [], null, 2), {
-            overwrite: true,
-        })
+        await writeUtf8TextFile(this.fileService, approvalUri, JSON.stringify(approval ?? [], null, 2))
     }
 
     protected async deleteLegacyRoCrateApprovalFile(metadataUri: URI): Promise<void> {

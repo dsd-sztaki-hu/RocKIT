@@ -6,7 +6,7 @@ import { injectable } from '@theia/core/shared/inversify'
 import type { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceCommands } from '@theia/workspace/lib/browser'
 import type { WorkspaceService } from '@theia/workspace/lib/browser'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { RoCrateHtmlGenerator, writeUtf8TextFile } from 'aroma2-common/lib/browser'
 import {
   AROMA_IGNORE_DIR,
   AROMA_IGNORE_FILE,
@@ -252,13 +252,11 @@ export class ROCrateDialog extends ReactDialog<string> {
     const metadataUri = rootUri.resolve('ro-crate-metadata.json')
     const previewUri = rootUri.resolve('ro-crate-preview.html')
 
-    await this.fileService.create(metadataUri, JSON.stringify(roCrate, null, 2), {
-      overwrite: true,
-    })
+    await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(roCrate, null, 2))
 
     try {
       const htmlContent = this.roCrateHtmlGenerator.generate(roCrate)
-      await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+      await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
     } catch (error) {
       console.warn('Failed to generate RO-Crate preview:', error)
       this.messageService.warn(
@@ -311,7 +309,7 @@ export class ROCrateDialog extends ReactDialog<string> {
 
     const ignoredUri = aromaUri.resolve(AROMA_IGNORE_FILE)
     if (!(await this.fileService.exists(ignoredUri))) {
-      await this.fileService.create(ignoredUri, '', { overwrite: true })
+      await writeUtf8TextFile(this.fileService, ignoredUri, '')
     }
 
     const currentEntries = await this.readIgnoredEntries(ignoredUri)
@@ -319,9 +317,7 @@ export class ROCrateDialog extends ReactDialog<string> {
 
     if (!this.sameEntries(currentEntries, nextEntries)) {
       const payload = nextEntries.join('\n')
-      await this.fileService.create(ignoredUri, payload ? `${payload}\n` : '', {
-        overwrite: true,
-      })
+      await writeUtf8TextFile(this.fileService, ignoredUri, payload ? `${payload}\n` : '')
     }
   }
 

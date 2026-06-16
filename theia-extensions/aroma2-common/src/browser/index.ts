@@ -8,6 +8,7 @@ export * from '../common/ro-crate-export-file-references';
 export * from './antd-theme-provider';
 export * from './ro-crate-entity-delete-service';
 export * from './entity-icon-classes';
+export * from './utf8-text-file';
 
 // Future shared protocols will be exported below...
 // export * from '../common/validation-protocol';

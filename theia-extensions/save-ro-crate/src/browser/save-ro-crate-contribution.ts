@@ -12,7 +12,7 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { RoCrateHtmlGenerator, writeUtf8TextFile } from 'aroma2-common/lib/browser'
 import {
   AROMA_IGNORE_DIR,
   AROMA_IGNORE_FILE,
@@ -120,13 +120,11 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
 
     try {
       if (crateData) {
-        await this.fileService.create(metadataUri, JSON.stringify(crateData, null, 2), {
-          overwrite: true,
-        })
+        await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(crateData, null, 2))
 
         const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
 
-        await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+        await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
       }
 
       if (Array.isArray(ignoredEntries)) {
@@ -164,7 +162,7 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
     }
     const ignoredUri = aromaUri.resolve(AROMA_IGNORE_FILE)
     const payload = normalized.length ? `${normalized.join('\n')}\n` : ''
-    await this.fileService.create(ignoredUri, payload, { overwrite: true })
+    await writeUtf8TextFile(this.fileService, ignoredUri, payload)
     this.appStateService.ignoreList = normalized
     this.appStateService.setIgnoreListSnapshot(normalized)
   }

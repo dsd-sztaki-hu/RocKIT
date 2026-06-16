@@ -13,6 +13,7 @@ import {
     SchemaValidator,
     SchemaValidatorManager,
     type ValidationError,
+    writeUtf8TextFile,
 } from 'aroma2-common/lib/browser'
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
@@ -1703,11 +1704,9 @@ protected handleDropEntityToHasPart = async (
         const previewUri = rootUri.resolve('ro-crate-preview.html')
 
         try {
-            await this.fileService.create(metadataUri, JSON.stringify(crateData, null, 2), {
-                overwrite: true,
-            })
+            await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(crateData, null, 2))
             const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
-            await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+            await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
             await this.writeRoCrateApprovalFile(
                 this.appStateService.roCrateApproval as RoCrateApprovalFile | undefined,
             )
@@ -1737,9 +1736,7 @@ protected handleDropEntityToHasPart = async (
             if (!(await this.fileService.exists(approvalDirUri))) {
                 await this.fileService.createFolder(approvalDirUri)
             }
-            await this.fileService.create(approvalUri, JSON.stringify(approval ?? [], null, 2), {
-                overwrite: true,
-            })
+            await writeUtf8TextFile(this.fileService, approvalUri, JSON.stringify(approval ?? [], null, 2))
             const legacyApprovalUri = rootUri.resolve(RO_CRATE_APPROVAL_FILE_NAME)
             if (await this.fileService.exists(legacyApprovalUri)) {
                 await this.fileService.delete(legacyApprovalUri)

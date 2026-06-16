@@ -29,7 +29,7 @@ import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browse
 import { FILE_WORKSPACE } from '@theia/workspace/lib/browser/workspace-frontend-contribution'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-loader'
-import { ApplicationResetService, RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { ApplicationResetService, RoCrateHtmlGenerator, writeUtf8TextFile } from 'aroma2-common/lib/browser'
 import {
   AROMA_IGNORE_DIR,
   AROMA_IGNORE_FILE,
@@ -454,11 +454,9 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
       const metadataUri = rootUri.resolve('ro-crate-metadata.json')
       const previewUri = rootUri.resolve('ro-crate-preview.html')
       try {
-        await this.fileService.create(metadataUri, JSON.stringify(crateData, null, 2), {
-          overwrite: true,
-        })
+        await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(crateData, null, 2))
         const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
-        await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+        await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
         this.appStateService.setRoCrateSnapshot(crateData)
         this.appStateService.dirty = false
       } catch (error) {
@@ -487,7 +485,7 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
 
     const ignoredUri = aromaUri.resolve(AROMA_IGNORE_FILE)
     const payload = normalized.length ? `${normalized.join('\n')}\n` : ''
-    await this.fileService.create(ignoredUri, payload, { overwrite: true })
+    await writeUtf8TextFile(this.fileService, ignoredUri, payload)
     this.appStateService.ignoreList = normalized
     this.appStateService.setIgnoreListSnapshot(normalized)
   }

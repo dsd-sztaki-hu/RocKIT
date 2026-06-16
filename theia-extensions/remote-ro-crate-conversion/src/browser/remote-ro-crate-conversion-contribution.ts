@@ -8,12 +8,12 @@ import {
   MenuModelRegistry,
   MessageService,
 } from '@theia/core/lib/common'
-import { BinaryBuffer } from '@theia/core/lib/common/buffer'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
+import { writeUtf8TextFile } from 'aroma2-common/lib/browser'
 
 export const RemoteRoCrateConversionCommand: Command = {
   id: 'RemoteRoCrateConversion.command',
@@ -210,7 +210,7 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
     // Write back
     try {
       const pretty = JSON.stringify(json, null, 2) + '\n'
-      await this.fileService.writeFile(metadataUri, BinaryBuffer.fromString(pretty))
+      await writeUtf8TextFile(this.fileService, metadataUri, pretty)
       this.roCrateHistoryService.applyRoCrateChange(json, {
         label: 'Convert remote RO-Crate IDs to local IDs',
       })
