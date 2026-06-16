@@ -474,8 +474,13 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         const changed = this.roCrateHistoryService.applyRoCrateChange(content, {
             label: 'Revert to saved RO-Crate',
             trackHistory: true,
+            mergeWithNext: true,
         })
-        this.appStateService.roCrateApproval = roCrateApproval
+        this.roCrateHistoryService.applyRoCrateApprovalChange(roCrateApproval, {
+            label: 'Revert to saved RO-Crate',
+            trackHistory: true,
+            mergeWithPrevious: true,
+        })
         this.appStateService.isROCrateInvalid = false
         this.appStateService.setRoCrateSnapshot(content)
         this.appStateService.dirty = false

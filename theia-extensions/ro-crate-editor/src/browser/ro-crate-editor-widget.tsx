@@ -429,6 +429,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             (s) => s.roCrateApproval,
         )((approval) => {
             this.localRoCrateApproval = approval as RoCrateApprovalFile | undefined
+            void this.writeRoCrateApprovalFile(this.localRoCrateApproval)
             this.update()
         })
 
@@ -634,10 +635,32 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
     protected handleSaveRoCrateApproval = async (saveData: any) => {
         const approval = (saveData as any)?.roCrateApproval as RoCrateApprovalFile | undefined
+        const decision = (saveData as any)?.decision
+        const shouldMergeWithCrateChange =
+            decision === 'reject' || decision === 'manual-edit'
+        const label = this.getRoCrateApprovalHistoryLabel(decision)
+
         this.localRoCrateApproval = approval
-        this.appStateService.roCrateApproval = approval
+        this.roCrateHistoryService.applyRoCrateApprovalChange(approval, {
+            label,
+            mergeWithPrevious: shouldMergeWithCrateChange,
+            mergeWithNext: shouldMergeWithCrateChange,
+        })
         await this.writeRoCrateApprovalFile(approval)
         this.update()
+    }
+
+    protected getRoCrateApprovalHistoryLabel(decision: unknown): string {
+        switch (decision) {
+            case 'accept':
+                return 'Accept AI suggestion'
+            case 'reject':
+                return 'Reject AI suggestion'
+            case 'manual-edit':
+                return 'Edit AI suggestion'
+            default:
+                return 'Edit RO-Crate approval'
+        }
     }
 
     protected areCratesEquivalent(
