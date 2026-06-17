@@ -29,7 +29,7 @@ import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browse
 import { FILE_WORKSPACE } from '@theia/workspace/lib/browser/workspace-frontend-contribution'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-loader'
-import { ApplicationResetService, RoCrateHtmlGenerator, writeUtf8TextFile } from 'aroma2-common/lib/browser'
+import { ApplicationResetService, RoCrateHtmlGenerator, readUtf8TextFile, writeUtf8TextFile } from 'aroma2-common/lib/browser'
 import {
   AROMA_IGNORE_DIR,
   AROMA_IGNORE_FILE,
@@ -410,8 +410,7 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
 
     if (await this.fileService.exists(metadataUri)) {
       try {
-        const content = await this.fileService.read(metadataUri)
-        diskCrate = JSON.parse(content.value)
+        diskCrate = JSON.parse(await readUtf8TextFile(this.fileService, metadataUri))
       } catch {
         return Boolean(appCrate)
       }

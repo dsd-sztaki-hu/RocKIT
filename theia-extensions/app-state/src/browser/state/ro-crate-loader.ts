@@ -9,7 +9,7 @@ import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { MetadataSchemaManager, RoCrateHtmlGenerator, writeUtf8TextFile } from 'aroma2-common/lib/browser'
+import { MetadataSchemaManager, RoCrateHtmlGenerator, readUtf8TextFile, writeUtf8TextFile } from 'aroma2-common/lib/browser'
 import {
     AROMA_IGNORE_DIR,
     AROMA_IGNORE_FILE,
@@ -293,8 +293,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     }
 
     private async readRoCrateJson(metadataUri: URI): Promise<Record<string, any>> {
-        const content = await this.fileService.read(metadataUri)
-        return JSON.parse(content.value)
+        return JSON.parse(await readUtf8TextFile(this.fileService, metadataUri))
     }
 
     private async ensureRelativeIdsIfNeeded(
@@ -543,8 +542,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
         let parsed: Record<string, any>
         try {
-            const content = await this.fileService.read(metadataUri)
-            parsed = JSON.parse(content.value)
+            parsed = await this.readRoCrateJson(metadataUri)
         } catch (error) {
             this.messageService.error(
                 'ro-crate-metadata.json changed on disk but could not be parsed.',
