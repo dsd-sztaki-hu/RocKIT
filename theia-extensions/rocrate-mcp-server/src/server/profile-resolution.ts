@@ -50,7 +50,7 @@ type ProfileResolutionDeps = {
  */
 export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
   /**
-   * Handles resolve aroma root path.
+   * Handles RocKIT root path resolution.
    */
   function resolveRockitRootPath(): string {
     const configuredRoot = process.env.ROCKIT_ROOT_PATH

@@ -453,7 +453,7 @@ function getRegisteredSchemasForMode(mode: AccessMode): SchemaRegistryEntry[] {
 }
 
 /**
- * Resolves base aroma directory for schema index/profile artifacts.
+ * Resolves base RocKIT directory for schema index/profile artifacts.
  */
 function buildRoCrateContext(
   crate: RoCrate,
