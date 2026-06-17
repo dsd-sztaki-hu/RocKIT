@@ -804,7 +804,9 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   }
 
   protected async getAromaRootUri(): Promise<URI | null> {
-    const result = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
+    const result =
+      (await this.envVariablesServer.getValue('ROCKIT_ROOT_PATH')) ||
+      (await this.envVariablesServer.getValue('AROMA_ROOT_PATH'));
     if (!result?.value) return null;
     const normalized = result.value.replace(/\\/g, '/');
     return normalized.match(/^[a-zA-Z]:/) ? new URI('file:///' + normalized) : new URI('file://' + normalized);
@@ -814,7 +816,9 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     const root = await this.getAromaRootUri();
     if (!root) return null;
     
-    const envVar = await this.envVariablesServer.getValue('AROMA_METADATA_SCHEMA_INDEX_FILE');
+    const envVar =
+      (await this.envVariablesServer.getValue('ROCKIT_METADATA_SCHEMA_INDEX_FILE')) ||
+      (await this.envVariablesServer.getValue('AROMA_METADATA_SCHEMA_INDEX_FILE'));
     const fileName = envVar?.value || 'metadata-schema-index.json';
     
     return root.resolve(fileName);

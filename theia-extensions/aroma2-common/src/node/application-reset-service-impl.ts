@@ -19,22 +19,24 @@ export class ApplicationResetServiceImpl implements ApplicationResetService {
   }
 
   protected resolveAromaRootPath(): string {
-    const configuredRoot = String(process.env.AROMA_ROOT_PATH ?? '').trim()
+    const configuredRoot = String(
+      process.env.ROCKIT_ROOT_PATH ?? process.env.AROMA_ROOT_PATH ?? '',
+    ).trim()
     if (configuredRoot) {
       return path.resolve(configuredRoot)
     }
-    return path.join(os.homedir(), '.aroma')
+    return path.join(os.homedir(), '.rockit')
   }
 
   protected assertSafeAromaRootPath(aromaRootPath: string): void {
     const normalized = path.resolve(aromaRootPath)
-    if (path.basename(normalized) !== '.aroma') {
-      throw new Error(`Refusing to delete non-.aroma directory: ${normalized}`)
+    if (path.basename(normalized) !== '.rockit') {
+      throw new Error(`Refusing to delete non-.rockit directory: ${normalized}`)
     }
 
     const homeDir = path.resolve(os.homedir())
     if (path.dirname(normalized) !== homeDir) {
-      throw new Error(`Refusing to delete .aroma outside the user home directory: ${normalized}`)
+      throw new Error(`Refusing to delete .rockit outside the user home directory: ${normalized}`)
     }
   }
 

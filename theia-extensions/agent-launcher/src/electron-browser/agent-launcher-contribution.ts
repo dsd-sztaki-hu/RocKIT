@@ -579,7 +579,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const unique = getRocrateMcpServerPathCandidates({
       appProjectPath,
       resourcesPath: runtime.resourcesPath,
-      serverPathOverride: processEnv?.AROMA_ROCRATE_MCP_SERVER_PATH,
+      serverPathOverride: processEnv?.ROCKIT_ROCRATE_MCP_SERVER_PATH,
     })
     for (const candidate of unique) {
       if (await this.fileService.exists(FileUri.create(candidate))) return candidate
@@ -608,6 +608,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const nodeOverride =
       processEnv.AROMA_ROCRATE_MCP_NODE_PATH ??
       (await this.envVariablesServer.getValue('AROMA_ROCRATE_MCP_NODE_PATH'))?.value
+
     if (nodeOverride) {
       return { command: nodeOverride, env: {} }
     }
@@ -645,7 +646,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     return resolveRocrateMcpSocketPath({
       homeDir: homeDirs.length > 0 ? homeDirs[0] : this.homeDirPath,
       platform: processPlatform,
-      socketPathOverride: env?.AROMA_ROCRATE_MCP_SOCKET_PATH,
+      socketPathOverride: env?.ROCKIT_ROCRATE_MCP_SOCKET_PATH,
       username: env?.USERNAME,
     })
   }

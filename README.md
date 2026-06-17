@@ -10,7 +10,7 @@ Please install all necessary [prerequisites](https://github.com/eclipse-theia/th
 
 ### Configuring Theia backend memory
 
-Set `AROMA_MEMORY_LIMIT_MB` to increase the V8 old-generation heap limit of the
+Set `ROCKIT_MEMORY_LIMIT_MB` to increase the V8 old-generation heap limit of the
 Theia backend Node.js process. The value is in MiB. For example, a value of
 `8192` results in a total backend V8 heap limit of approximately 8240 MiB.
 
@@ -19,22 +19,22 @@ gradually as needed. When the variable is not set, the Node.js default is used.
 
 The Electron renderer also receives the requested setting, but Electron 37
 currently caps its effective JavaScript heap at approximately 3586 MiB. Setting
-`AROMA_MEMORY_LIMIT_MB` to `8192` therefore increases the backend limit but does
+`ROCKIT_MEMORY_LIMIT_MB` to `8192` therefore increases the backend limit but does
 not increase the renderer beyond that cap. Each process has a separate heap.
 
 PowerShell:
 
-    $env:AROMA_MEMORY_LIMIT_MB="8192"
+    $env:ROCKIT_MEMORY_LIMIT_MB="8192"
     yarn start:electron
 
 Command Prompt:
 
-    set AROMA_MEMORY_LIMIT_MB=8192
+    set ROCKIT_MEMORY_LIMIT_MB=8192
     yarn start:electron
 
 Linux/macOS:
 
-    AROMA_MEMORY_LIMIT_MB=8192 yarn start:electron
+    ROCKIT_MEMORY_LIMIT_MB=8192 yarn start:electron
 
 ## Working on `recrate` (vendored in `dev-packages/recrate`)
 

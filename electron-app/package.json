@@ -56,8 +56,8 @@
     "target": "electron"
   },
   "build": {
-    "appId": "com.example.mytheiaapp",
-    "productName": "My Theia App",
+    "appId": "hu.sztaki.dsd.rockit",
+    "productName": "RocKIT - RO-Crate Kit",
     "win": {
       "icon": "../../resources/icon.ico"
     }

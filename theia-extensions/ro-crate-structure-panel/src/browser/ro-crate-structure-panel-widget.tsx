@@ -1053,7 +1053,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                       }}
                       onDragEnd={(event) => {
                           event.stopPropagation()
-                          ;(globalThis as any).__aromaEntityDragPayload = undefined
+                          ;(globalThis as any).__rockitEntityDragPayload = undefined
                       }}
                       onDoubleClick={(event) => {
                           if (!entityId) {
@@ -1249,12 +1249,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             source: 'ro-crate-structure-panel',
         }
 
-        event.dataTransfer?.setData('application/x-aroma-entity-drag', JSON.stringify(payload))
+        event.dataTransfer?.setData('application/x-rockit-entity-drag', JSON.stringify(payload))
         event.dataTransfer?.setData('text/plain', JSON.stringify(payload))
         if (event.dataTransfer) {
             event.dataTransfer.effectAllowed = 'copyMove'
         }
-        ;(globalThis as any).__aromaEntityDragPayload = payload
+        ;(globalThis as any).__rockitEntityDragPayload = payload
     }
 
     protected async handleEntityDropAsync(
@@ -1301,13 +1301,13 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         dataTransfer: DataTransfer,
     ): StructureEntityDragPayload | undefined {
         const rawPayload =
-            dataTransfer.getData('application/x-aroma-entity-drag') ||
+            dataTransfer.getData('application/x-rockit-entity-drag') ||
             dataTransfer.getData('text/plain')
         const parsed = this.parseEntityDragPayload(rawPayload)
         if (parsed) {
             return parsed
         }
-        return this.parseEntityDragPayload((globalThis as any).__aromaEntityDragPayload)
+        return this.parseEntityDragPayload((globalThis as any).__rockitEntityDragPayload)
     }
 
     protected parseEntityDragPayload(value: unknown): StructureEntityDragPayload | undefined {

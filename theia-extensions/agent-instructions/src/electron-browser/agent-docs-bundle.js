@@ -3,7 +3,7 @@
 // Source: agent-docs/*.md
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AGENT_DOCS_BUNDLE = exports.AGENT_DOCS_DIR = void 0;
-exports.AGENT_DOCS_DIR = '.aroma';
+exports.AGENT_DOCS_DIR = '.rockit';
 exports.AGENT_DOCS_BUNDLE = {
     'checklists.md': `# Checklists
 

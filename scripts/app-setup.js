@@ -14,18 +14,18 @@ const os = require('os');
 const fs = require('fs');
 
 // --- CENTRALIZED CONFIGURATION ---
-const APP_FOLDER_NAME = '.aroma'; 
+const APP_FOLDER_NAME = '.rockit';
 
 // Feature: Metadata Schema Index
 const METADATA_SCHEMA_INDEX_FILENAME = 'metadata-schema-index.json';
 
 // Feature: Remote Schema Provider
 const REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME = 'remote-schema-providers.json';
-const REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'AROMA2.RemoteSchemaProvider';
+const REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteSchemaProvider';
 
 // Feature: Data Repository
 const DATA_REPOSITORY_CONFIG_FILENAME = 'data-repositories.json';
-const DATA_REPOSITORY_KEYTAR_SERVICE = 'AROMA2.DataRepository';
+const DATA_REPOSITORY_KEYTAR_SERVICE = 'RocKIT.DataRepository';
 
 class AppSetup {
     constructor() {
@@ -93,15 +93,15 @@ class AppSetup {
     initializeFileSystem() {
         // 1. Resolve Paths
         const userHome = os.homedir();
-        const aromaRootPath = path.join(userHome, APP_FOLDER_NAME);
-        const schemasRoot = path.join(aromaRootPath, 'metadata-schemas');
+        const rockitRootPath = path.join(userHome, APP_FOLDER_NAME);
+        const schemasRoot = path.join(rockitRootPath, 'metadata-schemas');
 
         const paths = {
-            root: aromaRootPath,
+            root: rockitRootPath,
             schemas: schemasRoot,
             cedarRoot: path.join(schemasRoot, 'cedar'),
             roCrateRoot: path.join(schemasRoot, 'ro-crate'),
-            schemaIndex: path.join(aromaRootPath, METADATA_SCHEMA_INDEX_FILENAME)
+            schemaIndex: path.join(rockitRootPath, METADATA_SCHEMA_INDEX_FILENAME)
         };
 
         console.log(`[AppSetup] Enforcing root directory: ${paths.root}`);
@@ -131,17 +131,23 @@ class AppSetup {
         }
 
         // 3. Set Environment Variables
+        this._env.ROCKIT_ROOT_PATH = paths.root;
         this._env.AROMA_ROOT_PATH = paths.root; 
         this._env.THEIA_CONFIG_DIR = paths.root;
         
         // Metadata Schema Env Vars
+        this._env.ROCKIT_METADATA_SCHEMA_INDEX_FILE = METADATA_SCHEMA_INDEX_FILENAME;
         this._env.AROMA_METADATA_SCHEMA_INDEX_FILE = METADATA_SCHEMA_INDEX_FILENAME;
 
         // Remote Schema Provider Env Vars
+        this._env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME;
+        this._env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE;
         this._env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME;
         this._env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE;
 
         // Data Repository Env Vars
+        this._env.ROCKIT_DATA_REPOSITORY_CONFIG_FILE = DATA_REPOSITORY_CONFIG_FILENAME;
+        this._env.ROCKIT_DATA_REPOSITORY_KEYTAR_SERVICE = DATA_REPOSITORY_KEYTAR_SERVICE;
         this._env.AROMA_DATA_REPOSITORY_CONFIG_FILE = DATA_REPOSITORY_CONFIG_FILENAME;
         this._env.AROMA_DATA_REPOSITORY_KEYTAR_SERVICE = DATA_REPOSITORY_KEYTAR_SERVICE;
 

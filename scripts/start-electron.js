@@ -9,7 +9,7 @@
 const { spawn } = require('child_process');
 const AppSetup = require('./app-setup');
 
-const MEMORY_LIMIT_ENV = 'AROMA_MEMORY_LIMIT_MB';
+const MEMORY_LIMIT_ENV = 'ROCKIT_MEMORY_LIMIT_MB';
 
 function configureMemoryLimit(env, logger = console) {
     const configuredValue = env[MEMORY_LIMIT_ENV];

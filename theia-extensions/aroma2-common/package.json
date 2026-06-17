@@ -4,7 +4,7 @@
     "theia-extension"
   ],
   "version": "0.0.0",
-  "description": "Shared interfaces and protocols for Aroma 2",
+  "description": "Shared interfaces and protocols for RocKIT",
   "files": [
     "lib",
     "src"

@@ -201,7 +201,7 @@ export class ROCrateDialog extends ReactDialog<string> {
           child.name === RO_CRATE_APPROVAL_FILE_NAME ||
           child.name === 'AGENTS.md' ||
           child.name === 'CLAUDE.md' ||
-          child.name === '.aroma' ||
+          child.name === '.rockit' ||
           child.name.startsWith('.')
         ) {
           continue

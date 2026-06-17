@@ -827,17 +827,17 @@ export class EntitiesOverviewWidget extends TreeWidget {
                 }
 
                 event.dataTransfer?.setData(
-                    'application/x-aroma-entity-drag',
+                    'application/x-rockit-entity-drag',
                     JSON.stringify(dragPayload),
                 )
 
                 event.dataTransfer?.setData('text/plain', JSON.stringify(dragPayload))
 
-                ;(globalThis as any).__aromaEntityDragPayload = dragPayload
+                ;(globalThis as any).__rockitEntityDragPayload = dragPayload
             },
             onDragEnd: (event) => {
                 event.stopPropagation()
-                ;(globalThis as any).__aromaEntityDragPayload = undefined
+                ;(globalThis as any).__rockitEntityDragPayload = undefined
             },
         }
     }

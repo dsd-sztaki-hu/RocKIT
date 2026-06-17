@@ -44,7 +44,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
         this.daemonProcess.kill()
       } catch (error) {
         console.warn(
-          '[aroma] failed to stop RO-Crate MCP daemon:',
+          '[rockit] failed to stop RO-Crate MCP daemon:',
           error instanceof Error ? error.message : String(error),
         )
       }
@@ -61,7 +61,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
 
     const serverPath = this.resolveServerPath()
     if (!serverPath) {
-      console.warn('[aroma] RO-Crate MCP server script not found; skipping auto-start')
+      console.warn('[rockit] RO-Crate MCP server script not found; skipping auto-start')
       return
     }
 
@@ -71,7 +71,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
     this.ensurePidDirectory(pidPath)
 
     const runtime = this.resolveDaemonRuntime()
-    console.info('[aroma] starting RO-Crate MCP daemon', {
+    console.info('[rockit] starting RO-Crate MCP daemon', {
       command: runtime.command,
       electronRunAsNode: runtime.env.ELECTRON_RUN_AS_NODE === '1',
       serverPath,
@@ -89,7 +89,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
         this.removePidFile(pidPath)
       }
       console.info(
-        `[aroma] RO-Crate MCP daemon exited (code=${code ?? 'null'}, signal=${signal ?? 'null'})`,
+        `[rockit] RO-Crate MCP daemon exited (code=${code ?? 'null'}, signal=${signal ?? 'null'})`,
       )
     })
 
@@ -99,26 +99,33 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
       this.writePidFile(pidPath, child.pid)
     }
     await this.waitForSocket(socketPath)
-    console.info(`[aroma] started RO-Crate MCP daemon at ${socketPath}`)
+    console.info(`[rockit] started RO-Crate MCP daemon at ${socketPath}`)
   }
 
   protected isAutoStartEnabled(): boolean {
-    return process.env.AROMA_ROCRATE_MCP_AUTO_START !== 'false'
+    return (
+      process.env.ROCKIT_ROCRATE_MCP_AUTO_START ??
+      process.env.AROMA_ROCRATE_MCP_AUTO_START
+    ) !== 'false'
   }
 
   protected publishFrontendRuntimeEnv(): void {
-    if (!process.env.AROMA_ROCRATE_MCP_NODE_PATH) {
-      process.env.AROMA_ROCRATE_MCP_NODE_PATH = process.execPath
+    if (!process.env.ROCKIT_ROCRATE_MCP_NODE_PATH) {
+      process.env.ROCKIT_ROCRATE_MCP_NODE_PATH =
+        process.env.AROMA_ROCRATE_MCP_NODE_PATH || process.execPath
     }
     if (process.versions.electron) {
-      process.env.AROMA_ROCRATE_MCP_ELECTRON_RUN_AS_NODE = '1'
+      process.env.ROCKIT_ROCRATE_MCP_ELECTRON_RUN_AS_NODE = '1'
     }
   }
 
   protected resolveDaemonRuntime(): DaemonRuntime {
-    if (process.env.AROMA_ROCRATE_MCP_NODE_PATH) {
+    const nodePath =
+      process.env.ROCKIT_ROCRATE_MCP_NODE_PATH ||
+      process.env.AROMA_ROCRATE_MCP_NODE_PATH
+    if (nodePath) {
       return {
-        command: process.env.AROMA_ROCRATE_MCP_NODE_PATH,
+        command: nodePath,
         env: process.env,
       }
     }
@@ -138,7 +145,9 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
     return resolveRocrateMcpSocketPath({
       homeDir: process.env.HOME || process.env.USERPROFILE,
       platform: process.platform,
-      socketPathOverride: process.env.AROMA_ROCRATE_MCP_SOCKET_PATH,
+      socketPathOverride:
+        process.env.ROCKIT_ROCRATE_MCP_SOCKET_PATH ||
+        process.env.AROMA_ROCRATE_MCP_SOCKET_PATH,
       username: process.env.USERNAME,
     })
   }
@@ -155,7 +164,9 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
     const candidates = getRocrateMcpServerPathCandidates({
       appProjectPath: process.env.THEIA_APP_PROJECT_PATH,
       resourcesPath: process.resourcesPath,
-      serverPathOverride: process.env.AROMA_ROCRATE_MCP_SERVER_PATH,
+      serverPathOverride:
+        process.env.ROCKIT_ROCRATE_MCP_SERVER_PATH ||
+        process.env.AROMA_ROCRATE_MCP_SERVER_PATH,
     })
 
     return candidates.find((candidate) => fs.existsSync(candidate))
@@ -186,7 +197,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
       fs.unlinkSync(socketPath)
     } catch (error) {
       console.warn(
-        '[aroma] failed to clean stale RO-Crate MCP socket:',
+        '[rockit] failed to clean stale RO-Crate MCP socket:',
         error instanceof Error ? error.message : String(error),
       )
     }
@@ -251,7 +262,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
       fs.writeFileSync(pidPath, String(pid), 'utf8')
     } catch (error) {
       console.warn(
-        '[aroma] failed to write RO-Crate MCP daemon PID file:',
+        '[rockit] failed to write RO-Crate MCP daemon PID file:',
         error instanceof Error ? error.message : String(error),
       )
     }
@@ -288,7 +299,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
       return true
     } catch (error) {
       console.warn(
-        '[aroma] failed to stop previous RO-Crate MCP daemon process:',
+        '[rockit] failed to stop previous RO-Crate MCP daemon process:',
         error instanceof Error ? error.message : String(error),
       )
       return false

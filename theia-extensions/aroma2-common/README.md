@@ -1,6 +1,6 @@
-# Aroma 2 Common Extension
+# RocKIT Common Extension
 
-This extension serves as the **shared API and Protocol layer** for the Aroma 2 application. It contains pure interfaces, type definitions, and dependency injection tokens (Symbols) that are shared across multiple functional extensions.
+This extension serves as the **shared API and Protocol layer** for the RocKIT application. It contains pure interfaces, type definitions, and dependency injection tokens (Symbols) that are shared across multiple functional extensions.
 
 ## Purpose & Architecture
 

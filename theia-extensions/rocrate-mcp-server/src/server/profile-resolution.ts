@@ -53,11 +53,11 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
    * Handles resolve aroma root path.
    */
   function resolveAromaRootPath(): string {
-    const configuredRoot = process.env.AROMA_ROOT_PATH
+    const configuredRoot = process.env.ROCKIT_ROOT_PATH || process.env.AROMA_ROOT_PATH
     if (configuredRoot && configuredRoot.trim() !== '') {
       return path.resolve(configuredRoot)
     }
-    return path.join(os.homedir(), '.aroma')
+    return path.join(os.homedir(), '.rockit')
   }
 
   /**
@@ -65,7 +65,9 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
    */
   function resolveSchemaIndexPath(): { rootPath: string; indexPath: string } {
     const rootPath = resolveAromaRootPath()
-    const configuredIndex = process.env.AROMA_METADATA_SCHEMA_INDEX_FILE
+    const configuredIndex =
+      process.env.ROCKIT_METADATA_SCHEMA_INDEX_FILE ||
+      process.env.AROMA_METADATA_SCHEMA_INDEX_FILE
     if (!configuredIndex || configuredIndex.trim() === '') {
       return { rootPath, indexPath: path.join(rootPath, deps.defaultSchemaIndexFilename) }
     }

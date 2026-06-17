@@ -1,4 +1,4 @@
-export const AROMA_IGNORE_DIR = '.aroma'
+export const AROMA_IGNORE_DIR = '.rockit'
 export const AROMA_IGNORE_FILE = 'ignored.txt'
 
 export const RO_CRATE_METADATA_FILE = 'ro-crate-metadata.json'

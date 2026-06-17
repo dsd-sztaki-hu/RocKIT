@@ -123,10 +123,13 @@ function normalizeEntry(input: RegisterSchemaInput): SchemaRegistryEntry {
  * Builds the mode-specific filesystem location for schema persistence.
  */
 function resolveStorage(mode: AccessMode): SchemaRegistryStorageInfo {
-  const aromaRoot = process.env.AROMA_ROOT_PATH?.trim() || path.join(os.homedir(), '.aroma')
+  const rockitRoot =
+    process.env.ROCKIT_ROOT_PATH?.trim() ||
+    process.env.AROMA_ROOT_PATH?.trim() ||
+    path.join(os.homedir(), '.rockit')
 
   if (mode === 'local') {
-    const localDir = path.join(aromaRoot, 'schema-registry')
+    const localDir = path.join(rockitRoot, 'schema-registry')
     return {
       mode,
       directory: localDir,
@@ -136,7 +139,7 @@ function resolveStorage(mode: AccessMode): SchemaRegistryStorageInfo {
 
   const remoteDir =
     process.env.ROCRATE_REMOTE_SCHEMA_REGISTRY_DIR?.trim() ||
-    path.join(aromaRoot, 'schema-registry-remote')
+    path.join(rockitRoot, 'schema-registry-remote')
 
   return {
     mode,

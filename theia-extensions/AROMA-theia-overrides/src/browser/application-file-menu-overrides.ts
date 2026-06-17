@@ -49,12 +49,12 @@ type UnsavedCloseState = {
 }
 
 const ResetApplicationCommand: Command = {
-  id: 'aroma.application.reset',
+  id: 'rockit.application.reset',
   label: 'Reset the application',
 }
 
 const RevertToSavedRoCrateCommand: Command = {
-  id: 'aroma.ro-crate.revert-to-saved',
+  id: 'rockit.ro-crate.revert-to-saved',
   label: 'Revert to saved RO-Crate',
 }
 
@@ -289,7 +289,7 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     const confirmed = await new ConfirmDialog({
       title: 'Reset the application',
       msg:
-        'This will delete the application configuration directory in your user folder and restart AROMA. Unsaved changes will be lost. Continue?',
+        'This will delete the application configuration directory in your user folder and restart RocKIT. Unsaved changes will be lost. Continue?',
       ok: 'Reset and restart',
       cancel: Dialog.CANCEL,
     }).open()
@@ -365,7 +365,7 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
       changedFiles.push('ro-crate-metadata.json')
     }
     if (prepared.ignoreListUnsaved) {
-      changedFiles.push('.aroma/ignored.txt')
+      changedFiles.push('.rockit/ignored.txt')
     }
 
     const messageNode = document.createElement('div')

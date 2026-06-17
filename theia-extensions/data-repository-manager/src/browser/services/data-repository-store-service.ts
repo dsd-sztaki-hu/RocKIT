@@ -16,9 +16,15 @@ export class DataRepositoryStoreService {
     ) {}
 
     protected async getEnvConfig() {
-        const rootPathEnv = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
-        const configFileNameEnv = await this.envVariablesServer.getValue('AROMA_DATA_REPOSITORY_CONFIG_FILE');
-        const keytarServiceEnv = await this.envVariablesServer.getValue('AROMA_DATA_REPOSITORY_KEYTAR_SERVICE');
+        const rootPathEnv =
+            (await this.envVariablesServer.getValue('ROCKIT_ROOT_PATH')) ||
+            (await this.envVariablesServer.getValue('AROMA_ROOT_PATH'));
+        const configFileNameEnv =
+            (await this.envVariablesServer.getValue('ROCKIT_DATA_REPOSITORY_CONFIG_FILE')) ||
+            (await this.envVariablesServer.getValue('AROMA_DATA_REPOSITORY_CONFIG_FILE'));
+        const keytarServiceEnv =
+            (await this.envVariablesServer.getValue('ROCKIT_DATA_REPOSITORY_KEYTAR_SERVICE')) ||
+            (await this.envVariablesServer.getValue('AROMA_DATA_REPOSITORY_KEYTAR_SERVICE'));
 
         if (!rootPathEnv?.value || !configFileNameEnv?.value || !keytarServiceEnv?.value) {
             throw new Error('Critical Environment Variables missing. Check app-setup.js configuration.');

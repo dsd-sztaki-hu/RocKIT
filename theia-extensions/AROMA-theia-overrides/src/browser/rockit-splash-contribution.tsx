@@ -22,25 +22,27 @@ import URI from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from 'react'
 import corePackage = require('@theia/core/package.json')
-import { AROMA_SPLASH_SHOW_AT_STARTUP } from '../common/aroma-splash-preferences'
+import { AROMA_SPLASH_SHOW_AT_STARTUP } from '../common/rockit-splash-preferences'
 
-import '../../src/browser/style/aroma-splash.css'
+import '../../src/browser/style/rockit-splash.css'
 
 const THEIA_VERSION = (corePackage as { version?: string }).version || 'unknown'
+const APP_NAME = 'RocKIT'
+const APP_FULL_NAME = 'RocKIT - RO-Crate Kit'
 const DEFAULT_APP_INFO: ApplicationInfo = {
-  name: 'AROMA-2',
+  name: APP_FULL_NAME,
   version: THEIA_VERSION,
 }
 const RO_CRATE_DOCUMENTATION_URL = 'https://www.researchobject.org/ro-crate/'
 const DSD_URL = 'https://dsd.sztaki.hu/hu'
-const SUPPORT_EMAIL = 'aroma-support@example.org'
+const SUPPORT_EMAIL = 'rockit-support@example.org'
 
-export const ABOUT_AROMA_COMMAND: Command = {
-  id: 'aroma.about',
-  label: 'About AROMA-2',
+export const ABOUT_ROCKIT_COMMAND: Command = {
+  id: 'rockit.about',
+  label: `About ${APP_NAME}`,
 }
 
-interface AromaSplashDialogProps {
+interface RockitSplashDialogProps {
   appInfo: ApplicationInfo
   showAtStartup: boolean
   onShowAtStartupChanged: (value: boolean) => void
@@ -57,12 +59,12 @@ function buildVersionedUrl(version: string, page: string): string {
   return `https://aroma-project.github.io/aroma-2/${segment}/${page}`
 }
 
-function AromaSplashContent({
+function RockitSplashContent({
   appInfo,
   showAtStartup,
   onShowAtStartupChanged,
   onOpenLink,
-}: AromaSplashDialogProps): React.ReactElement {
+}: RockitSplashDialogProps): React.ReactElement {
   const version = appInfo.version || DEFAULT_APP_INFO.version
   const userGuideUrl = buildVersionedUrl(version, 'help')
 
@@ -72,22 +74,22 @@ function AromaSplashContent({
   }
 
   return (
-    <div className="aroma-splash">
-      <div className="aroma-splash-header">
-        <div className="aroma-splash-logo" aria-hidden="true" />
+    <div className="rockit-splash">
+      <div className="rockit-splash-header">
+        <div className="rockit-splash-logo" role="img" aria-label={APP_FULL_NAME} />
         <div>
-          <div className="aroma-splash-title">AROMA-2</div>
-          <div className="aroma-splash-version">Version {version}</div>
+          <div className="rockit-splash-title">{APP_FULL_NAME}</div>
+          <div className="rockit-splash-version">Version {version}</div>
         </div>
       </div>
 
-      <div className="aroma-splash-section">
+      <div className="rockit-splash-section">
         <h3>RO-Crate Resources</h3>
         <p>
           Access the version-matched RO-Crate reference material and application
-          help for this AROMA-2 build.
+          help for this {APP_NAME} build.
         </p>
-        <div className="aroma-splash-links">
+        <div className="rockit-splash-links">
           <a
             href={RO_CRATE_DOCUMENTATION_URL}
             onClick={(event) => openLink(event, RO_CRATE_DOCUMENTATION_URL)}
@@ -95,15 +97,15 @@ function AromaSplashContent({
             RO-Crate information
           </a>
           <a href={userGuideUrl} onClick={(event) => openLink(event, userGuideUrl)}>
-            AROMA-2 Documentation
+            {APP_NAME} Documentation
           </a>
         </div>
       </div>
 
-      <div className="aroma-splash-section aroma-splash-developers">
+      <div className="rockit-splash-section rockit-splash-developers">
         <h3>Developed By</h3>
         <p>
-          AROMA-2 is developed by{' '}
+          {APP_FULL_NAME} is developed by{' '}
           <a
             href={DSD_URL}
             onClick={(event) => openLink(event, DSD_URL)}
@@ -121,7 +123,7 @@ function AromaSplashContent({
         </p>
       </div>
 
-      <label className="aroma-splash-startup">
+      <label className="rockit-splash-startup">
         <input
           type="checkbox"
           checked={!showAtStartup}
@@ -133,20 +135,20 @@ function AromaSplashContent({
   )
 }
 
-class AromaSplashDialog extends ReactDialog<boolean> {
+class RockitSplashDialog extends ReactDialog<boolean> {
   protected showAtStartup: boolean
 
   constructor(
-    protected readonly splashProps: AromaSplashDialogProps,
+    protected readonly splashProps: RockitSplashDialogProps,
   ) {
-    super({ title: 'About AROMA-2' })
+    super({ title: `About ${APP_NAME}` })
     this.showAtStartup = splashProps.showAtStartup
     this.appendCloseButton('Close')
   }
 
   protected render(): React.ReactNode {
     return (
-      <AromaSplashContent
+      <RockitSplashContent
         {...this.splashProps}
         showAtStartup={this.showAtStartup}
         onShowAtStartupChanged={(value) => {
@@ -164,7 +166,7 @@ class AromaSplashDialog extends ReactDialog<boolean> {
 }
 
 @injectable()
-export class AromaSplashContribution implements FrontendApplicationContribution, CommandContribution, MenuContribution {
+export class RockitSplashContribution implements FrontendApplicationContribution, CommandContribution, MenuContribution {
   @inject(PreferenceService)
   protected readonly preferenceService: PreferenceService
 
@@ -199,21 +201,21 @@ export class AromaSplashContribution implements FrontendApplicationContribution,
   }
 
   registerCommands(commands: CommandRegistry): void {
-    commands.registerCommand(ABOUT_AROMA_COMMAND, {
+    commands.registerCommand(ABOUT_ROCKIT_COMMAND, {
       execute: () => this.openSplash(),
     })
   }
 
   registerMenus(menus: MenuModelRegistry): void {
     menus.registerMenuAction(CommonMenus.HELP, {
-      commandId: ABOUT_AROMA_COMMAND.id,
-      label: ABOUT_AROMA_COMMAND.label,
+      commandId: ABOUT_ROCKIT_COMMAND.id,
+      label: ABOUT_ROCKIT_COMMAND.label,
       order: '9a',
     })
   }
 
   protected async openSplash(): Promise<void> {
-    const dialog = new AromaSplashDialog({
+    const dialog = new RockitSplashDialog({
       appInfo: this.appInfo,
       showAtStartup: this.showAtStartup,
       onShowAtStartupChanged: (value) => {

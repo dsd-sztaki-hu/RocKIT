@@ -27,7 +27,7 @@ When the user greets you, or asks about your purpose or what the user can do, re
   → Current Dataset missing: author, datasetContact, keyword, publication
   → Plan: Fill required → optional → other allowed
 
-  | Step | Action | Read This \`.aroma/\` Doc First | Output Required |
+  | Step | Action | Read This \`.rockit/\` Doc First | Output Required |
   |------|--------|-------------------------------|-----------------|
   | 1 | Profile Discovery | \`profile-first-workflow.md\` | 📖 Summary of profile-first-workflow.md |
   | 2 | Plan Fields | \`profile-alignment-rules.md\` | 📖 Summary + explicit field classification plan |
@@ -38,12 +38,12 @@ When the user greets you, or asks about your purpose or what the user can do, re
   | 7 | Final Check | \`checklists.md\` | 📖 Summary + checklist completion status |
 
 Operational guardrails and metadata-quality rules are defined in the step docs in
-\`.aroma/\` and must be followed at the relevant step.
+\`.rockit/\` and must be followed at the relevant step.
 
 ## Human in the loop
 
 1. Try to solve the task the use gives you in one go.
 2. If you need a decision from the user, provide a menu they can choose from with easy selection.
 
-<!-- AROMA_MANAGED_SECTION_END: Users may add custom rules below this line. Do not modify lines above. -->
+<!-- ROCKIT_MANAGED_SECTION_END: Users may add custom rules below this line. Do not modify lines above. -->
 `;

@@ -12,7 +12,7 @@ type SocketLifecycleOptions = {
   onSocketConnection: (socket: net.Socket, socketPath: string) => void
 }
 
-const SHUTDOWN_CONTROL_MESSAGE = 'AROMA_ROCRATE_MCP_SHUTDOWN\n'
+const SHUTDOWN_CONTROL_MESSAGE = 'ROCKIT_ROCRATE_MCP_SHUTDOWN\n'
 
 function parseSocketPathFromArgs(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag)

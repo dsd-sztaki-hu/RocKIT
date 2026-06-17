@@ -9,7 +9,7 @@ const net = require('node:net')
 const os = require('node:os')
 const path = require('node:path')
 
-const SHUTDOWN_CONTROL_MESSAGE = 'AROMA_ROCRATE_MCP_SHUTDOWN\n'
+const SHUTDOWN_CONTROL_MESSAGE = 'ROCKIT_ROCRATE_MCP_SHUTDOWN\n'
 
 function waitForOutput(child, pattern) {
   return new Promise((resolve, reject) => {

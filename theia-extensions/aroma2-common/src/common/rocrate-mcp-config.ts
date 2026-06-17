@@ -115,12 +115,12 @@ export function resolveRocrateMcpSocketPath(
   const platform = options.platform ?? getDefaultPlatform()
   if (platform === 'win32') {
     const user = options.username ?? 'user'
-    return `\\\\.\\pipe\\aroma-rocrate-mcp-${user}`
+    return `\\\\.\\pipe\\rockit-rocrate-mcp-${user}`
   }
 
   const fsPath = getPathForPlatform(platform)
   const homeDir = options.homeDir
-  const base = homeDir ? fsPath.join(homeDir, '.aroma') : fsPath.join('/tmp', 'aroma')
+  const base = homeDir ? fsPath.join(homeDir, '.rockit') : fsPath.join('/tmp', 'rockit')
   return fsPath.join(base, 'rocrate-mcp-server.sock')
 }
 
@@ -138,15 +138,15 @@ export function resolveRocrateMcpPidPath(
     platform === 'win32'
       ? fsPath.join(
           env.LOCALAPPDATA || env.TEMP || homeDir || 'C:\\Temp',
-          'AROMA',
+          'RocKIT',
         )
       : homeDir
-        ? fsPath.join(homeDir, '.aroma')
-        : fsPath.join('/tmp', 'aroma')
+        ? fsPath.join(homeDir, '.rockit')
+        : fsPath.join('/tmp', 'rockit')
   return fsPath.join(base, 'rocrate-mcp-server.pid')
 }
 
-export const ROCRATE_MCP_SHUTDOWN_CONTROL_MESSAGE = 'AROMA_ROCRATE_MCP_SHUTDOWN\n'
+export const ROCRATE_MCP_SHUTDOWN_CONTROL_MESSAGE = 'ROCKIT_ROCRATE_MCP_SHUTDOWN\n'
 
 function getDefaultPlatform(): NodeJS.Platform {
   return (
