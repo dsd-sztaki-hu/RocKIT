@@ -117,9 +117,6 @@ export function maintainRoCrateApprovalFile(
 
   const nextEntitiesById = new Map<string, RoCrateApprovalEntity>()
   for (const [key, item] of previousItemsByKey.entries()) {
-    if (!item.approved) {
-      continue
-    }
     const entityId = previousEntityIdsByKey.get(key)
     if (!entityId) {
       continue

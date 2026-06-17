@@ -727,7 +727,11 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         this.localSelectedEntityId = nextId
         this.captureEntityBaseline(nextId, this.localCrate ?? this.appStateService.roCrate)
         this.updateTitleLabel()
-        this.update()
+        if (this.baseProfile && this.localCrate) {
+            void this.updateProfileWithEntitySchemas(this.baseProfile, nextId, 'none')
+        } else {
+            this.update()
+        }
         console.log('RoCrateEditorWidget: entityId set from navigation', {
             widget: widgetId,
             prev: prevId,
@@ -1359,6 +1363,7 @@ protected handleDropEntityToHasPart = async (
                 this.lastAppliedCrate === this.localCrate &&
                 this.lastAppliedProfileList === profileList
             ) {
+                this.update()
                 return
             }
 
