@@ -2,7 +2,6 @@ import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { CircularProgress } from '@mui/material';
 
 import { DataverseCollectionService } from '../services/dataverse-collection-service';
 import DataverseTree from './dataverse-tree';
@@ -83,20 +82,13 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
     collectionService,
     onSelectionChanged
 }) => {
-    const [roleIds, setRoleIds] = React.useState<string[]>([]);
     const [selectedCollection, setSelectedCollection] = React.useState<DataverseCollection | null>(null);
-    const [isLoadingRoles, setIsLoadingRoles] = React.useState(true);
+    const [isClientReady, setIsClientReady] = React.useState(false);
 
     React.useEffect(() => {
+        setIsClientReady(false);
         collectionService.initClient(repository.baseUrl, repository.apiKey || '');
-        
-        collectionService.getSelectableRoles().then(roles => {
-            setRoleIds(roles.map(r => r.id.toString()));
-            setIsLoadingRoles(false);
-        }).catch(err => {
-            console.error('Failed to fetch roles', err);
-            setIsLoadingRoles(false);
-        });
+        setIsClientReady(true);
     }, [repository, collectionService]);
 
     const handleCollectionSelected = (collection: DataverseCollection) => {
@@ -107,18 +99,12 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
     return (
         <div className="dataverse-browser-dialog">
             <div className="dataverse-browser-dialog__tree-container">
-                {!isLoadingRoles ? (
+                {isClientReady && (
                     <DataverseTree
                         collectionService={collectionService}
-                        roleIds={roleIds}
                         selectedCollectionId={selectedCollection?.id}
                         onCollectionSelected={handleCollectionSelected}
                     />
-                ) : (
-                    <div className="dataverse-browser-dialog__loading">
-                        <CircularProgress size={24} style={{ marginBottom: 10 }} />
-                        <span>Initializing connection...</span>
-                    </div>
                 )}
             </div>
 

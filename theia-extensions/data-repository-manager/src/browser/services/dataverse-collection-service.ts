@@ -1,11 +1,10 @@
 import { injectable } from 'inversify';
 import { 
     ApiConfig, 
-    getUserSelectableRoles, 
-    getMyDataCollectionItems, 
+    getCollectionItems,
     getCollectionUserPermissions,
     CollectionItemType,
-    PublicationStatus
+    CollectionSearchCriteria
 } from '@iqss/dataverse-client-javascript';
 import { DataverseApiAuthMechanism } from '@iqss/dataverse-client-javascript/dist/core/infra/repositories/ApiConfig';
 
@@ -21,43 +20,41 @@ export class DataverseCollectionService {
     }
 
     /**
-     * Fetches the roles that a user can have in a collection.
+     * Fetches collection children under a specific collection alias.
+     * If no alias is provided, Dataverse returns items from the root collection.
      */
-    public async getSelectableRoles() {
+    public async getChildCollections(collectionAlias?: string) {
         try {
-            return await getUserSelectableRoles.execute();
-        } catch (error) {
-            console.error('Error fetching selectable roles:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Fetches collections where the user has the specified roles.
-     */
-    public async getMyCollections(roleIds: string[]) {
-        try {
-            // Convert roleIds to number[] as required by the library
-            const roleIdsAsNumbers = roleIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
-
-            // We want collections that are identifiable as collections, regardless of publication status
-            const result = await getMyDataCollectionItems.execute(
-                roleIdsAsNumbers,
+            const items: any[] = [];
+            const limit = 100;
+            let offset = 0;
+            let total = Number.POSITIVE_INFINITY;
+            const criteria = new CollectionSearchCriteria(
+                undefined,
                 [CollectionItemType.COLLECTION],
-                [
-                    PublicationStatus.Published,
-                    PublicationStatus.Unpublished,
-                    PublicationStatus.Draft,
-                    PublicationStatus.Deaccessioned,
-                    PublicationStatus.InReview
-                ],
-                100, 0
             );
 
-            // MyDataCollectionItemSubset has an 'items' property containing the previews
-            return result.items || [];
+            while (offset < total) {
+                const result = await getCollectionItems.execute(
+                    collectionAlias,
+                    limit,
+                    offset,
+                    criteria,
+                );
+                const pageItems = result.items || [];
+                items.push(...pageItems);
+                total = typeof result.totalItemCount === 'number'
+                    ? result.totalItemCount
+                    : items.length;
+                if (pageItems.length === 0) {
+                    break;
+                }
+                offset += pageItems.length;
+            }
+
+            return items.filter((item: any) => item?.type === CollectionItemType.COLLECTION);
         } catch (error) {
-            console.error('Error fetching user collections:', error);
+            console.error(`Error fetching child collections for ${collectionAlias ?? ':root'}:`, error);
             throw error;
         }
     }

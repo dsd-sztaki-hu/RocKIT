@@ -129,7 +129,10 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
         return true
       }
       const diskContent = await this.fileService.readFile(metadataUri)
-      const diskCrate = JSON.parse(diskContent.value.toString())
+      const diskCrate = this.parseCrate(diskContent.value)
+      if (!diskCrate) {
+        return true
+      }
       return this.stringifyCrate(appCrate) !== this.stringifyCrate(diskCrate)
     } catch (error) {
       console.warn('Failed to compare RO-Crate metadata before export', error)
@@ -427,7 +430,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
 
   protected parseCrate(buffer: BinaryBuffer): Record<string, any> | undefined {
     try {
-      return JSON.parse(buffer.toString())
+      return JSON.parse(new TextDecoder('utf-8').decode(buffer.buffer))
     } catch (error) {
       console.error('Failed to parse RO-Crate metadata', error)
       return undefined

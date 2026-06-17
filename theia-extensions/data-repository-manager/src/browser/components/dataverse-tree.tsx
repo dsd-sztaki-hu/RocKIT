@@ -19,6 +19,7 @@ type TreeNode = {
     id: string;
     name: string;
     alias: string;
+    parentAlias?: string;
     children: TreeNode[];
     childrenLoaded: boolean;
     isFolder: boolean;
@@ -29,7 +30,6 @@ type TreeNode = {
 export type DataverseTreeProps = {
     onCollectionSelected: (collection: DataverseCollection) => void;
     collectionService: DataverseCollectionService;
-    roleIds: string[];
     selectedCollectionId?: string;
 };
 
@@ -38,32 +38,77 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
     const [expandedNodes, setExpandedNodes] = useState<string[]>([]);
 
     const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [loadingNodeId] = useState<string | null>(null);
+    const [loadingNodeId, setLoadingNodeId] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     const [rawSearchInput, setRawSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
 
-    // Initial Load: Fetch top-level collections
+    const toTreeNode = (collection: any): TreeNode => ({
+        id: collection.alias,
+        name: collection.name,
+        alias: collection.alias,
+        parentAlias: collection.parentAlias,
+        children: [],
+        childrenLoaded: false,
+        isFolder: true,
+        expanded: false,
+        disabled: false
+    });
+
+    const toTreeData = (collections: any[]): TreeNode[] => {
+        const nodesByAlias = new Map<string, TreeNode>();
+        for (const collection of collections) {
+            const node = toTreeNode(collection);
+            nodesByAlias.set(node.alias, node);
+        }
+
+        const roots: TreeNode[] = [];
+        for (const node of nodesByAlias.values()) {
+            const parentAlias = node.parentAlias?.trim();
+            const parent = parentAlias ? nodesByAlias.get(parentAlias) : undefined;
+            if (parent && parent.alias !== node.alias) {
+                parent.children.push(node);
+                parent.childrenLoaded = true;
+                continue;
+            }
+            roots.push(node);
+        }
+
+        for (const node of nodesByAlias.values()) {
+            if (node.children.length > 0) {
+                node.childrenLoaded = true;
+            }
+        }
+
+        return roots;
+    };
+
+    const replaceNode = (
+        nodes: TreeNode[],
+        nodeId: string,
+        updater: (node: TreeNode) => TreeNode
+    ): TreeNode[] => nodes.map(node => {
+        if (node.id === nodeId) {
+            return updater(node);
+        }
+        if (node.children.length > 0) {
+            return { ...node, children: replaceNode(node.children, nodeId, updater) };
+        }
+        return node;
+    });
+
+    // Initial Load: Fetch root collections
     useEffect(() => {
         let ignore = false;
         setIsLoading(true);
         setExpandedNodes([]);
         
-        props.collectionService.getMyCollections(props.roleIds)
+        props.collectionService.getChildCollections()
             .then(res => {
                 if (ignore) return;
-                const newData = res.map((c: any) => ({
-                    id: c.alias, // Use alias as ID, as CollectionPreview doesn't have a numeric ID
-                    name: c.name,
-                    alias: c.alias,
-                    children: [],
-                    childrenLoaded: false,
-                    isFolder: true,
-                    expanded: false,
-                    disabled: false 
-                }));
+                const newData = toTreeData(res);
                 setTreeData(newData);
                 setIsLoading(false);
             })
@@ -75,7 +120,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
             });
 
         return () => { ignore = true; };
-    }, [props.collectionService, props.roleIds]);
+    }, [props.collectionService]);
 
     const handleToggle = (event: React.SyntheticEvent, nodeIds: string[]) => {
         setExpandedNodes(nodeIds);
@@ -118,6 +163,22 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
             if (isExpanded) {
                 setExpandedNodes(prev => prev.filter(id => id !== node.id));
             } else {
+                if (!node.childrenLoaded) {
+                    setLoadingNodeId(node.id);
+                    try {
+                        const children = await props.collectionService.getChildCollections(node.alias);
+                        setTreeData(prev => replaceNode(prev, node.id, current => ({
+                            ...current,
+                            children: children.map(toTreeNode),
+                            childrenLoaded: true
+                        })));
+                    } catch (err: any) {
+                        console.error("DataverseTree child load error:", err);
+                        setErrorMsg(`Failed to load child collections for ${node.name}: ${err.message || "Unknown error"}`);
+                    } finally {
+                        setLoadingNodeId(null);
+                    }
+                }
                 setExpandedNodes(prev => [...prev, node.id]);
             }
         }
