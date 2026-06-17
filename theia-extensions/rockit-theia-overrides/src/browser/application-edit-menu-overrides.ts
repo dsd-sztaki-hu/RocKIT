@@ -61,21 +61,21 @@ export class ApplicationEditMenuOverrides
 
   protected readonly proxies: readonly EditCommandProxy[] = [
     {
-      proxy: { id: 'aroma.edit.undo.proxy', label: CommonCommands.UNDO.label },
+      proxy: { id: 'rockit.edit.undo.proxy', label: CommonCommands.UNDO.label },
       targetCommandId: CommonCommands.UNDO.id,
       menuPath: CommonMenus.EDIT_UNDO,
       order: '0',
       scope: 'all',
     },
     {
-      proxy: { id: 'aroma.edit.redo.proxy', label: CommonCommands.REDO.label },
+      proxy: { id: 'rockit.edit.redo.proxy', label: CommonCommands.REDO.label },
       targetCommandId: CommonCommands.REDO.id,
       menuPath: CommonMenus.EDIT_UNDO,
       order: '1',
       scope: 'all',
     },
     {
-      proxy: { id: 'aroma.edit.find.proxy', label: CommonCommands.FIND.label },
+      proxy: { id: 'rockit.edit.find.proxy', label: CommonCommands.FIND.label },
       targetCommandId: CommonCommands.FIND.id,
       menuPath: CommonMenus.EDIT_FIND,
       order: '0',
@@ -83,7 +83,7 @@ export class ApplicationEditMenuOverrides
     },
     {
       proxy: {
-        id: 'aroma.edit.replace.proxy',
+        id: 'rockit.edit.replace.proxy',
         label: CommonCommands.REPLACE.label,
       },
       targetCommandId: CommonCommands.REPLACE.id,
@@ -92,21 +92,21 @@ export class ApplicationEditMenuOverrides
       scope: 'all',
     },
     {
-      proxy: { id: 'aroma.edit.cut.proxy', label: CommonCommands.CUT.label },
+      proxy: { id: 'rockit.edit.cut.proxy', label: CommonCommands.CUT.label },
       targetCommandId: CommonCommands.CUT.id,
       menuPath: CommonMenus.EDIT_CLIPBOARD,
       order: '0',
       scope: 'clipboard',
     },
     {
-      proxy: { id: 'aroma.edit.copy.proxy', label: CommonCommands.COPY.label },
+      proxy: { id: 'rockit.edit.copy.proxy', label: CommonCommands.COPY.label },
       targetCommandId: CommonCommands.COPY.id,
       menuPath: CommonMenus.EDIT_CLIPBOARD,
       order: '1',
       scope: 'clipboard',
     },
     {
-      proxy: { id: 'aroma.edit.paste.proxy', label: CommonCommands.PASTE.label },
+      proxy: { id: 'rockit.edit.paste.proxy', label: CommonCommands.PASTE.label },
       targetCommandId: CommonCommands.PASTE.id,
       menuPath: CommonMenus.EDIT_CLIPBOARD,
       order: '2',
@@ -114,7 +114,7 @@ export class ApplicationEditMenuOverrides
     },
     {
       proxy: {
-        id: 'aroma.edit.copy-path.proxy',
+        id: 'rockit.edit.copy-path.proxy',
         label: CommonCommands.COPY_PATH.label,
       },
       targetCommandId: CommonCommands.COPY_PATH.id,
