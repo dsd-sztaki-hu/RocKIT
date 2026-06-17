@@ -1,4 +1,4 @@
-// theia-extensions/aroma2-common/src/common/metadata-schema-manager-protocol.ts
+// theia-extensions/rockit-common/src/common/metadata-schema-manager-protocol.ts
 
 import type { Event } from '@theia/core/lib/common/event'
 

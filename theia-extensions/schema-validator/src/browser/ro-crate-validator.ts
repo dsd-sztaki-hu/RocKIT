@@ -1,4 +1,4 @@
-import { MetadataSchemaManager } from "aroma2-common/lib/browser";
+import { MetadataSchemaManager } from "rockit-common/lib/browser";
 import type { AppState } from 'app-state/lib/browser/state/app-state';
 
 export type ValidationError = {

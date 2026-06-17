@@ -103,16 +103,13 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
   }
 
   protected isAutoStartEnabled(): boolean {
-    return (
-      process.env.ROCKIT_ROCRATE_MCP_AUTO_START ??
-      process.env.AROMA_ROCRATE_MCP_AUTO_START
-    ) !== 'false'
+    return process.env.ROCKIT_ROCRATE_MCP_AUTO_START !== 'false'
   }
 
   protected publishFrontendRuntimeEnv(): void {
     if (!process.env.ROCKIT_ROCRATE_MCP_NODE_PATH) {
       process.env.ROCKIT_ROCRATE_MCP_NODE_PATH =
-        process.env.AROMA_ROCRATE_MCP_NODE_PATH || process.execPath
+        process.execPath
     }
     if (process.versions.electron) {
       process.env.ROCKIT_ROCRATE_MCP_ELECTRON_RUN_AS_NODE = '1'
@@ -121,8 +118,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
 
   protected resolveDaemonRuntime(): DaemonRuntime {
     const nodePath =
-      process.env.ROCKIT_ROCRATE_MCP_NODE_PATH ||
-      process.env.AROMA_ROCRATE_MCP_NODE_PATH
+      process.env.ROCKIT_ROCRATE_MCP_NODE_PATH
     if (nodePath) {
       return {
         command: nodePath,
@@ -146,8 +142,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
       homeDir: process.env.HOME || process.env.USERPROFILE,
       platform: process.platform,
       socketPathOverride:
-        process.env.ROCKIT_ROCRATE_MCP_SOCKET_PATH ||
-        process.env.AROMA_ROCRATE_MCP_SOCKET_PATH,
+        process.env.ROCKIT_ROCRATE_MCP_SOCKET_PATH,
       username: process.env.USERNAME,
     })
   }
@@ -165,8 +160,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
       appProjectPath: process.env.THEIA_APP_PROJECT_PATH,
       resourcesPath: process.resourcesPath,
       serverPathOverride:
-        process.env.ROCKIT_ROCRATE_MCP_SERVER_PATH ||
-        process.env.AROMA_ROCRATE_MCP_SERVER_PATH,
+        process.env.ROCKIT_ROCRATE_MCP_SERVER_PATH,
     })
 
     return candidates.find((candidate) => fs.existsSync(candidate))

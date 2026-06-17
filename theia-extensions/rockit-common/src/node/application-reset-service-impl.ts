@@ -10,17 +10,17 @@ import {
 @injectable()
 export class ApplicationResetServiceImpl implements ApplicationResetService {
   async resetApplication(): Promise<ApplicationResetResult> {
-    const aromaRootPath = this.resolveAromaRootPath()
-    this.assertSafeAromaRootPath(aromaRootPath)
+    const rockitRootPath = this.resolveRockitRootPath()
+    this.assertSafeRockitRootPath(rockitRootPath)
 
-    await fs.promises.rm(aromaRootPath, { recursive: true, force: true })
+    await fs.promises.rm(rockitRootPath, { recursive: true, force: true })
 
-    return { aromaRootPath }
+    return { rockitRootPath }
   }
 
-  protected resolveAromaRootPath(): string {
+  protected resolveRockitRootPath(): string {
     const configuredRoot = String(
-      process.env.ROCKIT_ROOT_PATH ?? process.env.AROMA_ROOT_PATH ?? '',
+      process.env.ROCKIT_ROOT_PATH ?? '',
     ).trim()
     if (configuredRoot) {
       return path.resolve(configuredRoot)
@@ -28,8 +28,8 @@ export class ApplicationResetServiceImpl implements ApplicationResetService {
     return path.join(os.homedir(), '.rockit')
   }
 
-  protected assertSafeAromaRootPath(aromaRootPath: string): void {
-    const normalized = path.resolve(aromaRootPath)
+  protected assertSafeRockitRootPath(rockitRootPath: string): void {
+    const normalized = path.resolve(rockitRootPath)
     if (path.basename(normalized) !== '.rockit') {
       throw new Error(`Refusing to delete non-.rockit directory: ${normalized}`)
     }

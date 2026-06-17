@@ -158,7 +158,7 @@ The extension uses environment variables to determine which template repository 
 ├─────────────────────────────────────────────────────────────────────┤
 │                        External Integrations                        │
 │  ┌──────────────────┐    ┌──────────────────┐    ┌──────────────┐  │
-│  │   AppState       │    │  aroma2-common   │    │ Cedar        │  │
+│  │   AppState       │    │  rockit-common   │    │ Cedar        │  │
 │  │   Service        │    │  Protocol        │    │ Converter    │  │
 │  │                  │    │                  │    │              │  │
 │  │ - Schema Assoc.  │    │ - Interface Def. │    │ - Template   │  │
@@ -417,11 +417,11 @@ theia-extensions/metadata-schema-manager/
 
 ### API for External Integrations
 
-The extension exposes a service interface via `aroma2-common` for other extensions to interact with schema management:
+The extension exposes a service interface via `rockit-common` for other extensions to interact with schema management:
 
 #### MetadataSchemaManager Interface
 
-Defined in [`theia-extensions/aroma2-common/src/common/metadata-schema-manager-protocol.ts`](../../aroma2-common/src/common/metadata-schema-manager-protocol.ts):
+Defined in [`theia-extensions/rockit-common/src/common/metadata-schema-manager-protocol.ts`](../../rockit-common/src/common/metadata-schema-manager-protocol.ts):
 
 ```typescript
 export const MetadataSchemaManager = Symbol('MetadataSchemaManager');
@@ -472,7 +472,7 @@ export interface MetadataSchemaManager {
 #### Usage Example
 
 ```typescript
-import { MetadataSchemaManager } from 'aroma2-common/lib/browser';
+import { MetadataSchemaManager } from 'rockit-common/lib/browser';
 
 @injectable()
 export class MyExtensionContribution {

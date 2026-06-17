@@ -5,11 +5,11 @@ import {
 import { nls } from '@theia/core/lib/common/nls'
 import { interfaces } from '@theia/core/shared/inversify'
 
-export const AROMA_SPLASH_SHOW_AT_STARTUP = 'rockit.splash.showAtStartup'
+export const ROCKIT_SPLASH_SHOW_AT_STARTUP = 'rockit.splash.showAtStartup'
 
 export const RockitSplashConfigSchema: PreferenceSchema = {
   properties: {
-    [AROMA_SPLASH_SHOW_AT_STARTUP]: {
+    [ROCKIT_SPLASH_SHOW_AT_STARTUP]: {
       type: 'boolean',
       default: true,
       description: nls.localizeByDefault(

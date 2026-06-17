@@ -12,12 +12,12 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { RoCrateHtmlGenerator } from 'rockit-common/lib/browser'
 import {
-  AROMA_IGNORE_DIR,
-  AROMA_IGNORE_FILE,
+  ROCKIT_IGNORE_DIR,
+  ROCKIT_IGNORE_FILE,
   DEFAULT_IGNORED_ENTRIES,
-} from 'aroma2-common/lib/common/ro-crate-technical-files'
+} from 'rockit-common/lib/common/ro-crate-technical-files'
 import { EditorWidget } from '@theia/editor/lib/browser'
 import { SaveableService } from '@theia/core/lib/browser/saveable-service'
 
@@ -158,11 +158,11 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
 
   protected async persistIgnoredEntries(rootUri: URI, entries: readonly string[]): Promise<void> {
     const normalized = this.withDefaultIgnoredEntries(entries)
-    const aromaUri = rootUri.resolve(AROMA_IGNORE_DIR)
-    if (!(await this.fileService.exists(aromaUri))) {
-      await this.fileService.createFolder(aromaUri)
+    const rockitUri = rootUri.resolve(ROCKIT_IGNORE_DIR)
+    if (!(await this.fileService.exists(rockitUri))) {
+      await this.fileService.createFolder(rockitUri)
     }
-    const ignoredUri = aromaUri.resolve(AROMA_IGNORE_FILE)
+    const ignoredUri = rockitUri.resolve(ROCKIT_IGNORE_FILE)
     const payload = normalized.length ? `${normalized.join('\n')}\n` : ''
     await this.fileService.create(ignoredUri, payload, { overwrite: true })
     this.appStateService.ignoreList = normalized

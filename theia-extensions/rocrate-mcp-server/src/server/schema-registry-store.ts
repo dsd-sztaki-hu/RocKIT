@@ -125,7 +125,7 @@ function normalizeEntry(input: RegisterSchemaInput): SchemaRegistryEntry {
 function resolveStorage(mode: AccessMode): SchemaRegistryStorageInfo {
   const rockitRoot =
     process.env.ROCKIT_ROOT_PATH?.trim() ||
-    process.env.AROMA_ROOT_PATH?.trim() ||
+    process.env.ROCKIT_ROOT_PATH?.trim() ||
     path.join(os.homedir(), '.rockit')
 
   if (mode === 'local') {

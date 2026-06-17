@@ -24,7 +24,7 @@ import {
   getRocrateMcpServerPathCandidates,
   resolveAppProjectPathFromLocation,
   resolveRocrateMcpSocketPath,
-} from '../../../aroma2-common/lib/common/rocrate-mcp-config'
+} from '../../../rockit-common/lib/common/rocrate-mcp-config'
 import { NativeAgentProvider } from '../common/native-agent-protocol'
 import { NativeAgentChatWidget } from './native-agent-chat-widget'
 
@@ -223,7 +223,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         const chatCommand: Command = Command.toDefaultLocalizedCommand({
           id: agentChatCommandId(nativeAgentId),
           category: CommonCommands.FILE_CATEGORY,
-          label: 'Chat in AROMA',
+          label: 'Chat in RocKIT',
         })
         commands.registerCommand(
           chatCommand,
@@ -254,8 +254,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
           commandId: agentChatCommandId(spec.id),
           label:
             spec.id === 'codex'
-              ? 'Chat in AROMA'
-              : `Chat in AROMA with ${this.formatAgentName(spec.id)}`,
+              ? 'Chat in RocKIT'
+              : `Chat in RocKIT with ${this.formatAgentName(spec.id)}`,
           order: `${orderPrefix}.a`,
         })
         menus.registerMenuAction(EDIT_WITH_AI_MENU_PATH, {
@@ -437,7 +437,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       launchConfig = await this.resolveRocrateMcpLaunchConfig()
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
-      await new ConfirmDialog({ title: 'AROMA MCP Error', msg }).open()
+      await new ConfirmDialog({ title: 'RocKIT MCP Error', msg }).open()
       return false
     }
     if (agentId === 'claude') {
@@ -448,8 +448,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
     const snippet = this.buildRocrateMcpSnippet(spec, launchConfig)
     const accepted = await new ConfirmDialog({
-      title: 'AROMA MCP Not Configured',
-      msg: `AROMA MCP has not yet been configured for ${agentId}.\n\nConfig file: ${spec.configPath}\n\nAdd this configuration now?\n\n${snippet}`,
+      title: 'RocKIT MCP Not Configured',
+      msg: `RocKIT MCP has not yet been configured for ${agentId}.\n\nConfig file: ${spec.configPath}\n\nAdd this configuration now?\n\n${snippet}`,
     }).open()
 
     if (!accepted) return false
@@ -606,8 +606,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const processValue = (globalThis as any).process
     const processEnv = processValue?.env ?? {}
     const nodeOverride =
-      processEnv.AROMA_ROCRATE_MCP_NODE_PATH ??
-      (await this.envVariablesServer.getValue('AROMA_ROCRATE_MCP_NODE_PATH'))?.value
+      processEnv.ROCKIT_ROCRATE_MCP_NODE_PATH ??
+      (await this.envVariablesServer.getValue('ROCKIT_ROCRATE_MCP_NODE_PATH'))?.value
 
     if (nodeOverride) {
       return { command: nodeOverride, env: {} }
@@ -706,11 +706,11 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       (await this.findExecutableAbsolutePath(['claude'])) ?? 'claude'
     const payload = this.buildClaudeAddMcpPayload(launchConfig)
     const accepted = await new ConfirmDialog({
-      title: 'AROMA MCP Not Configured',
+      title: 'RocKIT MCP Not Configured',
       msg: [
-        'AROMA MCP has not yet been configured for claude.',
+        'RocKIT MCP has not yet been configured for claude.',
         '',
-        'AROMA will run:',
+        'RocKIT will run:',
         'claude mcp add-json --scope user rocrate <payload>',
         '',
         `claude: ${claudeExecutable}`,

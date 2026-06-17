@@ -132,24 +132,18 @@ class AppSetup {
 
         // 3. Set Environment Variables
         this._env.ROCKIT_ROOT_PATH = paths.root;
-        this._env.AROMA_ROOT_PATH = paths.root; 
         this._env.THEIA_CONFIG_DIR = paths.root;
         
         // Metadata Schema Env Vars
         this._env.ROCKIT_METADATA_SCHEMA_INDEX_FILE = METADATA_SCHEMA_INDEX_FILENAME;
-        this._env.AROMA_METADATA_SCHEMA_INDEX_FILE = METADATA_SCHEMA_INDEX_FILENAME;
 
         // Remote Schema Provider Env Vars
         this._env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME;
         this._env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE;
-        this._env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME;
-        this._env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE;
 
         // Data Repository Env Vars
         this._env.ROCKIT_DATA_REPOSITORY_CONFIG_FILE = DATA_REPOSITORY_CONFIG_FILENAME;
         this._env.ROCKIT_DATA_REPOSITORY_KEYTAR_SERVICE = DATA_REPOSITORY_KEYTAR_SERVICE;
-        this._env.AROMA_DATA_REPOSITORY_CONFIG_FILE = DATA_REPOSITORY_CONFIG_FILENAME;
-        this._env.AROMA_DATA_REPOSITORY_KEYTAR_SERVICE = DATA_REPOSITORY_KEYTAR_SERVICE;
 
         // ARP External URI Configurations
         this._env.ARP_PROD_PREFIX = 'https://repo.schema.researchdata.hu/templates/';

@@ -19,8 +19,8 @@ import {
     getSharedDatasetIconClass,
     getSharedFileIconClass,
     RoCrateEntityDeleteService,
-} from 'aroma2-common/lib/browser'
-import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
+} from 'rockit-common/lib/browser'
+import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
 import { MultiEditDialogService } from 'multi-edit/lib/browser/multi-edit-dialog-service'
 import { inject, injectable } from 'inversify'
 import * as mime from 'mime-types'

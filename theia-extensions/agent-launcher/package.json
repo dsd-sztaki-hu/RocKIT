@@ -1,7 +1,7 @@
 {
   "name": "agent-launcher",
   "version": "0.0.0",
-  "description": "AROMA coding agent launcher",
+  "description": "RocKIT coding agent launcher",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.111",
     "@theia/core": "1.65.2",

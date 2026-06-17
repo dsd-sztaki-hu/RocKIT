@@ -21,7 +21,7 @@ import { RemoteSchemaProviderSelectorDialog } from './components/remote-schema-p
 import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-import-from-url-dialog'
 import { DeleteConfirmationDialog } from './components/delete-confirmation-dialog'
 import type { SchemaInfo } from './types'
-import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
+import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
 
 import './styles/index.css'
 

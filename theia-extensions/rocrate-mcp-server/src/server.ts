@@ -475,7 +475,7 @@ function buildRoCrateContext(
       typeof descriptor?.['@id'] === 'string' ? descriptor['@id'] : null,
     profileResolution: {
       indexPath: constraints.resolution.indexPath,
-      aromaRootPath: constraints.resolution.aromaRootPath,
+      rockitRootPath: constraints.resolution.rockitRootPath,
       profileContextId: constraints.resolution.profileContextId,
       profileUrls: constraints.resolution.profileUrls,
       unresolvedUrls: constraints.resolution.unresolvedUrls,

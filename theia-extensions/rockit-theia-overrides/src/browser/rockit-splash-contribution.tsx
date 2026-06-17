@@ -22,7 +22,7 @@ import URI from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from 'react'
 import corePackage = require('@theia/core/package.json')
-import { AROMA_SPLASH_SHOW_AT_STARTUP } from '../common/rockit-splash-preferences'
+import { ROCKIT_SPLASH_SHOW_AT_STARTUP } from '../common/rockit-splash-preferences'
 
 import '../../src/browser/style/rockit-splash.css'
 
@@ -189,7 +189,7 @@ export class RockitSplashContribution implements FrontendApplicationContribution
       version: THEIA_VERSION,
     }
     this.showAtStartup = this.preferenceService.get<boolean>(
-      AROMA_SPLASH_SHOW_AT_STARTUP,
+      ROCKIT_SPLASH_SHOW_AT_STARTUP,
       true,
     )
 
@@ -221,7 +221,7 @@ export class RockitSplashContribution implements FrontendApplicationContribution
       onShowAtStartupChanged: (value) => {
         this.showAtStartup = value
         void this.preferenceService.set(
-          AROMA_SPLASH_SHOW_AT_STARTUP,
+          ROCKIT_SPLASH_SHOW_AT_STARTUP,
           value,
           PreferenceScope.User,
         )

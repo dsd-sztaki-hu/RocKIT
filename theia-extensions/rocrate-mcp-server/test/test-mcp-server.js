@@ -495,7 +495,7 @@ async function run() {
       ...process.env,
       TAVILY_API_KEY: 'test-key',
       TAVILY_API_URL: `${webToolsMock.baseUrl}/search`,
-      AROMA_ROOT_PATH: aromaRoot,
+      ROCKIT_ROOT_PATH: aromaRoot,
     },
   })
 

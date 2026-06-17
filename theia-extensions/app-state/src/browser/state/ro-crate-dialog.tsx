@@ -5,13 +5,13 @@ import { injectable } from '@theia/core/shared/inversify'
 import type { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceCommands } from '@theia/workspace/lib/browser'
 import type { WorkspaceService } from '@theia/workspace/lib/browser'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { RoCrateHtmlGenerator } from 'rockit-common/lib/browser'
 import {
-  AROMA_IGNORE_DIR,
-  AROMA_IGNORE_FILE,
+  ROCKIT_IGNORE_DIR,
+  ROCKIT_IGNORE_FILE,
   DEFAULT_IGNORED_ENTRIES,
   RO_CRATE_APPROVAL_FILE_NAME,
-} from 'aroma2-common/lib/common/ro-crate-technical-files'
+} from 'rockit-common/lib/common/ro-crate-technical-files'
 import * as mime from 'mime-types'
 import type * as React from 'react'
 import SparkMD5 from 'spark-md5'
@@ -234,12 +234,12 @@ export class ROCrateDialog extends ReactDialog<string> {
   }
 
   protected async ensureDefaultIgnoredEntries(rootUri: URI): Promise<void> {
-    const aromaUri = rootUri.resolve(AROMA_IGNORE_DIR)
-    if (!(await this.fileService.exists(aromaUri))) {
-      await this.fileService.createFolder(aromaUri)
+    const rockitUri = rootUri.resolve(ROCKIT_IGNORE_DIR)
+    if (!(await this.fileService.exists(rockitUri))) {
+      await this.fileService.createFolder(rockitUri)
     }
 
-    const ignoredUri = aromaUri.resolve(AROMA_IGNORE_FILE)
+    const ignoredUri = rockitUri.resolve(ROCKIT_IGNORE_FILE)
     if (!(await this.fileService.exists(ignoredUri))) {
       await this.fileService.create(ignoredUri, '', { overwrite: true })
     }

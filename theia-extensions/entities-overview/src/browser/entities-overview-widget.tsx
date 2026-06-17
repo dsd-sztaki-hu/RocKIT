@@ -25,8 +25,8 @@ import {
     getSharedFileIconClass,
     MetadataSchemaManager,
     RoCrateEntityDeleteService,
-} from 'aroma2-common/lib/browser'
-import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
+} from 'rockit-common/lib/browser'
+import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
 import { MultiEditDialogService } from 'multi-edit/lib/browser/multi-edit-dialog-service'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import '../../src/browser/styles/entities-overview-widget.css'

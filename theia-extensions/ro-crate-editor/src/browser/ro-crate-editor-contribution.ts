@@ -11,7 +11,7 @@ import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { ROCrateDialog } from 'app-state/lib/browser/state/ro-crate-dialog'
 import { inject, injectable } from 'inversify'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser';
+import { RoCrateHtmlGenerator } from 'rockit-common/lib/browser';
 import { RoCrateEditorWidget } from './ro-crate-editor-widget'
 
 export const OpenRoCrateEditorCommand: Command = {

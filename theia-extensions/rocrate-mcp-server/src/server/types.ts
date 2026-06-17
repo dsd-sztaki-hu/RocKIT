@@ -49,7 +49,7 @@ export type ProfileResolution = {
   unresolvedUrls: string[]
   profiles: ResolvedProfile[]
   indexPath?: string
-  aromaRootPath?: string
+  rockitRootPath?: string
   warnings: string[]
 }
 

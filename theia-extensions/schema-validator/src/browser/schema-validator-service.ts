@@ -1,5 +1,5 @@
 import { inject, injectable } from 'inversify';
-import { SchemaValidator, ValidationError, MetadataSchemaManager } from 'aroma2-common/lib/browser';
+import { SchemaValidator, ValidationError, MetadataSchemaManager } from 'rockit-common/lib/browser';
 import {
   validateEntities as runEntityValidation,
   validate,

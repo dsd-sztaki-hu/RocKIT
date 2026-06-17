@@ -29,12 +29,12 @@ import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browse
 import { FILE_WORKSPACE } from '@theia/workspace/lib/browser/workspace-frontend-contribution'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-loader'
-import { ApplicationResetService, RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { ApplicationResetService, RoCrateHtmlGenerator } from 'rockit-common/lib/browser'
 import {
-  AROMA_IGNORE_DIR,
-  AROMA_IGNORE_FILE,
+  ROCKIT_IGNORE_DIR,
+  ROCKIT_IGNORE_FILE,
   DEFAULT_IGNORED_ENTRIES as SHARED_DEFAULT_IGNORED_ENTRIES,
-} from 'aroma2-common/lib/common/ro-crate-technical-files'
+} from 'rockit-common/lib/common/ro-crate-technical-files'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 
 const DEFAULT_IGNORED_ENTRIES = [
@@ -421,7 +421,7 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
   }
 
   protected async isIgnoreListUnsaved(rootUri: URI): Promise<boolean> {
-    const ignoredUri = rootUri.resolve(AROMA_IGNORE_DIR).resolve(AROMA_IGNORE_FILE)
+    const ignoredUri = rootUri.resolve(ROCKIT_IGNORE_DIR).resolve(ROCKIT_IGNORE_FILE)
     const diskEntries = this.withDefaultIgnoredEntries(
       await this.readIgnoredEntries(ignoredUri),
     )
@@ -480,12 +480,12 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     }
 
     const normalized = this.withDefaultIgnoredEntries(entries)
-    const aromaUri = rootUri.resolve(AROMA_IGNORE_DIR)
-    if (!(await this.fileService.exists(aromaUri))) {
-      await this.fileService.createFolder(aromaUri)
+    const rockitUri = rootUri.resolve(ROCKIT_IGNORE_DIR)
+    if (!(await this.fileService.exists(rockitUri))) {
+      await this.fileService.createFolder(rockitUri)
     }
 
-    const ignoredUri = aromaUri.resolve(AROMA_IGNORE_FILE)
+    const ignoredUri = rockitUri.resolve(ROCKIT_IGNORE_FILE)
     const payload = normalized.length ? `${normalized.join('\n')}\n` : ''
     await this.fileService.create(ignoredUri, payload, { overwrite: true })
     this.appStateService.ignoreList = normalized

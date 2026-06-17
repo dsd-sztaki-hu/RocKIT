@@ -148,7 +148,7 @@ Uploading the RO-Crate ZIP to Dataverse is optional.
 11. Report the returned \`dataverseUrl\` to the user as the newly created dataset link.
 12. If the returned payload includes \`pendingDataverseCrate\`, Dataverse has produced an updated RO-Crate with assigned dataset/file IDs and the MCP has saved it as a pending version.
 13. Ask the user whether they want to replace the local \`ro-crate-metadata.json\` with this Dataverse-updated version for future edit/sync workflows.
-14. In terminal chat, if the user agrees, call \`adopt_pending_dataverse_rocrate(pendingId=<pendingDataverseCrate.id>, write=true)\`. In native AROMA chat, the UI may show this confirmation popup and apply the pending version itself.
+14. In terminal chat, if the user agrees, call \`adopt_pending_dataverse_rocrate(pendingId=<pendingDataverseCrate.id>, write=true)\`. In native RocKIT chat, the UI may show this confirmation popup and apply the pending version itself.
 15. If the user asks for uploaded file links, derive them from returned \`fileLinks\` when present.
 16. If the user asks to upload to another Dataverse installation, ask for:
    - the Dataverse base URL

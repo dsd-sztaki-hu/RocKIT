@@ -1,5 +1,5 @@
 {
-  "name": "aroma2-common",
+  "name": "rockit-common",
   "keywords": [
     "theia-extension"
   ],
@@ -32,8 +32,8 @@
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/aroma2-common-frontend-module",
-      "backend": "lib/node/aroma2-common-backend-module" 
+      "frontend": "lib/browser/rockit-common-frontend-module",
+      "backend": "lib/node/rockit-common-backend-module" 
     }
   ]
 }
