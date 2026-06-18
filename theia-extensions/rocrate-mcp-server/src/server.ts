@@ -7,7 +7,7 @@ import {
   createDefaultRoCrateWorkspace,
   type DefaultRoCrateFileContent,
   type DefaultRoCrateWorkspaceAdapter,
-} from 'aroma2-common/lib/common/default-ro-crate'
+} from 'rockit-common/lib/common/default-ro-crate'
 import { DEFAULT_REGISTERED_SCHEMAS } from 'rocrate-context-core'
 import {
   applyChangeSet,

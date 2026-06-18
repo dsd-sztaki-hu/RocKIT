@@ -156,10 +156,10 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
   }
 
   protected async persistIgnoredEntries(rootUri: URI, entries: readonly string[]): Promise<void> {
-    const normalized = this.withDefaultIgnoredEntries(entries)
-    const aromaUri = rootUri.resolve(AROMA_IGNORE_DIR)
-    if (!(await this.fileService.exists(aromaUri))) {
-      await this.fileService.createFolder(aromaUri)
+    const normalized = withDefaultIgnoredEntries(entries)
+    const rockitUri = rootUri.resolve(ROCKIT_IGNORE_DIR)
+    if (!(await this.fileService.exists(rockitUri))) {
+      await this.fileService.createFolder(rockitUri)
     }
     const ignoredUri = rockitUri.resolve(ROCKIT_IGNORE_FILE)
     const payload = normalized.length ? `${normalized.join('\n')}\n` : ''

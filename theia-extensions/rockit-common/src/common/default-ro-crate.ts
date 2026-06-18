@@ -1,8 +1,8 @@
 import * as mime from 'mime-types'
 import {
-  AROMA_IGNORE_DIR,
-  AROMA_IGNORE_FILE,
   DEFAULT_IGNORED_ENTRIES,
+  ROCKIT_IGNORE_DIR,
+  ROCKIT_IGNORE_FILE,
   RO_CRATE_APPROVAL_FILE_NAME,
   RO_CRATE_METADATA_FILE,
   RO_CRATE_PREVIEW_FILE,
@@ -130,12 +130,12 @@ export async function buildDefaultIgnoredFilePlan(
   const existing =
     existingIgnoredEntries ??
     (adapter.readTextFile
-      ? parseIgnoredEntries((await adapter.readTextFile(`${AROMA_IGNORE_DIR}/${AROMA_IGNORE_FILE}`)) ?? '')
+      ? parseIgnoredEntries((await adapter.readTextFile(`${ROCKIT_IGNORE_DIR}/${ROCKIT_IGNORE_FILE}`)) ?? '')
       : [])
   const entries = withDefaultIgnoredEntries(existing)
   return {
-    directoryPath: AROMA_IGNORE_DIR,
-    filePath: `${AROMA_IGNORE_DIR}/${AROMA_IGNORE_FILE}`,
+    directoryPath: ROCKIT_IGNORE_DIR,
+    filePath: `${ROCKIT_IGNORE_DIR}/${ROCKIT_IGNORE_FILE}`,
     entries,
     payload: entries.length ? `${entries.join('\n')}\n` : '',
   }
@@ -208,7 +208,7 @@ export function shouldIncludeDefaultRoCratePath(
       rootName === RO_CRATE_APPROVAL_FILE_NAME ||
       rootName === 'AGENTS.md' ||
       rootName === 'CLAUDE.md' ||
-      rootName === AROMA_IGNORE_DIR
+      rootName === ROCKIT_IGNORE_DIR
     ) {
       return false
     }

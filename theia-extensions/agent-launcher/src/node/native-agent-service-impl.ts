@@ -546,7 +546,7 @@ class ClaudeNativeAdapter implements Adapter {
       systemPrompt: {
         type: 'preset',
         preset: 'claude_code',
-        append: AROMA_AGENT_CONTEXT_PROMPT,
+        append: ROCKIT_AGENT_CONTEXT_PROMPT,
       },
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,
