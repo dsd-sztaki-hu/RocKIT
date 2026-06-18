@@ -1,6 +1,7 @@
 import { BaseWidget, Message, StatefulWidget } from '@theia/core/lib/browser'
 import { DisposableCollection } from '@theia/core/lib/common/disposable'
 import { MessageService } from '@theia/core/lib/common/message-service'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 import { createRoot, Root } from 'react-dom/client'
@@ -23,6 +24,8 @@ import {
 import { RoCrateFileHashService } from './services/ro-crate-file-hash-service'
 import { DataRepositoryConfig } from './types'
 import './styles/index.css'
+
+type RoCrateEntity = Record<string, unknown>
 
 export const DATA_REPOSITORY_MANAGER_WIDGET_ID = 'data-repository-manager:widget'
 export const DATA_REPOSITORY_MANAGER_LABEL = 'Data Repository Manager'
@@ -53,6 +56,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly capabilityService: DataverseCapabilityService,
     @inject(RoCrateFileHashService)
     protected readonly fileHashService: RoCrateFileHashService,
+    @inject(AppStateService)
+    protected readonly appStateService: AppStateService,
   ) {
     super()
     this.id = DATA_REPOSITORY_MANAGER_WIDGET_ID
@@ -213,6 +218,17 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
     }
 
+    if (capabilities.supportsArpRoCrateZipUpload) {
+      const missingMetadata = this.getMissingArpDatasetCreationMetadata()
+      if (missingMetadata.length) {
+        this.messageService.error(
+          `ARP export requires required citation metadata before creating a Dataverse dataset: ${missingMetadata.join(', ')}. Fill these fields in the root Dataset citation metadata, then export again.`,
+          { timeout: 15000 },
+        )
+        return
+      }
+    }
+
     const dialog = new DataverseCollectionBrowserDialog(
       selectedRepo,
       this.collectionService,
@@ -343,6 +359,117 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     if (result) {
       await this.storeService.saveRepository(result)
     }
+  }
+
+  protected getMissingArpDatasetCreationMetadata(): string[] {
+    const crate = this.appStateService.roCrate
+    const graph = this.readGraph(crate)
+    const root = graph.find((entity) => entity['@id'] === './')
+    if (!root) {
+      return ['Root Dataset']
+    }
+
+    const missing: string[] = []
+    if (!this.firstMeaningfulString(root.title, root.name)) {
+      missing.push('Title')
+    }
+    if (!this.extractAuthors(root, graph).length) {
+      missing.push('Author Name')
+    }
+    if (!this.extractContactEmails(root, graph).length) {
+      missing.push('Point of Contact Email')
+    }
+    if (!this.extractDescriptions(root, graph).length) {
+      missing.push('Description Text')
+    }
+    if (!this.readStrings(root.subject).length) {
+      missing.push('Subject')
+    }
+    return missing
+  }
+
+  protected extractAuthors(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
+    return this.uniqueStrings([
+      ...this.resolveEntities(root.author, graph).flatMap((author) =>
+        this.readStrings(author.authorName ?? author.name),
+      ),
+      ...this.readStrings(root.author).filter((value) => !this.looksLikeEntityId(value)),
+    ])
+  }
+
+  protected extractContactEmails(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
+    return this.uniqueStrings([
+      ...this.resolveEntities(root.datasetContact ?? root.contactPoint, graph).flatMap(
+        (contact) => this.readStrings(contact.datasetContactEmail ?? contact.email),
+      ),
+      ...this.readStrings(root.datasetContactEmail),
+    ])
+  }
+
+  protected extractDescriptions(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
+    return this.uniqueStrings([
+      ...this.resolveEntities(root.dsDescription, graph).flatMap((description) =>
+        this.readStrings(
+          description.dsDescriptionValue ?? description.description ?? description.name,
+        ),
+      ),
+      ...this.readStrings(root.description),
+    ])
+  }
+
+  protected resolveEntities(value: unknown, graph: RoCrateEntity[]): RoCrateEntity[] {
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => this.resolveEntities(item, graph))
+    }
+    if (value && typeof value === 'object') {
+      const entity = value as RoCrateEntity
+      const linkedEntity = this.readStrings(entity['@id'])
+        .map((id) => graph.find((graphEntity) => graphEntity['@id'] === id))
+        .find((graphEntity): graphEntity is RoCrateEntity => !!graphEntity)
+      return linkedEntity ? [linkedEntity] : [entity]
+    }
+    return []
+  }
+
+  protected readGraph(crate: unknown): RoCrateEntity[] {
+    if (!crate || typeof crate !== 'object' || Array.isArray(crate)) {
+      return []
+    }
+    const graph = (crate as Record<string, unknown>)['@graph']
+    return Array.isArray(graph)
+      ? graph.filter(
+          (entity): entity is RoCrateEntity =>
+            !!entity && typeof entity === 'object' && !Array.isArray(entity),
+        )
+      : []
+  }
+
+  protected firstMeaningfulString(...values: unknown[]): string | undefined {
+    return values
+      .flatMap((value) => this.readStrings(value))
+      .find((value) => value !== './' && value !== '.')
+  }
+
+  protected readStrings(value: unknown): string[] {
+    if (typeof value === 'string') {
+      return value.trim() ? [value.trim()] : []
+    }
+    if (Array.isArray(value)) {
+      return this.uniqueStrings(value.flatMap((item) => this.readStrings(item)))
+    }
+    return []
+  }
+
+  protected uniqueStrings(values: string[]): string[] {
+    return Array.from(new Set(values.filter((value) => value.trim() !== '')))
+  }
+
+  protected looksLikeEntityId(value: string): boolean {
+    return (
+      value.startsWith('#') ||
+      value.startsWith('./') ||
+      /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)
+    )
   }
 
   // Handles single item deletion from the Action column
