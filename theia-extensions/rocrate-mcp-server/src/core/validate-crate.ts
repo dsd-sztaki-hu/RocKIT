@@ -45,6 +45,97 @@ function extractReferenceIds(value: unknown): string[] {
   return refs
 }
 
+function stripLocalIdDecorations(value: string): string {
+  return value
+    .trim()
+    .replace(/^file:\/\/\.?\//, '')
+    .replace(/^#/, '')
+    .replace(/^\.\//, '')
+}
+
+function stripExtension(value: string): string {
+  return value.replace(/\.[A-Za-z0-9]{2,8}$/, '')
+}
+
+function normalizeMachineComparable(value: string): string {
+  return stripLocalIdDecorations(value)
+    .toLowerCase()
+    .replace(/%[0-9a-f]{2}/gi, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function idComparableCandidates(entityId: string): Set<string> {
+  const stripped = stripLocalIdDecorations(entityId)
+  const fragments = [
+    stripped,
+    stripped.split('#').pop() ?? '',
+    stripped.split(/[\\/]/).pop() ?? '',
+  ].filter((candidate) => candidate.trim() !== '')
+
+  const candidates = new Set<string>()
+  for (const fragment of fragments) {
+    candidates.add(normalizeMachineComparable(fragment))
+    candidates.add(normalizeMachineComparable(stripExtension(fragment)))
+  }
+  candidates.delete('')
+  return candidates
+}
+
+function filenameFromEntityId(entityId: string): string | undefined {
+  const stripped = stripLocalIdDecorations(entityId).replace(/\/+$/, '')
+  const filename = stripped.split(/[\\/]/).pop()?.trim()
+  if (!filename || filename === '.' || filename === '..') {
+    return undefined
+  }
+  try {
+    return decodeURIComponent(filename)
+  } catch {
+    return filename
+  }
+}
+
+function isMachineLikeName(entityName: string, entityId?: string): boolean {
+  const trimmed = entityName.trim()
+  if (trimmed === '') {
+    return false
+  }
+
+  if (trimmed === 'ro-crate-metadata.json') {
+    return false
+  }
+
+  if (
+    entityId?.startsWith('#') &&
+    idComparableCandidates(entityId).has(normalizeMachineComparable(trimmed))
+  ) {
+    return true
+  }
+
+  if (trimmed.startsWith('#') || trimmed.startsWith('file:') || /[\\/]/.test(trimmed)) {
+    return true
+  }
+
+  const hasWhitespace = /\s/.test(trimmed)
+  const hyphenCount = (trimmed.match(/-/g) ?? []).length
+  const hasUnderscore = trimmed.includes('_')
+  const isCamelCaseToken = /^[a-z]+(?:[A-Z][a-z0-9]+)+$/.test(trimmed)
+
+  return (
+    hasUnderscore ||
+    (hyphenCount >= 2 && !hasWhitespace) ||
+    isCamelCaseToken
+  )
+}
+
+function fileNameIssue(entityName: string, entityId: string): string | undefined {
+  const expectedName = filenameFromEntityId(entityId)
+  if (!expectedName) {
+    return undefined
+  }
+  return entityName.trim() === expectedName ? undefined : expectedName
+}
+
 export function validateCrate(
   crate: RoCrate,
   options: ValidateOptions = {},
@@ -118,6 +209,27 @@ export function validateCrate(
       target.push({
         code: 'missing_entity_name',
         message: 'Entity should define a human-friendly name.',
+        path: `${basePath}.name`,
+      })
+    } else if (typeof entityId === 'string' && types.includes('File')) {
+      const expectedName = fileNameIssue(entityName, entityId)
+      if (expectedName) {
+        const target = strict ? errors : warnings
+        target.push({
+          code: 'file_entity_name_mismatch',
+          message:
+            `File entity name should be the last filename segment "${expectedName}", ` +
+            `not "${entityName}".`,
+          path: `${basePath}.name`,
+        })
+      }
+    } else if (typeof entityId === 'string' && isMachineLikeName(entityName, entityId)) {
+      const target = strict ? errors : warnings
+      target.push({
+        code: 'machine_like_entity_name',
+        message:
+          `Entity name "${entityName}" looks machine-generated or derived from @id. ` +
+          'Use a human-friendly label instead.',
         path: `${basePath}.name`,
       })
     }

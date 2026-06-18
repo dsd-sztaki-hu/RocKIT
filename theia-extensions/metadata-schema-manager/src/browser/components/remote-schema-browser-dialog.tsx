@@ -141,7 +141,8 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
             
             setSchemaApi(new SchemaApi({
                 domainBase: domain,
-                apiKey: provider.apiKey
+                apiKey: providerApiKey(provider),
+                proxyUrl: providerProxyUrl(provider)
             }));
 
             schemaManagerService.loadAllSchemas().then(schemas => {
@@ -240,3 +241,44 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
         </div>
     );
 };
+
+function providerApiKey(provider: RemoteSchemaProviderConfig): string | undefined {
+    const accessMode = provider.accessMode || (provider.apiKey ? 'apiKey' : 'dataverseProxy');
+    return accessMode === 'apiKey' ? provider.apiKey : undefined;
+}
+
+function providerProxyUrl(provider: RemoteSchemaProviderConfig): string | undefined {
+    const accessMode = provider.accessMode || (provider.apiKey ? 'apiKey' : 'dataverseProxy');
+    if (accessMode !== 'dataverseProxy') return undefined;
+    const baseUrl = provider.dataverseProxyBaseUrl || deriveDataverseProxyBaseUrl(provider.domainBase || provider.baseUrl || '');
+    return `${baseUrl.replace(/\/+$/, '')}/api/arp/cedarResourceProxy?url=`;
+}
+
+function deriveDataverseProxyBaseUrl(value: string): string {
+    const trimmed = value.trim();
+    if (!trimmed) return 'https://repo.researchdata.hu';
+    try {
+        const urlObj = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`);
+        const parts = urlObj.hostname.split('.');
+        const first = parts[0]?.toLowerCase();
+        if (first === 'schema') {
+            parts[0] = 'repo';
+        } else if (['cedar', 'resource', 'open', 'openview'].includes(first)) {
+            parts.shift();
+            if (parts[0]?.toLowerCase() === 'schema') {
+                parts[0] = 'repo';
+            } else {
+                parts.unshift('repo');
+            }
+        } else if (first !== 'repo') {
+            parts.unshift('repo');
+        }
+        urlObj.hostname = parts.join('.');
+        urlObj.pathname = '';
+        urlObj.search = '';
+        urlObj.hash = '';
+        return urlObj.origin;
+    } catch {
+        return trimmed;
+    }
+}

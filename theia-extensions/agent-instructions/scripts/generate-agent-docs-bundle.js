@@ -38,7 +38,7 @@ const content = [
   '// AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.',
   '// Source: agent-docs/*.md',
   '',
-  "export const AGENT_DOCS_DIR = '.aroma'",
+  "export const AGENT_DOCS_DIR = '.rockit'",
   '',
   'export const AGENT_DOCS_BUNDLE: Record<string, string> = {',
   docsObjectContent,

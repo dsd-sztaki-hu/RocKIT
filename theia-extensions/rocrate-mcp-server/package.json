@@ -1,6 +1,6 @@
 {
   "name": "rocrate-mcp-server",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "MCP server exposing RO-Crate editing and profile-aware validation tools",
   "files": [
     "lib",
@@ -12,20 +12,30 @@
     "rocrate-mcp-server": "lib/server.js"
   },
   "scripts": {
-    "build": "tsc -b && shx mkdir -p lib/dashboard/static && shx cp -r src/dashboard/static/. lib/dashboard/static/",
+    "build": "node scripts/generate-workflow-docs-bundle.js && tsc -b && shx mkdir -p lib/dashboard/static && shx cp -r src/dashboard/static/. lib/dashboard/static/",
+    "build:standalone": "node scripts/generate-workflow-docs-bundle.js && node scripts/build-standalone.js",
+    "pack:standalone": "npm pack ./dist/npm",
     "clean": "rimraf lib tsconfig.tsbuildinfo",
-    "watch": "tsc -b -w",
+    "watch": "node scripts/generate-workflow-docs-bundle.js && tsc -b -w",
     "start": "node lib/server.js",
     "test": "yarn build && node test/test-core.js && node test/test-mcp-server.js",
     "test:dashboard": "yarn build && node test/test-dashboard-collector.js && node test/test-dashboard-http.js",
     "test:socket": "yarn build && node test/test-socket-lifecycle.js"
   },
   "devDependencies": {
+    "esbuild": "^0.25.0",
     "rimraf": "^5.0.0",
     "shx": "^0.3.3",
     "typescript": "~5.4.5"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1"
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "rockit-common": "0.0.0",
+    "cedar-template-converter": "1.0.0",
+    "metadata-profile-core": "0.0.0",
+    "rocrate-context-core": "0.1.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

@@ -14,7 +14,7 @@ import {
     SchemaValidatorManager,
     type ValidationError,
     writeUtf8TextFile,
-} from 'aroma2-common/lib/browser'
+} from 'rockit-common/lib/browser'
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 

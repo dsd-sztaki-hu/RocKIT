@@ -13,7 +13,7 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
-import { writeUtf8TextFile } from 'aroma2-common/lib/browser'
+import { writeUtf8TextFile } from 'rockit-common/lib/browser'
 
 export const RemoteRoCrateConversionCommand: Command = {
   id: 'RemoteRoCrateConversion.command',

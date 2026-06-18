@@ -1,5 +1,11 @@
 import type { McpToolTextResult, TransportMode } from './types'
 import type { SchemaRegistryEntry } from './schema-registry-store'
+import { readAgentWorkflowDoc } from './workflow-docs'
+import { registerLocalFileForAroma } from '../dashboard/local-file-bridge'
+import {
+  getAgentSessionContext,
+  setAgentSessionContext,
+} from './agent-session-context'
 
 type ToolCallTelemetryContext = {
   sessionKey: string
@@ -41,6 +47,9 @@ type DispatcherDeps = {
   summarizeDataverseDownloadPayload: (
     payload: Record<string, unknown>,
   ) => Record<string, unknown>
+  runCreateDefaultRoCrate: (
+    params: Record<string, unknown>,
+  ) => Promise<Record<string, unknown>>
   loadCrateFromParams: (params: Record<string, unknown>) => {
     mode: 'local' | 'remote'
     crate: any
@@ -122,6 +131,17 @@ type DispatcherDeps = {
   }
   parseAccessMode: (params: Record<string, unknown>) => 'local' | 'remote'
   asRoCrate: (value: unknown) => any
+  resolveMissingMetadataProfiles: (
+    crate: any,
+    mode: 'local' | 'remote',
+    params?: Record<string, unknown>,
+  ) => Promise<unknown>
+  listWellKnownSchemas: (params: Record<string, unknown>) => Promise<Record<string, unknown>>
+  listRemoteSchemaTree: (params: Record<string, unknown>) => Promise<Record<string, unknown>>
+  importWellKnownSchema: (params: Record<string, unknown>) => Promise<Record<string, unknown>>
+  listMetadataProfiles: (params: Record<string, unknown>) => Record<string, unknown>
+  importMetadataProfile: (params: Record<string, unknown>) => Promise<Record<string, unknown>>
+  deleteMetadataProfileTool: (params: Record<string, unknown>) => Promise<Record<string, unknown>>
   summarizeProfileResolution: (resolution: unknown) => Record<string, unknown>
   buildRoCrateContext: (
     crate: any,
@@ -182,6 +202,7 @@ export function createToolDispatcher(deps: DispatcherDeps) {
     parseDataverseDownloadParams,
     runDataverseDownload,
     summarizeDataverseDownloadPayload,
+    runCreateDefaultRoCrate,
     loadCrateFromParams,
     parseResponseMode,
     summarizeCratePayload,
@@ -205,6 +226,13 @@ export function createToolDispatcher(deps: DispatcherDeps) {
     validateCrateAgainstProfileConstraints,
     parseAccessMode,
     asRoCrate,
+    resolveMissingMetadataProfiles,
+    listWellKnownSchemas,
+    listRemoteSchemaTree,
+    importWellKnownSchema,
+    listMetadataProfiles,
+    importMetadataProfile,
+    deleteMetadataProfileTool,
     summarizeProfileResolution,
     buildRoCrateContext,
     summarizeRoCrateContext,
@@ -356,6 +384,33 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         return fn()
       }
 
+      if (toolName === 'set_agent_session_context') {
+        const result = setAgentSessionContext(telemetryContext?.sessionKey, params)
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
+      }
+
+      if (toolName === 'read_agent_workflow_doc') {
+        const result = readAgentWorkflowDoc(
+          params,
+          getAgentSessionContext(telemetryContext?.sessionKey),
+        )
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
+      }
+
+      if (toolName === 'open_aroma_for_local_file') {
+        const result = registerLocalFileForAroma(params)
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
+      }
+
       if (toolName === 'search') {
         const result = await runInTelemetryContext(async () => {
           const searchParams = parseWebSearchParams(params)
@@ -372,6 +427,56 @@ export function createToolDispatcher(deps: DispatcherDeps) {
           const downloadParams = parseDownloadUrlParams(params)
           return runDownloadUrl(downloadParams)
         })
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
+      }
+
+      if (toolName === 'list_well_known_schemas') {
+        const result = await runInTelemetryContext(async () => listWellKnownSchemas(params))
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
+      }
+
+      if (toolName === 'list_remote_schema_tree') {
+        const result = await runInTelemetryContext(async () => listRemoteSchemaTree(params))
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
+      }
+
+      if (toolName === 'import_well_known_schema') {
+        const result = await runInTelemetryContext(async () => importWellKnownSchema(params))
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
+      }
+
+      if (toolName === 'list_metadata_profiles') {
+        const result = listMetadataProfiles(params)
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
+      }
+
+      if (toolName === 'import_metadata_profile') {
+        const result = await runInTelemetryContext(async () => importMetadataProfile(params))
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, result)
+        }
+        return textResult(result)
+      }
+
+      if (toolName === 'delete_metadata_profile') {
+        const result = await runInTelemetryContext(async () =>
+          deleteMetadataProfileTool(params),
+        )
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, result)
         }
@@ -436,6 +541,27 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         )
       }
 
+      if (toolName === 'create_default_rocrate') {
+        const payload = await runCreateDefaultRoCrate(params)
+        const responseMode = parseResponseMode(params, 'summary')
+        if (collector && telemetryId) {
+          collector.completeToolCallSuccess(telemetryId, payload)
+        }
+        if (responseMode === 'full') {
+          return textResult(payload)
+        }
+        return textResult({
+          ok: payload.ok,
+          mode: payload.mode,
+          writeApplied: payload.writeApplied,
+          directoryPath: payload.directoryPath,
+          cratePath: payload.cratePath,
+          ignoredFilePath: payload.ignoredFilePath,
+          summary: payload.summary,
+          crateSummary: payload.crateSummary,
+        })
+      }
+
       if (toolName === 'apply_changes') {
         const loaded = loadCrateFromParams(params)
         const dryRun = params.dryRun === true
@@ -479,6 +605,9 @@ export function createToolDispatcher(deps: DispatcherDeps) {
           )
         }
         const changed = applyChangeSet(loaded.crate, normalizedChangeSet)
+        await runInTelemetryContext(async () =>
+          resolveMissingMetadataProfiles(changed, loaded.mode, params),
+        )
         const responseMode = parseResponseMode(
           params,
           loaded.mode === 'remote' ? 'full' : 'summary',
@@ -668,6 +797,9 @@ export function createToolDispatcher(deps: DispatcherDeps) {
           strict ? 'enforce_required' : 'allow_missing',
         )
         const report = validateCrate(loaded.crate, { strict })
+        await runInTelemetryContext(async () =>
+          resolveMissingMetadataProfiles(loaded.crate, loaded.mode, params),
+        )
         const constraints = buildProfileConstraints(
           loaded.crate,
           loaded.mode,
@@ -727,6 +859,9 @@ export function createToolDispatcher(deps: DispatcherDeps) {
           throw new Error('write_crate_atomic requires crate object.')
         }
         const crate = asRoCrate(crateParam)
+        await runInTelemetryContext(async () =>
+          resolveMissingMetadataProfiles(crate, mode, params),
+        )
         const preConstraints = buildProfileConstraints(
           crate,
           mode,
@@ -805,6 +940,9 @@ export function createToolDispatcher(deps: DispatcherDeps) {
       if (toolName === 'get_rocrate_context') {
         const loaded = loadCrateFromParams(params)
         const resolutionInputs = parseProfileResolutionInputs(params)
+        await runInTelemetryContext(async () =>
+          resolveMissingMetadataProfiles(loaded.crate, loaded.mode, params),
+        )
         const context = buildRoCrateContext(
           loaded.crate,
           loaded.mode,
@@ -824,6 +962,9 @@ export function createToolDispatcher(deps: DispatcherDeps) {
       if (toolName === 'suggest_context_terms') {
         const loaded = loadCrateFromParams(params)
         const resolutionInputs = parseProfileResolutionInputs(params)
+        await runInTelemetryContext(async () =>
+          resolveMissingMetadataProfiles(loaded.crate, loaded.mode, params),
+        )
         const constraints = buildProfileConstraints(
           loaded.crate,
           loaded.mode,
@@ -903,6 +1044,15 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         const mode = parseAccessMode(params)
         const includeProfileContent = params.includeProfileContent === true
         const resolutionInputs = parseProfileResolutionInputs(params)
+        if (mode === 'local') {
+          await runInTelemetryContext(async () =>
+            resolveMissingMetadataProfiles(
+              { '@graph': [{ '@id': './', '@type': 'Dataset', conformsTo: { '@id': profileUrl } }] },
+              mode,
+              params,
+            ),
+          )
+        }
         const result = resolveProfileUrls(
           [profileUrl],
           mode,

@@ -62,10 +62,10 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
                 this.messageService
             );
 
-            const selectedSchema = await dialog.open();
+            const selectedSchemas = await dialog.open();
 
-            if (selectedSchema) {
-                await this.handleAssociate(selectedSchema);
+            if (selectedSchemas?.length) {
+                await this.handleAssociate(selectedSchemas);
             }
         } catch (err) {
             console.error("Failed to open selector dialog:", err);
@@ -79,7 +79,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
         }
     }
 
-    protected async handleAssociate(schema: SchemaInfo): Promise<void> {
+    protected async handleAssociate(schemas: SchemaInfo[]): Promise<void> {
         try {
             const crate = this.appStateService.roCrate;
             const ctx = this.appStateService.getState().schemaSelectorContext;
@@ -90,9 +90,11 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
             }
 
             if (crate && Array.isArray(crate['@graph'])) {
-                const w3id = schema.conformsTo ? this.schemaManagerService.deriveConformsToFromId(schema.aux.reference) : '';
+                const w3ids = schemas
+                    .map(schema => schema.conformsTo ? this.schemaManagerService.deriveConformsToFromId(schema.aux.reference) : '')
+                    .filter((w3id): w3id is string => Boolean(w3id));
                 
-                if (w3id) {
+                if (w3ids.length) {
                     const updatedGraph = (crate['@graph'] as any[]).map(entry => {
                         if (String(entry['@id']) !== entityId) return entry;
                         
@@ -102,8 +104,10 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
                             .map((v: any) => (typeof v === 'string' ? { '@id': v } : v))
                             .filter((v: any) => v && typeof v['@id'] === 'string');
                         
-                        const already = normalized.some((v: any) => v['@id'] === w3id);
-                        const next = already ? normalized : [...normalized, { '@id': w3id }];
+                        const next = w3ids.reduce((acc: any[], w3id) => {
+                            const already = acc.some((v: any) => v['@id'] === w3id);
+                            return already ? acc : [...acc, { '@id': w3id }];
+                        }, normalized);
                         
                         return { ...entry, conformsTo: next };
                     });
@@ -115,7 +119,11 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
                 }
             }
 
-            this.messageService.info(`Associated schema: ${schema.name}`, { timeout: MSG_TIMEOUT });
+            const schemaNames = schemas.map(schema => schema.name).join(', ');
+            const message = schemas.length === 1
+                ? `Associated schema: ${schemaNames}`
+                : `Associated ${schemas.length} schemas: ${schemaNames}`;
+            this.messageService.info(message, { timeout: MSG_TIMEOUT });
 
         } catch (e) {
             console.error(e);
@@ -124,9 +132,9 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
     }
 }
 
-export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | undefined> {
+export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo[] | undefined> {
 
-    protected selectedSchema: SchemaInfo | undefined;
+    protected selectedSchemas: SchemaInfo[] | undefined;
     private reactRoot: Root | undefined;
 
     constructor(
@@ -147,17 +155,17 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo | un
         this.contentNode.style.flexDirection = 'column';
     }
 
-    get value(): SchemaInfo | undefined {
-        return this.selectedSchema;
+    get value(): SchemaInfo[] | undefined {
+        return this.selectedSchemas;
     }
 
-    protected handleAccept(schema: SchemaInfo) {
-        this.selectedSchema = schema;
+    protected handleAccept(schemas: SchemaInfo[]) {
+        this.selectedSchemas = schemas;
         this.accept();
     }
 
     protected handleClose() {
-        this.selectedSchema = undefined;
+        this.selectedSchemas = undefined;
         this.close();
     }
 
@@ -197,21 +205,39 @@ interface ContentProps {
     service: SchemaManagerService;
     fileDialog: FileDialogService;
     msg: MessageService;
-    onAccept: (schema: SchemaInfo) => void;
+    onAccept: (schemas: SchemaInfo[]) => void;
     onCancel: () => void;
 }
 
 const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onAccept, onCancel }) => {
     const [schemas, setSchemas] = React.useState<SchemaInfo[]>([]);
     const [isLoading, setIsLoading] = React.useState(false);
-    const [selectedSchema, setSelectedSchema] = React.useState<SchemaInfo | undefined>(undefined);
+    const [selectedSchemas, setSelectedSchemas] = React.useState<SchemaInfo[]>([]);
+
+    const isTextEditingTarget = (target: EventTarget | null): boolean => {
+        if (!(target instanceof HTMLElement)) {
+            return false;
+        }
+
+        const tagName = target.tagName.toLowerCase();
+        if (tagName === 'textarea' || target.isContentEditable) {
+            return true;
+        }
+
+        if (target instanceof HTMLInputElement) {
+            const type = target.type.toLowerCase();
+            return !['button', 'checkbox', 'radio', 'submit', 'reset'].includes(type);
+        }
+
+        return false;
+    };
 
     const loadData = React.useCallback(() => {
         setIsLoading(true);
         service.loadAllSchemas()
             .then(res => {
                 setSchemas(res);
-                setSelectedSchema(undefined);
+                setSelectedSchemas([]);
             })
             .catch(err => console.error(err))
             .finally(() => setIsLoading(false));
@@ -227,8 +253,47 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
     }, [service, loadData]);
 
     const handleSelectionChange = (keys: React.Key[]) => {
-        const found = schemas.find(s => s.id === keys[0]);
-        setSelectedSchema(found);
+        const selected = keys
+            .map(key => schemas.find(schema => schema.id === key))
+            .filter((schema): schema is SchemaInfo => Boolean(schema));
+        setSelectedSchemas(selected);
+    };
+
+    const handleRowDoubleClick = (schema: SchemaInfo) => {
+        onAccept([schema]);
+    };
+
+    React.useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Enter' || event.defaultPrevented || !selectedSchemas.length) {
+                return;
+            }
+
+            if (isTextEditingTarget(event.target)) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            onAccept(selectedSchemas);
+        };
+
+        window.addEventListener('keydown', handleKeyDown, true);
+        return () => window.removeEventListener('keydown', handleKeyDown, true);
+    }, [onAccept, selectedSchemas]);
+
+    const handleTableKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.key !== 'Enter' || event.defaultPrevented || !selectedSchemas.length) {
+            return;
+        }
+
+        if (isTextEditingTarget(event.target)) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        onAccept(selectedSchemas);
     };
 
     const handleRefresh = () => {
@@ -294,7 +359,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
     };
 
     return (
-        <div className="metadata-schema-layout-container" style={{ padding: 0 }}> 
+        <div className="metadata-schema-layout-container" style={{ padding: 0 }} onKeyDown={handleTableKeyDown}> 
             
             <MetadataSchemaToolbar 
                 onImportFile={handleImportFile} 
@@ -308,10 +373,12 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                 <MetadataSchemaTable
                     schemas={schemas}
                     isLoading={isLoading}
-                    selectionType="row"
-                    selectedKeys={selectedSchema ? [selectedSchema.id] : []}
+                    selectionType="checkbox"
+                    selectedKeys={selectedSchemas.map(schema => schema.id)}
                     onSelectionChange={handleSelectionChange}
+                    onRowDoubleClick={handleRowDoubleClick}
                     allowDeleteValidSchemas={false}
+                    disableInvalidRows={true}
                     onDelete={handleDeleteTransient}
                     onRetry={(id) => service.retrySchema(id)}
                 />
@@ -321,24 +388,26 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
             <div className="schema-selector__footer">
                 {/* Left: Selection Info */}
                 <div className="schema-selector__info">
-                    {selectedSchema ? (
+                    {selectedSchemas.length ? (
                         <>
                             <Tooltip title="Deselect" placement="top" classes={{ tooltip: 'schema-table__tooltip' }}>
                                 <IconButton 
                                     size="small" 
-                                    onClick={() => setSelectedSchema(undefined)} 
+                                    onClick={() => setSelectedSchemas([])} 
                                     className="schema-selector__deselect-btn"
                                 >
                                     <CancelIcon fontSize="small" />
                                 </IconButton>
                             </Tooltip>
                             <span className="schema-selector__selected-text">
-                                Selected: {selectedSchema.name}
+                                {selectedSchemas.length === 1
+                                    ? `Selected: ${selectedSchemas[0].name}`
+                                    : `Selected: ${selectedSchemas.length} schemas`}
                             </span>
                         </>
                     ) : (
                         <span className="schema-selector__placeholder">
-                            Click a valid row to select a schema.
+                            Select one or more valid schemas, or double-click a valid row to associate it.
                         </span>
                     )}
                 </div>
@@ -353,8 +422,8 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                     </button>
                     <button 
                         className="theia-button main schema-selector__btn-associate"
-                        onClick={() => selectedSchema && onAccept(selectedSchema)}
-                        disabled={!selectedSchema}
+                        onClick={() => selectedSchemas.length && onAccept(selectedSchemas)}
+                        disabled={!selectedSchemas.length}
                     >
                         Associate
                     </button>

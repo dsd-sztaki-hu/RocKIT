@@ -9,13 +9,13 @@ import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { MetadataSchemaManager, RoCrateHtmlGenerator, readUtf8TextFile, writeUtf8TextFile } from 'aroma2-common/lib/browser'
+import { MetadataSchemaManager, RoCrateHtmlGenerator, readUtf8TextFile, writeUtf8TextFile } from 'rockit-common/lib/browser'
 import {
-    AROMA_IGNORE_DIR,
-    AROMA_IGNORE_FILE,
+    ROCKIT_IGNORE_DIR,
+    ROCKIT_IGNORE_FILE,
     DEFAULT_IGNORED_ENTRIES,
     RO_CRATE_PREVIEW_FILE,
-} from 'aroma2-common/lib/common/ro-crate-technical-files'
+} from 'rockit-common/lib/common/ro-crate-technical-files'
 import {
     AppStatePreferences,
     ROCrateExternalChangeAction,
@@ -1140,7 +1140,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     }
 
     protected async syncIgnoredEntriesFromWorkspace(rootUri: URI): Promise<void> {
-        const ignoredUri = rootUri.resolve(AROMA_IGNORE_DIR).resolve(AROMA_IGNORE_FILE)
+        const ignoredUri = rootUri.resolve(ROCKIT_IGNORE_DIR).resolve(ROCKIT_IGNORE_FILE)
         const current = await this.readIgnoredEntries(ignoredUri)
         const next = this.withDefaultIgnoredEntries(current)
         this.appStateService.ignoreList = next.length ? next : undefined

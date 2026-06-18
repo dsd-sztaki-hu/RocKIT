@@ -21,6 +21,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
     schemas, 
     isLoading, 
     onSelectionChange, 
+    onRowDoubleClick,
     onDelete,
     onRetry,
     allowDeleteValidSchemas = true,
@@ -313,6 +314,10 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                                             : [...selectedKeys, record.id];
                                         onSelectionChange(newKeys);
                                     }
+                                },
+                                onDoubleClick: () => {
+                                    if (isInteractionDisabled) return;
+                                    onRowDoubleClick?.(record);
                                 },
                                 className: isSelected ? 'ant-table-row-selected' : '',
                                 style: isInteractionDisabled 

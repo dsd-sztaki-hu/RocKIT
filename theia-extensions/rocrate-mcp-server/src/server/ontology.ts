@@ -1,4 +1,8 @@
-import * as path from 'node:path'
+import { OntologyCatalog } from 'rocrate-context-core'
+import type {
+  CrateContextType,
+  RegisteredSchema as CoreRegisteredSchema,
+} from 'rocrate-context-core'
 import type { AccessMode } from './types'
 
 /**
@@ -18,61 +22,7 @@ type SchemaRegistryEntry = {
   activeOnSpec: string[]
 }
 
-type OntologyModule = {
-  OntologyCatalog: {
-    create: (options: {
-      crateContext: unknown
-      registeredSchemas?: SchemaRegistryEntry[]
-      eagerLoadSchemas?: boolean
-    }) => Promise<{
-      listTypes: (options?: { search?: string; offset?: number; limit?: number }) => Promise<unknown>
-      suggestTypes: (query: string, options?: { limit?: number }) => Promise<unknown>
-      getTypeDetails: (typeId: string) => Promise<unknown>
-      listPropertiesForType: (
-        typeId: string,
-        options?: {
-          includeInherited?: boolean
-          search?: string
-          offset?: number
-          limit?: number
-        },
-      ) => Promise<unknown>
-      suggestProperties: (
-        typeIds: string[],
-        query: string,
-        options?: { limit?: number },
-      ) => Promise<unknown>
-      getPropertyDetails: (propertyId: string) => Promise<unknown>
-    }>
-  }
-}
-
-let cachedOntologyModule: OntologyModule | null = null
-
-/**
- * Loads the shared ontology library from the monorepo build output.
- */
-function loadOntologyModule(): OntologyModule {
-  if (cachedOntologyModule) {
-    return cachedOntologyModule
-  }
-
-  const modulePath = path.resolve(
-    __dirname,
-    '../../../../dev-packages/rocrate-context-core/lib/index.js',
-  )
-
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const loaded = require(modulePath) as Partial<OntologyModule>
-  if (!loaded || !loaded.OntologyCatalog || typeof loaded.OntologyCatalog.create !== 'function') {
-    throw new Error(
-      `Failed to load rocrate-context-core from ${modulePath}. Build the shared package first.`,
-    )
-  }
-
-  cachedOntologyModule = loaded as OntologyModule
-  return cachedOntologyModule
-}
+type OntologyCatalogInstance = Awaited<ReturnType<typeof OntologyCatalog.create>>
 
 /**
  * Parses a boolean parameter with fallback.
@@ -116,8 +66,15 @@ function getCrateContext(crate: Record<string, unknown>): unknown {
   return crate['@context']
 }
 
-const catalogCache = new Map<string, Promise<Awaited<ReturnType<OntologyModule['OntologyCatalog']['create']>>>>()
+const catalogCache = new Map<string, Promise<OntologyCatalogInstance>>()
 const MAX_CATALOG_CACHE_SIZE = 16
+
+function toCoreRegisteredSchemas(entries: SchemaRegistryEntry[]): CoreRegisteredSchema[] {
+  return entries.map((entry) => ({
+    ...entry,
+    activeOnSpec: [...entry.activeOnSpec] as CoreRegisteredSchema['activeOnSpec'],
+  }))
+}
 
 /**
  * Creates/returns cached ontology catalogs keyed by context + load strategy.
@@ -131,10 +88,9 @@ async function getCatalog(
   const cacheKey = JSON.stringify({ context, eagerLoadSchemas, registeredSchemas })
 
   if (!catalogCache.has(cacheKey)) {
-    const { OntologyCatalog } = loadOntologyModule()
     const catalogPromise = OntologyCatalog.create({
-      crateContext: context,
-      registeredSchemas,
+      crateContext: context as CrateContextType,
+      registeredSchemas: toCoreRegisteredSchemas(registeredSchemas),
       eagerLoadSchemas,
     })
     catalogCache.set(cacheKey, catalogPromise)

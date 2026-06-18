@@ -10,6 +10,7 @@
     background-color: var(--theia-editor-background);
     color: var(--theia-foreground);
     overflow: hidden;
+    user-select: none;
 }
 
 .schema-table-container {

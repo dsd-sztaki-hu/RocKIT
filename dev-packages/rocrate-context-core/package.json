@@ -1,7 +1,7 @@
 {
   "name": "rocrate-context-core",
   "version": "0.1.0",
-  "description": "Shared RO-Crate context and schema graph core for Aroma and MCP",
+  "description": "Shared RO-Crate context and schema graph core for RocKIT and MCP",
   "files": [
     "lib",
     "src"
