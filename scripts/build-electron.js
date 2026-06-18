@@ -11,18 +11,25 @@ const getCanonicalRoot = root => {
         return root;
     }
 
-    // Yarn workspace junctions retain the drive-letter casing used during
-    // installation. Match it so webpack does not load the same files twice
-    // under paths that differ only by case.
+    const lowerDriveLetter = value => value.replace(/^([A-Z]):/, (_, drive) => `${drive.toLowerCase()}:`);
+
+    // Yarn workspace links retain the drive-letter casing used during
+    // installation. Read the link target itself; fs.realpathSync.native can
+    // normalize the drive casing differently on different Windows machines.
     const electronAppLink = path.join(root, 'node_modules', 'electron-app');
     if (fs.existsSync(electronAppLink)) {
-        const junctionRoot = path.dirname(fs.realpathSync.native(electronAppLink));
-        if (junctionRoot.toLowerCase() === root.toLowerCase()) {
-            return junctionRoot;
+        try {
+            const workspaceTarget = fs.readlinkSync(electronAppLink);
+            const workspaceRoot = path.dirname(path.resolve(path.dirname(electronAppLink), workspaceTarget));
+            if (workspaceRoot.toLowerCase() === root.toLowerCase()) {
+                return workspaceRoot;
+            }
+        } catch {
+            // Keep the fallback below for first installs and incomplete installs.
         }
     }
 
-    return root;
+    return lowerDriveLetter(root);
 };
 
 const canonicalRoot = getCanonicalRoot(resolvedRoot);

@@ -18,7 +18,7 @@ import {
 } from '@theia/core'
 import { nls } from '@theia/core/lib/common/nls'
 
-export const ROCrateExternalChangeAction = 'aroma.roCrate.externalChangeAction'
+export const ROCrateExternalChangeAction = 'rockit.roCrate.externalChangeAction'
 export type ROCrateExternalChangeActionValue = 'prompt' | 'auto' | 'off'
 
 export const AppStateConfigSchema: PreferenceSchema = {
@@ -28,7 +28,7 @@ export const AppStateConfigSchema: PreferenceSchema = {
       enum: ['prompt', 'auto', 'off'],
       default: 'prompt',
       description: nls.localizeByDefault(
-        'Controls how AROMA reacts to external ro-crate-metadata.json changes: prompt, auto-reload, or off.',
+        'Controls how RocKIT reacts to external ro-crate-metadata.json changes: prompt, auto-reload, or off.',
       ),
     },
   },

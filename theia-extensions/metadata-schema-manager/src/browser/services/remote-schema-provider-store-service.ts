@@ -7,7 +7,7 @@ import { URI } from '@theia/core/lib/common/uri';
 
 import { RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
-import { SecureStorageService } from 'aroma2-common/lib/common/secure-storage-protocol';
+import { SecureStorageService } from 'rockit-common/lib/common/secure-storage-protocol';
 
 @injectable()
 export class RemoteSchemaProviderStoreService {
@@ -19,9 +19,15 @@ export class RemoteSchemaProviderStoreService {
     ) {}
 
     protected async getEnvConfig() {
-        const rootPathEnv = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
-        const configFileNameEnv = await this.envVariablesServer.getValue('AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE');
-        const keytarServiceEnv = await this.envVariablesServer.getValue('AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE');
+        const rootPathEnv =
+            (await this.envVariablesServer.getValue('ROCKIT_ROOT_PATH')) ||
+            undefined;
+        const configFileNameEnv =
+            (await this.envVariablesServer.getValue('ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE')) ||
+            undefined;
+        const keytarServiceEnv =
+            (await this.envVariablesServer.getValue('ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE')) ||
+            undefined;
 
         if (!rootPathEnv?.value || !configFileNameEnv?.value || !keytarServiceEnv?.value) {
             throw new Error('Critical Environment Variables missing. Check app-setup.js configuration.');

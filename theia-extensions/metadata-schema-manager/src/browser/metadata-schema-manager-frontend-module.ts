@@ -8,7 +8,7 @@ import { SchemaManagerService } from './services/metadata-schema-manager-service
 import { RemoteSchemaProviderStoreService } from './services/remote-schema-provider-store-service';
 import { MetadataSchemaSelectorContribution } from './components/metadata-schema-selector'; 
 import { RemoteSchemaBrowserContribution } from './components/remote-schema-browser-dialog';
-import { MetadataSchemaManager as MetadataSchemaManagerToken } from 'aroma2-common/lib/browser';
+import { MetadataSchemaManager as MetadataSchemaManagerToken } from 'rockit-common/lib/browser';
 import {
     METADATA_PROFILE_CORE_PATH,
     MetadataProfileCoreService

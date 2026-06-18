@@ -1,7 +1,7 @@
 {
   "name": "agent-instructions",
   "version": "0.0.0",
-  "description": "AROMA agent instructions and managed docs",
+  "description": "RocKIT agent instructions and managed docs",
   "dependencies": {
     "@theia/core": "1.65.2",
     "@theia/filesystem": "1.65.2",

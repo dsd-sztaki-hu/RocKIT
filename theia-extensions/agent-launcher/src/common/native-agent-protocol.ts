@@ -2,7 +2,7 @@ import type { Event } from '@theia/core/lib/common/event'
 
 export const NativeAgentService = Symbol('NativeAgentService')
 export const NativeAgentServer = Symbol('NativeAgentServer')
-export const NATIVE_AGENT_SERVICE_PATH = '/services/aroma-native-agent'
+export const NATIVE_AGENT_SERVICE_PATH = '/services/rockit-native-agent'
 
 export type NativeAgentProvider = 'codex' | 'claude'
 export type NativeAgentRole = 'user' | 'assistant' | 'system' | 'activity' | 'error'

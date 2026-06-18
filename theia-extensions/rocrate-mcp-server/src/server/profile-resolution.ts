@@ -51,22 +51,23 @@ type ProfileResolutionDeps = {
  */
 export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
   /**
-   * Handles resolve aroma root path.
+   * Handles RocKIT root path resolution.
    */
-  function resolveAromaRootPath(): string {
-    const configuredRoot = process.env.AROMA_ROOT_PATH
+  function resolveRockitRootPath(): string {
+    const configuredRoot = process.env.ROCKIT_ROOT_PATH
     if (configuredRoot && configuredRoot.trim() !== '') {
       return path.resolve(configuredRoot)
     }
-    return path.join(os.homedir(), '.aroma')
+    return path.join(os.homedir(), '.rockit')
   }
 
   /**
    * Handles resolve schema index path.
    */
   function resolveSchemaIndexPath(): { rootPath: string; indexPath: string } {
-    const rootPath = resolveAromaRootPath()
-    const configuredIndex = process.env.AROMA_METADATA_SCHEMA_INDEX_FILE
+    const rootPath = resolveRockitRootPath()
+    const configuredIndex =
+      process.env.ROCKIT_METADATA_SCHEMA_INDEX_FILE
     if (!configuredIndex || configuredIndex.trim() === '') {
       return { rootPath, indexPath: path.join(rootPath, deps.defaultSchemaIndexFilename) }
     }
@@ -513,7 +514,7 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
       unresolvedUrls,
       profiles: resolvedProfiles,
       indexPath,
-      aromaRootPath: rootPath,
+      rockitRootPath: rootPath,
       warnings: deps.uniqueStrings(warnings),
     }
   }
@@ -689,7 +690,7 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
   }
 
   return {
-    resolveAromaRootPath,
+    resolveRockitRootPath,
     resolveSchemaIndexPath,
     asSchemaIndex,
     parseProfileContentsMap,

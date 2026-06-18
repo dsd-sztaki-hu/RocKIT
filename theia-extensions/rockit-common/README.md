@@ -1,10 +1,10 @@
-# Aroma 2 Common Extension
+# RocKIT Common Extension
 
-This extension serves as the **shared API and Protocol layer** for the Aroma 2 application. It contains pure interfaces, type definitions, and dependency injection tokens (Symbols) that are shared across multiple functional extensions.
+This extension serves as the **shared API and Protocol layer** for the RocKIT application. It contains pure interfaces, type definitions, and dependency injection tokens (Symbols) that are shared across multiple functional extensions.
 
 ## Purpose & Architecture
 
-The primary goal of `aroma2-common` is to **prevent circular dependencies** and enforce the **Dependency Inversion Principle**.
+The primary goal of `rockit-common` is to **prevent circular dependencies** and enforce the **Dependency Inversion Principle**.
 
 In a modular Theia based application, functional extensions (like *Editors* or *State Managers*) often need to interact. Direct imports between them often lead to "Death Loops" (Circular Dependencies) where Extension A needs B, and B needs A, preventing the build system from finding a starting point.
 
@@ -15,7 +15,7 @@ This extension acts as the **"Contract" layer**:
 
 ## Usage
 
-### 1. Defining a Protocol (in "aroma2-common")
+### 1. Defining a Protocol (in "rockit-common")
 
 When you need to share functionality, define the interface and a unique Symbol here.
 
@@ -35,7 +35,7 @@ Extensions that need to use the functionality simply import the interface from t
 
 ```typescript
 import { inject } from '@theia/core/shared/inversify';
-import { IMySharedService } from 'aroma2-common/lib/browser';
+import { IMySharedService } from 'rockit-common/lib/browser';
 
 export class MyConsumerWidget {
     @inject(IMySharedService)
@@ -53,7 +53,7 @@ The extension that actually contains the logic implements the interface and bind
 
 ```typescript
 import { injectable } from '@theia/core/shared/inversify';
-import { IMySharedService } from 'aroma2-common/lib/browser';
+import { IMySharedService } from 'rockit-common/lib/browser';
 
 @injectable()
 export class MyServiceImpl implements IMySharedService {

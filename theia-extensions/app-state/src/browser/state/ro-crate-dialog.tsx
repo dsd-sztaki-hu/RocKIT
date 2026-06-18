@@ -10,7 +10,7 @@ import {
   RoCrateHtmlGenerator,
   type DefaultRoCrateFileContent,
   type DefaultRoCrateWorkspaceAdapter,
-} from 'aroma2-common/lib/browser'
+} from 'rockit-common/lib/browser'
 import type * as React from 'react'
 import SparkMD5 from 'spark-md5'
 import { Message } from '@lumino/messaging'

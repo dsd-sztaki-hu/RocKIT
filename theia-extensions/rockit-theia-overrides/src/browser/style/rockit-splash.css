@@ -1,73 +1,73 @@
-.aroma-splash {
-  width: min(560px, 72vw);
+.rockit-splash {
+  width: min(640px, 76vw);
   color: var(--theia-ui-font-color1);
 }
 
-.aroma-splash-header {
+.rockit-splash-header {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 10px;
   padding-bottom: 18px;
   border-bottom: 1px solid var(--theia-border-color1);
 }
 
-.aroma-splash-logo {
-  width: 76px;
-  height: 76px;
-  flex: 0 0 auto;
-  background-image: url("../../../../../resources/icon.png");
-  background-position: center;
+.rockit-splash-logo {
+  width: min(360px, 100%);
+  height: 112px;
+  background-image: url("../../../../../resources/rockit-logo.png");
+  background-position: left center;
   background-repeat: no-repeat;
   background-size: contain;
 }
 
-.aroma-splash-title {
-  font-size: 30px;
+.rockit-splash-title {
+  font-size: 22px;
   font-weight: 600;
   line-height: 1.15;
 }
 
-.aroma-splash-version {
+.rockit-splash-version {
   margin-top: 4px;
   color: var(--theia-descriptionForeground);
   font-size: 13px;
 }
 
-.aroma-splash-section {
+.rockit-splash-section {
   padding: 18px 0 14px;
 }
 
-.aroma-splash-section h3 {
+.rockit-splash-section h3 {
   margin: 0 0 8px;
   font-size: 15px;
   font-weight: 600;
 }
 
-.aroma-splash-section p {
+.rockit-splash-section p {
   margin: 0 0 14px;
   color: var(--theia-descriptionForeground);
   line-height: 1.45;
 }
 
-.aroma-splash-developers {
+.rockit-splash-developers {
   padding-top: 4px;
 }
 
-.aroma-splash-developers p {
+.rockit-splash-developers p {
   margin-bottom: 8px;
 }
 
-.aroma-splash-developers a {
+.rockit-splash-developers a {
   color: var(--theia-textLink-foreground);
 }
 
-.aroma-splash-links {
+.rockit-splash-links {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
-.aroma-splash-links a {
+.rockit-splash-links a {
   display: flex;
   align-items: center;
   min-height: 38px;
@@ -79,13 +79,13 @@
   line-height: 1.25;
 }
 
-.aroma-splash-links a:hover,
-.aroma-splash-links a:focus {
+.rockit-splash-links a:hover,
+.rockit-splash-links a:focus {
   background: var(--theia-list-hoverBackground);
   text-decoration: underline;
 }
 
-.aroma-splash-startup {
+.rockit-splash-startup {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -94,16 +94,20 @@
   cursor: pointer;
 }
 
-.aroma-splash-startup input {
+.rockit-splash-startup input {
   margin: 0;
 }
 
 @media (max-width: 640px) {
-  .aroma-splash {
+  .rockit-splash {
     width: min(420px, 82vw);
   }
 
-  .aroma-splash-links {
+  .rockit-splash-logo {
+    height: 92px;
+  }
+
+  .rockit-splash-links {
     grid-template-columns: 1fr;
   }
 }

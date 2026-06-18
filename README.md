@@ -49,6 +49,34 @@ The standalone package bundles the internal workspace code needed by the MCP
 server. The normal Theia/Electron build still uses the workspace package and
 its `lib/` output.
 
+### Configuring Theia backend memory
+
+Set `ROCKIT_MEMORY_LIMIT_MB` to increase the V8 old-generation heap limit of the
+Theia backend Node.js process. The value is in MiB. For example, a value of
+`8192` results in a total backend V8 heap limit of approximately 8240 MiB.
+
+This is an upper limit, not a memory reservation. The backend consumes memory
+gradually as needed. When the variable is not set, the Node.js default is used.
+
+The Electron renderer also receives the requested setting, but Electron 37
+currently caps its effective JavaScript heap at approximately 3586 MiB. Setting
+`ROCKIT_MEMORY_LIMIT_MB` to `8192` therefore increases the backend limit but does
+not increase the renderer beyond that cap. Each process has a separate heap.
+
+PowerShell:
+
+    $env:ROCKIT_MEMORY_LIMIT_MB="8192"
+    yarn start:electron
+
+Command Prompt:
+
+    set ROCKIT_MEMORY_LIMIT_MB=8192
+    yarn start:electron
+
+Linux/macOS:
+
+    ROCKIT_MEMORY_LIMIT_MB=8192 yarn start:electron
+
 ## Working on `recrate` (vendored in `dev-packages/recrate`)
 
 ### One-time setup

@@ -573,7 +573,7 @@ function getRegisteredSchemasForMode(mode: AccessMode): SchemaRegistryEntry[] {
 }
 
 /**
- * Resolves base aroma directory for schema index/profile artifacts.
+ * Resolves base RocKIT directory for schema index/profile artifacts.
  */
 function buildRoCrateContext(
   crate: RoCrate,
@@ -595,7 +595,7 @@ function buildRoCrateContext(
       typeof descriptor?.['@id'] === 'string' ? descriptor['@id'] : null,
     profileResolution: {
       indexPath: constraints.resolution.indexPath,
-      aromaRootPath: constraints.resolution.aromaRootPath,
+      rockitRootPath: constraints.resolution.rockitRootPath,
       profileContextId: constraints.resolution.profileContextId,
       profileUrls: constraints.resolution.profileUrls,
       unresolvedUrls: constraints.resolution.unresolvedUrls,

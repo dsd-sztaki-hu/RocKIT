@@ -133,7 +133,7 @@ and have each agent connect through proxy mode:
 
 1. Ensure daemon is running (idempotent):
    ```bash
-   rocrate-mcp-server --ensure-daemon /Users/<you>/.aroma/rocrate-mcp-server.sock
+   rocrate-mcp-server --ensure-daemon /Users/<you>/.rockit/rocrate-mcp-server.sock
    ```
    Or, from a workspace build:
    ```bash
@@ -141,7 +141,7 @@ and have each agent connect through proxy mode:
    ```
 2. Configure each MCP client to launch:
    ```bash
-   rocrate-mcp-server --connect /Users/<you>/.aroma/rocrate-mcp-server.sock
+   rocrate-mcp-server --connect /Users/<you>/.rockit/rocrate-mcp-server.sock
    ```
 
 This avoids one full server per agent process and keeps all telemetry in one
@@ -482,7 +482,7 @@ Use `responseMode: "full"` only when caller explicitly needs full crate or full 
 Profile resolution can come from:
 
 - Local mode:
-  - `~/.aroma/metadata-schema-index.json` (or env overrides)
+  - `~/.rockit/metadata-schema-index.json` (or env overrides)
   - converted profile files referenced by index entries
 - Remote mode:
   - caller-supplied `schemaIndex`
@@ -550,13 +550,13 @@ Shared daemon:
 
 ```bash
 # Start daemon explicitly
-rocrate-mcp-server --listen /Users/<you>/.aroma/rocrate-mcp-server.sock
+node /absolute/path/to/rocrate-mcp-server/lib/server.js --listen /Users/<you>/.aroma/rocrate-mcp-server.sock
 
 # Or start only if needed
-rocrate-mcp-server --ensure-daemon /Users/<you>/.aroma/rocrate-mcp-server.sock
+node /absolute/path/to/rocrate-mcp-server/lib/server.js --ensure-daemon /Users/<you>/.aroma/rocrate-mcp-server.sock
 
 # Per-agent proxy client
-rocrate-mcp-server --connect /Users/<you>/.aroma/rocrate-mcp-server.sock
+node /absolute/path/to/rocrate-mcp-server/lib/server.js --connect /Users/<you>/.aroma/rocrate-mcp-server.sock
 ```
 
 ## Environment variables
@@ -576,10 +576,6 @@ rocrate-mcp-server --connect /Users/<you>/.aroma/rocrate-mcp-server.sock
 - `AROMA_ROOT_PATH` (optional): base directory for schema index/profile files (default `~/.aroma`).
 - `AROMA_METADATA_SCHEMA_INDEX_FILE` (optional): schema index filename or absolute path.
 - `ROCRATE_REMOTE_SCHEMA_REGISTRY_DIR` (optional): remote-mode schema registry directory (default `~/.aroma/schema-registry-remote`).
-- `AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE` (optional): remote CEDAR provider config filename or absolute path.
-- `AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE` (optional): keytar service name for provider API keys.
-- `ARP_PROD_PREFIX`, `ARP_DEV_PREFIX` (optional): override ARP template URL prefixes.
-- `ARP_W3ID_PROD`, `ARP_W3ID_DEV` (optional): override ARP w3id URL prefixes.
 
 ### Dashboard
 - `ROCRATE_DASHBOARD_ENABLED`: Enable/disable dashboard (default: `true`).
@@ -607,8 +603,8 @@ For workspace development, replace the command with `node` and put
 
 ```toml
 [mcp_servers.rocrate]
-command = "rocrate-mcp-server"
-args = ["--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"]
+command = "/absolute/path/to/node"
+args = ["/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"]
 startup_timeout_sec = 30
 env = { ROCRATE_MCP_DEFAULT_MODE = "local" }
 ```
@@ -624,7 +620,8 @@ Prefer CLI-based setup:
 claude mcp add-json -s user rocrate '{"type":"stdio","command":"rocrate-mcp-server","args":["--connect","/Users/<you>/.aroma/rocrate-mcp-server.sock"],"env":{"ROCRATE_MCP_DEFAULT_MODE":"local"}}'
 ```
 
-For direct stdio mode, omit the `args` array.
+For shared daemon mode, set args to:
+`["/absolute/path/to/rocrate-mcp-server/lib/server.js","--connect","/Users/<you>/.aroma/rocrate-mcp-server.sock"]`
 
 Then verify:
 
@@ -640,8 +637,8 @@ Gemini CLI uses `mcpServers` in settings JSON (user-level `~/.gemini/settings.js
 {
   "mcpServers": {
     "rocrate": {
-      "command": "rocrate-mcp-server",
-      "args": ["--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"],
+      "command": "/absolute/path/to/node",
+      "args": ["/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"],
       "env": {
         "ROCRATE_MCP_DEFAULT_MODE": "local"
       }
@@ -658,8 +655,8 @@ Qwen Code can use the same `mcpServers` JSON shape as Gemini-style clients.
 {
   "mcpServers": {
     "rocrate": {
-      "command": "rocrate-mcp-server",
-      "args": ["--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"],
+      "command": "/absolute/path/to/node",
+      "args": ["/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"],
       "env": {
         "ROCRATE_MCP_DEFAULT_MODE": "local"
       }
@@ -678,7 +675,7 @@ OpenCode expects `mcp` (not `mcpServers`):
     "rocrate": {
       "type": "local",
       "enabled": true,
-      "command": ["rocrate-mcp-server", "--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"],
+      "command": ["/absolute/path/to/node", "/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"],
       "environment": {
         "ROCRATE_MCP_DEFAULT_MODE": "local"
       }

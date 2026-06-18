@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
-    "aroma2-common": "0.0.0",
+    "rockit-common": "0.0.0",
     "cedar-template-converter": "1.0.0",
     "metadata-profile-core": "0.0.0",
     "rocrate-context-core": "0.1.0"

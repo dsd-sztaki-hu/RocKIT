@@ -24,12 +24,12 @@ import {
 } from '../common/native-agent-protocol'
 import { JsonRpcChildProcess, JsonRpcMessage } from './json-rpc-child-process'
 
-const AROMA_AGENT_CONTEXT_PROMPT =
+const ROCKIT_AGENT_CONTEXT_PROMPT =
   [
-    'You are embedded in AROMA as an RO-Crate data steward. Prefer RO-Crate MCP tools for metadata edits and keep responses concise.',
+    'You are embedded in RocKIT as an RO-Crate data steward. Prefer RO-Crate MCP tools for metadata edits and keep responses concise.',
     'You are launched from inside AROMA.',
     'Before doing RO-Crate work, call the RO-Crate MCP tool `set_agent_session_context` with {"launchContext":"inside_aroma","aromaAlreadyOpen":true}.',
-    'Because AROMA is already open for this session, do not suggest opening AROMA after edits.',
+    'Because RocKIT is already open for this session, do not suggest opening AROMA after edits.',
   ].join('\n')
 const RESTORED_CHAT_CONTEXT_MAX_CHARS = 24000
 
@@ -135,7 +135,7 @@ function formatRestoredConversationContext(messages: NativeAgentMessage[], curre
     return currentText
   }
   return [
-    'A previous AROMA native chat session was reopened. Use the restored transcript below as conversation context, then answer only the newest user message.',
+    'A previous RocKIT native chat session was reopened. Use the restored transcript below as conversation context, then answer only the newest user message.',
     '',
     '<restored_chat_transcript>',
     transcript,
@@ -308,7 +308,7 @@ class CodexNativeAdapter implements Adapter {
       }
     })
     await rpc.request('initialize', {
-      clientInfo: { name: 'aroma', title: 'AROMA', version: '0.0.0' },
+      clientInfo: { name: 'rockit', title: 'RocKIT', version: '0.0.0' },
       capabilities: { experimentalApi: true, optOutNotificationMethods: null },
     })
     rpc.notify('initialized')
@@ -316,7 +316,7 @@ class CodexNativeAdapter implements Adapter {
       cwd: this.record.session.cwd,
       approvalPolicy: 'never',
       sandbox: 'danger-full-access',
-      developerInstructions: AROMA_AGENT_CONTEXT_PROMPT,
+      developerInstructions: ROCKIT_AGENT_CONTEXT_PROMPT,
     })) as any
     this.providerThreadId = started?.thread?.id
     if (!this.providerThreadId) {
@@ -540,7 +540,7 @@ class ClaudeNativeAdapter implements Adapter {
       additionalDirectories: [this.record.session.cwd],
       env: {
         ...process.env,
-        CLAUDE_AGENT_SDK_CLIENT_APP: 'aroma/0.0.0',
+        CLAUDE_AGENT_SDK_CLIENT_APP: 'rockit/0.0.0',
       },
       settingSources,
       systemPrompt: {
@@ -756,7 +756,7 @@ export class NativeAgentServiceImpl implements NativeAgentServer {
   readonly onDidChangeSession = this.onDidChangeSessionEmitter.event
   protected readonly sessions = new Map<string, SessionRecord>()
   protected client: NativeAgentClient | undefined
-  protected readonly historyRoot = path.join(os.homedir(), '.aroma', 'native-chat-history')
+  protected readonly historyRoot = path.join(os.homedir(), '.rockit', 'native-chat-history')
   protected readonly sessionsRoot = path.join(this.historyRoot, 'sessions')
   protected readonly promptHistoryPath = path.join(this.historyRoot, 'prompt-history.json')
 

@@ -90,6 +90,8 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
         {
             title: 'Name',
             dataIndex: 'name',
+            width: 220,
+            ellipsis: true,
             sorter: (a, b) => {
                 const aPriority = (a.status === 'ok' || !a.status) ? 1 : 0;
                 const bPriority = (b.status === 'ok' || !b.status) ? 1 : 0;
@@ -160,6 +162,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
         {
             title: 'Ref (@id)',
             dataIndex: ['aux', 'reference'],
+            width: 240,
             ellipsis: true,
             ...getColumnSearchProps(['aux', 'reference']),
             render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" className="schema-table__link" onClick={e => e.stopPropagation()}>{text}</a> : ''
@@ -167,6 +170,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
         {
             title: 'Conforms To',
             dataIndex: 'conformsTo',
+            width: 240,
             ellipsis: true,
             ...getColumnSearchProps('conformsTo'),
             render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" className="schema-table__link" onClick={e => e.stopPropagation()}>{text}</a> : ''
@@ -331,7 +335,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                             className: 'schema-table__pagination'
                         }}
                         loading={isLoading}
-                        scroll={{ y: '100%' }}
+                        scroll={{ x: 1150, y: '100%' }}
                     />
                 </div>
             </div>

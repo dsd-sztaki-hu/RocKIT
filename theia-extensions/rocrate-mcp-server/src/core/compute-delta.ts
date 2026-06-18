@@ -77,7 +77,7 @@ function collectWorkspaceEntries(
     'ro-crate-metadata.json',
     'ro-crate-preview.html',
     'ro-crate-approval.json',
-    '.aroma/ro-crate-approval.json',
+    '.rockit/ro-crate-approval.json',
   ])
 
   function walk(currentPath: string): void {
@@ -92,7 +92,7 @@ function collectWorkspaceEntries(
       if (!relativeChild) {
         continue
       }
-      if (relativeChild === '.aroma' || relativeChild.startsWith('.aroma/')) {
+      if (relativeChild === '.rockit' || relativeChild.startsWith('.rockit/')) {
         continue
       }
       if (ignoredRootFiles.has(relativeChild)) {

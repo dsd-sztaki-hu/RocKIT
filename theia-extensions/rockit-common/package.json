@@ -1,10 +1,10 @@
 {
-  "name": "aroma2-common",
+  "name": "rockit-common",
   "keywords": [
     "theia-extension"
   ],
   "version": "0.0.0",
-  "description": "Shared interfaces and protocols for Aroma 2",
+  "description": "Shared interfaces and protocols for RocKIT",
   "files": [
     "lib",
     "src"
@@ -33,8 +33,8 @@
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/aroma2-common-frontend-module",
-      "backend": "lib/node/aroma2-common-backend-module" 
+      "frontend": "lib/browser/rockit-common-frontend-module",
+      "backend": "lib/node/rockit-common-backend-module" 
     }
   ]
 }

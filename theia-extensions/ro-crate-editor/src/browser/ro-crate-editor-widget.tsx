@@ -13,7 +13,7 @@ import {
     SchemaValidator,
     SchemaValidatorManager,
     type ValidationError,
-} from 'aroma2-common/lib/browser'
+} from 'rockit-common/lib/browser'
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 

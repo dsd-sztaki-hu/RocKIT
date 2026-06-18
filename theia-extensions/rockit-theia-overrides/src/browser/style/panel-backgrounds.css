@@ -1,13 +1,13 @@
 body:not(.theia-dark):not(.theia-hc) {
-  --aroma-panel-edge: #cfd6df;
+  --rockit-panel-edge: #cfd6df;
   --theia-sideBar-background: #f3f4f6;
   --theia-sideBarSectionHeader-background: #e9ecef;
   --theia-panel-background: #f3f4f6;
   --theia-editor-background: #ffffff;
-  --theia-activityBar-border: var(--aroma-panel-edge);
-  --theia-editorGroup-border: var(--aroma-panel-edge);
-  --theia-panel-border: var(--aroma-panel-edge);
-  --theia-sideBarSectionHeader-border: var(--aroma-panel-edge);
+  --theia-activityBar-border: var(--rockit-panel-edge);
+  --theia-editorGroup-border: var(--rockit-panel-edge);
+  --theia-panel-border: var(--rockit-panel-edge);
+  --theia-sideBarSectionHeader-border: var(--rockit-panel-edge);
 }
 
 body:not(.theia-dark):not(.theia-hc) .theia-side-panel,
@@ -24,11 +24,11 @@ body:not(.theia-dark):not(.theia-hc)
 }
 
 body:not(.theia-dark):not(.theia-hc) #theia-left-content-panel > .lm-Panel {
-  border-right: 1px solid var(--aroma-panel-edge);
+  border-right: 1px solid var(--rockit-panel-edge);
 }
 
 body:not(.theia-dark):not(.theia-hc) #theia-right-content-panel > .lm-Panel {
-  border-left: 1px solid var(--aroma-panel-edge);
+  border-left: 1px solid var(--rockit-panel-edge);
 }
 
 body:not(.theia-dark):not(.theia-hc) #theia-bottom-content-panel {
@@ -38,13 +38,13 @@ body:not(.theia-dark):not(.theia-hc) #theia-bottom-content-panel {
 body:not(.theia-dark):not(.theia-hc)
   #theia-main-content-panel
   .lm-DockPanel-handle[data-orientation="horizontal"] {
-  border-left: 1px solid var(--aroma-panel-edge);
+  border-left: 1px solid var(--rockit-panel-edge);
 }
 
 body:not(.theia-dark):not(.theia-hc)
   #theia-main-content-panel
   .lm-DockPanel-handle[data-orientation="vertical"] {
-  border-top: 1px solid var(--aroma-panel-edge);
+  border-top: 1px solid var(--rockit-panel-edge);
 }
 
 body:not(.theia-dark):not(.theia-hc)
@@ -53,7 +53,7 @@ body:not(.theia-dark):not(.theia-hc)
 body:not(.theia-dark):not(.theia-hc)
   .theia-side-panel
   .lm-SplitPanel-handle[data-orientation="horizontal"] {
-  border-left: 1px solid var(--aroma-panel-edge);
+  border-left: 1px solid var(--rockit-panel-edge);
 }
 
 body:not(.theia-dark):not(.theia-hc)
@@ -62,5 +62,5 @@ body:not(.theia-dark):not(.theia-hc)
 body:not(.theia-dark):not(.theia-hc)
   .theia-side-panel
   .lm-SplitPanel-handle[data-orientation="vertical"] {
-  border-top: 1px solid var(--aroma-panel-edge);
+  border-top: 1px solid var(--rockit-panel-edge);
 }

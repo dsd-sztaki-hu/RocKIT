@@ -392,12 +392,12 @@ async function run() {
   const profileUrl = 'https://w3id.org/arp/schema/33677b82-7973-3e4c-b09d-b5189e095627'
   const webToolsMock = await startMockWebToolsServer(profileUrl)
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'rocrate-mcp-test-'))
-  const aromaRoot = path.join(tempRoot, 'aroma-root')
-  fs.mkdirSync(path.join(aromaRoot, 'metadata-schemas', 'ro-crate'), { recursive: true })
+  const rockitRoot = path.join(tempRoot, 'rockit-root')
+  fs.mkdirSync(path.join(rockitRoot, 'metadata-schemas', 'ro-crate'), { recursive: true })
   const extraProfileUrl = 'https://w3id.org/arp/schema/example-profile'
   const convertedRelativePath = 'metadata-schemas/ro-crate/citation_profile.json'
   fs.writeFileSync(
-    path.join(aromaRoot, convertedRelativePath),
+    path.join(rockitRoot, convertedRelativePath),
     JSON.stringify(
       {
         metadata: { name: 'Citation Metadata', version: 1 },
@@ -455,7 +455,7 @@ async function run() {
     'utf8',
   )
   fs.writeFileSync(
-    path.join(aromaRoot, 'metadata-schema-index.json'),
+    path.join(rockitRoot, 'metadata-schema-index.json'),
     JSON.stringify(
       {
         profiles: [
@@ -548,7 +548,7 @@ async function run() {
       ...process.env,
       TAVILY_API_KEY: 'test-key',
       TAVILY_API_URL: `${webToolsMock.baseUrl}/search`,
-      AROMA_ROOT_PATH: aromaRoot,
+      ROCKIT_ROOT_PATH: rockitRoot,
       ROCRATE_DASHBOARD_PORT: String(dashboardPort),
     },
   })

@@ -3,7 +3,7 @@ import * as React from '@theia/core/shared/react'
 import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
-import type { MetadataSchemaManager, SchemaInfo } from 'aroma2-common/lib/browser'
+import type { MetadataSchemaManager, SchemaInfo } from 'rockit-common/lib/browser'
 import schemaTypeDefinitions = require('./schema-type-definitions.json')
 import { isSchemaOrgPropertyAllowedForHierarchy } from './schema-type-property-restrictions'
 

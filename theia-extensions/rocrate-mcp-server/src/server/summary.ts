@@ -79,7 +79,7 @@ export function createSummaryHelpers(deps: SummaryDeps) {
       unresolvedUrls: resolution.unresolvedUrls,
       warnings: resolution.warnings,
       indexPath: resolution.indexPath,
-      aromaRootPath: resolution.aromaRootPath,
+      rockitRootPath: resolution.rockitRootPath,
       profiles: resolution.profiles.map((profile) => ({
         id: profile.id,
         name: profile.name,

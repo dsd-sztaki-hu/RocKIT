@@ -19,7 +19,7 @@
     "cedar-template-converter": "1.0.0",
     "metadata-profile-core": "0.0.0",
     "app-state": "0.0.1",
-    "aroma2-common": "0.0.0",
+    "rockit-common": "0.0.0",
     "axios": "^1.6.0",
     "await-to-js": "^3.0.0",
     "jsonpath": "^1.1.1",

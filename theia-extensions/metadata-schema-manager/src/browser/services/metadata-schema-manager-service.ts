@@ -12,7 +12,7 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
 import type { SchemaInfo, SchemaIndex, RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
-import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'aroma2-common/lib/browser';
+import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'rockit-common/lib/browser';
 import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service';
 import { MissingSchemasDialog } from '../components/missing-schemas-dialog'; 
 
@@ -138,7 +138,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
   private async synchronizeIndex(): Promise<void> {
     await (this.indexMutex = this.indexMutex.then(async () => {
-      const root = await this.getAromaRootUri();
+      const root = await this.getRockitRootUri();
       if (!root) return;
 
       const index = await this.loadIndex();
@@ -798,7 +798,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
   public async getConvertedProfileContent(sourceRelativePath: string): Promise<any> {
     try {
-      const root = await this.getAromaRootUri();
+      const root = await this.getRockitRootUri();
       if (!root) throw new Error('Root directory configuration missing');
       
       const convertedRelativePath = sourceRelativePath.replace('metadata-schemas/cedar/', 'metadata-schemas/ro-crate/');
@@ -851,18 +851,22 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     return schemaId;
   }
 
-  protected async getAromaRootUri(): Promise<URI | null> {
-    const result = await this.envVariablesServer.getValue('AROMA_ROOT_PATH');
+  protected async getRockitRootUri(): Promise<URI | null> {
+    const result =
+      (await this.envVariablesServer.getValue('ROCKIT_ROOT_PATH')) ||
+      undefined;
     if (!result?.value) return null;
     const normalized = result.value.replace(/\\/g, '/');
     return normalized.match(/^[a-zA-Z]:/) ? new URI('file:///' + normalized) : new URI('file://' + normalized);
   }
 
   protected async getIndexUri(): Promise<URI | null> {
-    const root = await this.getAromaRootUri();
+    const root = await this.getRockitRootUri();
     if (!root) return null;
     
-    const envVar = await this.envVariablesServer.getValue('AROMA_METADATA_SCHEMA_INDEX_FILE');
+    const envVar =
+      (await this.envVariablesServer.getValue('ROCKIT_METADATA_SCHEMA_INDEX_FILE')) ||
+      undefined;
     const fileName = envVar?.value || 'metadata-schema-index.json';
     
     return root.resolve(fileName);
@@ -957,7 +961,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       throw new Error(`Conversion logic failed: ${convErr}`); 
     }
 
-    const root = await this.getAromaRootUri();
+    const root = await this.getRockitRootUri();
     if (!root) throw new Error('Root directory configuration missing');
 
     const relativeCedarPath = `metadata-schemas/cedar/${fileName}`;
@@ -1050,7 +1054,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         schemasToDelete = index.profiles.filter(s => idsToDelete.has(s.id));
       }));
 
-      const root = await this.getAromaRootUri();
+      const root = await this.getRockitRootUri();
 
       if (root) {
         for (const schema of schemasToDelete) {

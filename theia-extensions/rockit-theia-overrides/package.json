@@ -1,5 +1,5 @@
 {
-  "name": "AROMA-theia-overrides",
+  "name": "rockit-theia-overrides",
   "keywords": [
     "theia-extension"
   ],
@@ -14,7 +14,7 @@
     "entities-overview": "0.0.0",
     "ro-crate-editor": "0.0.0",
     "ro-crate-structure-panel": "0.0.0",
-    "aroma2-common": "0.0.0"
+    "rockit-common": "0.0.0"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
@@ -27,7 +27,7 @@
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/AROMA-theia-overrides-frontend-module"
+      "frontend": "lib/browser/rockit-theia-overrides-frontend-module"
     }
   ]
 }
