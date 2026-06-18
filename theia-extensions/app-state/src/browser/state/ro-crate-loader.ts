@@ -83,6 +83,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     protected pendingAppStateProfileRefreshCrate?: Record<string, any>
     protected lastObservedConformsToKey = ''
     protected perfSeq = 0
+    protected invalidMetadataPromptInFlight = false
 
     /**
      * Critical: lets us distinguish between:
@@ -554,9 +555,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             const content = await this.fileService.read(metadataUri)
             parsed = JSON.parse(content.value)
         } catch (error) {
-            this.messageService.error(
-                'ro-crate-metadata.json changed on disk but could not be parsed.',
-            )
+            await this.promptToRestoreInvalidMetadata(metadataUri)
             return
         }
 
@@ -617,7 +616,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
                 return
             }
             if (choice === 'Ignore') {
-                await this.discardExternalCrateChange(metadataUri)
+                await this.restoreCurrentRoCrateToDisk(
+                    metadataUri,
+                    'Cannot ignore external ro-crate-metadata.json changes because no RO-Crate is loaded.',
+                    'Failed to restore ro-crate-metadata.json after ignoring external changes.',
+                )
             }
         } finally {
             if (this.externalMetadataPromptInFlight === normalized) {
@@ -626,12 +629,44 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         }
     }
 
-    protected async discardExternalCrateChange(metadataUri: URI): Promise<void> {
+    protected async promptToRestoreInvalidMetadata(metadataUri: URI): Promise<void> {
+        if (!this.appStateService.roCrate) {
+            this.messageService.error(
+                'ro-crate-metadata.json changed on disk but could not be parsed.',
+            )
+            return
+        }
+        if (this.invalidMetadataPromptInFlight) {
+            return
+        }
+
+        this.invalidMetadataPromptInFlight = true
+        try {
+            const choice = await this.messageService.error(
+                'ro-crate-metadata.json is invalid. Restore the last valid version from the app?',
+                'Restore Last Valid Version',
+                'Keep Invalid File',
+            )
+            if (choice === 'Restore Last Valid Version') {
+                await this.restoreCurrentRoCrateToDisk(
+                    metadataUri,
+                    'Cannot restore ro-crate-metadata.json because no valid RO-Crate is loaded.',
+                    'Failed to restore ro-crate-metadata.json from the last valid version.',
+                )
+            }
+        } finally {
+            this.invalidMetadataPromptInFlight = false
+        }
+    }
+
+    protected async restoreCurrentRoCrateToDisk(
+        metadataUri: URI,
+        noCrateMessage: string,
+        failureMessage: string,
+    ): Promise<void> {
         const crate = this.appStateService.roCrate
         if (!crate) {
-            this.messageService.warn(
-                'Cannot ignore external ro-crate-metadata.json changes because no RO-Crate is loaded.',
-            )
+            this.messageService.warn(noCrateMessage)
             return
         }
 
@@ -648,10 +683,8 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             const htmlContent = this.roCrateHtmlGenerator.generate(crate)
             await this.fileService.create(previewUri, htmlContent, { overwrite: true })
         } catch (error) {
-            console.error('Failed to ignore external RO-Crate change:', error)
-            this.messageService.error(
-                'Failed to restore ro-crate-metadata.json after ignoring external changes.',
-            )
+            console.error('Failed to restore RO-Crate metadata from app state:', error)
+            this.messageService.error(failureMessage)
         }
     }
 

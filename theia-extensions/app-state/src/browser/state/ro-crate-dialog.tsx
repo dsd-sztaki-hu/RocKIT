@@ -10,6 +10,7 @@ import {
   AROMA_IGNORE_DIR,
   AROMA_IGNORE_FILE,
   DEFAULT_IGNORED_ENTRIES,
+  RO_CRATE_APPROVAL_FILE,
   RO_CRATE_APPROVAL_FILE_NAME,
 } from 'aroma2-common/lib/common/ro-crate-technical-files'
 import * as mime from 'mime-types'
@@ -168,6 +169,7 @@ export class ROCrateDialog extends ReactDialog<string> {
 
     const rootUri = roots[0].resource
     await this.ensureDefaultIgnoredEntries(rootUri)
+    await this.deleteRoCrateApprovalFiles(rootUri)
 
     const graph: any[] = []
     const rootHasPart: { '@id': string }[] = []
@@ -231,6 +233,23 @@ export class ROCrateDialog extends ReactDialog<string> {
 
     const htmlContent = this.roCrateHtmlGenerator.generate(roCrate)
     await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+  }
+
+  protected async deleteRoCrateApprovalFiles(rootUri: URI): Promise<void> {
+    const approvalUris = [
+      rootUri.resolve(RO_CRATE_APPROVAL_FILE),
+      rootUri.resolve(RO_CRATE_APPROVAL_FILE_NAME),
+    ]
+
+    for (const approvalUri of approvalUris) {
+      try {
+        if (await this.fileService.exists(approvalUri)) {
+          await this.fileService.delete(approvalUri)
+        }
+      } catch (error) {
+        console.warn('Failed to remove ro-crate-approval.json:', error)
+      }
+    }
   }
 
   protected async ensureDefaultIgnoredEntries(rootUri: URI): Promise<void> {
