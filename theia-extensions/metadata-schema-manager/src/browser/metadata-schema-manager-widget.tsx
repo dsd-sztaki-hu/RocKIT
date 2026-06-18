@@ -56,7 +56,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.title.label = METADATA_SCHEMA_MANAGER_LABEL
         this.title.caption = METADATA_SCHEMA_MANAGER_LABEL
         this.title.closable = true
-        this.title.iconClass = 'fa fa-file-code'
+        this.title.iconClass = 'fa fa-table'
         this.node.tabIndex = 0
 
         this.toDispose.push(this.schemaManagerService.onDidChangeSchemas(() => this.loadSchemas()))
