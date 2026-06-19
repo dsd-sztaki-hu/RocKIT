@@ -10,6 +10,7 @@
     background-color: var(--theia-editor-background);
     color: var(--theia-foreground);
     overflow: hidden;
+    user-select: none;
 }
 
 .schema-table-container {
@@ -41,6 +42,11 @@
 .schema-table-container .ant-table-body {
     height: 100% !important; 
     max-height: 100% !important;
+}
+
+.schema-table-container .ant-table-cell {
+    white-space: nowrap;
+    word-break: normal;
 }
 
 /* --- 2. Theia Native Table Overrides --- */

@@ -53,6 +53,63 @@ function main() {
     'Expected dangling local references to be reported as validation errors',
   )
 
+  const withMachineLikeNames = core.applyChangeSet(updated, {
+    addEntities: [
+      { '@id': '#author-hun-ren-arp-team', '@type': 'Organization', name: 'author-hun-ren-arp-team' },
+      { '@id': '#source-service-map', '@type': 'CreativeWork', name: 'source-service-map' },
+    ],
+  })
+  const machineLikeNamesReport = core.validateCrate(withMachineLikeNames, { strict: true })
+  const machineLikeNameIssues = machineLikeNamesReport.errors.filter(
+    (issue) => issue.code === 'machine_like_entity_name',
+  )
+  assert.equal(
+    machineLikeNameIssues.length,
+    2,
+    'Expected strict validation to reject names derived from @id values',
+  )
+
+  const withInvalidFileName = core.applyChangeSet(updated, {
+    addEntities: [
+      {
+        '@id': 'file://./dir1/img_excel_chart_intro_1.svg',
+        '@type': 'File',
+        name: 'Excel chart introduction SVG',
+      },
+    ],
+  })
+  const invalidFileNameReport = core.validateCrate(withInvalidFileName, { strict: true })
+  assert.ok(
+    invalidFileNameReport.errors.some(
+      (issue) =>
+        issue.code === 'file_entity_name_mismatch' &&
+        issue.message.includes('img_excel_chart_intro_1.svg'),
+    ),
+    'Expected strict validation to require the final filename segment for File entity names',
+  )
+
+  const withHumanFriendlyNames = core.applyChangeSet(updated, {
+    addEntities: [
+      { '@id': '#author-hun-ren-arp-team', '@type': 'Organization', name: 'HUN-REN ARP team' },
+      { '@id': '#source-service-map', '@type': 'CreativeWork', name: 'Source: ARP service map' },
+      {
+        '@id': 'file://./dir1/img_excel_chart_intro_1.svg',
+        '@type': 'File',
+        name: 'img_excel_chart_intro_1.svg',
+      },
+    ],
+  })
+  const humanFriendlyNamesReport = core.validateCrate(withHumanFriendlyNames, { strict: true })
+  assert.equal(
+    humanFriendlyNamesReport.errors.some(
+      (issue) =>
+        issue.code === 'machine_like_entity_name' ||
+        issue.code === 'file_entity_name_mismatch',
+    ),
+    false,
+    'Expected strict validation to accept human-friendly non-file names and filename-based File names',
+  )
+
   const withExtraField = core.applyChangeSet(updated, {
     updateEntities: [{ '@id': './', merge: { datePublished: '2026-01-01T00:00:00Z' } }],
   })

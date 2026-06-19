@@ -8,7 +8,7 @@ import {
     collectRoCrateExportFileReferences,
     localizeExternalRoCrateFileReferences,
     RoCrateExportFileSource
-} from 'aroma2-common/lib/common/ro-crate-export-file-references';
+} from 'rockit-common/lib/common/ro-crate-export-file-references';
 import { DataRepositoryConfig, DataverseCollection } from '../types';
 
 type RoCrateEntity = Record<string, unknown>;
@@ -985,13 +985,13 @@ export class NativeDataverseExportService {
     }
 
     protected async createUniqueMappingFileName(rootUri: URI): Promise<string> {
-        const aromaUri = rootUri.resolve('.aroma');
-        if (!(await this.fileService.exists(aromaUri))) {
-            await this.fileService.createFolder(aromaUri);
+        const rockitUri = rootUri.resolve('.rockit');
+        if (!(await this.fileService.exists(rockitUri))) {
+            await this.fileService.createFolder(rockitUri);
         }
         for (let attempt = 0; attempt < 100; attempt += 1) {
             const fileName = `${this.randomId(16)}.json`;
-            if (!(await this.fileService.exists(aromaUri.resolve(fileName)))) {
+            if (!(await this.fileService.exists(rockitUri.resolve(fileName)))) {
                 return fileName;
             }
         }
@@ -1002,7 +1002,7 @@ export class NativeDataverseExportService {
         rootUri: URI,
         repository: DataRepositoryConfig
     ): Promise<NativeDataverseExportTarget | undefined> {
-        const entries = await this.readExportLogEntries(rootUri.resolve('.aroma').resolve(EXPORT_LOG_FILE_NAME));
+        const entries = await this.readExportLogEntries(rootUri.resolve('.rockit').resolve(EXPORT_LOG_FILE_NAME));
         const repositoryNames = new Set(
             [repository.title, repository.baseUrl].filter((value): value is string => !!value)
         );
@@ -1013,7 +1013,7 @@ export class NativeDataverseExportService {
             return undefined;
         }
         const persistentId = this.extractPidFromTarget(entry.target);
-        const mapping = await this.readEntityIdMapping(rootUri.resolve('.aroma').resolve(entry.mappingFile));
+        const mapping = await this.readEntityIdMapping(rootUri.resolve('.rockit').resolve(entry.mappingFile));
         if (!persistentId || !mapping) {
             return undefined;
         }
@@ -1098,12 +1098,12 @@ export class NativeDataverseExportService {
     }
 
     protected async saveEntityIdMapping(rootUri: URI, mappingFileName: string, mapping: RoCrateEntityIdMapping): Promise<void> {
-        const aromaUri = rootUri.resolve('.aroma');
-        if (!(await this.fileService.exists(aromaUri))) {
-            await this.fileService.createFolder(aromaUri);
+        const rockitUri = rootUri.resolve('.rockit');
+        if (!(await this.fileService.exists(rockitUri))) {
+            await this.fileService.createFolder(rockitUri);
         }
         await this.fileService.writeFile(
-            aromaUri.resolve(mappingFileName),
+            rockitUri.resolve(mappingFileName),
             BinaryBuffer.fromString(`${JSON.stringify(mapping, null, 2)}\n`)
         );
     }
@@ -1130,11 +1130,11 @@ export class NativeDataverseExportService {
     }
 
     protected async appendExportLog(rootUri: URI, entry: ExportLogEntry): Promise<void> {
-        const aromaUri = rootUri.resolve('.aroma');
-        if (!(await this.fileService.exists(aromaUri))) {
-            await this.fileService.createFolder(aromaUri);
+        const rockitUri = rootUri.resolve('.rockit');
+        if (!(await this.fileService.exists(rockitUri))) {
+            await this.fileService.createFolder(rockitUri);
         }
-        const logUri = aromaUri.resolve(EXPORT_LOG_FILE_NAME);
+        const logUri = rockitUri.resolve(EXPORT_LOG_FILE_NAME);
         const entries = await this.readExportLogEntries(logUri);
         entries.push(entry);
         await this.fileService.writeFile(logUri, BinaryBuffer.fromString(`${JSON.stringify(entries, null, 2)}\n`));
@@ -1148,7 +1148,7 @@ export class NativeDataverseExportService {
             const parsed = JSON.parse((await this.fileService.readFile(logUri)).value.toString());
             return Array.isArray(parsed) ? parsed.filter((entry): entry is ExportLogEntry => !!entry && typeof entry === 'object' && !Array.isArray(entry)) : [];
         } catch (error) {
-            console.warn('Failed to parse .aroma/export-log.json; starting a new export log.', error);
+            console.warn('Failed to parse .rockit/export-log.json; starting a new export log.', error);
             return [];
         }
     }

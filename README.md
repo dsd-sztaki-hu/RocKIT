@@ -8,6 +8,75 @@ Please install all necessary [prerequisites](https://github.com/eclipse-theia/th
 3. yarn build:electron
 4. yarn start:electron
 
+## Building and packaging the standalone RO-Crate MCP server
+
+The RO-Crate MCP server can be built as a standalone npm CLI package without
+building the full Electron application.
+
+From the repo root:
+
+    yarn build:rocrate-mcp-standalone
+
+This creates a publishable package directory at:
+
+    theia-extensions/rocrate-mcp-server/dist/npm
+
+To create the npm tarball:
+
+    yarn pack:rocrate-mcp-standalone
+
+The tarball is written to:
+
+    theia-extensions/rocrate-mcp-server/rocrate-mcp-server-<version>.tgz
+
+For example, if the MCP package version is `0.0.1`, install the local tarball
+from the repo root with:
+
+    npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-0.0.1.tgz
+
+To publish the standalone MCP server to npm, publish the generated package
+directory, not the raw workspace package:
+
+    cd theia-extensions/rocrate-mcp-server/dist/npm
+    npm publish
+
+After publishing, users can install and run it with:
+
+    npm install -g rocrate-mcp-server
+    rocrate-mcp-server
+
+The standalone package bundles the internal workspace code needed by the MCP
+server. The normal Theia/Electron build still uses the workspace package and
+its `lib/` output.
+
+### Configuring Theia backend memory
+
+Set `ROCKIT_MEMORY_LIMIT_MB` to increase the V8 old-generation heap limit of the
+Theia backend Node.js process. The value is in MiB. For example, a value of
+`8192` results in a total backend V8 heap limit of approximately 8240 MiB.
+
+This is an upper limit, not a memory reservation. The backend consumes memory
+gradually as needed. When the variable is not set, the Node.js default is used.
+
+The Electron renderer also receives the requested setting, but Electron 37
+currently caps its effective JavaScript heap at approximately 3586 MiB. Setting
+`ROCKIT_MEMORY_LIMIT_MB` to `8192` therefore increases the backend limit but does
+not increase the renderer beyond that cap. Each process has a separate heap.
+
+PowerShell:
+
+    $env:ROCKIT_MEMORY_LIMIT_MB="8192"
+    yarn start:electron
+
+Command Prompt:
+
+    set ROCKIT_MEMORY_LIMIT_MB=8192
+    yarn start:electron
+
+Linux/macOS:
+
+    ROCKIT_MEMORY_LIMIT_MB=8192 yarn start:electron
+
 ## Working on `recrate` (vendored in `dev-packages/recrate`)
 
 ### One-time setup

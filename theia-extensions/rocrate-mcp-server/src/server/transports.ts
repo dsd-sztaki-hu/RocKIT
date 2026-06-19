@@ -5,6 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { handleSocketLifecycleArgs } from '../bootstrap/socket-lifecycle'
+import { clearAgentSessionContext } from './agent-session-context'
 import type { McpToolTextResult, ToolDefinition, TransportMode } from './types'
 
 type TelemetryCollector = {
@@ -108,6 +109,13 @@ function createSdkInputStream(input: Readable): Readable {
  */
 export async function startServerWithTransports(options: StartServerOptions): Promise<void> {
   let dashboardStartAttempted = false
+  const startDashboardOnce = (): void => {
+    if (dashboardStartAttempted) {
+      return
+    }
+    dashboardStartAttempted = true
+    options.startDashboardIfNeeded()
+  }
 
   const startTransportServer = async (
     input: Readable,
@@ -118,10 +126,7 @@ export async function startServerWithTransports(options: StartServerOptions): Pr
     input.resume()
     process.stderr.write(`rocrate-mcp-server: started (${transportLabel})\n`)
 
-    if (!dashboardStartAttempted) {
-      dashboardStartAttempted = true
-      options.startDashboardIfNeeded()
-    }
+    startDashboardOnce()
 
     const mcpServer = new McpServer(
       {
@@ -156,6 +161,7 @@ export async function startServerWithTransports(options: StartServerOptions): Pr
 
     const collector = options.getTelemetryCollector()
     const closeSession = () => {
+      clearAgentSessionContext(sessionKey)
       if (collector) {
         collector.deactivateSession(sessionKey)
       }
@@ -169,7 +175,12 @@ export async function startServerWithTransports(options: StartServerOptions): Pr
     await mcpServer.connect(transport)
   }
 
-  const handledSocketMode = await handleSocketLifecycleArgs(process.argv.slice(2), {
+  const args = process.argv.slice(2)
+  if (args.includes('--listen')) {
+    startDashboardOnce()
+  }
+
+  const handledSocketMode = await handleSocketLifecycleArgs(args, {
     execPath: process.execPath,
     serverScriptPath: process.argv[1],
     stdin: process.stdin,

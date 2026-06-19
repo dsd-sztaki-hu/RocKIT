@@ -1,7 +1,7 @@
 export {
   RO_CRATE_APPROVAL_FILE,
   RO_CRATE_APPROVAL_FILE_NAME,
-} from 'aroma2-common/lib/common/ro-crate-technical-files'
+} from 'rockit-common/lib/common/ro-crate-technical-files'
 
 export type RoCrateApprovalOperation = 'create' | 'update' | 'delete'
 
@@ -117,9 +117,6 @@ export function maintainRoCrateApprovalFile(
 
   const nextEntitiesById = new Map<string, RoCrateApprovalEntity>()
   for (const [key, item] of previousItemsByKey.entries()) {
-    if (!item.approved) {
-      continue
-    }
     const entityId = previousEntityIdsByKey.get(key)
     if (!entityId) {
       continue

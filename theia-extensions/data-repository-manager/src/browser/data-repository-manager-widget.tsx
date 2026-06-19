@@ -163,7 +163,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               .join('\n')
             const remainingCount = updateResult.unmappedEntityIds.length - previewLimit
             this.messageService.warn(
-              `ARP update completed, but ${updateResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .aroma/${updateResult.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
+              `ARP update completed, but ${updateResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/${updateResult.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
               { timeout: 10000 },
             )
           }
@@ -261,7 +261,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               .join('\n')
             const remainingCount = exportResult.unmappedEntityIds.length - previewLimit
             this.messageService.warn(
-              `RO-Crate export completed, but ${exportResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .aroma/${exportResult.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
+              `RO-Crate export completed, but ${exportResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/${exportResult.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
               { timeout: 10000 },
             )
           }
@@ -328,7 +328,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             .join('\n')
           const remainingCount = creationResult.unmappedEntityIds.length - previewLimit
           this.messageService.warn(
-            `Dataverse dataset created, but ${creationResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .aroma/${creationResult.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
+            `Dataverse dataset created, but ${creationResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/${creationResult.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
             { timeout: 10000 },
           )
         }

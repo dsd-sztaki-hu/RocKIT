@@ -2290,17 +2290,6 @@
   resolved "https://registry.npmjs.org/@inversifyjs/reflect-metadata-utils/-/reflect-metadata-utils-0.2.4.tgz"
   integrity sha512-u95rV3lKfG+NT2Uy/5vNzoDujos8vN8O18SSA5UyhxsGYd4GLQn/eUsGXfOsfa7m34eKrDelTKRUX1m/BcNX5w==
 
-"@iqss/dataverse-client-javascript@2.1.0":
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/@iqss/dataverse-client-javascript/-/dataverse-client-javascript-2.1.0.tgz#702bf9f716f597c73ee2e839727c3638c4f7f3dd"
-  integrity sha512-5UVqAtRb7KZQi0c9W64f2G3vKFJrMLAIOuRwHR6hB0Z0ZVjEgCBjgP37N52T6sPh6bFbGv67Egy0+ZtmvgGMDg==
-  dependencies:
-    "@types/node" "^18.15.11"
-    "@types/turndown" "^5.0.1"
-    axios "^1.12.2"
-    turndown "^7.1.2"
-    typescript "^4.9.5"
-
 "@isaacs/cliui@^8.0.2":
   version "8.0.2"
   resolved "https://registry.npmjs.org/@isaacs/cliui/-/cliui-8.0.2.tgz"
@@ -2793,11 +2782,6 @@
   version "0.16.0"
   resolved "https://registry.npmjs.org/@microsoft/tsdoc/-/tsdoc-0.16.0.tgz"
   integrity sha512-xgAyonlVVS+q7Vc7qLW0UrJU7rSFcETRWsqdXZtjzRU8dF+6CkozTK4V4y1LwOX7j8r/vHphjDeMeGI4tNGeGA==
-
-"@mixmark-io/domino@^2.2.0":
-  version "2.2.0"
-  resolved "https://registry.yarnpkg.com/@mixmark-io/domino/-/domino-2.2.0.tgz#4e8ec69bf1afeb7a14f0628b7e2c0f35bdb336c3"
-  integrity sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==
 
 "@modelcontextprotocol/sdk@^1.27.1", "@modelcontextprotocol/sdk@^1.29.0":
   version "1.29.0"
@@ -5155,13 +5139,6 @@
   resolved "https://registry.npmjs.org/@types/node/-/node-13.13.52.tgz"
   integrity sha512-s3nugnZumCC//n4moGGe6tkNMyYEdaDBitVjwPxXmR5lnMG5dHePinH2EdxkG3Rh1ghFHHixAG4NJhpJW1rthQ==
 
-"@types/node@^18.15.11":
-  version "18.19.130"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-18.19.130.tgz#da4c6324793a79defb7a62cba3947ec5add00d59"
-  integrity sha512-GRaXQx6jGfL8sKfaIDD6OupbIHBr9jv7Jnaml9tB7l4v068PAOXqfcujMMo5PhbIs6ggR1XODELqahT2R8v0fg==
-  dependencies:
-    undici-types "~5.26.4"
-
 "@types/node@^20.0.0", "@types/node@^20.11.30":
   version "20.19.39"
   resolved "https://registry.npmjs.org/@types/node/-/node-20.19.39.tgz"
@@ -5334,11 +5311,6 @@
   version "2.0.7"
   resolved "https://registry.npmjs.org/@types/trusted-types/-/trusted-types-2.0.7.tgz"
   integrity sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==
-
-"@types/turndown@^5.0.1":
-  version "5.0.6"
-  resolved "https://registry.yarnpkg.com/@types/turndown/-/turndown-5.0.6.tgz#42a27397298a312d6088f29c0ff4819c518c1ecb"
-  integrity sha512-ru00MoyeeouE5BX4gRL+6m/BsDfbRayOskWqUvh7CLGW+UXxHQItqALa38kKnOiZPqJrtzJUgAC2+F0rL1S4Pg==
 
 "@types/uuid@^10.0.0":
   version "10.0.0"
@@ -6591,16 +6563,6 @@ await-to-js@^3.0.0:
   version "3.0.0"
   resolved "https://registry.npmjs.org/await-to-js/-/await-to-js-3.0.0.tgz"
   integrity sha512-zJAaP9zxTcvTHRlejau3ZOY4V7SRpiByf3/dxx2uyKxxor19tpmpV2QRsTKikckwhaPmr2dVpxxMr7jOCYVp5g==
-
-axios@^1.12.2:
-  version "1.16.1"
-  resolved "https://registry.yarnpkg.com/axios/-/axios-1.16.1.tgz#517e29291d19d6e8cf919ff264f4fe157261ba12"
-  integrity sha512-caYkukvroVPO8KrzuJEb50Hm07KwfBZPEC3VeFHTsqWHvKTsy54hjJz9BS/cdaypROE2rH6xvm9mHX4fgWkr3A==
-  dependencies:
-    follow-redirects "^1.16.0"
-    form-data "^4.0.5"
-    https-proxy-agent "^5.0.1"
-    proxy-from-env "^2.1.0"
 
 axios@^1.6.0, axios@^1.7.4:
   version "1.16.0"
@@ -18096,13 +18058,6 @@ tunnel-agent@^0.6.0:
   dependencies:
     safe-buffer "^5.0.1"
 
-turndown@^7.1.2:
-  version "7.2.4"
-  resolved "https://registry.yarnpkg.com/turndown/-/turndown-7.2.4.tgz#42d98202aefa8c188c997b586bc6da78bdf27ea2"
-  integrity sha512-I8yFsfRzmzK0WV1pNNOA4A7y4RDfFxPRxb3t+e3ui14qSGOxGtiSP6GjeX+Y6CHb7HYaFj7ECUD7VE5kQMZWGQ==
-  dependencies:
-    "@mixmark-io/domino" "^2.2.0"
-
 tween-functions@^1.2.0:
   version "1.2.0"
   resolved "https://registry.npmjs.org/tween-functions/-/tween-functions-1.2.0.tgz"
@@ -18225,7 +18180,7 @@ typescript@5.9.3, typescript@^5.3.3, typescript@^5.4.3:
   resolved "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz"
   integrity sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==
 
-typescript@^4.0.3, typescript@^4.9.5:
+typescript@^4.0.3:
   version "4.9.5"
   resolved "https://registry.npmjs.org/typescript/-/typescript-4.9.5.tgz"
   integrity sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==
@@ -18286,11 +18241,6 @@ underscore@1.13.6:
   version "1.13.6"
   resolved "https://registry.npmjs.org/underscore/-/underscore-1.13.6.tgz"
   integrity sha512-+A5Sja4HP1M08MaXya7p5LvjuM7K6q/2EaC0+iovj/wOcMsTzMvDFbasi/oSapiwOlt252IqsKqPjCl7huKS0A==
-
-undici-types@~5.26.4:
-  version "5.26.5"
-  resolved "https://registry.yarnpkg.com/undici-types/-/undici-types-5.26.5.tgz#bcd539893d00b56e964fd2657a4866b221a65617"
-  integrity sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==
 
 undici-types@~6.21.0:
   version "6.21.0"

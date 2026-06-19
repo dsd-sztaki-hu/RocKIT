@@ -9,7 +9,7 @@ import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-hist
 import {
     collectRoCrateExportFileReferences,
     RoCrateExportFileSource
-} from 'aroma2-common/lib/common/ro-crate-export-file-references';
+} from 'rockit-common/lib/common/ro-crate-export-file-references';
 
 type RoCrate = Record<string, any>;
 type RoCrateEntity = Record<string, any>;
