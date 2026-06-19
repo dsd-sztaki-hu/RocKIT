@@ -78,7 +78,13 @@ When generating the review URL:
 2. If you need a decision from the user, provide a short menu they can choose from.
 3. For RO-Crate metadata authoring, always check and offer schemas/profiles
    because they guide FAIR metadata creation for both users and agents.
-4. When no active `conformsTo` profile exists, offer available local metadata
+4. If the crate already contains active `conformsTo` profile URLs, resolve and
+   download those profiles before proceeding with planning or edits. In local
+   mode, call a profile-aware MCP tool such as `get_rocrate_context` or
+   `validate_crate` and verify that the active profile URLs are no longer
+   unresolved. If resolution fails, report that failure and pause normal
+   metadata work until it is addressed.
+5. When no active `conformsTo` profile exists, offer available local metadata
    profiles first, then browse configured remote CEDAR providers with
    `list_remote_schema_tree` and offer unimported leaf templates in a simplified
    folder tree. After the user selects a remote template, import it with
