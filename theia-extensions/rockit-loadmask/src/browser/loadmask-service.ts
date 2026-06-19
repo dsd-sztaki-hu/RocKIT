@@ -17,6 +17,7 @@ export interface LoadMaskOptions {
 export interface LoadMaskUpdate {
   message?: string
   progress?: LoadMaskProgress
+  onCancel?: (() => void | Promise<void>) | null
 }
 
 export interface LoadMaskHandle extends Disposable {
@@ -102,6 +103,10 @@ export class LoadMaskService {
         }
         if (update.progress !== undefined) {
           operation.progress = update.progress
+        }
+        if (update.onCancel !== undefined) {
+          operation.onCancel = update.onCancel ?? undefined
+          operation.cancelRequested = false
         }
         this.fireDidChange()
       },

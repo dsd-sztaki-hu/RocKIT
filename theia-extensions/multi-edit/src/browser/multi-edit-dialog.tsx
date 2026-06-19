@@ -2683,10 +2683,33 @@ export class MultiEditDialog extends ReactDialog<string> {
         errors: [...errors, message],
       }
     } finally {
-      loadMask?.dispose()
       this.isExecuting = false
       this.update()
+      if (loadMask) {
+        loadMask.update({
+          message: 'Preparing results...',
+          onCancel: null,
+        })
+        await this.waitForPostCommitRender()
+        loadMask.dispose()
+      }
     }
+  }
+
+  protected async waitForPostCommitRender(): Promise<void> {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    await new Promise<void>((resolve) => {
+      let settled = false
+      const finish = () => {
+        if (settled) {
+          return
+        }
+        settled = true
+        resolve()
+      }
+      setTimeout(finish, 1500)
+      requestAnimationFrame(() => requestAnimationFrame(finish))
+    })
   }
 
   /**
