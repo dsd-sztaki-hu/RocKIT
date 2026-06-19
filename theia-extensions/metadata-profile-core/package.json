@@ -13,7 +13,8 @@
     "test": "node test/test-core.js"
   },
   "dependencies": {
-    "cedar-template-converter": "1.0.0"
+    "cedar-template-converter": "1.0.0",
+    "rockit-common": "0.0.0"
   },
   "optionalDependencies": {
     "keytar": "^7.9.0"
