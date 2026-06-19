@@ -524,6 +524,9 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
     protected async handleExternalMetadataChange(): Promise<void> {
         this.pendingExternalCheck = undefined
+        if (this.appStateService.wasRoCrateSavedRecently()) {
+            return
+        }
         const root = this.workspaceService.tryGetRoots()?.[0]?.resource
         if (!root) {
             return

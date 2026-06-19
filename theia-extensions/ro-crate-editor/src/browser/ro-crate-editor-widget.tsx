@@ -9,7 +9,6 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import {
     MetadataSchemaManager,
-    RoCrateHtmlGenerator,
     SchemaValidator,
     SchemaValidatorManager,
     type ValidationError,
@@ -23,6 +22,7 @@ import type { Disposable } from '@theia/core'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
+import { RoCratePersistenceService } from 'save-ro-crate/lib/browser/ro-crate-persistence-service'
 import {
     RO_CRATE_APPROVAL_FILE,
     RO_CRATE_APPROVAL_FILE_NAME,
@@ -80,8 +80,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     @inject(WorkspaceService)
     protected readonly workspaceService: WorkspaceService
 
-    @inject(RoCrateHtmlGenerator)
-    protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator
+    @inject(RoCratePersistenceService)
+    protected readonly persistenceService: RoCratePersistenceService
 
     protected readonly onDirtyChangedEmitter = new Emitter<void>()
     protected readonly onContentChangedEmitter = new Emitter<void>()
@@ -917,7 +917,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
     async save(options?: SaveOptions): Promise<void> {
         try {
-            await this.validateCurrentCrate()
             await this.persistRoCrateToDisk()
         } catch (error) {
             const reasonLabel =
@@ -1692,14 +1691,6 @@ protected handleDropEntityToHasPart = async (
             return this.persistPromise
         }
 
-        const crate = this.appStateService.roCrate
-        const profile = this.localProfile
-        const completeProfile = this.localCompleteProfile
-
-        if (crate && profile && completeProfile) {
-            await this.validateCurrentCrate()
-        }
-
         this.persistPromise = this.writeRoCrateFiles()
         try {
             await this.persistPromise
@@ -1716,13 +1707,8 @@ protected handleDropEntityToHasPart = async (
             return
         }
 
-        const metadataUri = rootUri.resolve('ro-crate-metadata.json')
-        const previewUri = rootUri.resolve('ro-crate-preview.html')
-
         try {
-            await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(crateData, null, 2))
-            const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
-            await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
+            await this.persistenceService.write(rootUri, crateData)
             await this.writeRoCrateApprovalFile(
                 this.appStateService.roCrateApproval as RoCrateApprovalFile | undefined,
             )
@@ -1734,6 +1720,11 @@ protected handleDropEntityToHasPart = async (
             )
         } catch (error) {
             console.error('Failed to persist RO-Crate metadata:', error)
+            const message = error instanceof Error ? error.message : String(error)
+            this.messageService.error(`Failed to save RO-Crate: ${message}`, {
+                timeout: 10000,
+            })
+            throw error
         }
     }
 

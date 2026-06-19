@@ -4,7 +4,13 @@ import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import type { MetadataSchemaManager, SchemaInfo } from 'rockit-common/lib/browser'
+import {
+  type LoadMaskHandle,
+  LoadMaskService,
+} from 'rockit-loadmask/lib/browser/loadmask-service'
+
 import schemaTypeDefinitions = require('./schema-type-definitions.json')
+
 import { isSchemaOrgPropertyAllowedForHierarchy } from './schema-type-property-restrictions'
 
 import dayjs = require('dayjs')
@@ -104,6 +110,9 @@ const SCHEMA_ORG_SCHEMA_ID = '__schemaorg__'
 const SCHEMA_ORG_LABEL = 'schema.org'
 const OTHER_ONTOLOGIES_LABEL = 'Other ontologies'
 const ENTITY_LIST_RENDER_LIMIT = 1_000
+const MAIN_THREAD_SLICE_MS = 12
+const YIELD_CHECK_INTERVAL = 250
+const EXECUTION_YIELD_CHECK_INTERVAL = 50
 
 const OPERATOR_LABELS: Record<BulkOperator, string> = {
   add: 'Add',
@@ -168,40 +177,46 @@ export class MultiEditDialog extends ReactDialog<string> {
     private readonly appStateService: AppStateService,
     private readonly schemaManagerService?: MetadataSchemaManager,
     private readonly roCrateHistoryService?: RoCrateHistoryService,
+    private readonly loadMaskService?: LoadMaskService,
   ) {
     super({ title: 'Multi Edit' })
     this.startButton = this.appendButton('Start multi-edit', true)
     this.startButton.addEventListener('click', () => void this.runOperations())
     this.appendCloseButton('Close')
-    this.initialize()
   }
 
   /**
    * Initializes dialog state from current crate/profile data.
-   * @returns void
-   * @protected
+   * @param onProgress Optional callback for graph scan progress.
+   * @returns Promise resolved when preparation is complete.
    */
-  protected initialize(): void {
+  async prepare(onProgress?: (worked: number, total: number) => void): Promise<void> {
     const crate = this.appStateService.roCrate
     const profile = this.appStateService.completeProfile ?? this.appStateService.profile
     this.profileData = profile
 
     if (!crate || !Array.isArray(crate['@graph'])) {
       this.configurationError = 'RO-Crate data is not available.'
+      this.update()
       return
     }
 
     if (!profile?.classes) {
       this.configurationError = 'Profile data is not available.'
+      this.update()
       return
     }
 
-    this.selectedEntities = this.collectSelectedEntities(crate)
+    await this.ensureAssociatedSchemaProfiles()
 
-    const entityTypes = this.collectEntityTypes(crate)
+    const selection = await this.collectSelectionContext(crate, onProgress)
+    this.selectedEntities = selection.selectedEntities
+
+    const entityTypes = selection.entityTypes
     if (entityTypes.length === 0) {
       this.configurationError =
         'No editable entities were found in the current selection.'
+      this.update()
       return
     }
 
@@ -215,6 +230,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     if (this.operations.length === 0) {
       this.operations.push(this.createOperation())
     }
+    this.update()
   }
 
   /**
@@ -237,102 +253,110 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @returns Entity summary rows for the UI.
    * @protected
    */
-  protected buildEntitySummaries(
+  protected async buildEntitySummaries(
     crate: Record<string, any>,
     profile: Record<string, any>,
-  ): EntitySummary[] {
+    onProgress?: (worked: number, total: number) => void,
+  ): Promise<EntitySummary[]> {
     const graph = Array.isArray(crate['@graph'])
       ? (crate['@graph'] as Record<string, any>[])
       : []
     const entitiesById = new Map<string, Record<string, any>>()
-    for (const entry of graph) {
+    const total = graph.length + this.entityIds.length
+    let sliceStarted = this.nowMs()
+    for (let index = 0; index < graph.length; index += 1) {
+      const entry = graph[index]
       if (!entry || typeof entry !== 'object') {
-        continue
+        // Keep progressing through malformed graph entries.
+      } else {
+        const id = typeof entry['@id'] === 'string' ? entry['@id'] : ''
+        if (id && !entitiesById.has(id)) {
+          entitiesById.set(id, entry)
+        }
       }
-      const id = typeof entry['@id'] === 'string' ? entry['@id'] : ''
-      if (!id || entitiesById.has(id)) {
-        continue
+      if (
+        index % YIELD_CHECK_INTERVAL === 0 &&
+        this.nowMs() - sliceStarted >= MAIN_THREAD_SLICE_MS
+      ) {
+        onProgress?.(index + 1, total)
+        sliceStarted = await this.yieldIfNeeded(sliceStarted)
       }
-      entitiesById.set(id, entry)
     }
     const result: EntitySummary[] = []
-    for (const entityId of this.entityIds) {
+    for (let index = 0; index < this.entityIds.length; index += 1) {
+      const entityId = this.entityIds[index]
       const entity = entitiesById.get(entityId)
       if (!entity) {
         result.push({ id: entityId, name: entityId, type: 'Unknown' })
-        continue
+      } else {
+        const typeNames = this.getEntityTypeNames(entity)
+        const localizedTypes = typeNames.length
+          ? typeNames.map((typeName) => {
+              const localized =
+                profile?.localisation?.[typeName] ?? profile?.classes?.[typeName]?.label
+              return String(localized ?? typeName)
+            })
+          : ['Unknown']
+        const displayName = this.getEntityDisplayName(entity)
+        result.push({
+          id: entityId,
+          name: displayName,
+          type: localizedTypes.length > 1 ? localizedTypes : localizedTypes[0],
+        })
       }
-      const typeNames = this.getEntityTypeNames(entity)
-      const localizedTypes = typeNames.length
-        ? typeNames.map((typeName) => {
-            const localized =
-              profile?.localisation?.[typeName] ?? profile?.classes?.[typeName]?.label
-            return String(localized ?? typeName)
-          })
-        : ['Unknown']
-      const displayName = this.getEntityDisplayName(entity)
-      result.push({
-        id: entityId,
-        name: displayName,
-        type: localizedTypes.length > 1 ? localizedTypes : localizedTypes[0],
-      })
+      if (
+        index % YIELD_CHECK_INTERVAL === 0 &&
+        this.nowMs() - sliceStarted >= MAIN_THREAD_SLICE_MS
+      ) {
+        onProgress?.(graph.length + index + 1, total)
+        sliceStarted = await this.yieldIfNeeded(sliceStarted)
+      }
     }
+    onProgress?.(total, total)
     return result
   }
 
-  /**
-   * Collects unique entity types from the selected entity ids.
-   * @param crate Active RO-Crate document.
-   * @returns Sorted list of selected entity types.
-   * @protected
-   */
-  protected collectEntityTypes(crate: Record<string, any>): string[] {
-    const graph = Array.isArray(crate['@graph'])
-      ? (crate['@graph'] as Record<string, any>[])
-      : []
-    const selected = new Set(this.entityIds)
-    const types = new Set<string>()
-
-    for (const entity of graph) {
-      const id = entity?.['@id']
-      if (!id || !selected.has(String(id))) {
-        continue
-      }
-      const typeNames = this.getEntityTypeNames(entity)
-      for (const typeName of typeNames) {
-        types.add(typeName)
-      }
-    }
-
-    return Array.from(types.values()).sort((a, b) => a.localeCompare(b))
-  }
-
-  /**
-   * Collects one selected entity per unique type combination for field applicability checks.
-   * @param crate Active RO-Crate document.
-   * @returns Selected entity objects.
-   * @protected
-   */
-  protected collectSelectedEntities(crate: Record<string, any>): Record<string, any>[] {
+  protected async collectSelectionContext(
+    crate: Record<string, any>,
+    onProgress?: (worked: number, total: number) => void,
+  ): Promise<{ selectedEntities: Record<string, any>[]; entityTypes: string[] }> {
     const graph = Array.isArray(crate['@graph'])
       ? (crate['@graph'] as Record<string, any>[])
       : []
     const selected = new Set(this.entityIds)
     const entities: Record<string, any>[] = []
     const typeSignatures = new Set<string>()
-    for (const entity of graph) {
+    const types = new Set<string>()
+    let sliceStarted = this.nowMs()
+
+    for (let index = 0; index < graph.length; index += 1) {
+      const entity = graph[index]
       const id = typeof entity?.['@id'] === 'string' ? entity['@id'] : ''
-      if (!id || !selected.has(id)) {
-        continue
+      if (id && selected.has(id)) {
+        const typeNames = this.getEntityTypeNames(entity)
+        for (const typeName of typeNames) {
+          types.add(typeName)
+        }
+        const typeSignature = typeNames.slice().sort().join('\u0000')
+        if (!typeSignatures.has(typeSignature)) {
+          typeSignatures.add(typeSignature)
+          entities.push(entity)
+        }
       }
-      const typeSignature = this.getEntityTypeNames(entity).sort().join('\u0000')
-      if (typeSignatures.has(typeSignature)) {
-        continue
+
+      if (
+        index % YIELD_CHECK_INTERVAL === 0 &&
+        this.nowMs() - sliceStarted >= MAIN_THREAD_SLICE_MS
+      ) {
+        onProgress?.(index + 1, graph.length)
+        sliceStarted = await this.yieldIfNeeded(sliceStarted)
       }
-      typeSignatures.add(typeSignature)
-      entities.push(entity)
     }
-    return entities
+    onProgress?.(graph.length, graph.length)
+    return {
+      selectedEntities: entities,
+      entityTypes: Array.from(types.values()).sort((a, b) => a.localeCompare(b)),
+    }
   }
 
   /**
@@ -492,11 +516,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         }
 
         const relationshipTypes = this.extractEntityTypes(input, schemaClasses)
-        const valueKinds = this.resolveValueKinds(
-          input,
-          schemaClasses,
-          relationshipTypes,
-        )
+        const valueKinds = this.resolveValueKinds(input, schemaClasses, relationshipTypes)
         const groupName = this.getFieldGroup(input)
         const schemaMeta = this.resolveSchemaMeta(datasetLayout, groupName)
         const field: FieldDefinition = {
@@ -526,6 +546,65 @@ export class MultiEditDialog extends ReactDialog<string> {
         this.upsertFieldDefinition(fieldsByKey, field)
       }
     }
+  }
+
+  protected async ensureAssociatedSchemaProfiles(): Promise<void> {
+    if (!this.schemaManagerService) {
+      return
+    }
+
+    const schemaUrls = this.extractConformsToUrlsFromCrate()
+    if (schemaUrls.length === 0) {
+      return
+    }
+
+    const existingList = Array.isArray(this.appStateService.profileList)
+      ? this.appStateService.profileList
+      : []
+    const existingIds = new Set(
+      existingList
+        .filter((entry) => Boolean(entry?.content))
+        .map((entry) => entry.id.trim()),
+    )
+    const missingUrls = schemaUrls.filter((url) => !existingIds.has(url))
+    if (missingUrls.length === 0) {
+      return
+    }
+
+    const allSchemas = await this.schemaManagerService.loadAllSchemas()
+    const schemasByConformsTo = new Map(
+      allSchemas
+        .filter((schema) => Boolean(schema.conformsTo?.trim()))
+        .map((schema) => [schema.conformsTo!.trim(), schema]),
+    )
+    const loaded = await Promise.all(
+      missingUrls.map(async (url) => {
+        const schema = schemasByConformsTo.get(url)
+        if (!schema) {
+          return undefined
+        }
+        try {
+          const content = await this.schemaManagerService!.getConvertedProfileContent(
+            schema.files.convertedPath,
+          )
+          return content ? { id: url, content, flag: '' } : undefined
+        } catch (error) {
+          console.warn(`Failed to load associated schema profile: ${url}`, error)
+          return undefined
+        }
+      }),
+    )
+
+    const currentList = Array.isArray(this.appStateService.profileList)
+      ? this.appStateService.profileList
+      : []
+    const merged = new Map(currentList.map((entry) => [entry.id, entry]))
+    for (const entry of loaded) {
+      if (entry) {
+        merged.set(entry.id, entry)
+      }
+    }
+    this.appStateService.profileList = Array.from(merged.values())
   }
 
   /**
@@ -685,7 +764,8 @@ export class MultiEditDialog extends ReactDialog<string> {
         return
       }
       if (typeof value === 'object') {
-        const candidate = (value as Record<string, any>)['@id'] ?? (value as Record<string, any>).id
+        const candidate =
+          (value as Record<string, any>)['@id'] ?? (value as Record<string, any>).id
         if (typeof candidate === 'string') {
           const normalized = candidate.trim()
           if (normalized.length > 0) {
@@ -723,8 +803,14 @@ export class MultiEditDialog extends ReactDialog<string> {
     if (!rawId) {
       return false
     }
-    const normalized = rawId.replace(/\\/g, '/').replace(/^\.\/+/, '').toLowerCase()
-    return normalized === 'ro-crate-metadata.json' || normalized.endsWith('/ro-crate-metadata.json')
+    const normalized = rawId
+      .replace(/\\/g, '/')
+      .replace(/^\.\/+/, '')
+      .toLowerCase()
+    return (
+      normalized === 'ro-crate-metadata.json' ||
+      normalized.endsWith('/ro-crate-metadata.json')
+    )
   }
 
   /**
@@ -1129,7 +1215,9 @@ export class MultiEditDialog extends ReactDialog<string> {
     if (this.selectedEntities.length === 0) {
       return true
     }
-    return this.selectedEntities.every((entity) => this.entitySupportsField(entity, field))
+    return this.selectedEntities.every((entity) =>
+      this.entitySupportsField(entity, field),
+    )
   }
 
   /**
@@ -1139,13 +1227,14 @@ export class MultiEditDialog extends ReactDialog<string> {
    */
   protected getVisibleFields(): FieldDefinition[] {
     const baseFields = Array.from(this.fieldsByKey.values()).filter(
-      (field) => this.selectedSchemaIds.has(field.schemaId) && this.fieldAppliesToSelection(field),
+      (field) =>
+        this.selectedSchemaIds.has(field.schemaId) && this.fieldAppliesToSelection(field),
     )
     if (!this.schemaOrgEnabled) {
       return baseFields
     }
-    const schemaOrgFields = Array.from(this.schemaOrgFieldsByKey.values()).filter((field) =>
-      this.fieldAppliesToSelection(field),
+    const schemaOrgFields = Array.from(this.schemaOrgFieldsByKey.values()).filter(
+      (field) => this.fieldAppliesToSelection(field),
     )
     return [...baseFields, ...schemaOrgFields]
   }
@@ -1205,7 +1294,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       return
     }
 
-    for (const field of this.buildSchemaOrgFields(crate, profile)) {
+    for (const field of this.buildSchemaOrgFields(profile)) {
       this.schemaOrgFieldsByKey.set(field.key, field)
     }
   }
@@ -1243,13 +1332,27 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @returns void
    * @protected
    */
-  protected toggleEntityList = () => {
+  protected toggleEntityList = async () => {
     this.showEntityList = !this.showEntityList
     if (this.showEntityList && this.entitySummaries.length === 0) {
       const crate = this.appStateService.roCrate
       const profile = this.profileData
       if (crate && profile) {
-        this.entitySummaries = this.buildEntitySummaries(crate, profile)
+        const loadMask = this.loadMaskService?.show({
+          message: 'Preparing selected entities…',
+        })
+        try {
+          this.entitySummaries = await this.buildEntitySummaries(
+            crate,
+            profile,
+            (worked, total) => loadMask?.update({ progress: { worked, total } }),
+          )
+        } catch (error) {
+          console.warn('Failed to prepare selected entities for multi-edit.', error)
+          this.entitySummaries = []
+        } finally {
+          loadMask?.dispose()
+        }
       }
     }
     this.update()
@@ -1785,15 +1888,9 @@ export class MultiEditDialog extends ReactDialog<string> {
     return Array.from(collected.values())
   }
 
-  protected buildSchemaOrgFields(
-    crate: Record<string, any>,
-    profile: Record<string, any>,
-  ): FieldDefinition[] {
+  protected buildSchemaOrgFields(profile: Record<string, any>): FieldDefinition[] {
     const profileClasses = (profile?.classes ?? {}) as Record<string, any>
-    const selectedEntities =
-      this.selectedEntities.length > 0
-        ? this.selectedEntities
-        : this.collectSelectedEntities(crate)
+    const selectedEntities = this.selectedEntities
     if (selectedEntities.length === 0) {
       return []
     }
@@ -2132,10 +2229,10 @@ export class MultiEditDialog extends ReactDialog<string> {
   ): boolean {
     const propertyName = field.propertyName
 
-      if (operator === 'unset') {
-        if (!Object.prototype.hasOwnProperty.call(entity, propertyName)) {
-          return false
-        }
+    if (operator === 'unset') {
+      if (!Object.prototype.hasOwnProperty.call(entity, propertyName)) {
+        return false
+      }
       delete entity[propertyName]
       return true
     }
@@ -2301,6 +2398,34 @@ export class MultiEditDialog extends ReactDialog<string> {
     return JSON.parse(JSON.stringify(entity))
   }
 
+  protected nowMs(): number {
+    return typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now()
+  }
+
+  protected async yieldIfNeeded(
+    sliceStarted: number,
+    signal?: AbortSignal,
+  ): Promise<number> {
+    this.throwIfAborted(signal)
+    if (this.nowMs() - sliceStarted < MAIN_THREAD_SLICE_MS) {
+      return sliceStarted
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    this.throwIfAborted(signal)
+    return this.nowMs()
+  }
+
+  protected throwIfAborted(signal?: AbortSignal): void {
+    if (!signal?.aborted) {
+      return
+    }
+    const error = new Error('Multi-edit cancelled.')
+    error.name = 'AbortError'
+    throw error
+  }
+
   /**
    * Executes schema attachment and value updates for all selected entities.
    * @returns Promise resolved when execution summary is updated.
@@ -2341,162 +2466,227 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.executionSummary = undefined
     this.update()
 
-    const selectedEntitySet = new Set(this.entityIds)
-    const sourceGraph = currentCrate['@graph'] as Record<string, any>[]
-    const graph = [...sourceGraph]
-    const indexByEntityId = new Map<string, number>()
-    for (let index = 0; index < sourceGraph.length; index += 1) {
-      const entity = sourceGraph[index]
-      const id = entity && typeof entity === 'object' ? String(entity['@id'] ?? '') : ''
-      if (!id || indexByEntityId.has(id)) {
-        continue
-      }
-      indexByEntityId.set(id, index)
-    }
-
-    const conformsLookup = await this.buildSchemaConformsLookup()
-
-    const preparedOperations: PreparedOperation[] = []
-    for (let rowIndex = 0; rowIndex < this.operations.length; rowIndex += 1) {
-      const operation = this.operations[rowIndex]
-      const field = this.getFieldByKey(operation.fieldKey)
-      const valueKind = field ? this.getEffectiveValueKind(operation, field) : undefined
-      const prepared: PreparedOperation = {
-        operation,
-        rowIndex,
-        field,
-        valueKind,
-      }
-
-      if (!field) {
-        preparedOperations.push(prepared)
-        continue
-      }
-
-      if (operation.operator === 'set' || operation.operator === 'add') {
-        prepared.schemaUrl = this.resolveConformsToUrl(field, conformsLookup)
-      }
-
-      if (operation.operator !== 'unset') {
-        const rawValue = operation.value.trim()
-        if (rawValue.length > 0) {
-          prepared.parsedValue =
-            valueKind === 'entity'
-              ? this.resolveEntityValues(field, rawValue, graph)
-              : this.parseValue(field, rawValue, valueKind ?? field.valueKind)
-        }
-      }
-
-      preparedOperations.push(prepared)
-    }
-
+    const abortController = new AbortController()
+    const loadMask: LoadMaskHandle | undefined = this.loadMaskService?.show({
+      message: 'Preparing multi-edit changes…',
+      onCancel: () => abortController.abort(),
+    })
     let processedEntities = 0
     let updatedEntities = 0
     let appliedOperations = 0
     let skippedOperations = 0
     const errors: string[] = []
 
-    for (const entityId of selectedEntitySet) {
-      const index = indexByEntityId.get(entityId)
-      if (index === undefined) {
-        errors.push(`Entity not found: ${entityId}`)
-        continue
-      }
+    try {
+      this.throwIfAborted(abortController.signal)
 
-      const sourceEntity = graph[index]
-      if (!sourceEntity || typeof sourceEntity !== 'object') {
-        errors.push(`Entity not found: ${entityId}`)
-        continue
-      }
-
-      let entity = sourceEntity
-      let changed = false
-      processedEntities += 1
-
-      for (const prepared of preparedOperations) {
-        const { operation, field, schemaUrl } = prepared
-        if (!field) {
-          continue
+      const selectedEntitySet = new Set(this.entityIds)
+      const sourceGraph = currentCrate['@graph'] as Record<string, any>[]
+      const graph = [...sourceGraph]
+      const indexByEntityId = new Map<string, number>()
+      let sliceStarted = this.nowMs()
+      for (let index = 0; index < sourceGraph.length; index += 1) {
+        const entity = sourceGraph[index]
+        const id = entity && typeof entity === 'object' ? String(entity['@id'] ?? '') : ''
+        if (id && !indexByEntityId.has(id)) {
+          indexByEntityId.set(id, index)
         }
-        if (!this.entitySupportsField(entity, field)) {
-          continue
-        }
-        if (operation.operator !== 'set' && operation.operator !== 'add') {
-          continue
-        }
-        if (entity === sourceEntity) {
-          entity = this.cloneEntityForMutation(sourceEntity)
-        }
-        const schemaAdded = this.ensureSchemaAssociation(entity, schemaUrl)
-        if (schemaAdded) {
-          changed = true
+        if (index % YIELD_CHECK_INTERVAL === 0) {
+          sliceStarted = await this.yieldIfNeeded(sliceStarted, abortController.signal)
         }
       }
 
-      for (const prepared of preparedOperations) {
-        const { operation, field, rowIndex } = prepared
+      const conformsLookup = await this.buildSchemaConformsLookup()
+      this.throwIfAborted(abortController.signal)
+
+      const preparedOperations: PreparedOperation[] = []
+      for (let rowIndex = 0; rowIndex < this.operations.length; rowIndex += 1) {
+        const operation = this.operations[rowIndex]
+        const field = this.getFieldByKey(operation.fieldKey)
+        const valueKind = field ? this.getEffectiveValueKind(operation, field) : undefined
+        const prepared: PreparedOperation = {
+          operation,
+          rowIndex,
+          field,
+          valueKind,
+        }
 
         if (!field) {
-          skippedOperations += 1
+          preparedOperations.push(prepared)
           continue
         }
 
-        if (!this.entitySupportsField(entity, field)) {
-          skippedOperations += 1
+        if (operation.operator === 'set' || operation.operator === 'add') {
+          prepared.schemaUrl = this.resolveConformsToUrl(field, conformsLookup)
+        }
+
+        if (operation.operator !== 'unset') {
+          const rawValue = operation.value.trim()
+          if (rawValue.length > 0) {
+            prepared.parsedValue =
+              valueKind === 'entity'
+                ? this.resolveEntityValues(field, rawValue, graph)
+                : this.parseValue(field, rawValue, valueKind ?? field.valueKind)
+          }
+        }
+
+        preparedOperations.push(prepared)
+      }
+
+      const selectedEntityIds = Array.from(selectedEntitySet)
+      loadMask?.update({
+        message: 'Applying multi-edit changes…',
+        progress: { worked: 0, total: selectedEntityIds.length },
+      })
+
+      sliceStarted = this.nowMs()
+      for (
+        let selectionIndex = 0;
+        selectionIndex < selectedEntityIds.length;
+        selectionIndex += 1
+      ) {
+        if (
+          selectionIndex % EXECUTION_YIELD_CHECK_INTERVAL === 0 &&
+          (selectionIndex === 0 || this.nowMs() - sliceStarted >= MAIN_THREAD_SLICE_MS)
+        ) {
+          loadMask?.update({
+            progress: { worked: selectionIndex, total: selectedEntityIds.length },
+          })
+          sliceStarted = await this.yieldIfNeeded(sliceStarted, abortController.signal)
+        }
+
+        const entityId = selectedEntityIds[selectionIndex]
+        const index = indexByEntityId.get(entityId)
+        if (index === undefined) {
+          errors.push(`Entity not found: ${entityId}`)
           continue
         }
 
-        try {
+        const sourceEntity = graph[index]
+        if (!sourceEntity || typeof sourceEntity !== 'object') {
+          errors.push(`Entity not found: ${entityId}`)
+          continue
+        }
+
+        let entity = sourceEntity
+        let changed = false
+        processedEntities += 1
+
+        for (const prepared of preparedOperations) {
+          const { operation, field, schemaUrl } = prepared
+          if (!field) {
+            continue
+          }
+          if (!this.entitySupportsField(entity, field)) {
+            continue
+          }
+          if (operation.operator !== 'set' && operation.operator !== 'add') {
+            continue
+          }
           if (entity === sourceEntity) {
             entity = this.cloneEntityForMutation(sourceEntity)
           }
-          const parsedValue = operation.operator === 'unset' ? undefined : prepared.parsedValue
-          const changedByOperation = this.executeOperationOnEntity(
-            entity,
-            field,
-            operation.operator,
-            parsedValue,
-          )
-          if (changedByOperation) {
-            appliedOperations += 1
+          const schemaAdded = this.ensureSchemaAssociation(entity, schemaUrl)
+          if (schemaAdded) {
             changed = true
-          } else {
-            skippedOperations += 1
           }
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'Unknown execution error.'
-          errors.push(`Entity ${entityId}, row ${rowIndex + 1}: ${message}`)
+        }
+
+        for (const prepared of preparedOperations) {
+          const { operation, field, rowIndex } = prepared
+
+          if (!field) {
+            skippedOperations += 1
+            continue
+          }
+
+          if (!this.entitySupportsField(entity, field)) {
+            skippedOperations += 1
+            continue
+          }
+
+          try {
+            if (entity === sourceEntity) {
+              entity = this.cloneEntityForMutation(sourceEntity)
+            }
+            const parsedValue =
+              operation.operator === 'unset' ? undefined : prepared.parsedValue
+            const changedByOperation = this.executeOperationOnEntity(
+              entity,
+              field,
+              operation.operator,
+              parsedValue,
+            )
+            if (changedByOperation) {
+              appliedOperations += 1
+              changed = true
+            } else {
+              skippedOperations += 1
+            }
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : 'Unknown execution error.'
+            errors.push(`Entity ${entityId}, row ${rowIndex + 1}: ${message}`)
+          }
+        }
+
+        if (changed) {
+          graph[index] = entity
+          updatedEntities += 1
         }
       }
 
-      if (changed) {
-        graph[index] = entity
-        updatedEntities += 1
+      loadMask?.update({
+        message: 'Finalizing multi-edit changes…',
+        progress: {
+          worked: selectedEntityIds.length,
+          total: selectedEntityIds.length,
+        },
+      })
+      await this.yieldIfNeeded(0, abortController.signal)
+      this.throwIfAborted(abortController.signal)
+
+      if (updatedEntities > 0) {
+        const updatedCrate = {
+          ...currentCrate,
+          '@graph': graph,
+        }
+        if (this.roCrateHistoryService) {
+          this.roCrateHistoryService.applyRoCrateChange(updatedCrate, {
+            label: 'Apply multi-edit changes',
+          })
+        } else {
+          this.appStateService.roCrate = updatedCrate
+          this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
+        }
       }
-    }
 
-    if (updatedEntities > 0) {
-      const updatedCrate = {
-        ...currentCrate,
-        '@graph': graph,
+      this.executionSummary = {
+        processedEntities,
+        updatedEntities,
+        appliedOperations,
+        skippedOperations,
+        errors,
       }
-      this.roCrateHistoryService?.applyRoCrateChange(updatedCrate, {
-        label: 'Apply multi-edit changes',
-      }) ?? (this.appStateService.roCrate = updatedCrate)
-      this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
+    } catch (error) {
+      const message =
+        error instanceof Error && error.name === 'AbortError'
+          ? 'Multi-edit cancelled. No changes were applied.'
+          : error instanceof Error
+            ? error.message
+            : 'Unknown multi-edit error.'
+      this.executionSummary = {
+        processedEntities,
+        updatedEntities: 0,
+        appliedOperations,
+        skippedOperations,
+        errors: [...errors, message],
+      }
+    } finally {
+      loadMask?.dispose()
+      this.isExecuting = false
+      this.update()
     }
-
-    this.executionSummary = {
-      processedEntities,
-      updatedEntities,
-      appliedOperations,
-      skippedOperations,
-      errors,
-    }
-
-    this.isExecuting = false
-    this.update()
   }
 
   /**
@@ -3379,70 +3569,69 @@ export class MultiEditDialog extends ReactDialog<string> {
           </Button>
         </div>
 
-        {this.showEntityList && (() => {
-          const normalizedSearch = this.entitySearch.trim().toLowerCase()
-          const filteredEntities =
-            normalizedSearch.length === 0
-              ? this.entitySummaries
-              : this.entitySummaries.filter((entity) =>
-                  entity.name.toLowerCase().includes(normalizedSearch),
-                )
-          const displayedEntities = filteredEntities.slice(0, ENTITY_LIST_RENDER_LIMIT)
-          return (
-            <div
-              className="entities-overview-edit-modal-entity-window"
-            >
-              <div className="entities-overview-edit-modal-entity-window-header">
-                <span>Selected entities</span>
-                <button
-                  type="button"
-                  className="entities-overview-edit-modal-entity-window-close"
-                  onClick={this.toggleEntityList}
-                  aria-label="Close entity list"
-                >
-                  <span className="codicon codicon-close" aria-hidden="true" />
-                </button>
-              </div>
-              <div className="entities-overview-edit-modal-entity-window-search">
-                <Input
-                  value={this.entitySearch}
-                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                    this.entitySearch = event.target.value
-                    this.update()
-                  }}
-                  placeholder="Search entity names"
-                  allowClear
-                />
-                <span className="entities-overview-edit-modal-entity-window-count">
-                  {displayedEntities.length} shown / {filteredEntities.length} matching /{' '}
-                  {this.entitySummaries.length} selected
-                </span>
-              </div>
-              <div className="entities-overview-edit-modal-entity-window-body">
-                <table className="entities-overview-edit-modal-entity-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Type</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayedEntities.map((entity) => (
-                      <tr key={entity.id} title={entity.id}>
-                        <td>{entity.name}</td>
-                        <td>
-                          {Array.isArray(entity.type)
-                            ? entity.type.join(', ')
-                            : entity.type}
-                        </td>
+        {this.showEntityList &&
+          (() => {
+            const normalizedSearch = this.entitySearch.trim().toLowerCase()
+            const filteredEntities =
+              normalizedSearch.length === 0
+                ? this.entitySummaries
+                : this.entitySummaries.filter((entity) =>
+                    entity.name.toLowerCase().includes(normalizedSearch),
+                  )
+            const displayedEntities = filteredEntities.slice(0, ENTITY_LIST_RENDER_LIMIT)
+            return (
+              <div className="entities-overview-edit-modal-entity-window">
+                <div className="entities-overview-edit-modal-entity-window-header">
+                  <span>Selected entities</span>
+                  <button
+                    type="button"
+                    className="entities-overview-edit-modal-entity-window-close"
+                    onClick={this.toggleEntityList}
+                    aria-label="Close entity list"
+                  >
+                    <span className="codicon codicon-close" aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="entities-overview-edit-modal-entity-window-search">
+                  <Input
+                    value={this.entitySearch}
+                    onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                      this.entitySearch = event.target.value
+                      this.update()
+                    }}
+                    placeholder="Search entity names"
+                    allowClear
+                  />
+                  <span className="entities-overview-edit-modal-entity-window-count">
+                    {displayedEntities.length} shown / {filteredEntities.length} matching
+                    / {this.entitySummaries.length} selected
+                  </span>
+                </div>
+                <div className="entities-overview-edit-modal-entity-window-body">
+                  <table className="entities-overview-edit-modal-entity-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Type</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {displayedEntities.map((entity) => (
+                        <tr key={entity.id} title={entity.id}>
+                          <td>{entity.name}</td>
+                          <td>
+                            {Array.isArray(entity.type)
+                              ? entity.type.join(', ')
+                              : entity.type}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )
-        })()}
+            )
+          })()}
 
         <div className="entities-overview-edit-modal-section">
           <span className="entities-overview-edit-modal-label">Select schemas</span>
@@ -3465,10 +3654,7 @@ export class MultiEditDialog extends ReactDialog<string> {
             <span className="entities-overview-edit-modal-label">
               Enable properties from other ontologies
             </span>
-            <Switch
-              checked={this.schemaOrgEnabled}
-              onChange={this.toggleSchemaOrg}
-            />
+            <Switch checked={this.schemaOrgEnabled} onChange={this.toggleSchemaOrg} />
           </div>
         </div>
 

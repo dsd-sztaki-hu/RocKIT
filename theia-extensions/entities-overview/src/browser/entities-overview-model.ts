@@ -271,6 +271,34 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         return Array.from(unique)
     }
 
+    async getVisibleEntityIdsAsync(
+        onProgress?: (worked: number) => void,
+    ): Promise<string[]> {
+        const root = this.tree.root
+        if (!root) {
+            return []
+        }
+        const unique = new Set<string>()
+        let processed = 0
+        let sliceStarted = performance.now()
+        for (const node of new DepthFirstTreeIterator(root)) {
+            if (ExampleTreeLeaf.is(node)) {
+                const entityId = node.data.entityId
+                if (entityId) {
+                    unique.add(entityId)
+                }
+            }
+            processed += 1
+            if (processed % 250 === 0 && performance.now() - sliceStarted >= 12) {
+                onProgress?.(processed)
+                await new Promise<void>((resolve) => setTimeout(resolve, 0))
+                sliceStarted = performance.now()
+            }
+        }
+        onProgress?.(processed)
+        return Array.from(unique)
+    }
+
     clearSelection(): void {
         if (this.selectedEntityIds.size === 0) return
         const ids = Array.from(this.selectedEntityIds)

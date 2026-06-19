@@ -5,6 +5,7 @@ import { type AppState, defaultAppState } from './app-state'
 import { SimpleStateStore, type StateChange } from './state-store'
 
 const STORAGE_KEY = 'theia-app-state-extension:app-state'
+const LARGE_CRATE_SNAPSHOT_ENTITY_LIMIT = 5_000
 
 // Create a fresh copy so callers don't share mutable references (e.g., arrays)
 export function cloneDefaultAppState(): AppState {
@@ -20,6 +21,9 @@ export class AppStateService {
     // Default state values
     private readonly store = new SimpleStateStore<AppState>(cloneDefaultAppState())
     private roCrateSnapshot?: string
+    private roCrateSnapshotReference?: AppState['roCrate']
+    private lastInternalRoCrateSaveAt = 0
+    private internalRoCrateSaveCount = 0
     private ignoreListSnapshot?: string
 
     private readonly persistIntervalMs = 5000
@@ -221,19 +225,53 @@ export class AppStateService {
     setRoCrateSnapshot(value: AppState['roCrate']): void {
         if (!value) {
             this.roCrateSnapshot = undefined
+            this.roCrateSnapshotReference = undefined
+            return
+        }
+        const graph = Array.isArray(value['@graph']) ? value['@graph'] : []
+        if (graph.length > LARGE_CRATE_SNAPSHOT_ENTITY_LIMIT) {
+            this.roCrateSnapshot = undefined
+            this.roCrateSnapshotReference = value
             return
         }
         try {
             this.roCrateSnapshot = JSON.stringify(value)
+            this.roCrateSnapshotReference = undefined
         } catch (error) {
             console.warn('Failed to snapshot RO-Crate:', error)
             this.roCrateSnapshot = undefined
+            this.roCrateSnapshotReference = value
         }
+    }
+
+    markRoCrateSaved(value: AppState['roCrate']): void {
+        this.setRoCrateSnapshot(value)
+        this.dirty = false
+        this.lastInternalRoCrateSaveAt = Date.now()
+    }
+
+    beginRoCrateSave(): void {
+        this.internalRoCrateSaveCount += 1
+    }
+
+    endRoCrateSave(): void {
+        this.internalRoCrateSaveCount = Math.max(0, this.internalRoCrateSaveCount - 1)
+        this.lastInternalRoCrateSaveAt = Date.now()
+    }
+
+    wasRoCrateSavedRecently(windowMs = 3000): boolean {
+        return (
+            this.internalRoCrateSaveCount > 0 ||
+            Date.now() - this.lastInternalRoCrateSaveAt <= windowMs
+        )
     }
 
     isRoCrateDirty(value: AppState['roCrate']): boolean {
         if (!value) {
             return false
+        }
+        if (this.roCrateSnapshotReference) {
+            return this.roCrateSnapshotReference !== value
         }
         try {
             const current = JSON.stringify(value)

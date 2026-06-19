@@ -29,13 +29,14 @@ import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browse
 import { FILE_WORKSPACE } from '@theia/workspace/lib/browser/workspace-frontend-contribution'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-loader'
-import { ApplicationResetService, RoCrateHtmlGenerator, readUtf8TextFile, writeUtf8TextFile } from 'rockit-common/lib/browser'
+import { ApplicationResetService, readUtf8TextFile, writeUtf8TextFile } from 'rockit-common/lib/browser'
 import {
   ROCKIT_IGNORE_DIR,
   ROCKIT_IGNORE_FILE,
   DEFAULT_IGNORED_ENTRIES as SHARED_DEFAULT_IGNORED_ENTRIES,
 } from 'rockit-common/lib/common/ro-crate-technical-files'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
+import { RoCratePersistenceService } from 'save-ro-crate/lib/browser/ro-crate-persistence-service'
 
 const DEFAULT_IGNORED_ENTRIES = [
   ...SHARED_DEFAULT_IGNORED_ENTRIES,
@@ -84,8 +85,8 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
   @inject(RoCrateLoaderContribution)
   protected readonly roCrateLoader: RoCrateLoaderContribution
 
-  @inject(RoCrateHtmlGenerator)
-  protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator
+  @inject(RoCratePersistenceService)
+  protected readonly persistenceService: RoCratePersistenceService
 
   @inject(SaveableService)
   protected readonly saveableService: SaveableService
@@ -450,16 +451,16 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     }
 
     if (crateData) {
-      const metadataUri = rootUri.resolve('ro-crate-metadata.json')
-      const previewUri = rootUri.resolve('ro-crate-preview.html')
       try {
-        await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(crateData, null, 2))
-        const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
-        await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
+        await this.persistenceService.write(rootUri, crateData)
         this.appStateService.setRoCrateSnapshot(crateData)
         this.appStateService.dirty = false
       } catch (error) {
         console.error('Failed to persist RO-Crate metadata:', error)
+        const message = error instanceof Error ? error.message : String(error)
+        this.messageService.error(`Failed to save RO-Crate: ${message}`, {
+          timeout: 10000,
+        })
       }
     }
 

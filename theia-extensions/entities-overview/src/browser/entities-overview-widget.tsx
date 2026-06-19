@@ -29,6 +29,7 @@ import {
 import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
 import { MultiEditDialogService } from 'multi-edit/lib/browser/multi-edit-dialog-service'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
+import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { AdvancedFiltersDialog } from './entities-overview-advanced-filters-dialog'
 import {
@@ -97,6 +98,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
         @inject(ThemeService) private readonly themeService: ThemeService,
         @inject(MultiEditDialogService)
         private readonly multiEditDialogService: MultiEditDialogService,
+        @inject(LoadMaskService)
+        private readonly loadMaskService: LoadMaskService,
     ) {
         super(props, model, contextMenuRenderer)
         this.shouldScrollToRow = false
@@ -1195,11 +1198,25 @@ export class EntitiesOverviewWidget extends TreeWidget {
     }
 
     protected async openMultiEditDialog(): Promise<void> {
-        const selectedEntityIds = this.model.getSelectedEntityIds()
-        const entityIds =
-            selectedEntityIds.length > 0 ? selectedEntityIds : this.model.getVisibleEntityIds()
+        const loadMask = this.loadMaskService.show({
+            message: 'Collecting entities for multi-edit…',
+        })
+        try {
+            const selectedEntityIds = this.model.getSelectedEntityIds()
+            const entityIds =
+                selectedEntityIds.length > 0
+                    ? selectedEntityIds
+                    : await this.model.getVisibleEntityIdsAsync()
 
-        await this.multiEditDialogService.open(entityIds, this.schemaManagerService)
+            const dialogResult = this.multiEditDialogService.open(
+                entityIds,
+                this.schemaManagerService,
+            )
+            loadMask.dispose()
+            await dialogResult
+        } finally {
+            loadMask.dispose()
+        }
     }
 
     public canOpenEditFromContextMenu(): boolean {
