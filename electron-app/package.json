@@ -21,6 +21,7 @@
     "app-state": "0.0.1",
     "app-state-sample": "0.0.1",
     "rockit-common": "0.0.0",
+    "rockit-loadmask": "0.0.0",
     "data-repository-manager": "0.0.0",
     "data-sources": "0.0.0",
     "entities-overview": "0.0.0",

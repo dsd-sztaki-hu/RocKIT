@@ -22,6 +22,7 @@ import { Message } from '@lumino/messaging'
 import type { Disposable } from '@theia/core'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
+import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
 import {
     RO_CRATE_APPROVAL_FILE,
     RO_CRATE_APPROVAL_FILE_NAME,
@@ -63,6 +64,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
     @inject(RoCrateHistoryService)
     protected readonly roCrateHistoryService: RoCrateHistoryService
+
+    @inject(LoadMaskService)
+    protected readonly loadMaskService: LoadMaskService
 
     @inject(CommandService)
     protected readonly commandService: CommandService
@@ -226,6 +230,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             return
         }
 
+        const loadMask = this.loadMaskService.show({
+            message: 'Validating RO-Crate…',
+        })
         try {
             const fullErrors: ValidationError[] | undefined =
                 await validatorWithFull.validateEntitiesFull(crate, baseProfile)
@@ -238,6 +245,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 return
             }
             console.warn('RoCrateEditorWidget: background full validation failed', error)
+        } finally {
+            loadMask.dispose()
         }
     }
 
@@ -279,36 +288,43 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             return
         }
 
-        let validationErrors: ValidationError[] | undefined
+        const loadMask = this.loadMaskService.show({
+            message: 'Validating RO-Crate…',
+        })
         try {
-            validationErrors = await this.schemaValidator.validateEntities(
-                crate,
-                baseProfile,
-            )
-        } catch (error: any) {
-            if (error?.name === 'AbortError') {
+            let validationErrors: ValidationError[] | undefined
+            try {
+                validationErrors = await this.schemaValidator.validateEntities(
+                    crate,
+                    baseProfile,
+                )
+            } catch (error: any) {
+                if (error?.name === 'AbortError') {
+                    return
+                }
+                console.warn('RoCrateEditorWidget: validation failed', error)
+                validationErrors = []
+            }
+
+            if (run !== this.validationRun) {
                 return
             }
-            console.warn('RoCrateEditorWidget: validation failed', error)
-            validationErrors = []
-        }
 
-        if (run !== this.validationRun) {
-            return
-        }
+            this.publishValidationErrors(validationErrors)
 
-        this.publishValidationErrors(validationErrors)
+            const validatorWithMode = this.schemaValidator as any
+            const mode =
+                typeof validatorWithMode.getLastRunMode === 'function'
+                    ? validatorWithMode.getLastRunMode()
+                    : undefined
 
-        const validatorWithMode = this.schemaValidator as any
-        const mode =
-            typeof validatorWithMode.getLastRunMode === 'function'
-                ? validatorWithMode.getLastRunMode()
-                : undefined
-
-        if (mode === 'incremental') {
-            this.scheduleBackgroundFullValidation(run)
-        } else {
-            this.clearBackgroundValidationTimer()
+            if (mode === 'incremental') {
+                this.scheduleBackgroundFullValidation(run)
+            } else {
+                this.clearBackgroundValidationTimer()
+            }
+        } finally {
+            loadMask.dispose()
         }
     }
 
