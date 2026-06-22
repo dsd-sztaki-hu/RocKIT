@@ -1,0 +1,119 @@
+/* src/browser/styles/dataverse-collection-browser-dialog.css */
+
+.dataverse-browser-dialog {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--theia-editor-background);
+    color: var(--theia-foreground);
+    font-family: var(--theia-ui-font-family);
+}
+
+.dataverse-browser-dialog__tree-container {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.dataverse-browser-dialog__loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 20px;
+    color: var(--theia-descriptionForeground);
+    font-style: italic;
+    text-align: center;
+}
+
+/* Tree Styling */
+.dataverse-tree {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+.dataverse-tree__header {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--theia-panel-border);
+    padding-bottom: 4px;
+    min-height: 32px;
+}
+
+.dataverse-tree__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dataverse-tree__search-box {
+    width: 220px;
+}
+
+.dataverse-tree__search-input {
+    font-size: 14px !important;
+    padding-left: 4px;
+    color: var(--theia-input-foreground) !important;
+    background-color: var(--theia-input-background) !important;
+    border: 1px solid var(--theia-input-border) !important;
+    border-radius: 4px;
+}
+
+.dataverse-tree__body {
+    flex-grow: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding: 5px 0;
+}
+
+.dataverse-tree__node {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 28px;
+    padding: 4px 8px;
+    box-sizing: border-box;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.dataverse-tree__node:hover {
+    background-color: var(--theia-list-hoverBackground);
+}
+
+.dataverse-tree__node--selected,
+.dataverse-tree__node--selected:hover {
+    background-color: var(--theia-list-inactiveSelectionBackground, var(--theia-list-hoverBackground));
+    color: var(--theia-list-inactiveSelectionForeground, var(--theia-foreground));
+}
+
+.dataverse-tree__node-icon {
+    margin-right: 8px;
+    display: flex;
+    align-items: center;
+    font-size: 18px;
+}
+
+.dataverse-tree__empty, .dataverse-tree__loading, .dataverse-tree__error {
+    padding: 20px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--theia-descriptionForeground);
+}
+
+.dataverse-tree__error {
+    color: var(--theia-errorForeground);
+    border: 1px solid var(--theia-errorForeground);
+    border-radius: 4px;
+    margin: 10px;
+    background-color: rgba(255, 0, 0, 0.05);
+}
+

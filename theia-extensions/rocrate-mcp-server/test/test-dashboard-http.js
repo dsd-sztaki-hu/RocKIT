@@ -3,7 +3,10 @@
  */
 
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
 const http = require('node:http')
+const os = require('node:os')
+const path = require('node:path')
 
 async function testHttpServer() {
   console.log('Testing dashboard HTTP server...')
@@ -11,13 +14,23 @@ async function testHttpServer() {
   const originalDataverseBaseUrl = process.env.DATAVERSE_BASE_URL
   const originalDataverseApiKey = process.env.DATAVERSE_API_KEY
   const originalKeepUploadZips = process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
+  const originalDashboardPort = process.env.ROCRATE_DASHBOARD_PORT
+  const originalDashboardEnabled = process.env.ROCRATE_DASHBOARD_ENABLED
+  const originalBridgeEnabled = process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED
+  const originalAllowedOrigins = process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS
+  const originalAromaRootPath = process.env.AROMA_ROOT_PATH
+  const originalProviderConfigFile = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+  const originalProviderKeytarService = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
   process.env.DATAVERSE_BASE_URL = 'https://dataverse.example.test/'
   process.env.DATAVERSE_API_KEY = 'test-dataverse-key'
   delete process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
+  delete process.env.ROCRATE_DASHBOARD_ENABLED
+  delete process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED
 
   // Import modules
   const { TelemetryCollector } = await import('../lib/dashboard/collector.js')
   const { DashboardHttpServer } = await import('../lib/dashboard/http-server.js')
+  const { registerLocalFileForAroma } = await import('../lib/dashboard/local-file-bridge.js')
 
   // Create a collector with some test data
   const collector = new TelemetryCollector({
@@ -65,6 +78,12 @@ async function testHttpServer() {
     })
 
   const port = await getPort()
+  process.env.ROCRATE_DASHBOARD_PORT = String(port)
+  process.env.AROMA_ROOT_PATH = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'rocrate-dashboard-aroma-'),
+  )
+  process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = 'remote-schema-providers.json'
+  process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'AROMA2.RemoteSchemaProvider'
 
   // Create and start the HTTP server
   const dashboard = new DashboardHttpServer(collector, {
@@ -132,7 +151,7 @@ async function testHttpServer() {
       })
     })
 
-  const requestWithBody = (method, reqPath, bodyObj) =>
+  const requestWithBody = (method, reqPath, bodyObj, extraHeaders = {}) =>
     new Promise((resolve, reject) => {
       const body = bodyObj ? JSON.stringify(bodyObj) : ''
       const req = http.request(
@@ -144,6 +163,7 @@ async function testHttpServer() {
           headers: {
             'content-type': 'application/json',
             'content-length': Buffer.byteLength(body),
+            ...extraHeaders,
           },
         },
         (res) => {
@@ -272,6 +292,68 @@ async function testHttpServer() {
     assert.strictEqual(configUpdateData.config.keepDataverseUploadZips, true)
     assert.strictEqual(process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS, 'true')
 
+    // Test metadata profile endpoints
+    console.log('  Testing /metadata-profiles endpoints...')
+    const profileStatusResp = await get('/metadata-profiles/storage-status')
+    assert.strictEqual(profileStatusResp.status, 200)
+    const profileStatus = JSON.parse(profileStatusResp.data)
+    assert.strictEqual(profileStatus.storage.rootPath, process.env.AROMA_ROOT_PATH)
+
+    const profilesResp = await get('/metadata-profiles')
+    assert.strictEqual(profilesResp.status, 200)
+    const profilesData = JSON.parse(profilesResp.data)
+    assert.strictEqual(Array.isArray(profilesData.profiles), true)
+
+    const providersResp = await get('/metadata-profiles/providers')
+    assert.strictEqual(providersResp.status, 200)
+    const providersData = JSON.parse(providersResp.data)
+    assert.strictEqual(Array.isArray(providersData.providers), true)
+    assert.strictEqual(providersData.providers[0].id, 'arp-prod')
+    assert.strictEqual(
+      fs.existsSync(path.join(process.env.AROMA_ROOT_PATH, 'remote-schema-providers.json')),
+      true,
+    )
+    assert.strictEqual(
+      JSON.parse(
+        fs.readFileSync(path.join(process.env.AROMA_ROOT_PATH, 'remote-schema-providers.json'), 'utf8'),
+      )[0].id,
+      'arp-prod',
+    )
+
+    const saveProviderResp = await requestWithBody('POST', '/metadata-profiles/providers', {
+      id: 'saved-provider',
+      title: 'Saved Provider',
+      baseUrl: 'https://saved.example.test/',
+      domainBase: 'saved.example.test',
+      apiKey: 'must-not-leak',
+    })
+    assert.strictEqual(saveProviderResp.status, 200)
+    const savedProviderData = JSON.parse(saveProviderResp.data)
+    assert.strictEqual(
+      savedProviderData.providers.some((provider) => provider.id === 'saved-provider'),
+      true,
+    )
+    assert.strictEqual(
+      savedProviderData.providers.some((provider) => provider.apiKey === 'must-not-leak'),
+      false,
+    )
+
+    const deleteProviderResp = await requestWithBody(
+      'DELETE',
+      '/metadata-profiles/providers/saved-provider',
+      {},
+    )
+    assert.strictEqual(deleteProviderResp.status, 200)
+    const deletedProviderData = JSON.parse(deleteProviderResp.data)
+    assert.strictEqual(deletedProviderData.deleted, true)
+
+    const remoteFolderResp = await get('/metadata-profiles/remote-folder?providerId=missing-provider')
+    assert.strictEqual(remoteFolderResp.status, 400)
+    assert.strictEqual(
+      JSON.parse(remoteFolderResp.data).error.includes('Unknown CEDAR provider'),
+      true,
+    )
+
     // Test schema registry endpoints
     console.log('  Testing /schema-registry endpoints...')
     const listBefore = await get('/schema-registry')
@@ -300,6 +382,72 @@ async function testHttpServer() {
       {},
     )
     assert.strictEqual(deleteResp.status, 200)
+
+    // Test local-file bridge endpoints used by online AROMA
+    console.log('  Testing /local-file bridge endpoints...')
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rocrate-local-file-'))
+    const cratePath = path.join(tmpDir, 'ro-crate-metadata.json')
+    const initialCrate = {
+      '@context': 'https://w3id.org/ro/crate/1.1/context',
+      '@graph': [
+        {
+          '@id': './',
+          '@type': 'Dataset',
+          name: 'Initial crate',
+        },
+      ],
+    }
+    fs.writeFileSync(cratePath, `${JSON.stringify(initialCrate, null, 2)}\n`, 'utf8')
+
+    process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS = 'https://repo.researchdata.hu'
+    const registration = registerLocalFileForAroma({ path: cratePath })
+    assert.strictEqual(
+      registration.aromaUrl.startsWith('https://repo.researchdata.hu/aroma?localFile='),
+      true,
+    )
+    assert.strictEqual(
+      registration.localFileUrl.startsWith(`http://127.0.0.1:${port}/local-file?id=`),
+      true,
+    )
+
+    const bridgePath = new URL(registration.localFileUrl).pathname
+      + new URL(registration.localFileUrl).search
+    const getBridgeResp = await get(bridgePath)
+    assert.strictEqual(getBridgeResp.status, 200)
+    assert.strictEqual(
+      getBridgeResp.headers['access-control-allow-origin'],
+      'https://repo.researchdata.hu',
+    )
+    const bridgeData = JSON.parse(getBridgeResp.data)
+    assert.strictEqual(bridgeData.path, cratePath)
+    assert.strictEqual(bridgeData.content['@graph'][0].name, 'Initial crate')
+    assert.strictEqual(typeof bridgeData.etag, 'string')
+
+    const missingIfMatchResp = await requestWithBody(
+      'PUT',
+      bridgePath,
+      initialCrate,
+    )
+    assert.strictEqual(missingIfMatchResp.status, 428)
+
+    const updatedCrate = {
+      ...initialCrate,
+      '@graph': [{ ...initialCrate['@graph'][0], name: 'Updated crate' }],
+    }
+    const saveResp = await requestWithBody('PUT', bridgePath, updatedCrate, {
+      'if-match': bridgeData.etag,
+    })
+    assert.strictEqual(saveResp.status, 200)
+    const saveData = JSON.parse(saveResp.data)
+    assert.strictEqual(saveData.ok, true)
+    assert.notStrictEqual(saveData.etag, bridgeData.etag)
+    const written = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+    assert.strictEqual(written['@graph'][0].name, 'Updated crate')
+
+    const staleResp = await requestWithBody('PUT', bridgePath, initialCrate, {
+      'if-match': bridgeData.etag,
+    })
+    assert.strictEqual(staleResp.status, 412)
 
     // Test CORS headers
     console.log('  Testing CORS headers...')
@@ -352,6 +500,41 @@ async function testHttpServer() {
       delete process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
     } else {
       process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS = originalKeepUploadZips
+    }
+    if (originalDashboardPort === undefined) {
+      delete process.env.ROCRATE_DASHBOARD_PORT
+    } else {
+      process.env.ROCRATE_DASHBOARD_PORT = originalDashboardPort
+    }
+    if (originalDashboardEnabled === undefined) {
+      delete process.env.ROCRATE_DASHBOARD_ENABLED
+    } else {
+      process.env.ROCRATE_DASHBOARD_ENABLED = originalDashboardEnabled
+    }
+    if (originalBridgeEnabled === undefined) {
+      delete process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED
+    } else {
+      process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED = originalBridgeEnabled
+    }
+    if (originalAllowedOrigins === undefined) {
+      delete process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS
+    } else {
+      process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS = originalAllowedOrigins
+    }
+    if (originalAromaRootPath === undefined) {
+      delete process.env.AROMA_ROOT_PATH
+    } else {
+      process.env.AROMA_ROOT_PATH = originalAromaRootPath
+    }
+    if (originalProviderConfigFile === undefined) {
+      delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+    } else {
+      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = originalProviderConfigFile
+    }
+    if (originalProviderKeytarService === undefined) {
+      delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
+    } else {
+      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = originalProviderKeytarService
     }
   }
 }

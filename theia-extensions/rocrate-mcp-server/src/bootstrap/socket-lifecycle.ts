@@ -12,7 +12,7 @@ type SocketLifecycleOptions = {
   onSocketConnection: (socket: net.Socket, socketPath: string) => void
 }
 
-const SHUTDOWN_CONTROL_MESSAGE = 'AROMA_ROCRATE_MCP_SHUTDOWN\n'
+const SHUTDOWN_CONTROL_MESSAGE = 'ROCKIT_ROCRATE_MCP_SHUTDOWN\n'
 
 function parseSocketPathFromArgs(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag)
@@ -34,6 +34,20 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function canConnectToSocket(socketPath: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const probe = net.createConnection(socketPath)
+    probe.once('connect', () => {
+      probe.end()
+      resolve(true)
+    })
+    probe.once('error', () => {
+      probe.destroy()
+      resolve(false)
+    })
+  })
+}
+
 function isTransientSocketConnectError(error: unknown): boolean {
   const code =
     error && typeof error === 'object' && 'code' in error
@@ -43,19 +57,7 @@ function isTransientSocketConnectError(error: unknown): boolean {
 }
 
 async function ensureDaemon(socketPath: string, options: SocketLifecycleOptions): Promise<void> {
-  const tryConnect = (): Promise<boolean> =>
-    new Promise((resolve) => {
-      const probe = net.createConnection(socketPath)
-      probe.once('connect', () => {
-        probe.end()
-        resolve(true)
-      })
-      probe.once('error', () => {
-        resolve(false)
-      })
-    })
-
-  const alreadyRunning = await tryConnect()
+  const alreadyRunning = await canConnectToSocket(socketPath)
   if (alreadyRunning) {
     return
   }
@@ -72,7 +74,7 @@ async function ensureDaemon(socketPath: string, options: SocketLifecycleOptions)
   const waitMs = 100
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, waitMs))
-    const running = await tryConnect()
+    const running = await canConnectToSocket(socketPath)
     if (running) {
       return
     }
@@ -80,7 +82,10 @@ async function ensureDaemon(socketPath: string, options: SocketLifecycleOptions)
   throw new Error(`Daemon startup timeout: socket not ready at ${socketPath}`)
 }
 
-function startSocketDaemon(socketPath: string, options: SocketLifecycleOptions): void {
+async function startSocketDaemon(
+  socketPath: string,
+  options: SocketLifecycleOptions,
+): Promise<void> {
   if (!isWindowsNamedPipe(socketPath)) {
     const parent = path.dirname(socketPath)
     if (!fs.existsSync(parent)) {
@@ -88,6 +93,13 @@ function startSocketDaemon(socketPath: string, options: SocketLifecycleOptions):
     }
   }
   if (!isWindowsNamedPipe(socketPath) && fs.existsSync(socketPath)) {
+    if (await canConnectToSocket(socketPath)) {
+      options.stderr.write(
+        `rocrate-mcp-server: socket already in use at ${socketPath}; refusing to replace a running daemon\n`,
+      )
+      process.exitCode = 1
+      return
+    }
     try {
       fs.unlinkSync(socketPath)
     } catch {
@@ -214,7 +226,7 @@ export async function handleSocketLifecycleArgs(
 
   const listenSocketPath = parseSocketPathFromArgs(args, '--listen')
   if (listenSocketPath) {
-    startSocketDaemon(listenSocketPath, options)
+    await startSocketDaemon(listenSocketPath, options)
     return true
   }
 

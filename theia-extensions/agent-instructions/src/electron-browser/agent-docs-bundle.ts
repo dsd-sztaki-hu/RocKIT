@@ -1,7 +1,7 @@
 // AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.
 // Source: agent-docs/*.md
 
-export const AGENT_DOCS_DIR = '.aroma'
+export const AGENT_DOCS_DIR = '.rockit'
 
 export const AGENT_DOCS_BUNDLE: Record<string, string> = {
   'checklists.md': `# Checklists
@@ -33,25 +33,32 @@ These rules are mandatory for RO-Crate metadata quality.
 1. Every entity in \`@graph\` must have a human-friendly \`name\`.
 2. Do not leave \`name\` empty.
 3. Do not use \`@id\` as \`name\` when a clearer human label is available.
-4. For role entities (for example \`author\`), keep role-specific fields (for example \`authorName\`) and also provide \`name\`.
-5. For new entities, generate descriptive \`@id\` values.
+   - Avoid ID-derived labels such as \`author-hun-ren-arp-team\` or \`source-service-map\`.
+   - Prefer labels such as \`HUN-REN ARP team\` or \`Source: ARP service map\`.
+4. For \`File\` entities, use the final filename segment from \`@id\` as \`name\`.
+   - Example: \`file://./dir1/img_excel_chart_intro_1.svg\` -> \`img_excel_chart_intro_1.svg\`.
+   - Do not invent descriptive file names such as \`Excel chart introduction SVG\`.
+5. For role entities (for example \`author\`), keep role-specific fields (for example \`authorName\`) and also provide \`name\`.
+6. For new entities, generate descriptive \`@id\` values.
    - Example: \`#author-laszlo-kovacs\`
    - Avoid generic IDs like \`#author1\`, \`#entity123\`, \`#item\`.
-6. Ensure every new \`@id\` is unique within the crate and does not collide with existing IDs.
-7. Use only profile-allowed fields plus RO-Crate built-ins.
-8. Do not invent factual metadata unless user explicitly requests examples.
-9. If data is missing, report missing fields clearly; do not inject dummy placeholders unless explicitly requested.
+7. Ensure every new \`@id\` is unique within the crate and does not collide with existing IDs.
+8. Use only profile-allowed fields plus RO-Crate built-ins.
+9. Do not invent factual metadata unless user explicitly requests examples.
+10. If data is missing, report missing fields clearly; do not inject dummy placeholders unless explicitly requested.
 `,
   'profile-alignment-rules.md': `# Profile Alignment Rules
 
-1. Profile conformance is a hard constraint for profiled \`Dataset\`/\`File\` entities.
-2. Set only properties explicitly allowed by active profile rules.
+1. Profile conformance is a hard constraint for required fields, value sets, and entity types on profiled \`Dataset\`/\`File\` entities.
+2. Prefer properties explicitly allowed by active profile rules for curated metadata.
 3. Start setting values for required fields first, then recommended optional fields, then any remaining allowed fields.
-4. If a requested property is disallowed:
-   - explain the constraint,
-   - propose an allowed alternative field/entity,
-   - or propose profile update via \`update_profile_conforms_to\`.
-5. Never force disallowed fields via custom \`@context\` mappings.
+4. Custom properties outside the active profile/schema are allowed when they have JSON-LD context mappings.
+   - Treat validation messages about custom properties as advisory notes.
+   - Do not delete, rename, or migrate custom properties unless the user explicitly asks.
+   - If useful, mention an allowed alternative field or profile update, but keep the user's custom metadata intact.
+5. Every custom property must be defined by \`@context\`, either through a referenced context URL or an inline mapping.
+   - Example: \`@context\`: [\`https://w3id.org/ro/crate/1.1/context\`, { \`directoryLabel\`: \`https://dataverse.org/schema/file/directoryLabel\` }].
+   - If the correct IRI is unknown, ask the user for the mapping instead of inventing one or deleting the property.
 6. Use profile value-set hints from validation output when present.
 7. Keep \`conformsTo\` changes separate:
    - use \`update_profile_conforms_to(write=true)\`,
@@ -64,18 +71,44 @@ Always follow this sequence when curating RO-Crate metadata:
 
 0. Use MCP \`rocrate\` tools for metadata edits and validation. Do not edit JSON directly.
 1. Call \`get_rocrate_context\` before any edit.
-2. Read active profile constraints from \`profileRules.allowedPropertiesByClass\`.
-3. If constraints are missing or unclear, call \`resolve_profile_schema\`.
-4. Build a short plan:
+2. Identify whether the crate already has active \`conformsTo\` profile URLs.
+   If active \`conformsTo\` URLs are present, the user has already selected the
+   profile context; work with those profiles instead of offering replacement
+   profile choices unless the user asks to change them.
+3. For RO-Crate metadata authoring, always check and offer schemas/profiles because they guide FAIR metadata creation for both users and agents.
+4. If no active profile is present:
+   - call \`list_metadata_profiles\` to show locally available metadata profiles,
+   - call \`list_remote_schema_tree\` to browse configured remote CEDAR providers
+     when local profiles are empty, insufficient, or the user may want a remote
+     profile,
+   - present every available local profile returned by \`list_metadata_profiles\` by name, version, and \`conformsTo\` URL,
+   - present remote CEDAR schemas separately as a simplified folder tree with
+     only selectable leaf templates; do not list templates already imported
+     locally,
+   - do not collapse the list to only the profile you recommend,
+   - if one profile seems best, mark it as recommended while still listing the other available profiles,
+   - offer a numbered menu in this order: all listed profiles/schemas first, then "provide another schema/profile URL", then "continue without a profile",
+   - stop and wait for the user's choice before planning fields, searching the web, or writing metadata,
+   - for an already-downloaded local profile, call \`update_profile_conforms_to\`
+     with its \`conformsTo\` URL after the user chooses it,
+   - for a remote CEDAR leaf template, call \`import_well_known_schema\` with
+     \`templateIdOrUrl=<selected templateId>\`, then call
+     \`update_profile_conforms_to(write=true)\` with the returned
+     \`profile.conformsTo\`,
+   - if no profiles/schemas can be listed because of an error, report the error and still offer the user a chance to provide a schema URL.
+5. Do not silently continue without a profile after listing available profiles. Continuing without a profile requires the user's explicit choice.
+6. Read active profile constraints from \`profileRules.allowedPropertiesByClass\`.
+7. If constraints are missing or unclear, call \`resolve_profile_schema\`.
+8. Build a short plan:
    - required fields still missing
    - recommended optional fields
-   - fields explicitly disallowed by profile
-5. Only after planning, run web \`search\` if needed for missing values.
-6. Only then start metadata writes with \`apply_changes\` (default persists in local mode).
+   - custom fields outside the active profile/schema, if relevant
+9. Only after planning, run web \`search\` if needed for missing values.
+10. Only then start metadata writes with \`apply_changes\` (default persists in local mode).
    - Use \`dryRun=true\` when you want preview-only execution.
-7. Do not use destructive mutations unless user explicitly requested them and approved \`confirmDestructive=true\`.
-8. After writes, call \`read_crate\` to verify.
-9. Call \`validate_crate\`:
+11. Do not use destructive mutations unless user explicitly requested them and approved \`confirmDestructive=true\`.
+12. After writes, call \`read_crate\` to verify.
+13. Call \`validate_crate\`:
    - iterative edits: \`profileRequiredMode=allow_missing\`
    - final publication gate: \`profileRequiredMode=enforce_required\`
 
@@ -148,7 +181,7 @@ Uploading the RO-Crate ZIP to Dataverse is optional.
 11. Report the returned \`dataverseUrl\` to the user as the newly created dataset link.
 12. If the returned payload includes \`pendingDataverseCrate\`, Dataverse has produced an updated RO-Crate with assigned dataset/file IDs and the MCP has saved it as a pending version.
 13. Ask the user whether they want to replace the local \`ro-crate-metadata.json\` with this Dataverse-updated version for future edit/sync workflows.
-14. In terminal chat, if the user agrees, call \`adopt_pending_dataverse_rocrate(pendingId=<pendingDataverseCrate.id>, write=true)\`. In native AROMA chat, the UI may show this confirmation popup and apply the pending version itself.
+14. In terminal chat, if the user agrees, call \`adopt_pending_dataverse_rocrate(pendingId=<pendingDataverseCrate.id>, write=true)\`. In native RocKIT chat, the UI may show this confirmation popup and apply the pending version itself.
 15. If the user asks for uploaded file links, derive them from returned \`fileLinks\` when present.
 16. If the user asks to upload to another Dataverse installation, ask for:
    - the Dataverse base URL

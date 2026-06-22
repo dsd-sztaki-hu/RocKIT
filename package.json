@@ -6,8 +6,10 @@
   },
   "scripts": {
     "build:extensions": "yarn run recrate:build && lerna run build --stream --sort --skip-nx-cache",
-    "build:rocrate-tools": "yarn workspace rocrate-core build && yarn workspace rocrate-mcp-server build",
-    "test:rocrate-tools": "yarn workspace rocrate-core test && yarn workspace rocrate-mcp-server test",
+    "build:rocrate-tools": "yarn workspace rocrate-context-core build && yarn workspace cedar-template-converter build && yarn workspace metadata-profile-core build && yarn workspace rockit-common build && yarn workspace rocrate-mcp-server build",
+    "build:rocrate-mcp-standalone": "yarn workspace rocrate-context-core build && yarn workspace cedar-template-converter build && yarn workspace metadata-profile-core build && yarn workspace rockit-common build && yarn workspace rocrate-mcp-server build:standalone",
+    "pack:rocrate-mcp-standalone": "yarn build:rocrate-mcp-standalone && yarn workspace rocrate-mcp-server pack:standalone",
+    "test:rocrate-tools": "yarn workspace rocrate-context-core test && yarn workspace rockit-common test && yarn workspace rocrate-mcp-server test",
     "verify:rocrate-tools": "yarn build:rocrate-tools && yarn test:rocrate-tools",
     "build:browser": "yarn run build:extensions && yarn workspace browser-app run bundle",
     "build:electron": "node scripts/build-electron.js",

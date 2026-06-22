@@ -4,7 +4,7 @@
  */
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const ttl2jsonld = require('./ttl2jsonld.js') as {
+const ttl2jsonld = require('../../src/vendor/ttl2jsonld.js') as {
   parse: (ttl: string) => unknown
 }
 

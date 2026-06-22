@@ -7,9 +7,10 @@
  */
 
 const { spawn } = require('child_process');
+const path = require('path');
 const AppSetup = require('./app-setup');
 
-const MEMORY_LIMIT_ENV = 'AROMA_MEMORY_LIMIT_MB';
+const MEMORY_LIMIT_ENV = 'ROCKIT_MEMORY_LIMIT_MB';
 
 function configureMemoryLimit(env, logger = console) {
     const configuredValue = env[MEMORY_LIMIT_ENV];
@@ -41,17 +42,24 @@ async function main() {
         // 3. Launch via Yarn Workspace
         const env = appSetup.getEnv();
         configureMemoryLimit(env);
+        const electronUserData = path.join(env.ROCKIT_ROOT_PATH, 'electron-user-data');
 
-        const child = spawn(
-            'yarn',
-            ['workspace', 'electron-app', 'start'],
-            {
-                env,
-                shell: true,
-                stdio: 'inherit'
-            }
-        );
+        const command = process.platform === 'win32'
+            ? (process.env.ComSpec || 'cmd.exe')
+            : 'yarn';
+        const args = process.platform === 'win32'
+            ? ['/d', '/c', 'yarn.cmd', 'workspace', 'electron-app', 'start', '--', `--electronUserData=${electronUserData}`]
+            : ['workspace', 'electron-app', 'start', '--', `--electronUserData=${electronUserData}`];
 
+        const child = spawn(command, args, {
+            env,
+            stdio: 'inherit'
+        });
+
+        child.on('error', error => {
+            console.error('Failed to launch Electron workspace:', error);
+            process.exit(1);
+        });
         child.on('close', code => process.exit(code));
     } catch (err) {
         console.error('Failed to start application:', err);

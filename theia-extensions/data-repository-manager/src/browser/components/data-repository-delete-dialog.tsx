@@ -9,12 +9,11 @@ export class DataRepositoryDeleteDialog extends AbstractDialog<boolean> {
     private reactRoot: Root | undefined;
     private result: boolean = false; 
 
-    constructor(private readonly count: number) {
+    constructor(private readonly target: string | number) {
         super({
             title: 'Confirm Deletion'
         });
 
-        // Responsive sizing
         this.contentNode.style.width = '400px';
         this.contentNode.style.maxWidth = '90vw';
         this.contentNode.style.padding = '0';
@@ -39,16 +38,21 @@ export class DataRepositoryDeleteDialog extends AbstractDialog<boolean> {
             this.reactRoot = createRoot(this.contentNode);
         }
 
+        const isCount = typeof this.target === 'number';
+        const titleText = isCount 
+            ? `Delete ${this.target} repository${(this.target as number) > 1 ? 'ies' : ''}?`
+            : `Delete ${this.target}?`;
+
         this.reactRoot.render(
             <div className="data-repo-delete-dialog">
                 <div className="data-repo-delete-dialog__body">
                     <WarningAmberIcon className="data-repo-delete-dialog__icon" />
                     <div className="data-repo-delete-dialog__text-container">
                         <h3 className="data-repo-delete-dialog__title">
-                            Delete {this.count} repository{this.count > 1 ? 'ies' : ''}?
+                            {titleText}
                         </h3>
                         <p className="data-repo-delete-dialog__message">
-                            Are you sure you want to delete the selected repositories? This action cannot be undone.
+                            Are you sure you want to perform this action? This cannot be undone.
                         </p>
                     </div>
                 </div>

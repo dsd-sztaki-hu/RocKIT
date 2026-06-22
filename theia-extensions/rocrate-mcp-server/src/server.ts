@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import * as fs from 'node:fs'
 import * as path from 'node:path'
+import {
+  createDefaultRoCrateWorkspace,
+  type DefaultRoCrateFileContent,
+  type DefaultRoCrateWorkspaceAdapter,
+} from 'rockit-common/lib/common/default-ro-crate'
+import { DEFAULT_REGISTERED_SCHEMAS } from 'rocrate-context-core'
 import {
   applyChangeSet,
   normalizeCrate,
@@ -11,30 +18,27 @@ import {
   writeCrateAtomic,
 } from './core'
 import type { RoCrate, RoCrateEntity } from './core/types'
-import { CHANGE_SET_ALLOWED_KEYS, tools } from './server/tool-definitions'
-import { createToolDispatcher } from './server/tool-dispatcher'
-import { createProfileContextStore } from './server/profile-context'
-import { createSummaryHelpers } from './server/summary'
-import { startServerWithTransports } from './server/transports'
-import { createDataverseHandlers } from './server/dataverse'
+// Dashboard telemetry imports (optional, disabled by default)
+import { getGlobalCollector } from './dashboard/collector'
+import { startDashboardIfNeeded } from './dashboard/http-server'
 import { createContextReconciliationHelpers } from './server/context-reconciliation'
-import { createProfileValidationHelpers } from './server/profile-validation'
-import { createProfileResolutionHelpers } from './server/profile-resolution'
 import { createCrateOpsHelpers } from './server/crate-ops'
-import { createWebHandlers } from './server/web'
+import { createDataverseHandlers } from './server/dataverse'
+import { createMetadataProfileHandlers } from './server/metadata-profiles'
 import { createOntologyHelpers } from './server/ontology'
+import { createProfileContextStore } from './server/profile-context'
+import { createProfileResolutionHelpers } from './server/profile-resolution'
+import { createProfileValidationHelpers } from './server/profile-validation'
 import {
   createSchemaRegistryStore,
   type SchemaRegistryEntry,
 } from './server/schema-registry-store'
-import type {
-  AccessMode,
-  ProfileResolutionInputs,
-} from './server/types'
-
-// Dashboard telemetry imports (optional, disabled by default)
-import { getGlobalCollector } from './dashboard/collector'
-import { startDashboardIfNeeded } from './dashboard/http-server'
+import { createSummaryHelpers } from './server/summary'
+import { CHANGE_SET_ALLOWED_KEYS, tools } from './server/tool-definitions'
+import { createToolDispatcher } from './server/tool-dispatcher'
+import { startServerWithTransports } from './server/transports'
+import type { AccessMode, ProfileResolutionInputs } from './server/types'
+import { createWebHandlers } from './server/web'
 
 /**
  * rocrate-mcp-server architecture (single-file entrypoint)
@@ -51,7 +55,6 @@ import { startDashboardIfNeeded } from './dashboard/http-server'
  * MCP transport -> SDK request handlers -> handleToolCall ->
  * run* tool implementation -> structured MCP tool result
  */
-
 
 const ROCRATE_CONFORMS_TO_URL = 'https://w3id.org/ro/crate/1.1'
 const DEFAULT_SCHEMA_INDEX_FILENAME = 'metadata-schema-index.json'
@@ -327,13 +330,127 @@ const {
   collectProfileUrls,
 })
 
-const {
-  collectDeclaredContextTerms,
-  applyContextModePatch,
-  buildContextTermSuggestion,
-} = createContextReconciliationHelpers({
-  defaultContextKnownTerms: DEFAULT_CONTEXT_KNOWN_TERMS,
-})
+/**
+ * Creates a default RO-Crate for a local directory using the shared bootstrap module.
+ */
+async function runCreateDefaultRoCrate(
+  params: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const directoryPath = resolveDefaultRoCrateDirectory(params)
+  const cratePath = path.join(directoryPath, 'ro-crate-metadata.json')
+  const overwrite = params.overwrite === true
+  if (fs.existsSync(cratePath) && !overwrite) {
+    throw new Error(
+      `ro-crate-metadata.json already exists: ${cratePath}. Re-run with overwrite=true to replace it.`,
+    )
+  }
+
+  const result = await createDefaultRoCrateWorkspace(
+    createNodeDefaultRoCrateAdapter(directoryPath),
+    {
+      writeIgnoredFile: params.writeIgnoredFile !== false,
+    },
+  )
+  const indent = typeof params.indent === 'number' ? params.indent : 2
+
+  let ignoredFilePath: string | undefined
+  if (result.ignoredFile) {
+    const ignoredDirectoryPath = path.join(directoryPath, result.ignoredFile.directoryPath)
+    ignoredFilePath = path.join(directoryPath, result.ignoredFile.filePath)
+    fs.mkdirSync(ignoredDirectoryPath, { recursive: true })
+    fs.writeFileSync(ignoredFilePath, result.ignoredFile.payload, 'utf8')
+  }
+
+  writeCrateAtomic(cratePath, result.crate as RoCrate, indent)
+  const crate = normalizeCrate(result.crate)
+  return {
+    ok: true,
+    mode: 'local',
+    writeApplied: true,
+    directoryPath,
+    cratePath,
+    ignoredFilePath,
+    summary: result.summary,
+    crateSummary: summarizeCratePayload(crate, 'local', cratePath),
+    crate,
+  }
+}
+
+function resolveDefaultRoCrateDirectory(params: Record<string, unknown>): string {
+  const directoryPath =
+    typeof params.directoryPath === 'string' && params.directoryPath.trim() !== ''
+      ? path.resolve(params.directoryPath)
+      : undefined
+  if (directoryPath) {
+    return assertExistingDirectory(directoryPath)
+  }
+
+  if (typeof params.cratePath === 'string' && params.cratePath.trim() !== '') {
+    const resolved = path.resolve(params.cratePath)
+    if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
+      return resolved
+    }
+    if (path.basename(resolved) === 'ro-crate-metadata.json') {
+      return assertExistingDirectory(path.dirname(resolved))
+    }
+    return assertExistingDirectory(resolved)
+  }
+
+  return assertExistingDirectory(path.dirname(resolveCratePath()))
+}
+
+function assertExistingDirectory(directoryPath: string): string {
+  if (!fs.existsSync(directoryPath)) {
+    throw new Error(`Directory does not exist: ${directoryPath}`)
+  }
+  if (!fs.statSync(directoryPath).isDirectory()) {
+    throw new Error(`Path is not a directory: ${directoryPath}`)
+  }
+  return directoryPath
+}
+
+function createNodeDefaultRoCrateAdapter(rootPath: string): DefaultRoCrateWorkspaceAdapter {
+  const normalizePath = (value: string): string => value.replace(/\\/g, '/')
+  const absolutePathFor = (relativePath: string): string =>
+    relativePath ? path.join(rootPath, relativePath) : rootPath
+
+  return {
+    rootName: path.basename(rootPath) || './',
+    listChildren: async (relativeDirectoryPath: string) => {
+      const directoryPath = absolutePathFor(relativeDirectoryPath)
+      return fs
+        .readdirSync(directoryPath, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() || entry.isFile())
+        .map((entry) => {
+          const absoluteChildPath = path.join(directoryPath, entry.name)
+          const stat = fs.statSync(absoluteChildPath)
+          return {
+            name: entry.name,
+            relativePath: normalizePath(path.relative(rootPath, absoluteChildPath)),
+            kind: entry.isDirectory() ? 'directory' as const : 'file' as const,
+            size: stat.size,
+            mtimeMs: stat.mtimeMs,
+          }
+        })
+    },
+    readFileContent: async (relativeFilePath: string) =>
+      fs.readFileSync(absolutePathFor(relativeFilePath)),
+    hashContent: (content: DefaultRoCrateFileContent) =>
+      createHash('md5').update(content).digest('hex'),
+    readTextFile: async (relativeFilePath: string) => {
+      const filePath = absolutePathFor(relativeFilePath)
+      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+        return undefined
+      }
+      return fs.readFileSync(filePath, 'utf8')
+    },
+  }
+}
+
+const { collectDeclaredContextTerms, applyContextModePatch, buildContextTermSuggestion } =
+  createContextReconciliationHelpers({
+    defaultContextKnownTerms: DEFAULT_CONTEXT_KNOWN_TERMS,
+  })
 
 const {
   buildProfileConstraints,
@@ -379,25 +496,26 @@ const {
 
 const { runOntologyTool } = createOntologyHelpers()
 
+const {
+  resolveMissingMetadataProfiles,
+  listWellKnownSchemas,
+  listRemoteSchemaTree,
+  importWellKnownSchema,
+  listMetadataProfiles,
+  importMetadataProfile,
+  deleteMetadataProfileTool,
+} = createMetadataProfileHandlers({
+  collectProfileUrls,
+})
+
 /**
  * Loads default schema registry entries from the shared ontology package.
  */
 function loadDefaultRegistrySchemas(): SchemaRegistryEntry[] {
-  const modulePath = path.resolve(
-    __dirname,
-    '../../../dev-packages/rocrate-context-core/lib/index.js',
-  )
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const loaded = require(modulePath) as {
-    DEFAULT_REGISTERED_SCHEMAS?: SchemaRegistryEntry[]
-  }
-  const defaults = loaded.DEFAULT_REGISTERED_SCHEMAS
-  if (!Array.isArray(defaults)) {
-    throw new Error(
-      `Failed to load DEFAULT_REGISTERED_SCHEMAS from ${modulePath}. Build rocrate-context-core first.`,
-    )
-  }
-  return defaults
+  return DEFAULT_REGISTERED_SCHEMAS.map((schema) => ({
+    ...schema,
+    activeOnSpec: [...schema.activeOnSpec],
+  }))
 }
 
 const schemaRegistryStore = createSchemaRegistryStore({
@@ -428,7 +546,9 @@ function listSchemaRegistry(params: Record<string, unknown>): Record<string, unk
 /**
  * Registers one schema entry in persisted registry storage.
  */
-function registerSchemaRegistry(params: Record<string, unknown>): Record<string, unknown> {
+function registerSchemaRegistry(
+  params: Record<string, unknown>,
+): Record<string, unknown> {
   const mode = parseSchemaRegistryMode(params)
   const result = schemaRegistryStore.register(mode, {
     id: typeof params.id === 'string' ? params.id : '',
@@ -453,7 +573,7 @@ function getRegisteredSchemasForMode(mode: AccessMode): SchemaRegistryEntry[] {
 }
 
 /**
- * Resolves base aroma directory for schema index/profile artifacts.
+ * Resolves base RocKIT directory for schema index/profile artifacts.
  */
 function buildRoCrateContext(
   crate: RoCrate,
@@ -475,7 +595,7 @@ function buildRoCrateContext(
       typeof descriptor?.['@id'] === 'string' ? descriptor['@id'] : null,
     profileResolution: {
       indexPath: constraints.resolution.indexPath,
-      aromaRootPath: constraints.resolution.aromaRootPath,
+      rockitRootPath: constraints.resolution.rockitRootPath,
       profileContextId: constraints.resolution.profileContextId,
       profileUrls: constraints.resolution.profileUrls,
       unresolvedUrls: constraints.resolution.unresolvedUrls,
@@ -507,7 +627,10 @@ function buildRoCrateContext(
             Object.fromEntries(
               Array.from(propertyValueSets.entries())
                 .sort((a, b) => a[0].localeCompare(b[0]))
-                .map(([propertyName, values]) => [propertyName, Array.from(values).sort()]),
+                .map(([propertyName, values]) => [
+                  propertyName,
+                  Array.from(values).sort(),
+                ]),
             ),
           ]),
       ),
@@ -539,6 +662,7 @@ const handleToolCall = createToolDispatcher({
   parseDataverseDownloadParams,
   runDataverseDownload,
   summarizeDataverseDownloadPayload,
+  runCreateDefaultRoCrate,
   loadCrateFromParams,
   parseResponseMode,
   summarizeCratePayload,
@@ -562,6 +686,13 @@ const handleToolCall = createToolDispatcher({
   validateCrateAgainstProfileConstraints,
   parseAccessMode,
   asRoCrate,
+  resolveMissingMetadataProfiles,
+  listWellKnownSchemas,
+  listRemoteSchemaTree,
+  importWellKnownSchema,
+  listMetadataProfiles,
+  importMetadataProfile,
+  deleteMetadataProfileTool,
   summarizeProfileResolution,
   buildRoCrateContext,
   summarizeRoCrateContext,
@@ -577,14 +708,39 @@ const handleToolCall = createToolDispatcher({
   getRegisteredSchemasForMode,
 })
 
+function getDashboardUrl(): string {
+  const host = process.env.ROCRATE_DASHBOARD_HOST || '127.0.0.1'
+  const port = process.env.ROCRATE_DASHBOARD_PORT || '9393'
+  return `http://${host}:${port}`
+}
+
+function getMcpServerInstructions(): string {
+  return `Before RO-Crate editing/advice, call read_agent_workflow_doc with name "rocrate_workflow.md" and follow it.
+Read the referenced step doc before each workflow step.
+Primary artifact is ro-crate-metadata.json.
+If no ro-crate-metadata.json exists in a local directory, offer create_default_rocrate before other metadata work; never overwrite existing metadata unless explicitly requested with overwrite=true.
+Prefer RO-Crate tools over ad-hoc edits.
+The RO-Crate MCP dashboard is available at ${getDashboardUrl()}; open it when the user asks to inspect MCP activity or dashboard telemetry.
+First edit step is get_rocrate_context to discover active profile constraints; do not start with web search.
+Use update_profile_conforms_to to change profile URLs on conformsTo; apply_changes must not edit conformsTo.
+apply_changes writes by default; set dryRun=true to preview without persisting.
+Treat profile scope as entity-local (only entities explicitly declaring that profile URL in conformsTo).
+Do not fan out profile-field edits by class unless user explicitly asks.
+Detect profile URLs from conformsTo on Dataset/File entities, resolve them via metadata-schema-index, and keep edits limited to profile-allowed entity types/properties.
+Every entity should have a human-friendly name and new entity IDs must be descriptive and unique.
+Do not invent factual metadata unless the user explicitly asks for examples.
+Destructive apply_changes operations require explicit user approval and confirmDestructive=true.
+After successful edits/validation outside AROMA, call open_aroma_for_local_file and include the returned aromaUrl in the final response as a plain URL. If the agent session context says AROMA is already open, do not generate the link unless the user asks.
+write_crate_atomic also supports contextMode auto context reconciliation (default auto_reconcile).`
+}
+
 /**
  * Handles start server.
  */
 async function startServer(): Promise<void> {
   await startServerWithTransports({
     tools,
-    instructions:
-      'Primary artifact is ro-crate-metadata.json. Prefer RO-Crate tools over ad-hoc edits. First step before edits is get_rocrate_context to discover active profile constraints; do not start with web search. Use update_profile_conforms_to to change profile URLs on conformsTo; apply_changes must not edit conformsTo. apply_changes writes by default; set dryRun=true to preview without persisting. Treat profile scope as entity-local (only entities explicitly declaring that profile URL in conformsTo). Do not fan out profile-field edits by class unless user explicitly asks. Detect profile URLs from conformsTo on Dataset/File entities, resolve them via metadata-schema-index, and keep edits limited to profile-allowed entity types/properties. Every entity should have a human-friendly name and new entity IDs must be descriptive and unique. Do not invent factual metadata unless the user explicitly asks for examples. Destructive apply_changes operations require explicit user approval and confirmDestructive=true. write_crate_atomic also supports contextMode auto context reconciliation (default auto_reconcile).',
+    instructions: getMcpServerInstructions(),
     asRecord,
     handleToolCall,
     getTelemetryCollector,
@@ -601,7 +757,9 @@ async function startServer(): Promise<void> {
         })
         .catch((err) => {
           const errorMsg = err instanceof Error ? err.message : String(err)
-          process.stderr.write(`rocrate-mcp-server: dashboard failed to start: ${errorMsg}\n`)
+          process.stderr.write(
+            `rocrate-mcp-server: dashboard failed to start: ${errorMsg}\n`,
+          )
         })
     },
   })

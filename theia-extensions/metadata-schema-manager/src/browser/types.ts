@@ -44,6 +44,7 @@ export interface SchemaTableProps {
   allowDeleteValidSchemas?: boolean; // Controls whether 'ok' schemas show the delete bin
   disableInvalidRows?: boolean;      // Controls whether transient/failed schemas can be selected
   onSelectionChange: (selectedRowKeys: Key[]) => void;
+  onRowDoubleClick?: (schema: SchemaInfo) => void;
   onDelete?: (schemaIds: string[]) => void;
   onRetry?: (schemaId: string) => void;
 }
@@ -54,5 +55,9 @@ export interface RemoteSchemaProviderConfig {
   baseUrl: string;
   domainBase: string;
   type: 'CEDAR';
+  resourceBaseUrl?: string;
+  registryFolderId?: string;
+  accessMode?: 'apiKey' | 'dataverseProxy';
+  dataverseProxyBaseUrl?: string;
   apiKey?: string;
 }

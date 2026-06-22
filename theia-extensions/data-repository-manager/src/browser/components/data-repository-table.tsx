@@ -6,7 +6,6 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditIcon from '@mui/icons-material/Edit';
 import StorageIcon from '@mui/icons-material/Storage';
 import SearchIcon from '@mui/icons-material/Search';
-import FilterListIcon from '@mui/icons-material/FilterList';
 import { IconButton, Tooltip } from '@mui/material';
 import { DataRepositoryConfig, DataRepositoryTableProps } from '../types';
 
@@ -85,24 +84,6 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
             ellipsis: true,
         },
         {
-            title: 'Type',
-            dataIndex: 'type',
-            key: 'type',
-            width: 170,
-            sorter: (a, b) => a.type.localeCompare(b.type),
-            filters: [
-                { text: 'ARP Dataverse', value: 'ARP Dataverse' }
-            ],
-            onFilter: (value, record) => record.type === value,
-            filterIcon: (filtered: boolean) => (
-                <FilterListIcon style={{ 
-                    fontSize: 18, 
-                    color: filtered ? 'var(--theia-focusBorder)' : 'var(--theia-icon-foreground)' 
-                }} />
-            ),
-            ellipsis: true,
-        },
-        {
             title: 'Base URL',
             dataIndex: 'baseUrl',
             key: 'baseUrl',
@@ -151,7 +132,7 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
                                 size="small" 
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onDelete(record.id);
+                                    onDelete(record);
                                 }}
                                 className="data-repo-table__action-btn data-repo-table__action-btn--delete"
                             >
