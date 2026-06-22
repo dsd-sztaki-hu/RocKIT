@@ -1,5 +1,6 @@
 import { CommandService } from '@theia/core/lib/common/command'
 import { MessageService } from '@theia/core/lib/common/message-service'
+import { DialogError } from '@theia/core/lib/browser/dialogs'
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import type { URI } from '@theia/core/lib/common/uri'
 import { injectable } from '@theia/core/shared/inversify'
@@ -168,12 +169,21 @@ export class ROCrateDialog extends ReactDialog<string> {
 
   protected setGenerationControls(generating: boolean): void {
     if (this.acceptButton) {
-      this.acceptButton.disabled = generating
-      this.acceptButton.textContent = generating
-        ? 'Generating...'
-        : this.jsonExists
+      // Keep the primary-button appearance while making the running action inert.
+      // Native `disabled` styling reduces contrast too much for the progress text.
+      this.acceptButton.disabled = false
+      this.acceptButton.setAttribute('aria-busy', `${generating}`)
+      this.acceptButton.setAttribute('aria-disabled', `${generating}`)
+      this.acceptButton.style.pointerEvents = generating ? 'none' : ''
+      this.acceptButton.tabIndex = generating ? -1 : 0
+      if (generating) {
+        this.acceptButton.blur()
+        this.updateGenerationProgress()
+      } else {
+        this.acceptButton.textContent = this.jsonExists
           ? 'Generate valid JSON file'
           : 'Generate JSON file'
+      }
     }
     if (this.closeRoCrateButton) {
       this.closeRoCrateButton.disabled = generating
@@ -182,8 +192,18 @@ export class ROCrateDialog extends ReactDialog<string> {
 
   protected updateGenerationProgress(): void {
     if (this.acceptButton) {
+      const fileLabel = this.scannedFileCount === 1 ? 'file' : 'files'
       this.acceptButton.textContent =
-        `Generating metadata... ${this.scannedFileCount.toLocaleString()} files processed`
+        `Generating metadata... ${this.scannedFileCount.toLocaleString()} ${fileLabel} processed`
+    }
+  }
+
+  protected override setErrorMessage(error: DialogError): void {
+    super.setErrorMessage(error)
+    if (this.generating && this.acceptButton) {
+      // Validation normally owns the native disabled state. Interaction is
+      // blocked by the inert running state instead, preserving button contrast.
+      this.acceptButton.disabled = false
     }
   }
 
@@ -231,8 +251,14 @@ export class ROCrateDialog extends ReactDialog<string> {
         const content = await this.fileService.read(resolveRelative(relativeFilePath))
         return `${content.value ?? ''}`
       },
-      hashContent: (content: DefaultRoCrateFileContent) =>
-        SparkMD5.hash(typeof content === 'string' ? content : String.fromCharCode(...content)),
+      hashContent: (content: DefaultRoCrateFileContent) => {
+        const hash = typeof content === 'string'
+          ? SparkMD5.hash(content)
+          : this.hashFileContent(content)
+        this.scannedFileCount += 1
+        this.updateGenerationProgress()
+        return hash
+      },
       readTextFile: async (relativeFilePath: string) => {
         try {
           const uri = resolveRelative(relativeFilePath)

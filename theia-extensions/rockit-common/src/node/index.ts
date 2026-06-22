@@ -6,6 +6,7 @@ export * from '../common/schema-validator-protocol';
 export * from '../common/rocrate-mcp-config';
 export * from '../common/ro-crate-export-file-references';
 export * from '../common/default-ro-crate';
+export * from '../common/schema-url-resolution';
 export * from './secure-storage-service-impl';
 export * from './application-reset-service-impl';
 export * from './rocrate-mcp-daemon-manager';

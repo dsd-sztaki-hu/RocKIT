@@ -2,6 +2,11 @@ import * as crypto from 'node:crypto'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import {
+  buildRedirectDerivedCandidates,
+  buildSchemaFetchCandidates,
+  deriveResourceBaseUrl,
+} from 'rockit-common/lib/common/schema-url-resolution'
 
 const DEFAULT_INDEX_FILENAME = 'metadata-schema-index.json'
 const DEFAULT_REMOTE_PROVIDER_CONFIG_FILENAME = 'remote-schema-providers.json'
@@ -301,8 +306,7 @@ export async function importCedarTemplateFromUrl(args: {
   provider?: CedarProvider
   conformsTo?: string
 }): Promise<ImportResult> {
-  const resolved = resolveTemplateFetchUrl(args.url, args.provider)
-  const fetched = await fetchTextWithAuthFallback(resolved, args.provider)
+  const fetched = await fetchTextWithAuthFallback(args.url, args.provider, args.rootPath)
   return importCedarTemplateContent({
     rawContent: fetched.content,
     source: 'remote',
@@ -628,49 +632,200 @@ async function convertCedarTemplate(rawContent: string): Promise<string> {
   return converter.processCedarTemplate(rawContent)
 }
 
-function resolveTemplateFetchUrl(urlOrId: string, provider?: CedarProvider): string {
-  const value = urlOrId.trim()
-  if (value.startsWith(DEFAULT_ARP_W3ID_PROD)) {
-    return `${DEFAULT_ARP_PROD_PREFIX}${value.substring(DEFAULT_ARP_W3ID_PROD.length)}`
-  }
-  if (value.startsWith(DEFAULT_ARP_W3ID_DEV)) {
-    return `${DEFAULT_ARP_DEV_PREFIX}${value.substring(DEFAULT_ARP_W3ID_DEV.length)}`
-  }
-  if (/^https?:\/\//.test(value)) {
-    return value
-  }
-  const normalizedProvider = normalizeProvider(provider ?? defaultCedarProvider())
-  const repoPrefix =
-    normalizedProvider.domainBase === 'cedardev.dsd.sztaki.hu'
-      ? DEFAULT_ARP_DEV_PREFIX
-      : DEFAULT_ARP_PROD_PREFIX
-  return `${repoPrefix}${value}`
-}
-
 async function fetchTextWithAuthFallback(
   inputUrl: string,
   provider?: CedarProvider,
+  rootPath?: string,
 ): Promise<{ content: string; finalUrl: string }> {
-  const normalizedProvider = normalizeProvider(provider ?? pickProviderForUrl(inputUrl))
-  const candidates = unique([
+  const configuredProviders = provider
+    ? [normalizeProvider(provider)]
+    : (await loadCedarProviders(rootPath)).providers.map((candidate) => normalizeProvider(candidate))
+  const attempted = new Set<string>()
+  const queue: Array<{ candidate: string; provider: CedarProvider }> = []
+  enqueueSchemaFetchCandidates(
+    queue,
+    attempted,
     inputUrl,
-    toResourceTemplateUrl(inputUrl, normalizedProvider),
-    inputUrl.includes('openview.') ? inputUrl.replace('openview.', 'open.') : '',
-    inputUrl.includes('/artifacts/') ? inputUrl.replace('/artifacts/', '/templates/') : '',
-  ].filter((item) => item !== ''))
+    rankSchemaResolveProviders(
+      inputUrl,
+      configuredProviders,
+      provider ? normalizeProvider(provider) : undefined,
+    ),
+  )
+  logSchemaResolve('start', {
+    inputUrl,
+    providers: rankSchemaResolveProviders(
+      inputUrl,
+      configuredProviders,
+      provider ? normalizeProvider(provider) : undefined,
+    ).map((candidateProvider) => schemaResolveProviderLabel(candidateProvider)),
+  })
 
   let lastError: unknown
-  for (const candidate of candidates) {
+  while (queue.length > 0) {
+    const entry = queue.shift()!
+    const attemptKey = schemaResolveAttemptKey(entry.candidate, entry.provider)
+    if (attempted.has(attemptKey)) {
+      continue
+    }
+    attempted.add(attemptKey)
+    logSchemaResolve('attempt', describeSchemaResolveEntry(entry))
+
     try {
-      const response = await fetchWithOptionalAuth(candidate, normalizedProvider)
+      const response = await fetchWithOptionalAuth(entry.candidate, entry.provider)
       const content = await response.text()
-      JSON.parse(content)
-      return { content, finalUrl: response.url }
+      try {
+        JSON.parse(content)
+        logSchemaResolve('success', {
+          ...describeSchemaResolveEntry(entry),
+          finalUrl: response.url,
+        })
+        return { content, finalUrl: response.url }
+      } catch {
+        lastError = new Error(
+          `The URL ${entry.candidate} resolved to non-JSON content at ${response.url}.`,
+        )
+        const redirectProviders = rankSchemaResolveProviders(
+          response.url,
+          configuredProviders,
+          entry.provider,
+        )
+        enqueueRedirectCandidates(queue, attempted, response.url, redirectProviders)
+        logSchemaResolve('non-json', {
+          ...describeSchemaResolveEntry(entry),
+          finalUrl: response.url,
+          nextProviders: redirectProviders.map((candidateProvider) =>
+            schemaResolveProviderLabel(candidateProvider),
+          ),
+        })
+      }
     } catch (error) {
+      logSchemaResolve('error', {
+        ...describeSchemaResolveEntry(entry),
+        error: error instanceof Error ? error.message : String(error),
+      })
       lastError = error
     }
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError))
+}
+
+function rankSchemaResolveProviders(
+  url: string,
+  providers: CedarProvider[],
+  preferred?: CedarProvider,
+): CedarProvider[] {
+  const ranked: CedarProvider[] = []
+  const seen = new Set<string>()
+  const push = (candidate?: CedarProvider) => {
+    if (!candidate) {
+      return
+    }
+    const key = schemaResolveProviderKey(candidate)
+    if (seen.has(key)) {
+      return
+    }
+    seen.add(key)
+    ranked.push(candidate)
+  }
+
+  push(preferred)
+  const targetHost = safeHost(url)
+  for (const candidate of providers) {
+    const providerHosts = [
+      candidate.domainBase,
+      candidate.baseUrl,
+      candidate.resourceBaseUrl,
+      candidate.dataverseProxyBaseUrl,
+      candidate.displayUrl,
+    ]
+      .map((value) => safeHost(value ?? ''))
+      .filter((value): value is string => Boolean(value))
+    if (
+      targetHost &&
+      providerHosts.some(
+        (providerHost) => targetHost.includes(providerHost) || providerHost.includes(targetHost),
+      )
+    ) {
+      push(candidate)
+    }
+  }
+  for (const candidate of providers) {
+    push(candidate)
+  }
+  return ranked
+}
+
+function enqueueSchemaFetchCandidates(
+  queue: Array<{ candidate: string; provider: CedarProvider }>,
+  attempted: Set<string>,
+  url: string,
+  providers: CedarProvider[],
+): void {
+  for (const candidateProvider of providers) {
+    for (const candidate of buildSchemaFetchCandidates(url, candidateProvider)) {
+      const key = schemaResolveAttemptKey(candidate, candidateProvider)
+      if (!attempted.has(key) && !queue.some((entry) => schemaResolveAttemptKey(entry.candidate, entry.provider) === key)) {
+        queue.push({ candidate, provider: candidateProvider })
+      }
+    }
+  }
+}
+
+function enqueueRedirectCandidates(
+  queue: Array<{ candidate: string; provider: CedarProvider }>,
+  attempted: Set<string>,
+  finalUrl: string,
+  providers: CedarProvider[],
+): void {
+  for (const candidateProvider of providers) {
+    for (const candidate of buildRedirectDerivedCandidates(finalUrl, candidateProvider)) {
+      const key = schemaResolveAttemptKey(candidate, candidateProvider)
+      if (!attempted.has(key) && !queue.some((entry) => schemaResolveAttemptKey(entry.candidate, entry.provider) === key)) {
+        queue.push({ candidate, provider: candidateProvider })
+      }
+    }
+  }
+}
+
+function schemaResolveAttemptKey(candidate: string, provider: CedarProvider): string {
+  return `${schemaResolveProviderKey(provider)}::${candidate}`
+}
+
+function schemaResolveProviderKey(provider: CedarProvider): string {
+  return (
+    provider.id ||
+    provider.domainBase ||
+    provider.baseUrl ||
+    provider.resourceBaseUrl ||
+    'provider'
+  )
+}
+
+function schemaResolveProviderLabel(provider: CedarProvider): string {
+  return provider.title || provider.id || provider.domainBase || provider.baseUrl || 'provider'
+}
+
+function describeSchemaResolveEntry(entry: {
+  candidate: string
+  provider: CedarProvider
+}): Record<string, string> {
+  return {
+    candidate: entry.candidate,
+    provider: schemaResolveProviderLabel(entry.provider),
+    proxyUrl:
+      effectiveProviderAccessMode(entry.provider) === 'dataverseProxy'
+        ? effectiveCedarFetchUrl(entry.candidate, entry.provider)
+        : '',
+  }
+}
+
+function logSchemaResolve(message: string, details?: unknown): void {
+  if (details === undefined) {
+    console.info('[SchemaResolve]', message)
+    return
+  }
+  console.info('[SchemaResolve]', message, details)
 }
 
 async function fetchJsonWithAuthFallback(url: string, provider: CedarProvider): Promise<unknown> {
@@ -729,20 +884,13 @@ function effectiveCedarFetchUrl(url: string, provider: CedarProvider): string {
   return `${proxyBaseUrl.replace(/\/+$/, '')}/api/arp/cedarResourceProxy?url=${encodeURIComponent(url)}`
 }
 
-function toResourceTemplateUrl(inputUrl: string, provider: CedarProvider): string {
-  if (inputUrl.includes('/templates/') && inputUrl.includes('resource.')) {
-    return inputUrl
-  }
-  const normalized = resolveTemplateFetchUrl(inputUrl, provider)
-  return `${resourceBaseUrl(provider)}/templates/${encodeURIComponent(normalized)}`
-}
-
 function resourceBaseUrl(provider: CedarProvider): string {
-  if (provider.resourceBaseUrl) {
-    return provider.resourceBaseUrl.replace(/\/+$/, '')
-  }
-  const domain = provider.domainBase ?? 'schema.researchdata.hu'
-  return `https://resource.${domain.replace(/^https?:\/\//, '').replace(/\/+$/, '')}`
+  return (
+    deriveResourceBaseUrl(provider) ??
+    `https://resource.${(provider.domainBase ?? 'schema.researchdata.hu')
+      .replace(/^https?:\/\//, '')
+      .replace(/\/+$/, '')}`
+  )
 }
 
 function normalizeProvider(provider: CedarProvider): CedarProvider {

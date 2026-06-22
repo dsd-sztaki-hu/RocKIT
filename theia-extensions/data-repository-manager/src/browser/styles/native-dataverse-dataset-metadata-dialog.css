@@ -1,0 +1,136 @@
+.native-dv-metadata {
+    box-sizing: border-box;
+    padding: 20px;
+    overflow: auto;
+    color: var(--theia-foreground);
+}
+
+.native-dv-metadata__description {
+    margin: 0 0 16px;
+    color: var(--theia-descriptionForeground);
+}
+
+.native-dv-metadata__form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.native-dv-metadata__field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.native-dv-metadata__label {
+    font-weight: 600;
+}
+
+.native-dv-metadata__required {
+    color: var(--theia-errorForeground);
+}
+
+.native-dv-metadata__input,
+.native-dv-metadata__textarea,
+.native-dv-metadata__select {
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.native-dv-metadata__textarea {
+    min-height: 72px;
+    resize: vertical;
+}
+
+.native-dv-metadata__input,
+.native-dv-metadata__textarea,
+.native-dv-metadata__select .ant-select-selector {
+    border-color: var(--theia-input-border, var(--theia-ui-border)) !important;
+    background: var(--theia-input-background) !important;
+    color: var(--theia-ui-font-color1) !important;
+}
+
+.native-dv-metadata__input,
+.native-dv-metadata__select .ant-select-selector {
+    min-height: 32px !important;
+}
+
+.native-dv-metadata__input::placeholder,
+.native-dv-metadata__textarea::placeholder,
+.native-dv-metadata__select .ant-select-selection-placeholder {
+    color: var(--theia-ui-font-color2) !important;
+}
+
+.native-dv-metadata__select .ant-select-selection-item,
+.native-dv-metadata__select .ant-select-arrow {
+    color: var(--theia-ui-font-color1) !important;
+}
+
+.native-dv-metadata__input:hover,
+.native-dv-metadata__textarea:hover,
+.native-dv-metadata__select .ant-select-selector:hover {
+    border-color: var(--theia-accent-color) !important;
+}
+
+.native-dv-metadata__input:focus,
+.native-dv-metadata__textarea:focus,
+.native-dv-metadata__select.ant-select-focused .ant-select-selector {
+    border-color: var(--theia-accent-color) !important;
+    box-shadow: 0 0 0 1px var(--theia-accent-color) !important;
+}
+
+.native-dv-metadata__select-dropdown {
+    z-index: 5100 !important;
+    border: 1px solid var(--theia-ui-border);
+    background: var(--theia-menu-background);
+}
+
+.native-dv-metadata__select-dropdown .ant-select-item {
+    color: var(--theia-menu-foreground);
+}
+
+.native-dv-metadata__select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+    background: rgba(127, 127, 127, 0.14);
+}
+
+.native-dv-metadata__select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+    background: rgba(127, 127, 127, 0.24);
+}
+
+body.vs-dark .native-dv-metadata__select .ant-select-selector,
+body.hc-black .native-dv-metadata__select .ant-select-selector,
+.theia-dark .native-dv-metadata__select .ant-select-selector,
+.theia-hc .native-dv-metadata__select .ant-select-selector {
+    border-color: color-mix(in srgb, var(--theia-input-foreground) 55%, transparent) !important;
+    background: var(--theia-input-background) !important;
+}
+
+body.vs-dark .native-dv-metadata__select .ant-select-selection-item,
+body.vs-dark .native-dv-metadata__select .ant-select-selection-placeholder,
+body.vs-dark .native-dv-metadata__select .ant-select-arrow,
+body.hc-black .native-dv-metadata__select .ant-select-selection-item,
+body.hc-black .native-dv-metadata__select .ant-select-selection-placeholder,
+body.hc-black .native-dv-metadata__select .ant-select-arrow,
+.theia-dark .native-dv-metadata__select .ant-select-selection-item,
+.theia-dark .native-dv-metadata__select .ant-select-selection-placeholder,
+.theia-dark .native-dv-metadata__select .ant-select-arrow,
+.theia-hc .native-dv-metadata__select .ant-select-selection-item,
+.theia-hc .native-dv-metadata__select .ant-select-selection-placeholder,
+.theia-hc .native-dv-metadata__select .ant-select-arrow {
+    color: var(--theia-input-foreground) !important;
+}
+
+body.vs-dark .native-dv-metadata__select-dropdown,
+body.hc-black .native-dv-metadata__select-dropdown,
+.theia-dark .native-dv-metadata__select-dropdown,
+.theia-hc .native-dv-metadata__select-dropdown {
+    border-color: var(--theia-dropdown-border, var(--theia-ui-border));
+    background: var(--theia-menu-background);
+}
+
+body.vs-dark .native-dv-metadata__select-dropdown .ant-select-item,
+body.hc-black .native-dv-metadata__select-dropdown .ant-select-item,
+.theia-dark .native-dv-metadata__select-dropdown .ant-select-item,
+.theia-hc .native-dv-metadata__select-dropdown .ant-select-item {
+    color: var(--theia-menu-foreground) !important;
+}

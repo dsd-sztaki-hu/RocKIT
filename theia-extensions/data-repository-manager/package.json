@@ -22,7 +22,11 @@
       "@mui/icons-material": "^5.15.0",
       "@emotion/react": "^11.11.0",
       "@emotion/styled": "^11.11.0",
-      "rockit-common": "0.0.0"
+      "@iqss/dataverse-client-javascript": "2.1.0",
+      "jszip": "^3.10.1",
+      "rockit-common": "0.0.0",
+      "app-state": "0.0.1",
+      "spark-md5": "^3.0.2"
     },
   "devDependencies": {
     "@testing-library/react": "^14.0.0",

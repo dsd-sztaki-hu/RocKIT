@@ -3,7 +3,6 @@ import type { Key } from 'react';
 export interface DataRepositoryConfig {
     id: string;
     title: string;
-    type: 'ARP Dataverse' | string;
     baseUrl: string;
     apiKey?: string;
 }
@@ -13,7 +12,7 @@ export interface DataRepositoryTableProps {
     isLoading: boolean;
     selectedKeys?: Key[];
     onSelectionChange?: (keys: Key[]) => void;
-    onDelete?: (id: string) => void;
+    onDelete?: (repo: DataRepositoryConfig) => void;
     onEdit?: (repo: DataRepositoryConfig) => void;
 }
 
@@ -23,4 +22,41 @@ export interface DataRepositoryToolbarProps {
     onConfigure: () => void;
     selectedCount?: number;
     onDeleteSelected?: () => void;
+}
+
+export interface DataverseCollection {
+    id: string;
+    alias: string;
+    name: string;
+    description?: string;
+    parentAlias?: string;
+    isWritable?: boolean;
+}
+
+export interface DataverseUserRole {
+    id: string;
+    name: string;
+    alias: string;
+}
+
+export interface DataverseCollectionBrowserState {
+    selectedCollection?: DataverseCollection;
+    repository: DataRepositoryConfig;
+}
+
+export interface DataverseCollectionSelection {
+    collection: DataverseCollection;
+}
+
+export interface DataRepositorySelection {
+    repository: DataRepositoryConfig;
+    capabilities: DataRepositoryCapabilities;
+}
+
+export type DataRepositoryKind = 'arp-dataverse' | 'dataverse' | 'unknown';
+
+export interface DataRepositoryCapabilities {
+    kind: DataRepositoryKind;
+    supportsArpRoCrateZipUpload: boolean;
+    supportsNativeDataverseApi: boolean;
 }

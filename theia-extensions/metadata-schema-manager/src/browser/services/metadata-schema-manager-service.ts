@@ -13,6 +13,10 @@ import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converte
 import type { SchemaInfo, SchemaIndex, RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
 import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'rockit-common/lib/browser';
+import {
+  buildRedirectDerivedCandidates,
+  buildSchemaFetchCandidates,
+} from 'rockit-common/lib/common/schema-url-resolution';
 import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service';
 import { MissingSchemasDialog } from '../components/missing-schemas-dialog'; 
 
@@ -54,6 +58,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
   private readonly onOpenRemoteBrowserEmitter = new Emitter<RemoteSchemaProviderConfig>();
   readonly onOpenRemoteBrowser: Event<RemoteSchemaProviderConfig> = this.onOpenRemoteBrowserEmitter.event;
+  private readonly schemaResolveLogPrefix = '[SchemaResolve]';
 
   @postConstruct()
   init() {
@@ -306,11 +311,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       const provider = await this.determineProviderForUrl(schema.downloadUrl);
       const apiKey = this.providerApiKey(provider);
       const proxyUrl = this.providerProxyUrl(provider);
-      const { content, finalUrl } = await this.fetchWithAuthFallback(schema.downloadUrl, apiKey, controller.signal, proxyUrl);
-
-      try { JSON.parse(content); } catch (e) {
-        throw new Error('The URL returned invalid content (likely HTML instead of JSON).');
-      }
+      const { content, finalUrl } = await this.resolveJsonProfileUrl(
+        schema.downloadUrl,
+        provider,
+        apiKey,
+        controller.signal,
+      );
 
       schema.status = 'processing';
       schema.statusMessage = 'Converting to RO-Crate...';
@@ -477,35 +483,243 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     return { content, finalUrl: response.url };
   }
 
-  private async resolveConformanceUrl(url: string, apiKey?: string, signal?: AbortSignal): Promise<{ content: string, finalUrl: string }> {
-    const provider = await this.determineProviderForUrl(url);
-    const effectiveKey = apiKey || this.providerApiKey(provider);
-    const proxyUrl = this.providerProxyUrl(provider);
-    const { content, finalUrl } = await this.fetchWithAuthFallback(url, effectiveKey, signal, proxyUrl);
+  private async resolveJsonProfileUrl(
+    url: string,
+    provider?: RemoteSchemaProviderConfig,
+    apiKey?: string,
+    signal?: AbortSignal,
+  ): Promise<{ content: string, finalUrl: string }> {
+    const configuredProviders = await this.loadSchemaResolveProviders();
+    const rankedProviders = this.rankSchemaResolveProviders(url, configuredProviders, provider);
+    let lastError: unknown;
+    const attempted = new Set<string>();
+    const queue: Array<{ candidate: string; provider?: RemoteSchemaProviderConfig }> = [];
 
-    try {
-      JSON.parse(content);
-      return { content, finalUrl };
-    } catch (e) { /* HTML fallback logic */ }
+    this.enqueueSchemaResolveCandidates(queue, attempted, url, rankedProviders);
+    this.logSchemaResolve('start', {
+      inputUrl: url,
+      providers: rankedProviders.map((candidateProvider) =>
+        this.schemaResolveProviderLabel(candidateProvider),
+      ),
+    });
 
-    let fixedUrl = finalUrl;
-    if (finalUrl.includes('openview.')) {
-      fixedUrl = finalUrl.replace('openview.', 'open.');
-    } else if (finalUrl.includes('/artifacts/')) {
-       fixedUrl = finalUrl.replace('/artifacts/', '/templates/');
-    }
+    while (queue.length > 0) {
+      const entry = queue.shift()!;
+      const attemptKey = this.schemaResolveAttemptKey(entry.candidate, entry.provider);
+      if (attempted.has(attemptKey)) {
+        continue;
+      }
+      attempted.add(attemptKey);
 
-    if (fixedUrl !== finalUrl) {
-      const retry = await this.fetchWithAuthFallback(fixedUrl, effectiveKey, signal, proxyUrl);
+      const effectiveKey = apiKey || this.providerApiKey(entry.provider);
+      const proxyUrl = this.providerProxyUrl(entry.provider);
+      this.logSchemaResolve('attempt', this.describeSchemaResolveEntry(entry));
+
       try {
-        JSON.parse(retry.content);
-        return retry; 
-      } catch (e) {
-        throw new Error(`Could not resolve JSON from ${url}.`);
+        const result = await this.fetchWithAuthFallback(
+          entry.candidate,
+          effectiveKey,
+          signal,
+          proxyUrl,
+        );
+        try {
+          JSON.parse(result.content);
+          this.logSchemaResolve('success', {
+            ...this.describeSchemaResolveEntry(entry),
+            finalUrl: result.finalUrl,
+          });
+          return result;
+        } catch {
+          const redirectProviders = this.rankSchemaResolveProviders(
+            result.finalUrl,
+            configuredProviders,
+            entry.provider,
+          );
+          this.enqueueRedirectCandidates(queue, attempted, result.finalUrl, redirectProviders);
+          this.logSchemaResolve('non-json', {
+            ...this.describeSchemaResolveEntry(entry),
+            finalUrl: result.finalUrl,
+            nextProviders: redirectProviders.map((candidateProvider) =>
+              this.schemaResolveProviderLabel(candidateProvider),
+            ),
+          });
+          lastError = new Error(
+            `The URL ${entry.candidate} resolved to non-JSON content at ${result.finalUrl}.`,
+          );
+        }
+      } catch (error) {
+        this.logSchemaResolve('error', {
+          ...this.describeSchemaResolveEntry(entry),
+          error: error instanceof Error ? error.message : String(error),
+        });
+        lastError = error;
       }
     }
 
-    throw new Error(`The URL ${url} returned HTML, and no JSON endpoint could be determined.`);
+    throw lastError instanceof Error
+      ? lastError
+      : new Error(`The URL ${url} could not be resolved to a JSON schema endpoint.`);
+  }
+
+  private async loadSchemaResolveProviders(): Promise<RemoteSchemaProviderConfig[]> {
+    try {
+      return await this.providerStoreService.loadProviders();
+    } catch (error) {
+      this.logSchemaResolve('provider-load-error', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  }
+
+  private rankSchemaResolveProviders(
+    url: string,
+    providers: RemoteSchemaProviderConfig[],
+    preferred?: RemoteSchemaProviderConfig,
+  ): Array<RemoteSchemaProviderConfig | undefined> {
+    const ranked: Array<RemoteSchemaProviderConfig | undefined> = [undefined];
+    const seen = new Set<string>();
+    const push = (candidate?: RemoteSchemaProviderConfig) => {
+      if (!candidate) {
+        return;
+      }
+      const key = this.schemaResolveProviderKey(candidate);
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      ranked.push(candidate);
+    };
+
+    push(preferred);
+    const targetHost = this.safeSchemaResolveHost(url);
+    for (const candidate of providers) {
+      const providerHosts = [
+        candidate.domainBase,
+        candidate.baseUrl,
+        candidate.resourceBaseUrl,
+        candidate.dataverseProxyBaseUrl,
+      ]
+        .map((value) => this.safeSchemaResolveHost(value))
+        .filter((value): value is string => Boolean(value));
+      if (
+        targetHost &&
+        providerHosts.some(
+          (providerHost) =>
+            targetHost.includes(providerHost) || providerHost.includes(targetHost),
+        )
+      ) {
+        push(candidate);
+      }
+    }
+    for (const candidate of providers) {
+      push(candidate);
+    }
+    return ranked;
+  }
+
+  private enqueueSchemaResolveCandidates(
+    queue: Array<{ candidate: string; provider?: RemoteSchemaProviderConfig }>,
+    attempted: Set<string>,
+    url: string,
+    providers: Array<RemoteSchemaProviderConfig | undefined>,
+  ): void {
+    for (const candidateProvider of providers) {
+      for (const candidate of buildSchemaFetchCandidates(url, candidateProvider)) {
+        const key = this.schemaResolveAttemptKey(candidate, candidateProvider);
+        if (
+          !attempted.has(key) &&
+          !queue.some(
+            (entry) => this.schemaResolveAttemptKey(entry.candidate, entry.provider) === key,
+          )
+        ) {
+          queue.push({ candidate, provider: candidateProvider });
+        }
+      }
+    }
+  }
+
+  private enqueueRedirectCandidates(
+    queue: Array<{ candidate: string; provider?: RemoteSchemaProviderConfig }>,
+    attempted: Set<string>,
+    finalUrl: string,
+    providers: Array<RemoteSchemaProviderConfig | undefined>,
+  ): void {
+    for (const candidateProvider of providers) {
+      for (const candidate of buildRedirectDerivedCandidates(finalUrl, candidateProvider)) {
+        const key = this.schemaResolveAttemptKey(candidate, candidateProvider);
+        if (
+          !attempted.has(key) &&
+          !queue.some(
+            (entry) => this.schemaResolveAttemptKey(entry.candidate, entry.provider) === key,
+          )
+        ) {
+          queue.push({ candidate, provider: candidateProvider });
+        }
+      }
+    }
+  }
+
+  private schemaResolveAttemptKey(
+    candidate: string,
+    provider?: RemoteSchemaProviderConfig,
+  ): string {
+    return `${this.schemaResolveProviderKey(provider)}::${candidate}`;
+  }
+
+  private schemaResolveProviderKey(provider?: RemoteSchemaProviderConfig): string {
+    if (!provider) {
+      return 'direct';
+    }
+    return (
+      provider.id ||
+      provider.domainBase ||
+      provider.baseUrl ||
+      provider.resourceBaseUrl ||
+      'provider'
+    );
+  }
+
+  private schemaResolveProviderLabel(provider?: RemoteSchemaProviderConfig): string {
+    if (!provider) {
+      return 'direct';
+    }
+    return provider.title || provider.id || provider.domainBase || provider.baseUrl || 'provider';
+  }
+
+  private describeSchemaResolveEntry(entry: {
+    candidate: string
+    provider?: RemoteSchemaProviderConfig
+  }): Record<string, string> {
+    return {
+      candidate: entry.candidate,
+      provider: this.schemaResolveProviderLabel(entry.provider),
+      proxyUrl: this.providerProxyUrl(entry.provider) || '',
+    };
+  }
+
+  private safeSchemaResolveHost(value?: string): string | undefined {
+    if (!value) {
+      return undefined;
+    }
+    try {
+      return new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`).hostname.toLowerCase();
+    } catch {
+      return undefined;
+    }
+  }
+
+  private logSchemaResolve(message: string, details?: unknown): void {
+    if (details === undefined) {
+      console.info(this.schemaResolveLogPrefix, message);
+      return;
+    }
+    console.info(this.schemaResolveLogPrefix, message, details);
+  }
+
+  private async resolveConformanceUrl(url: string, apiKey?: string, signal?: AbortSignal): Promise<{ content: string, finalUrl: string }> {
+    const provider = await this.determineProviderForUrl(url);
+    return this.resolveJsonProfileUrl(url, provider, apiKey, signal);
   }
 
   private async determineProviderForUrl(url: string): Promise<RemoteSchemaProviderConfig | undefined> {
@@ -606,11 +820,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       this.onDidChangeSchemasEmitter.fire();
       progress.report({ message: 'Downloading...', work: { done: 30, total: 100 } });
 
-      const { content, finalUrl } = await this.fetchWithAuthFallback(url, apiKey, controller.signal, proxyUrl);
-
-      try { JSON.parse(content); } catch (e) {
-        throw new Error('The URL returned invalid content (likely HTML instead of JSON).');
-      }
+      const { content, finalUrl } = await this.resolveJsonProfileUrl(
+        url,
+        provider,
+        apiKey,
+        controller.signal,
+      );
 
       pendingSchema.status = 'processing';
       pendingSchema.statusMessage = 'Converting to RO-Crate...';
