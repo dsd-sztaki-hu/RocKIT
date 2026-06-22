@@ -4,8 +4,6 @@ import { TreeView } from '@mui/x-tree-view/TreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
-import UnfoldLessIcon from '@mui/icons-material/UnfoldLess';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import { LinearProgress, CircularProgress, IconButton, Tooltip, TextField, InputAdornment } from '@mui/material';
@@ -124,24 +122,6 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
 
     const handleToggle = (event: React.SyntheticEvent, nodeIds: string[]) => {
         setExpandedNodes(nodeIds);
-    };
-
-    const handleExpandAll = () => {
-        const collectIds = (nodes: TreeNode[]): string[] => {
-            let ids: string[] = [];
-            for (const n of nodes) {
-                ids.push(n.id);
-                if (n.children.length > 0) {
-                    ids = ids.concat(collectIds(n.children));
-                }
-            }
-            return ids;
-        };
-        setExpandedNodes(collectIds(treeData));
-    };
-
-    const handleCollapseAll = () => {
-        setExpandedNodes([]);
     };
 
     const onNodeClick = async (node: TreeNode, e: React.MouseEvent) => {
@@ -299,18 +279,6 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                     )}
                 </div>
 
-                <div className="dataverse-tree__toolbar">
-                    <Tooltip title="Expand All" slotProps={{ popper: { sx: { zIndex: 2147483647 } } }}>
-                        <IconButton size="small" onClick={handleExpandAll} style={{ color: 'var(--theia-icon-foreground)' }}>
-                            <UnfoldMoreIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Collapse All" slotProps={{ popper: { sx: { zIndex: 2147483647 } } }}>
-                        <IconButton size="small" onClick={handleCollapseAll} style={{ color: 'var(--theia-icon-foreground)' }}>
-                            <UnfoldLessIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                </div>
             </div>
 
             <div className="dataverse-tree__body">
