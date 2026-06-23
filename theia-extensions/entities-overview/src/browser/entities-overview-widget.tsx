@@ -1170,14 +1170,34 @@ export class EntitiesOverviewWidget extends TreeWidget {
     }
 
     protected async openAdvancedDialog(): Promise<void> {
-        const profile = this.appStateService.completeProfile ?? this.appStateService.profile
-        const catalog = buildAdvancedFilterCatalog(this.appStateService.roCrate, profile)
-        const availableTypes = this.model.getAvailableTypes()
+        const loadMask = this.loadMaskService.show({
+            message: 'Preparing advanced filters…',
+            delay: 0,
+        })
+        let prepared:
+            | {
+                  catalog: ReturnType<typeof buildAdvancedFilterCatalog>
+                  availableTypes: string[]
+              }
+            | undefined
+        try {
+            await this.nextAnimationFrame()
+            const profile = this.appStateService.completeProfile ?? this.appStateService.profile
+            prepared = {
+                catalog: buildAdvancedFilterCatalog(this.appStateService.roCrate, profile),
+                availableTypes: this.model.getAvailableTypes(),
+            }
+        } finally {
+            loadMask.dispose()
+        }
+        if (!prepared) {
+            return
+        }
 
         const dialog = new AdvancedFiltersDialog(
-            catalog,
+            prepared.catalog,
             this.advancedFilterState,
-            availableTypes,
+            prepared.availableTypes,
             this.appStateService.roCrate,
         )
 
@@ -1192,11 +1212,11 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
             this.advancedEntityMatcher = buildAdvancedEntityMatcher(
                 result,
-                catalog,
+                prepared.catalog,
                 this.appStateService.roCrate,
             )
 
-            this.advancedRuleCount = countActiveAdvancedRules(result, catalog)
+            this.advancedRuleCount = countActiveAdvancedRules(result, prepared.catalog)
             await this.applyAdvancedFilters()
         }
     }
