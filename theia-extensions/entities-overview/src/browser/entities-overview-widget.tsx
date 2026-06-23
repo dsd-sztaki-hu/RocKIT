@@ -1162,6 +1162,10 @@ export class EntitiesOverviewWidget extends TreeWidget {
         }
 
         this.filterMode = mode
+        if (mode === 'advanced' && (this.advancedEntityMatcher || this.advancedRuleCount > 0)) {
+            void this.applyAdvancedFilters()
+            return
+        }
         this.applyFilters()
     }
 
@@ -1193,7 +1197,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
             )
 
             this.advancedRuleCount = countActiveAdvancedRules(result, catalog)
-            this.applyAdvancedFilters()
+            await this.applyAdvancedFilters()
         }
     }
 
@@ -1276,8 +1280,21 @@ export class EntitiesOverviewWidget extends TreeWidget {
         )
     }
 
-    protected applyAdvancedFilters(): void {
-        this.applyFilters()
+    protected async applyAdvancedFilters(): Promise<void> {
+        const loadMask = this.loadMaskService.show({
+            message: 'Filtering entities…',
+            delay: 0,
+        })
+        try {
+            await this.nextAnimationFrame()
+            this.applyFilters()
+        } finally {
+            loadMask.dispose()
+        }
+    }
+
+    protected nextAnimationFrame(): Promise<void> {
+        return new Promise((resolve) => window.requestAnimationFrame(() => resolve()))
     }
 
     protected getActiveFilters(): {
