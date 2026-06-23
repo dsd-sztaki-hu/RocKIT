@@ -5,7 +5,12 @@ import { APPLICATION_RESET_PATH, ApplicationResetService } from '../common/appli
 import { SecureStorageService, SECURE_STORAGE_PATH } from '../common/secure-storage-protocol'
 import { ApplicationResetServiceImpl } from './application-reset-service-impl'
 import { RocrateMcpDaemonManager } from './rocrate-mcp-daemon-manager'
+import { initializeRockitApplicationEnvironment } from './rockit-application-environment'
 import { SecureStorageServiceImpl } from './secure-storage-service-impl'
+
+// EnvVariablesServer snapshots process.env when it is constructed. Initialize
+// at module load time, before Theia resolves backend services and contributions.
+initializeRockitApplicationEnvironment()
 
 export default new ContainerModule((bind) => {
   bind(ApplicationResetService).to(ApplicationResetServiceImpl).inSingletonScope()
