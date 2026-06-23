@@ -373,13 +373,13 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     if (!this.firstMeaningfulString(root.title, root.name)) {
       missing.push('Title')
     }
-    if (!this.extractAuthors(root, graph).length) {
+    if (!this.hasCompleteAuthors(root, graph)) {
       missing.push('Author Name')
     }
-    if (!this.extractContactEmails(root, graph).length) {
+    if (!this.hasCompleteContactEmails(root, graph)) {
       missing.push('Point of Contact Email')
     }
-    if (!this.extractDescriptions(root, graph).length) {
+    if (!this.hasCompleteDescriptions(root, graph)) {
       missing.push('Description Text')
     }
     if (!this.readStrings(root.subject).length) {
@@ -388,47 +388,109 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     return missing
   }
 
-  protected extractAuthors(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
-    return this.uniqueStrings([
-      ...this.resolveEntities(root.author, graph).flatMap((author) =>
-        this.readStrings(author.authorName ?? author.name),
-      ),
-      ...this.readStrings(root.author).filter((value) => !this.looksLikeEntityId(value)),
+  protected hasCompleteAuthors(root: RoCrateEntity, graph: RoCrateEntity[]): boolean {
+    const authorReferences = this.resolveEntityReferences(root.author, graph)
+    const authorEntities = this.uniqueEntities([
+      ...authorReferences.entities,
+      ...this.entitiesWithType(graph, 'author'),
     ])
+    if (
+      authorEntities.some(
+        (author) => !this.firstMeaningfulString(author.authorName),
+      )
+    ) {
+      return false
+    }
+    return (
+      authorEntities.length > 0 ||
+      authorReferences.literals.some((value) => !this.looksLikeEntityId(value))
+    )
   }
 
-  protected extractContactEmails(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
-    return this.uniqueStrings([
-      ...this.resolveEntities(root.datasetContact ?? root.contactPoint, graph).flatMap(
-        (contact) => this.readStrings(contact.datasetContactEmail ?? contact.email),
-      ),
-      ...this.readStrings(root.datasetContactEmail),
+  protected hasCompleteContactEmails(
+    root: RoCrateEntity,
+    graph: RoCrateEntity[],
+  ): boolean {
+    const contactReferences = this.resolveEntityReferences(
+      root.datasetContact ?? root.contactPoint,
+      graph,
+    )
+    const contactEntities = this.uniqueEntities([
+      ...contactReferences.entities,
+      ...this.entitiesWithType(graph, 'datasetContact'),
     ])
+    if (
+      contactEntities.some(
+        (contact) =>
+          !this.firstMeaningfulString(contact.datasetContactEmail) ||
+          this.readStrings(contact.datasetContactEmail).some(
+            (email) => !this.isValidEmail(email),
+          ),
+      )
+    ) {
+      return false
+    }
+    return (
+      contactEntities.length > 0 ||
+      this.readStrings(root.datasetContactEmail).some((email) =>
+        this.isValidEmail(email),
+      ) ||
+      contactReferences.literals.some(
+        (value) => !this.looksLikeEntityId(value) && this.isValidEmail(value),
+      )
+    )
   }
 
-  protected extractDescriptions(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
-    return this.uniqueStrings([
-      ...this.resolveEntities(root.dsDescription, graph).flatMap((description) =>
-        this.readStrings(
-          description.dsDescriptionValue ?? description.description ?? description.name,
-        ),
-      ),
-      ...this.readStrings(root.description),
+  protected hasCompleteDescriptions(root: RoCrateEntity, graph: RoCrateEntity[]): boolean {
+    const descriptionReferences = this.resolveEntityReferences(root.dsDescription, graph)
+    const descriptionEntities = this.uniqueEntities([
+      ...descriptionReferences.entities,
+      ...this.entitiesWithType(graph, 'dsDescription'),
     ])
+    if (
+      descriptionEntities.some(
+        (description) =>
+          !this.firstMeaningfulString(description.dsDescriptionValue),
+      )
+    ) {
+      return false
+    }
+    return (
+      descriptionEntities.length > 0 ||
+      this.firstMeaningfulString(root.description) !== undefined ||
+      descriptionReferences.literals.some((value) => !this.looksLikeEntityId(value))
+    )
   }
 
-  protected resolveEntities(value: unknown, graph: RoCrateEntity[]): RoCrateEntity[] {
+  protected resolveEntityReferences(
+    value: unknown,
+    graph: RoCrateEntity[],
+  ): { entities: RoCrateEntity[]; literals: string[] } {
     if (Array.isArray(value)) {
-      return value.flatMap((item) => this.resolveEntities(item, graph))
+      const resolved = value.map((item) => this.resolveEntityReferences(item, graph))
+      return {
+        entities: resolved.flatMap((item) => item.entities),
+        literals: this.uniqueStrings(resolved.flatMap((item) => item.literals)),
+      }
     }
     if (value && typeof value === 'object') {
       const entity = value as RoCrateEntity
       const linkedEntity = this.readStrings(entity['@id'])
         .map((id) => graph.find((graphEntity) => graphEntity['@id'] === id))
         .find((graphEntity): graphEntity is RoCrateEntity => !!graphEntity)
-      return linkedEntity ? [linkedEntity] : [entity]
+      return { entities: [linkedEntity ?? entity], literals: [] }
     }
-    return []
+    const literals = this.readStrings(value)
+    const entities = literals
+      .map((id) => graph.find((graphEntity) => graphEntity['@id'] === id))
+      .filter((entity): entity is RoCrateEntity => !!entity)
+    const resolvedEntityIds = new Set(
+      entities.flatMap((entity) => this.readStrings(entity['@id'])),
+    )
+    return {
+      entities,
+      literals: literals.filter((literal) => !resolvedEntityIds.has(literal)),
+    }
   }
 
   protected readGraph(crate: unknown): RoCrateEntity[] {
@@ -464,12 +526,36 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     return Array.from(new Set(values.filter((value) => value.trim() !== '')))
   }
 
+  protected uniqueEntities(entities: RoCrateEntity[]): RoCrateEntity[] {
+    const seen = new Set<string>()
+    const unique: RoCrateEntity[] = []
+    for (const entity of entities) {
+      const key = this.readStrings(entity['@id'])[0]
+      if (key && seen.has(key)) {
+        continue
+      }
+      if (key) {
+        seen.add(key)
+      }
+      unique.push(entity)
+    }
+    return unique
+  }
+
+  protected entitiesWithType(graph: RoCrateEntity[], typeName: string): RoCrateEntity[] {
+    return graph.filter((entity) => this.readStrings(entity['@type']).includes(typeName))
+  }
+
   protected looksLikeEntityId(value: string): boolean {
     return (
       value.startsWith('#') ||
       value.startsWith('./') ||
       /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)
     )
+  }
+
+  protected isValidEmail(value: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
   }
 
   // Handles single item deletion from the Action column
