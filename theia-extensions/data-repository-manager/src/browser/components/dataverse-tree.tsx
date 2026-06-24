@@ -20,6 +20,7 @@ type TreeNode = {
     parentAlias?: string;
     children: TreeNode[];
     childrenLoaded: boolean;
+    hasChildren: boolean;
     isFolder: boolean;
     expanded: boolean;
     disabled: boolean;
@@ -36,7 +37,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
     const [expandedNodes, setExpandedNodes] = useState<string[]>([]);
 
     const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [loadingNodeId, setLoadingNodeId] = useState<string | null>(null);
+    const [loadingNodeIds, setLoadingNodeIds] = useState<Set<string>>(new Set());
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     const [rawSearchInput, setRawSearchInput] = useState('');
@@ -49,39 +50,12 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
         alias: collection.alias,
         parentAlias: collection.parentAlias,
         children: [],
-        childrenLoaded: false,
-        isFolder: true,
+        childrenLoaded: !collection.hasChildren,
+        hasChildren: collection.hasChildren,
+        isFolder: collection.hasChildren,
         expanded: false,
         disabled: false
     });
-
-    const toTreeData = (collections: any[]): TreeNode[] => {
-        const nodesByAlias = new Map<string, TreeNode>();
-        for (const collection of collections) {
-            const node = toTreeNode(collection);
-            nodesByAlias.set(node.alias, node);
-        }
-
-        const roots: TreeNode[] = [];
-        for (const node of nodesByAlias.values()) {
-            const parentAlias = node.parentAlias?.trim();
-            const parent = parentAlias ? nodesByAlias.get(parentAlias) : undefined;
-            if (parent && parent.alias !== node.alias) {
-                parent.children.push(node);
-                parent.childrenLoaded = true;
-                continue;
-            }
-            roots.push(node);
-        }
-
-        for (const node of nodesByAlias.values()) {
-            if (node.children.length > 0) {
-                node.childrenLoaded = true;
-            }
-        }
-
-        return roots;
-    };
 
     const replaceNode = (
         nodes: TreeNode[],
@@ -103,10 +77,10 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
         setIsLoading(true);
         setExpandedNodes([]);
         
-        props.collectionService.getChildCollections()
+        props.collectionService.getRootCollections()
             .then(res => {
                 if (ignore) return;
-                const newData = toTreeData(res);
+                const newData = res.map(toTreeNode);
                 setTreeData(newData);
                 setIsLoading(false);
             })
@@ -120,8 +94,47 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
         return () => { ignore = true; };
     }, [props.collectionService]);
 
-    const handleToggle = (event: React.SyntheticEvent, nodeIds: string[]) => {
+    const findNode = (nodes: TreeNode[], nodeId: string): TreeNode | undefined => {
+        for (const node of nodes) {
+            if (node.id === nodeId) return node;
+            const child = findNode(node.children, nodeId);
+            if (child) return child;
+        }
+        return undefined;
+    };
+
+    const loadChildren = async (node: TreeNode) => {
+        if (node.childrenLoaded || !node.hasChildren || loadingNodeIds.has(node.id)) return;
+
+        setLoadingNodeIds(prev => new Set(prev).add(node.id));
+        try {
+            const children = await props.collectionService.getChildCollections(node.alias);
+            setTreeData(prev => replaceNode(prev, node.id, current => ({
+                ...current,
+                children: children.map(toTreeNode),
+                childrenLoaded: true,
+                hasChildren: children.length > 0,
+                isFolder: children.length > 0
+            })));
+        } catch (err: any) {
+            console.error("DataverseTree child load error:", err);
+            setErrorMsg(`Failed to load child collections for ${node.name}: ${err.message || "Unknown error"}`);
+        } finally {
+            setLoadingNodeIds(prev => {
+                const next = new Set(prev);
+                next.delete(node.id);
+                return next;
+            });
+        }
+    };
+
+    const handleToggle = (_event: React.SyntheticEvent, nodeIds: string[]) => {
+        const newlyExpanded = nodeIds.filter(id => !expandedNodes.includes(id));
         setExpandedNodes(nodeIds);
+        for (const nodeId of newlyExpanded) {
+            const node = findNode(treeData, nodeId);
+            if (node) void loadChildren(node);
+        }
     };
 
     const onNodeClick = async (node: TreeNode, e: React.MouseEvent) => {
@@ -137,31 +150,6 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
             isWritable: canWrite
         });
 
-        // Toggle expansion if it's a folder
-        if (node.isFolder) {
-            const isExpanded = expandedNodes.includes(node.id);
-            if (isExpanded) {
-                setExpandedNodes(prev => prev.filter(id => id !== node.id));
-            } else {
-                if (!node.childrenLoaded) {
-                    setLoadingNodeId(node.id);
-                    try {
-                        const children = await props.collectionService.getChildCollections(node.alias);
-                        setTreeData(prev => replaceNode(prev, node.id, current => ({
-                            ...current,
-                            children: children.map(toTreeNode),
-                            childrenLoaded: true
-                        })));
-                    } catch (err: any) {
-                        console.error("DataverseTree child load error:", err);
-                        setErrorMsg(`Failed to load child collections for ${node.name}: ${err.message || "Unknown error"}`);
-                    } finally {
-                        setLoadingNodeId(null);
-                    }
-                }
-                setExpandedNodes(prev => [...prev, node.id]);
-            }
-        }
     };
 
     const { filteredNodes, searchExpandedIds } = useMemo(() => {
@@ -211,9 +199,6 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                             <DataverseIcon />
                         </span>
                         <span>{node.name}</span>
-                        {loadingNodeId === node.id && (
-                            <CircularProgress size={12} style={{ marginLeft: 8, color: 'var(--theia-focusBorder)' }} />
-                        )}
                     </div>
                 }
                 sx={{
@@ -242,7 +227,29 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                     }
                 }}
             >
-                {Array.isArray(node.children) && node.children.length > 0 && renderTree(node.children)}
+                {node.hasChildren
+                    ? node.childrenLoaded
+                        ? renderTree(node.children)
+                        : (
+                            <TreeItem
+                                nodeId={`${node.id}::__loading-placeholder`}
+                                label={loadingNodeIds.has(node.id)
+                                    ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' }}>
+                                            <CircularProgress
+                                                size={14}
+                                                style={{ color: 'var(--theia-focusBorder)' }}
+                                            />
+                                            <span style={{ color: 'var(--theia-descriptionForeground)' }}>
+                                                Loading collections...
+                                            </span>
+                                        </div>
+                                    )
+                                    : ''}
+                                sx={{ display: loadingNodeIds.has(node.id) ? 'block' : 'none' }}
+                            />
+                        )
+                    : undefined}
             </TreeItem>
         ));
 
