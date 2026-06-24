@@ -21,7 +21,7 @@ import { RemoteSchemaProviderSelectorDialog } from './components/remote-schema-p
 import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-import-from-url-dialog'
 import { DeleteConfirmationDialog } from './components/delete-confirmation-dialog'
 import type { SchemaInfo } from './types'
-import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
+import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
 
 import './styles/index.css'
 
@@ -56,7 +56,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.title.label = METADATA_SCHEMA_MANAGER_LABEL
         this.title.caption = METADATA_SCHEMA_MANAGER_LABEL
         this.title.closable = true
-        this.title.iconClass = 'fa fa-file-code'
+        this.title.iconClass = 'fa fa-table'
         this.node.tabIndex = 0
 
         this.toDispose.push(this.schemaManagerService.onDidChangeSchemas(() => this.loadSchemas()))

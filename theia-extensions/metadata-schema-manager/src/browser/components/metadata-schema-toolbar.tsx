@@ -45,7 +45,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
             title={title}
         >
             <span className="schema-toolbar__btn-icon">{icon}</span>
-            {label}
+            <span className="schema-toolbar__btn-label">{label}</span>
         </button>
     );
 
@@ -115,7 +115,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                         <span className="schema-toolbar__btn-icon">
                             <DeleteOutlineIcon className="schema-toolbar__icon-svg" />
                         </span>
-                        Delete ({selectedCount})
+                        <span className="schema-toolbar__btn-label">Delete ({selectedCount})</span>
                     </button>
                 </div>
             )}

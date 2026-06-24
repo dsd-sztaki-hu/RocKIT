@@ -1,7 +1,7 @@
 import { injectable, inject } from '@theia/core/shared/inversify'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
-import type { MetadataSchemaManager } from 'aroma2-common/lib/browser'
+import type { MetadataSchemaManager } from 'rockit-common/lib/browser'
 import { MultiEditDialog } from './multi-edit-dialog'
 
 @injectable()

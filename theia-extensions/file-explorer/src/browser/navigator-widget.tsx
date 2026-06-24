@@ -44,7 +44,7 @@ import {
   AntdThemeProvider,
   getSharedDatasetIconClass,
   getSharedFileIconClass,
-} from 'aroma2-common/lib/browser'
+} from 'rockit-common/lib/browser'
 import { DataSourceService } from 'data-sources/lib/browser/data-source-service'
 import { AbstractNavigatorTreeWidget } from './abstract-navigator-tree-widget'
 import { NavigatorContextKeyService } from './navigator-context-key-service'

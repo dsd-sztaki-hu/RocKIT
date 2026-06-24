@@ -18,7 +18,7 @@ type SingleEntityDropPayload = {
     source?: 'entities-overview'
 }
 
-const ENTITIES_OVERVIEW_DND_MIME = 'application/x-aroma-entity-drag'
+const ENTITIES_OVERVIEW_DND_MIME = 'application/x-rockit-entity-drag'
 
 export const DescriboCrateBuilderWrapper = ({
                                                 crate,
@@ -87,7 +87,7 @@ export const DescriboCrateBuilderWrapper = ({
             }
         }
 
-        const globalPayload = (globalThis as any).__aromaEntityDragPayload as
+        const globalPayload = (globalThis as any).__rockitEntityDragPayload as
             | EntityOverviewDropPayload
             | undefined
 

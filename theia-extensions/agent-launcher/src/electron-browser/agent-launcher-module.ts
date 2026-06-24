@@ -10,10 +10,12 @@ import {
   NativeAgentSessionEvent,
   NATIVE_AGENT_SERVICE_PATH,
 } from '../common/native-agent-protocol'
+import { bindAgentLauncherPreferences } from '../common/agent-launcher-preferences'
 import { AgentLauncherContribution } from './agent-launcher-contribution'
 import { NativeAgentChatWidget, NativeAgentChatWidgetOptions } from './native-agent-chat-widget'
 
 export default new ContainerModule((bind) => {
+  bindAgentLauncherPreferences(bind)
   bind(NativeAgentService)
     .toDynamicValue((ctx): NativeAgentService => {
       const connectionProvider = ctx.container.get(WebSocketConnectionProvider)

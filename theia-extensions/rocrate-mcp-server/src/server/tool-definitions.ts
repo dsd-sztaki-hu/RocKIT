@@ -56,6 +56,65 @@ export const CHANGE_SET_INPUT_SCHEMA: Record<string, unknown> = {
 
 export const tools: ToolDefinition[] = [
   {
+    name: 'set_agent_session_context',
+    description:
+      'Set per-session agent launch context. Agents launched from AROMA should call this with launchContext="inside_aroma" before reading workflow docs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        launchContext: {
+          type: 'string',
+          enum: ['inside_aroma', 'external'],
+          description: 'Where the agent session was launched from.',
+        },
+        aromaAlreadyOpen: {
+          type: 'boolean',
+          description:
+            'Whether AROMA is already open for this editing workflow. Defaults to true for inside_aroma.',
+        },
+      },
+      required: ['launchContext'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'read_agent_workflow_doc',
+    description:
+      'Read RO-Crate agent workflow guidance bundled with this MCP server. Call without name first to read rocrate_workflow.md, then read referenced step docs before editing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description:
+            'Workflow doc name. Defaults to rocrate_workflow.md. Use returned availableDocs for valid names.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'open_aroma_for_local_file',
+    description:
+      'Register a local ro-crate-metadata.json file with the local bridge and return an online AROMA URL that can read, save, and auto-refresh that file.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Absolute or relative path to a local ro-crate-metadata.json file.',
+        },
+        aromaBaseUrl: {
+          type: 'string',
+          description:
+            'Optional online AROMA base URL. Defaults to https://repo.researchdata.hu/aroma.',
+        },
+      },
+      required: ['path'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'search',
     description:
       'Search the web using Tavily. Requires TAVILY_API_KEY environment variable.',
@@ -90,6 +149,117 @@ export const tools: ToolDefinition[] = [
       },
       required: ['url'],
       additionalProperties: false,
+    },
+  },
+  {
+    name: 'list_well_known_schemas',
+    description:
+      'Browse/search configured CEDAR registry providers for well-known Dataverse metadata schemas.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string' },
+        rootPath: {
+          type: 'string',
+          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+        },
+        provider: { type: 'object' },
+      },
+    },
+  },
+  {
+    name: 'list_remote_schema_tree',
+    description:
+      'Browse configured CEDAR providers as a folder tree and list only unimported template leaves for profile selection.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Optional case-insensitive filter matched against folder/template paths.',
+        },
+        maxDepth: {
+          type: 'number',
+          description: 'Maximum CEDAR folder depth to traverse. Default 4, maximum 8.',
+        },
+        maxNodes: {
+          type: 'number',
+          description: 'Maximum folders/templates to return. Default 200, maximum 1000.',
+        },
+        rootPath: {
+          type: 'string',
+          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+        },
+        provider: { type: 'object' },
+      },
+    },
+  },
+  {
+    name: 'import_well_known_schema',
+    description:
+      'Import a well-known CEDAR schema by name/template URL/conformsTo into the shared metadata profile store.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        templateIdOrUrl: { type: 'string' },
+        url: { type: 'string' },
+        conformsTo: { type: 'string' },
+        rootPath: {
+          type: 'string',
+          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+        },
+        provider: { type: 'object' },
+      },
+    },
+  },
+  {
+    name: 'list_metadata_profiles',
+    description:
+      'List persisted CEDAR/recrate metadata profiles from the shared metadata-schema-index.json store.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rootPath: {
+          type: 'string',
+          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+        },
+      },
+    },
+  },
+  {
+    name: 'import_metadata_profile',
+    description:
+      'Import a CEDAR metadata profile from a direct URL or local source path into the shared profile store.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string' },
+        sourcePath: { type: 'string' },
+        conformsTo: { type: 'string' },
+        rootPath: {
+          type: 'string',
+          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+        },
+        provider: { type: 'object' },
+      },
+    },
+  },
+  {
+    name: 'delete_metadata_profile',
+    description:
+      'Delete one persisted CEDAR/recrate metadata profile and its source/converted files. Requires confirmDestructive=true.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        rootPath: {
+          type: 'string',
+          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+        },
+        confirmDestructive: { type: 'boolean' },
+      },
+      required: ['id', 'confirmDestructive'],
     },
   },
   {
@@ -186,6 +356,38 @@ export const tools: ToolDefinition[] = [
           description: 'Path to ro-crate-metadata.json in local mode.',
         },
         crate: { type: 'object', description: 'RO-Crate JSON payload in remote mode.' },
+        responseMode: { type: 'string', enum: ['summary', 'full'] },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'create_default_rocrate',
+    description:
+      'Create an initial ro-crate-metadata.json for a directory that does not yet have one. Scans files, bootstraps .aroma/ignored.txt, and writes metadata atomically.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        directoryPath: {
+          type: 'string',
+          description: 'Directory to scan and initialize as an RO-Crate.',
+        },
+        cratePath: {
+          type: 'string',
+          description:
+            'Alternative target. May be a directory or a ro-crate-metadata.json path; the containing directory is initialized.',
+        },
+        overwrite: {
+          type: 'boolean',
+          description:
+            'If true, replace an existing ro-crate-metadata.json. Default false.',
+        },
+        writeIgnoredFile: {
+          type: 'boolean',
+          description:
+            'If false, skip writing .aroma/ignored.txt. Default true.',
+        },
+        indent: { type: 'number' },
         responseMode: { type: 'string', enum: ['summary', 'full'] },
       },
       additionalProperties: false,

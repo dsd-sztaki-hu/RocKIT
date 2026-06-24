@@ -19,8 +19,8 @@ import {
     getSharedDatasetIconClass,
     getSharedFileIconClass,
     RoCrateEntityDeleteService,
-} from 'aroma2-common/lib/browser'
-import { AntdThemeProvider } from 'aroma2-common/lib/browser/antd-theme-provider'
+} from 'rockit-common/lib/browser'
+import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
 import { MultiEditDialogService } from 'multi-edit/lib/browser/multi-edit-dialog-service'
 import { inject, injectable } from 'inversify'
 import * as mime from 'mime-types'
@@ -479,14 +479,14 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         void this.openRoCrateEditor(entityId)
     }
 
-    protected selectSingle(entityId: string, nodeKey?: React.Key): void {
+    protected selectSingle(entityId: string, _nodeKey?: React.Key): void {
         this.selectedEntityIds = new Set([entityId])
-        this.selectedKeys = nodeKey !== undefined ? [nodeKey] : []
+        this.syncSelectedKeysFromEntityIds()
         this.lastSelectedEntityId = entityId
         this.update()
     }
 
-    protected toggleSelection(entityId: string, nodeKey?: React.Key): void {
+    protected toggleSelection(entityId: string, _nodeKey?: React.Key): void {
         if (this.selectedEntityIds.has(entityId)) {
             this.selectedEntityIds.delete(entityId)
             if (this.lastSelectedEntityId === entityId) {
@@ -497,27 +497,18 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             this.lastSelectedEntityId = entityId
         }
 
-        if (nodeKey !== undefined) {
-            if (this.selectedKeys.includes(nodeKey)) {
-                this.selectedKeys = this.selectedKeys.filter((key) => key !== nodeKey)
-            } else {
-                this.selectedKeys = [...this.selectedKeys, nodeKey]
-            }
-        }
-
+        this.syncSelectedKeysFromEntityIds()
         this.update()
     }
 
-    protected selectRange(entityId: string, nodeKey?: React.Key): void {
+    protected selectRange(entityId: string, _nodeKey?: React.Key): void {
         const visibleRows = this.getVisibleEntityRows()
         const clickedIndex = visibleRows.findIndex((row) => row.entityId === entityId)
         if (clickedIndex < 0) {
             if (!this.selectedEntityIds.has(entityId)) {
                 this.selectedEntityIds.add(entityId)
             }
-            if (nodeKey !== undefined && !this.selectedKeys.includes(nodeKey)) {
-                this.selectedKeys = [...this.selectedKeys, nodeKey]
-            }
+            this.syncSelectedKeysFromEntityIds()
             this.lastSelectedEntityId = entityId
             this.update()
             return
@@ -531,9 +522,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             if (!this.selectedEntityIds.has(entityId)) {
                 this.selectedEntityIds.add(entityId)
             }
-            if (nodeKey !== undefined && !this.selectedKeys.includes(nodeKey)) {
-                this.selectedKeys = [...this.selectedKeys, nodeKey]
-            }
+            this.syncSelectedKeysFromEntityIds()
             this.lastSelectedEntityId = entityId
             this.update()
             return
@@ -544,12 +533,34 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         const range = visibleRows.slice(start, end + 1)
         for (const row of range) {
             this.selectedEntityIds.add(row.entityId)
-            if (!this.selectedKeys.includes(row.nodeKey)) {
-                this.selectedKeys = [...this.selectedKeys, row.nodeKey]
-            }
         }
+        this.syncSelectedKeysFromEntityIds()
         this.lastSelectedEntityId = entityId
         this.update()
+    }
+
+    protected syncSelectedKeysFromEntityIds(): void {
+        const selectedKeys: React.Key[] = []
+        const visit = (node: TreeDataNode): void => {
+            const typedNode = node as TreeDataNode & {
+                entityId?: string
+                children?: TreeDataNode[]
+            }
+            if (
+                typedNode.entityId &&
+                node.key !== undefined &&
+                this.selectedEntityIds.has(typedNode.entityId)
+            ) {
+                selectedKeys.push(node.key)
+            }
+            for (const child of typedNode.children ?? []) {
+                visit(child)
+            }
+        }
+        for (const rootNode of this.getCurrentTreeData()) {
+            visit(rootNode)
+        }
+        this.selectedKeys = selectedKeys
     }
 
     protected getVisibleEntityRows(): Array<{ entityId: string; nodeKey: React.Key }> {
@@ -1053,7 +1064,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                       }}
                       onDragEnd={(event) => {
                           event.stopPropagation()
-                          ;(globalThis as any).__aromaEntityDragPayload = undefined
+                          ;(globalThis as any).__rockitEntityDragPayload = undefined
                       }}
                       onDoubleClick={(event) => {
                           if (!entityId) {
@@ -1249,12 +1260,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             source: 'ro-crate-structure-panel',
         }
 
-        event.dataTransfer?.setData('application/x-aroma-entity-drag', JSON.stringify(payload))
+        event.dataTransfer?.setData('application/x-rockit-entity-drag', JSON.stringify(payload))
         event.dataTransfer?.setData('text/plain', JSON.stringify(payload))
         if (event.dataTransfer) {
             event.dataTransfer.effectAllowed = 'copyMove'
         }
-        ;(globalThis as any).__aromaEntityDragPayload = payload
+        ;(globalThis as any).__rockitEntityDragPayload = payload
     }
 
     protected async handleEntityDropAsync(
@@ -1301,13 +1312,13 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         dataTransfer: DataTransfer,
     ): StructureEntityDragPayload | undefined {
         const rawPayload =
-            dataTransfer.getData('application/x-aroma-entity-drag') ||
+            dataTransfer.getData('application/x-rockit-entity-drag') ||
             dataTransfer.getData('text/plain')
         const parsed = this.parseEntityDragPayload(rawPayload)
         if (parsed) {
             return parsed
         }
-        return this.parseEntityDragPayload((globalThis as any).__aromaEntityDragPayload)
+        return this.parseEntityDragPayload((globalThis as any).__rockitEntityDragPayload)
     }
 
     protected parseEntityDragPayload(value: unknown): StructureEntityDragPayload | undefined {

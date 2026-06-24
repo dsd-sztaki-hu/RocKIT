@@ -9,13 +9,13 @@ import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { MetadataSchemaManager, RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { MetadataSchemaManager, RoCrateHtmlGenerator, readUtf8TextFile, writeUtf8TextFile } from 'rockit-common/lib/browser'
 import {
-    AROMA_IGNORE_DIR,
-    AROMA_IGNORE_FILE,
+    ROCKIT_IGNORE_DIR,
+    ROCKIT_IGNORE_FILE,
     DEFAULT_IGNORED_ENTRIES,
     RO_CRATE_PREVIEW_FILE,
-} from 'aroma2-common/lib/common/ro-crate-technical-files'
+} from 'rockit-common/lib/common/ro-crate-technical-files'
 import {
     AppStatePreferences,
     ROCrateExternalChangeAction,
@@ -254,6 +254,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             this.fileService,
             this.roCrateHtmlGenerator,
             this.commandService,
+            this.messageService,
             jsonExists,
         )
         await dialog.open()
@@ -295,8 +296,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     }
 
     private async readRoCrateJson(metadataUri: URI): Promise<Record<string, any>> {
-        const content = await this.fileService.read(metadataUri)
-        return JSON.parse(content.value)
+        return JSON.parse(await readUtf8TextFile(this.fileService, metadataUri))
     }
 
     private async ensureRelativeIdsIfNeeded(
@@ -552,8 +552,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
         let parsed: Record<string, any>
         try {
-            const content = await this.fileService.read(metadataUri)
-            parsed = JSON.parse(content.value)
+            parsed = await this.readRoCrateJson(metadataUri)
         } catch (error) {
             await this.promptToRestoreInvalidMetadata(metadataUri)
             return
@@ -675,13 +674,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             const previewUri = metadataUri.parent.resolve(RO_CRATE_PREVIEW_FILE)
 
             this.lastKnownMetadataJson = this.normalizeCrate(crate)
-            await this.fileService.create(metadataUri, JSON.stringify(crate, null, 2), {
-                overwrite: true,
-            })
+            await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(crate, null, 2))
             await this.writeRoCrateApprovalFile(metadataUri, approval)
             await this.deleteLegacyRoCrateApprovalFile(metadataUri)
             const htmlContent = this.roCrateHtmlGenerator.generate(crate)
-            await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+            await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
         } catch (error) {
             console.error('Failed to restore RO-Crate metadata from app state:', error)
             this.messageService.error(failureMessage)
@@ -760,9 +757,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         if (!(await this.fileService.exists(approvalDirUri))) {
             await this.fileService.createFolder(approvalDirUri)
         }
-        await this.fileService.create(approvalUri, JSON.stringify(approval ?? [], null, 2), {
-            overwrite: true,
-        })
+        await writeUtf8TextFile(this.fileService, approvalUri, JSON.stringify(approval ?? [], null, 2))
     }
 
     protected async deleteLegacyRoCrateApprovalFile(metadataUri: URI): Promise<void> {
@@ -1204,7 +1199,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     }
 
     protected async syncIgnoredEntriesFromWorkspace(rootUri: URI): Promise<void> {
-        const ignoredUri = rootUri.resolve(AROMA_IGNORE_DIR).resolve(AROMA_IGNORE_FILE)
+        const ignoredUri = rootUri.resolve(ROCKIT_IGNORE_DIR).resolve(ROCKIT_IGNORE_FILE)
         const current = await this.readIgnoredEntries(ignoredUri)
         const next = this.withDefaultIgnoredEntries(current)
         this.appStateService.ignoreList = next.length ? next : undefined

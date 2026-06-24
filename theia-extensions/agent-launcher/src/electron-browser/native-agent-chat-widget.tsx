@@ -11,6 +11,7 @@ import { MessageService } from '@theia/core/lib/common/message-service'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
+import { writeUtf8TextFile } from 'rockit-common/lib/browser'
 import { inject, injectable, optional } from '@theia/core/shared/inversify'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
@@ -1561,9 +1562,7 @@ export class NativeAgentChatWidget extends ReactWidget {
     }
     const pendingContent = await this.fileService.read(FileUri.create(candidate.tempPath))
     const crate = JSON.parse(pendingContent.value)
-    await this.fileService.create(metadataUri, JSON.stringify(crate, null, 2), {
-      overwrite: true,
-    })
+    await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(crate, null, 2))
     this.appStateService.roCrate = crate
     this.appStateService.setRoCrateSnapshot(crate)
     this.appStateService.dirty = false

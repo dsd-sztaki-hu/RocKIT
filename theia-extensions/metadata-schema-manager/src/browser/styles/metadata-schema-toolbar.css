@@ -31,6 +31,7 @@
 .schema-toolbar__btn {
     display: flex;
     align-items: center;
+    flex-shrink: 0;
     gap: 6px;
     padding: 4px 12px;
     font-size: var(--theia-ui-font-size1);
@@ -106,4 +107,25 @@
 
 .schema-toolbar__icon-svg--large {
     font-size: 20px !important;
+}
+
+@container (max-width: 420px) {
+    .schema-toolbar {
+        gap: 4px;
+    }
+
+    .schema-toolbar__btn {
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        padding: 4px;
+    }
+
+    .schema-toolbar__btn-label {
+        display: none;
+    }
+
+    .schema-toolbar__separator {
+        margin: 0 2px;
+    }
 }
