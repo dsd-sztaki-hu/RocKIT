@@ -23,7 +23,6 @@ import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-hist
 import {
     getSharedDatasetIconClass,
     getSharedFileIconClass,
-    MetadataSchemaManager,
     RoCrateEntityDeleteService,
 } from 'rockit-common/lib/browser'
 import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
@@ -88,8 +87,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
         @inject(AppStateService) private readonly appStateService: AppStateService,
         @inject(RoCrateHistoryService)
         private readonly roCrateHistoryService: RoCrateHistoryService,
-        @inject(MetadataSchemaManager)
-        private readonly schemaManagerService: MetadataSchemaManager,
         @inject(RoCrateEntityDeleteService)
         private readonly roCrateEntityDeleteService: RoCrateEntityDeleteService,
         @inject(WidgetManager) private readonly widgetManager: WidgetManager,
@@ -1199,7 +1196,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
         const entityIds =
             selectedEntityIds.length > 0 ? selectedEntityIds : this.model.getVisibleEntityIds()
 
-        await this.multiEditDialogService.open(entityIds, this.schemaManagerService)
+        await this.multiEditDialogService.open(entityIds)
     }
 
     public canOpenEditFromContextMenu(): boolean {
