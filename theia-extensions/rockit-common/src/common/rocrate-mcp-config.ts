@@ -47,12 +47,15 @@ export function getRocrateMcpServerPathCandidates(
 ): string[] {
   const fsPath = getPathForPlatform(options.platform ?? getDefaultPlatform())
   const candidates: string[] = []
+  const resourcesPath =
+    options.resourcesPath ??
+    resolveResourcesPathFromAsarAppProjectPath(options.appProjectPath, fsPath)
 
   if (options.serverPathOverride) {
     candidates.push(options.serverPathOverride)
   }
 
-  if (options.appProjectPath) {
+  if (options.appProjectPath && !isAsarAppProjectPath(options.appProjectPath)) {
     if (
       options.appProjectPath.endsWith('electron-app') ||
       options.appProjectPath.endsWith('browser-app')
@@ -80,10 +83,30 @@ export function getRocrateMcpServerPathCandidates(
     }
   }
 
-  if (options.resourcesPath) {
+  if (resourcesPath) {
     candidates.push(
       fsPath.resolve(
-        options.resourcesPath,
+        resourcesPath,
+        'app.asar',
+        'node_modules',
+        'rocrate-mcp-server',
+        'lib',
+        'server.js',
+      ),
+    )
+    candidates.push(
+      fsPath.resolve(
+        resourcesPath,
+        'app.asar.unpacked',
+        'node_modules',
+        'rocrate-mcp-server',
+        'lib',
+        'server.js',
+      ),
+    )
+    candidates.push(
+      fsPath.resolve(
+        resourcesPath,
         'app',
         'theia-extensions',
         'rocrate-mcp-server',
@@ -93,7 +116,7 @@ export function getRocrateMcpServerPathCandidates(
     )
     candidates.push(
       fsPath.resolve(
-        options.resourcesPath,
+        resourcesPath,
         'theia-extensions',
         'rocrate-mcp-server',
         'lib',
@@ -193,4 +216,20 @@ function getPathForPlatform(platform: NodeJS.Platform): PlatformPath {
     return path.posix
   }
   return (path.win32 as typeof path.win32 | null) ?? browserWindowsPath
+}
+
+function isAsarAppProjectPath(value: string | undefined): boolean {
+  return !!value && /(^|[\\/])app\.asar([\\/]|$)/.test(value)
+}
+
+function resolveResourcesPathFromAsarAppProjectPath(
+  appProjectPath: string | undefined,
+  fsPath: PlatformPath,
+): string | undefined {
+  if (!isAsarAppProjectPath(appProjectPath)) {
+    return undefined
+  }
+  const marker = /[\\/]app\.asar(?:[\\/].*)?$/
+  const resourcesPath = appProjectPath?.replace(marker, '')
+  return resourcesPath && fsPath.isAbsolute(resourcesPath) ? resourcesPath : undefined
 }

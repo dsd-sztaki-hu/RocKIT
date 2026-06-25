@@ -695,6 +695,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       return { command: nodeOverride, env: {} }
     }
 
+    const runtime = this.getElectronRuntimePaths()
+    const locationPath =
+      typeof window === 'undefined' ? undefined : window.location.pathname
+    if (this.isPackagedElectronRuntime(runtime, locationPath)) {
+      return {
+        command: runtime.execPath,
+        env: { ELECTRON_RUN_AS_NODE: '1' },
+      }
+    }
+
     const nodeCommand = await this.findExecutableAbsolutePath(['node'])
     if (nodeCommand) {
       return { command: nodeCommand, env: {} }
@@ -708,7 +718,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       }
     }
 
-    const execPath = this.getElectronRuntimePaths().execPath
+    const execPath = runtime.execPath
     if (execPath) {
       const env: Record<string, string> = {}
       if (processValue?.versions?.electron) {
@@ -718,6 +728,13 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     }
 
     throw new Error('Could not resolve a Node runtime for the RO-Crate MCP server.')
+  }
+
+  protected isPackagedElectronRuntime(
+    runtime: { resourcesPath?: string; execPath?: string },
+    locationPath: string | undefined,
+  ): runtime is { resourcesPath: string; execPath: string } {
+    return !!runtime.resourcesPath && !!runtime.execPath && !!locationPath?.includes('app.asar')
   }
 
   protected async resolveRocrateMcpSocketPath(): Promise<string> {

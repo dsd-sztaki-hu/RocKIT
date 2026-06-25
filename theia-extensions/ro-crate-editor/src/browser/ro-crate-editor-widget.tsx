@@ -414,6 +414,11 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 }
                 console.log('crate update')
                 this.updateTitleLabel()
+                if (!crate) {
+                    this.localRoCrateApproval = undefined
+                    this.update()
+                    return
+                }
                 const entityId = this.getActiveEntityId()
                 if (!entityId) {
                     return
@@ -842,6 +847,47 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     render(): React.ReactNode {
+        if (!this.localCrate) {
+            return (
+                <div
+                    style={{
+                        alignItems: 'center',
+                        boxSizing: 'border-box',
+                        color: 'var(--theia-descriptionForeground)',
+                        display: 'flex',
+                        height: '100%',
+                        justifyContent: 'center',
+                        minHeight: 0,
+                        overflow: 'hidden',
+                        padding: 24,
+                        textAlign: 'center',
+                    }}
+                >
+                    <div>
+                        <div
+                            style={{
+                                color: 'var(--theia-foreground)',
+                                fontSize: 16,
+                                fontWeight: 600,
+                                lineHeight: 1.4,
+                            }}
+                        >
+                            No RO-Crate metadata found
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 13,
+                                lineHeight: 1.45,
+                                marginTop: 8,
+                            }}
+                        >
+                            ro-crate-metadata.json is missing from this workspace.
+                        </div>
+                    </div>
+                </div>
+            )
+        }
+
         return (
             <div
                 style={{

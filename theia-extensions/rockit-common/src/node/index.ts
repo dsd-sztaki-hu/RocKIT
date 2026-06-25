@@ -9,4 +9,5 @@ export * from '../common/default-ro-crate';
 export * from '../common/schema-url-resolution';
 export * from './secure-storage-service-impl';
 export * from './application-reset-service-impl';
+export * from './rockit-application-environment';
 export * from './rocrate-mcp-daemon-manager';
