@@ -14,6 +14,10 @@ import {
   type DefaultRoCrateWorkspaceAdapter,
   writeUtf8TextFile,
 } from 'rockit-common/lib/browser'
+import {
+  RO_CRATE_APPROVAL_FILE,
+  RO_CRATE_APPROVAL_FILE_NAME,
+} from 'rockit-common/lib/common/ro-crate-technical-files'
 import type * as React from 'react'
 import SparkMD5 from 'spark-md5'
 import { Message } from '@lumino/messaging'
@@ -135,6 +139,8 @@ export class ROCrateDialog extends ReactDialog<string> {
     }
 
     const rootUri = roots[0].resource
+    await this.deleteStaleApprovalFiles(rootUri)
+
     const result = await createDefaultRoCrateWorkspace(
       this.createWorkspaceAdapter(rootUri),
     )
@@ -155,6 +161,7 @@ export class ROCrateDialog extends ReactDialog<string> {
     }
 
     await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(roCrate, null, 2))
+    await this.deleteStaleApprovalFiles(rootUri)
 
     try {
       const htmlContent = this.roCrateHtmlGenerator.generate(roCrate)
@@ -164,6 +171,23 @@ export class ROCrateDialog extends ReactDialog<string> {
       this.messageService.warn(
         'The new RO-Crate metadata was created successfully, but the HTML preview could not be generated because the crate is too large.',
       )
+    }
+  }
+
+  protected async deleteStaleApprovalFiles(rootUri: URI): Promise<void> {
+    const approvalUris = [
+      rootUri.resolve(RO_CRATE_APPROVAL_FILE),
+      rootUri.resolve(RO_CRATE_APPROVAL_FILE_NAME),
+    ]
+
+    for (const approvalUri of approvalUris) {
+      try {
+        if (await this.fileService.exists(approvalUri)) {
+          await this.fileService.delete(approvalUri)
+        }
+      } catch (error) {
+        console.warn('Failed to remove stale RO-Crate suggestion file:', error)
+      }
     }
   }
 
