@@ -14,6 +14,8 @@ describe('schema URL resolution helpers', () => {
     expect(buildSchemaFetchCandidates(url)).toEqual([
       url,
       'https://w3id.org/arp/templates/33677b82-7973-3e4c-b09d-b5189e095627',
+      'https://repo.schema.researchdata.hu/templates/33677b82-7973-3e4c-b09d-b5189e095627',
+      'https://resource.schema.researchdata.hu/templates/https%3A%2F%2Frepo.schema.researchdata.hu%2Ftemplates%2F33677b82-7973-3e4c-b09d-b5189e095627',
     ])
     expect(buildRedirectDerivedCandidates(redirectUrl)).toContain(
       'https://resource.schema.researchdata.hu/templates/https%3A%2F%2Frepo.schema.researchdata.hu%2Ftemplates%2F33677b82-7973-3e4c-b09d-b5189e095627',
@@ -79,10 +81,33 @@ describe('schema URL resolution helpers', () => {
     ).toBe('https://resource.example.org')
   })
 
-  it('does not invent a resource host for w3id urls without explicit mapping or provider context', () => {
+  it('does not invent a resource host directly from w3id urls without provider context', () => {
     expect(
       deriveResourceBaseUrl(undefined, 'https://w3id.org/arp/schema/123'),
     ).toBeUndefined()
+  })
+
+  it('builds default ARP candidates for production and dev w3id schema urls without provider context', () => {
+    expect(
+      buildSchemaFetchCandidates(
+        'https://w3id.org/arp/schema/33677b82-7973-3e4c-b09d-b5189e095627',
+      ),
+    ).toContain(
+      'https://resource.schema.researchdata.hu/templates/https%3A%2F%2Frepo.schema.researchdata.hu%2Ftemplates%2F33677b82-7973-3e4c-b09d-b5189e095627',
+    )
+
+    expect(
+      buildSchemaFetchCandidates(
+        'https://w3id.org/arp/dev/schema/33677b82-7973-3e4c-b09d-b5189e095627',
+      ),
+    ).toContain(
+      'https://resource.cedardev.dsd.sztaki.hu/templates/https%3A%2F%2Frepo.cedardev.dsd.sztaki.hu%2Ftemplates%2F33677b82-7973-3e4c-b09d-b5189e095627',
+    )
+
+    expect(buildSchemaFetchCandidates('https://w3id.org/example/schema/123')).toEqual([
+      'https://w3id.org/example/schema/123',
+      'https://w3id.org/example/templates/123',
+    ])
   })
 
   it('decodes the embedded repo template url from an openview redirect', () => {
