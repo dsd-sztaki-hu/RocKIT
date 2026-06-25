@@ -49,6 +49,10 @@
   "scripts": {
     "bundle": "yarn run rebuild && theia build --mode development && yarn run copy:node-pty-agent",
     "copy:node-pty-agent": "node ../scripts/copy-node-pty-agent.js",
+    "fetch:darwin-native": "node ../scripts/fetch-darwin-native.js",
+    "dist:mac:arm64": "yarn run fetch:darwin-native arm64 && electron-builder --mac dmg --arm64",
+    "dist:mac:x64": "yarn run fetch:darwin-native x64 && electron-builder --mac dmg --x64",
+    "dist:mac": "yarn run dist:mac:x64 && yarn run dist:mac:arm64",
     "rebuild": "theia rebuild:electron --cacheRoot ..",
     "start": "theia start",
     "watch": "yarn run rebuild && WATCHPACK_POLLING=true WATCHPACK_POLLING_INTERVAL=1000 theia build --watch --mode development"
