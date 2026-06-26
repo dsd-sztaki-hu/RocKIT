@@ -10251,10 +10251,10 @@ generator-function@^2.0.0:
   resolved "https://registry.npmjs.org/generator-function/-/generator-function-2.0.1.tgz"
   integrity sha512-SFdFmIJi+ybC0vjlHN0ZGVGHc3lgE0DxPAT0djjVg+kjOnSqclqmj0KQ7ykTOLP6YxoqOvuAODGdcHJn+43q3g==
 
-generator-theia-extension@^0.1.47:
-  version "0.1.48"
-  resolved "https://registry.npmjs.org/generator-theia-extension/-/generator-theia-extension-0.1.48.tgz"
-  integrity sha512-/9esaXulJ1huEXbrXVh+zyLsoMXWn/j27wB9UMw3NKJotVQSAvqXIaml0WEnVjyJnsQSgB8A876bM9Hbt8Vp5Q==
+generator-theia-extension@0.1.44:
+  version "0.1.44"
+  resolved "https://registry.npmjs.org/generator-theia-extension/-/generator-theia-extension-0.1.44.tgz"
+  integrity sha512-o9fK2DaJmU+m4dyz93nOtU4Wrf//EtuOTQx3ZOeX6Z7hwqfXslojhOiaDnyXU7o8ZTfOMu05UhM/8faC6KZwXQ==
   dependencies:
     yeoman-generator "^5.0.0"
 
