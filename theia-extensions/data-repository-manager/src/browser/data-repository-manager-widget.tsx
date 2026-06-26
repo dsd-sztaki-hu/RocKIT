@@ -111,6 +111,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const repositories = await this.storeService.loadRepositories()
     this.repositories = repositories
     this.update()
+    const exportTargetsByRepositoryId =
+      await this.arpExportService.listExportTargets(repositories)
 
     // Show repository selector first, matching the UX requested.
     const selector = new DataRepositorySelectorDialog(
@@ -118,6 +120,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.storeService,
       this.dataverseService,
       this.capabilityService,
+      exportTargetsByRepositoryId,
     )
     const repositorySelection = await selector.open()
 
@@ -126,6 +129,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     }
     const selectedRepo = repositorySelection.repository
     const capabilities = repositorySelection.capabilities
+    const selectedExportTarget = repositorySelection.exportTarget
 
     if (!capabilities.supportsNativeDataverseApi) {
       this.messageService.error(
@@ -135,13 +139,13 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       return
     }
 
-    if (capabilities.supportsArpRoCrateZipUpload) {
+    if (capabilities.supportsArpRoCrateZipUpload && selectedExportTarget) {
       const progress = await this.messageService.showProgress({
         text: `Updating the uploaded RO-Crate in ${selectedRepo.title}`,
       })
       try {
         const updateResult =
-          await this.arpExportService.updateArp(selectedRepo, (update) =>
+          await this.arpExportService.updateArp(selectedRepo, selectedExportTarget, (update) =>
             progress.report({
               message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
               work: {

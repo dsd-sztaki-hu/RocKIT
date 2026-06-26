@@ -51,6 +51,7 @@ export interface DataverseCollectionSelection {
 export interface DataRepositorySelection {
     repository: DataRepositoryConfig;
     capabilities: DataRepositoryCapabilities;
+    exportTarget?: DataRepositoryExportTarget;
 }
 
 export type DataRepositoryKind = 'arp-dataverse' | 'dataverse' | 'unknown';
@@ -59,4 +60,14 @@ export interface DataRepositoryCapabilities {
     kind: DataRepositoryKind;
     supportsArpRoCrateZipUpload: boolean;
     supportsNativeDataverseApi: boolean;
+}
+
+export interface DataRepositoryExportTarget {
+    pid: string;
+    target: string;
+    repository: string;
+    mappingFile: string;
+    syncedAt: string;
+    syncType: 'create' | 'update';
+    datasetName?: string;
 }

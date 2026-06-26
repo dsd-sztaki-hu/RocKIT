@@ -10,7 +10,7 @@ import {
   RoCrateExportFileSource,
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import { inject, injectable } from 'inversify'
-import { DataRepositoryConfig, DataverseCollection } from '../types'
+import { DataRepositoryConfig, DataRepositoryExportTarget, DataverseCollection } from '../types'
 
 type RoCrateEntity = Record<string, any>
 type RoCrate = Record<string, any>
@@ -32,6 +32,7 @@ interface ExportLogEntry {
   mappingFile: string
   syncType: 'create' | 'update'
   syncedAt: string
+  datasetName?: string
 }
 
 interface ArpExportTarget {
@@ -96,14 +97,8 @@ export class ArpRoCrateExportService {
     const metadataUri = rootUri.resolve('ro-crate-metadata.json')
     const crate = await this.readRoCrate(metadataUri)
 
-    const crateArpPid = this.extractArpPid(crate)
-    if (crateArpPid) {
-      throw new Error(
-        `This RO-Crate already contains @arpPid (${crateArpPid}). Update/sync is not implemented yet.`,
-      )
-    }
-
     const uploadCrate = await this.buildDataverseUploadCrate(crate, rootUri)
+    this.removeRootArpPid(uploadCrate)
     const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
       uploadCrate,
       rootUri,
@@ -178,6 +173,7 @@ export class ArpRoCrateExportService {
       mappingFile: mappingFileName,
       syncType: 'create',
       syncedAt: new Date().toISOString(),
+      datasetName: this.getRootDatasetName(crate),
     })
     const unmappedEntityIds = Object.entries(metadataIdMapping)
       .filter(([, ingestedId]) => !ingestedId)
@@ -197,6 +193,7 @@ export class ArpRoCrateExportService {
 
   public async updateArp(
     repository: DataRepositoryConfig,
+    exportTargetSelection?: DataRepositoryExportTarget,
     reportProgress?: ArpRoCrateUpdateProgressReporter,
   ): Promise<ArpRoCrateUpdateAnalysisResult | undefined> {
     reportProgress?.({
@@ -213,6 +210,7 @@ export class ArpRoCrateExportService {
       rootUri,
       repository,
       metadataCrate,
+      exportTargetSelection,
     )
     if (!exportTarget) {
       return undefined
@@ -394,6 +392,8 @@ export class ArpRoCrateExportService {
       mappingFile: mappingFileName,
       syncType: 'update',
       syncedAt: new Date().toISOString(),
+      datasetName:
+        exportTarget.exportLogEntry.datasetName ?? this.getRootDatasetName(metadataCrate),
     })
     const unmappedEntityIds = Object.entries(metadataMapping)
       .filter(([, remoteId]) => !remoteId)
@@ -418,6 +418,46 @@ export class ArpRoCrateExportService {
       mappingFileName,
       unmappedEntityIds,
     }
+  }
+
+  public async listExportTargets(
+    repositories: DataRepositoryConfig[],
+  ): Promise<Record<string, DataRepositoryExportTarget[]>> {
+    const rootUri = this.getWorkspaceRoot()
+    const entries = await this.readExportLogEntries(
+      rootUri.resolve('.rockit').resolve(EXPORT_LOG_FILE_NAME),
+    )
+    const targetsByRepositoryId: Record<string, DataRepositoryExportTarget[]> = {}
+
+    for (const repository of repositories) {
+      const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+      const repositoryNames = new Set(
+        [repository.title, repository.baseUrl].filter((value): value is string => !!value),
+      )
+      const latestByMappingFile = new Map<string, DataRepositoryExportTarget>()
+      for (const entry of entries) {
+        if (!repositoryNames.has(entry.repository)) {
+          continue
+        }
+        const pid = this.extractPidFromTarget(entry.target)
+        if (!pid || !entry.mappingFile) {
+          continue
+        }
+        latestByMappingFile.set(entry.mappingFile, {
+          pid,
+          target: this.buildDataverseDatasetUrl(baseUrl, pid) ?? entry.target,
+          repository: entry.repository,
+          mappingFile: entry.mappingFile,
+          syncedAt: entry.syncedAt,
+          syncType: entry.syncType,
+          datasetName: entry.datasetName,
+        })
+      }
+      targetsByRepositoryId[repository.id] = Array.from(latestByMappingFile.values())
+        .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
+    }
+
+    return targetsByRepositoryId
   }
 
   protected getWorkspaceRoot(): URI {
@@ -597,6 +637,7 @@ export class ArpRoCrateExportService {
     rootUri: URI,
     repository: DataRepositoryConfig,
     crate: RoCrate,
+    selectedTarget?: DataRepositoryExportTarget,
   ): Promise<ArpExportTarget | undefined> {
     const cratePid = this.extractArpPid(crate)
     const rockitUri = rootUri.resolve('.rockit')
@@ -609,13 +650,34 @@ export class ArpRoCrateExportService {
     const matchingEntries = [...entries]
       .reverse()
       .filter((entry) => repositoryNames.has(entry.repository))
-    const entry = cratePid
+    const selectedEntry = selectedTarget
+      ? matchingEntries.find(
+          (candidate) =>
+            candidate.mappingFile === selectedTarget.mappingFile &&
+            this.normalizePid(candidate.target) === this.normalizePid(selectedTarget.pid),
+        )
+      : undefined
+    const selectedFallbackEntry: ExportLogEntry | undefined =
+      selectedTarget && !selectedEntry
+        ? {
+            target: selectedTarget.target,
+            repository: selectedTarget.repository,
+            mappingFile: selectedTarget.mappingFile,
+            syncType: selectedTarget.syncType,
+            syncedAt: selectedTarget.syncedAt,
+            datasetName: selectedTarget.datasetName,
+          }
+        : undefined
+    const entry = selectedEntry ?? selectedFallbackEntry ?? (cratePid
       ? matchingEntries.find(
           (candidate) =>
             this.normalizePid(candidate.target) === this.normalizePid(cratePid),
         )
-      : matchingEntries.find((candidate) => !!this.extractPidFromTarget(candidate.target))
-    const pid = cratePid ?? (entry ? this.extractPidFromTarget(entry.target) : undefined)
+      : matchingEntries.find((candidate) => !!this.extractPidFromTarget(candidate.target)))
+    const pid =
+      selectedTarget?.pid ??
+      cratePid ??
+      (entry ? this.extractPidFromTarget(entry.target) : undefined)
     if (!pid) {
       return undefined
     }
@@ -626,6 +688,24 @@ export class ArpRoCrateExportService {
         ? await this.readEntityIdMapping(rockitUri.resolve(entry.mappingFile))
         : undefined,
     }
+  }
+
+  protected removeRootArpPid(crate: RoCrate): void {
+    const root = this.readGraphEntities(crate).find((entity) => entity['@id'] === './')
+    if (root) {
+      delete root['@arpPid']
+    }
+  }
+
+  protected getRootDatasetName(crate: RoCrate): string | undefined {
+    const root = this.readGraphEntities(crate).find((entity) => entity['@id'] === './')
+    if (!root) {
+      return undefined
+    }
+    return (
+      this.readOptionalEntityString(root, 'title') ??
+      this.readOptionalEntityString(root, 'name')
+    )
   }
 
   protected async fetchRemoteRoCrate(

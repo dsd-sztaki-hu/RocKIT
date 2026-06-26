@@ -60,8 +60,14 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     padding-right: 5px;
+}
+
+.data-repo-selector__repo-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 /* Loading & Empty States */
@@ -171,5 +177,121 @@
     text-overflow: ellipsis;
     margin-top: 2px;
     white-space: nowrap;
+}
+
+.data-repo-selector__exports {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-left: 52px;
+    margin-right: 2px;
+    padding-left: 10px;
+}
+
+.data-repo-selector__export-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    text-align: left;
+    padding: 8px 0 8px 10px;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--theia-foreground);
+    border-radius: 4px;
+}
+
+.data-repo-selector__export-item:has(.data-repo-selector__export-update:hover),
+.data-repo-selector__export-item:has(.data-repo-selector__export-update:focus-visible) {
+    border-color: var(--theia-focusBorder);
+    background-color: var(--theia-list-hoverBackground);
+}
+
+.data-repo-selector__export-icon-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    background-color: var(--theia-activityBar-background);
+    flex: 0 0 auto;
+}
+
+.data-repo-selector__export-icon {
+    font-size: 16px !important;
+    color: var(--theia-activityBar-foreground);
+}
+
+.data-repo-selector__export-details {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.data-repo-selector__export-title {
+    color: var(--theia-foreground);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.data-repo-selector__export-url {
+    display: block;
+    color: var(--theia-textLink-foreground);
+    font-size: 0.85em;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+.data-repo-selector__export-url:hover,
+.data-repo-selector__export-url:focus {
+    text-decoration: underline;
+}
+
+.data-repo-selector__export-url:focus,
+.data-repo-selector__export-url:focus-visible {
+    outline: none;
+}
+
+.data-repo-selector__export-meta {
+    color: var(--theia-descriptionForeground);
+    font-size: 0.78em;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.data-repo-selector__export-update {
+    align-self: stretch;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    min-width: 42px;
+    margin-left: auto;
+    border: none;
+    background: transparent;
+    color: var(--theia-icon-foreground);
+    cursor: pointer;
+    opacity: 0.5;
+    padding: 0;
+}
+
+.data-repo-selector__export-update:hover,
+.data-repo-selector__export-update:focus-visible {
+    opacity: 0.85;
+    outline: none;
+}
+
+.data-repo-selector__export-update-icon {
+    font-size: 20px !important;
 }
 

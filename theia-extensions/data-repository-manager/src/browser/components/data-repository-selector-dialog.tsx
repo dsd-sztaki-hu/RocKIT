@@ -4,8 +4,13 @@ import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import DnsIcon from '@mui/icons-material/Dns';
 import StorageIcon from '@mui/icons-material/Storage';
+import DatasetIcon from '@mui/icons-material/Dataset';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { DataRepositoryConfig, DataRepositorySelection } from '../types';
+import {
+    DataRepositoryConfig,
+    DataRepositoryExportTarget,
+    DataRepositorySelection
+} from '../types';
 import { DataRepositoryConfigDialog } from './data-repository-config-dialog';
 import { DataRepositoryStoreService } from '../services/data-repository-store-service';
 import { DataverseService } from '../services/dataverse-service';
@@ -21,7 +26,8 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         private repositories: DataRepositoryConfig[],
         private readonly storeService: DataRepositoryStoreService,
         private readonly dataverseService: DataverseService,
-        private readonly capabilityService: DataverseCapabilityService
+        private readonly capabilityService: DataverseCapabilityService,
+        private readonly exportTargetsByRepositoryId: Record<string, DataRepositoryExportTarget[]> = {}
     ) {
         super({
             title: 'Select Data Repository'
@@ -53,9 +59,9 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         }
     }
 
-    protected async handleSelect(repo: DataRepositoryConfig) {
+    protected async handleSelect(repo: DataRepositoryConfig, exportTarget?: DataRepositoryExportTarget) {
         const capabilities = await this.capabilityService.detectRepositoryCapabilities(repo.baseUrl);
-        this.result = { repository: repo, capabilities };
+        this.result = { repository: repo, capabilities, exportTarget };
         this.accept();
     }
 
@@ -99,30 +105,105 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                 </div>
                             </div>
                         ) : (
-                            this.repositories.map(repo => (
-                                <button
-                                    key={repo.id}
-                                    className="data-repo-selector__item"
-                                    onClick={() => void this.handleSelect(repo)}
-                                    title={repo.baseUrl}
-                                >
-                                    <div className="data-repo-selector__item-content">
-                                        <div className="data-repo-selector__item-icon-box">
-                                            <StorageIcon className="data-repo-selector__item-icon" />
-                                        </div>
-                                        <div className="data-repo-selector__item-details">
-                                            <div className="data-repo-selector__item-title">{repo.title}</div>
-                                            <div className="data-repo-selector__item-url">{repo.baseUrl}</div>
-                                        </div>
-                                    </div>
-                                    <ChevronRightIcon style={{ color: 'var(--theia-icon-foreground)', opacity: 0.5 }} />
-                                </button>
-                            ))
+                            this.repositories.map(repo => this.renderRepository(repo))
                         )}
                     </div>
                 </div>
             </div>
         );
+    }
+
+    protected renderRepository(repo: DataRepositoryConfig): React.ReactNode {
+        const exportTargets = this.exportTargetsByRepositoryId[repo.id] ?? [];
+        return (
+            <div key={repo.id} className="data-repo-selector__repo-group">
+                <button
+                    className="data-repo-selector__item"
+                    onClick={() => void this.handleSelect(repo)}
+                    title={repo.baseUrl}
+                >
+                    <div className="data-repo-selector__item-content">
+                        <div className="data-repo-selector__item-icon-box">
+                            <StorageIcon className="data-repo-selector__item-icon" />
+                        </div>
+                        <div className="data-repo-selector__item-details">
+                            <div className="data-repo-selector__item-title">{repo.title}</div>
+                            <div className="data-repo-selector__item-url">{repo.baseUrl}</div>
+                        </div>
+                    </div>
+                    <ChevronRightIcon style={{ color: 'var(--theia-icon-foreground)', opacity: 0.5 }} />
+                </button>
+                {exportTargets.length > 0 && (
+                    <div className="data-repo-selector__exports">
+                        {exportTargets.map(target => (
+                            <div
+                                key={`${repo.id}:${target.mappingFile}`}
+                                className="data-repo-selector__export-item"
+                                title={target.target}
+                            >
+                                <div className="data-repo-selector__export-icon-box">
+                                    <DatasetIcon className="data-repo-selector__export-icon" />
+                                </div>
+                                <div className="data-repo-selector__export-details">
+                                    <div className="data-repo-selector__export-title">
+                                        {target.datasetName || target.pid}
+                                    </div>
+                                    <a
+                                        className="data-repo-selector__export-url"
+                                        href={target.target}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        title={target.target}
+                                        onClick={event => event.stopPropagation()}
+                                    >
+                                        {this.formatTargetLinkLabel(target)}
+                                    </a>
+                                    <div className="data-repo-selector__export-meta">
+                                        Last updated {this.formatDate(target.syncedAt)}
+                                    </div>
+                                </div>
+                                <button
+                                    className="data-repo-selector__export-update"
+                                    title="Update"
+                                    onClick={() => void this.handleSelect(repo, target)}
+                                >
+                                    <ChevronRightIcon className="data-repo-selector__export-update-icon" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    protected formatDate(value: string): string {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            return value;
+        }
+        return date.toLocaleString();
+    }
+
+    protected formatTargetLinkLabel(target: DataRepositoryExportTarget): string {
+        return target.pid || this.extractPersistentId(target.target) || target.target;
+    }
+
+    protected extractPersistentId(value: string): string | undefined {
+        try {
+            const url = new URL(value);
+            const persistentId = url.searchParams.get('persistentId');
+            if (persistentId?.trim()) {
+                return persistentId.trim();
+            }
+            if (url.hostname.toLowerCase() === 'hdl.handle.net') {
+                const handle = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+                return handle ? `hdl:${handle}` : undefined;
+            }
+        } catch {
+            // Keep fallback label.
+        }
+        return undefined;
     }
 
     protected onAfterAttach(msg: Message): void {
