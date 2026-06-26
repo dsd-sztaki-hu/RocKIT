@@ -93,8 +93,11 @@
     "win": {
       "icon": "../../resources/icon.ico"
     },
+    "mac": {
+      "icon": "../resources/icon.icns"
+    },
     "linux": {
-      "icon": "../../resources/icon.png",
+      "icon": "../resources/icon.png",
       "target": [
         "AppImage",
         "deb"
