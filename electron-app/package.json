@@ -2,6 +2,11 @@
   "private": true,
   "name": "electron-app",
   "version": "1.0.2",
+  "homepage": "https://repo.researchdata.hu/rockit/",
+  "author": {
+    "name": "HUN-REN SZTAKI, DSD",
+    "email": "zoltan.toth@sztaki.hun-ren.hu"
+  },
   "main": "lib/backend/electron-main.js",
   "dependencies": {
     "@theia/core": "1.65.2",
@@ -94,7 +99,8 @@
         "AppImage",
         "deb"
       ],
-      "category": "Development"
+      "category": "Development",
+      "maintainer": "HUN-REN SZTAKI, DSD <zoltan.toth@sztaki.hun-ren.hu>"
     }
   }
 }
