@@ -169,7 +169,7 @@ export class ArpRoCrateExportService {
       uploadUrl.toString()
     await this.appendExportLog(rootUri, {
       target,
-      repository: repository.title || repository.baseUrl,
+      repository: baseUrl,
       mappingFile: mappingFileName,
       syncType: 'create',
       syncedAt: new Date().toISOString(),
@@ -238,7 +238,7 @@ export class ArpRoCrateExportService {
     )
     const diff = this.diffRoCrates(uploadCrate, remoteCrate, uploadMapping, {
       pid: exportTarget.pid,
-      repository: repository.title || repository.baseUrl,
+      repository: baseUrl,
       exportLogEntry: exportTarget.exportLogEntry,
     })
     const changedFilesToReplace = diff.changedFiles.filter(
@@ -388,7 +388,7 @@ export class ArpRoCrateExportService {
         this.buildDatasetPidTarget(exportTarget.pid) ||
         this.buildDataverseDatasetUrl(baseUrl, exportTarget.pid) ||
         exportTarget.pid,
-      repository: repository.title || repository.baseUrl,
+      repository: baseUrl,
       mappingFile: mappingFileName,
       syncType: 'update',
       syncedAt: new Date().toISOString(),
@@ -431,12 +431,9 @@ export class ArpRoCrateExportService {
 
     for (const repository of repositories) {
       const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
-      const repositoryNames = new Set(
-        [repository.title, repository.baseUrl].filter((value): value is string => !!value),
-      )
       const latestByMappingFile = new Map<string, DataRepositoryExportTarget>()
       for (const entry of entries) {
-        if (!repositoryNames.has(entry.repository)) {
+        if (this.normalizeBaseUrl(entry.repository) !== baseUrl) {
           continue
         }
         const pid = this.extractPidFromTarget(entry.target)
@@ -644,12 +641,10 @@ export class ArpRoCrateExportService {
     const entries = await this.readExportLogEntries(
       rockitUri.resolve(EXPORT_LOG_FILE_NAME),
     )
-    const repositoryNames = new Set(
-      [repository.title, repository.baseUrl].filter((value): value is string => !!value),
-    )
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const matchingEntries = [...entries]
       .reverse()
-      .filter((entry) => repositoryNames.has(entry.repository))
+      .filter((entry) => this.normalizeBaseUrl(entry.repository) === baseUrl)
     const selectedEntry = selectedTarget
       ? matchingEntries.find(
           (candidate) =>

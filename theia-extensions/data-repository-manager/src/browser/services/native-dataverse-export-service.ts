@@ -196,7 +196,7 @@ export class NativeDataverseExportService {
         const target = this.buildPidTarget(persistentId) || persistentId;
         await this.appendExportLog(rootUri, {
             target,
-            repository: repository.title || repository.baseUrl,
+            repository: baseUrl,
             mappingFile: mappingFileName,
             syncType: 'create',
             syncedAt: new Date().toISOString()
@@ -339,7 +339,7 @@ export class NativeDataverseExportService {
         );
         await this.appendExportLog(rootUri, {
             target: this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
-            repository: repository.title || repository.baseUrl,
+            repository: baseUrl,
             mappingFile: exportTarget.exportLogEntry.mappingFile,
             syncType: 'update',
             syncedAt: new Date().toISOString()
@@ -1003,12 +1003,10 @@ export class NativeDataverseExportService {
         repository: DataRepositoryConfig
     ): Promise<NativeDataverseExportTarget | undefined> {
         const entries = await this.readExportLogEntries(rootUri.resolve('.rockit').resolve(EXPORT_LOG_FILE_NAME));
-        const repositoryNames = new Set(
-            [repository.title, repository.baseUrl].filter((value): value is string => !!value)
-        );
+        const baseUrl = this.normalizeBaseUrl(repository.baseUrl);
         const entry = [...entries]
             .reverse()
-            .find(candidate => repositoryNames.has(candidate.repository) && !!this.extractPidFromTarget(candidate.target));
+            .find(candidate => this.normalizeBaseUrl(candidate.repository) === baseUrl && !!this.extractPidFromTarget(candidate.target));
         if (!entry) {
             return undefined;
         }
