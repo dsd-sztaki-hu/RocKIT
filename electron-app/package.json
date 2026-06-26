@@ -91,7 +91,7 @@
       "node_modules/@modelcontextprotocol/sdk/**"
     ],
     "win": {
-      "icon": "../../resources/icon.ico"
+      "icon": "../resources/icon.ico"
     },
     "mac": {
       "icon": "../resources/icon.icns"
