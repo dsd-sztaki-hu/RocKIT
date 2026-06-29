@@ -392,8 +392,7 @@ export class ArpRoCrateExportService {
       mappingFile: mappingFileName,
       syncType: 'update',
       syncedAt: new Date().toISOString(),
-      datasetName:
-        exportTarget.exportLogEntry.datasetName ?? this.getRootDatasetName(metadataCrate),
+      datasetName: this.getRootDatasetName(metadataCrate),
     })
     const unmappedEntityIds = Object.entries(metadataMapping)
       .filter(([, remoteId]) => !remoteId)
@@ -424,6 +423,7 @@ export class ArpRoCrateExportService {
     repositories: DataRepositoryConfig[],
   ): Promise<Record<string, DataRepositoryExportTarget[]>> {
     const rootUri = this.getWorkspaceRoot()
+    const currentDatasetName = await this.tryReadCurrentRootDatasetName(rootUri)
     const entries = await this.readExportLogEntries(
       rootUri.resolve('.rockit').resolve(EXPORT_LOG_FILE_NAME),
     )
@@ -447,7 +447,7 @@ export class ArpRoCrateExportService {
           mappingFile: entry.mappingFile,
           syncedAt: entry.syncedAt,
           syncType: entry.syncType,
-          datasetName: entry.datasetName,
+          datasetName: currentDatasetName ?? entry.datasetName,
         })
       }
       targetsByRepositoryId[repository.id] = Array.from(latestByMappingFile.values())
@@ -701,6 +701,19 @@ export class ArpRoCrateExportService {
       this.readOptionalEntityString(root, 'title') ??
       this.readOptionalEntityString(root, 'name')
     )
+  }
+
+  protected async tryReadCurrentRootDatasetName(
+    rootUri: URI,
+  ): Promise<string | undefined> {
+    try {
+      return this.getRootDatasetName(
+        await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json')),
+      )
+    } catch (error) {
+      console.warn('Failed to read current RO-Crate dataset name.', error)
+      return undefined
+    }
   }
 
   protected async fetchRemoteRoCrate(
