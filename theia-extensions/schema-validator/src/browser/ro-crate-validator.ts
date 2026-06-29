@@ -33,6 +33,7 @@ export type ValidationRunOptions = {
   yieldEvery?: number;
   compiledRuleCache?: Map<string, CompiledInputRule[]>;
   cacheNamespace?: string;
+  completeProfile?: Record<string, any>;
 };
 
 function createAbortError(): Error {
@@ -70,6 +71,15 @@ function normalizeEntityId(entity: Record<string, any>, index: number): string {
 function normalizeEntityType(entity: Record<string, any>): string {
   const entityType = Array.isArray(entity['@type']) ? entity['@type'][0] : entity['@type'];
   return typeof entityType === 'string' ? entityType.trim() : '';
+}
+
+function isFileOrDatasetEntity(entity: Record<string, any>): boolean {
+  const rawTypes = entity?.['@type'];
+  const types = Array.isArray(rawTypes) ? rawTypes : [rawTypes];
+  return types
+    .map((type) => String(type ?? '').split(/[\/#]/).pop() || '')
+    .map((type) => type.toLowerCase())
+    .some((type) => type === 'file' || type === 'dataset');
 }
 
 function toCacheKey(entityType: string, conformsToIds: string[]): string {
@@ -428,6 +438,8 @@ export async function validateEntities(
             }
           }
           profileForEntity = updatedProfile;
+        } else if (options.completeProfile && !isFileOrDatasetEntity(entity)) {
+          profileForEntity = options.completeProfile;
         } else {
           profileForEntity = baseProfile;
         }

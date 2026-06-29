@@ -65,7 +65,7 @@ export class SchemaValidatorWidget extends ReactWidget {
                             </thead>
                             <tbody>
                                 {errors.map((e, i) => (
-                                    <tr key={i} style={{ borderTop: '1px solid var(--theia-editorWidget-border)', cursor: 'pointer' }} onClick={() => this.handleErrorRowClick(e.entityId)}>
+                                    <tr key={i} style={{ borderTop: '1px solid var(--theia-editorWidget-border)', cursor: 'pointer' }} onClick={() => this.handleErrorRowClick(e)}>
                                         <td>{e.entityType} ({e.entityId})</td>
                                         <td>{e.fieldLabel || e.fieldName}</td>
                                         <td>{e.error}</td>
@@ -91,24 +91,33 @@ export class SchemaValidatorWidget extends ReactWidget {
         }
     }
 
-    protected handleErrorRowClick(entityId?: string): void {
+    protected handleErrorRowClick(error: { entityId?: string; fieldName?: string }): void {
+        const entityId = error?.entityId;
+        const fieldName = error?.fieldName;
         if (!entityId) {
             return;
         }
         this.appStateService.selectedEntityId = entityId;
-        void this.openRoCrateEditorForEntity(entityId);
+        void this.openRoCrateEditorForEntity(entityId).then((widget) => {
+            if (fieldName) {
+                widget?.scrollToValidationField(entityId, fieldName);
+            }
+        });
     }
 
-    protected async openRoCrateEditorForEntity(entityId: string): Promise<void> {
+    protected async openRoCrateEditorForEntity(entityId: string): Promise<RoCrateEditorWidget | undefined> {
         if (this.openingEntities.has(entityId)) {
-            return;
+            return undefined;
         }
         this.openingEntities.add(entityId);
         try {
             const existingWidgetId = this.findWidgetIdForEntity(entityId);
             if (existingWidgetId) {
+                const existingWidget = this.widgetManager.tryGetWidget(existingWidgetId);
                 await this.shell.activateWidget(existingWidgetId);
-                return;
+                return existingWidget instanceof RoCrateEditorWidget
+                    ? existingWidget
+                    : undefined;
             }
             const instanceId = `${RoCrateEditorWidget.ID}:${Math.random().toString(36).slice(2)}`;
             const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
@@ -118,6 +127,9 @@ export class SchemaValidatorWidget extends ReactWidget {
             await this.shell.addWidget(widget, { area: 'main' });
             this.appStateService.registerEntityEditor(widget.id, entityId);
             await this.shell.activateWidget(widget.id);
+            return widget instanceof RoCrateEditorWidget
+                ? widget
+                : undefined;
         } finally {
             this.openingEntities.delete(entityId);
         }
