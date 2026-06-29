@@ -11,8 +11,10 @@ import { DataRepositorySelectorDialog } from './components/data-repository-selec
 import { DataRepositoryTable } from './components/data-repository-table'
 import { DataRepositoryToolbar } from './components/data-repository-toolbar'
 import { DataverseCollectionBrowserDialog } from './components/dataverse-collection-browser-dialog'
+import { ArpRoCrateImportDialog } from './components/arp-ro-crate-import-dialog'
 import { NativeDataverseDatasetMetadataDialog } from './components/native-dataverse-dataset-metadata-dialog'
 import { ArpRoCrateExportService } from './services/arp-ro-crate-export-service'
+import { ArpRoCrateImportService } from './services/arp-ro-crate-import-service'
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
 import { DataverseCapabilityService } from './services/dataverse-capability-service'
 import { DataverseCollectionService } from './services/dataverse-collection-service'
@@ -52,6 +54,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly nativeExportService: NativeDataverseExportService,
     @inject(ArpRoCrateExportService)
     protected readonly arpExportService: ArpRoCrateExportService,
+    @inject(ArpRoCrateImportService)
+    protected readonly arpImportService: ArpRoCrateImportService,
     @inject(DataverseCapabilityService)
     protected readonly capabilityService: DataverseCapabilityService,
     @inject(RoCrateFileHashService)
@@ -89,7 +93,65 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   }
 
   protected handleImport = () => {
-    this.messageService.info('Import placeholder clicked!', { timeout: 5000 })
+    void this.handleImportFromRemote()
+  }
+
+  public async handleImportFromRemote(): Promise<void> {
+    const repositories = await this.storeService.loadRepositories()
+    this.repositories = repositories
+    this.update()
+
+    const selector = new DataRepositorySelectorDialog(
+      repositories,
+      this.storeService,
+      this.dataverseService,
+      this.capabilityService,
+    )
+    const repositorySelection = await selector.open()
+    if (!repositorySelection) {
+      return
+    }
+
+    const selectedRepo = repositorySelection.repository
+    const capabilities = repositorySelection.capabilities
+    if (!capabilities.supportsArpRoCrateZipUpload) {
+      this.messageService.warn(
+        `Import is currently only implemented for ARP repositories. '${selectedRepo.title}' is not an ARP RO-Crate repository.`,
+        { timeout: 10000 },
+      )
+      return
+    }
+
+    const importDialog = new ArpRoCrateImportDialog()
+    const importInput = await importDialog.open()
+    if (!importInput) {
+      return
+    }
+
+    const progress = await this.messageService.showProgress({
+      text: `Importing RO-Crate from ${selectedRepo.title}...`,
+    })
+    try {
+      const result = await this.arpImportService.importFromDatasetUrl(
+        selectedRepo,
+        importInput.datasetUrl,
+      )
+      if (!result) {
+        return
+      }
+      this.messageService.info(
+        `RO-Crate imported to ${result.targetDirectory.path.fsPath()}. Extracted ${result.extractedFileCount} file(s).`,
+        { timeout: 10000 },
+      )
+    } catch (error) {
+      console.error('ARP RO-Crate import failed:', error)
+      this.messageService.error(
+        `RO-Crate import failed: ${error instanceof Error ? error.message : String(error)}`,
+        { timeout: 10000 },
+      )
+    } finally {
+      progress.cancel()
+    }
   }
 
   protected handleExport = () => {

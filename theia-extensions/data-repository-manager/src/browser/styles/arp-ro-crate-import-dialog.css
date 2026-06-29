@@ -1,0 +1,32 @@
+.arp-import-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  background: var(--theia-editor-background);
+  color: var(--theia-foreground);
+}
+
+.arp-import-dialog__description {
+  color: var(--theia-descriptionForeground);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.arp-import-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.arp-import-dialog__label {
+  color: var(--theia-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.arp-import-dialog__input.ant-input {
+  background: var(--theia-input-background);
+  border-color: var(--theia-input-border, var(--theia-panel-border));
+  color: var(--theia-input-foreground);
+}

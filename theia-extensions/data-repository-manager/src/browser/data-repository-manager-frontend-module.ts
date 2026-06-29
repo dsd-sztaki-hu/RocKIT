@@ -8,6 +8,7 @@ import { DataRepositoryStoreService } from './services/data-repository-store-ser
 import { DataverseService } from './services/dataverse-service';
 import { DataverseCollectionService } from './services/dataverse-collection-service';
 import { ArpRoCrateExportService } from './services/arp-ro-crate-export-service';
+import { ArpRoCrateImportService } from './services/arp-ro-crate-import-service';
 import { NativeDataverseExportService } from './services/native-dataverse-export-service';
 import { DataverseCapabilityService } from './services/dataverse-capability-service';
 import { RoCrateFileHashService } from './services/ro-crate-file-hash-service';
@@ -18,6 +19,7 @@ export default new ContainerModule(bind => {
     bind(DataverseService).toSelf().inSingletonScope();
     bind(DataverseCollectionService).toSelf().inSingletonScope();
     bind(ArpRoCrateExportService).toSelf().inSingletonScope();
+    bind(ArpRoCrateImportService).toSelf().inSingletonScope();
     bind(NativeDataverseExportService).toSelf().inSingletonScope();
     bind(DataverseCapabilityService).toSelf().inSingletonScope();
     bind(RoCrateFileHashService).toSelf().inSingletonScope();

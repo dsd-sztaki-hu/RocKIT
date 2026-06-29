@@ -13,6 +13,11 @@ export namespace DataRepositoryManagerCommands {
         id: 'data-repository-manager:export-to-remote',
         label: 'Export To Remote Repository'
     };
+
+    export const IMPORT_FROM_REMOTE: Command = {
+        id: 'data-repository-manager:import-from-remote',
+        label: 'Import From Remote Repository'
+    };
 }
 
 @injectable()
@@ -47,6 +52,15 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
                 }
             }
         });
+
+        commands.registerCommand(DataRepositoryManagerCommands.IMPORT_FROM_REMOTE, {
+            execute: async () => {
+                const widget = await this.widgetManager.getOrCreateWidget<DataRepositoryManagerWidget>(DATA_REPOSITORY_MANAGER_WIDGET_ID);
+                if (widget) {
+                    widget.handleImportFromRemote();
+                }
+            }
+        });
     }
 
     registerMenus(menus: MenuModelRegistry): void {
@@ -54,6 +68,12 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
             commandId: DataRepositoryManagerCommands.OPEN.id,
             label: DATA_REPOSITORY_MANAGER_LABEL,
             order: 'z60'
+        });
+
+        menus.registerMenuAction(CommonMenus.FILE, {
+            commandId: DataRepositoryManagerCommands.IMPORT_FROM_REMOTE.id,
+            label: 'Import From Remote Repository',
+            order: 'a11'
         });
 
         menus.registerMenuAction(CommonMenus.FILE, {

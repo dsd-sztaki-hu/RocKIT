@@ -254,8 +254,11 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
       return false
     }
 
-    const prefix = `https://w3id.org/arp/ro-id/${arpPid}/file/`
-    return trimmedId.startsWith(prefix) && trimmedId.length > prefix.length
+    const prefixes = [
+      `https://w3id.org/arp/ro-id/${arpPid}/file/`,
+      `https://w3id.org/arp/dev/ro-id/${arpPid}/file/`,
+    ]
+    return prefixes.some((prefix) => trimmedId.startsWith(prefix) && trimmedId.length > prefix.length)
   }
 
   private getRootDataset(crate: Record<string, any>): Record<string, any> | undefined {
