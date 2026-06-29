@@ -120,6 +120,12 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     protected backgroundValidationTimer?: ReturnType<typeof setTimeout>
     protected validationRun = 0
     protected lastValidationErrorSignature = ''
+    protected validationFieldScrollRequest?: {
+        entityId: string
+        fieldName: string
+        nonce: number
+    }
+    protected validationFieldScrollNonce = 0
 
     protected normalizeValidationErrors(
         errors: ValidationError[] | undefined,
@@ -455,7 +461,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             }
 
             this.lastAppliedEntityId = undefined
-            void this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'none')
+            void this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'always')
         })
 
         this.profileListSubscription = this.appStateService.onDidChangeSelector(
@@ -903,6 +909,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     roCrateApproval={this.localRoCrateApproval}
                     profile={this.localProfile}
                     entityId={this.getActiveEntityId()}
+                    scrollToFieldRequest={this.validationFieldScrollRequest}
                     profileKey={this.profileRevision}
                     instanceId={this.id}
                     onSaveCrate={this.handleSaveCrate}
@@ -1712,6 +1719,18 @@ protected handleDropEntityToHasPart = async (
 
     getAssignedEntityId(): string | undefined {
         return this.assignedEntityId
+    }
+
+    scrollToValidationField(entityId: string, fieldName: string): void {
+        if (!entityId || !fieldName) {
+            return
+        }
+        this.validationFieldScrollRequest = {
+            entityId,
+            fieldName,
+            nonce: ++this.validationFieldScrollNonce,
+        }
+        this.update()
     }
 
     protected async persistRoCrateToDisk(): Promise<void> {

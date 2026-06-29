@@ -2,6 +2,11 @@
   "private": true,
   "name": "electron-app",
   "version": "1.0.2",
+  "homepage": "https://repo.researchdata.hu/rockit/",
+  "author": {
+    "name": "HUN-REN SZTAKI, DSD",
+    "email": "zoltan.toth@sztaki.hun-ren.hu"
+  },
   "main": "lib/backend/electron-main.js",
   "dependencies": {
     "@theia/core": "1.65.2",
@@ -41,7 +46,7 @@
     "multi-edit": "0.0.0"
   },
   "devDependencies": {
-    "@arpproject/recrate": "0.1.43",
+    "@arpproject/recrate": "0.1.44",
     "@theia/cli": "1.65.2",
     "allotment": "^1.20.5",
     "electron": "37.2.1"
@@ -49,6 +54,10 @@
   "scripts": {
     "bundle": "yarn run rebuild && theia build --mode development && yarn run copy:node-pty-agent",
     "copy:node-pty-agent": "node ../scripts/copy-node-pty-agent.js",
+    "fetch:darwin-native": "node ../scripts/fetch-darwin-native.js",
+    "dist:mac:arm64": "yarn run fetch:darwin-native arm64 && electron-builder --mac dmg --arm64",
+    "dist:mac:x64": "yarn run fetch:darwin-native x64 && electron-builder --mac dmg --x64",
+    "dist:mac": "yarn run dist:mac:x64 && yarn run dist:mac:arm64",
     "rebuild": "theia rebuild:electron --cacheRoot ..",
     "start": "theia start",
     "watch": "yarn run rebuild && WATCHPACK_POLLING=true WATCHPACK_POLLING_INTERVAL=1000 theia build --watch --mode development"
@@ -82,7 +91,19 @@
       "node_modules/@modelcontextprotocol/sdk/**"
     ],
     "win": {
-      "icon": "../../resources/icon.ico"
+      "icon": "../resources/icon.ico"
+    },
+    "mac": {
+      "icon": "../resources/icon.icns"
+    },
+    "linux": {
+      "icon": "../resources/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development",
+      "maintainer": "HUN-REN SZTAKI, DSD <zoltan.toth@sztaki.hun-ren.hu>"
     }
   }
 }

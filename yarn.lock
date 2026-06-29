@@ -144,46 +144,6 @@
   dependencies:
     json-schema-to-ts "^3.1.1"
 
-"@arpproject/recrate@0.1.43":
-  version "0.1.43"
-  resolved "https://registry.yarnpkg.com/@arpproject/recrate/-/recrate-0.1.43.tgz#70d7232e45d9eab71a7f01951cc67f429a71d811"
-  integrity sha512-+jhLO5teATVKg/a+W4zx9oPmi19KbQJenxKBewPmFORw6jvCp4l9CgyVGwHDygB4zxvkBqKR4xgCV9cZW7B38Q==
-  dependencies:
-    "@codemirror/lang-javascript" "^6.2.3"
-    "@codemirror/state" "^6.5.2"
-    "@codemirror/theme-one-dark" "^6.1.2"
-    "@emotion/cache" "^11.14.0"
-    "@emotion/react" "^11.14.0"
-    "@emotion/styled" "^11.14.0"
-    "@fortawesome/fontawesome-free" "^6.7.2"
-    "@fortawesome/fontawesome-svg-core" "^6.7.2"
-    "@fortawesome/free-brands-svg-icons" "^6.7.2"
-    "@fortawesome/free-regular-svg-icons" "^6.7.2"
-    "@fortawesome/free-solid-svg-icons" "^6.7.2"
-    "@fortawesome/react-fontawesome" "^0.2.2"
-    "@mui/icons-material" "^7.1.0"
-    "@mui/material" "^7.1.0"
-    "@mui/system" "^7.1.0"
-    "@mui/x-date-pickers" "^8.2.0"
-    "@terraformer/wkt" "^2.2.1"
-    ajv "^8.17.1"
-    allotment "^1.20.5"
-    antd "^5.27.4"
-    chance "^1.1.12"
-    codemirror "^6.0.1"
-    dayjs "^1.11.13"
-    i18next "^22.5.0"
-    leaflet "^1.9.4"
-    leaflet-area-select "^1.1.1"
-    lodash "^4.17.21"
-    react-i18next "^12.3.1"
-    react-window "^2.1.1"
-    tailwindcss "^4.1.16"
-    uuid "^11.1.0"
-    validate-iri "^1.0.1"
-    validator "^13.15.0"
-    zustand "^5.0.4"
-
 "@babel/code-frame@^7.0.0", "@babel/code-frame@^7.10.4", "@babel/code-frame@^7.12.13", "@babel/code-frame@^7.28.6", "@babel/code-frame@^7.29.0":
   version "7.29.0"
   resolved "https://registry.npmjs.org/@babel/code-frame/-/code-frame-7.29.0.tgz"
@@ -10251,10 +10211,10 @@ generator-function@^2.0.0:
   resolved "https://registry.npmjs.org/generator-function/-/generator-function-2.0.1.tgz"
   integrity sha512-SFdFmIJi+ybC0vjlHN0ZGVGHc3lgE0DxPAT0djjVg+kjOnSqclqmj0KQ7ykTOLP6YxoqOvuAODGdcHJn+43q3g==
 
-generator-theia-extension@^0.1.47:
-  version "0.1.48"
-  resolved "https://registry.npmjs.org/generator-theia-extension/-/generator-theia-extension-0.1.48.tgz"
-  integrity sha512-/9esaXulJ1huEXbrXVh+zyLsoMXWn/j27wB9UMw3NKJotVQSAvqXIaml0WEnVjyJnsQSgB8A876bM9Hbt8Vp5Q==
+generator-theia-extension@0.1.44:
+  version "0.1.44"
+  resolved "https://registry.npmjs.org/generator-theia-extension/-/generator-theia-extension-0.1.44.tgz"
+  integrity sha512-o9fK2DaJmU+m4dyz93nOtU4Wrf//EtuOTQx3ZOeX6Z7hwqfXslojhOiaDnyXU7o8ZTfOMu05UhM/8faC6KZwXQ==
   dependencies:
     yeoman-generator "^5.0.0"
 
