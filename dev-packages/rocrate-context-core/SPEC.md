@@ -2,9 +2,9 @@
 
 ## Goal
 Create a shared TypeScript library that ports NovaCrate crate-context and schema
-resolution functionality into `aroma-2` so it can be consumed by:
+resolution functionality into `rockit` so it can be consumed by:
 
-- Aroma browser/editor code.
+- RocKIT browser/editor code.
 - `rocrate-mcp-server` (Node runtime).
 
 The implementation should reuse NovaCrate code paths as much as possible,
@@ -175,7 +175,7 @@ Any intentional differences must be documented in `CHANGELOG_PORTING.md`.
 
 ## Integration points
 
-### Aroma editor
+### RocKIT editor
 - replace direct NovaCrate-specific context/worker logic with library API
 - keep UI components unchanged where possible (adapter layer only)
 
@@ -217,7 +217,7 @@ Any intentional differences must be documented in `CHANGELOG_PORTING.md`.
 2. Implement browser and Node adapters.
 3. Ensure Node can load local assets and cache on disk.
 
-### Phase 5: Integration in aroma-2
+### Phase 5: Integration in rockit
 1. Add editor-side adapter usage first.
 2. Keep behavior parity with current flow.
 3. Move MCP validation/context checks to library APIs incrementally.

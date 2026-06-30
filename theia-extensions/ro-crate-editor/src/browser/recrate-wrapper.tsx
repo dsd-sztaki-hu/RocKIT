@@ -18,13 +18,14 @@ type SingleEntityDropPayload = {
     source?: 'entities-overview'
 }
 
-const ENTITIES_OVERVIEW_DND_MIME = 'application/x-aroma-entity-drag'
+const ENTITIES_OVERVIEW_DND_MIME = 'application/x-rockit-entity-drag'
 
 export const DescriboCrateBuilderWrapper = ({
                                                 crate,
                                                 roCrateApproval,
                                                 profile,
                                                 entityId,
+                                                scrollToFieldRequest,
                                                 instanceId,
                                                 onSaveCrate,
                                                 onSaveRoCrateApproval,
@@ -37,6 +38,11 @@ export const DescriboCrateBuilderWrapper = ({
     roCrateApproval: Record<string, any> | Record<string, any>[] | undefined
     profile: Record<string, any> | undefined
     entityId: string | undefined
+    scrollToFieldRequest?: {
+        entityId: string
+        fieldName: string
+        nonce: number
+    }
     profileKey: number
     instanceId: string
     onSaveCrate: (data: any) => void
@@ -87,7 +93,7 @@ export const DescriboCrateBuilderWrapper = ({
             }
         }
 
-        const globalPayload = (globalThis as any).__aromaEntityDragPayload as
+        const globalPayload = (globalThis as any).__rockitEntityDragPayload as
             | EntityOverviewDropPayload
             | undefined
 
@@ -255,6 +261,8 @@ export const DescriboCrateBuilderWrapper = ({
         [onOpenSchemaManager],
     )
 
+    const DescriboCrateBuilderComponent = DescriboCrateBuilder as React.ComponentType<any>
+
     return (
         <div
             ref={containerRef}
@@ -269,10 +277,11 @@ export const DescriboCrateBuilderWrapper = ({
 
             {loading && <div style={{ padding: '0.5rem', color: '#888' }}>Loading entity...</div>}
 
-            <DescriboCrateBuilder
+            <DescriboCrateBuilderComponent
                 crate={crate}
                 roCrateApproval={roCrateApproval}
                 profile={profile}
+                scrollToFieldRequest={scrollToFieldRequest}
                 stateScopeKey={`theia:${instanceId}`}
                 onAddNewProfileRequest={handleAddNewProfileRequest}
                 onRemoveProfile={onRemoveProfile}

@@ -1,5 +1,5 @@
 import { inject, injectable } from 'inversify';
-import { SchemaValidator, ValidationError, MetadataSchemaManager } from 'aroma2-common/lib/browser';
+import { SchemaValidator, ValidationError, MetadataSchemaManager } from 'rockit-common/lib/browser';
 import {
   validateEntities as runEntityValidation,
   validate,
@@ -16,6 +16,7 @@ export class SchemaValidatorService implements SchemaValidator {
 
   protected lastBaseProfileRef?: Record<string, any>;
   protected lastProfileListRef: any;
+  protected lastCompleteProfileRef?: Record<string, any>;
   protected contextRevision = 0;
 
   protected previousEntityHashes = new Map<string, string>();
@@ -67,10 +68,15 @@ export class SchemaValidatorService implements SchemaValidator {
     return hashes;
   }
 
-  protected refreshValidationContext(baseProfile: Record<string, any>, profileList: any): boolean {
+  protected refreshValidationContext(
+    baseProfile: Record<string, any>,
+    profileList: any,
+    completeProfile: Record<string, any> | undefined,
+  ): boolean {
     const changed =
       this.lastBaseProfileRef !== baseProfile ||
-      this.lastProfileListRef !== profileList;
+      this.lastProfileListRef !== profileList ||
+      this.lastCompleteProfileRef !== completeProfile;
 
     if (!changed) {
       return false;
@@ -79,6 +85,7 @@ export class SchemaValidatorService implements SchemaValidator {
     this.contextRevision += 1;
     this.lastBaseProfileRef = baseProfile;
     this.lastProfileListRef = profileList;
+    this.lastCompleteProfileRef = completeProfile;
     this.previousEntityHashes.clear();
     this.previousErrorsByEntity.clear();
     this.compiledRuleCache.clear();
@@ -194,7 +201,8 @@ export class SchemaValidatorService implements SchemaValidator {
     }
 
     const profileList = this.appStateService.profileList;
-    const contextChanged = this.refreshValidationContext(baseProfile, profileList);
+    const completeProfile = this.appStateService.completeProfile;
+    const contextChanged = this.refreshValidationContext(baseProfile, profileList, completeProfile);
     const currentHashes = this.collectEntityHashes(crate);
 
     const hasPreviousState = this.previousEntityHashes.size > 0;
@@ -229,6 +237,7 @@ export class SchemaValidatorService implements SchemaValidator {
             yieldEvery: 75,
             compiledRuleCache: this.compiledRuleCache,
             cacheNamespace: this.getCacheNamespace(),
+            completeProfile,
           },
         );
 
@@ -256,6 +265,7 @@ export class SchemaValidatorService implements SchemaValidator {
             yieldEvery: 75,
             compiledRuleCache: this.compiledRuleCache,
             cacheNamespace: this.getCacheNamespace(),
+            completeProfile,
           },
         );
       }
@@ -282,7 +292,8 @@ export class SchemaValidatorService implements SchemaValidator {
     }
 
     const profileList = this.appStateService.profileList;
-    this.refreshValidationContext(baseProfile, profileList);
+    const completeProfile = this.appStateService.completeProfile;
+    this.refreshValidationContext(baseProfile, profileList, completeProfile);
     const currentHashes = this.collectEntityHashes(crate);
 
     this.abortActiveFullSweep();
@@ -300,6 +311,7 @@ export class SchemaValidatorService implements SchemaValidator {
           yieldEvery: 75,
           compiledRuleCache: this.compiledRuleCache,
           cacheNamespace: this.getCacheNamespace(),
+          completeProfile,
         },
       );
 

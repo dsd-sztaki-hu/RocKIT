@@ -12,12 +12,11 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { RoCrateHtmlGenerator, withDefaultIgnoredEntries, writeUtf8TextFile } from 'rockit-common/lib/browser'
 import {
-  AROMA_IGNORE_DIR,
-  AROMA_IGNORE_FILE,
-  DEFAULT_IGNORED_ENTRIES,
-} from 'aroma2-common/lib/common/ro-crate-technical-files'
+  ROCKIT_IGNORE_DIR,
+  ROCKIT_IGNORE_FILE,
+} from 'rockit-common/lib/common/ro-crate-technical-files'
 import { EditorWidget } from '@theia/editor/lib/browser'
 import { SaveableService } from '@theia/core/lib/browser/saveable-service'
 
@@ -120,13 +119,11 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
 
     try {
       if (crateData) {
-        await this.fileService.create(metadataUri, JSON.stringify(crateData, null, 2), {
-          overwrite: true,
-        })
+        await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(crateData, null, 2))
 
         const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
 
-        await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+        await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
       }
 
       if (Array.isArray(ignoredEntries)) {
@@ -157,57 +154,16 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
   }
 
   protected async persistIgnoredEntries(rootUri: URI, entries: readonly string[]): Promise<void> {
-    const normalized = this.withDefaultIgnoredEntries(entries)
-    const aromaUri = rootUri.resolve(AROMA_IGNORE_DIR)
-    if (!(await this.fileService.exists(aromaUri))) {
-      await this.fileService.createFolder(aromaUri)
+    const normalized = withDefaultIgnoredEntries(entries)
+    const rockitUri = rootUri.resolve(ROCKIT_IGNORE_DIR)
+    if (!(await this.fileService.exists(rockitUri))) {
+      await this.fileService.createFolder(rockitUri)
     }
-    const ignoredUri = aromaUri.resolve(AROMA_IGNORE_FILE)
+    const ignoredUri = rockitUri.resolve(ROCKIT_IGNORE_FILE)
     const payload = normalized.length ? `${normalized.join('\n')}\n` : ''
-    await this.fileService.create(ignoredUri, payload, { overwrite: true })
+    await writeUtf8TextFile(this.fileService, ignoredUri, payload)
     this.appStateService.ignoreList = normalized
     this.appStateService.setIgnoreListSnapshot(normalized)
-  }
-
-  protected withDefaultIgnoredEntries(entries: readonly string[]): string[] {
-    const normalizedEntries = entries
-      .map((entry) => this.normalizeIgnoredEntry(entry))
-      .filter((entry): entry is string => Boolean(entry))
-
-    const defaults = DEFAULT_IGNORED_ENTRIES.map((entry) =>
-      this.normalizeIgnoredEntry(entry),
-    ).filter((entry): entry is string => Boolean(entry))
-
-    const existingPositive = new Set(
-      normalizedEntries.filter((entry) => !entry.startsWith('!')),
-    )
-    const missingDefaults = defaults.filter((entry) => !existingPositive.has(entry))
-    if (!missingDefaults.length) {
-      return normalizedEntries
-    }
-    return [...missingDefaults, ...normalizedEntries]
-  }
-
-  protected normalizeIgnoredEntry(value: string): string | undefined {
-    const trimmed = (value || '').trim()
-    if (!trimmed || trimmed.startsWith('#')) {
-      return undefined
-    }
-
-    const negated = trimmed.startsWith('!')
-    let normalized = negated ? trimmed.slice(1) : trimmed
-    normalized = normalized.replace(/\\/g, '/')
-    normalized = normalized.replace(/^\.\//, '')
-    normalized = normalized.replace(/^\/+/, '')
-    normalized = normalized.replace(/\/{2,}/g, '/')
-    const isDirectory = normalized.endsWith('/')
-    if (isDirectory) {
-      normalized = normalized.replace(/\/+$/, '')
-    }
-    if (!normalized) {
-      return undefined
-    }
-    return `${negated ? '!' : ''}${normalized}${isDirectory ? '/' : ''}`.toLowerCase()
   }
 
   registerMenus(menus: MenuModelRegistry): void {

@@ -49,7 +49,7 @@ export type ProfileResolution = {
   unresolvedUrls: string[]
   profiles: ResolvedProfile[]
   indexPath?: string
-  aromaRootPath?: string
+  rockitRootPath?: string
   warnings: string[]
 }
 
@@ -59,6 +59,7 @@ export type ProfileConstraints = {
   allowedClasses: Set<string>
   allowedPropertiesByClass: Map<string, Set<string>>
   requiredPropertiesByClass: Map<string, Set<string>>
+  propertyTypesByClass: Map<string, Map<string, Set<string>>>
   valueSetsByClass: Map<string, Map<string, Set<string>>>
 }
 
@@ -66,6 +67,7 @@ export type ProfileRuleSet = {
   allowedClasses: Set<string>
   allowedPropertiesByClass: Map<string, Set<string>>
   requiredPropertiesByClass: Map<string, Set<string>>
+  propertyTypesByClass: Map<string, Map<string, Set<string>>>
   valueSetsByClass: Map<string, Map<string, Set<string>>>
 }
 

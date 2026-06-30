@@ -7,10 +7,10 @@ import { minimatch, MinimatchOptions } from 'minimatch'
 import { Disposable } from '@theia/core/lib/common/disposable'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import {
-  AROMA_IGNORE_DIR,
-  AROMA_IGNORE_FILE,
+  ROCKIT_IGNORE_DIR,
+  ROCKIT_IGNORE_FILE,
   DEFAULT_IGNORED_ENTRIES as SHARED_DEFAULT_IGNORED_ENTRIES,
-} from 'aroma2-common/lib/common/ro-crate-technical-files'
+} from 'rockit-common/lib/common/ro-crate-technical-files'
 
 interface IgnoreRule {
   negated: boolean
@@ -21,8 +21,8 @@ interface IgnoreRule {
 
 @injectable()
 export class RoCrateIgnoredFilesService {
-  static readonly IGNORE_DIR = AROMA_IGNORE_DIR
-  static readonly IGNORE_FILE = AROMA_IGNORE_FILE
+  static readonly IGNORE_DIR = ROCKIT_IGNORE_DIR
+  static readonly IGNORE_FILE = ROCKIT_IGNORE_FILE
   static readonly DEFAULT_IGNORED_ENTRIES = SHARED_DEFAULT_IGNORED_ENTRIES
 
   protected ignoredEntries: string[] = []
@@ -150,11 +150,11 @@ export class RoCrateIgnoredFilesService {
   }
 
   protected async ensureIgnoreFile(rootUri: URI): Promise<URI> {
-    const aromaUri = rootUri.resolve(RoCrateIgnoredFilesService.IGNORE_DIR)
-    if (!(await this.fileService.exists(aromaUri))) {
-      await this.fileService.createFolder(aromaUri)
+    const rockitUri = rootUri.resolve(RoCrateIgnoredFilesService.IGNORE_DIR)
+    if (!(await this.fileService.exists(rockitUri))) {
+      await this.fileService.createFolder(rockitUri)
     }
-    const ignoredUri = aromaUri.resolve(RoCrateIgnoredFilesService.IGNORE_FILE)
+    const ignoredUri = rockitUri.resolve(RoCrateIgnoredFilesService.IGNORE_FILE)
     if (!(await this.fileService.exists(ignoredUri))) {
       await this.fileService.create(ignoredUri, '', { overwrite: true })
     }

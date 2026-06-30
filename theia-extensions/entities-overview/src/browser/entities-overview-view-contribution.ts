@@ -2,7 +2,7 @@ import { Command, CommandRegistry, MenuModelRegistry } from '@theia/core'
 import { AbstractViewContribution, codicon } from '@theia/core/lib/browser'
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar'
 import { injectable } from '@theia/core/shared/inversify'
-import { RoCrateDeleteSelectedEntitiesCommand } from 'aroma2-common/lib/browser'
+import { RoCrateDeleteSelectedEntitiesCommand } from 'rockit-common/lib/browser'
 // import { ExampleTreeNode } from './entities-overview-model'
 import {
   EntitiesOverviewWidget,

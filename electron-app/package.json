@@ -1,8 +1,13 @@
 {
   "private": true,
   "name": "electron-app",
-  "version": "0.0.0",
-  "main": "electron-main.js",
+  "version": "1.0.2",
+  "homepage": "https://repo.researchdata.hu/rockit/",
+  "author": {
+    "name": "HUN-REN SZTAKI, DSD",
+    "email": "zoltan.toth@sztaki.hun-ren.hu"
+  },
+  "main": "lib/backend/electron-main.js",
   "dependencies": {
     "@theia/core": "1.65.2",
     "@theia/editor": "1.65.2",
@@ -15,12 +20,13 @@
     "@theia/process": "1.65.2",
     "@theia/terminal": "1.65.2",
     "@theia/workspace": "1.65.2",
-    "AROMA-theia-overrides": "0.0.0",
+    "rockit-theia-overrides": "0.0.0",
     "agent-instructions": "0.0.0",
     "agent-launcher": "0.0.0",
     "app-state": "0.0.1",
     "app-state-sample": "0.0.1",
-    "aroma2-common": "0.0.0",
+    "rockit-common": "0.0.0",
+    "rocrate-mcp-server": "0.0.1",
     "data-repository-manager": "0.0.0",
     "data-sources": "0.0.0",
     "entities-overview": "0.0.0",
@@ -40,7 +46,7 @@
     "multi-edit": "0.0.0"
   },
   "devDependencies": {
-    "@arpproject/recrate": "0.1.42",
+    "@arpproject/recrate": "0.1.44",
     "@theia/cli": "1.65.2",
     "allotment": "^1.20.5",
     "electron": "37.2.1"
@@ -48,18 +54,56 @@
   "scripts": {
     "bundle": "yarn run rebuild && theia build --mode development && yarn run copy:node-pty-agent",
     "copy:node-pty-agent": "node ../scripts/copy-node-pty-agent.js",
+    "fetch:darwin-native": "node ../scripts/fetch-darwin-native.js",
+    "dist:mac:arm64": "yarn run fetch:darwin-native arm64 && electron-builder --mac dmg --arm64",
+    "dist:mac:x64": "yarn run fetch:darwin-native x64 && electron-builder --mac dmg --x64",
+    "dist:mac": "yarn run dist:mac:x64 && yarn run dist:mac:arm64",
     "rebuild": "theia rebuild:electron --cacheRoot ..",
     "start": "theia start",
     "watch": "yarn run rebuild && WATCHPACK_POLLING=true WATCHPACK_POLLING_INTERVAL=1000 theia build --watch --mode development"
   },
   "theia": {
-    "target": "electron"
+    "target": "electron",
+    "backend": {
+      "config": {
+        "singleInstance": false
+      }
+    },
+    "frontend": {
+      "config": {
+        "applicationName": "RocKIT",
+        "uriScheme": "rockit",
+        "electron": {
+          "uriScheme": "rockit"
+        }
+      }
+    }
   },
   "build": {
-    "appId": "com.example.mytheiaapp",
-    "productName": "My Theia App",
+    "appId": "hu.sztaki.dsd.rockit",
+    "productName": "RocKIT - RO-Crate Kit",
+    "asarUnpack": [
+      "node_modules/rocrate-mcp-server/**",
+      "node_modules/rockit-common/**",
+      "node_modules/rocrate-context-core/**",
+      "node_modules/cedar-template-converter/**",
+      "node_modules/metadata-profile-core/**",
+      "node_modules/@modelcontextprotocol/sdk/**"
+    ],
     "win": {
-      "icon": "../../resources/icon.ico"
+      "icon": "../resources/icon.ico"
+    },
+    "mac": {
+      "icon": "../resources/icon.icns"
+    },
+    "linux": {
+      "icon": "../resources/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development",
+      "maintainer": "HUN-REN SZTAKI, DSD <zoltan.toth@sztaki.hun-ren.hu>"
     }
   }
 }
