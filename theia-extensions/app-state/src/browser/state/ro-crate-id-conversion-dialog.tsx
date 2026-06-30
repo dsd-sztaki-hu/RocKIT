@@ -29,6 +29,10 @@ export class RoCrateIdConversionDialog extends ReactDialog<boolean> {
           values match the current workspace layout.
         </p>
         <p>
+          ARP file identifiers will be stored in the workspace export mapping so future
+          updates can target the original remote dataset.
+        </p>
+        <p>
           This keeps the file explorer and other tools synchronized. Would you like to
           convert now?
         </p>

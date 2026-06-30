@@ -8,6 +8,7 @@ import {
   MenuModelRegistry,
   MessageService,
 } from '@theia/core/lib/common'
+import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
@@ -21,6 +22,20 @@ export const RemoteRoCrateConversionCommand: Command = {
 }
 
 type EntityKind = 'File' | 'Dataset' | 'Other'
+type RoCrateEntityIdMapping = Record<string, string>
+
+interface ExportLogEntry {
+  target: string
+  repository: string
+  mappingFile: string
+  syncType: 'create' | 'update'
+  syncedAt: string
+  datasetName?: string
+}
+
+const EXPORT_LOG_FILE_NAME = 'export-log.json'
+const ARP_PRODUCTION_REPOSITORY_URL = 'https://repo.researchdata.hu'
+const ARP_DEV_REPOSITORY_URL = 'https://dsddev.concorda.sztaki.hu'
 
 @injectable()
 export class RemoteRoCrateConversionCommandContribution implements CommandContribution {
@@ -173,9 +188,9 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
       return
     }
 
-    // PASS 2: apply changes to entities themselves (+ url rules)
+    // PASS 2: apply changes to entities themselves and build export/update mapping.
     let changedEntities = 0
-    let datasetsSkippedUrlMove = 0
+    const entityIdMapping: RoCrateEntityIdMapping = {}
 
     for (const entry of graph) {
       if (!entry || typeof entry !== 'object') continue
@@ -190,13 +205,8 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
       if (!newId) continue
 
       const kind = this.getEntityKind(entry)
-
-      // For File: move old @id into url
-      // For Dataset: DO NOT move the old id into url (per your requirement)
       if (kind === 'File') {
-        this.pushIntoUrl(entry, oldIdTrim)
-      } else if (kind === 'Dataset') {
-        datasetsSkippedUrlMove++
+        entityIdMapping[newId] = oldIdTrim
       }
 
       entry['@id'] = newId
@@ -209,13 +219,19 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
 
     // Write back
     try {
+      const mappingFileName = await this.persistExportState(
+        root.resource,
+        json,
+        arpPid,
+        entityIdMapping,
+      )
       const pretty = JSON.stringify(json, null, 2) + '\n'
       await writeUtf8TextFile(this.fileService, metadataUri, pretty)
       this.roCrateHistoryService.applyRoCrateChange(json, {
         label: 'Convert remote RO-Crate IDs to local IDs',
       })
       await this.messageService.info(
-        `Converted ${changedEntities} entities and updated references. (Datasets kept local @id out of url: ${datasetsSkippedUrlMove})`,
+        `Converted ${changedEntities} entities and updated references. Stored ${Object.keys(entityIdMapping).length} ARP file mapping(s) in .rockit/${mappingFileName}.`,
       )
     } catch (e) {
       this.messageService.error(`Failed to write ro-crate-metadata.json: ${String(e)}`)
@@ -311,35 +327,6 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
   }
 
   /**
-   * Moves old @id into url:
-   * - url missing/empty => url = oldId
-   * - url string => url = [url, oldId] (unless identical)
-   * - url array => push if not present
-   */
-  private pushIntoUrl(entry: Record<string, any>, oldId: string): void {
-    const current = entry['url']
-
-    if (current === undefined || current === null || current === '') {
-      entry['url'] = oldId
-      return
-    }
-
-    if (typeof current === 'string') {
-      if (current === oldId) return
-      entry['url'] = [current, oldId]
-      return
-    }
-
-    if (Array.isArray(current)) {
-      if (!current.includes(oldId)) current.push(oldId)
-      entry['url'] = current
-      return
-    }
-
-    entry['url'] = [current, oldId]
-  }
-
-  /**
    * Deeply traverse the whole RO-Crate JSON and replace any object property
    * that is literally "@id": "<oldId>" with the mapped new id.
    *
@@ -378,6 +365,193 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
         this.replaceIdReferencesDeep(value, idMap)
       }
     }
+  }
+
+  private async persistExportState(
+    rootUri: URI,
+    crate: Record<string, any>,
+    arpPid: string,
+    mapping: RoCrateEntityIdMapping,
+  ): Promise<string> {
+    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
+    await this.saveEntityIdMapping(rootUri, mappingFileName, mapping)
+    await this.appendExportLog(rootUri, {
+      target: this.buildDatasetPidTarget(arpPid),
+      repository: this.inferRepositoryUrl(crate, arpPid),
+      mappingFile: mappingFileName,
+      syncType: 'update',
+      syncedAt: new Date().toISOString(),
+      datasetName: this.getRootDatasetName(crate),
+    })
+    return mappingFileName
+  }
+
+  private async createUniqueMappingFileName(rootUri: URI): Promise<string> {
+    const rockitUri = rootUri.resolve('.rockit')
+    await this.ensureFolder(rockitUri)
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const fileName = `${this.randomId(16)}.json`
+      if (!(await this.fileService.exists(rockitUri.resolve(fileName)))) {
+        return fileName
+      }
+    }
+    return `${Date.now()}-${this.randomId(16)}.json`
+  }
+
+  private async saveEntityIdMapping(
+    rootUri: URI,
+    mappingFileName: string,
+    mapping: RoCrateEntityIdMapping,
+  ): Promise<void> {
+    const rockitUri = rootUri.resolve('.rockit')
+    await this.ensureFolder(rockitUri)
+    await writeUtf8TextFile(
+      this.fileService,
+      rockitUri.resolve(mappingFileName),
+      `${JSON.stringify(this.sortObject(mapping), null, 2)}\n`,
+    )
+  }
+
+  private async appendExportLog(rootUri: URI, entry: ExportLogEntry): Promise<void> {
+    const rockitUri = rootUri.resolve('.rockit')
+    await this.ensureFolder(rockitUri)
+    const historyUri = rockitUri.resolve(EXPORT_LOG_FILE_NAME)
+    const entries = await this.readExportLogEntries(historyUri)
+    const entryPid = this.normalizePid(entry.target)
+    const repository = this.normalizeBaseUrl(entry.repository)
+    const existingIndex = entries.findIndex(
+      (existing) =>
+        this.normalizeBaseUrl(existing.repository) === repository &&
+        this.normalizePid(existing.target) === entryPid,
+    )
+    const nextEntries = [...entries]
+    if (existingIndex >= 0) {
+      nextEntries[existingIndex] = entry
+    } else {
+      nextEntries.push(entry)
+    }
+    await writeUtf8TextFile(
+      this.fileService,
+      historyUri,
+      `${JSON.stringify(nextEntries, null, 2)}\n`,
+    )
+  }
+
+  private async readExportLogEntries(historyUri: URI): Promise<ExportLogEntry[]> {
+    if (!(await this.fileService.exists(historyUri))) {
+      return []
+    }
+    try {
+      const parsed = JSON.parse((await this.fileService.readFile(historyUri)).value.toString())
+      return Array.isArray(parsed)
+        ? parsed.filter(
+            (entry): entry is ExportLogEntry =>
+              !!entry && typeof entry === 'object' && !Array.isArray(entry),
+          )
+        : []
+    } catch (error) {
+      console.warn('Failed to parse .rockit/export-log.json; starting a new export log.', error)
+      return []
+    }
+  }
+
+  private async ensureFolder(uri: URI): Promise<void> {
+    if (await this.fileService.exists(uri)) {
+      return
+    }
+    const parent = uri.parent
+    if (parent.toString() !== uri.toString() && !(await this.fileService.exists(parent))) {
+      await this.ensureFolder(parent)
+    }
+    await this.fileService.createFolder(uri)
+  }
+
+  private inferRepositoryUrl(crate: Record<string, any>, arpPid: string): string {
+    const ids = this.readGraphEntities(crate)
+      .map((entry) => (typeof entry['@id'] === 'string' ? entry['@id'].trim() : ''))
+      .filter((id) => id.includes(`/ro-id/${arpPid}/`))
+    if (ids.some((id) => id.startsWith(`https://w3id.org/arp/dev/ro-id/${arpPid}/`))) {
+      return ARP_DEV_REPOSITORY_URL
+    }
+    return ARP_PRODUCTION_REPOSITORY_URL
+  }
+
+  private buildDatasetPidTarget(pid: string): string {
+    const trimmed = pid.trim()
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed
+    }
+    if (/^hdl:/i.test(trimmed)) {
+      return `https://hdl.handle.net/${trimmed.slice('hdl:'.length)}`
+    }
+    return trimmed
+  }
+
+  private normalizePid(value: string): string {
+    const extracted = this.extractDatasetPid(value) ?? value
+    return extracted.replace(/^hdl:/i, '').replace(/^\/+/, '').toLowerCase()
+  }
+
+  private extractDatasetPid(value: string): string | undefined {
+    let trimmed = value.trim()
+    try {
+      trimmed = decodeURIComponent(trimmed)
+    } catch {
+      // Keep original value.
+    }
+    const handleMatch = trimmed.match(/hdl\.handle\.net\/(.+)$/i)
+    if (handleMatch) {
+      return `hdl:${handleMatch[1]}`
+    }
+    if (/^hdl:/i.test(trimmed)) {
+      return trimmed
+    }
+    try {
+      const persistentId = new URL(trimmed).searchParams.get('persistentId')
+      return persistentId?.trim() || undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  private getRootDatasetName(crate: Record<string, any>): string | undefined {
+    const root = this.getRootDataset(crate)
+    if (!root) {
+      return undefined
+    }
+    return this.readOptionalString(root.title) ?? this.readOptionalString(root.name)
+  }
+
+  private readOptionalString(value: unknown): string | undefined {
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined
+  }
+
+  private readGraphEntities(crate: Record<string, any>): Record<string, any>[] {
+    const graph = crate['@graph']
+    return Array.isArray(graph)
+      ? graph.filter(
+          (entry): entry is Record<string, any> =>
+            !!entry && typeof entry === 'object' && !Array.isArray(entry),
+        )
+      : []
+  }
+
+  private normalizeBaseUrl(baseUrl: string): string {
+    const normalized = baseUrl.trim().replace(/\/+$/, '')
+    return normalized.endsWith('/api/v1') ? normalized.slice(0, -'/api/v1'.length) : normalized
+  }
+
+  private sortObject<T extends Record<string, string>>(value: T): T {
+    return Object.fromEntries(
+      Object.entries(value).sort((a, b) => a[0].localeCompare(b[0])),
+    ) as T
+  }
+
+  private randomId(length: number): string {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    const bytes = new Uint8Array(length)
+    window.crypto.getRandomValues(bytes)
+    return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('')
   }
 }
 
