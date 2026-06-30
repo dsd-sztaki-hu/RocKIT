@@ -8,12 +8,28 @@ import JSZip = require('jszip')
 
 import { DataRepositoryConfig } from '../types'
 
+type RoCrate = Record<string, any>
+type RoCrateEntity = Record<string, any>
+type RoCrateEntityIdMapping = Record<string, string>
+
 export interface ArpRoCrateImportResult {
   datasetPid: string
   targetDirectory: URI
   zipPath: URI
   extractedFileCount: number
+  mappingFileName?: string
 }
+
+interface ExportLogEntry {
+  target: string
+  repository: string
+  mappingFile: string
+  syncType: 'create' | 'update'
+  syncedAt: string
+  datasetName?: string
+}
+
+const EXPORT_LOG_FILE_NAME = 'export-log.json'
 
 @injectable()
 export class ArpRoCrateImportService {
@@ -56,6 +72,13 @@ export class ArpRoCrateImportService {
     if (!(await this.fileService.exists(metadataUri))) {
       throw new Error('The downloaded ZIP did not contain ro-crate-metadata.json.')
     }
+    const crate = await this.readRoCrate(metadataUri)
+    const mappingFileName = await this.persistImportedExportState(
+      targetDirectory,
+      repository,
+      datasetPid,
+      crate,
+    )
 
     this.workspaceService.open(targetDirectory, { preserveWindow: false })
 
@@ -64,6 +87,7 @@ export class ArpRoCrateImportService {
       targetDirectory,
       zipPath,
       extractedFileCount,
+      mappingFileName,
     }
   }
 
@@ -221,6 +245,220 @@ export class ArpRoCrateImportService {
       .split('/')
       .map((segment) => encodeURIComponent(segment).replace(/%3A/gi, ':'))
       .join('/')
+  }
+
+  protected async readRoCrate(metadataUri: URI): Promise<RoCrate> {
+    const content = await this.fileService.readFile(metadataUri)
+    try {
+      return JSON.parse(content.value.toString()) as RoCrate
+    } catch (error) {
+      throw new Error(
+        `Failed to parse imported ro-crate-metadata.json: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }
+
+  protected async persistImportedExportState(
+    rootUri: URI,
+    repository: DataRepositoryConfig,
+    datasetPid: string,
+    crate: RoCrate,
+  ): Promise<string | undefined> {
+    const mapping = this.buildImportedEntityIdMapping(crate, datasetPid)
+    if (Object.keys(mapping).length === 0) {
+      return undefined
+    }
+
+    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
+    await this.saveEntityIdMapping(rootUri, mappingFileName, mapping)
+    await this.appendExportLog(rootUri, {
+      target: this.buildDatasetPidTarget(datasetPid),
+      repository: this.normalizeBaseUrl(repository.baseUrl),
+      mappingFile: mappingFileName,
+      syncType: 'update',
+      syncedAt: new Date().toISOString(),
+      datasetName: this.getRootDatasetName(crate),
+    })
+    return mappingFileName
+  }
+
+  protected buildImportedEntityIdMapping(
+    crate: RoCrate,
+    datasetPid: string,
+  ): RoCrateEntityIdMapping {
+    const mapping: RoCrateEntityIdMapping = {}
+    for (const entity of this.readGraphEntities(crate)) {
+      if (!this.entityTypes(entity).includes('File')) {
+        continue
+      }
+      const remoteId = this.readOptionalEntityString(entity, '@id')
+      if (!remoteId || !this.isArpFileEntityId(remoteId, datasetPid)) {
+        continue
+      }
+      const localPath = this.computeRelativePathFromDirectoryLabelAndName(entity)
+      if (!localPath) {
+        continue
+      }
+      mapping[localPath] = remoteId
+    }
+    return Object.fromEntries(
+      Object.entries(mapping).sort((a, b) => a[0].localeCompare(b[0])),
+    )
+  }
+
+  protected computeRelativePathFromDirectoryLabelAndName(
+    entity: RoCrateEntity,
+  ): string | undefined {
+    const name = this.readOptionalEntityString(entity, 'name')
+    if (!name) {
+      return undefined
+    }
+    const directoryLabel = this.readOptionalEntityString(entity, 'directoryLabel')
+    if (!directoryLabel) {
+      return this.normalizeRelativePath(name)
+    }
+    return this.normalizeRelativePath(`${directoryLabel.replace(/\/+$/, '')}/${name.replace(/^\/+/, '')}`)
+  }
+
+  protected normalizeRelativePath(value: string): string {
+    return value.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/{2,}/g, '/').trim()
+  }
+
+  protected isArpFileEntityId(id: string, datasetPid: string): boolean {
+    const prefixes = [
+      `https://w3id.org/arp/ro-id/${datasetPid}/file/`,
+      `https://w3id.org/arp/dev/ro-id/${datasetPid}/file/`,
+    ]
+    return prefixes.some((prefix) => id.startsWith(prefix) && id.length > prefix.length)
+  }
+
+  protected async createUniqueMappingFileName(rootUri: URI): Promise<string> {
+    const rockitUri = rootUri.resolve('.rockit')
+    await this.ensureFolder(rockitUri)
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const fileName = `${this.randomId(16)}.json`
+      if (!(await this.fileService.exists(rockitUri.resolve(fileName)))) {
+        return fileName
+      }
+    }
+    return `${Date.now()}-${this.randomId(16)}.json`
+  }
+
+  protected async saveEntityIdMapping(
+    rootUri: URI,
+    mappingFileName: string,
+    mapping: RoCrateEntityIdMapping,
+  ): Promise<void> {
+    const rockitUri = rootUri.resolve('.rockit')
+    await this.ensureFolder(rockitUri)
+    await this.fileService.writeFile(
+      rockitUri.resolve(mappingFileName),
+      BinaryBuffer.fromString(`${JSON.stringify(mapping, null, 2)}\n`),
+    )
+  }
+
+  protected async appendExportLog(rootUri: URI, entry: ExportLogEntry): Promise<void> {
+    const rockitUri = rootUri.resolve('.rockit')
+    await this.ensureFolder(rockitUri)
+    const historyUri = rockitUri.resolve(EXPORT_LOG_FILE_NAME)
+    const entries = await this.readExportLogEntries(historyUri)
+    const entryPid = this.normalizePid(entry.target)
+    const existingIndex = entries.findIndex(
+      (existing) =>
+        this.normalizeBaseUrl(existing.repository) === this.normalizeBaseUrl(entry.repository) &&
+        this.normalizePid(existing.target) === entryPid,
+    )
+    const nextEntries = [...entries]
+    if (existingIndex >= 0) {
+      nextEntries[existingIndex] = entry
+    } else {
+      nextEntries.push(entry)
+    }
+    await this.fileService.writeFile(
+      historyUri,
+      BinaryBuffer.fromString(`${JSON.stringify(nextEntries, null, 2)}\n`),
+    )
+  }
+
+  protected async readExportLogEntries(historyUri: URI): Promise<ExportLogEntry[]> {
+    if (!(await this.fileService.exists(historyUri))) {
+      return []
+    }
+    try {
+      const parsed = JSON.parse((await this.fileService.readFile(historyUri)).value.toString())
+      return Array.isArray(parsed)
+        ? parsed.filter(
+            (entry): entry is ExportLogEntry =>
+              !!entry && typeof entry === 'object' && !Array.isArray(entry),
+          )
+        : []
+    } catch (error) {
+      console.warn('Failed to parse .rockit/export-log.json; starting a new export log.', error)
+      return []
+    }
+  }
+
+  protected buildDatasetPidTarget(pid: string): string {
+    const trimmed = pid.trim()
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed
+    }
+    if (/^hdl:/i.test(trimmed)) {
+      return `https://hdl.handle.net/${trimmed.slice('hdl:'.length)}`
+    }
+    return trimmed
+  }
+
+  protected normalizePid(value: string): string {
+    const extracted = this.extractDatasetPid(value) ?? value
+    return extracted.replace(/^hdl:/i, '').replace(/^\/+/, '').toLowerCase()
+  }
+
+  protected getRootDatasetName(crate: RoCrate): string | undefined {
+    const root = this.readGraphEntities(crate).find((entity) => entity['@id'] === './')
+    if (!root) {
+      return undefined
+    }
+    return (
+      this.readOptionalEntityString(root, 'title') ??
+      this.readOptionalEntityString(root, 'name')
+    )
+  }
+
+  protected readGraphEntities(crate: RoCrate): RoCrateEntity[] {
+    const graph = crate['@graph']
+    return Array.isArray(graph)
+      ? graph.filter(
+          (entity): entity is RoCrateEntity =>
+            !!entity && typeof entity === 'object' && !Array.isArray(entity),
+        )
+      : []
+  }
+
+  protected entityTypes(entity: RoCrateEntity): string[] {
+    const value = entity['@type']
+    if (typeof value === 'string') {
+      return [value]
+    }
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+  }
+
+  protected readOptionalEntityString(
+    entity: RoCrateEntity,
+    key: string,
+  ): string | undefined {
+    const value = entity[key]
+    if (typeof value === 'string') {
+      return value.trim() || undefined
+    }
+    return undefined
+  }
+
+  protected randomId(length: number): string {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    const bytes = new Uint8Array(length)
+    window.crypto.getRandomValues(bytes)
+    return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('')
   }
 
   protected normalizeBaseUrl(baseUrl: string): string {
