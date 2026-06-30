@@ -78,6 +78,26 @@
   border-bottom-right-radius: 6px;
 }
 
+body.vs .entities-overview-filter-toggle .ant-btn-primary:not(:disabled) {
+  background: #1677ff !important;
+  border-color: #1677ff !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.16) !important;
+}
+
+body.vs .entities-overview-filter-toggle .ant-btn-primary:not(:disabled):hover {
+  background: #4096ff !important;
+  border-color: #4096ff !important;
+  color: #ffffff !important;
+}
+
+body.vs .entities-overview-filter-toggle .ant-btn-primary:not(:disabled):focus,
+body.vs .entities-overview-filter-toggle .ant-btn-primary:not(:disabled):focus-visible {
+  background: #1677ff !important;
+  border-color: #1677ff !important;
+  color: #ffffff !important;
+}
+
 .entities-overview-filter-title {
   font-size: 20px;
   font-weight: 600;

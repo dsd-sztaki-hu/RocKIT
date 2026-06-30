@@ -1,6 +1,6 @@
 # rocrate-context-core
 
-Shared RO-Crate context and ontology query library for `aroma-2`.
+Shared RO-Crate context and ontology query library for `rockit`.
 
 This package provides runtime-agnostic core logic used by both UI/editor code
 and `rocrate-mcp-server`:

@@ -31,10 +31,21 @@ export class SchemaLoader {
 
     if (contentType.startsWith('text/turtle')) {
       const ttl = await req.text()
-      const rawJson = parseTtl(ttl) as {
-        '@graph': Array<Record<string, unknown>>
-        '@context'?: unknown
-      }
+      const parsed = parseTtl(ttl) as
+        | Array<Record<string, unknown>>
+        | Record<string, unknown>
+      const rawJson =
+        '@graph' in parsed && Array.isArray(parsed['@graph'])
+          ? (parsed as {
+              '@graph': Array<Record<string, unknown>>
+              '@context'?: unknown
+            })
+          : {
+              '@context': Array.isArray(parsed) ? undefined : parsed['@context'],
+              '@graph': Array.isArray(parsed)
+                ? parsed
+                : [parsed].filter((entry): entry is Record<string, unknown> => Boolean(entry))
+            }
 
       // Rewrite rdf:type style definitions to @type style definitions.
       // Remove owl references, use rdf and rdfs equivalents.

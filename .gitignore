@@ -21,6 +21,7 @@ lib
 dist
 *-app/*
 !*-app/package.json
+!electron-app/electron-main.js
 *.tsbuildinfo
 yarn.lock
 .env

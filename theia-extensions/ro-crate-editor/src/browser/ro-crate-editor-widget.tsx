@@ -13,7 +13,8 @@ import {
     SchemaValidator,
     SchemaValidatorManager,
     type ValidationError,
-} from 'aroma2-common/lib/browser'
+    writeUtf8TextFile,
+} from 'rockit-common/lib/browser'
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 
@@ -119,6 +120,12 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     protected backgroundValidationTimer?: ReturnType<typeof setTimeout>
     protected validationRun = 0
     protected lastValidationErrorSignature = ''
+    protected validationFieldScrollRequest?: {
+        entityId: string
+        fieldName: string
+        nonce: number
+    }
+    protected validationFieldScrollNonce = 0
 
     protected normalizeValidationErrors(
         errors: ValidationError[] | undefined,
@@ -413,6 +420,11 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 }
                 console.log('crate update')
                 this.updateTitleLabel()
+                if (!crate) {
+                    this.localRoCrateApproval = undefined
+                    this.update()
+                    return
+                }
                 const entityId = this.getActiveEntityId()
                 if (!entityId) {
                     return
@@ -449,7 +461,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             }
 
             this.lastAppliedEntityId = undefined
-            void this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'none')
+            void this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'always')
         })
 
         this.profileListSubscription = this.appStateService.onDidChangeSelector(
@@ -841,6 +853,47 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     render(): React.ReactNode {
+        if (!this.localCrate) {
+            return (
+                <div
+                    style={{
+                        alignItems: 'center',
+                        boxSizing: 'border-box',
+                        color: 'var(--theia-descriptionForeground)',
+                        display: 'flex',
+                        height: '100%',
+                        justifyContent: 'center',
+                        minHeight: 0,
+                        overflow: 'hidden',
+                        padding: 24,
+                        textAlign: 'center',
+                    }}
+                >
+                    <div>
+                        <div
+                            style={{
+                                color: 'var(--theia-foreground)',
+                                fontSize: 16,
+                                fontWeight: 600,
+                                lineHeight: 1.4,
+                            }}
+                        >
+                            No RO-Crate metadata found
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 13,
+                                lineHeight: 1.45,
+                                marginTop: 8,
+                            }}
+                        >
+                            ro-crate-metadata.json is missing from this workspace.
+                        </div>
+                    </div>
+                </div>
+            )
+        }
+
         return (
             <div
                 style={{
@@ -856,6 +909,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     roCrateApproval={this.localRoCrateApproval}
                     profile={this.localProfile}
                     entityId={this.getActiveEntityId()}
+                    scrollToFieldRequest={this.validationFieldScrollRequest}
                     profileKey={this.profileRevision}
                     instanceId={this.id}
                     onSaveCrate={this.handleSaveCrate}
@@ -1667,6 +1721,18 @@ protected handleDropEntityToHasPart = async (
         return this.assignedEntityId
     }
 
+    scrollToValidationField(entityId: string, fieldName: string): void {
+        if (!entityId || !fieldName) {
+            return
+        }
+        this.validationFieldScrollRequest = {
+            entityId,
+            fieldName,
+            nonce: ++this.validationFieldScrollNonce,
+        }
+        this.update()
+    }
+
     protected async persistRoCrateToDisk(): Promise<void> {
         if (!this.appStateService.roCrate) {
             return
@@ -1703,11 +1769,9 @@ protected handleDropEntityToHasPart = async (
         const previewUri = rootUri.resolve('ro-crate-preview.html')
 
         try {
-            await this.fileService.create(metadataUri, JSON.stringify(crateData, null, 2), {
-                overwrite: true,
-            })
+            await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(crateData, null, 2))
             const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
-            await this.fileService.create(previewUri, htmlContent, { overwrite: true })
+            await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
             await this.writeRoCrateApprovalFile(
                 this.appStateService.roCrateApproval as RoCrateApprovalFile | undefined,
             )
@@ -1737,9 +1801,7 @@ protected handleDropEntityToHasPart = async (
             if (!(await this.fileService.exists(approvalDirUri))) {
                 await this.fileService.createFolder(approvalDirUri)
             }
-            await this.fileService.create(approvalUri, JSON.stringify(approval ?? [], null, 2), {
-                overwrite: true,
-            })
+            await writeUtf8TextFile(this.fileService, approvalUri, JSON.stringify(approval ?? [], null, 2))
             const legacyApprovalUri = rootUri.resolve(RO_CRATE_APPROVAL_FILE_NAME)
             if (await this.fileService.exists(legacyApprovalUri)) {
                 await this.fileService.delete(legacyApprovalUri)

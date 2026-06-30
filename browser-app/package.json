@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "browser-app",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "dependencies": {
     "@theia/core": "1.65.2",
     "@theia/editor": "1.65.2",
@@ -21,7 +21,7 @@
     "app-state": "0.0.1",
     "property-selector": "0.0.0",
     "entities-overview": "0.0.0",
-    "aroma2-common": "0.0.0",
+    "rockit-common": "0.0.0",
     "data-sources": "0.0.0",
     "open-editors": "0.0.0",
     "multi-edit": "0.0.0"
@@ -29,7 +29,7 @@
   "devDependencies": {
     "@theia/cli": "1.65.2",
     "react-grab": "^0.0.53",
-    "@arpproject/recrate": "0.1.43-test"
+    "@arpproject/recrate": "0.1.44"
   },
   "scripts": {
     "bundle": "yarn run rebuild && theia build --mode development",

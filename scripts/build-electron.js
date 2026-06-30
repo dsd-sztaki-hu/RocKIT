@@ -5,10 +5,34 @@ const fs = require('fs');
 const { spawnSync } = require('child_process');
 
 const resolvedRoot = fs.realpathSync.native(path.resolve(__dirname, '..'));
-const canonicalRoot =
-    process.platform === 'win32'
-        ? resolvedRoot.replace(/^([A-Z]):/, (_, drive) => `${drive.toLowerCase()}:`)
-        : resolvedRoot;
+
+const getCanonicalRoot = root => {
+    if (process.platform !== 'win32') {
+        return root;
+    }
+
+    const lowerDriveLetter = value => value.replace(/^([A-Z]):/, (_, drive) => `${drive.toLowerCase()}:`);
+
+    // Yarn workspace links retain the drive-letter casing used during
+    // installation. Read the link target itself; fs.realpathSync.native can
+    // normalize the drive casing differently on different Windows machines.
+    const electronAppLink = path.join(root, 'node_modules', 'electron-app');
+    if (fs.existsSync(electronAppLink)) {
+        try {
+            const workspaceTarget = fs.readlinkSync(electronAppLink);
+            const workspaceRoot = path.dirname(path.resolve(path.dirname(electronAppLink), workspaceTarget));
+            if (workspaceRoot.toLowerCase() === root.toLowerCase()) {
+                return workspaceRoot;
+            }
+        } catch {
+            // Keep the fallback below for first installs and incomplete installs.
+        }
+    }
+
+    return lowerDriveLetter(root);
+};
+
+const canonicalRoot = getCanonicalRoot(resolvedRoot);
 
 const env = {
     ...process.env,

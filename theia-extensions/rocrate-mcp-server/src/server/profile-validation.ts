@@ -131,27 +131,77 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
   }
 
   /**
+   * Handles extract class inputs.
+   */
+  function extractInputsFromClass(profileClass: unknown): Record<string, unknown>[] {
+    if (!profileClass || typeof profileClass !== 'object' || Array.isArray(profileClass)) {
+      return []
+    }
+    const inputs = (profileClass as Record<string, unknown>).inputs
+    if (!Array.isArray(inputs)) {
+      return []
+    }
+    return inputs.filter(
+      (input): input is Record<string, unknown> =>
+        !!input && typeof input === 'object' && !Array.isArray(input),
+    )
+  }
+
+  /**
    * Handles extract required properties from class.
    */
   function extractRequiredPropertiesFromClass(profileClass: unknown): Set<string> {
     const required = new Set<string>()
-    if (!profileClass || typeof profileClass !== 'object' || Array.isArray(profileClass)) {
-      return required
+    if (profileClass && typeof profileClass === 'object' && !Array.isArray(profileClass)) {
+      const requiredValue = (profileClass as Record<string, unknown>).required
+      if (Array.isArray(requiredValue)) {
+        for (const entry of requiredValue) {
+          if (typeof entry !== 'string') {
+            continue
+          }
+          const trimmed = entry.trim()
+          if (trimmed !== '') {
+            required.add(trimmed)
+          }
+        }
+      }
     }
-    const requiredValue = (profileClass as Record<string, unknown>).required
-    if (!Array.isArray(requiredValue)) {
-      return required
-    }
-    for (const entry of requiredValue) {
-      if (typeof entry !== 'string') {
+    for (const input of extractInputsFromClass(profileClass)) {
+      if (input.required !== true) {
         continue
       }
-      const trimmed = entry.trim()
-      if (trimmed !== '') {
-        required.add(trimmed)
+      const name = typeof input.name === 'string' ? input.name.trim() : ''
+      if (name !== '') {
+        required.add(name)
       }
     }
     return required
+  }
+
+  /**
+   * Handles extract profile-declared property target types.
+   */
+  function extractPropertyTypesFromClass(profileClass: unknown): Map<string, Set<string>> {
+    const propertyTypes = new Map<string, Set<string>>()
+    for (const input of extractInputsFromClass(profileClass)) {
+      const name = typeof input.name === 'string' ? input.name.trim() : ''
+      if (name === '') {
+        continue
+      }
+      const types = input.type
+      if (!Array.isArray(types)) {
+        continue
+      }
+      const normalizedTypes = types
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry !== '')
+      if (normalizedTypes.length === 0) {
+        continue
+      }
+      propertyTypes.set(name, new Set<string>(normalizedTypes))
+    }
+    return propertyTypes
   }
 
   /**
@@ -212,6 +262,7 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
     const allowedClasses = new Set<string>()
     const allowedPropertiesByClass = new Map<string, Set<string>>()
     const requiredPropertiesByClass = new Map<string, Set<string>>()
+    const propertyTypesByClass = new Map<string, Map<string, Set<string>>>()
     const valueSetsByClass = new Map<string, Map<string, Set<string>>>()
 
     for (const profile of resolution.profiles) {
@@ -226,6 +277,7 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
         allowedClasses: new Set<string>(),
         allowedPropertiesByClass: new Map<string, Set<string>>(),
         requiredPropertiesByClass: new Map<string, Set<string>>(),
+        propertyTypesByClass: new Map<string, Map<string, Set<string>>>(),
         valueSetsByClass: new Map<string, Map<string, Set<string>>>(),
       }
 
@@ -258,6 +310,20 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
           globalRequired.add(propertyName)
         }
         requiredPropertiesByClass.set(trimmedClassName, globalRequired)
+
+        const classPropertyTypes = extractPropertyTypesFromClass(classValue)
+        profileRuleSet.propertyTypesByClass.set(trimmedClassName, classPropertyTypes)
+
+        const globalPropertyTypes =
+          propertyTypesByClass.get(trimmedClassName) ?? new Map<string, Set<string>>()
+        for (const [propertyName, types] of classPropertyTypes.entries()) {
+          const globalTypes = globalPropertyTypes.get(propertyName) ?? new Set<string>()
+          for (const type of types) {
+            globalTypes.add(type)
+          }
+          globalPropertyTypes.set(propertyName, globalTypes)
+        }
+        propertyTypesByClass.set(trimmedClassName, globalPropertyTypes)
 
         const classValueSets = extractValueSetsFromClass(classValue)
         profileRuleSet.valueSetsByClass.set(trimmedClassName, classValueSets)
@@ -295,6 +361,18 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
           }
           existing.requiredPropertiesByClass.set(className, current)
         }
+        for (const [className, classPropertyTypes] of profileRuleSet.propertyTypesByClass.entries()) {
+          const currentClassPropertyTypes =
+            existing.propertyTypesByClass.get(className) ?? new Map<string, Set<string>>()
+          for (const [propertyName, types] of classPropertyTypes.entries()) {
+            const currentTypes = currentClassPropertyTypes.get(propertyName) ?? new Set<string>()
+            for (const type of types) {
+              currentTypes.add(type)
+            }
+            currentClassPropertyTypes.set(propertyName, currentTypes)
+          }
+          existing.propertyTypesByClass.set(className, currentClassPropertyTypes)
+        }
         for (const [className, classValueSets] of profileRuleSet.valueSetsByClass.entries()) {
           const currentClassValueSets =
             existing.valueSetsByClass.get(className) ?? new Map<string, Set<string>>()
@@ -316,6 +394,7 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
       allowedClasses,
       allowedPropertiesByClass,
       requiredPropertiesByClass,
+      propertyTypesByClass,
       valueSetsByClass,
     }
   }
@@ -374,7 +453,8 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
    *
    * Reports:
    * - profile resolution/load failures
-   * - disallowed classes/properties
+   * - disallowed classes
+   * - custom properties outside active profile/schema rules (warnings)
    * - missing required properties (mode-dependent)
    * - missing/unknown @context term issues (via reconciliation suggestions)
    */
@@ -454,6 +534,7 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
         allowedClasses: new Set<string>(),
         allowedPropertiesByClass: new Map<string, Set<string>>(),
         requiredPropertiesByClass: new Map<string, Set<string>>(),
+        propertyTypesByClass: new Map<string, Map<string, Set<string>>>(),
         valueSetsByClass: new Map<string, Map<string, Set<string>>>(),
       }
       for (const profileUrl of profileUrls) {
@@ -477,6 +558,18 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
             current.add(prop)
           }
           merged.requiredPropertiesByClass.set(className, current)
+        }
+        for (const [className, classPropertyTypes] of ruleSet.propertyTypesByClass.entries()) {
+          const currentClassPropertyTypes =
+            merged.propertyTypesByClass.get(className) ?? new Map<string, Set<string>>()
+          for (const [propertyName, types] of classPropertyTypes.entries()) {
+            const currentTypes = currentClassPropertyTypes.get(propertyName) ?? new Set<string>()
+            for (const type of types) {
+              currentTypes.add(type)
+            }
+            currentClassPropertyTypes.set(propertyName, currentTypes)
+          }
+          merged.propertyTypesByClass.set(className, currentClassPropertyTypes)
         }
         for (const [className, classValueSets] of ruleSet.valueSetsByClass.entries()) {
           const currentClassValueSets =
@@ -506,15 +599,96 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
     }
 
     const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
+    const entityById = new Map<string, RoCrateEntity>()
+    for (const entity of graph) {
+      if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
+        continue
+      }
+      const entityId = typeof entity['@id'] === 'string' ? entity['@id'] : ''
+      if (entityId !== '') {
+        entityById.set(entityId, entity as RoCrateEntity)
+      }
+    }
+
+    const collectReferencedIds = (value: unknown): string[] => {
+      if (!value) {
+        return []
+      }
+      if (Array.isArray(value)) {
+        return value.flatMap((entry) => collectReferencedIds(entry))
+      }
+      if (typeof value === 'object') {
+        const id = (value as Record<string, unknown>)['@id']
+        return typeof id === 'string' && id.trim() !== '' ? [id.trim()] : []
+      }
+      return []
+    }
+
+    const formatInvalidReferenceValue = (value: unknown): string => {
+      if (typeof value === 'string') {
+        return JSON.stringify(value)
+      }
+      if (value === null) {
+        return 'null'
+      }
+      if (value === undefined) {
+        return 'undefined'
+      }
+      try {
+        return JSON.stringify(value)
+      } catch {
+        return String(value)
+      }
+    }
+
+    const collectInvalidReferenceValueDescriptions = (value: unknown): string[] => {
+      if (!hasMeaningfulValue(value)) {
+        return []
+      }
+      if (Array.isArray(value)) {
+        return value.flatMap((entry) => collectInvalidReferenceValueDescriptions(entry))
+      }
+      if (value && typeof value === 'object') {
+        const id = (value as Record<string, unknown>)['@id']
+        return typeof id === 'string' && id.trim() !== ''
+          ? []
+          : [formatInvalidReferenceValue(value)]
+      }
+      return [formatInvalidReferenceValue(value)]
+    }
+
+    const addRequiredMessage = (message: string): void => {
+      if (options.requiredMode === 'enforce_required') {
+        errors.push(message)
+      } else {
+        warnings.push(message)
+      }
+    }
+
+    const validatedEntities = new Set<string>()
+    const validationQueue: Array<{
+      entity: RoCrateEntity
+      profileUrls: string[]
+    }> = []
+
+    const enqueueProfiledEntity = (
+      entity: RoCrateEntity,
+      profileUrls: string[],
+    ): void => {
+      const entityId = typeof entity['@id'] === 'string' ? entity['@id'] : '<unknown>'
+      const key = `${entityId}|${profileUrls.slice().sort().join('|')}`
+      if (validatedEntities.has(key)) {
+        return
+      }
+      validationQueue.push({ entity, profileUrls })
+    }
+
     for (const entity of graph) {
       if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
         continue
       }
       const types = deps.entityTypes(entity)
       const isDatasetOrFile = types.includes('Dataset') || types.includes('File')
-      if (!isDatasetOrFile) {
-        continue
-      }
 
       const entityProfileUrls = deps.extractConformsToUrls(entity.conformsTo).filter(
         (url) => url !== deps.rocrateConformsToUrl,
@@ -522,22 +696,34 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
       const entityId = typeof entity['@id'] === 'string' ? entity['@id'] : '<unknown>'
 
       if (entityProfileUrls.length === 0) {
-        if (!externalContextCoverage) {
+        if (isDatasetOrFile && !externalContextCoverage) {
           for (const key of Object.keys(entity)) {
             if (key.startsWith('@')) {
               continue
             }
             if (!isKnownContextTerm(key)) {
               errors.push(
-                `Entity ${entityId} contains property not defined by @context: ${key}`,
+                `Entity ${entityId} contains custom property without @context mapping: ${key}. ` +
+                  'Add an inline @context mapping or reference a context URL that defines it.',
               )
             }
           }
         }
         continue
       }
+      enqueueProfiledEntity(entity as RoCrateEntity, entityProfileUrls)
+    }
 
-      const unresolvedEntityProfileUrls = entityProfileUrls.filter(
+    for (let queueIndex = 0; queueIndex < validationQueue.length; queueIndex += 1) {
+      const { entity, profileUrls } = validationQueue[queueIndex]
+      const entityId = typeof entity['@id'] === 'string' ? entity['@id'] : '<unknown>'
+      const validationKey = `${entityId}|${profileUrls.slice().sort().join('|')}`
+      if (validatedEntities.has(validationKey)) {
+        continue
+      }
+      validatedEntities.add(validationKey)
+
+      const unresolvedEntityProfileUrls = profileUrls.filter(
         (url) => !constraints.rulesByProfileUrl.has(url),
       )
       if (unresolvedEntityProfileUrls.length > 0) {
@@ -547,7 +733,8 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
         continue
       }
 
-      const entityRules = mergeRuleSets(entityProfileUrls)
+      const entityRules = mergeRuleSets(profileUrls)
+      const types = deps.entityTypes(entity)
       for (const entityType of types) {
         if (!entityRules.allowedClasses.has(entityType)) {
           errors.push(`Entity ${entityId} has disallowed type for its profile(s): ${entityType}`)
@@ -571,7 +758,10 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
         if (allowedProperties.has(key)) {
           continue
         }
-        errors.push(`Entity ${entityId} contains disallowed property: ${key}`)
+        warnings.push(
+          `Entity ${entityId} contains custom property outside active profile/schema rules: ${key}. ` +
+            'Keep it if the user wants this metadata; do not remove it automatically.',
+        )
       }
 
       const valueSetsByProperty = new Map<string, Set<string>>()
@@ -619,40 +809,70 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
       const hasName = hasMeaningfulValue(nameValue)
       if (!hasName) {
         const message = `Entity ${entityId} is missing human-friendly name`
-        if (options.requiredMode === 'enforce_required') {
-          errors.push(message)
-        } else {
-          warnings.push(message)
-        }
+        addRequiredMessage(message)
       } else if (typeof nameValue === 'string') {
         const candidate = getBestNameCandidate(entity)
         if (nameValue.trim() === entityId && candidate && candidate !== entityId) {
           const message = `Entity ${entityId} uses @id as name while descriptive field is available`
-          if (options.requiredMode === 'enforce_required') {
-            errors.push(message)
-          } else {
-            warnings.push(message)
-          }
+          addRequiredMessage(message)
         }
       }
 
-      if (options.requiredMode === 'enforce_required') {
-        const requiredProperties = new Set<string>()
-        for (const entityType of types) {
-          const classRequiredProps = entityRules.requiredPropertiesByClass.get(entityType)
-          if (!classRequiredProps) {
+      const requiredProperties = new Set<string>()
+      for (const entityType of types) {
+        const classRequiredProps = entityRules.requiredPropertiesByClass.get(entityType)
+        if (!classRequiredProps) {
+          continue
+        }
+        for (const prop of classRequiredProps) {
+          requiredProperties.add(prop)
+        }
+      }
+      for (const requiredProperty of requiredProperties) {
+        if (!hasMeaningfulValue(entity[requiredProperty])) {
+          addRequiredMessage(
+            `Entity ${entityId} is missing required property: ${requiredProperty}`,
+          )
+        }
+      }
+
+      const referenceProperties = new Map<string, Set<string>>()
+      for (const entityType of types) {
+        const classPropertyTypes = entityRules.propertyTypesByClass.get(entityType)
+        if (!classPropertyTypes) {
+          continue
+        }
+        for (const [propertyName, targetTypes] of classPropertyTypes.entries()) {
+          const profileTargetTypes = Array.from(targetTypes).filter((targetType) =>
+            entityRules.allowedClasses.has(targetType),
+          )
+          if (profileTargetTypes.length === 0) {
             continue
           }
-          for (const prop of classRequiredProps) {
-            requiredProperties.add(prop)
-          }
+          referenceProperties.set(propertyName, new Set<string>(profileTargetTypes))
         }
-        for (const requiredProperty of requiredProperties) {
-          if (!hasMeaningfulValue(entity[requiredProperty])) {
-            errors.push(
-              `Entity ${entityId} is missing required property: ${requiredProperty}`,
-            )
+      }
+      for (const propertyName of referenceProperties.keys()) {
+        const invalidReferenceValueDescriptions = collectInvalidReferenceValueDescriptions(
+          entity[propertyName],
+        )
+        if (invalidReferenceValueDescriptions.length > 0) {
+          const expectedTypes = Array.from(referenceProperties.get(propertyName) ?? [])
+            .sort()
+            .join(', ')
+          errors.push(
+            `Entity ${entityId} has invalid reference value(s) for ${propertyName}: ` +
+              `${Array.from(new Set(invalidReferenceValueDescriptions)).join(', ')}. ` +
+              `profile type(s): ${expectedTypes}. Each value must be an object with @id.`,
+          )
+          continue
+        }
+        for (const referencedId of collectReferencedIds(entity[propertyName])) {
+          const referencedEntity = entityById.get(referencedId)
+          if (!referencedEntity) {
+            continue
           }
+          enqueueProfiledEntity(referencedEntity, profileUrls)
         }
       }
     }
@@ -663,7 +883,10 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
       if (externalContextCoverage && usage && !usage.profiled && usage.unprofiled) {
         continue
       }
-      errors.push(`Missing @context mapping for used term: ${term}`)
+      errors.push(
+        `Missing @context mapping for custom term: ${term}. ` +
+          'Add an inline @context mapping or reference a context URL that defines it; do not remove the property automatically.',
+      )
     }
     for (const term of contextSuggestion.unknownTerms) {
       warnings.push(
