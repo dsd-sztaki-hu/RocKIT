@@ -19,13 +19,13 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { FileDownloadService } from '@theia/filesystem/lib/common/download/file-download'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { minimatch, MinimatchOptions } from 'minimatch'
-import { collectRoCrateExportFileReferences } from 'aroma2-common/lib/common/ro-crate-export-file-references'
-import type { RoCrateExportFileSource } from 'aroma2-common/lib/common/ro-crate-export-file-references'
+import { collectRoCrateExportFileReferences } from 'rockit-common/lib/common/ro-crate-export-file-references'
+import type { RoCrateExportFileSource } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import {
-  AROMA_IGNORE_DIR,
-  AROMA_IGNORE_FILE,
+  ROCKIT_IGNORE_DIR,
+  ROCKIT_IGNORE_FILE,
   DEFAULT_IGNORED_ENTRIES as SHARED_DEFAULT_IGNORED_ENTRIES,
-} from 'aroma2-common/lib/common/ro-crate-technical-files'
+} from 'rockit-common/lib/common/ro-crate-technical-files'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import {
   ExportRoCrateDialog,
@@ -47,8 +47,8 @@ interface IgnoreRule {
 
 @injectable()
 export class ExportRoCrateCommandContribution implements CommandContribution {
-  protected static readonly IGNORE_DIR = AROMA_IGNORE_DIR
-  protected static readonly IGNORE_FILE = AROMA_IGNORE_FILE
+  protected static readonly IGNORE_DIR = ROCKIT_IGNORE_DIR
+  protected static readonly IGNORE_FILE = ROCKIT_IGNORE_FILE
   protected static readonly DEFAULT_IGNORED_ENTRIES = SHARED_DEFAULT_IGNORED_ENTRIES
   protected static readonly FORCED_NORMAL_EXPORT_FILES = new Set([
     'ro-crate-metadata.json',
@@ -129,7 +129,10 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
         return true
       }
       const diskContent = await this.fileService.readFile(metadataUri)
-      const diskCrate = JSON.parse(diskContent.value.toString())
+      const diskCrate = this.parseCrate(diskContent.value)
+      if (!diskCrate) {
+        return true
+      }
       return this.stringifyCrate(appCrate) !== this.stringifyCrate(diskCrate)
     } catch (error) {
       console.warn('Failed to compare RO-Crate metadata before export', error)
@@ -427,7 +430,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
 
   protected parseCrate(buffer: BinaryBuffer): Record<string, any> | undefined {
     try {
-      return JSON.parse(buffer.toString())
+      return JSON.parse(new TextDecoder('utf-8').decode(buffer.buffer))
     } catch (error) {
       console.error('Failed to parse RO-Crate metadata', error)
       return undefined

@@ -1,0 +1,29 @@
+{
+  "name": "metadata-profile-core",
+  "version": "0.0.0",
+  "description": "Node-safe CEDAR metadata profile storage and conversion utilities",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "node test/test-core.js"
+  },
+  "dependencies": {
+    "cedar-template-converter": "1.0.0",
+    "rockit-common": "0.0.0"
+  },
+  "optionalDependencies": {
+    "keytar": "^7.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "~5.4.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

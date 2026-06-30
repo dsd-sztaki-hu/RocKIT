@@ -20,6 +20,9 @@
         <button id="refreshBtn" class="btn btn-secondary">
           <span class="icon">↻</span> Refresh
         </button>
+        <button id="metadataProfilesBtn" class="btn btn-secondary">
+          <span class="icon">☁</span> Metadata Profiles
+        </button>
         <button id="settingsBtn" class="btn btn-secondary">
           <span class="icon">⚙</span> Settings
         </button>
@@ -224,39 +227,46 @@
 
   <!-- Settings Modal -->
   <div id="settingsModal" class="modal hidden">
-    <div class="modal-content" style="max-width: 500px;">
+    <div class="modal-content settings-modal-content">
       <div class="modal-header">
         <h2>Dashboard Settings</h2>
         <button class="modal-close" id="closeSettingsModal">&times;</button>
       </div>
       <div class="modal-body">
         <form id="settingsForm" class="settings-form">
-          <div class="setting-row">
-            <label class="setting-label">
-              <strong>Detailed Tool Call Logging</strong>
-              <span class="setting-description">Store tool parameters and results (uses more memory)</span>
-            </label>
-            <div class="setting-control">
-              <label class="toggle">
-                <input type="checkbox" id="detailedLoggingToggle">
-                <span class="toggle-slider"></span>
+          <section class="settings-section">
+            <div class="settings-section-header">
+              <h3>Telemetry</h3>
+            </div>
+            <div class="setting-row">
+              <label class="setting-label">
+                <strong>Detailed Tool Call Logging</strong>
+                <span class="setting-description">Store tool parameters and results (uses more memory)</span>
               </label>
+              <div class="setting-control">
+                <label class="toggle">
+                  <input type="checkbox" id="detailedLoggingToggle">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
             </div>
-          </div>
 
-          <div class="setting-row">
-            <label class="setting-label">
-              <strong>Data Retention</strong>
-              <span class="setting-description">How long to keep telemetry data (hours)</span>
-            </label>
-            <div class="setting-control">
-              <input type="number" id="retentionHoursInput" class="number-input" min="1" max="168" value="24">
-              <span class="input-suffix">hours</span>
+            <div class="setting-row">
+              <label class="setting-label">
+                <strong>Data Retention</strong>
+                <span class="setting-description">How long to keep telemetry data (hours)</span>
+              </label>
+              <div class="setting-control">
+                <input type="number" id="retentionHoursInput" class="number-input" min="1" max="168" value="24">
+                <span class="input-suffix">hours</span>
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div class="dataverse-settings">
-            <h3>Dataverse Upload Tool</h3>
+          <section class="settings-section">
+            <div class="settings-section-header">
+              <h3>Dataverse Upload Tool</h3>
+            </div>
             <div class="setting-row">
               <label class="setting-label">
                 <strong>Keep RO-Crate ZIPs</strong>
@@ -287,7 +297,7 @@
                 <code id="dataverseApiKeyValue">Loading...</code>
               </div>
             </div>
-          </div>
+          </section>
 
           <div class="setting-actions">
             <button type="submit" class="btn btn-primary">Save Changes</button>
@@ -297,31 +307,33 @@
           <div id="settingsMessage" class="settings-message hidden"></div>
         </form>
 
-        <hr style="border: 0; border-top: 1px solid var(--color-border); margin: 1rem 0;" />
-
-        <div class="schema-registry-section">
-          <h3 style="margin: 0 0 0.5rem 0;">Schema Registry</h3>
+        <section class="settings-section schema-registry-section">
+          <div class="settings-section-header">
+            <h3>Schema Registry</h3>
+          </div>
           <p class="setting-description" style="margin: 0 0 0.75rem 0;">
             Manage ontology schema sources used by MCP ontology suggestion tools.
           </p>
 
-          <table class="data-table" id="schemaRegistryTable">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Schema URL</th>
-                <th>Matches Prefixes</th>
-                <th>Specs</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td colspan="6" class="loading">Loading...</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="settings-table-wrap">
+            <table class="data-table" id="schemaRegistryTable">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Schema URL</th>
+                  <th>Matches Prefixes</th>
+                  <th>Specs</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colspan="6" class="loading">Loading...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
           <div class="setting-row" style="margin-top: 0.75rem;">
             <label class="setting-label">
@@ -360,6 +372,190 @@
             <button type="button" class="btn btn-secondary" id="reloadSchemaBtn">Reload</button>
           </div>
           <div id="schemaRegistryMessage" class="settings-message hidden"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metadata Profiles Modal -->
+  <div id="metadataProfilesModal" class="modal hidden">
+    <div class="modal-content profiles-modal-content">
+      <div class="modal-header">
+        <h2>Metadata Profiles</h2>
+        <button class="modal-close" id="closeMetadataProfilesModal">&times;</button>
+      </div>
+      <div class="profiles-modal-body">
+        <div class="profiles-toolbar">
+          <div>
+            <h3>CEDAR Schema Profiles</h3>
+            <p class="setting-description">Browse remote CEDAR repositories and manage locally converted recrate profiles.</p>
+          </div>
+          <div class="profiles-toolbar-actions">
+            <button type="button" class="btn btn-primary" id="browseMetadataProfilesBtn">
+              <span class="icon">☁</span> Browse Remote
+            </button>
+            <button type="button" class="icon-button provider-manage-icon" id="manageMetadataProvidersBtn" title="Manage Remote Providers" aria-label="Manage Remote Providers">
+              <span></span><span></span><span></span>
+            </button>
+            <button type="button" class="btn btn-secondary" id="reloadMetadataProfilesBtn">Reload</button>
+          </div>
+        </div>
+
+        <div class="profiles-storage-strip">
+          <span class="profiles-storage-label">Storage</span>
+          <code id="metadataProfileStorageValue">Loading...</code>
+        </div>
+
+        <div class="profiles-table-wrap">
+          <table class="data-table profiles-table" id="metadataProfilesTable">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Name</th>
+                <th>Version</th>
+                <th>Source</th>
+                <th>Ref (@id)</th>
+                <th>Conforms To</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="7" class="loading">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="profiles-pagination" id="metadataProfilesPagination">
+          <button type="button" class="pager-button" id="metadataProfilesPrevPageBtn" aria-label="Previous page">‹</button>
+          <span class="pager-page" id="metadataProfilesPageValue">1</span>
+          <button type="button" class="pager-button" id="metadataProfilesNextPageBtn" aria-label="Next page">›</button>
+          <select id="metadataProfilesPageSizeSelect" class="pager-size-select" aria-label="Rows per page">
+            <option value="10">10 / page</option>
+            <option value="25">25 / page</option>
+            <option value="50">50 / page</option>
+            <option value="100">100 / page</option>
+          </select>
+        </div>
+
+        <div class="profiles-import-bar">
+          <input type="text" id="metadataProfileUrlInput" class="text-input" placeholder="https://repo.schema.researchdata.hu/templates/...">
+          <button type="button" class="btn btn-primary" id="importMetadataProfileBtn">Import URL</button>
+        </div>
+
+        <div id="metadataProfilesMessage" class="settings-message hidden"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Select Remote Provider Modal -->
+  <div id="remoteProviderSelectModal" class="modal hidden">
+    <div class="modal-content provider-select-modal-content">
+      <div class="modal-header">
+        <h2>Select Remote Provider</h2>
+        <button class="modal-close" id="closeRemoteProviderSelectModal">&times;</button>
+      </div>
+      <div class="provider-dialog-body">
+        <div class="provider-dialog-heading">
+          <div class="provider-dialog-icon provider-server-icon"></div>
+          <div>
+            <h3>Choose Repository</h3>
+            <p class="setting-description">Select a remote provider to browse schemas.</p>
+          </div>
+        </div>
+        <div id="remoteProviderSelectList" class="provider-select-list">
+          <div class="empty">Loading providers...</div>
+        </div>
+      </div>
+      <div class="provider-dialog-footer">
+        <button type="button" class="provider-link-button" id="openManageProvidersFromSelectBtn">
+          <span class="provider-mini-gear">⚙</span> Manage Providers...
+        </button>
+        <button type="button" class="btn btn-secondary" id="cancelRemoteProviderSelectBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manage Remote Providers Modal -->
+  <div id="manageRemoteProvidersModal" class="modal hidden">
+    <div class="modal-content provider-manage-modal-content">
+      <div class="modal-header">
+        <h2>Manage Remote Providers</h2>
+        <button class="modal-close" id="closeManageRemoteProvidersModal">&times;</button>
+      </div>
+      <div class="provider-dialog-body">
+        <div class="provider-manage-heading">
+          <div class="provider-dialog-heading">
+            <div class="provider-dialog-icon provider-sliders-icon"><span></span><span></span><span></span></div>
+            <div>
+              <h3>Configured Providers</h3>
+              <p class="setting-description">Manage connections to remote schema repositories.</p>
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary" id="addRemoteProviderBtn">
+            <span class="icon">+</span> Add Provider
+          </button>
+        </div>
+
+        <div id="remoteProviderManageList" class="provider-manage-list">
+          <div class="empty">Loading providers...</div>
+        </div>
+
+        <form id="remoteProviderForm" class="provider-form hidden">
+          <input type="hidden" id="remoteProviderOriginalId">
+          <div class="provider-form-grid">
+            <input type="text" id="remoteProviderIdInput" class="text-input" placeholder="Provider id">
+            <input type="text" id="remoteProviderTitleInput" class="text-input" placeholder="Display name">
+            <input type="text" id="remoteProviderBaseUrlInput" class="text-input" placeholder="https://cedar.schema.researchdata.hu/">
+            <input type="text" id="remoteProviderDomainInput" class="text-input" placeholder="schema.researchdata.hu">
+            <select id="remoteProviderAccessModeInput" class="text-input">
+              <option value="dataverseProxy">Dataverse proxy (read-only)</option>
+              <option value="apiKey">CEDAR API key</option>
+            </select>
+            <input type="text" id="remoteProviderProxyBaseUrlInput" class="text-input" placeholder="https://repo.researchdata.hu">
+            <input type="password" id="remoteProviderApiKeyInput" class="text-input provider-form-wide" placeholder="API key (stored in keytar when available)">
+          </div>
+          <div class="setting-actions">
+            <button type="submit" class="btn btn-primary">Save Provider</button>
+            <button type="button" class="btn btn-secondary" id="cancelRemoteProviderFormBtn">Cancel</button>
+          </div>
+        </form>
+      </div>
+      <div class="provider-dialog-footer">
+        <div id="remoteProviderManageMessage" class="settings-message hidden"></div>
+        <button type="button" class="btn btn-secondary" id="closeManageRemoteProvidersBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Browse Remote CEDAR Modal -->
+  <div id="cedarBrowserModal" class="modal hidden">
+    <div class="modal-content cedar-browser-modal-content">
+      <div class="modal-header">
+        <h2 id="cedarBrowserTitle">Browse Remote</h2>
+        <button class="modal-close" id="closeCedarBrowserModal">&times;</button>
+      </div>
+      <div class="cedar-browser-body">
+        <div class="cedar-browser-toolbar">
+          <button type="button" class="icon-button cedar-search-button" id="cedarSearchToggleBtn" title="Search" aria-label="Search"></button>
+          <input type="text" id="cedarSearchInput" class="text-input cedar-search-input hidden" placeholder="Search folders and templates">
+          <div class="cedar-browser-spacer"></div>
+          <button type="button" class="icon-button cedar-expand-button" id="cedarExpandAllBtn" title="Expand All" aria-label="Expand All"></button>
+          <button type="button" class="icon-button cedar-collapse-button" id="cedarCollapseAllBtn" title="Collapse All" aria-label="Collapse All"></button>
+        </div>
+        <div id="cedarBrowserTree" class="cedar-browser-tree">
+          <div class="loading">Loading repository...</div>
+        </div>
+      </div>
+      <div class="cedar-browser-footer">
+        <div class="cedar-browser-selection">
+          <button type="button" class="icon-button cedar-locate-button hidden" id="cedarLocateSelectedBtn" title="Locate in Tree" aria-label="Locate in Tree"></button>
+          <button type="button" class="icon-button cedar-clear-button hidden" id="cedarClearSelectionBtn" title="Deselect" aria-label="Deselect"></button>
+          <span id="cedarBrowserSelectionText" class="cedar-browser-placeholder">Select a template to import...</span>
+        </div>
+        <div class="cedar-browser-actions">
+          <button type="button" class="btn btn-secondary" id="cancelCedarBrowserBtn">Cancel</button>
+          <button type="button" class="btn btn-primary" id="addCedarTemplateBtn" disabled>Add</button>
         </div>
       </div>
     </div>

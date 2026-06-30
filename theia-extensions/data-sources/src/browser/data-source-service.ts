@@ -3,7 +3,7 @@ import { StorageService } from '@theia/core/lib/browser/storage-service'
 import URI from '@theia/core/lib/common/uri'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 
-const STORAGE_KEY = 'aroma:data-sources'
+const STORAGE_KEY = 'rockit:data-sources'
 
 @injectable()
 export class DataSourceService {

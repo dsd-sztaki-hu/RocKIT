@@ -49,8 +49,6 @@ export class SimpleStateStore<S> {
     const emitter = new Emitter<R>()
 
     let last = selector(this.state)
-    emitter.fire(last)
-
     const disposable = this.onDidChangeState(({ current }) => {
       const next = selector(current)
       if (!equals(last, next)) {
@@ -65,6 +63,10 @@ export class SimpleStateStore<S> {
       originalDispose()
     }
 
-    return emitter.event
+    return (listener, thisArgs, disposables) => {
+      const eventDisposable = emitter.event(listener, thisArgs, disposables)
+      listener.call(thisArgs, last)
+      return eventDisposable
+    }
   }
 }

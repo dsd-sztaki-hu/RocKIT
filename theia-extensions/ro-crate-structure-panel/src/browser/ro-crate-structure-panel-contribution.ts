@@ -5,7 +5,7 @@ import {
   CommonMenus,
   WidgetManager,
 } from '@theia/core/lib/browser'
-import { RoCrateDeleteSelectedEntitiesCommand } from 'aroma2-common/lib/browser'
+import { RoCrateDeleteSelectedEntitiesCommand } from 'rockit-common/lib/browser'
 import type { Command, CommandRegistry } from '@theia/core/lib/common/command'
 import { inject, injectable } from 'inversify'
 import {

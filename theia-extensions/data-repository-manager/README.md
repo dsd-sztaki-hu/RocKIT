@@ -1,6 +1,6 @@
 # Data Repository Manager
 
-A Theia extension for managing remote data repository connections within the AROMA 2 platform.
+A Theia extension for managing remote data repository connections within the RocKIT platform.
 
 ## Overview
 
@@ -18,11 +18,11 @@ The Data Repository Manager provides a user interface for configuring and managi
 
 - Node.js 18.x or higher
 - Yarn 4.x
-- AROMA 2 project environment
+- RocKIT project environment
 
 ## Installation
 
-This extension is part of the AROMA 2 monorepo. To build and run:
+This extension is part of the RocKIT monorepo. To build and run:
 
 ```bash
 # Install dependencies
@@ -66,4 +66,4 @@ yarn test
 
 ## License
 
-Part of the AROMA 2 project.
+Part of the RocKIT project.

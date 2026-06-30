@@ -10,6 +10,7 @@ import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import CategoryIcon from '@mui/icons-material/Category';
+import SecurityIcon from '@mui/icons-material/Security';
 import { IconButton } from '@mui/material';
 
 import { ConnectionSuccessDialog } from './connection-success-dialog';
@@ -26,6 +27,8 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
     private baseUrlValue: string = '';
     private apiKeyValue: string = '';
     private typeValue: 'CEDAR' = 'CEDAR';
+    private accessModeValue: 'apiKey' | 'dataverseProxy' = 'dataverseProxy';
+    private dataverseProxyBaseUrlValue: string = '';
     
     private isEditingKey = true;
     private isTesting = false;
@@ -47,6 +50,8 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
         if (providerToEdit) {
             this.titleValue = providerToEdit.title;
             this.baseUrlValue = providerToEdit.baseUrl;
+            this.accessModeValue = providerToEdit.accessMode || (providerToEdit.apiKey ? 'apiKey' : 'dataverseProxy');
+            this.dataverseProxyBaseUrlValue = providerToEdit.dataverseProxyBaseUrl || this.deriveDataverseProxyBaseUrl(providerToEdit.domainBase || providerToEdit.baseUrl);
             this.apiKeyValue = providerToEdit.apiKey || '';
             this.isEditingKey = false; 
         }
@@ -68,9 +73,13 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
         this.render();
 
         const domainBase = this.calculateDomainBase(this.baseUrlValue);
+        const proxyUrl = this.accessModeValue === 'dataverseProxy'
+            ? this.buildDataverseProxyUrl(this.dataverseProxyBaseUrlValue || this.deriveDataverseProxyBaseUrl(domainBase))
+            : undefined;
+        const apiKey = this.accessModeValue === 'apiKey' ? this.apiKeyValue || undefined : undefined;
         
         try {
-            const schemaNames = await this.providerStore.testConnection(domainBase, this.apiKeyValue || undefined);
+            const schemaNames = await this.providerStore.testConnection(domainBase, apiKey, proxyUrl);
 
             const successDialog = new ConnectionSuccessDialog(this.titleValue, schemaNames);
             const confirmed = await successDialog.open();
@@ -82,7 +91,13 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                     baseUrl: this.baseUrlValue,
                     domainBase: domainBase,
                     type: this.typeValue,
-                    apiKey: this.apiKeyValue || undefined
+                    resourceBaseUrl: this.providerToEdit?.resourceBaseUrl,
+                    registryFolderId: this.providerToEdit?.registryFolderId,
+                    accessMode: this.accessModeValue,
+                    dataverseProxyBaseUrl: this.accessModeValue === 'dataverseProxy'
+                        ? (this.dataverseProxyBaseUrlValue || this.deriveDataverseProxyBaseUrl(domainBase))
+                        : undefined,
+                    apiKey: apiKey
                 };
                 this.accept(); 
             }
@@ -116,6 +131,39 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
         } catch {
             return url;
         }
+    }
+
+    private deriveDataverseProxyBaseUrl(value: string): string {
+        const trimmed = value.trim();
+        if (!trimmed) return 'https://repo.researchdata.hu';
+        try {
+            const urlObj = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`);
+            const parts = urlObj.hostname.split('.');
+            const first = parts[0]?.toLowerCase();
+            if (first === 'schema') {
+                parts[0] = 'repo';
+            } else if (['cedar', 'resource', 'open', 'openview'].includes(first)) {
+                parts.shift();
+                if (parts[0]?.toLowerCase() === 'schema') {
+                    parts[0] = 'repo';
+                } else {
+                    parts.unshift('repo');
+                }
+            } else if (first !== 'repo') {
+                parts.unshift('repo');
+            }
+            urlObj.hostname = parts.join('.');
+            urlObj.pathname = '';
+            urlObj.search = '';
+            urlObj.hash = '';
+            return urlObj.origin;
+        } catch {
+            return trimmed;
+        }
+    }
+
+    private buildDataverseProxyUrl(baseUrl: string): string {
+        return `${baseUrl.replace(/\/+$/, '')}/api/arp/cedarResourceProxy?url=`;
     }
 
     protected render(): void {
@@ -176,7 +224,13 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                                 className="theia-input remote-provider-config__input" 
                                 placeholder="https://cedar.schema.researchdata.hu"
                                 value={this.baseUrlValue}
-                                onChange={(e) => { this.baseUrlValue = e.target.value; this.render(); }}
+                                onChange={(e) => {
+                                    this.baseUrlValue = e.target.value;
+                                    if (this.accessModeValue === 'dataverseProxy') {
+                                        this.dataverseProxyBaseUrlValue = this.deriveDataverseProxyBaseUrl(this.calculateDomainBase(e.target.value));
+                                    }
+                                    this.render();
+                                }}
                                 disabled={this.isTesting}
                             />
                         </div>
@@ -196,10 +250,48 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                             </select>
                         </div>
 
-                        {/* API Key */}
+                        {/* Access Mode */}
                         <div>
                             <label className="remote-provider-config__label">
-                                <VpnKeyIcon style={{ fontSize: '16px', opacity: 0.7 }}/> API Key (Optional)
+                                <SecurityIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Access
+                            </label>
+                            <select
+                                className="theia-select remote-provider-config__select"
+                                value={this.accessModeValue}
+                                onChange={(e) => {
+                                    this.accessModeValue = e.target.value as 'apiKey' | 'dataverseProxy';
+                                    if (this.accessModeValue === 'dataverseProxy' && !this.dataverseProxyBaseUrlValue) {
+                                        this.dataverseProxyBaseUrlValue = this.deriveDataverseProxyBaseUrl(this.calculateDomainBase(this.baseUrlValue));
+                                    }
+                                    this.render();
+                                }}
+                                disabled={this.isTesting}
+                            >
+                                <option value="dataverseProxy">Dataverse proxy (read-only)</option>
+                                <option value="apiKey">CEDAR API key</option>
+                            </select>
+                        </div>
+
+                        {this.accessModeValue === 'dataverseProxy' && (
+                            <div>
+                                <label className="remote-provider-config__label">
+                                    <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Dataverse Proxy Base URL
+                                </label>
+                                <input
+                                    className="theia-input remote-provider-config__input"
+                                    placeholder="https://repo.researchdata.hu"
+                                    value={this.dataverseProxyBaseUrlValue || this.deriveDataverseProxyBaseUrl(this.calculateDomainBase(this.baseUrlValue))}
+                                    onChange={(e) => { this.dataverseProxyBaseUrlValue = e.target.value; this.render(); }}
+                                    disabled={this.isTesting}
+                                />
+                            </div>
+                        )}
+
+                        {/* API Key */}
+                        {this.accessModeValue === 'apiKey' && (
+                        <div>
+                            <label className="remote-provider-config__label">
+                                <VpnKeyIcon style={{ fontSize: '16px', opacity: 0.7 }}/> API Key
                             </label>
                             <div className="remote-provider-config__api-key-wrapper">
                                 <input 
@@ -235,6 +327,7 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                                 )}
                             </div>
                         </div>
+                        )}
                     </div>
                 </div>
 

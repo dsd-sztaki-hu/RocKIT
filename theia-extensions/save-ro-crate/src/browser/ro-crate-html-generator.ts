@@ -1,5 +1,5 @@
 import { injectable } from '@theia/core/shared/inversify'
-import { RoCrateHtmlGenerator } from 'aroma2-common/lib/browser'
+import { RoCrateHtmlGenerator } from 'rockit-common/lib/browser'
 
 type Entity = Record<string, any>
 

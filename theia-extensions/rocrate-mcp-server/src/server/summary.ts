@@ -55,6 +55,16 @@ export function createSummaryHelpers(deps: SummaryDeps) {
     }
   }
 
+  function stringValues(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value.filter((item): item is string => typeof item === 'string')
+    }
+    if (value instanceof Set) {
+      return Array.from(value).filter((item): item is string => typeof item === 'string')
+    }
+    return []
+  }
+
   /**
    * Projects profile resolution into a transport-safe summary object.
    */
@@ -69,7 +79,7 @@ export function createSummaryHelpers(deps: SummaryDeps) {
       unresolvedUrls: resolution.unresolvedUrls,
       warnings: resolution.warnings,
       indexPath: resolution.indexPath,
-      aromaRootPath: resolution.aromaRootPath,
+      rockitRootPath: resolution.rockitRootPath,
       profiles: resolution.profiles.map((profile) => ({
         id: profile.id,
         name: profile.name,
@@ -329,9 +339,7 @@ export function createSummaryHelpers(deps: SummaryDeps) {
       Object.entries(allowedPropertiesByClassRaw)
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([className, props]) => {
-          const values = Array.isArray(props)
-            ? props.filter((item): item is string => typeof item === 'string')
-            : []
+          const values = stringValues(props)
           const summary = summarizeStringArray(values.sort())
           return [
             className,
@@ -365,9 +373,7 @@ export function createSummaryHelpers(deps: SummaryDeps) {
               Object.entries(propertySets)
                 .sort((a, b) => a[0].localeCompare(b[0]))
                 .map(([propertyName, valuesRaw]) => {
-                  const values = Array.isArray(valuesRaw)
-                    ? valuesRaw.filter((item): item is string => typeof item === 'string')
-                    : []
+                  const values = stringValues(valuesRaw)
                   const summary = summarizeStringArray(values.sort())
                   return [
                     propertyName,

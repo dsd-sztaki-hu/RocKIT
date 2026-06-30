@@ -606,7 +606,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             return result;
         }
 
-        this.messageService.info('Removed omit rules in memory. Save to persist changes to .aroma/ignored.txt.');
+        this.messageService.info('Removed omit rules in memory. Save to persist changes to .rockit/ignored.txt.');
         return result;
     }
 
@@ -628,12 +628,12 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         }
 
         if (result.pairedDescriptionCount === 0) {
-            this.messageService.info('Marked selected files/folders as omitted in memory. Save to persist changes to .aroma/ignored.txt.');
+            this.messageService.info('Marked selected files/folders as omitted in memory. Save to persist changes to .rockit/ignored.txt.');
             return result;
         }
 
         if (!result.metadataLoaded) {
-            this.messageService.info('Marked selected files/folders as omitted in memory. Save to persist changes to .aroma/ignored.txt.');
+            this.messageService.info('Marked selected files/folders as omitted in memory. Save to persist changes to .rockit/ignored.txt.');
             return result;
         }
 

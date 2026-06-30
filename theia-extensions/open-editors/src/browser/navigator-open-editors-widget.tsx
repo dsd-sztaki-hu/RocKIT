@@ -67,7 +67,7 @@ export interface OpenEditorsNodeRow extends TreeWidget.NodeRow {
 }
 @injectable()
 export class OpenEditorsWidget extends AbstractOpenEditorsTreeWidget {
-  static ID = 'aroma-open-editors-widget'
+  static ID = 'rockit-open-editors-widget'
   static LABEL = nls.localizeByDefault('Open Editors')
   static CSS_CLASS = 'theia-open-editors-widget'
   static SEARCH_VISIBLE_CLASS = 'open-editors-search-visible'

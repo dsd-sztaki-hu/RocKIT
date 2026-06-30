@@ -3,7 +3,7 @@ import * as React from '@theia/core/shared/react'
 import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
-import type { MetadataSchemaManager, SchemaInfo } from 'aroma2-common/lib/browser'
+import type { MetadataSchemaManager, SchemaInfo } from 'rockit-common/lib/browser'
 import schemaTypeDefinitions = require('./schema-type-definitions.json')
 import { isSchemaOrgPropertyAllowedForHierarchy } from './schema-type-property-restrictions'
 
@@ -103,6 +103,7 @@ const SCHEMA_TYPE_DEFINITIONS = schemaTypeDefinitions as Record<
 const SCHEMA_ORG_SCHEMA_ID = '__schemaorg__'
 const SCHEMA_ORG_LABEL = 'schema.org'
 const OTHER_ONTOLOGIES_LABEL = 'Other ontologies'
+const ENTITY_LIST_RENDER_LIMIT = 1_000
 
 const OPERATOR_LABELS: Record<BulkOperator, string> = {
   add: 'Add',
@@ -140,8 +141,10 @@ export class MultiEditDialog extends ReactDialog<string> {
   protected selectedSchemaIds = new Set<string>()
   protected schemaUrlsById = new Map<string, string>()
   protected schemaConformsLookupCache?: Map<string, string>
+  protected downloadedSchemasLoaded = false
 
   protected schemaOrgEnabled = false
+  protected schemaOrgFieldsInitialized = false
   protected selectedEntities: Record<string, any>[] = []
 
   protected startButton?: HTMLButtonElement
@@ -194,7 +197,6 @@ export class MultiEditDialog extends ReactDialog<string> {
       return
     }
 
-    this.entitySummaries = this.buildEntitySummaries(crate, profile)
     this.selectedEntities = this.collectSelectedEntities(crate)
 
     const entityTypes = this.collectEntityTypes(crate)
@@ -208,17 +210,14 @@ export class MultiEditDialog extends ReactDialog<string> {
     for (const field of fields) {
       this.fieldsByKey.set(field.key, field)
     }
-    const schemaOrgFields = this.buildSchemaOrgFields(crate, profile)
-    for (const field of schemaOrgFields) {
-      this.schemaOrgFieldsByKey.set(field.key, field)
-    }
-
     this.schemaOptions = this.mergeSchemaOptions(schemas)
     this.selectedSchemaIds = new Set()
 
     if (this.operations.length === 0) {
       this.operations.push(this.createOperation())
     }
+
+    void this.loadDownloadedSchemaProfiles()
   }
 
   /**
@@ -312,7 +311,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   /**
-   * Collects selected entity records for field applicability checks.
+   * Collects one selected entity per unique type combination for field applicability checks.
    * @param crate Active RO-Crate document.
    * @returns Selected entity objects.
    * @protected
@@ -323,11 +322,17 @@ export class MultiEditDialog extends ReactDialog<string> {
       : []
     const selected = new Set(this.entityIds)
     const entities: Record<string, any>[] = []
+    const typeSignatures = new Set<string>()
     for (const entity of graph) {
       const id = typeof entity?.['@id'] === 'string' ? entity['@id'] : ''
       if (!id || !selected.has(id)) {
         continue
       }
+      const typeSignature = this.getEntityTypeNames(entity).sort().join('\u0000')
+      if (typeSignatures.has(typeSignature)) {
+        continue
+      }
+      typeSignatures.add(typeSignature)
       entities.push(entity)
     }
     return entities
@@ -524,6 +529,153 @@ export class MultiEditDialog extends ReactDialog<string> {
         this.upsertFieldDefinition(fieldsByKey, field)
       }
     }
+  }
+
+  /**
+   * Loads every downloaded converted RO-Crate profile from the schema manager.
+   * @returns void
+   * @protected
+   */
+  protected async loadDownloadedSchemaProfiles(): Promise<void> {
+    if (this.downloadedSchemasLoaded || !this.schemaManagerService) {
+      return
+    }
+    this.downloadedSchemasLoaded = true
+
+    let schemas: SchemaInfo[] = []
+    try {
+      schemas = await this.schemaManagerService.loadAllSchemas()
+    } catch (error) {
+      console.warn('Failed to load downloaded schemas for multi-edit.', error)
+      return
+    }
+
+    let changed = false
+    for (const schema of schemas) {
+      const schemaStatus = (schema as SchemaInfo & { status?: string }).status
+      if (!schema?.files?.sourcePath || schemaStatus === 'downloading') {
+        continue
+      }
+      try {
+        const schemaProfile = await this.schemaManagerService.getConvertedProfileContent(
+          schema.files.sourcePath,
+        )
+        if (this.addDownloadedSchemaProfileFields(schema, schemaProfile)) {
+          changed = true
+        }
+      } catch (error) {
+        console.warn(`Failed to load downloaded schema profile: ${schema.name}`, error)
+      }
+    }
+
+    if (changed) {
+      this.schemaOptions = this.mergeSchemaOptions(this.schemaOptions)
+      this.update()
+    }
+  }
+
+  /**
+   * Adds selectable fields from one downloaded converted profile.
+   * @param schema Persisted schema metadata.
+   * @param schemaProfile Converted RO-Crate profile content.
+   * @returns True when a schema option or field was added.
+   * @protected
+   */
+  protected addDownloadedSchemaProfileFields(
+    schema: SchemaInfo,
+    schemaProfile: Record<string, any>,
+  ): boolean {
+    if (!schemaProfile || typeof schemaProfile !== 'object') {
+      return false
+    }
+
+    const schemaLabel = this.resolveDownloadedSchemaLabel(schema, schemaProfile)
+    const schemaId = this.normalizeSchemaId(schemaLabel)
+    if (!schemaId) {
+      return false
+    }
+
+    const schemaUrl = schema.conformsTo?.trim() || schema.aux?.reference?.trim()
+    let changed = false
+    if (!this.schemaOptions.some((option) => option.id === schemaId)) {
+      this.schemaOptions.push({ id: schemaId, label: schemaLabel, url: schemaUrl })
+      changed = true
+    }
+    if (schemaUrl) {
+      this.schemaUrlsById.set(schemaId, schemaUrl)
+    }
+
+    const schemaClasses = (schemaProfile.classes ?? {}) as Record<string, any>
+    const datasetClass = schemaClasses.Dataset
+    const schemaInputs = Array.isArray(datasetClass?.inputs)
+      ? (datasetClass.inputs as Record<string, any>[])
+      : []
+    if (schemaInputs.length === 0) {
+      return changed
+    }
+
+    const schemaLayouts = Array.isArray(schemaProfile.layouts)
+      ? (schemaProfile.layouts as Record<string, any>[])
+      : []
+    const datasetLayout = this.findLayoutForClass(schemaLayouts, 'Dataset')
+
+    const beforeSize = this.fieldsByKey.size
+    for (const input of schemaInputs) {
+      const propertyName = typeof input?.name === 'string' ? input.name.trim() : ''
+      if (!propertyName) {
+        continue
+      }
+
+      const relationshipTypes = this.extractEntityTypes(input, schemaClasses)
+      const valueKinds = this.resolveValueKinds(input, schemaClasses, relationshipTypes)
+      const groupName = this.getFieldGroup(input)
+      const schemaMeta = this.resolveSchemaMeta(datasetLayout, groupName)
+      this.upsertFieldDefinition(this.fieldsByKey, {
+        key: `schema::${schemaId}::${propertyName}`,
+        className: '__any__',
+        classLabel: 'Any',
+        supportedClasses: [],
+        schemaId,
+        schemaLabel,
+        schemaGroupName: schemaMeta.label || schemaLabel,
+        schemaUrl,
+        propertyName,
+        label: String(input.label ?? propertyName),
+        help: typeof input.help === 'string' ? input.help : undefined,
+        multiple: this.parseBoolean(input.multiple),
+        valueKind: valueKinds[0] ?? 'text',
+        valueKinds,
+        selectValues: Array.isArray(input.values)
+          ? input.values
+              .map((value) => String(value))
+              .filter((value) => value.trim().length > 0)
+          : [],
+        entityTypes: relationshipTypes,
+        appliesToAll: true,
+      })
+    }
+
+    return changed || this.fieldsByKey.size !== beforeSize
+  }
+
+  /**
+   * Resolves a readable label for one downloaded schema.
+   * @param schema Persisted schema metadata.
+   * @param schemaProfile Converted profile content.
+   * @returns User-facing schema label.
+   * @protected
+   */
+  protected resolveDownloadedSchemaLabel(
+    schema: SchemaInfo,
+    schemaProfile: Record<string, any>,
+  ): string {
+    const rawName =
+      typeof schemaProfile?.metadata?.name === 'string' &&
+      schemaProfile.metadata.name.trim().length > 0
+        ? schemaProfile.metadata.name.trim()
+        : schema.name
+    const normalized = this.schemaManagerService?.nameWithoutMetadataSuffix(rawName)
+    return normalized?.trim() || rawName
   }
 
   /**
@@ -1114,7 +1266,26 @@ export class MultiEditDialog extends ReactDialog<string> {
     if (!fieldKey) {
       return undefined
     }
-    return this.fieldsByKey.get(fieldKey) ?? this.schemaOrgFieldsByKey.get(fieldKey)
+    return (
+      this.fieldsByKey.get(fieldKey) ??
+      this.findFieldByStableKey(this.fieldsByKey, fieldKey) ??
+      this.schemaOrgFieldsByKey.get(fieldKey) ??
+      this.findFieldByStableKey(this.schemaOrgFieldsByKey, fieldKey)
+    )
+  }
+
+  /**
+   * Finds a field by its stable option key when the backing map uses a dedupe key.
+   * @param fields Field catalog map.
+   * @param fieldKey Stable field key from the UI option value.
+   * @returns Matching field definition or undefined.
+   * @protected
+   */
+  protected findFieldByStableKey(
+    fields: Map<string, FieldDefinition>,
+    fieldKey: string,
+  ): FieldDefinition | undefined {
+    return Array.from(fields.values()).find((field) => field.key === fieldKey)
   }
 
   /**
@@ -1179,8 +1350,33 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected toggleSchemaOrg = (enabled: boolean) => {
+    if (enabled) {
+      this.initializeSchemaOrgFields()
+    }
     this.schemaOrgEnabled = enabled
     this.update()
+  }
+
+  /**
+   * Builds optional schema.org fields only when the user enables them.
+   * @returns void
+   * @protected
+   */
+  protected initializeSchemaOrgFields(): void {
+    if (this.schemaOrgFieldsInitialized) {
+      return
+    }
+    this.schemaOrgFieldsInitialized = true
+
+    const crate = this.appStateService.roCrate
+    const profile = this.profileData
+    if (!crate || !profile) {
+      return
+    }
+
+    for (const field of this.buildSchemaOrgFields(crate, profile)) {
+      this.schemaOrgFieldsByKey.set(field.key, field)
+    }
   }
 
   /**
@@ -1218,6 +1414,13 @@ export class MultiEditDialog extends ReactDialog<string> {
    */
   protected toggleEntityList = () => {
     this.showEntityList = !this.showEntityList
+    if (this.showEntityList && this.entitySummaries.length === 0) {
+      const crate = this.appStateService.roCrate
+      const profile = this.profileData
+      if (crate && profile) {
+        this.entitySummaries = this.buildEntitySummaries(crate, profile)
+      }
+    }
     this.update()
   }
 
@@ -1765,7 +1968,14 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
 
     const maps: Array<Map<string, FieldDefinition>> = []
+    const processedTypeSignatures = new Set<string>()
     for (const entity of selectedEntities) {
+      const typeSignature = this.getEntityTypeNames(entity).sort().join('\u0000')
+      if (processedTypeSignatures.has(typeSignature)) {
+        continue
+      }
+      processedTypeSignatures.add(typeSignature)
+
       const map = this.buildSchemaOrgFieldMapForEntity(entity, profileClasses)
       if (map.size === 0) {
         return []
@@ -3338,7 +3548,7 @@ export class MultiEditDialog extends ReactDialog<string> {
           </Button>
         </div>
 
-        {(() => {
+        {this.showEntityList && (() => {
           const normalizedSearch = this.entitySearch.trim().toLowerCase()
           const filteredEntities =
             normalizedSearch.length === 0
@@ -3346,12 +3556,10 @@ export class MultiEditDialog extends ReactDialog<string> {
               : this.entitySummaries.filter((entity) =>
                   entity.name.toLowerCase().includes(normalizedSearch),
                 )
+          const displayedEntities = filteredEntities.slice(0, ENTITY_LIST_RENDER_LIMIT)
           return (
             <div
-              className={`entities-overview-edit-modal-entity-window${
-                this.showEntityList ? '' : ' is-hidden'
-              }`}
-              aria-hidden={!this.showEntityList}
+              className="entities-overview-edit-modal-entity-window"
             >
               <div className="entities-overview-edit-modal-entity-window-header">
                 <span>Selected entities</span>
@@ -3375,7 +3583,8 @@ export class MultiEditDialog extends ReactDialog<string> {
                   allowClear
                 />
                 <span className="entities-overview-edit-modal-entity-window-count">
-                  {filteredEntities.length} / {this.entitySummaries.length}
+                  {displayedEntities.length} shown / {filteredEntities.length} matching /{' '}
+                  {this.entitySummaries.length} selected
                 </span>
               </div>
               <div className="entities-overview-edit-modal-entity-window-body">
@@ -3387,7 +3596,7 @@ export class MultiEditDialog extends ReactDialog<string> {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredEntities.map((entity) => (
+                    {displayedEntities.map((entity) => (
                       <tr key={entity.id} title={entity.id}>
                         <td>{entity.name}</td>
                         <td>

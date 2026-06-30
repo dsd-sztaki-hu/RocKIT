@@ -1,0 +1,40 @@
+{
+  "name": "rockit-common",
+  "keywords": [
+    "theia-extension"
+  ],
+  "version": "0.0.0",
+  "description": "Shared interfaces and protocols for RocKIT",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "dependencies": {
+    "@theia/core": "1.65.2",
+    "antd": "^5.29.1",
+    "keytar": "^7.9.0",
+    "mime-types": "^2.1.35",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.0",
+    "typescript": "~5.4.5",
+    "@types/keytar": "^4.4.2",
+    "@types/mime-types": "^3.0.1",
+    "@types/uuid": "^9.0.7"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rimraf lib tsconfig.tsbuildinfo",
+    "test": "yarn build && node test/default-ro-crate.test.js",
+    "watch": "tsc -b -w"
+  },
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/rockit-common-frontend-module",
+      "backend": "lib/node/rockit-common-backend-module" 
+    }
+  ]
+}
