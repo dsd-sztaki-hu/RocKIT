@@ -9,12 +9,18 @@ export interface ArpRoCrateImportInput {
   datasetUrl: string
 }
 
+export interface ArpRoCrateImportDialogOptions {
+  title?: string
+  description?: string
+  placeholder?: string
+}
+
 export class ArpRoCrateImportDialog extends AbstractDialog<ArpRoCrateImportInput | undefined> {
   private reactRoot: Root | undefined
   private datasetUrl = ''
 
-  constructor() {
-    super({ title: 'Import ARP RO-Crate' })
+  constructor(protected readonly options: ArpRoCrateImportDialogOptions = {}) {
+    super({ title: options.title ?? 'Import ARP RO-Crate' })
 
     this.contentNode.style.width = '560px'
     this.contentNode.style.maxWidth = '90vw'
@@ -40,7 +46,8 @@ export class ArpRoCrateImportDialog extends AbstractDialog<ArpRoCrateImportInput
     this.reactRoot.render(
       <div className="arp-import-dialog">
         <div className="arp-import-dialog__description">
-          Enter the full handle or dataset URL for the ARP dataset to import.
+          {this.options.description ??
+            'Enter the full handle or dataset URL for the ARP dataset to import.'}
         </div>
         <label className="arp-import-dialog__field">
           <span className="arp-import-dialog__label">Dataset URL</span>
@@ -48,7 +55,7 @@ export class ArpRoCrateImportDialog extends AbstractDialog<ArpRoCrateImportInput
             className="arp-import-dialog__input"
             value={this.datasetUrl}
             autoFocus
-            placeholder="https://hdl.handle.net/21.T15999/..."
+            placeholder={this.options.placeholder ?? 'https://hdl.handle.net/21.T15999/...'}
             onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
               this.datasetUrl = event.target.value
               this.refresh()

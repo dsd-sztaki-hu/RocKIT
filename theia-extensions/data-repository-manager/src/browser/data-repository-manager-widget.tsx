@@ -23,6 +23,7 @@ import {
   NativeDataverseDatasetMetadata,
   NativeDataverseExportService,
 } from './services/native-dataverse-export-service'
+import { NativeDataverseImportService } from './services/native-dataverse-import-service'
 import { RoCrateFileHashService } from './services/ro-crate-file-hash-service'
 import { DataRepositoryConfig } from './types'
 import './styles/index.css'
@@ -56,6 +57,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly arpExportService: ArpRoCrateExportService,
     @inject(ArpRoCrateImportService)
     protected readonly arpImportService: ArpRoCrateImportService,
+    @inject(NativeDataverseImportService)
+    protected readonly nativeImportService: NativeDataverseImportService,
     @inject(DataverseCapabilityService)
     protected readonly capabilityService: DataverseCapabilityService,
     @inject(RoCrateFileHashService)
@@ -114,39 +117,60 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     const selectedRepo = repositorySelection.repository
     const capabilities = repositorySelection.capabilities
-    if (!capabilities.supportsArpRoCrateZipUpload) {
+    if (!capabilities.supportsNativeDataverseApi) {
       this.messageService.warn(
-        `Import is currently only implemented for ARP repositories. '${selectedRepo.title}' is not an ARP RO-Crate repository.`,
+        `Import is currently only implemented for Dataverse-based repositories. '${selectedRepo.title}' does not expose a supported Dataverse API.`,
         { timeout: 10000 },
       )
       return
     }
 
-    const importDialog = new ArpRoCrateImportDialog()
+    const importDialog = new ArpRoCrateImportDialog(
+      capabilities.supportsArpRoCrateZipUpload
+        ? undefined
+        : {
+            title: 'Import Dataverse Dataset',
+            description:
+              'Enter the dataset persistent ID or dataset URL for the Dataverse dataset to import.',
+            placeholder: 'doi:10.70122/FK2/N2XGBJ',
+          },
+    )
     const importInput = await importDialog.open()
     if (!importInput) {
       return
     }
 
     const progress = await this.messageService.showProgress({
-      text: `Importing RO-Crate from ${selectedRepo.title}...`,
+      text: `Importing dataset from ${selectedRepo.title}...`,
     })
     try {
-      const result = await this.arpImportService.importFromDatasetUrl(
-        selectedRepo,
-        importInput.datasetUrl,
-      )
+      const result = capabilities.supportsArpRoCrateZipUpload
+        ? await this.arpImportService.importFromDatasetUrl(
+            selectedRepo,
+            importInput.datasetUrl,
+          )
+        : await this.nativeImportService.importFromDatasetUrl(
+            selectedRepo,
+            importInput.datasetUrl,
+          )
       if (!result) {
         return
       }
-      this.messageService.info(
-        `RO-Crate imported to ${result.targetDirectory.path.fsPath()}. Extracted ${result.extractedFileCount} file(s).`,
-        { timeout: 10000 },
-      )
+      if ('hasRoCrateMetadata' in result && !result.hasRoCrateMetadata) {
+        this.messageService.info(
+          `Dataverse dataset imported to ${result.targetDirectory.path.fsPath()}. Extracted ${result.extractedFileCount} file(s). No ro-crate-metadata.json was included, so the workspace can create one after opening.`,
+          { timeout: 10000 },
+        )
+      } else {
+        this.messageService.info(
+          `Dataset imported to ${result.targetDirectory.path.fsPath()}. Extracted ${result.extractedFileCount} file(s).`,
+          { timeout: 10000 },
+        )
+      }
     } catch (error) {
-      console.error('ARP RO-Crate import failed:', error)
+      console.error('Remote dataset import failed:', error)
       this.messageService.error(
-        `RO-Crate import failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Dataset import failed: ${error instanceof Error ? error.message : String(error)}`,
         { timeout: 10000 },
       )
     } finally {

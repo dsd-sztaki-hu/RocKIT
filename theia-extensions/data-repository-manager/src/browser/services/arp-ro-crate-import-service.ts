@@ -110,9 +110,9 @@ export class ArpRoCrateImportService {
       headers,
     })
     if (!response.ok) {
-      const message = await response.text().catch(() => '')
+      const message = await this.readErrorResponseMessage(response)
       throw new Error(
-        `ARP RO-Crate ZIP download failed (${response.status}): ${message.slice(0, 500)}`,
+        `ARP RO-Crate ZIP download failed (${response.status}): ${message}`,
       )
     }
 
@@ -256,6 +256,63 @@ export class ArpRoCrateImportService {
         `Failed to parse imported ro-crate-metadata.json: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
+  }
+
+  protected async readErrorResponseMessage(response: Response): Promise<string> {
+    const text = await response.text().catch(() => '')
+    if (!text.trim()) {
+      return response.statusText || 'No response body.'
+    }
+    try {
+      return this.payloadSummary(JSON.parse(text))
+    } catch {
+      return text.slice(0, 500)
+    }
+  }
+
+  protected payloadSummary(payload: unknown): string {
+    const messages = this.collectPayloadMessages(payload)
+    if (messages.length) {
+      return messages.join('; ').slice(0, 500)
+    }
+    if (typeof payload === 'string') {
+      return payload.slice(0, 500)
+    }
+    try {
+      return JSON.stringify(payload).slice(0, 500)
+    } catch {
+      return String(payload).slice(0, 500)
+    }
+  }
+
+  protected collectPayloadMessages(payload: unknown): string[] {
+    if (!payload || typeof payload !== 'object') {
+      return typeof payload === 'string' && payload.trim() ? [payload.trim()] : []
+    }
+    if (Array.isArray(payload)) {
+      return payload.flatMap((item) => this.collectPayloadMessages(item))
+    }
+
+    const record = payload as Record<string, unknown>
+    const directMessages = [
+      record.message,
+      record.error,
+      record.status,
+      record.reason,
+      record.details,
+    ].filter(
+      (value): value is string =>
+        typeof value === 'string' && value.trim().length > 0,
+    )
+
+    const nestedMessages = [
+      record.data,
+      record.errors,
+      record.errorMessages,
+      record.messages,
+    ].flatMap((value) => this.collectPayloadMessages(value))
+
+    return [...directMessages, ...nestedMessages]
   }
 
   protected async persistImportedExportState(
