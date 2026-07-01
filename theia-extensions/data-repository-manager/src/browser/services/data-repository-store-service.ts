@@ -2,12 +2,16 @@ import { injectable, inject } from 'inversify';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { URI } from '@theia/core/lib/common/uri';
+import { Emitter, Event } from '@theia/core/lib/common/event';
 
 import { SecureStorageService } from 'rockit-common/lib/browser';
 import { DataRepositoryConfig } from '../types';
 
 @injectable()
 export class DataRepositoryStoreService {
+
+    protected readonly onDidChangeEmitter = new Emitter<void>();
+    readonly onDidChange: Event<void> = this.onDidChangeEmitter.event;
 
     constructor(
         @inject(FileService) protected readonly fileService: FileService,
@@ -40,8 +44,8 @@ export class DataRepositoryStoreService {
     protected async getConfigUri(): Promise<URI> {
         const { rootPath, configFileName } = await this.getEnvConfig();
         const normalizedRoot = rootPath.replace(/\\/g, '/');
-        const baseUri = normalizedRoot.match(/^[a-zA-Z]:/) 
-            ? new URI('file:///' + normalizedRoot) 
+        const baseUri = normalizedRoot.match(/^[a-zA-Z]:/)
+            ? new URI('file:///' + normalizedRoot)
             : new URI('file://' + normalizedRoot);
 
         return baseUri.resolve(configFileName);
@@ -59,10 +63,9 @@ export class DataRepositoryStoreService {
             console.error('Failed to initialize config paths:', e);
             return [];
         }
-        
+
         let configs: DataRepositoryConfig[] = [];
 
-        // 1. Read the non-sensitive configuration data from JSON
         try {
             if (await this.fileService.exists(uri)) {
                 const content = await this.fileService.read(uri);
@@ -73,18 +76,18 @@ export class DataRepositoryStoreService {
             return [];
         }
 
-        // 2. Fetch all secure credentials from Keytar
         const storedCredentials = await this.secureStorage.findCredentials(keytarService);
         const credentialMap = new Map<string, string>();
         storedCredentials.forEach(c => credentialMap.set(c.account, c.password));
 
-        // 3. Hydrate the config objects with the secure API keys
         const hydratedConfigs = configs.map(config => {
             const secret = credentialMap.get(config.id);
-            return { ...config, apiKey: secret || undefined };
+            return {
+                ...config,
+                apiKey: secret || undefined
+            };
         });
 
-        // 4. Runtime cleanup (removes OS keys if the JSON record was manually deleted by the user)
         const activeIds = new Set(configs.map(c => c.id));
         for (const cred of storedCredentials) {
             if (!activeIds.has(cred.account)) {
@@ -100,14 +103,15 @@ export class DataRepositoryStoreService {
         const uri = await this.getConfigUri();
         const { keytarService } = await this.getEnvConfig();
 
-        // 1. Strip the API keys out of the objects before saving to plaintext JSON
-        const cleanConfigs = repositories.map(p => {
-            const { apiKey, ...safeConfig } = p;
+        const cleanConfigs = repositories.map(repository => {
+            const { apiKey, type: _legacyType, ...safeConfig } = repository as DataRepositoryConfig & {
+                type?: string;
+            };
             return safeConfig;
         });
 
         const content = JSON.stringify(cleanConfigs, null, 4);
-        
+
         try {
             if (!await this.fileService.exists(uri.parent)) {
                 await this.fileService.createFolder(uri.parent);
@@ -118,7 +122,6 @@ export class DataRepositoryStoreService {
             throw error;
         }
 
-        // 2. Save or delete the API keys in OS Secure Storage
         for (const repo of repositories) {
             if (repo.apiKey) {
                 await this.secureStorage.setPassword(keytarService, repo.id, repo.apiKey);
@@ -126,5 +129,25 @@ export class DataRepositoryStoreService {
                 await this.secureStorage.deletePassword(keytarService, repo.id);
             }
         }
+
+        this.onDidChangeEmitter.fire();
+    }
+
+    public async saveRepository(config: DataRepositoryConfig): Promise<void> {
+        const current = await this.loadRepositories();
+        const index = current.findIndex(r => r.id === config.id);
+
+        if (index !== -1) {
+            current[index] = config;
+        } else {
+            current.push(config);
+        }
+
+        await this.saveRepositories(current);
+    }
+
+    public async deleteRepositories(ids: string[]): Promise<void> {
+        const current = await this.loadRepositories();
+        await this.saveRepositories(current.filter(r => !ids.includes(r.id)));
     }
 }

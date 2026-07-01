@@ -1,13 +1,22 @@
 import { injectable } from '@theia/core/shared/inversify';
 import { MenuModelRegistry } from '@theia/core';
 import { SchemaValidatorWidget } from './schema-validator-widget';
-import { AbstractViewContribution } from '@theia/core/lib/browser';
+import { AbstractViewContribution, FrontendApplicationContribution } from '@theia/core/lib/browser';
 import { Command, CommandRegistry } from '@theia/core/lib/common/command';
+import { inject } from '@theia/core/shared/inversify';
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 
 export const SchemaValidatorCommand: Command = { id: 'validation-errors:command' };
 
 @injectable()
-export class SchemaValidatorContribution extends AbstractViewContribution<SchemaValidatorWidget> {
+export class SchemaValidatorContribution
+    extends AbstractViewContribution<SchemaValidatorWidget>
+    implements FrontendApplicationContribution {
+
+    @inject(AppStateService)
+    protected readonly appStateService!: AppStateService;
+
+    protected previousValidationErrorCount = 0;
 
     /**
      * `AbstractViewContribution` handles the creation and registering
@@ -23,6 +32,19 @@ export class SchemaValidatorContribution extends AbstractViewContribution<Schema
             widgetName: SchemaValidatorWidget.LABEL,
             defaultWidgetOptions: { area: 'left' },
             toggleCommandId: SchemaValidatorCommand.id
+        });
+    }
+
+    async onStart(): Promise<void> {
+        await this.appStateService.ready;
+        this.previousValidationErrorCount = this.appStateService.validationErrors?.length ?? 0;
+        this.appStateService.onDidChangeSelector(s => s.validationErrors)((errors) => {
+            const nextCount = errors?.length ?? 0;
+            const shouldReveal = this.previousValidationErrorCount === 0 && nextCount > 0;
+            this.previousValidationErrorCount = nextCount;
+            if (shouldReveal) {
+                void super.openView({ activate: false, reveal: true });
+            }
         });
     }
 

@@ -6,12 +6,12 @@ import LinkIcon from '@mui/icons-material/Link';
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import CategoryIcon from '@mui/icons-material/Category';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { IconButton } from '@mui/material';
 
 import { DataRepositoryConfig } from '../types';
 import { DataRepositorySuccessDialog } from './data-repository-success-dialog';
+import { DataverseService } from '../services/dataverse-service';
 import '../styles/data-repository-config-dialog.css';
 
 export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryConfig | undefined> {
@@ -22,7 +22,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
     private titleValue: string = '';
     private baseUrlValue: string = '';
     private apiKeyValue: string = '';
-    private typeValue: string = 'ARP Dataverse';
     
     private isEditingKey = true; 
     private showKey = false; 
@@ -30,7 +29,10 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
     private errorMsg: string | null = null;
     private result: DataRepositoryConfig | undefined;
 
-    constructor(private readonly repoToEdit?: DataRepositoryConfig) {
+    constructor(
+        private readonly dataverseService: DataverseService,
+        private readonly repoToEdit?: DataRepositoryConfig
+    ) {
         super({
             title: repoToEdit ? 'Edit Repository' : 'Add Repository'
         });
@@ -45,7 +47,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         if (repoToEdit) {
             this.titleValue = repoToEdit.title;
             this.baseUrlValue = repoToEdit.baseUrl;
-            this.typeValue = repoToEdit.type;
             this.apiKeyValue = repoToEdit.apiKey || '';
             this.isEditingKey = false; 
         }
@@ -91,34 +92,8 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         let expirationDate: string | undefined = undefined;
 
         try {
-            if (this.typeValue === 'ARP Dataverse') {
-                const testUrl = `${cleanBaseUrl}/api/users/token`;
-                const headers: HeadersInit = { 'X-Dataverse-key': cleanApiKey };
-
-                const response = await fetch(testUrl, { method: 'GET', headers });
-                
-                let data;
-                try {
-                    data = await response.json();
-                } catch (jsonErr) {
-                    throw new Error("Server did not return a valid JSON response. Is this a correct Dataverse repository URL?");
-                }
-
-                if (data.status === 'ERROR') {
-                    throw new Error(data.message || "Invalid API Token or server error.");
-                }
-
-                if (!response.ok) {
-                    throw new Error(`Server returned ${response.status}: ${response.statusText}`);
-                }
-
-                if (data.data && typeof data.data.message === 'string') {
-                    const match = data.data.message.match(/expires on (.*)$/);
-                    if (match && match[1]) {
-                        expirationDate = match[1];
-                    }
-                }
-            }
+            const result = await this.dataverseService.validateToken(cleanBaseUrl, cleanApiKey);
+            expirationDate = result.expirationDate;
 
             const successDialog = new DataRepositorySuccessDialog(cleanTitle, expirationDate);
             const confirmed = await successDialog.open();
@@ -128,7 +103,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                     id: this.repoToEdit ? this.repoToEdit.id : Date.now().toString(),
                     title: cleanTitle,
                     baseUrl: cleanBaseUrl,
-                    type: this.typeValue,
                     apiKey: cleanApiKey
                 };
                 this.accept(); 
@@ -139,7 +113,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
 
         } catch (error: any) {
             console.error("Connection Test Failed:", error);
-            if (error.message === 'Failed to fetch' || error.message.includes('NetworkError')) {
+            if (error.message === 'Failed to fetch' || (error.message && error.message.includes('NetworkError'))) {
                 this.errorMsg = "Could not reach the server. Please check the Base URL and your network connection.";
             } else {
                 this.errorMsg = error.message || "An unknown error occurred during connection testing.";
@@ -209,20 +183,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                 disabled={this.isTesting}
                                 onChange={(e) => { this.baseUrlValue = e.target.value; this.render(); }}
                             />
-                        </div>
-
-                        <div>
-                            <label className="data-repo-config__label">
-                                <CategoryIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Type
-                            </label>
-                            <select 
-                                className="theia-select data-repo-config__select" 
-                                value={this.typeValue}
-                                disabled={this.isTesting}
-                                onChange={(e) => { this.typeValue = e.target.value; this.render(); }}
-                            >
-                                <option value="ARP Dataverse">ARP Dataverse</option>
-                            </select>
                         </div>
 
                         <div>

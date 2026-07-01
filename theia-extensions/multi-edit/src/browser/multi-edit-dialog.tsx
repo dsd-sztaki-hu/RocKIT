@@ -150,6 +150,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   protected selectedSchemaIds = new Set<string>()
   protected schemaUrlsById = new Map<string, string>()
   protected schemaConformsLookupCache?: Map<string, string>
+  protected downloadedSchemasLoaded = false
 
   protected schemaOrgEnabled = false
   protected schemaOrgFieldsInitialized = false
@@ -231,6 +232,8 @@ export class MultiEditDialog extends ReactDialog<string> {
       this.operations.push(this.createOperation())
     }
     this.update()
+
+    void this.loadDownloadedSchemaProfiles()
   }
 
   /**
@@ -605,6 +608,153 @@ export class MultiEditDialog extends ReactDialog<string> {
       }
     }
     this.appStateService.profileList = Array.from(merged.values())
+  }
+
+  /**
+   * Loads every downloaded converted RO-Crate profile from the schema manager.
+   * @returns void
+   * @protected
+   */
+  protected async loadDownloadedSchemaProfiles(): Promise<void> {
+    if (this.downloadedSchemasLoaded || !this.schemaManagerService) {
+      return
+    }
+    this.downloadedSchemasLoaded = true
+
+    let schemas: SchemaInfo[] = []
+    try {
+      schemas = await this.schemaManagerService.loadAllSchemas()
+    } catch (error) {
+      console.warn('Failed to load downloaded schemas for multi-edit.', error)
+      return
+    }
+
+    let changed = false
+    for (const schema of schemas) {
+      const schemaStatus = (schema as SchemaInfo & { status?: string }).status
+      if (!schema?.files?.sourcePath || schemaStatus === 'downloading') {
+        continue
+      }
+      try {
+        const schemaProfile = await this.schemaManagerService.getConvertedProfileContent(
+          schema.files.sourcePath,
+        )
+        if (this.addDownloadedSchemaProfileFields(schema, schemaProfile)) {
+          changed = true
+        }
+      } catch (error) {
+        console.warn(`Failed to load downloaded schema profile: ${schema.name}`, error)
+      }
+    }
+
+    if (changed) {
+      this.schemaOptions = this.mergeSchemaOptions(this.schemaOptions)
+      this.update()
+    }
+  }
+
+  /**
+   * Adds selectable fields from one downloaded converted profile.
+   * @param schema Persisted schema metadata.
+   * @param schemaProfile Converted RO-Crate profile content.
+   * @returns True when a schema option or field was added.
+   * @protected
+   */
+  protected addDownloadedSchemaProfileFields(
+    schema: SchemaInfo,
+    schemaProfile: Record<string, any>,
+  ): boolean {
+    if (!schemaProfile || typeof schemaProfile !== 'object') {
+      return false
+    }
+
+    const schemaLabel = this.resolveDownloadedSchemaLabel(schema, schemaProfile)
+    const schemaId = this.normalizeSchemaId(schemaLabel)
+    if (!schemaId) {
+      return false
+    }
+
+    const schemaUrl = schema.conformsTo?.trim() || schema.aux?.reference?.trim()
+    let changed = false
+    if (!this.schemaOptions.some((option) => option.id === schemaId)) {
+      this.schemaOptions.push({ id: schemaId, label: schemaLabel, url: schemaUrl })
+      changed = true
+    }
+    if (schemaUrl) {
+      this.schemaUrlsById.set(schemaId, schemaUrl)
+    }
+
+    const schemaClasses = (schemaProfile.classes ?? {}) as Record<string, any>
+    const datasetClass = schemaClasses.Dataset
+    const schemaInputs = Array.isArray(datasetClass?.inputs)
+      ? (datasetClass.inputs as Record<string, any>[])
+      : []
+    if (schemaInputs.length === 0) {
+      return changed
+    }
+
+    const schemaLayouts = Array.isArray(schemaProfile.layouts)
+      ? (schemaProfile.layouts as Record<string, any>[])
+      : []
+    const datasetLayout = this.findLayoutForClass(schemaLayouts, 'Dataset')
+
+    const beforeSize = this.fieldsByKey.size
+    for (const input of schemaInputs) {
+      const propertyName = typeof input?.name === 'string' ? input.name.trim() : ''
+      if (!propertyName) {
+        continue
+      }
+
+      const relationshipTypes = this.extractEntityTypes(input, schemaClasses)
+      const valueKinds = this.resolveValueKinds(input, schemaClasses, relationshipTypes)
+      const groupName = this.getFieldGroup(input)
+      const schemaMeta = this.resolveSchemaMeta(datasetLayout, groupName)
+      this.upsertFieldDefinition(this.fieldsByKey, {
+        key: `schema::${schemaId}::${propertyName}`,
+        className: '__any__',
+        classLabel: 'Any',
+        supportedClasses: [],
+        schemaId,
+        schemaLabel,
+        schemaGroupName: schemaMeta.label || schemaLabel,
+        schemaUrl,
+        propertyName,
+        label: String(input.label ?? propertyName),
+        help: typeof input.help === 'string' ? input.help : undefined,
+        multiple: this.parseBoolean(input.multiple),
+        valueKind: valueKinds[0] ?? 'text',
+        valueKinds,
+        selectValues: Array.isArray(input.values)
+          ? input.values
+              .map((value) => String(value))
+              .filter((value) => value.trim().length > 0)
+          : [],
+        entityTypes: relationshipTypes,
+        appliesToAll: true,
+      })
+    }
+
+    return changed || this.fieldsByKey.size !== beforeSize
+  }
+
+  /**
+   * Resolves a readable label for one downloaded schema.
+   * @param schema Persisted schema metadata.
+   * @param schemaProfile Converted profile content.
+   * @returns User-facing schema label.
+   * @protected
+   */
+  protected resolveDownloadedSchemaLabel(
+    schema: SchemaInfo,
+    schemaProfile: Record<string, any>,
+  ): string {
+    const rawName =
+      typeof schemaProfile?.metadata?.name === 'string' &&
+      schemaProfile.metadata.name.trim().length > 0
+        ? schemaProfile.metadata.name.trim()
+        : schema.name
+    const normalized = this.schemaManagerService?.nameWithoutMetadataSuffix(rawName)
+    return normalized?.trim() || rawName
   }
 
   /**
@@ -1202,7 +1352,26 @@ export class MultiEditDialog extends ReactDialog<string> {
     if (!fieldKey) {
       return undefined
     }
-    return this.fieldsByKey.get(fieldKey) ?? this.schemaOrgFieldsByKey.get(fieldKey)
+    return (
+      this.fieldsByKey.get(fieldKey) ??
+      this.findFieldByStableKey(this.fieldsByKey, fieldKey) ??
+      this.schemaOrgFieldsByKey.get(fieldKey) ??
+      this.findFieldByStableKey(this.schemaOrgFieldsByKey, fieldKey)
+    )
+  }
+
+  /**
+   * Finds a field by its stable option key when the backing map uses a dedupe key.
+   * @param fields Field catalog map.
+   * @param fieldKey Stable field key from the UI option value.
+   * @returns Matching field definition or undefined.
+   * @protected
+   */
+  protected findFieldByStableKey(
+    fields: Map<string, FieldDefinition>,
+    fieldKey: string,
+  ): FieldDefinition | undefined {
+    return Array.from(fields.values()).find((field) => field.key === fieldKey)
   }
 
   /**

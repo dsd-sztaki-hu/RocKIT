@@ -21,17 +21,15 @@ import {
 import URI from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from 'react'
-import corePackage = require('@theia/core/package.json')
 import { ROCKIT_SPLASH_SHOW_AT_STARTUP } from '../common/rockit-splash-preferences'
 
 import '../../src/browser/style/rockit-splash.css'
 
-const THEIA_VERSION = (corePackage as { version?: string }).version || 'unknown'
 const APP_NAME = 'RocKIT'
 const APP_FULL_NAME = 'RocKIT - RO-Crate Kit'
 const DEFAULT_APP_INFO: ApplicationInfo = {
   name: APP_FULL_NAME,
-  version: THEIA_VERSION,
+  version: 'unknown',
 }
 const RO_CRATE_DOCUMENTATION_URL = 'https://www.researchobject.org/ro-crate/'
 const DSD_URL = 'https://dsd.sztaki.hu/hu'
@@ -49,14 +47,15 @@ interface RockitSplashDialogProps {
   onOpenLink: (url: string) => void
 }
 
-function versionPathSegment(version: string): string {
+function documentationVersion(version: string): string {
   const trimmed = version.trim().replace(/^v\s*/i, '')
-  return trimmed || 'latest'
+  const match = /^(\d+)\.(\d+)/.exec(trimmed)
+  return match ? `${match[1]}.${match[2]}` : 'latest'
 }
 
-function buildVersionedUrl(version: string, page: string): string {
-  const segment = encodeURIComponent(versionPathSegment(version))
-  return `https://aroma-project.github.io/aroma-2/${segment}/${page}`
+function buildDocumentationUrl(version: string): string {
+  const segment = encodeURIComponent(documentationVersion(version))
+  return `https://repo.researchdata.hu/rockit/${segment}/`
 }
 
 function RockitSplashContent({
@@ -66,7 +65,7 @@ function RockitSplashContent({
   onOpenLink,
 }: RockitSplashDialogProps): React.ReactElement {
   const version = appInfo.version || DEFAULT_APP_INFO.version
-  const userGuideUrl = buildVersionedUrl(version, 'help')
+  const userGuideUrl = buildDocumentationUrl(version)
 
   const openLink = (event: React.MouseEvent<HTMLAnchorElement>, url: string): void => {
     event.preventDefault()
@@ -186,7 +185,7 @@ export class RockitSplashContribution implements FrontendApplicationContribution
 
     this.appInfo = {
       name: appInfo?.name || DEFAULT_APP_INFO.name,
-      version: THEIA_VERSION,
+      version: appInfo?.version || DEFAULT_APP_INFO.version,
     }
     this.showAtStartup = this.preferenceService.get<boolean>(
       ROCKIT_SPLASH_SHOW_AT_STARTUP,

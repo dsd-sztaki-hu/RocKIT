@@ -48,7 +48,7 @@
     "electron-app"
   ],
   "dependencies": {
-    "generator-theia-extension": "^0.1.47",
+    "generator-theia-extension": "0.1.44",
     "dotenv": "17.2.3"
   },
   "resolutions": {

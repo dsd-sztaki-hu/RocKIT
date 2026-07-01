@@ -2892,6 +2892,20 @@ body:has(
   z-index: 6000 !important;
 }
 
+.recrate-schema-filter-dropdown,
+.recrate-matching-properties-tooltip {
+  z-index: 6100 !important;
+}
+
+.recrate-schema-modal {
+  z-index: 6200 !important;
+}
+
+.recrate-schema-tooltip,
+.recrate-schema-popconfirm {
+  z-index: 6300 !important;
+}
+
 .recrate-add-property-drawer .recrate-add-property-title.ant-typography {
   margin: 0 !important;
   font-size: 22px !important;
@@ -2984,6 +2998,272 @@ body:is(.theia-dark, .theia-hc) .recrate-add-property-drawer {
   --recrate-add-property-border: rgba(96, 165, 250, 0.35);
   --recrate-add-property-selected-border: rgba(96, 165, 250, 0.75);
   --recrate-add-property-accent: #60a5fa;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-add-property-drawer
+  :is(.ant-select-selector, .ant-input) {
+  background: var(--theia-input-background, #1f1f1f) !important;
+  border-color: var(--theia-ui-border, rgba(127, 127, 127, 0.42)) !important;
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-add-property-drawer
+  :is(.ant-select-selection-item, .ant-select-arrow, .ant-checkbox-wrapper) {
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-add-property-drawer
+  .ant-checkbox-inner {
+  background: var(--theia-input-background, #1f1f1f) !important;
+  border-color: var(--theia-ui-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-add-property-drawer
+  .ant-checkbox-checked
+  .ant-checkbox-inner {
+  background: var(--theia-focusBorder, #3794ff) !important;
+  border-color: var(--theia-focusBorder, #3794ff) !important;
+}
+
+body:is(.theia-dark, .theia-hc) .recrate-add-property-drawer .ant-tag {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: var(--theia-ui-border, rgba(127, 127, 127, 0.42)) !important;
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-add-property-drawer
+  .ant-alert {
+  background: rgba(55, 148, 255, 0.1) !important;
+  border-color: rgba(55, 148, 255, 0.38) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-add-property-drawer
+  .ant-alert-warning {
+  background: rgba(210, 153, 34, 0.12) !important;
+  border-color: rgba(210, 153, 34, 0.42) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-add-property-drawer
+  :is(.ant-alert-message, .ant-alert-description) {
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-add-property-drawer
+  :is(.ant-spin-dot-item, .anticon-question-circle) {
+  color: var(--theia-textLink-foreground, #60a5fa) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-filter-dropdown.ant-select-dropdown {
+  background: var(--theia-dropdown-background, #252526) !important;
+  border: 1px solid var(--theia-ui-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-filter-dropdown
+  .ant-select-item {
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-filter-dropdown
+  :is(.ant-select-item-option-active, .ant-select-item-option-selected) {
+  background: rgba(55, 148, 255, 0.18) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-matching-properties-tooltip
+  .ant-tooltip-inner,
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-tooltip
+  .ant-tooltip-inner {
+  background: var(--theia-dropdown-background, #252526) !important;
+  border: 1px solid var(--theia-ui-border, rgba(127, 127, 127, 0.42)) !important;
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  :is(.recrate-matching-properties-tooltip, .recrate-schema-tooltip) {
+  --antd-arrow-background-color: var(--theia-dropdown-background, #252526);
+}
+
+body:is(.theia-dark, .theia-hc) .recrate-schema-modal {
+  --recrate-schema-bg: var(--theia-editor-background, #1e1e1e);
+  --recrate-schema-panel: rgba(255, 255, 255, 0.045);
+  --recrate-schema-panel-hover: rgba(255, 255, 255, 0.08);
+  --recrate-schema-border: var(--theia-ui-border, rgba(127, 127, 127, 0.42));
+  --recrate-schema-text: var(--theia-ui-font-color1, #d4d4d4);
+  --recrate-schema-muted: var(--theia-ui-font-color2, #a6a6a6);
+  --recrate-schema-accent: var(--theia-textLink-foreground, #60a5fa);
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  :is(.ant-modal-content, .ant-modal-header, .ant-modal-footer) {
+  background: var(--recrate-schema-bg) !important;
+  border-color: var(--recrate-schema-border) !important;
+  color: var(--recrate-schema-text) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  :is(.ant-modal-title, .ant-modal-close, .ant-typography, .ant-checkbox-wrapper) {
+  color: var(--recrate-schema-text) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  :is(.ant-checkbox-wrapper-disabled, .ant-checkbox-wrapper-disabled span) {
+  color: var(--recrate-schema-text) !important;
+  opacity: 1 !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  .ant-typography.ant-typography-secondary {
+  color: var(--recrate-schema-muted) !important;
+}
+
+body:is(.theia-dark, .theia-hc) .recrate-schema-modal .ant-card {
+  background: var(--recrate-schema-panel) !important;
+  border-color: var(--recrate-schema-border) !important;
+  color: var(--recrate-schema-text) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  :is(.ant-card-head, .ant-card-body) {
+  border-color: var(--recrate-schema-border) !important;
+  color: var(--recrate-schema-text) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  :is(.ant-input, input:not([type="checkbox"]):not([type="radio"])) {
+  background: var(--theia-input-background, #1f1f1f) !important;
+  border-color: var(--recrate-schema-border) !important;
+  color: var(--recrate-schema-text) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  .ant-input:disabled {
+  background: rgba(255, 255, 255, 0.03) !important;
+  color: var(--recrate-schema-muted) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  :is(.ant-btn, button) {
+  background: var(--recrate-schema-panel-hover) !important;
+  border-color: var(--recrate-schema-border) !important;
+  color: var(--recrate-schema-text) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  .ant-btn-primary {
+  background: rgba(55, 148, 255, 0.22) !important;
+  border-color: var(--recrate-schema-accent) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  .ant-checkbox-inner {
+  background: var(--theia-input-background, #1f1f1f) !important;
+  border-color: var(--recrate-schema-border) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  .ant-checkbox-checked
+  .ant-checkbox-inner {
+  background: var(--theia-focusBorder, #3794ff) !important;
+  border-color: var(--theia-focusBorder, #3794ff) !important;
+}
+
+body:is(.theia-dark, .theia-hc) .recrate-schema-modal .ant-tag {
+  background: var(--recrate-schema-panel-hover) !important;
+  border-color: var(--recrate-schema-border) !important;
+  color: var(--recrate-schema-text) !important;
+}
+
+body:is(.theia-dark, .theia-hc) .recrate-schema-modal .ant-alert {
+  background: var(--recrate-schema-panel-hover) !important;
+  border-color: var(--recrate-schema-border) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  .ant-alert-success {
+  background: rgba(63, 185, 80, 0.12) !important;
+  border-color: rgba(63, 185, 80, 0.42) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  .ant-alert-warning {
+  background: rgba(210, 153, 34, 0.12) !important;
+  border-color: rgba(210, 153, 34, 0.42) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  .ant-alert-error {
+  background: rgba(255, 123, 114, 0.1) !important;
+  border-color: rgba(255, 123, 114, 0.42) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  :is(.ant-alert-message, .ant-alert-description) {
+  color: var(--recrate-schema-text) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-modal
+  :is(.ant-spin-dot-item, .anticon-question-circle) {
+  color: var(--recrate-schema-accent) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-popconfirm
+  .ant-popover-inner {
+  background: var(--theia-dropdown-background, #252526) !important;
+  border: 1px solid var(--theia-ui-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-popconfirm
+  :is(.ant-popconfirm-title, .ant-popconfirm-description) {
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-popconfirm
+  .ant-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: var(--theia-ui-border, rgba(127, 127, 127, 0.42)) !important;
+  color: var(--theia-ui-font-color1, #d4d4d4) !important;
+}
+
+body:is(.theia-dark, .theia-hc)
+  .recrate-schema-popconfirm
+  .ant-btn-primary {
+  background: rgba(55, 148, 255, 0.22) !important;
+  border-color: var(--theia-focusBorder, #3794ff) !important;
+}
+
+body:is(.theia-dark, .theia-hc) .recrate-schema-popconfirm {
+  --antd-arrow-background-color: var(--theia-dropdown-background, #252526);
 }
 
 /* HC-specific interaction accents to match Theia high-contrast behavior. */

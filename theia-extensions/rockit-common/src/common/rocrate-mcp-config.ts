@@ -47,12 +47,15 @@ export function getRocrateMcpServerPathCandidates(
 ): string[] {
   const fsPath = getPathForPlatform(options.platform ?? getDefaultPlatform())
   const candidates: string[] = []
+  const resourcesPath =
+    options.resourcesPath ??
+    resolveResourcesPathFromAsarAppProjectPath(options.appProjectPath, fsPath)
 
   if (options.serverPathOverride) {
     candidates.push(options.serverPathOverride)
   }
 
-  if (options.appProjectPath) {
+  if (options.appProjectPath && !isAsarAppProjectPath(options.appProjectPath)) {
     if (
       options.appProjectPath.endsWith('electron-app') ||
       options.appProjectPath.endsWith('browser-app')
@@ -80,10 +83,30 @@ export function getRocrateMcpServerPathCandidates(
     }
   }
 
-  if (options.resourcesPath) {
+  if (resourcesPath) {
     candidates.push(
       fsPath.resolve(
-        options.resourcesPath,
+        resourcesPath,
+        'app.asar',
+        'node_modules',
+        'rocrate-mcp-server',
+        'lib',
+        'server.js',
+      ),
+    )
+    candidates.push(
+      fsPath.resolve(
+        resourcesPath,
+        'app.asar.unpacked',
+        'node_modules',
+        'rocrate-mcp-server',
+        'lib',
+        'server.js',
+      ),
+    )
+    candidates.push(
+      fsPath.resolve(
+        resourcesPath,
         'app',
         'theia-extensions',
         'rocrate-mcp-server',
@@ -93,7 +116,7 @@ export function getRocrateMcpServerPathCandidates(
     )
     candidates.push(
       fsPath.resolve(
-        options.resourcesPath,
+        resourcesPath,
         'theia-extensions',
         'rocrate-mcp-server',
         'lib',
@@ -127,7 +150,7 @@ export function resolveRocrateMcpSocketPath(
 export function resolveRocrateMcpPidPath(
   options: RocrateMcpConfigOptions = {},
 ): string {
-  const platform = options.platform ?? process.platform
+  const platform = options.platform ?? getDefaultPlatform()
   const homeDir = options.homeDir
   const env =
     typeof process === 'undefined'
@@ -156,6 +179,57 @@ function getDefaultPlatform(): NodeJS.Platform {
   )
 }
 
-function getPathForPlatform(platform: NodeJS.Platform): typeof path.posix {
-  return platform === 'win32' ? path.win32 : path.posix
+type PlatformPath = Pick<typeof path.posix, 'resolve' | 'isAbsolute' | 'join'>
+
+const browserWindowsPath: PlatformPath = {
+  resolve: (...segments: string[]) => normalizeWindowsPath(segments),
+  join: (...segments: string[]) => normalizeWindowsPath(segments),
+  isAbsolute: (value: string) =>
+    /^[a-zA-Z]:[\\/]/.test(value) || /^\\\\[^\\]+\\[^\\]+/.test(value),
+}
+
+function normalizeWindowsPath(segments: string[]): string {
+  const combined = segments
+    .filter((segment) => segment.length > 0)
+    .join('\\')
+    .replace(/\//g, '\\')
+  const drive = /^([a-zA-Z]:)\\?/.exec(combined)
+  const unc = /^(\\\\[^\\]+\\[^\\]+)\\?/.exec(combined)
+  const root = drive ? `${drive[1]}\\` : unc ? `${unc[1]}\\` : ''
+  const remainder = combined.slice((drive ?? unc)?.[0].length ?? 0)
+  const parts: string[] = []
+
+  for (const part of remainder.split('\\')) {
+    if (!part || part === '.') continue
+    if (part === '..') {
+      parts.pop()
+    } else {
+      parts.push(part)
+    }
+  }
+
+  return `${root}${parts.join('\\')}`
+}
+
+function getPathForPlatform(platform: NodeJS.Platform): PlatformPath {
+  if (platform !== 'win32') {
+    return path.posix
+  }
+  return (path.win32 as typeof path.win32 | null) ?? browserWindowsPath
+}
+
+function isAsarAppProjectPath(value: string | undefined): boolean {
+  return !!value && /(^|[\\/])app\.asar([\\/]|$)/.test(value)
+}
+
+function resolveResourcesPathFromAsarAppProjectPath(
+  appProjectPath: string | undefined,
+  fsPath: PlatformPath,
+): string | undefined {
+  if (!isAsarAppProjectPath(appProjectPath)) {
+    return undefined
+  }
+  const marker = /[\\/]app\.asar(?:[\\/].*)?$/
+  const resourcesPath = appProjectPath?.replace(marker, '')
+  return resourcesPath && fsPath.isAbsolute(resourcesPath) ? resourcesPath : undefined
 }

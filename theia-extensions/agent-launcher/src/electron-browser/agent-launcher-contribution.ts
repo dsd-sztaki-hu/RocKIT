@@ -19,7 +19,6 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { TerminalService } from '@theia/terminal/lib/browser/base/terminal-service'
 import { TerminalWidget } from '@theia/terminal/lib/browser/base/terminal-widget'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
-import * as path from 'path'
 import {
   getRocrateMcpServerPathCandidates,
   resolveAppProjectPathFromLocation,
@@ -132,6 +131,19 @@ function arraysEqual(a: string[] | undefined, b: string[] | undefined): boolean 
   return true
 }
 
+function joinPlatformPath(base: string, ...segments: string[]): string {
+  const separator = isWindows ? '\\' : '/'
+  const normalizedBase = base.replace(/[\\/]+$/, '')
+  const normalizedSegments = segments.map((segment) =>
+    segment.replace(/^[\\/]+|[\\/]+$/g, ''),
+  )
+  return [normalizedBase, ...normalizedSegments].join(separator)
+}
+
+function basenamePlatformPath(value: string): string {
+  return value.split(/[\\/]/).pop() ?? value
+}
+
 function toTomlBasicString(value: string): string {
   return `"${value
     .replace(/\\/g, '\\\\')
@@ -141,6 +153,12 @@ function toTomlBasicString(value: string): string {
     .replace(/\n/g, '\\n')
     .replace(/\f/g, '\\f')
     .replace(/\r/g, '\\r')}"`
+}
+
+function toTomlInlineTable(values: Record<string, string>): string {
+  return `{ ${Object.entries(values)
+    .map(([key, value]) => `${key} = ${toTomlBasicString(value)}`)
+    .join(', ')} }`
 }
 
 function agentCommandId(agentId: string): string {
@@ -536,7 +554,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         content.includes(`command = ${toTomlBasicString(launchConfig.command)}`) &&
         content.includes(
           `args = [${launchConfig.args.map((arg) => toTomlBasicString(arg)).join(', ')}]`,
-        )
+        ) &&
+        content.includes(`env = ${toTomlInlineTable(launchConfig.env)}`)
       )
     }
     try {
@@ -568,7 +587,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         `command = ${toTomlBasicString(launchConfig.command)}`,
         `args = [${launchConfig.args.map((arg) => toTomlBasicString(arg)).join(', ')}]`,
         'startup_timeout_sec = 30',
-        'env = { ROCRATE_MCP_DEFAULT_MODE = "local" }',
+        `env = ${toTomlInlineTable(launchConfig.env)}`,
       ].join('\n')
     }
     if (spec.agentId === 'opencode') {
@@ -596,19 +615,33 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected async resolveRocrateServerPath(): Promise<string> {
     const processEnv = (globalThis as any).process?.env
-    const processPlatform =
-      ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
-    const runtime = this.getElectronRuntimePaths()
-    const appProjectPath =
+    const configuredAppProjectPath =
       processEnv?.THEIA_APP_PROJECT_PATH ??
+      (await this.envVariablesServer.getValue('THEIA_APP_PROJECT_PATH'))?.value
+    const configuredServerPath =
+      processEnv?.ROCKIT_ROCRATE_MCP_SERVER_PATH ??
+      (await this.envVariablesServer.getValue('ROCKIT_ROCRATE_MCP_SERVER_PATH'))?.value
+    const runtime = this.getElectronRuntimePaths()
+    const locationPath =
+      typeof window === 'undefined' ? undefined : window.location.pathname
+    const processPlatform = this.getProcessPlatform(
+      configuredAppProjectPath,
+      configuredServerPath,
+      runtime.resourcesPath,
+      locationPath,
+      this.homeDirPath,
+    )
+    const appProjectPath =
+      this.normalizePlatformPath(configuredAppProjectPath, processPlatform) ??
       resolveAppProjectPathFromLocation(
-        typeof window === 'undefined' ? undefined : window.location.pathname,
+        locationPath,
         processPlatform,
       )
     const unique = getRocrateMcpServerPathCandidates({
+      platform: processPlatform,
       appProjectPath,
       resourcesPath: runtime.resourcesPath,
-      serverPathOverride: processEnv?.ROCKIT_ROCRATE_MCP_SERVER_PATH,
+      serverPathOverride: this.normalizePlatformPath(configuredServerPath, processPlatform),
     })
     for (const candidate of unique) {
       if (await this.fileService.exists(FileUri.create(candidate))) return candidate
@@ -617,9 +650,15 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   }
 
   protected async resolveRocrateMcpLaunchConfig(): Promise<RocrateMcpLaunchConfig> {
-    const runtime = await this.resolveRocrateMcpRuntime()
-    const serverPath = await this.resolveRocrateServerPath()
-    const socketPath = this.resolveRocrateMcpSocketPath()
+    const runtime = await this.runMcpResolutionStep('runtime', () =>
+      this.resolveRocrateMcpRuntime(),
+    )
+    const serverPath = await this.runMcpResolutionStep('server path', () =>
+      this.resolveRocrateServerPath(),
+    )
+    const socketPath = await this.runMcpResolutionStep('socket path', () =>
+      this.resolveRocrateMcpSocketPath(),
+    )
     return {
       command: runtime.command,
       args: [serverPath, '--connect', socketPath],
@@ -628,6 +667,20 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         ROCRATE_MCP_DEFAULT_MODE: 'local',
       },
       socketPath,
+    }
+  }
+
+  protected async runMcpResolutionStep<T>(
+    label: string,
+    resolve: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await resolve()
+    } catch (error) {
+      console.error(`[agent-launcher] MCP ${label} resolution failed`, error)
+      const detail =
+        error instanceof Error ? error.stack ?? error.message : String(error)
+      throw new Error(`MCP ${label} resolution failed:\n${detail}`)
     }
   }
 
@@ -640,6 +693,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
     if (nodeOverride) {
       return { command: nodeOverride, env: {} }
+    }
+
+    const runtime = this.getElectronRuntimePaths()
+    const locationPath =
+      typeof window === 'undefined' ? undefined : window.location.pathname
+    if (this.isPackagedElectronRuntime(runtime, locationPath)) {
+      return {
+        command: runtime.execPath,
+        env: { ELECTRON_RUN_AS_NODE: '1' },
+      }
     }
 
     const nodeCommand = await this.findExecutableAbsolutePath(['node'])
@@ -655,7 +718,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       }
     }
 
-    const execPath = this.getElectronRuntimePaths().execPath
+    const execPath = runtime.execPath
     if (execPath) {
       const env: Record<string, string> = {}
       if (processValue?.versions?.electron) {
@@ -667,16 +730,31 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     throw new Error('Could not resolve a Node runtime for the RO-Crate MCP server.')
   }
 
-  protected resolveRocrateMcpSocketPath(): string {
+  protected isPackagedElectronRuntime(
+    runtime: { resourcesPath?: string; execPath?: string },
+    locationPath: string | undefined,
+  ): runtime is { resourcesPath: string; execPath: string } {
+    return !!runtime.resourcesPath && !!runtime.execPath && !!locationPath?.includes('app.asar')
+  }
+
+  protected async resolveRocrateMcpSocketPath(): Promise<string> {
     const env = (globalThis as any).process?.env
-    const processPlatform =
-      ((globalThis as any).process?.platform as NodeJS.Platform | undefined) ?? 'darwin'
+    const socketPathOverride =
+      env?.ROCKIT_ROCRATE_MCP_SOCKET_PATH ??
+      (await this.envVariablesServer.getValue('ROCKIT_ROCRATE_MCP_SOCKET_PATH'))?.value
+    const username =
+      env?.USERNAME ?? (await this.envVariablesServer.getValue('USERNAME'))?.value
     const homeDirs = this.getHomeDirs()
+    const processPlatform = this.getProcessPlatform(
+      socketPathOverride,
+      ...homeDirs,
+      this.homeDirPath,
+    )
     return resolveRocrateMcpSocketPath({
       homeDir: homeDirs.length > 0 ? homeDirs[0] : this.homeDirPath,
       platform: processPlatform,
-      socketPathOverride: env?.ROCKIT_ROCRATE_MCP_SOCKET_PATH,
-      username: env?.USERNAME,
+      socketPathOverride,
+      username,
     })
   }
 
@@ -786,8 +864,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     launchConfig: RocrateMcpLaunchConfig,
   ): Promise<boolean> {
     const candidates = [
-      path.join(homeDir, '.claude.json'),
-      path.join(homeDir, '.claude', '.mcp.json'),
+      joinPlatformPath(homeDir, '.claude.json'),
+      joinPlatformPath(homeDir, '.claude', '.mcp.json'),
     ]
     for (const candidate of candidates) {
       const uri = FileUri.create(candidate)
@@ -868,7 +946,9 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     candidates: string[],
   ): Promise<string | undefined> {
     const abs = await this.findExecutableAbsolutePath(candidates)
-    return abs ? path.basename(abs).replace(/\.(exe|cmd|bat)$/i, '') : undefined
+    return abs
+      ? basenamePlatformPath(abs).replace(/\.(exe|cmd|bat)$/i, '')
+      : undefined
   }
 
   protected async findExecutableAbsolutePath(
@@ -878,13 +958,17 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const pathValue = processEnv?.PATH ?? ''
     const dirs = [
       ...new Set([...pathValue.split(isWindows ? ';' : ':'), ...this.getCommonBinDirs()]),
-    ]
+    ].filter((dir) =>
+      isWindows
+        ? /^[a-zA-Z]:[\\/]/.test(dir) || /^\\\\/.test(dir)
+        : dir.startsWith('/'),
+    )
     const exts = isWindows ? ['.exe', '.cmd', '.bat', ''] : ['']
 
     for (const dir of dirs) {
       for (const candidate of candidates) {
         for (const ext of exts) {
-          const full = path.join(dir, candidate + ext)
+          const full = joinPlatformPath(dir, candidate + ext)
           if (await this.fileService.exists(FileUri.create(full))) return full
         }
       }
@@ -897,7 +981,9 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const homes = this.getHomeDirs()
     for (const home of homes) {
       for (const marker of spec.markerPaths) {
-        if (await this.fileService.exists(FileUri.create(path.join(home, marker)))) {
+        if (
+          await this.fileService.exists(FileUri.create(joinPlatformPath(home, marker)))
+        ) {
           return true
         }
       }
@@ -918,6 +1004,32 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       resourcesPath: processValue?.resourcesPath,
       execPath: processValue?.execPath,
     }
+  }
+
+  protected getProcessPlatform(...pathHints: Array<string | undefined>): NodeJS.Platform {
+    const platform = (globalThis as any).process?.platform as NodeJS.Platform | undefined
+    const hasWindowsPath = pathHints.some(
+      (value) =>
+        !!value &&
+        (/^\/?[a-zA-Z]:[\\/]/.test(value) || /^\\\\[^\\]+\\[^\\]+/.test(value)),
+    )
+    if (isWindows || hasWindowsPath) {
+      return 'win32'
+    }
+    if (platform === 'darwin' || platform === 'linux') {
+      return platform
+    }
+    return 'darwin'
+  }
+
+  protected normalizePlatformPath(
+    value: string | undefined,
+    platform: NodeJS.Platform,
+  ): string | undefined {
+    if (platform === 'win32' && value && /^\/[a-zA-Z]:[\\/]/.test(value)) {
+      return value.slice(1)
+    }
+    return value
   }
 
   protected async loadHomeDirPath(): Promise<void> {

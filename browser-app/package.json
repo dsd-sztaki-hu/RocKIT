@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "browser-app",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "dependencies": {
     "@theia/core": "1.65.2",
     "@theia/editor": "1.65.2",
@@ -30,7 +30,7 @@
   "devDependencies": {
     "@theia/cli": "1.65.2",
     "react-grab": "^0.0.53",
-    "@arpproject/recrate": "0.1.41"
+    "@arpproject/recrate": "0.1.44"
   },
   "scripts": {
     "bundle": "yarn run rebuild && theia build --mode development",

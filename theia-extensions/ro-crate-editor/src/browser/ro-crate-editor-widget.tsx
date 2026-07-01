@@ -120,10 +120,16 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected baselineEntityId?: string
   protected baselineEntitySnapshot?: string
 
-  protected validationTimer?: ReturnType<typeof setTimeout>
-  protected backgroundValidationTimer?: ReturnType<typeof setTimeout>
-  protected validationRun = 0
-  protected lastValidationErrorSignature = ''
+    protected validationTimer?: ReturnType<typeof setTimeout>
+    protected backgroundValidationTimer?: ReturnType<typeof setTimeout>
+    protected validationRun = 0
+    protected lastValidationErrorSignature = ''
+    protected validationFieldScrollRequest?: {
+        entityId: string
+        fieldName: string
+        nonce: number
+    }
+    protected validationFieldScrollNonce = 0
 
   protected normalizeValidationErrors(
     errors: ValidationError[] | undefined,
@@ -417,34 +423,40 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         ).length
       : 0
 
-    this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
-      async (crate) => {
-        this.localCrate = crate
-        this.ensureEntityBaselineInitialized(crate)
-        const selectorContext = this.appStateService.schemaSelectorContext
-        if (selectorContext?.widgetId === this.id) {
-          this.updateDirtyStateForCurrentEntity(crate)
-        }
-        console.log('crate update')
-        this.updateTitleLabel()
-        const entityId = this.getActiveEntityId()
-        if (!entityId) {
-          return
-        }
-        if (!this.entityExistsInCrate(crate, entityId)) {
-          this.close()
-          return
-        }
-        await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always')
-      },
-    )
+        this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
+            async (crate) => {
+                this.localCrate = crate
+                this.ensureEntityBaselineInitialized(crate)
+                const selectorContext = this.appStateService.schemaSelectorContext
+                if (selectorContext?.widgetId === this.id) {
+                    this.updateDirtyStateForCurrentEntity(crate)
+                }
+                console.log('crate update')
+                this.updateTitleLabel()
+                if (!crate) {
+                    this.localRoCrateApproval = undefined
+                    this.update()
+                    return
+                }
+                const entityId = this.getActiveEntityId()
+                if (!entityId) {
+                    return
+                }
+                if (!this.entityExistsInCrate(crate, entityId)) {
+                    this.close()
+                    return
+                }
+                await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always')
+            },
+        )
 
-    this.approvalSubscription = this.appStateService.onDidChangeSelector(
-      (s) => s.roCrateApproval,
-    )((approval) => {
-      this.localRoCrateApproval = approval as RoCrateApprovalFile | undefined
-      this.update()
-    })
+      this.approvalSubscription = this.appStateService.onDidChangeSelector(
+          (s) => s.roCrateApproval,
+      )((approval) => {
+          this.localRoCrateApproval = approval as RoCrateApprovalFile | undefined
+          void this.writeRoCrateApprovalFile(this.localRoCrateApproval)
+          this.update()
+      })
 
     this.completeProfileSubscription = this.appStateService.onDidChangeSelector(
       (s) => s.completeProfile,
@@ -462,9 +474,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         return
       }
 
-      this.lastAppliedEntityId = undefined
-      void this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'none')
-    })
+            this.lastAppliedEntityId = undefined
+            void this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'always')
+        })
 
     this.profileListSubscription = this.appStateService.onDidChangeSelector(
       (s) => s.profileList,
@@ -656,33 +668,55 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     this.update()
   }
 
-  protected handleSaveRoCrateApproval = async (saveData: any) => {
-    const approval = (saveData as any)?.roCrateApproval as RoCrateApprovalFile | undefined
-    this.localRoCrateApproval = approval
-    this.appStateService.roCrateApproval = approval
-    await this.writeRoCrateApprovalFile(approval)
-    this.update()
-  }
+    protected handleSaveRoCrateApproval = async (saveData: any) => {
+        const approval = (saveData as any)?.roCrateApproval as RoCrateApprovalFile | undefined
+        const decision = (saveData as any)?.decision
+        const shouldMergeWithCrateChange =
+            decision === 'reject' || decision === 'manual-edit'
+        const label = this.getRoCrateApprovalHistoryLabel(decision)
 
-  protected areCratesEquivalent(
-    a: Record<string, any> | undefined,
-    b: Record<string, any> | undefined,
-  ): boolean {
-    if (a === b) {
-      return true
+        this.localRoCrateApproval = approval
+        this.roCrateHistoryService.applyRoCrateApprovalChange(approval, {
+            label,
+            mergeWithPrevious: shouldMergeWithCrateChange,
+            mergeWithNext: shouldMergeWithCrateChange,
+        })
+        await this.writeRoCrateApprovalFile(approval)
+        this.update()
     }
-    if (!a || !b) {
-      return false
+
+    protected getRoCrateApprovalHistoryLabel(decision: unknown): string {
+        switch (decision) {
+            case 'accept':
+                return 'Accept AI suggestion'
+            case 'reject':
+                return 'Reject AI suggestion'
+            case 'manual-edit':
+                return 'Edit AI suggestion'
+            default:
+                return 'Edit RO-Crate approval'
+        }
     }
-    try {
-      return (
-        JSON.stringify(this.toStableComparableValue(a)) ===
-        JSON.stringify(this.toStableComparableValue(b))
-      )
-    } catch {
-      return false
+
+    protected areCratesEquivalent(
+        a: Record<string, any> | undefined,
+        b: Record<string, any> | undefined,
+    ): boolean {
+        if (a === b) {
+            return true
+        }
+        if (!a || !b) {
+            return false
+        }
+        try {
+            return (
+                JSON.stringify(this.toStableComparableValue(a)) ===
+                JSON.stringify(this.toStableComparableValue(b))
+            )
+        } catch {
+            return false
+        }
     }
-  }
 
   protected toStableComparableValue(value: unknown): unknown {
     if (Array.isArray(value)) {
@@ -873,34 +907,76 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
   }
 
-  render(): React.ReactNode {
-    return (
-      <div
-        style={{
-          height: '100%',
-          minHeight: 0,
-          overflow: 'hidden',
-          padding: 10,
-          boxSizing: 'border-box',
-        }}
-      >
-        <DescriboCrateBuilderWrapper
-          crate={this.localCrate}
-          roCrateApproval={this.localRoCrateApproval}
-          profile={this.localProfile}
-          entityId={this.getActiveEntityId()}
-          profileKey={this.profileRevision}
-          instanceId={this.id}
-          onSaveCrate={this.handleSaveCrate}
-          onSaveRoCrateApproval={this.handleSaveRoCrateApproval}
-          onNavigation={this.handleNavigation}
-          onOpenSchemaManager={this.handleOpenSchemaManager}
-          onRemoveProfile={this.handleRemoveProfile}
-          onDropEntityToHasPart={this.handleDropEntityToHasPart}
-        />
-      </div>
-    )
-  }
+    render(): React.ReactNode {
+        if (!this.localCrate) {
+            return (
+                <div
+                    style={{
+                        alignItems: 'center',
+                        boxSizing: 'border-box',
+                        color: 'var(--theia-descriptionForeground)',
+                        display: 'flex',
+                        height: '100%',
+                        justifyContent: 'center',
+                        minHeight: 0,
+                        overflow: 'hidden',
+                        padding: 24,
+                        textAlign: 'center',
+                    }}
+                >
+                    <div>
+                        <div
+                            style={{
+                                color: 'var(--theia-foreground)',
+                                fontSize: 16,
+                                fontWeight: 600,
+                                lineHeight: 1.4,
+                            }}
+                        >
+                            No RO-Crate metadata found
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 13,
+                                lineHeight: 1.45,
+                                marginTop: 8,
+                            }}
+                        >
+                            ro-crate-metadata.json is missing from this workspace.
+                        </div>
+                    </div>
+                </div>
+            )
+        }
+
+        return (
+            <div
+                style={{
+                    height: '100%',
+                    minHeight: 0,
+                    overflow: 'hidden',
+                    padding: 10,
+                    boxSizing: 'border-box',
+                }}
+            >
+                <DescriboCrateBuilderWrapper
+                    crate={this.localCrate}
+                    roCrateApproval={this.localRoCrateApproval}
+                    profile={this.localProfile}
+                    entityId={this.getActiveEntityId()}
+                    scrollToFieldRequest={this.validationFieldScrollRequest}
+                    profileKey={this.profileRevision}
+                    instanceId={this.id}
+                    onSaveCrate={this.handleSaveCrate}
+                    onSaveRoCrateApproval={this.handleSaveRoCrateApproval}
+                    onNavigation={this.handleNavigation}
+                    onOpenSchemaManager={this.handleOpenSchemaManager}
+                    onRemoveProfile={this.handleRemoveProfile}
+                    onDropEntityToHasPart={this.handleDropEntityToHasPart}
+                />
+            </div>
+        )
+    }
 
   getResourceUri(): URI | undefined {
     if (!this.id) {
@@ -1691,13 +1767,25 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     return this.assignedEntityId
   }
 
-  protected async persistRoCrateToDisk(): Promise<void> {
-    if (!this.appStateService.roCrate) {
-      return
+    scrollToValidationField(entityId: string, fieldName: string): void {
+        if (!entityId || !fieldName) {
+            return
+        }
+        this.validationFieldScrollRequest = {
+            entityId,
+            fieldName,
+            nonce: ++this.validationFieldScrollNonce,
+        }
+        this.update()
     }
-    if (this.persistPromise) {
-      return this.persistPromise
-    }
+
+    protected async persistRoCrateToDisk(): Promise<void> {
+        if (!this.appStateService.roCrate) {
+            return
+        }
+        if (this.persistPromise) {
+            return this.persistPromise
+        }
 
     this.persistPromise = this.writeRoCrateFiles()
     try {

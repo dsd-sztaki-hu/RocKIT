@@ -5,6 +5,11 @@ export interface SchemaSourceProviderLike {
   displayUrl?: string
 }
 
+const ARP_W3ID_PROD_PREFIX = 'https://w3id.org/arp/schema/'
+const ARP_W3ID_DEV_PREFIX = 'https://w3id.org/arp/dev/schema/'
+const ARP_REPO_PROD_PREFIX = 'https://repo.schema.researchdata.hu/templates/'
+const ARP_REPO_DEV_PREFIX = 'https://repo.cedardev.dsd.sztaki.hu/templates/'
+
 export function deriveResourceBaseUrl(
   provider?: SchemaSourceProviderLike,
   templateUrl?: string,
@@ -69,11 +74,13 @@ export function buildSchemaFetchCandidates(
   }
 
   const isW3id = isW3idUrl(value)
+  const defaultArpCandidates = buildDefaultArpW3idCandidates(value)
   const candidates = [
     ...(isW3id && provider ? [] : [value]),
     rewriteTemplatePath(value),
     rewriteOpenViewUrl(value),
     rewriteArtifactUrl(value),
+    ...defaultArpCandidates,
     resourceBaseUrl ? `${resourceBaseUrl}/templates/${encodeURIComponent(value)}` : '',
     ...providerTemplateCandidates,
   ].filter((candidate) => candidate !== '')
@@ -160,6 +167,28 @@ function buildProviderTemplateCandidates(
       : '',
     `${resourceBaseUrl}/templates/${encodeURIComponent(repoTemplateUrl)}`,
   ].filter((candidate) => candidate !== '')
+}
+
+function buildDefaultArpW3idCandidates(value: string): string[] {
+  const repoTemplateUrl = defaultArpW3idToRepoTemplateUrl(value)
+  if (!repoTemplateUrl) {
+    return []
+  }
+  const resourceBaseUrl = deriveResourceBaseUrl(undefined, repoTemplateUrl)
+  return [
+    repoTemplateUrl,
+    resourceBaseUrl ? `${resourceBaseUrl}/templates/${encodeURIComponent(repoTemplateUrl)}` : '',
+  ].filter((candidate) => candidate !== '')
+}
+
+function defaultArpW3idToRepoTemplateUrl(value: string): string | undefined {
+  if (value.startsWith(ARP_W3ID_PROD_PREFIX)) {
+    return `${ARP_REPO_PROD_PREFIX}${value.substring(ARP_W3ID_PROD_PREFIX.length)}`
+  }
+  if (value.startsWith(ARP_W3ID_DEV_PREFIX)) {
+    return `${ARP_REPO_DEV_PREFIX}${value.substring(ARP_W3ID_DEV_PREFIX.length)}`
+  }
+  return undefined
 }
 
 function deriveRepoBaseUrl(
