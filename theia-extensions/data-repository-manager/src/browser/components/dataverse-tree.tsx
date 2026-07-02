@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { TreeView } from '@mui/x-tree-view/TreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -41,8 +41,10 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     const [rawSearchInput, setRawSearchInput] = useState('');
-    const [searchQuery, setSearchQuery] = useState('');
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+    const deferredSearchInput = useDeferredValue(rawSearchInput);
+    const searchQuery = deferredSearchInput.trim();
+    const isFiltering = rawSearchInput.trim() !== searchQuery;
 
     const toTreeNode = (collection: any): TreeNode => ({
         id: collection.alias,
@@ -128,16 +130,16 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
         }
     };
 
-    const handleToggle = (_event: React.SyntheticEvent, nodeIds: string[]) => {
+    const handleToggle = useCallback((_event: React.SyntheticEvent, nodeIds: string[]) => {
         const newlyExpanded = nodeIds.filter(id => !expandedNodes.includes(id));
         setExpandedNodes(nodeIds);
         for (const nodeId of newlyExpanded) {
             const node = findNode(treeData, nodeId);
             if (node) void loadChildren(node);
         }
-    };
+    }, [expandedNodes, treeData, loadingNodeIds]);
 
-    const onNodeClick = async (node: TreeNode, e: React.MouseEvent) => {
+    const onNodeClick = useCallback(async (node: TreeNode, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
         
@@ -150,7 +152,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
             isWritable: canWrite
         });
 
-    };
+    }, [props.collectionService, props.onCollectionSelected]);
 
     const { filteredNodes, searchExpandedIds } = useMemo(() => {
         if (!searchQuery) return { filteredNodes: treeData, searchExpandedIds: [] };
@@ -178,14 +180,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
         }
     }, [searchExpandedIds, searchQuery]);
 
-    useEffect(() => {
-        const delaySearch = setTimeout(() => {
-            setSearchQuery(rawSearchInput.trim());
-        }, 300);
-        return () => clearTimeout(delaySearch);
-    }, [rawSearchInput]);
-
-    const renderTree = (nodes: TreeNode[]) =>
+    const renderTree = useCallback((nodes: TreeNode[]): React.ReactNode =>
         nodes.map((node) => (
             <TreeItem
                 key={node.id}
@@ -251,7 +246,9 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                         )
                     : undefined}
             </TreeItem>
-        ));
+        )), [loadingNodeIds, onNodeClick, props.selectedCollectionId]);
+
+    const renderedTree = useMemo(() => renderTree(filteredNodes), [filteredNodes, renderTree]);
 
     return (
         <div className="dataverse-tree">
@@ -299,6 +296,11 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                 {!isLoading && treeData.length === 0 && !errorMsg && (
                     <div className="dataverse-tree__empty">No collections found.</div>
                 )}
+                {isFiltering && (
+                    <div className="dataverse-tree__filtering">
+                        <LinearProgress style={{ width: '100%' }} />
+                    </div>
+                )}
                 {filteredNodes.length > 0 && (
                     <TreeView
                         defaultCollapseIcon={<ExpandMoreIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
@@ -315,7 +317,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                             '&:focus-visible': { outline: 'none !important' }
                         }}
                     >
-                        {renderTree(filteredNodes)}
+                        {renderedTree}
                     </TreeView>
                 )}
             </div>
