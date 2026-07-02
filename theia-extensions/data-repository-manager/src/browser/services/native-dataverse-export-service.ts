@@ -118,6 +118,13 @@ export type NativeDataverseExportProgressReporter = (progress: NativeDataverseEx
 
 const EXPORT_LOG_FILE_NAME = 'export-log.json';
 
+const DATAVERSE_MULTIPLE_VALUE_FIELDS = new Set([
+    'geographicUnit',
+    'unitOfAnalysis',
+    'universe',
+    'collectionMode'
+]);
+
 interface DataverseSemanticMetadataBlockDefinition {
     prefix: string;
     namespace: string;
@@ -893,10 +900,11 @@ export class NativeDataverseExportService {
         if (!uniqueValues.length) {
             return undefined;
         }
+        const multiple = DATAVERSE_MULTIPLE_VALUE_FIELDS.has(typeName);
         return this.primitiveField(
             typeName,
-            uniqueValues.length > 1,
-            uniqueValues.length === 1 ? uniqueValues[0] : uniqueValues
+            multiple,
+            multiple ? uniqueValues : uniqueValues[0]
         );
     }
 
@@ -1818,10 +1826,9 @@ export class NativeDataverseExportService {
 
     protected extractDescriptions(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
         const linkedDescriptions = this.resolveEntities(root.dsDescription, graph);
-        return this.uniqueStrings([
-            ...linkedDescriptions.flatMap(description => this.readStrings(description.dsDescriptionValue ?? description.description ?? description.name)),
-            ...this.readStrings(root.description)
-        ]);
+        return this.uniqueStrings(
+            linkedDescriptions.flatMap(description => this.readStrings(description.dsDescriptionValue ?? description.description ?? description.name))
+        );
     }
 
     protected resolveEntities(value: unknown, graph: RoCrateEntity[]): RoCrateEntity[] {
