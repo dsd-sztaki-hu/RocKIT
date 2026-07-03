@@ -89,7 +89,8 @@
       "node_modules/rocrate-context-core/**",
       "node_modules/cedar-template-converter/**",
       "node_modules/metadata-profile-core/**",
-      "node_modules/@modelcontextprotocol/sdk/**"
+      "node_modules/@modelcontextprotocol/sdk/**",
+      "lib/build/Release/**"
     ],
     "win": {
       "icon": "../resources/icon.ico"
