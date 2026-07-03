@@ -97,6 +97,14 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   }
 
   public async handleExportToRemote(): Promise<void> {
+    if (this.hasUnsavedRoCrateChanges()) {
+      this.messageService.warn(
+        'Remote export is not possible while the RO-Crate has unsaved changes. Save the RO-Crate first, then export again.',
+        { timeout: 10000 },
+      )
+      return
+    }
+
     try {
       await this.fileHashService.persistFileMetadata()
     } catch (error) {
@@ -366,6 +374,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     if (result) {
       await this.storeService.saveRepository(result)
     }
+  }
+
+  protected hasUnsavedRoCrateChanges(): boolean {
+    const crate = this.appStateService.roCrate
+    return this.appStateService.dirty || (!!crate && this.appStateService.isRoCrateDirty(crate))
   }
 
   protected mergeExportTargets(
