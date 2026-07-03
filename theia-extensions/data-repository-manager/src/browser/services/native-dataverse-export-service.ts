@@ -9,7 +9,7 @@ import {
     localizeExternalRoCrateFileReferences,
     RoCrateExportFileSource
 } from 'rockit-common/lib/common/ro-crate-export-file-references';
-import { DataRepositoryConfig, DataverseCollection } from '../types';
+import { DataRepositoryConfig, DataRepositoryExportTarget, DataverseCollection } from '../types';
 
 type RoCrateEntity = Record<string, unknown>;
 type RoCrate = Record<string, unknown>;
@@ -351,12 +351,13 @@ export class NativeDataverseExportService {
 
     public async updateDataset(
         repository: DataRepositoryConfig,
+        exportTargetSelection?: DataRepositoryExportTarget,
         reportProgress?: NativeDataverseExportProgressReporter
     ): Promise<NativeDataverseUpdateResult | undefined> {
         const baseUrl = this.normalizeBaseUrl(repository.baseUrl);
         const rootUri = this.getWorkspaceRoot();
         const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'));
-        const exportTarget = await this.resolveExistingExportTarget(rootUri, repository);
+        const exportTarget = await this.resolveExistingExportTarget(rootUri, repository, exportTargetSelection);
         if (!exportTarget) {
             return undefined;
         }
@@ -608,6 +609,42 @@ export class NativeDataverseExportService {
                 metadataBlocks
             }
         };
+    }
+
+    public async listExportTargets(
+        repositories: DataRepositoryConfig[]
+    ): Promise<Record<string, DataRepositoryExportTarget[]>> {
+        const rootUri = this.getWorkspaceRoot();
+        const currentDatasetName = await this.tryReadCurrentRootDatasetName(rootUri);
+        const entries = await this.readExportLogEntries(rootUri.resolve('.rockit').resolve(EXPORT_LOG_FILE_NAME));
+        const targetsByRepositoryId: Record<string, DataRepositoryExportTarget[]> = {};
+
+        for (const repository of repositories) {
+            const baseUrl = this.normalizeBaseUrl(repository.baseUrl);
+            const latestByMappingFile = new Map<string, DataRepositoryExportTarget>();
+            for (const entry of entries) {
+                if (this.normalizeBaseUrl(entry.repository) !== baseUrl) {
+                    continue;
+                }
+                const pid = this.extractPidFromTarget(entry.target);
+                if (!pid || !entry.mappingFile) {
+                    continue;
+                }
+                latestByMappingFile.set(entry.mappingFile, {
+                    pid,
+                    target: this.buildDataverseDatasetUrl(baseUrl, pid) ?? entry.target,
+                    repository: entry.repository,
+                    mappingFile: entry.mappingFile,
+                    syncedAt: entry.syncedAt,
+                    syncType: entry.syncType,
+                    datasetName: currentDatasetName
+                });
+            }
+            targetsByRepositoryId[repository.id] = Array.from(latestByMappingFile.values())
+                .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt));
+        }
+
+        return targetsByRepositoryId;
     }
 
     protected buildNativeDataverseMetadataBlocks(
@@ -1551,13 +1588,30 @@ export class NativeDataverseExportService {
 
     protected async resolveExistingExportTarget(
         rootUri: URI,
-        repository: DataRepositoryConfig
+        repository: DataRepositoryConfig,
+        selectedTarget?: DataRepositoryExportTarget
     ): Promise<NativeDataverseExportTarget | undefined> {
         const entries = await this.readExportLogEntries(rootUri.resolve('.rockit').resolve(EXPORT_LOG_FILE_NAME));
         const baseUrl = this.normalizeBaseUrl(repository.baseUrl);
-        const entry = [...entries]
+        const matchingEntries = [...entries]
             .reverse()
-            .find(candidate => this.normalizeBaseUrl(candidate.repository) === baseUrl && !!this.extractPidFromTarget(candidate.target));
+            .filter(candidate => this.normalizeBaseUrl(candidate.repository) === baseUrl && !!this.extractPidFromTarget(candidate.target));
+        const selectedEntry = selectedTarget
+            ? matchingEntries.find(candidate =>
+                candidate.mappingFile === selectedTarget.mappingFile
+                && this.normalizePid(this.extractPidFromTarget(candidate.target)) === this.normalizePid(selectedTarget.pid)
+            )
+            : undefined;
+        const selectedFallbackEntry: ExportLogEntry | undefined = selectedTarget && !selectedEntry
+            ? {
+                target: selectedTarget.target,
+                repository: selectedTarget.repository,
+                mappingFile: selectedTarget.mappingFile,
+                syncType: selectedTarget.syncType,
+                syncedAt: selectedTarget.syncedAt
+            }
+            : undefined;
+        const entry = selectedEntry ?? selectedFallbackEntry ?? matchingEntries[0];
         if (!entry) {
             return undefined;
         }
@@ -1716,6 +1770,20 @@ export class NativeDataverseExportService {
         return trimmed;
     }
 
+    protected buildDataverseDatasetUrl(baseUrl: string, pid?: string): string | undefined {
+        if (!pid) {
+            return undefined;
+        }
+        const target = this.buildPidTarget(pid);
+        if (!target) {
+            return undefined;
+        }
+        if (/^https?:\/\//i.test(target)) {
+            return target;
+        }
+        return `${baseUrl}/dataset.xhtml?persistentId=${encodeURIComponent(target)}`;
+    }
+
     protected extractPidFromTarget(target: string): string | undefined {
         const trimmed = target.trim();
         if (/^(hdl|doi):/i.test(trimmed)) {
@@ -1735,6 +1803,10 @@ export class NativeDataverseExportService {
         } catch {
             return undefined;
         }
+    }
+
+    protected normalizePid(value: string | undefined): string | undefined {
+        return value?.trim().replace(/^persistentId=/i, '').toLowerCase();
     }
 
     protected randomId(length: number): string {
@@ -1814,6 +1886,19 @@ export class NativeDataverseExportService {
         return this.resolveEntities(root.author, graph)
             .flatMap(author => this.readStrings(author.authorName ?? author.name))
             .concat(this.readStrings(root.author).filter(value => !this.looksLikeEntityId(value)));
+    }
+
+    protected getRootDatasetName(crate: RoCrate): string | undefined {
+        const root = this.readGraph(crate).find(entity => entity['@id'] === './');
+        return root ? this.firstMeaningfulString(root.title, root.name) : undefined;
+    }
+
+    protected async tryReadCurrentRootDatasetName(rootUri: URI): Promise<string | undefined> {
+        try {
+            return this.getRootDatasetName(await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json')));
+        } catch {
+            return undefined;
+        }
     }
 
     protected extractContactEmails(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
