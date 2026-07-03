@@ -22,6 +22,7 @@
     "property-selector": "0.0.0",
     "entities-overview": "0.0.0",
     "rockit-common": "0.0.0",
+    "rockit-loadmask": "0.0.0",
     "data-sources": "0.0.0",
     "open-editors": "0.0.0",
     "multi-edit": "0.0.0"

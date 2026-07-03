@@ -84,10 +84,15 @@ export function getRocrateMcpServerPathCandidates(
   }
 
   if (resourcesPath) {
+    // The MCP server is launched by an external process (plain Node, or Electron run
+    // as Node), which cannot read files packed inside app.asar — asar is an
+    // Electron-only virtual filesystem. rocrate-mcp-server is unpacked (see
+    // electron-app `build.asarUnpack`), so prefer the app.asar.unpacked candidate;
+    // keep app.asar as a fallback (it only resolves under Electron's file service).
     candidates.push(
       fsPath.resolve(
         resourcesPath,
-        'app.asar',
+        'app.asar.unpacked',
         'node_modules',
         'rocrate-mcp-server',
         'lib',
@@ -97,7 +102,7 @@ export function getRocrateMcpServerPathCandidates(
     candidates.push(
       fsPath.resolve(
         resourcesPath,
-        'app.asar.unpacked',
+        'app.asar',
         'node_modules',
         'rocrate-mcp-server',
         'lib',

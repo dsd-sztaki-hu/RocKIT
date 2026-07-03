@@ -12,7 +12,8 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
-import { RoCrateHtmlGenerator, withDefaultIgnoredEntries, writeUtf8TextFile } from 'rockit-common/lib/browser'
+import { withDefaultIgnoredEntries, writeUtf8TextFile } from 'rockit-common/lib/browser'
+import { RoCratePersistenceService } from './ro-crate-persistence-service'
 import {
   ROCKIT_IGNORE_DIR,
   ROCKIT_IGNORE_FILE,
@@ -21,7 +22,7 @@ import { EditorWidget } from '@theia/editor/lib/browser'
 import { SaveableService } from '@theia/core/lib/browser/saveable-service'
 
 // Make sure this string matches exactly what is defined in your EditorWidget
-const RO_CRATE_EDITOR_ID = 'rocrate-editor-widget'; 
+const RO_CRATE_EDITOR_ID = 'rocrate-editor-widget'
 
 export const SaveRoCrateCommand: Command = {
   id: 'ro-crate.save',
@@ -45,8 +46,8 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
   @inject(ApplicationShell)
   protected readonly shell!: ApplicationShell
 
-  @inject(RoCrateHtmlGenerator)
-  protected readonly roCrateHtmlGenerator!: RoCrateHtmlGenerator
+  @inject(RoCratePersistenceService)
+  protected readonly persistenceService!: RoCratePersistenceService
 
   @inject(SaveableService)
   protected readonly saveableService!: SaveableService
@@ -81,7 +82,7 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
       return false
     }
 
-    return activeWidget.id.startsWith(RO_CRATE_EDITOR_ID);
+    return activeWidget.id.startsWith(RO_CRATE_EDITOR_ID)
   }
 
   private isFileEditorFocused(): boolean {
@@ -111,19 +112,12 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
     if (!roots || roots.length === 0) return
 
     const rootUri = roots[0].resource
-    const metadataUri = rootUri.resolve('ro-crate-metadata.json')
-    const previewUri = rootUri.resolve('ro-crate-preview.html')
-
     const crateData = this.appStateService.roCrate
     const ignoredEntries = this.appStateService.ignoreList
 
     try {
       if (crateData) {
-        await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(crateData, null, 2))
-
-        const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
-
-        await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
+        await this.persistenceService.write(rootUri, crateData)
       }
 
       if (Array.isArray(ignoredEntries)) {
@@ -131,9 +125,12 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
       }
 
       if (crateData && Array.isArray(ignoredEntries)) {
-        await this.messageService.info('RO-Crate, HTML preview, and ignored rules saved!', {
-          timeout: 3000,
-        })
+        await this.messageService.info(
+          'RO-Crate, HTML preview, and ignored rules saved!',
+          {
+            timeout: 3000,
+          },
+        )
       } else if (crateData) {
         await this.messageService.info('RO-Crate and HTML preview file saved!', {
           timeout: 3000,
@@ -153,7 +150,10 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
     }
   }
 
-  protected async persistIgnoredEntries(rootUri: URI, entries: readonly string[]): Promise<void> {
+  protected async persistIgnoredEntries(
+    rootUri: URI,
+    entries: readonly string[],
+  ): Promise<void> {
     const normalized = withDefaultIgnoredEntries(entries)
     const rockitUri = rootUri.resolve(ROCKIT_IGNORE_DIR)
     if (!(await this.fileService.exists(rockitUri))) {

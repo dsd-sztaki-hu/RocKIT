@@ -5,6 +5,7 @@ import {
   type Operation,
 } from 'rfc6902'
 import { AppStateService } from './app-state-service'
+import type { RoCrateApprovalFile } from './ro-crate-approval'
 
 /**
  * Options for applying and optionally tracking a RO-Crate change.
@@ -18,10 +19,19 @@ export interface RoCrateChangeOptions {
    * When false, applies state without writing undo/redo history.
    */
   trackHistory?: boolean
+  /**
+   * Merge this operation into the latest undo entry when possible.
+   */
+  mergeWithPrevious?: boolean
+  /**
+   * Merge the next operation into this one when possible.
+   */
+  mergeWithNext?: boolean
 }
 
 export type JsonPatchOperation = Operation
 export type JsonPatch = JsonPatchOperation[]
+export type RoCrateHistoryPatchTarget = 'roCrate' | 'roCrateApproval'
 
 /**
  * One undoable RO-Crate operation represented as forward and backward JSON Patch.
@@ -35,6 +45,10 @@ export interface RoCratePatchOperation {
    * Label shown in debug output.
    */
   label: string
+  /**
+   * App-state field this patch applies to.
+   */
+  target: RoCrateHistoryPatchTarget
   /**
    * Patch to move state from before -> after.
    */
@@ -107,6 +121,11 @@ type TransactionContext = {
   operations: RoCrateHistoryOperation[]
 }
 
+type PushOperationOptions = {
+  mergeWithPrevious?: boolean
+  mergeWithNext?: boolean
+}
+
 @injectable()
 export class RoCrateHistoryService {
   /**
@@ -119,6 +138,9 @@ export class RoCrateHistoryService {
   protected undoStack: RoCrateHistoryOperation[] = []
   protected redoStack: RoCrateHistoryOperation[] = []
   protected readonly transactionStack: TransactionContext[] = []
+  protected pendingMergeWithNext = false
+  protected pendingMergeDeadline = 0
+  protected readonly mergeWindowMs = 1000
 
   @inject(AppStateService)
   protected readonly appStateService: AppStateService
@@ -166,6 +188,7 @@ export class RoCrateHistoryService {
     this.undoStack = []
     this.redoStack = []
     this.transactionStack.length = 0
+    this.clearPendingMerge()
   }
 
   applyRoCrateChange(
@@ -192,10 +215,45 @@ export class RoCrateHistoryService {
       previousCrate,
       nextCrate,
       options.label ?? 'Edit RO-Crate',
+      'roCrate',
     )
 
     if (operation) {
-      this.pushOperation(operation)
+      this.pushOperation(operation, options)
+    }
+
+    return true
+  }
+
+  applyRoCrateApprovalChange(
+    nextApproval: RoCrateApprovalFile | undefined,
+    options: RoCrateChangeOptions = {},
+  ): boolean {
+    const previousApproval = this.appStateService.roCrateApproval as
+      | RoCrateApprovalFile
+      | undefined
+    const trackHistory = options.trackHistory ?? true
+
+    if (this.valuesEqual(previousApproval, nextApproval)) {
+      this.appStateService.roCrateApproval = nextApproval
+      return false
+    }
+
+    this.appStateService.roCrateApproval = nextApproval
+
+    if (!trackHistory) {
+      return true
+    }
+
+    const operation = this.createPatchOperation(
+      previousApproval,
+      nextApproval,
+      options.label ?? 'Edit RO-Crate approval',
+      'roCrateApproval',
+    )
+
+    if (operation) {
+      this.pushOperation(operation, options)
     }
 
     return true
@@ -247,16 +305,91 @@ export class RoCrateHistoryService {
     this.trimStack(this.undoStack)
   }
 
-  protected pushOperation(operation: RoCrateHistoryOperation): void {
+  protected pushOperation(
+    operation: RoCrateHistoryOperation,
+    options: PushOperationOptions = {},
+  ): void {
     const activeTransaction = this.transactionStack[this.transactionStack.length - 1]
     if (activeTransaction) {
       activeTransaction.operations.push(operation)
       return
     }
 
+    if (this.shouldMergeWithLatestUndo(options.mergeWithPrevious) && this.undoStack.length > 0) {
+      this.mergeOperationIntoLatestUndo(operation)
+      this.redoStack = []
+      if (options.mergeWithNext) {
+        this.markPendingMergeWithNext()
+      } else {
+        this.clearPendingMerge()
+      }
+      return
+    }
+
     this.undoStack.push(operation)
     this.trimStack(this.undoStack)
     this.redoStack = []
+    if (options.mergeWithNext) {
+      this.markPendingMergeWithNext()
+    } else {
+      this.clearPendingMerge()
+    }
+  }
+
+  protected mergeOperationIntoLatestUndo(operation: RoCrateHistoryOperation): void {
+    const previous = this.undoStack.pop()
+    if (!previous) {
+      this.undoStack.push(operation)
+      return
+    }
+
+    const previousOperations =
+      previous.kind === 'composite' ? previous.operations : [previous]
+    const nextOperations =
+      operation.kind === 'composite' ? operation.operations : [operation]
+
+    this.undoStack.push({
+      kind: 'composite',
+      label: operation.label,
+      operations: [...previousOperations, ...nextOperations],
+      timestamp: Date.now(),
+    })
+    this.trimStack(this.undoStack)
+  }
+
+  protected markPendingMergeWithNext(): void {
+    this.pendingMergeWithNext = true
+    this.pendingMergeDeadline = Date.now() + this.mergeWindowMs
+  }
+
+  protected clearPendingMerge(): void {
+    this.pendingMergeWithNext = false
+    this.pendingMergeDeadline = 0
+  }
+
+  protected shouldMergeWithPendingNext(): boolean {
+    if (!this.pendingMergeWithNext) {
+      return false
+    }
+    if (Date.now() > this.pendingMergeDeadline) {
+      this.clearPendingMerge()
+      return false
+    }
+    return true
+  }
+
+  protected shouldMergeWithLatestUndo(mergeWithPrevious?: boolean): boolean {
+    if (this.shouldMergeWithPendingNext()) {
+      return true
+    }
+    if (!mergeWithPrevious) {
+      return false
+    }
+    const latestOperation = this.undoStack[this.undoStack.length - 1]
+    if (!latestOperation) {
+      return false
+    }
+    return Date.now() - latestOperation.timestamp <= this.mergeWindowMs
   }
 
   /**
@@ -282,7 +415,8 @@ export class RoCrateHistoryService {
       return
     }
 
-    const current = this.cloneValue(this.appStateService.roCrate ?? {})
+    const currentValue = this.getTargetValue(operation.target)
+    const current = this.toPatchContainer(currentValue)
     const patch = mode === 'undo' ? operation.backward : operation.forward
     const errors = applyRfc6902Patch(current, patch)
     if (errors.some((error) => Boolean(error))) {
@@ -293,27 +427,28 @@ export class RoCrateHistoryService {
       return
     }
 
-    this.appStateService.roCrate = current as Record<string, any>
-    this.appStateService.dirty = this.appStateService.isRoCrateDirty(
-      current as Record<string, any>,
-    )
+    this.setTargetValue(operation.target, this.fromPatchContainer(current))
   }
 
   protected createPatchOperation(
-    before: Record<string, any>,
-    after: Record<string, any>,
+    before: unknown,
+    after: unknown,
     label: string,
+    target: RoCrateHistoryPatchTarget,
   ): RoCratePatchOperation | undefined {
     try {
-      const forward = this.cloneValue(createRfc6902Patch(before, after) as JsonPatch)
+      const beforeContainer = this.toPatchContainer(before)
+      const afterContainer = this.toPatchContainer(after)
+      const forward = this.cloneValue(createRfc6902Patch(beforeContainer, afterContainer) as JsonPatch)
       if (forward.length === 0) {
         return undefined
       }
-      const backward = this.cloneValue(createRfc6902Patch(after, before) as JsonPatch)
+      const backward = this.cloneValue(createRfc6902Patch(afterContainer, beforeContainer) as JsonPatch)
 
       return {
         kind: 'patch',
         label,
+        target,
         forward,
         backward,
         timestamp: Date.now(),
@@ -375,6 +510,36 @@ export class RoCrateHistoryService {
     } catch {
       return false
     }
+  }
+
+  protected getTargetValue(target: RoCrateHistoryPatchTarget): unknown {
+    return target === 'roCrate'
+      ? this.appStateService.roCrate
+      : this.appStateService.roCrateApproval
+  }
+
+  protected setTargetValue(target: RoCrateHistoryPatchTarget, value: unknown): void {
+    if (target === 'roCrate') {
+      const crate = value as Record<string, any> | undefined
+      this.appStateService.roCrate = crate
+      this.appStateService.dirty = this.appStateService.isRoCrateDirty(crate)
+      return
+    }
+
+    this.appStateService.roCrateApproval = value as RoCrateApprovalFile | undefined
+  }
+
+  protected toPatchContainer(value: unknown): Record<string, unknown> {
+    if (value === undefined) {
+      return {}
+    }
+    return { value: this.cloneValue(value) }
+  }
+
+  protected fromPatchContainer(container: Record<string, unknown>): unknown {
+    return Object.prototype.hasOwnProperty.call(container, 'value')
+      ? container.value
+      : undefined
   }
 
   protected toStableComparableValue(value: unknown): unknown {

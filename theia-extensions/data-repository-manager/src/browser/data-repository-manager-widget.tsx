@@ -25,7 +25,7 @@ import {
 } from './services/native-dataverse-export-service'
 import { NativeDataverseImportService } from './services/native-dataverse-import-service'
 import { RoCrateFileHashService } from './services/ro-crate-file-hash-service'
-import { DataRepositoryConfig } from './types'
+import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
 
 type RoCrateEntity = Record<string, unknown>
@@ -183,6 +183,14 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   }
 
   public async handleExportToRemote(): Promise<void> {
+    if (this.hasUnsavedRoCrateChanges()) {
+      this.messageService.warn(
+        'Remote export is not possible while the RO-Crate has unsaved changes. Save the RO-Crate first, then export again.',
+        { timeout: 10000 },
+      )
+      return
+    }
+
     try {
       await this.fileHashService.persistFileMetadata()
     } catch (error) {
@@ -197,8 +205,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const repositories = await this.storeService.loadRepositories()
     this.repositories = repositories
     this.update()
-    const exportTargetsByRepositoryId =
-      await this.arpExportService.listExportTargets(repositories)
+    const exportTargetsByRepositoryId = this.mergeExportTargets(
+      await this.arpExportService.listExportTargets(repositories),
+      await this.nativeExportService.listExportTargets(repositories),
+    )
 
     // Show repository selector first, matching the UX requested.
     const selector = new DataRepositorySelectorDialog(
@@ -279,6 +289,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       try {
         const updateResult = await this.nativeExportService.updateDataset(
           selectedRepo,
+          selectedExportTarget,
           (update) =>
             progress.report({
               message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
@@ -449,6 +460,33 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     if (result) {
       await this.storeService.saveRepository(result)
     }
+  }
+
+  protected hasUnsavedRoCrateChanges(): boolean {
+    const crate = this.appStateService.roCrate
+    return this.appStateService.dirty || (!!crate && this.appStateService.isRoCrateDirty(crate))
+  }
+
+  protected mergeExportTargets(
+    ...targetMaps: Array<Record<string, DataRepositoryExportTarget[]>>
+  ): Record<string, DataRepositoryExportTarget[]> {
+    const merged: Record<string, DataRepositoryExportTarget[]> = {}
+    for (const targetMap of targetMaps) {
+      for (const [repositoryId, targets] of Object.entries(targetMap)) {
+        const latestByMappingFile = new Map(
+          (merged[repositoryId] ?? []).map((target) => [target.mappingFile, target]),
+        )
+        for (const target of targets) {
+          const previous = latestByMappingFile.get(target.mappingFile)
+          if (!previous || previous.syncedAt.localeCompare(target.syncedAt) < 0) {
+            latestByMappingFile.set(target.mappingFile, target)
+          }
+        }
+        merged[repositoryId] = Array.from(latestByMappingFile.values())
+          .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
+      }
+    }
+    return merged
   }
 
   protected getMissingArpDatasetCreationMetadata(): string[] {

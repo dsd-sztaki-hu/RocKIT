@@ -28,8 +28,24 @@ export class DataverseCollectionService {
     /**
      * Fetches only the immediate top-level collections.
      */
-    public getRootCollections(): Promise<DataverseCollectionTreeItem[]> {
-        return this.getChildCollections('root');
+    public async getRootCollections(): Promise<DataverseCollectionTreeItem[]> {
+        const childCollections = await this.getChildCollections('root');
+        if (childCollections.length) {
+            return childCollections;
+        }
+
+        const searchCollections = await this.searchCollections();
+        if (searchCollections.length) {
+            return searchCollections;
+        }
+
+        const root = await this.getCollectionDetails({
+            id: 'root',
+            name: 'Root',
+            alias: 'root',
+            hasChildren: false
+        });
+        return [{ ...root, parentAlias: undefined, hasChildren: false }];
     }
 
     /**
@@ -149,6 +165,69 @@ export class DataverseCollectionService {
             console.warn(`Could not determine whether ${collectionAlias} has child collections:`, error);
             return false;
         }
+    }
+
+    private async searchCollections(): Promise<DataverseCollectionTreeItem[]> {
+        if (!this.apiBaseUrl) {
+            throw new Error('Dataverse client is not initialized.');
+        }
+
+        const items: any[] = [];
+        const perPage = 100;
+        const maxPages = 20;
+
+        for (let page = 1; page <= maxPages; page += 1) {
+            const query = new URLSearchParams({
+                q: '*',
+                type: 'dataverse',
+                sort: 'name',
+                order: 'asc',
+                per_page: String(perPage),
+                start: String((page - 1) * perPage)
+            });
+            const response = await fetch(
+                `${this.apiBaseUrl}/search?${query.toString()}`,
+                {
+                    headers: this.apiKey ? { 'X-Dataverse-key': this.apiKey } : undefined
+                }
+            );
+            if (!response.ok) {
+                const responseText = await response.text();
+                throw new Error(
+                    `Dataverse returned HTTP ${response.status}${responseText ? `: ${responseText}` : '.'}`
+                );
+            }
+
+            const payload = await response.json();
+            const pageItems = Array.isArray(payload?.data?.items) ? payload.data.items : [];
+            items.push(...pageItems);
+
+            const totalCount = Number(payload?.data?.total_count ?? 0);
+            if (pageItems.length < perPage || items.length >= totalCount) {
+                break;
+            }
+        }
+
+        const seen = new Set<string>();
+        return items
+            .filter((item: any) => String(item?.type).toLowerCase() === 'dataverse')
+            .map((item: any) => {
+                const alias = String(item.identifier ?? item.global_id ?? item.name ?? item.id);
+                return {
+                    id: alias,
+                    name: String(item.name ?? alias),
+                    alias,
+                    parentAlias: undefined,
+                    hasChildren: false
+                };
+            })
+            .filter((collection: DataverseCollectionTreeItem) => {
+                if (!collection.alias || seen.has(collection.alias)) {
+                    return false;
+                }
+                seen.add(collection.alias);
+                return true;
+            });
     }
 
     /**

@@ -72,6 +72,15 @@
     overflow-y: auto;
     min-height: 0;
     padding: 5px 0;
+    position: relative;
+}
+
+.dataverse-tree__filtering {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    height: 2px;
+    margin-bottom: 4px;
 }
 
 .dataverse-tree__node {

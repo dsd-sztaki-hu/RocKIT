@@ -9,7 +9,7 @@ import {
     localizeExternalRoCrateFileReferences,
     RoCrateExportFileSource
 } from 'rockit-common/lib/common/ro-crate-export-file-references';
-import { DataRepositoryConfig, DataverseCollection } from '../types';
+import { DataRepositoryConfig, DataRepositoryExportTarget, DataverseCollection } from '../types';
 
 type RoCrateEntity = Record<string, unknown>;
 type RoCrate = Record<string, unknown>;
@@ -99,6 +99,7 @@ interface ExportLogEntry {
     mappingFile: string;
     syncType: 'create' | 'update';
     syncedAt: string;
+    collectionId?: string;
 }
 
 interface NativeDataverseExportTarget {
@@ -116,6 +117,123 @@ export interface NativeDataverseExportProgress {
 export type NativeDataverseExportProgressReporter = (progress: NativeDataverseExportProgress) => void;
 
 const EXPORT_LOG_FILE_NAME = 'export-log.json';
+
+const DATAVERSE_MULTIPLE_VALUE_FIELDS = new Set([
+    'geographicUnit',
+    'unitOfAnalysis',
+    'universe',
+    'collectionMode'
+]);
+
+interface DataverseSemanticMetadataBlockDefinition {
+    prefix: string;
+    namespace: string;
+    displayName: string;
+    fields: string[];
+    compounds: Record<string, string[]>;
+}
+
+const DATAVERSE_SEMANTIC_METADATA_BLOCKS: Record<string, DataverseSemanticMetadataBlockDefinition> = {
+    geospatial: {
+        prefix: 'geospatial',
+        namespace: 'https://dataverse.org/schema/geospatial/',
+        displayName: 'Geospatial Metadata',
+        fields: ['geographicUnit'],
+        compounds: {
+            geographicCoverage: ['country', 'state', 'city', 'otherGeographicCoverage'],
+            geographicBoundingBox: ['westLongitude', 'eastLongitude', 'northLatitude', 'southLatitude']
+        }
+    },
+    socialscience: {
+        prefix: 'socialscience',
+        namespace: 'https://dataverse.org/schema/socialscience/',
+        displayName: 'Social Science and Humanities Metadata',
+        fields: [
+            'unitOfAnalysis',
+            'universe',
+            'timeMethod',
+            'dataCollector',
+            'collectorTraining',
+            'frequencyOfDataCollection',
+            'samplingProcedure',
+            'deviationsFromSampleDesign',
+            'collectionMode',
+            'researchInstrument',
+            'dataCollectionSituation',
+            'actionsToMinimizeLoss',
+            'controlOperations',
+            'weighting',
+            'cleaningOperations',
+            'datasetLevelErrorNotes',
+            'responseRate',
+            'samplingErrorEstimates',
+            'otherDataAppraisal'
+        ],
+        compounds: {
+            targetSampleSize: ['targetSampleActualSize', 'targetSampleSizeFormula'],
+            socialScienceNotes: ['socialScienceNotesType', 'socialScienceNotesSubject', 'socialScienceNotesText']
+        }
+    },
+    astrophysics: {
+        prefix: 'astrophysics',
+        namespace: 'https://dataverse.org/schema/astrophysics/',
+        displayName: 'Astronomy and Astrophysics Metadata',
+        fields: [
+            'astroType',
+            'astroFacility',
+            'astroInstrument',
+            'astroObject',
+            'resolution.Spatial',
+            'resolution.Spectral',
+            'resolution.Temporal',
+            'coverage.Spectral.Bandpass',
+            'coverage.Spectral.CentralWavelength',
+            'coverage.Spatial',
+            'coverage.Depth',
+            'coverage.ObjectDensity',
+            'coverage.ObjectCount',
+            'coverage.SkyFraction',
+            'coverage.Polarization',
+            'redshiftType',
+            'resolution.Redshift'
+        ],
+        compounds: {
+            'coverage.Spectral.Wavelength': ['coverage.Spectral.MinimumWavelength', 'coverage.Spectral.MaximumWavelength'],
+            'coverage.Temporal': ['coverage.Temporal.StartTime', 'coverage.Temporal.StopTime'],
+            'coverage.RedshiftValue': ['coverage.Redshift.MinimumValue', 'coverage.Redshift.MaximumValue']
+        }
+    },
+    biomedical: {
+        prefix: 'biomedical',
+        namespace: 'https://dataverse.org/schema/biomedical/',
+        displayName: 'Life Sciences Metadata',
+        fields: [
+            'studyDesignType',
+            'studyOtherDesignType',
+            'studyFactorType',
+            'studyOtherFactorType',
+            'studyAssayOrganism',
+            'studyAssayOtherOrganism',
+            'studyAssayMeasurementType',
+            'studyAssayOtherMeasurmentType',
+            'studyAssayTechnologyType',
+            'studyAssayOtherTechnologyType',
+            'studyAssayPlatform',
+            'studyAssayOtherPlatform',
+            'studyAssayCellType'
+        ],
+        compounds: {}
+    },
+    journal: {
+        prefix: 'journal',
+        namespace: 'https://dataverse.org/schema/journal/',
+        displayName: 'Journal Metadata',
+        fields: ['journalArticleType'],
+        compounds: {
+            journalVolumeIssue: ['journalVolume', 'journalIssue', 'journalPubDate']
+        }
+    }
+};
 
 @injectable()
 export class NativeDataverseExportService {
@@ -135,7 +253,12 @@ export class NativeDataverseExportService {
         const collectionId = collection.alias || collection.id;
         const rootUri = this.getWorkspaceRoot();
         const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'));
-        const payload = this.buildDatasetCreationPayload(datasetMetadata);
+        const enabledMetadataBlocks = await this.fetchCollectionMetadataBlockAliases(
+            baseUrl,
+            repository.apiKey,
+            collectionId
+        );
+        const payload = this.buildDatasetCreationPayload(datasetMetadata, crate, enabledMetadataBlocks);
         const uploadCollection = await this.collectRoCrateUploadFiles(crate, rootUri);
         const uploadFiles = uploadCollection.files;
         const totalSteps = uploadFiles.length + 2;
@@ -166,10 +289,18 @@ export class NativeDataverseExportService {
         if (!persistentId) {
             throw new Error('Dataverse created the dataset but did not return a persistentId. File upload cannot continue.');
         }
+        await this.addDatasetSemanticMetadata(
+            baseUrl,
+            repository.apiKey,
+            persistentId,
+            crate,
+            true,
+            enabledMetadataBlocks
+        );
         reportProgress?.({
             completedSteps: 1,
             totalSteps,
-            message: 'Dataverse dataset created.'
+            message: 'Dataverse dataset created and metadata synchronized.'
         });
         const uploadedDataFiles = await this.uploadRoCrateFiles(baseUrl, repository.apiKey, persistentId, uploadFiles, reportProgress, 1, totalSteps);
         const entityIdMapping = this.buildEntityIdMapping(crate, uploadedDataFiles, uploadCollection.uploadEntryPathByEntityId);
@@ -199,7 +330,8 @@ export class NativeDataverseExportService {
             repository: baseUrl,
             mappingFile: mappingFileName,
             syncType: 'create',
-            syncedAt: new Date().toISOString()
+            syncedAt: new Date().toISOString(),
+            collectionId
         });
         const unmappedEntityIds = Object.entries(entityIdMapping)
             .filter(([, remoteId]) => !remoteId)
@@ -219,12 +351,13 @@ export class NativeDataverseExportService {
 
     public async updateDataset(
         repository: DataRepositoryConfig,
+        exportTargetSelection?: DataRepositoryExportTarget,
         reportProgress?: NativeDataverseExportProgressReporter
     ): Promise<NativeDataverseUpdateResult | undefined> {
         const baseUrl = this.normalizeBaseUrl(repository.baseUrl);
         const rootUri = this.getWorkspaceRoot();
         const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'));
-        const exportTarget = await this.resolveExistingExportTarget(rootUri, repository);
+        const exportTarget = await this.resolveExistingExportTarget(rootUri, repository, exportTargetSelection);
         if (!exportTarget) {
             return undefined;
         }
@@ -253,9 +386,11 @@ export class NativeDataverseExportService {
         }
         exportTarget.mapping['ro-crate-metadata.json'] = metadataFileId;
         const remoteMetadataCrate = await this.downloadRemoteMetadataFile(baseUrl, repository.apiKey, metadataFileId);
+        const localReachableIds = this.collectReachableEntityIds(crate);
         const localFilesById = new Map(
             this.readGraph(crate)
                 .filter(entity => this.entityTypes(entity).includes('File'))
+                .filter(entity => localReachableIds.has(this.requireEntityId(entity)))
                 .map(entity => [this.requireEntityId(entity), entity])
         );
         const remoteEntitiesById = new Map(
@@ -264,6 +399,7 @@ export class NativeDataverseExportService {
         const uploadFilesByPath = new Map(uploadCollection.files.map(file => [file.entryPath, file]));
         const newFileIds: string[] = [];
         const changedFileIds: string[] = [];
+        const matchedRemoteFileIds = new Set<string>();
         for (const [localId, localEntity] of localFilesById) {
             const remoteId = exportTarget.mapping[localId];
             const remoteEntity = remoteId ? remoteEntitiesById.get(remoteId) : undefined;
@@ -271,19 +407,22 @@ export class NativeDataverseExportService {
                 newFileIds.push(localId);
                 continue;
             }
+            matchedRemoteFileIds.add(remoteId);
             if ((this.fileEntityHash(localEntity) ?? '') !== (this.fileEntityHash(remoteEntity) ?? '')) {
                 changedFileIds.push(localId);
             }
         }
-        const removedFileIds = Object.keys(exportTarget.mapping)
-            .filter(localId => localId !== 'ro-crate-metadata.json')
-            .filter(localId => !localFilesById.has(localId));
-        const totalSteps = newFileIds.length + changedFileIds.length + removedFileIds.length + 2;
+        const removedRemoteFileIds = this.readGraph(remoteMetadataCrate)
+            .filter(entity => this.entityTypes(entity).includes('File'))
+            .map(entity => this.requireEntityId(entity))
+            .filter(remoteId => remoteId !== 'ro-crate-metadata.json')
+            .filter(remoteId => !matchedRemoteFileIds.has(remoteId));
+        const totalSteps = newFileIds.length + changedFileIds.length + removedRemoteFileIds.length + 2;
         let completedSteps = 1;
         reportProgress?.({
             completedSteps,
             totalSteps,
-            message: `Checking complete: ${newFileIds.length} file(s) to upload, ${changedFileIds.length} file(s) to replace, and ${removedFileIds.length} file(s) to remove.`
+            message: `Checking complete: ${newFileIds.length} file(s) to upload, ${changedFileIds.length} file(s) to replace, and ${removedRemoteFileIds.length} file(s) to remove.`
         });
 
         for (const localId of newFileIds) {
@@ -307,10 +446,10 @@ export class NativeDataverseExportService {
             completedSteps += 1;
         }
 
-        for (const localId of removedFileIds) {
-            reportProgress?.({ completedSteps, totalSteps, message: `Removing ${localId}...` });
-            await this.deleteFile(baseUrl, repository.apiKey, exportTarget.mapping[localId]);
-            delete exportTarget.mapping[localId];
+        for (const remoteId of removedRemoteFileIds) {
+            reportProgress?.({ completedSteps, totalSteps, message: `Removing ${remoteId}...` });
+            await this.deleteFile(baseUrl, repository.apiKey, remoteId);
+            this.removeMappedRemoteFileId(exportTarget.mapping, remoteId);
             completedSteps += 1;
         }
 
@@ -342,12 +481,35 @@ export class NativeDataverseExportService {
             repository: baseUrl,
             mappingFile: exportTarget.exportLogEntry.mappingFile,
             syncType: 'update',
-            syncedAt: new Date().toISOString()
+            syncedAt: new Date().toISOString(),
+            collectionId: exportTarget.exportLogEntry.collectionId
         });
+        const enabledMetadataBlocks = exportTarget.exportLogEntry.collectionId
+            ? await this.fetchCollectionMetadataBlockAliases(
+                baseUrl,
+                repository.apiKey,
+                exportTarget.exportLogEntry.collectionId
+            )
+            : undefined;
+        await this.updateDatasetNativeMetadata(
+            baseUrl,
+            repository.apiKey,
+            exportTarget.persistentId,
+            crate,
+            enabledMetadataBlocks
+        );
+        await this.addDatasetSemanticMetadata(
+            baseUrl,
+            repository.apiKey,
+            exportTarget.persistentId,
+            crate,
+            true,
+            enabledMetadataBlocks
+        );
         reportProgress?.({
             completedSteps: totalSteps,
             totalSteps,
-            message: 'Synchronization complete.'
+            message: 'Synchronization complete, including dataset metadata.'
         });
 
         return {
@@ -355,7 +517,7 @@ export class NativeDataverseExportService {
             target: this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
             addedFileCount: newFileIds.length,
             replacedFileCount: changedFileIds.length,
-            removedFileCount: removedFileIds.length,
+            removedFileCount: removedRemoteFileIds.length,
             mappingFileName: exportTarget.exportLogEntry.mappingFile
         };
     }
@@ -404,7 +566,11 @@ export class NativeDataverseExportService {
         }
     }
 
-    protected buildDatasetCreationPayload(datasetMetadata: NativeDataverseDatasetMetadata): Record<string, unknown> {
+    protected buildDatasetCreationPayload(
+        datasetMetadata: NativeDataverseDatasetMetadata,
+        crate?: RoCrate,
+        enabledMetadataBlocks?: Set<string>
+    ): Record<string, unknown> {
         const title = datasetMetadata.title.trim();
         const authors = this.uniqueStrings(datasetMetadata.authorNames.map(value => value.trim()));
         const contactEmails = this.uniqueStrings(datasetMetadata.contactEmails.map(value => value.trim()));
@@ -441,16 +607,581 @@ export class NativeDataverseExportService {
             }
         ];
 
-        return {
-            datasetVersion: {
-                metadataBlocks: {
-                    citation: {
-                        displayName: 'Citation Metadata',
-                        fields
-                    }
-                }
+        const metadataBlocks: Record<string, { displayName: string; fields: DataverseMetadataField[] }> = {
+            citation: {
+                displayName: 'Citation Metadata',
+                fields
             }
         };
+        if (crate) {
+            Object.assign(metadataBlocks, this.buildNativeDataverseMetadataBlocks(crate, enabledMetadataBlocks));
+        }
+
+        return {
+            datasetVersion: {
+                metadataBlocks
+            }
+        };
+    }
+
+    public async listExportTargets(
+        repositories: DataRepositoryConfig[]
+    ): Promise<Record<string, DataRepositoryExportTarget[]>> {
+        const rootUri = this.getWorkspaceRoot();
+        const currentDatasetName = await this.tryReadCurrentRootDatasetName(rootUri);
+        const entries = await this.readExportLogEntries(rootUri.resolve('.rockit').resolve(EXPORT_LOG_FILE_NAME));
+        const targetsByRepositoryId: Record<string, DataRepositoryExportTarget[]> = {};
+
+        for (const repository of repositories) {
+            const baseUrl = this.normalizeBaseUrl(repository.baseUrl);
+            const latestByMappingFile = new Map<string, DataRepositoryExportTarget>();
+            for (const entry of entries) {
+                if (this.normalizeBaseUrl(entry.repository) !== baseUrl) {
+                    continue;
+                }
+                const pid = this.extractPidFromTarget(entry.target);
+                if (!pid || !entry.mappingFile) {
+                    continue;
+                }
+                latestByMappingFile.set(entry.mappingFile, {
+                    pid,
+                    target: this.buildDataverseDatasetUrl(baseUrl, pid) ?? entry.target,
+                    repository: entry.repository,
+                    mappingFile: entry.mappingFile,
+                    syncedAt: entry.syncedAt,
+                    syncType: entry.syncType,
+                    datasetName: currentDatasetName
+                });
+            }
+            targetsByRepositoryId[repository.id] = Array.from(latestByMappingFile.values())
+                .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt));
+        }
+
+        return targetsByRepositoryId;
+    }
+
+    protected buildNativeDataverseMetadataBlocks(
+        crate: RoCrate,
+        enabledMetadataBlocks?: Set<string>
+    ): Record<string, { displayName: string; fields: DataverseMetadataField[] }> {
+        const graph = this.readGraph(crate);
+        const root = graph.find(entity => entity['@id'] === './');
+        if (!root) {
+            return {};
+        }
+
+        const blocks: Record<string, { displayName: string; fields: DataverseMetadataField[] }> = {};
+        for (const [blockAlias, definition] of Object.entries(DATAVERSE_SEMANTIC_METADATA_BLOCKS)) {
+            if (enabledMetadataBlocks && !enabledMetadataBlocks.has(blockAlias)) {
+                continue;
+            }
+            const fields: DataverseMetadataField[] = [];
+            for (const field of definition.fields) {
+                const values = this.collectSemanticFieldValues(root, graph, field)
+                    .map(value => this.normalizeDataverseSemanticValue(field, value))
+                    .filter((value): value is string => !!value);
+                const nativeField = this.nativePrimitiveField(field, values);
+                if (nativeField) {
+                    fields.push(nativeField);
+                }
+            }
+            for (const [compoundField, childFields] of Object.entries(definition.compounds)) {
+                const values = this.collectNativeCompoundValues(root, graph, compoundField, childFields);
+                if (values.length) {
+                    fields.push(this.compoundField(compoundField, values));
+                }
+            }
+            if (fields.length) {
+                blocks[blockAlias] = {
+                    displayName: definition.displayName,
+                    fields
+                };
+            }
+        }
+        return blocks;
+    }
+
+    protected buildNativeCitationMetadataFields(crate: RoCrate): DataverseMetadataField[] {
+        const graph = this.readGraph(crate);
+        const root = graph.find(entity => entity['@id'] === './');
+        if (!root) {
+            return [];
+        }
+
+        const fields: DataverseMetadataField[] = [];
+        const title = this.firstMeaningfulString(root.title, root.name);
+        if (title) {
+            fields.push(this.primitiveField('title', false, title));
+        }
+        const authors = this.uniqueStrings(this.extractAuthors(root, graph));
+        if (authors.length) {
+            fields.push(this.compoundField('author', authors.map(authorName => ({
+                authorName: this.primitiveField('authorName', false, authorName)
+            }))));
+        }
+        const contactEmails = this.uniqueStrings(this.extractContactEmails(root, graph));
+        if (contactEmails.length) {
+            fields.push(this.compoundField('datasetContact', contactEmails.map(datasetContactEmail => ({
+                datasetContactEmail: this.primitiveField('datasetContactEmail', false, datasetContactEmail)
+            }))));
+        }
+        const descriptions = this.uniqueStrings(this.extractDescriptions(root, graph));
+        if (descriptions.length) {
+            fields.push(this.compoundField('dsDescription', descriptions.map(dsDescriptionValue => ({
+                dsDescriptionValue: this.primitiveField('dsDescriptionValue', false, dsDescriptionValue)
+            }))));
+        }
+        const subjects = this.uniqueStrings(this.readStrings(root.subject));
+        if (subjects.length) {
+            fields.push({
+                typeName: 'subject',
+                typeClass: 'controlledVocabulary',
+                multiple: true,
+                value: subjects
+            });
+        }
+        return fields;
+    }
+
+    protected async addDatasetSemanticMetadata(
+        baseUrl: string,
+        apiKey: string | undefined,
+        persistentId: string,
+        crate: RoCrate,
+        replace: boolean,
+        enabledMetadataBlocks?: Set<string>
+    ): Promise<void> {
+        const payload = this.buildDatasetSemanticMetadataPayload(crate, enabledMetadataBlocks);
+        if (!payload) {
+            return;
+        }
+
+        const requestUrl = new URL('/api/datasets/:persistentId/metadata', `${baseUrl}/`);
+        requestUrl.searchParams.set('persistentId', persistentId);
+        if (replace) {
+            requestUrl.searchParams.set('replace', 'true');
+        }
+
+        const headers: Record<string, string> = {
+            accept: 'application/json',
+            'content-type': 'application/ld+json'
+        };
+        if (apiKey) {
+            headers['x-dataverse-key'] = apiKey;
+        }
+
+        const response = await fetch(requestUrl.toString(), {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(payload)
+        });
+        const responsePayload = await this.readResponsePayload(response);
+        if (!response.ok || responsePayload.status === 'ERROR') {
+            throw new Error(`Dataverse semantic metadata update failed (${response.status}): ${this.payloadSummary(responsePayload)}`);
+        }
+    }
+
+    protected async updateDatasetNativeMetadata(
+        baseUrl: string,
+        apiKey: string | undefined,
+        persistentId: string,
+        crate: RoCrate,
+        enabledMetadataBlocks?: Set<string>
+    ): Promise<void> {
+        const currentData = await this.fetchDatasetVersionData(baseUrl, apiKey, persistentId, ':draft');
+        const payload = this.buildDatasetNativeMetadataUpdatePayload(currentData, crate, enabledMetadataBlocks);
+        if (!payload) {
+            return;
+        }
+
+        const requestUrl = `${baseUrl}/api/datasets/:persistentId/versions/:draft?persistentId=${encodeURIComponent(persistentId)}`;
+        const headers: Record<string, string> = {
+            accept: 'application/json',
+            'content-type': 'application/json'
+        };
+        if (apiKey) {
+            headers['x-dataverse-key'] = apiKey;
+        }
+
+        const response = await fetch(requestUrl, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(payload)
+        });
+        const responsePayload = await this.readResponsePayload(response);
+        if (!response.ok || responsePayload.status === 'ERROR') {
+            throw new Error(`Dataverse native metadata update failed (${response.status}): ${this.payloadSummary(responsePayload)}`);
+        }
+    }
+
+    protected buildDatasetNativeMetadataUpdatePayload(
+        currentData: Record<string, unknown>,
+        crate: RoCrate,
+        enabledMetadataBlocks?: Set<string>
+    ): Record<string, unknown> | undefined {
+        const metadataBlocks = currentData.metadataBlocks;
+        if (!metadataBlocks || typeof metadataBlocks !== 'object' || Array.isArray(metadataBlocks)) {
+            return undefined;
+        }
+
+        const updatePayload = { ...currentData };
+        delete updatePayload.files;
+        const updatedMetadataBlocks: Record<string, unknown> = { ...(metadataBlocks as Record<string, unknown>) };
+        const localBlocks = this.buildNativeDataverseMetadataBlocks(crate, enabledMetadataBlocks);
+        const localCitationFields = this.buildNativeCitationMetadataFields(crate);
+        if (localCitationFields.length) {
+            updatedMetadataBlocks.citation = this.mergeNativeMetadataBlockFields(
+                updatedMetadataBlocks.citation,
+                'Citation Metadata',
+                localCitationFields
+            );
+        }
+        for (const [blockAlias, block] of Object.entries(localBlocks)) {
+            updatedMetadataBlocks[blockAlias] = block;
+        }
+        updatePayload.metadataBlocks = updatedMetadataBlocks;
+        return updatePayload;
+    }
+
+    protected mergeNativeMetadataBlockFields(
+        currentBlock: unknown,
+        displayName: string,
+        replacementFields: DataverseMetadataField[]
+    ): { displayName: string; fields: DataverseMetadataField[] } {
+        const current = currentBlock && typeof currentBlock === 'object' && !Array.isArray(currentBlock)
+            ? currentBlock as Record<string, unknown>
+            : {};
+        const existingFields = Array.isArray(current.fields)
+            ? current.fields.filter((field): field is DataverseMetadataField =>
+                !!field
+                && typeof field === 'object'
+                && !Array.isArray(field)
+                && typeof (field as DataverseMetadataField).typeName === 'string'
+            )
+            : [];
+        const replacementFieldNames = new Set(replacementFields.map(field => field.typeName));
+        return {
+            displayName: this.readOptionalString(current.displayName) ?? displayName,
+            fields: [
+                ...existingFields.filter(field => !replacementFieldNames.has(field.typeName)),
+                ...replacementFields
+            ]
+        };
+    }
+
+    protected async fetchCollectionMetadataBlockAliases(
+        baseUrl: string,
+        apiKey: string | undefined,
+        collectionId: string
+    ): Promise<Set<string> | undefined> {
+        const requestUrl = `${baseUrl}/api/dataverses/${encodeURIComponent(collectionId)}/metadatablocks`;
+        const headers: Record<string, string> = { accept: 'application/json' };
+        if (apiKey) {
+            headers['x-dataverse-key'] = apiKey;
+        }
+        try {
+            const response = await fetch(requestUrl, { headers });
+            const payload = await this.readResponsePayload(response);
+            if (!response.ok || payload.status === 'ERROR') {
+                console.warn(`Failed to retrieve Dataverse metadata blocks (${response.status}): ${this.payloadSummary(payload)}`);
+                return undefined;
+            }
+            const aliases = this.collectMetadataBlockAliases(payload);
+            aliases.add('citation');
+            return aliases;
+        } catch (error) {
+            console.warn('Failed to retrieve Dataverse metadata blocks:', error);
+            return undefined;
+        }
+    }
+
+    protected collectMetadataBlockAliases(value: unknown): Set<string> {
+        const aliases = new Set<string>();
+        const visit = (node: unknown) => {
+            if (!node || typeof node !== 'object') {
+                return;
+            }
+            if (Array.isArray(node)) {
+                node.forEach(visit);
+                return;
+            }
+            const record = node as Record<string, unknown>;
+            for (const key of ['name', 'metadataBlockName', 'blockName']) {
+                const alias = this.readOptionalString(record[key]);
+                if (alias) {
+                    aliases.add(alias);
+                }
+            }
+            Object.values(record).forEach(visit);
+        };
+        visit(value);
+        return aliases;
+    }
+
+    protected buildDatasetSemanticMetadataPayload(
+        crate: RoCrate,
+        enabledMetadataBlocks?: Set<string>
+    ): Record<string, unknown> | undefined {
+        const graph = this.readGraph(crate);
+        const root = graph.find(entity => entity['@id'] === './');
+        if (!root) {
+            return undefined;
+        }
+
+        const payload: Record<string, unknown> = {
+            '@context': {
+                citation: 'https://dataverse.org/schema/citation/',
+                dcterms: 'http://purl.org/dc/terms/'
+            }
+        };
+
+        const title = this.firstMeaningfulString(root.title, root.name);
+        if (title) {
+            payload['dcterms:title'] = title;
+        }
+
+        const subject = this.uniqueStrings(this.readStrings(root.subject));
+        if (subject.length) {
+            payload['dcterms:subject'] = subject.length === 1 ? subject[0] : subject;
+        }
+
+        const depositor = this.firstMeaningfulString(root.depositor);
+        if (depositor) {
+            payload['citation:depositor'] = depositor;
+        }
+
+        const dateOfDeposit = this.firstMeaningfulString(root.dateOfDeposit);
+        if (dateOfDeposit) {
+            payload['citation:dateOfDeposit'] = dateOfDeposit;
+        }
+
+        const authors = this.buildSemanticAuthors(root, graph);
+        if (authors.length) {
+            payload['citation:author'] = authors.length === 1 ? authors[0] : authors;
+        }
+
+        const contacts = this.buildSemanticDatasetContacts(root, graph);
+        if (contacts.length) {
+            payload['citation:datasetContact'] = contacts.length === 1 ? contacts[0] : contacts;
+        }
+
+        const descriptions = this.buildSemanticDescriptions(root, graph);
+        if (descriptions.length) {
+            payload['citation:dsDescription'] = descriptions.length === 1 ? descriptions[0] : descriptions;
+        }
+
+        this.addOptionalDataverseSemanticMetadata(payload, root, graph, enabledMetadataBlocks);
+
+        return Object.keys(payload).length > 1 ? payload : undefined;
+    }
+
+    protected addOptionalDataverseSemanticMetadata(
+        payload: Record<string, unknown>,
+        root: RoCrateEntity,
+        graph: RoCrateEntity[],
+        enabledMetadataBlocks?: Set<string>
+    ): void {
+        const context = payload['@context'] as Record<string, string>;
+        for (const definition of Object.values(DATAVERSE_SEMANTIC_METADATA_BLOCKS)) {
+            let hasBlockValue = false;
+            for (const field of definition.fields) {
+                const values = this.collectSemanticFieldValues(root, graph, field)
+                    .map(value => this.normalizeDataverseSemanticValue(field, value))
+                    .filter((value): value is string => !!value);
+                if (!values.length) {
+                    continue;
+                }
+                payload[`${definition.prefix}:${field}`] = values.length === 1 ? values[0] : values;
+                hasBlockValue = true;
+            }
+            for (const [compoundField, childFields] of Object.entries(definition.compounds)) {
+                const values = this.collectSemanticCompoundValues(root, graph, compoundField, childFields, definition.prefix);
+                if (!values.length) {
+                    continue;
+                }
+                payload[`${definition.prefix}:${compoundField}`] = values.length === 1 ? values[0] : values;
+                hasBlockValue = true;
+            }
+            if (hasBlockValue) {
+                context[definition.prefix] = definition.namespace;
+            }
+        }
+    }
+
+    protected collectSemanticFieldValues(
+        root: RoCrateEntity,
+        graph: RoCrateEntity[],
+        field: string
+    ): string[] {
+        return this.uniqueStrings([
+            ...this.readStrings(root[field]),
+            ...graph
+                .filter(entity => this.entityTypes(entity).includes(field))
+                .flatMap(entity => this.readStrings(entity.value ?? entity.name ?? entity[field]))
+        ]);
+    }
+
+    protected collectSemanticCompoundValues(
+        root: RoCrateEntity,
+        graph: RoCrateEntity[],
+        compoundField: string,
+        childFields: string[],
+        prefix: string
+    ): Array<Record<string, string | string[]>> {
+        const references = this.resolveEntities(root[compoundField], graph);
+        const typeMatches = graph.filter(entity => this.entityTypes(entity).includes(compoundField));
+        const entities = this.uniqueEntitiesById([...references, ...typeMatches]);
+        return entities
+            .map(entity => {
+                const value: Record<string, string | string[]> = {};
+                for (const childField of childFields) {
+                    const childValues = this.uniqueStrings(
+                        this.readStrings(entity[childField])
+                            .map(childValue => this.normalizeDataverseSemanticValue(childField, childValue))
+                            .filter((childValue): childValue is string => !!childValue)
+                    );
+                    if (childValues.length) {
+                        value[`${prefix}:${childField}`] = childValues.length === 1 ? childValues[0] : childValues;
+                    }
+                }
+                return value;
+            })
+            .filter(value => Object.keys(value).length > 0);
+    }
+
+    protected collectNativeCompoundValues(
+        root: RoCrateEntity,
+        graph: RoCrateEntity[],
+        compoundField: string,
+        childFields: string[]
+    ): Array<Record<string, DataverseMetadataField>> {
+        const references = this.resolveEntities(root[compoundField], graph);
+        const typeMatches = graph.filter(entity => this.entityTypes(entity).includes(compoundField));
+        const entities = this.uniqueEntitiesById([...references, ...typeMatches]);
+        return entities
+            .map(entity => {
+                const value: Record<string, DataverseMetadataField> = {};
+                for (const childField of childFields) {
+                    const childValues = this.readStrings(entity[childField])
+                        .map(childValue => this.normalizeDataverseSemanticValue(childField, childValue))
+                        .filter((childValue): childValue is string => !!childValue);
+                    const nativeField = this.nativePrimitiveField(childField, childValues);
+                    if (nativeField) {
+                        value[childField] = nativeField;
+                    }
+                }
+                return value;
+            })
+            .filter(value => Object.keys(value).length > 0);
+    }
+
+    protected nativePrimitiveField(typeName: string, values: string[]): DataverseMetadataField | undefined {
+        const uniqueValues = this.uniqueStrings(values);
+        if (!uniqueValues.length) {
+            return undefined;
+        }
+        const multiple = DATAVERSE_MULTIPLE_VALUE_FIELDS.has(typeName);
+        return this.primitiveField(
+            typeName,
+            multiple,
+            multiple ? uniqueValues : uniqueValues[0]
+        );
+    }
+
+    protected normalizeDataverseSemanticValue(fieldName: string, value: string): string | undefined {
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return undefined;
+        }
+        if (/date$/i.test(fieldName)) {
+            const dateOnly = trimmed.match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?/);
+            return dateOnly?.[0] ?? trimmed;
+        }
+        return trimmed;
+    }
+
+    protected buildSemanticAuthors(root: RoCrateEntity, graph: RoCrateEntity[]): Array<Record<string, string>> {
+        const linkedAuthors = this.resolveEntities(root.author, graph);
+        const authorValues: RoCrateEntity[] = linkedAuthors.length
+            ? linkedAuthors
+            : this.readStrings(root.author)
+                .filter(value => !this.looksLikeEntityId(value))
+                .map(name => ({ name }));
+
+        return authorValues
+            .map(author => {
+                const item: Record<string, string> = {};
+                const name = this.firstMeaningfulString(author.authorName, author.name);
+                if (name) {
+                    item['citation:authorName'] = name;
+                }
+                const affiliation = this.firstMeaningfulString(author.authorAffiliation);
+                if (affiliation) {
+                    item['citation:authorAffiliation'] = affiliation;
+                }
+                const identifierScheme = this.firstMeaningfulString(author.authorIdentifierScheme);
+                if (identifierScheme) {
+                    item['citation:authorIdentifierScheme'] = identifierScheme;
+                }
+                const identifier = this.firstMeaningfulString(author.authorIdentifier);
+                if (identifier) {
+                    item['citation:authorIdentifier'] = identifier;
+                }
+                return item;
+            })
+            .filter(author => !!author['citation:authorName']);
+    }
+
+    protected buildSemanticDatasetContacts(root: RoCrateEntity, graph: RoCrateEntity[]): Array<Record<string, string>> {
+        const linkedContacts = this.resolveEntities(root.datasetContact ?? root.contactPoint, graph);
+        const contacts: RoCrateEntity[] = linkedContacts.length
+            ? linkedContacts
+            : this.readStrings(root.datasetContactEmail).map(email => ({ datasetContactEmail: email }));
+
+        return contacts
+            .map(contact => {
+                const item: Record<string, string> = {};
+                const name = this.firstMeaningfulString(contact.datasetContactName, contact.name);
+                if (name) {
+                    item['citation:datasetContactName'] = name;
+                }
+                const affiliation = this.firstMeaningfulString(contact.datasetContactAffiliation);
+                if (affiliation) {
+                    item['citation:datasetContactAffiliation'] = affiliation;
+                }
+                const email = this.firstMeaningfulString(contact.datasetContactEmail, contact.email);
+                if (email) {
+                    item['citation:datasetContactEmail'] = email;
+                }
+                return item;
+            })
+            .filter(contact => !!contact['citation:datasetContactEmail']);
+    }
+
+    protected buildSemanticDescriptions(root: RoCrateEntity, graph: RoCrateEntity[]): Array<Record<string, string>> {
+        const linkedDescriptions = this.resolveEntities(root.dsDescription, graph);
+        const descriptions: RoCrateEntity[] = linkedDescriptions.length
+            ? linkedDescriptions
+            : this.readStrings(root.description).map(description => ({ dsDescriptionValue: description }));
+
+        return descriptions
+            .map(description => {
+                const item: Record<string, string> = {};
+                const value = this.firstMeaningfulString(
+                    description.dsDescriptionValue,
+                    description.description,
+                    description.name
+                );
+                if (value) {
+                    item['citation:dsDescriptionValue'] = value;
+                }
+                const date = this.firstMeaningfulString(description.dsDescriptionDate);
+                if (date) {
+                    item['citation:dsDescriptionDate'] = date;
+                }
+                return item;
+            })
+            .filter(description => !!description['citation:dsDescriptionValue']);
     }
 
     protected async uploadRoCrateFiles(
@@ -484,6 +1215,7 @@ export class NativeDataverseExportService {
         rootUri: URI
     ): Promise<NativeDataverseUploadCollection> {
         const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate;
+        this.pruneUnreachableFileEntities(uploadCrate);
         const externalFiles = new Map<string, URI>();
         const uploadEntryPathByEntityId = new Map<string, string>();
         const localizedReferences = await localizeExternalRoCrateFileReferences(uploadCrate, {
@@ -1000,13 +1732,30 @@ export class NativeDataverseExportService {
 
     protected async resolveExistingExportTarget(
         rootUri: URI,
-        repository: DataRepositoryConfig
+        repository: DataRepositoryConfig,
+        selectedTarget?: DataRepositoryExportTarget
     ): Promise<NativeDataverseExportTarget | undefined> {
         const entries = await this.readExportLogEntries(rootUri.resolve('.rockit').resolve(EXPORT_LOG_FILE_NAME));
         const baseUrl = this.normalizeBaseUrl(repository.baseUrl);
-        const entry = [...entries]
+        const matchingEntries = [...entries]
             .reverse()
-            .find(candidate => this.normalizeBaseUrl(candidate.repository) === baseUrl && !!this.extractPidFromTarget(candidate.target));
+            .filter(candidate => this.normalizeBaseUrl(candidate.repository) === baseUrl && !!this.extractPidFromTarget(candidate.target));
+        const selectedEntry = selectedTarget
+            ? matchingEntries.find(candidate =>
+                candidate.mappingFile === selectedTarget.mappingFile
+                && this.normalizePid(this.extractPidFromTarget(candidate.target)) === this.normalizePid(selectedTarget.pid)
+            )
+            : undefined;
+        const selectedFallbackEntry: ExportLogEntry | undefined = selectedTarget && !selectedEntry
+            ? {
+                target: selectedTarget.target,
+                repository: selectedTarget.repository,
+                mappingFile: selectedTarget.mappingFile,
+                syncType: selectedTarget.syncType,
+                syncedAt: selectedTarget.syncedAt
+            }
+            : undefined;
+        const entry = selectedEntry ?? selectedFallbackEntry ?? matchingEntries[0];
         if (!entry) {
             return undefined;
         }
@@ -1038,6 +1787,29 @@ export class NativeDataverseExportService {
             throw new Error(`Failed to retrieve Dataverse draft files (${response.status}): ${this.payloadSummary(payload)}`);
         }
         return this.extractDraftFileRecords(payload);
+    }
+
+    protected async fetchDatasetVersionData(
+        baseUrl: string,
+        apiKey: string | undefined,
+        persistentId: string,
+        version: ':draft' | ':latest'
+    ): Promise<Record<string, unknown>> {
+        const requestUrl = `${baseUrl}/api/datasets/:persistentId/versions/${version}?persistentId=${encodeURIComponent(persistentId)}`;
+        const headers: Record<string, string> = { accept: 'application/json' };
+        if (apiKey) {
+            headers['x-dataverse-key'] = apiKey;
+        }
+        const response = await fetch(requestUrl, { headers });
+        const payload = await this.readResponsePayload(response);
+        if (!response.ok || payload.status === 'ERROR') {
+            throw new Error(`Failed to retrieve Dataverse dataset metadata (${response.status}): ${this.payloadSummary(payload)}`);
+        }
+        const data = payload.data;
+        if (!data || typeof data !== 'object' || Array.isArray(data)) {
+            throw new Error('Dataverse dataset metadata response did not contain a data object.');
+        }
+        return data;
     }
 
     protected extractDraftFileRecords(value: unknown): NativeDataverseDraftFileRecord[] {
@@ -1092,6 +1864,14 @@ export class NativeDataverseExportService {
                 mapping[originalId] = mapping[uploadId];
             }
             delete mapping[uploadId];
+        }
+    }
+
+    protected removeMappedRemoteFileId(mapping: RoCrateEntityIdMapping, remoteFileId: string): void {
+        for (const [localId, mappedRemoteId] of Object.entries(mapping)) {
+            if (mappedRemoteId === remoteFileId) {
+                delete mapping[localId];
+            }
         }
     }
 
@@ -1165,6 +1945,20 @@ export class NativeDataverseExportService {
         return trimmed;
     }
 
+    protected buildDataverseDatasetUrl(baseUrl: string, pid?: string): string | undefined {
+        if (!pid) {
+            return undefined;
+        }
+        const target = this.buildPidTarget(pid);
+        if (!target) {
+            return undefined;
+        }
+        if (/^https?:\/\//i.test(target)) {
+            return target;
+        }
+        return `${baseUrl}/dataset.xhtml?persistentId=${encodeURIComponent(target)}`;
+    }
+
     protected extractPidFromTarget(target: string): string | undefined {
         const trimmed = target.trim();
         if (/^(hdl|doi):/i.test(trimmed)) {
@@ -1184,6 +1978,10 @@ export class NativeDataverseExportService {
         } catch {
             return undefined;
         }
+    }
+
+    protected normalizePid(value: string | undefined): string | undefined {
+        return value?.trim().replace(/^persistentId=/i, '').toLowerCase();
     }
 
     protected randomId(length: number): string {
@@ -1265,6 +2063,19 @@ export class NativeDataverseExportService {
             .concat(this.readStrings(root.author).filter(value => !this.looksLikeEntityId(value)));
     }
 
+    protected getRootDatasetName(crate: RoCrate): string | undefined {
+        const root = this.readGraph(crate).find(entity => entity['@id'] === './');
+        return root ? this.firstMeaningfulString(root.title, root.name) : undefined;
+    }
+
+    protected async tryReadCurrentRootDatasetName(rootUri: URI): Promise<string | undefined> {
+        try {
+            return this.getRootDatasetName(await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json')));
+        } catch {
+            return undefined;
+        }
+    }
+
     protected extractContactEmails(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
         const linkedContacts = this.resolveEntities(root.datasetContact ?? root.contactPoint, graph);
         return this.uniqueStrings([
@@ -1275,10 +2086,9 @@ export class NativeDataverseExportService {
 
     protected extractDescriptions(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
         const linkedDescriptions = this.resolveEntities(root.dsDescription, graph);
-        return this.uniqueStrings([
-            ...linkedDescriptions.flatMap(description => this.readStrings(description.dsDescriptionValue ?? description.description ?? description.name)),
-            ...this.readStrings(root.description)
-        ]);
+        return this.uniqueStrings(
+            linkedDescriptions.flatMap(description => this.readStrings(description.dsDescriptionValue ?? description.description ?? description.name))
+        );
     }
 
     protected resolveEntities(value: unknown, graph: RoCrateEntity[]): RoCrateEntity[] {
@@ -1295,6 +2105,20 @@ export class NativeDataverseExportService {
         return [];
     }
 
+    protected uniqueEntitiesById(entities: RoCrateEntity[]): RoCrateEntity[] {
+        const seen = new Set<string>();
+        const unique: RoCrateEntity[] = [];
+        for (const entity of entities) {
+            const key = this.readStrings(entity['@id'])[0] ?? JSON.stringify(entity);
+            if (seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+            unique.push(entity);
+        }
+        return unique;
+    }
+
     protected readGraph(crate: RoCrate): RoCrateEntity[] {
         const graph = crate['@graph'];
         return Array.isArray(graph)
@@ -1302,7 +2126,53 @@ export class NativeDataverseExportService {
             : [];
     }
 
-    protected primitiveField(typeName: string, multiple: boolean, value: string): DataverseMetadataField {
+    protected pruneUnreachableFileEntities(crate: RoCrate): void {
+        const graph = crate['@graph'];
+        if (!Array.isArray(graph)) {
+            return;
+        }
+        const reachableIds = this.collectReachableEntityIds(crate);
+        crate['@graph'] = graph.filter(entity =>
+            !entity
+            || typeof entity !== 'object'
+            || Array.isArray(entity)
+            || !this.entityTypes(entity as RoCrateEntity).includes('File')
+            || reachableIds.has(this.requireEntityId(entity as RoCrateEntity))
+        );
+    }
+
+    protected collectReachableEntityIds(crate: RoCrate): Set<string> {
+        const graph = this.readGraph(crate);
+        const entitiesById = new Map(graph.map(entity => [this.requireEntityId(entity), entity]));
+        const reachableIds = new Set<string>();
+        const visit = (id: string) => {
+            if (reachableIds.has(id)) {
+                return;
+            }
+            const entity = entitiesById.get(id);
+            if (!entity) {
+                return;
+            }
+            reachableIds.add(id);
+            for (const childId of this.readEntityReferenceIds(entity.hasPart)) {
+                visit(childId);
+            }
+        };
+        visit('./');
+        return reachableIds;
+    }
+
+    protected readEntityReferenceIds(value: unknown): string[] {
+        if (Array.isArray(value)) {
+            return this.uniqueStrings(value.flatMap(item => this.readEntityReferenceIds(item)));
+        }
+        if (value && typeof value === 'object') {
+            return this.readStrings((value as RoCrateEntity)['@id']);
+        }
+        return this.readStrings(value);
+    }
+
+    protected primitiveField(typeName: string, multiple: boolean, value: unknown): DataverseMetadataField {
         return { typeName, typeClass: 'primitive', multiple, value };
     }
 

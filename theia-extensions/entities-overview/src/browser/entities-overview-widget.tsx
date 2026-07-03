@@ -28,6 +28,7 @@ import {
 import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
 import { MultiEditDialogService } from 'multi-edit/lib/browser/multi-edit-dialog-service'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
+import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
 import '../../src/browser/styles/entities-overview-widget.css'
 import { AdvancedFiltersDialog } from './entities-overview-advanced-filters-dialog'
 import {
@@ -94,6 +95,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
         @inject(ThemeService) private readonly themeService: ThemeService,
         @inject(MultiEditDialogService)
         private readonly multiEditDialogService: MultiEditDialogService,
+        @inject(LoadMaskService)
+        private readonly loadMaskService: LoadMaskService,
     ) {
         super(props, model, contextMenuRenderer)
         this.shouldScrollToRow = false
@@ -1156,18 +1159,42 @@ export class EntitiesOverviewWidget extends TreeWidget {
         }
 
         this.filterMode = mode
+        if (mode === 'advanced' && (this.advancedEntityMatcher || this.advancedRuleCount > 0)) {
+            void this.applyAdvancedFilters()
+            return
+        }
         this.applyFilters()
     }
 
     protected async openAdvancedDialog(): Promise<void> {
-        const profile = this.appStateService.completeProfile ?? this.appStateService.profile
-        const catalog = buildAdvancedFilterCatalog(this.appStateService.roCrate, profile)
-        const availableTypes = this.model.getAvailableTypes()
+        const loadMask = this.loadMaskService.show({
+            message: 'Preparing advanced filters…',
+            delay: 0,
+        })
+        let prepared:
+            | {
+                  catalog: ReturnType<typeof buildAdvancedFilterCatalog>
+                  availableTypes: string[]
+              }
+            | undefined
+        try {
+            await this.nextAnimationFrame()
+            const profile = this.appStateService.completeProfile ?? this.appStateService.profile
+            prepared = {
+                catalog: buildAdvancedFilterCatalog(this.appStateService.roCrate, profile),
+                availableTypes: this.model.getAvailableTypes(),
+            }
+        } finally {
+            loadMask.dispose()
+        }
+        if (!prepared) {
+            return
+        }
 
         const dialog = new AdvancedFiltersDialog(
-            catalog,
+            prepared.catalog,
             this.advancedFilterState,
-            availableTypes,
+            prepared.availableTypes,
             this.appStateService.roCrate,
         )
 
@@ -1182,21 +1209,34 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
             this.advancedEntityMatcher = buildAdvancedEntityMatcher(
                 result,
-                catalog,
+                prepared.catalog,
                 this.appStateService.roCrate,
             )
 
-            this.advancedRuleCount = countActiveAdvancedRules(result, catalog)
-            this.applyAdvancedFilters()
+            this.advancedRuleCount = countActiveAdvancedRules(result, prepared.catalog)
+            await this.applyAdvancedFilters()
         }
     }
 
     protected async openMultiEditDialog(): Promise<void> {
-        const selectedEntityIds = this.model.getSelectedEntityIds()
-        const entityIds =
-            selectedEntityIds.length > 0 ? selectedEntityIds : this.model.getVisibleEntityIds()
+        const loadMask = this.loadMaskService.show({
+            message: 'Collecting entities for multi-edit…',
+        })
+        try {
+            const selectedEntityIds = this.model.getSelectedEntityIds()
+            const entityIds =
+                selectedEntityIds.length > 0
+                    ? selectedEntityIds
+                    : await this.model.getVisibleEntityIdsAsync()
 
-        await this.multiEditDialogService.open(entityIds)
+            const dialogResult = this.multiEditDialogService.open(
+                entityIds
+            )
+            loadMask.dispose()
+            await dialogResult
+        } finally {
+            loadMask.dispose()
+        }
     }
 
     public canOpenEditFromContextMenu(): boolean {
@@ -1256,8 +1296,21 @@ export class EntitiesOverviewWidget extends TreeWidget {
         )
     }
 
-    protected applyAdvancedFilters(): void {
-        this.applyFilters()
+    protected async applyAdvancedFilters(): Promise<void> {
+        const loadMask = this.loadMaskService.show({
+            message: 'Filtering entities…',
+            delay: 0,
+        })
+        try {
+            await this.nextAnimationFrame()
+            this.applyFilters()
+        } finally {
+            loadMask.dispose()
+        }
+    }
+
+    protected nextAnimationFrame(): Promise<void> {
+        return new Promise((resolve) => window.requestAnimationFrame(() => resolve()))
     }
 
     protected getActiveFilters(): {

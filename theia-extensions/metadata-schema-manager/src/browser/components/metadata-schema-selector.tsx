@@ -14,6 +14,7 @@ import { IconButton, Tooltip } from '@mui/material';
 
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service';
+import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service';
 import { SchemaManagerService } from '../services/metadata-schema-manager-service';
 import { MetadataSchemaTable } from './metadata-schema-table';
 import { MetadataSchemaToolbar } from './metadata-schema-toolbar';
@@ -34,6 +35,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
     @inject(MessageService) protected readonly messageService!: MessageService;
     @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
     @inject(CommandRegistry) protected readonly commandRegistry!: CommandRegistry;
+    @inject(LoadMaskService) protected readonly loadMaskService!: LoadMaskService;
 
     private isDialogVisible = false;
 
@@ -80,8 +82,17 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
     }
 
     protected async handleAssociate(schemas: SchemaInfo[]): Promise<void> {
+        const crate = this.appStateService.roCrate;
+        const graph = crate && Array.isArray(crate['@graph']) ? crate['@graph'] as any[] : [];
+        const isLargeCrate = graph.length >= 1_000;
+        const loadMask = this.loadMaskService.show({
+            message: 'Associating metadata schema...',
+            delay: isLargeCrate ? 0 : undefined,
+        });
         try {
-            const crate = this.appStateService.roCrate;
+            if (isLargeCrate) {
+                await this.waitForLoadMaskPaint();
+            }
             const ctx = this.appStateService.getState().schemaSelectorContext;
             const entityId = ctx?.entityId ?? './';
 
@@ -89,28 +100,45 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
                 console.warn('MetadataSchemaSelector: missing schemaSelectorContext; defaulting to root entity', { entityId });
             }
 
-            if (crate && Array.isArray(crate['@graph'])) {
+            if (crate && graph.length > 0) {
                 const w3ids = schemas
-                    .map(schema => schema.conformsTo ? this.schemaManagerService.deriveConformsToFromId(schema.aux.reference) : '')
+                    .map(schema => schema.conformsTo?.trim() || this.schemaManagerService.deriveConformsToFromId(schema.aux.reference))
                     .filter((w3id): w3id is string => Boolean(w3id));
                 
                 if (w3ids.length) {
-                    const updatedGraph = (crate['@graph'] as any[]).map(entry => {
-                        if (String(entry['@id']) !== entityId) return entry;
-                        
-                        const existing = entry.conformsTo;
-                        const base = existing ? (Array.isArray(existing) ? existing.slice() : [existing]) : [];
-                        const normalized = base
-                            .map((v: any) => (typeof v === 'string' ? { '@id': v } : v))
-                            .filter((v: any) => v && typeof v['@id'] === 'string');
-                        
-                        const next = w3ids.reduce((acc: any[], w3id) => {
-                            const already = acc.some((v: any) => v['@id'] === w3id);
-                            return already ? acc : [...acc, { '@id': w3id }];
-                        }, normalized);
-                        
-                        return { ...entry, conformsTo: next };
+                    const updatedGraph: any[] = [];
+                    let sliceStarted = performance.now();
+                    for (let index = 0; index < graph.length; index += 1) {
+                        const entry = graph[index];
+                        let updatedEntry = entry;
+                        if (String(entry['@id']) === entityId) {
+                            const existing = entry.conformsTo;
+                            const base = existing ? (Array.isArray(existing) ? existing.slice() : [existing]) : [];
+                            const normalized = base
+                                .map((v: any) => (typeof v === 'string' ? { '@id': v } : v))
+                                .filter((v: any) => v && typeof v['@id'] === 'string');
+
+                            const next = w3ids.reduce((acc: any[], w3id) => {
+                                const already = acc.some((v: any) => v['@id'] === w3id);
+                                return already ? acc : [...acc, { '@id': w3id }];
+                            }, normalized);
+
+                            updatedEntry = { ...entry, conformsTo: next };
+                        }
+                        updatedGraph.push(updatedEntry);
+
+                        if (index % 250 === 0 && performance.now() - sliceStarted >= 12) {
+                            loadMask.update({ progress: { worked: index + 1, total: graph.length } });
+                            await new Promise<void>(resolve => setTimeout(resolve, 0));
+                            sliceStarted = performance.now();
+                        }
+                    }
+
+                    loadMask.update({
+                        message: 'Finalizing schema association...',
+                        progress: { worked: graph.length, total: graph.length },
                     });
+                    await new Promise<void>(resolve => setTimeout(resolve, 0));
                     
                     this.roCrateHistoryService.applyRoCrateChange(
                         { ...crate, '@graph': updatedGraph } as any,
@@ -128,7 +156,22 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
         } catch (e) {
             console.error(e);
             this.messageService.error('Failed to associate schema.', { timeout: MSG_TIMEOUT });
+        } finally {
+            loadMask.dispose();
         }
+    }
+
+    protected async waitForLoadMaskPaint(): Promise<void> {
+        await new Promise<void>(resolve => {
+            let settled = false;
+            const finish = () => {
+                if (settled) return;
+                settled = true;
+                resolve();
+            };
+            setTimeout(finish, 50);
+            requestAnimationFrame(() => requestAnimationFrame(finish));
+        });
     }
 }
 

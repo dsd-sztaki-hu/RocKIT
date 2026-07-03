@@ -1,21 +1,16 @@
 {
-  "name": "entities-overview",
+  "name": "rockit-loadmask",
   "keywords": [
     "theia-extension"
   ],
   "version": "0.0.0",
+  "description": "Global application load mask for RocKIT",
   "files": [
     "lib",
     "src"
   ],
   "dependencies": {
-    "@theia/core": "1.65.2",
-    "antd": "^5.29.1",
-    "app-state": "0.0.1",
-    "rockit-common": "0.0.0",
-    "multi-edit": "0.0.0",
-    "rockit-loadmask": "0.0.0",
-    "ro-crate-editor": "0.0.0"
+    "@theia/core": "1.65.2"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
@@ -28,7 +23,7 @@
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/entities-overview-frontend-module"
+      "frontend": "lib/browser/rockit-loadmask-frontend-module"
     }
   ]
 }
