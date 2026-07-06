@@ -1,0 +1,122 @@
+.arp-validation-dialog {
+  width: min(820px, 86vw);
+  max-height: min(620px, 78vh);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--theia-foreground);
+}
+
+.arp-validation-dialog__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--theia-widget-border);
+}
+
+.arp-validation-dialog__meta,
+.arp-validation-dialog__endpoint,
+.arp-validation-dialog__suggestion {
+  color: var(--theia-descriptionForeground);
+}
+
+.arp-validation-dialog__endpoint {
+  font-family: var(--theia-code-font-family);
+  font-size: var(--theia-code-font-size);
+  overflow-wrap: anywhere;
+}
+
+.arp-validation-dialog__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.arp-validation-dialog__entity {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--theia-widget-border);
+  border-radius: 4px;
+  background: var(--theia-editor-background);
+}
+
+.arp-validation-dialog__entity-title,
+.arp-validation-dialog__field {
+  font-family: var(--theia-code-font-family);
+  font-size: var(--theia-code-font-size);
+}
+
+.arp-validation-dialog__entity-title {
+  color: var(--theia-errorForeground);
+}
+
+.arp-validation-dialog__issues {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.arp-validation-dialog__issue {
+  display: grid;
+  grid-template-columns: minmax(130px, 220px) minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 8px;
+  background: var(--theia-sideBar-background);
+  border-radius: 4px;
+}
+
+.arp-validation-dialog__field {
+  grid-row: span 2;
+  overflow-wrap: anywhere;
+}
+
+.arp-validation-dialog__message,
+.arp-validation-dialog__suggestion {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.arp-validation-dialog__empty {
+  color: var(--theia-descriptionForeground);
+}
+
+.arp-validation-dialog__raw {
+  border-top: 1px solid var(--theia-widget-border);
+  padding-top: 10px;
+}
+
+.arp-validation-dialog__raw summary {
+  cursor: pointer;
+  color: var(--theia-textLink-foreground);
+}
+
+.arp-validation-dialog__raw pre {
+  max-height: 260px;
+  overflow: auto;
+  margin: 10px 0 0;
+  padding: 10px;
+  border: 1px solid var(--theia-widget-border);
+  border-radius: 4px;
+  background: var(--theia-textCodeBlock-background, var(--theia-editor-background));
+  color: var(--theia-editor-foreground);
+  font-family: var(--theia-code-font-family);
+  font-size: var(--theia-code-font-size);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .arp-validation-dialog__issue {
+    grid-template-columns: 1fr;
+  }
+
+  .arp-validation-dialog__field {
+    grid-row: auto;
+  }
+}

@@ -27,7 +27,8 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         private readonly storeService: DataRepositoryStoreService,
         private readonly dataverseService: DataverseService,
         private readonly capabilityService: DataverseCapabilityService,
-        private readonly exportTargetsByRepositoryId: Record<string, DataRepositoryExportTarget[]> = {}
+        private readonly exportTargetsByRepositoryId: Record<string, DataRepositoryExportTarget[]> = {},
+        private readonly onShowRecentValidationResponse?: () => void
     ) {
         super({
             title: 'Select Data Repository'
@@ -37,6 +38,11 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         this.contentNode.style.height = '400px';
         this.contentNode.style.padding = '0';
 
+        if (this.onShowRecentValidationResponse) {
+            const validationButton = this.appendButton('Last Validation Error', false);
+            validationButton.classList.add('data-repo-selector__validation-error-button');
+            validationButton.addEventListener('click', () => this.onShowRecentValidationResponse?.());
+        }
         const addButton = this.appendButton('Add Repository', true);
         addButton.addEventListener('click', () => void this.handleAddRepository());
         this.appendCloseButton();

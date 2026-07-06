@@ -12,8 +12,12 @@ import { DataRepositoryTable } from './components/data-repository-table'
 import { DataRepositoryToolbar } from './components/data-repository-toolbar'
 import { DataverseCollectionBrowserDialog } from './components/dataverse-collection-browser-dialog'
 import { ArpRoCrateImportDialog } from './components/arp-ro-crate-import-dialog'
+import { ArpRoCrateValidationErrorsDialog } from './components/arp-ro-crate-validation-errors-dialog'
 import { NativeDataverseDatasetMetadataDialog } from './components/native-dataverse-dataset-metadata-dialog'
-import { ArpRoCrateExportService } from './services/arp-ro-crate-export-service'
+import {
+  ArpRoCrateExportService,
+  ArpRoCrateValidationError,
+} from './services/arp-ro-crate-export-service'
 import { ArpRoCrateImportService } from './services/arp-ro-crate-import-service'
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
 import { DataverseCapabilityService } from './services/dataverse-capability-service'
@@ -42,6 +46,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   protected repositories: DataRepositoryConfig[] = []
   protected isLoading = true
   protected selectedKeys: React.Key[] = []
+  protected recentArpValidationError: ArpRoCrateValidationError | undefined
   protected readonly disposables = new DisposableCollection()
 
   constructor(
@@ -217,6 +222,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.dataverseService,
       this.capabilityService,
       exportTargetsByRepositoryId,
+      this.recentArpValidationError
+        ? () => {
+            void this.openRecentArpValidationResponse()
+          }
+        : undefined,
     )
     const repositorySelection = await selector.open()
 
@@ -272,6 +282,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         }
       } catch (error) {
         console.error('ARP file update failed:', error)
+        if (error instanceof ArpRoCrateValidationError) {
+          progress.cancel()
+          await this.showArpValidationFailure(error)
+          return
+        }
         this.messageService.error(
           `ARP file update failed: ${error instanceof Error ? error.message : String(error)}`,
           { timeout: 10000 },
@@ -369,6 +384,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           console.log('RO-Crate ZIP exported to ARP:', exportResult)
         } catch (error) {
           console.error('RO-Crate ZIP export failed:', error)
+          if (error instanceof ArpRoCrateValidationError) {
+            progress.cancel()
+            await this.showArpValidationFailure(error)
+            return
+          }
           this.messageService.error(
             `RO-Crate ZIP export failed: ${error instanceof Error ? error.message : String(error)}`,
             { timeout: 10000 },
@@ -444,6 +464,43 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         progress.cancel()
       }
     }
+  }
+
+  protected async showArpValidationFailure(
+    error: ArpRoCrateValidationError,
+  ): Promise<void> {
+    this.recentArpValidationError = error
+    this.update()
+    const issueCount = error.validationErrors.reduce(
+      (count, entityError) => count + entityError.errors.length,
+      0,
+    )
+    const action = await this.messageService.error(
+      `Server RO-Crate validation failed. The backend validation endpoint rejected the upload with ${issueCount} issue${issueCount === 1 ? '' : 's'} across ${error.validationErrors.length} entit${error.validationErrors.length === 1 ? 'y' : 'ies'}.`,
+      { timeout: 0 },
+      'Show issues',
+    )
+    if (action === 'Show issues') {
+      await this.openArpValidationResponse(error)
+    }
+  }
+
+  protected async openRecentArpValidationResponse(): Promise<void> {
+    if (!this.recentArpValidationError) {
+      return
+    }
+    await this.openArpValidationResponse(this.recentArpValidationError)
+  }
+
+  protected async openArpValidationResponse(
+    error: ArpRoCrateValidationError,
+  ): Promise<void> {
+    const dialog = new ArpRoCrateValidationErrorsDialog(
+      error.validationErrors,
+      error.requestUrl,
+      error.payload,
+    )
+    await dialog.open()
   }
 
   protected handleAddRepository = async () => {
