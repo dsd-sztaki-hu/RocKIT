@@ -16,6 +16,32 @@ type RoCrateEntity = Record<string, any>
 type RoCrate = Record<string, any>
 type RoCrateEntityIdMapping = Record<string, string>
 
+export interface ArpRoCrateValidationIssue {
+  errorField?: string
+  errorMessage?: string
+  errorSuggestion?: string
+}
+
+export interface ArpRoCrateValidationEntityError {
+  errorEntity: string
+  errors: ArpRoCrateValidationIssue[]
+}
+
+export class ArpRoCrateValidationError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly requestUrl: string,
+    public readonly validationErrors: ArpRoCrateValidationEntityError[],
+    public readonly payload: unknown,
+  ) {
+    super(
+      `Server RO-Crate validation failed with ${validationErrors.length} invalid entit${validationErrors.length === 1 ? 'y' : 'ies'}.`,
+    )
+    this.name = 'ArpRoCrateValidationError'
+    Object.setPrototypeOf(this, ArpRoCrateValidationError.prototype)
+  }
+}
+
 interface LocalizedExternalFileReferences {
   entries: Map<string, URI>
   originalToUploadIds: Map<string, string>
@@ -1864,7 +1890,16 @@ export class ArpRoCrateExportService {
       body: JSON.stringify(crate),
     })
     const payload = await this.readResponsePayload(response)
+    const validationErrors = this.extractArpValidationErrors(payload)
     const messages = this.extractDataverseValidationMessages(payload)
+    if (validationErrors.length > 0) {
+      throw new ArpRoCrateValidationError(
+        response.status,
+        response.url || validateUrl.toString(),
+        validationErrors,
+        payload,
+      )
+    }
     if (!response.ok || messages.length > 0) {
       const issuesPreview = messages.slice(0, 10).join(' | ')
       throw new Error(
@@ -2057,6 +2092,99 @@ export class ArpRoCrateExportService {
     crate['@context'] = context
       ? [context, { ...DATAVERSE_FILE_CONTEXT }]
       : ['https://w3id.org/ro/crate/1.1/context', { ...DATAVERSE_FILE_CONTEXT }]
+  }
+
+  protected extractArpValidationErrors(payload: unknown): ArpRoCrateValidationEntityError[] {
+    const reports: Record<string, unknown>[] = []
+    const collectReport = (value: unknown): void => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return
+      }
+      const record = value as Record<string, unknown>
+      if (Array.isArray(record.errors)) {
+        reports.push(record)
+      }
+      const data = record.data
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        collectReport((data as Record<string, unknown>).validation)
+      }
+    }
+
+    collectReport(payload)
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      const record = payload as Record<string, unknown>
+      for (const key of ['details', 'message']) {
+        const value = record[key]
+        if (typeof value === 'string') {
+          collectReport(this.tryParseJsonObjectFromString(value))
+        } else {
+          collectReport(value)
+        }
+      }
+    }
+
+    const entityErrors = reports.flatMap((report) =>
+      (Array.isArray(report.errors) ? report.errors : []).flatMap((entry) =>
+        this.normalizeArpValidationEntityError(entry),
+      ),
+    )
+    const seen = new Set<string>()
+    return entityErrors.filter((entry) => {
+      const key = JSON.stringify(entry)
+      if (seen.has(key)) {
+        return false
+      }
+      seen.add(key)
+      return true
+    })
+  }
+
+  protected normalizeArpValidationEntityError(
+    value: unknown,
+  ): ArpRoCrateValidationEntityError[] {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return []
+    }
+    const record = value as Record<string, unknown>
+    const nested = Array.isArray(record.errors) ? record.errors : []
+    const errors = nested
+      .map((issue) => this.normalizeArpValidationIssue(issue))
+      .filter((issue): issue is ArpRoCrateValidationIssue => !!issue)
+    if (!errors.length) {
+      return []
+    }
+    return [
+      {
+        errorEntity:
+          typeof record.errorEntity === 'string' && record.errorEntity.trim()
+            ? record.errorEntity.trim()
+            : 'RO-Crate',
+        errors,
+      },
+    ]
+  }
+
+  protected normalizeArpValidationIssue(
+    value: unknown,
+  ): ArpRoCrateValidationIssue | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return undefined
+    }
+    const record = value as Record<string, unknown>
+    const issue: ArpRoCrateValidationIssue = {}
+    if (typeof record.errorField === 'string' && record.errorField.trim()) {
+      issue.errorField = record.errorField.trim()
+    }
+    if (typeof record.errorMessage === 'string' && record.errorMessage.trim()) {
+      issue.errorMessage = record.errorMessage.trim()
+    }
+    if (
+      typeof record.errorSuggestion === 'string' &&
+      record.errorSuggestion.trim()
+    ) {
+      issue.errorSuggestion = record.errorSuggestion.trim()
+    }
+    return Object.keys(issue).length ? issue : undefined
   }
 
   protected extractDataverseValidationMessages(payload: unknown): string[] {
