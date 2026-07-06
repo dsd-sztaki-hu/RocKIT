@@ -9,6 +9,122 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { ApplicationShell, WidgetManager } from '@theia/core/lib/browser';
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget';
 
+type ValidationError = {
+    entityId?: string
+    entityType?: string
+    fieldName?: string
+    fieldLabel?: string
+    error?: string
+}
+
+const ERROR_ROW_HEIGHT = 94;
+const ERROR_ROW_GAP = 8;
+const ERROR_ROW_OVERSCAN = 8;
+
+const formatCount = (value: number): string => new Intl.NumberFormat().format(value);
+
+const getErrorKey = (error: ValidationError, index: number): string => [
+    error.entityId ?? '',
+    error.entityType ?? '',
+    error.fieldName ?? '',
+    error.fieldLabel ?? '',
+    error.error ?? '',
+    index,
+].join(':');
+
+const ValidationErrorList = ({
+    errors,
+    onSelect,
+}: {
+    errors: ValidationError[]
+    onSelect: (error: ValidationError) => void
+}) => {
+    const viewportRef = React.useRef<HTMLDivElement>(null);
+    const [scrollTop, setScrollTop] = React.useState(0);
+    const [viewportHeight, setViewportHeight] = React.useState(420);
+
+    React.useLayoutEffect(() => {
+        const node = viewportRef.current;
+        if (!node) {
+            return;
+        }
+
+        const updateHeight = () => {
+            setViewportHeight(node.clientHeight || 420);
+        };
+        updateHeight();
+
+        if (typeof ResizeObserver === 'undefined') {
+            window.addEventListener('resize', updateHeight);
+            return () => window.removeEventListener('resize', updateHeight);
+        }
+
+        const observer = new ResizeObserver(updateHeight);
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, []);
+
+    React.useEffect(() => {
+        setScrollTop(0);
+        if (viewportRef.current) {
+            viewportRef.current.scrollTop = 0;
+        }
+    }, [errors]);
+
+    const totalHeight = errors.length * ERROR_ROW_HEIGHT;
+    const startIndex = Math.max(0, Math.floor(scrollTop / ERROR_ROW_HEIGHT) - ERROR_ROW_OVERSCAN);
+    const visibleCount = Math.ceil(viewportHeight / ERROR_ROW_HEIGHT) + ERROR_ROW_OVERSCAN * 2;
+    const endIndex = Math.min(errors.length, startIndex + visibleCount);
+    const visibleErrors = errors.slice(startIndex, endIndex);
+
+    return (
+        <div className="schema-validator-error-list">
+            <div
+                ref={viewportRef}
+                className="schema-validator-error-viewport"
+                onScroll={(event: React.UIEvent<HTMLDivElement>) => {
+                    setScrollTop(event.currentTarget.scrollTop);
+                }}
+            >
+                <div
+                    className="schema-validator-error-spacer"
+                    style={{ height: totalHeight }}
+                >
+                    {visibleErrors.map((error, visibleIndex) => {
+                        const index = startIndex + visibleIndex;
+                        const entityType = error.entityType || 'Unknown';
+                        const entityId = error.entityId || 'Unknown';
+                        const field = error.fieldLabel || error.fieldName || 'Unknown';
+                        const message = error.error || 'Unknown error';
+                        return (
+                            <button
+                                key={getErrorKey(error, index)}
+                                type="button"
+                                className="schema-validator-error-row"
+                                style={{
+                                    height: ERROR_ROW_HEIGHT - ERROR_ROW_GAP,
+                                    transform: `translateY(${index * ERROR_ROW_HEIGHT}px)`,
+                                }}
+                                onClick={() => onSelect(error)}
+                                disabled={!error.entityId}
+                            >
+                                <span className="schema-validator-error-row-top">
+                                    <span className="schema-validator-error-type">{entityType}</span>
+                                    <span className="schema-validator-error-id">{entityId}</span>
+                                </span>
+                                <span className="schema-validator-error-field" title={field}>{field}</span>
+                                <span className="schema-validator-error-message" title={message}>
+                                    {message}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 @injectable()
 export class SchemaValidatorWidget extends ReactWidget {
 
@@ -49,31 +165,17 @@ export class SchemaValidatorWidget extends ReactWidget {
     render(): React.ReactElement {
         const errors = this.appStateService.validationErrors ?? [];
         const hasErrors = errors.length > 0;
-        const header = hasErrors ? `Validation Errors (${errors.length})` : 'No validation errors';
+        const header = hasErrors ? `Validation Errors (${formatCount(errors.length)})` : 'No validation errors';
         return (
-            <div id="widget-container">
-                <AlertMessage type={hasErrors ? 'WARNING' : 'INFO'} header={header} />
+            <div id="widget-container" className="schema-validator-widget">
+                <div className="schema-validator-toolbar">
+                    <AlertMessage type={hasErrors ? 'WARNING' : 'INFO'} header={header} />
+                </div>
                 {hasErrors && (
-                    <div>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr>
-                                    <th style={{ textAlign: 'left' }}>Entity</th>
-                                    <th style={{ textAlign: 'left' }}>Field</th>
-                                    <th style={{ textAlign: 'left' }}>Error</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {errors.map((e, i) => (
-                                    <tr key={i} style={{ borderTop: '1px solid var(--theia-editorWidget-border)', cursor: 'pointer' }} onClick={() => this.handleErrorRowClick(e)}>
-                                        <td>{e.entityType} ({e.entityId})</td>
-                                        <td>{e.fieldLabel || e.fieldName}</td>
-                                        <td>{e.error}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <ValidationErrorList
+                        errors={errors}
+                        onSelect={(error) => this.handleErrorRowClick(error)}
+                    />
                 )}
             </div>
         );
@@ -91,13 +193,15 @@ export class SchemaValidatorWidget extends ReactWidget {
         }
     }
 
-    protected handleErrorRowClick(error: { entityId?: string; fieldName?: string }): void {
+    protected handleErrorRowClick(error: ValidationError): void {
         const entityId = error?.entityId;
         const fieldName = error?.fieldName;
         if (!entityId) {
             return;
         }
-        this.appStateService.selectedEntityId = entityId;
+        if (this.appStateService.selectedEntityId !== entityId) {
+            this.appStateService.selectedEntityId = entityId;
+        }
         void this.openRoCrateEditorForEntity(entityId).then((widget) => {
             if (fieldName) {
                 widget?.scrollToValidationField(entityId, fieldName);
@@ -114,11 +218,19 @@ export class SchemaValidatorWidget extends ReactWidget {
             const existingWidgetId = this.findWidgetIdForEntity(entityId);
             if (existingWidgetId) {
                 const existingWidget = this.widgetManager.tryGetWidget(existingWidgetId);
-                await this.shell.activateWidget(existingWidgetId);
-                return existingWidget instanceof RoCrateEditorWidget
-                    ? existingWidget
-                    : undefined;
+                if (existingWidget instanceof RoCrateEditorWidget) {
+                    await this.shell.activateWidget(existingWidgetId);
+                    return existingWidget;
+                }
             }
+
+            const preferredWidget = this.getPreferredRoCrateEditorWidget();
+            if (preferredWidget) {
+                this.appStateService.registerEntityEditor(preferredWidget.id, entityId);
+                await this.shell.activateWidget(preferredWidget.id);
+                return preferredWidget;
+            }
+
             const instanceId = `${RoCrateEditorWidget.ID}:${Math.random().toString(36).slice(2)}`;
             const widget = await this.widgetManager.getOrCreateWidget(RoCrateEditorWidget.ID, {
                 instanceId,
@@ -137,6 +249,21 @@ export class SchemaValidatorWidget extends ReactWidget {
 
     protected findWidgetIdForEntity(entityId: string): string | undefined {
         return this.appStateService.getEntityEditorWidgetId(entityId);
+    }
+
+    protected getPreferredRoCrateEditorWidget(): RoCrateEditorWidget | undefined {
+        const active = this.shell.activeWidget ?? this.shell.currentWidget;
+        if (active instanceof RoCrateEditorWidget) {
+            return active;
+        }
+
+        for (const widget of this.shell.getWidgets('main')) {
+            if (widget instanceof RoCrateEditorWidget) {
+                return widget;
+            }
+        }
+
+        return undefined;
     }
 
     dispose(): void {

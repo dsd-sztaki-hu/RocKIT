@@ -37,6 +37,7 @@ interface RoCrateEditorWidgetOptions {
 
 type NavigationEntity = { ['@id']?: string } & Record<string, unknown>
 type ProfileValidationMode = 'none' | 'always'
+type ProfileValidationScope = 'full' | 'targeted'
 
 type EntityOverviewDropPayload = {
     entityId?: string
@@ -102,6 +103,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     protected pendingSchemasRefreshBaseProfile?: Record<string, any>
     protected pendingSchemasRefreshEntityId?: string
     protected pendingSchemasRefreshValidationMode: ProfileValidationMode = 'none'
+    protected pendingSchemasRefreshValidationScope: ProfileValidationScope = 'full'
+    protected nextProfileListValidationScope: ProfileValidationScope = 'full'
     protected profileRevision = 0
     protected lastSeenNonMissingProfileCount = 0
     protected lastFocusedElement?: HTMLElement
@@ -112,6 +115,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     protected lastAppliedCrate: Record<string, any> | undefined
     protected lastAppliedProfileList: Record<string, any> | undefined
     protected lastAppliedConformsTo: string[] = []
+    protected readonly fallbackProfileCloneCache = new WeakMap<object, Record<string, any>>()
 
     protected baselineEntityId?: string
     protected baselineEntitySnapshot?: string
@@ -126,30 +130,69 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         nonce: number
     }
     protected validationFieldScrollNonce = 0
+    protected renderPerfSeq = 0
 
-    protected normalizeValidationErrors(
+    protected nowMs(): number {
+        if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+            return performance.now()
+        }
+        return Date.now()
+    }
+
+    protected roundMs(value: number): number {
+        return Number(value.toFixed(2))
+    }
+
+    protected getGraphEntityCount(crate: Record<string, any> | undefined): number {
+        return Array.isArray(crate?.['@graph']) ? crate['@graph'].length : 0
+    }
+
+    protected logPerf(label: string, data: Record<string, any>): void {
+        console.info(`[ro-crate-editor:perf] ${label}`, {
+            widget: this.id,
+            ...data,
+        })
+    }
+
+    protected buildValidationErrorKey(error: ValidationError): string {
+        return [
+            error.entityId ?? '',
+            error.entityType ?? '',
+            error.fieldName ?? '',
+            error.fieldLabel ?? '',
+            error.errorCode ?? '',
+            error.error ?? '',
+            error.path ?? '',
+        ].join('|')
+    }
+
+    protected updateValidationSignatureHash(hash: number, key: string): number {
+        let next = hash
+        for (let index = 0; index < key.length; index += 1) {
+            next ^= key.charCodeAt(index)
+            next = Math.imul(next, 16777619)
+        }
+        return next >>> 0
+    }
+
+    protected normalizeValidationErrorsWithSignature(
         errors: ValidationError[] | undefined,
-    ): ValidationError[] {
+    ): { errors: ValidationError[]; signature: string } {
         if (!errors || errors.length === 0) {
-            return []
+            return { errors: [], signature: '' }
         }
 
         const seen = new Set<string>()
         const result: ValidationError[] = []
+        let hash = 2166136261
+        let firstKey = ''
+        let lastKey = ''
 
         for (const error of errors) {
             if (!error) {
                 continue
             }
-            const key = [
-                error.entityId ?? '',
-                error.entityType ?? '',
-                error.fieldName ?? '',
-                error.fieldLabel ?? '',
-                error.errorCode ?? '',
-                error.error ?? '',
-                error.path ?? '',
-            ].join('|')
+            const key = this.buildValidationErrorKey(error)
 
             if (seen.has(key)) {
                 continue
@@ -157,38 +200,27 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
             seen.add(key)
             result.push(error)
+            hash = this.updateValidationSignatureHash(hash, key)
+            if (!firstKey) {
+                firstKey = key
+            }
+            lastKey = key
         }
 
-        return result
-    }
-
-    protected buildValidationSignature(errors: ValidationError[]): string {
-        if (errors.length === 0) {
-            return ''
+        return {
+            errors: result,
+            signature: `${result.length}:${hash.toString(36)}:${firstKey}:${lastKey}`,
         }
-        return errors
-            .map((error) =>
-                [
-                    error.entityId ?? '',
-                    error.entityType ?? '',
-                    error.fieldName ?? '',
-                    error.fieldLabel ?? '',
-                    error.errorCode ?? '',
-                    error.error ?? '',
-                    error.path ?? '',
-                ].join('|'),
-            )
-            .join('||')
     }
 
     protected publishValidationErrors(errors: ValidationError[] | undefined): void {
-        const normalized = this.normalizeValidationErrors(errors)
-        const signature = this.buildValidationSignature(normalized)
+        const normalized = this.normalizeValidationErrorsWithSignature(errors)
+        const signature = normalized.signature
         if (signature === this.lastValidationErrorSignature) {
             return
         }
         this.lastValidationErrorSignature = signature
-        this.appStateService.validationErrors = normalized
+        this.appStateService.validationErrors = normalized.errors
     }
 
     protected clearBackgroundValidationTimer(): void {
@@ -274,6 +306,57 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         }, 500)
     }
 
+    protected async validateTargetedEntitiesNow(entityIds: string[]): Promise<void> {
+        const run = ++this.validationRun
+
+        this.clearBackgroundValidationTimer()
+
+        if (this.validationTimer) {
+            clearTimeout(this.validationTimer)
+            this.validationTimer = undefined
+        }
+
+        const crate = this.localCrate ?? this.appStateService.roCrate
+        const baseProfile = this.baseProfile
+
+        if (!crate || !Array.isArray(crate['@graph']) || !baseProfile) {
+            if (run === this.validationRun) {
+                this.publishValidationErrors([])
+            }
+            return
+        }
+
+        let validationErrors: ValidationError[] | undefined
+        try {
+            const targetedValidator = this.schemaValidator as any
+            if (typeof targetedValidator.validateEntitiesTargeted === 'function') {
+                validationErrors = await targetedValidator.validateEntitiesTargeted(
+                    crate,
+                    baseProfile,
+                    entityIds,
+                )
+            } else {
+                const invalidateEntities = targetedValidator.invalidateEntities
+                if (typeof invalidateEntities === 'function') {
+                    invalidateEntities.call(this.schemaValidator, entityIds)
+                }
+                validationErrors = await this.schemaValidator.validateEntities(crate, baseProfile)
+            }
+        } catch (error: any) {
+            if (error?.name === 'AbortError') {
+                return
+            }
+            console.warn('RoCrateEditorWidget: targeted validation failed', error)
+            validationErrors = []
+        }
+
+        if (run !== this.validationRun) {
+            return
+        }
+
+        this.publishValidationErrors(validationErrors)
+    }
+
     protected async performCrateValidation(run: number): Promise<void> {
         const crate = this.localCrate ?? this.appStateService.roCrate
         const baseProfile = this.baseProfile
@@ -327,8 +410,14 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     protected onAfterAttach(msg: Message): void {
+        const startedAt = this.nowMs()
         super.onAfterAttach(msg)
         this.node.addEventListener('focusin', this.handleFocusIn, true)
+        this.logPerf('onAfterAttach', {
+            totalMs: this.roundMs(this.nowMs() - startedAt),
+            graphEntityCount: this.getGraphEntityCount(this.localCrate),
+            entityId: this.getActiveEntityId(),
+        })
     }
 
     protected handleFocusIn = (e: Event): void => {
@@ -363,11 +452,15 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     async initialize(options: RoCrateEditorWidgetOptions = {}): Promise<void> {
+        const initializeStartedAt = this.nowMs()
         this.instanceId =
             options.instanceId ??
             `${RoCrateEditorWidget.ID}:${Math.random().toString(36).substring(2)}`
 
         this.id = this.instanceId
+        this.logPerf('initialize.start', {
+            optionEntityId: options.entityId,
+        })
 
         try {
             const mapping = this.appStateService.EIRCEIA
@@ -401,6 +494,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         this.localProfile = this.baseProfile
             ? JSON.parse(JSON.stringify(this.baseProfile))
             : this.baseProfile
+        if (this.baseProfile && this.localProfile) {
+            this.fallbackProfileCloneCache.set(this.baseProfile, this.localProfile)
+        }
         console.log('baseProfile', this.baseProfile)
         console.log('localCompleteProfile', this.localCompleteProfile)
         this.setDirtyState(false)
@@ -409,6 +505,16 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 (p: any) => (p as any)?.flag !== 'missing',
             ).length
             : 0
+        this.logPerf('initialize.state-snapshot', {
+            totalMs: this.roundMs(this.nowMs() - initializeStartedAt),
+            graphEntityCount: this.getGraphEntityCount(this.localCrate),
+            hasApproval: !!this.localRoCrateApproval,
+            hasBaseProfile: !!this.baseProfile,
+            hasCompleteProfile: !!this.localCompleteProfile,
+            profileListCount: Array.isArray(this.appStateService.profileList)
+                ? this.appStateService.profileList.length
+                : 0,
+        })
 
         this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
             async (crate) => {
@@ -433,7 +539,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     this.close()
                     return
                 }
-                await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always')
+                this.nextProfileListValidationScope = 'targeted'
+                await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always', 'targeted')
             },
         )
 
@@ -482,6 +589,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             if (this.isRefreshingProfile) {
                 this.pendingSchemasRefresh = true
                 this.pendingSchemasRefreshValidationMode = 'always'
+                this.pendingSchemasRefreshValidationScope = this.nextProfileListValidationScope
+                this.nextProfileListValidationScope = 'full'
                 return
             }
             if (!this.baseProfile || !this.localCrate) {
@@ -493,7 +602,14 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
             }
 
             try {
-                await this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'always')
+                const validationScope = this.nextProfileListValidationScope
+                this.nextProfileListValidationScope = 'full'
+                await this.updateProfileWithEntitySchemas(
+                    this.baseProfile,
+                    entityId,
+                    'always',
+                    validationScope,
+                )
                 if (isAddingProfile) {
                     this.messageService.info('Profile added.', { timeout: 5000 })
                 }
@@ -561,15 +677,32 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
         const initialEntity = this.resolveInitialEntityId(options.entityId)
         this.assignEntity(initialEntity)
+        this.logPerf('initialize.assigned-entity', {
+            totalMs: this.roundMs(this.nowMs() - initializeStartedAt),
+            entityId: this.getActiveEntityId(),
+        })
 
         if (this.baseProfile && this.localCrate && Array.isArray(this.localCrate['@graph'])) {
             const entityId = this.getActiveEntityId()
             if (entityId) {
+                const profileStartedAt = this.nowMs()
                 await this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'none')
+                this.logPerf('initialize.initial-profile', {
+                    totalMs: this.roundMs(this.nowMs() - profileStartedAt),
+                    sinceInitializeStartMs: this.roundMs(this.nowMs() - initializeStartedAt),
+                    entityId,
+                })
             }
         }
 
+        const validationStartedAt = this.nowMs()
         await this.validateCurrentCrate()
+        this.logPerf('initialize.complete', {
+            totalMs: this.roundMs(this.nowMs() - initializeStartedAt),
+            validationMs: this.roundMs(this.nowMs() - validationStartedAt),
+            graphEntityCount: this.getGraphEntityCount(this.localCrate),
+            entityId: this.getActiveEntityId(),
+        })
     }
 
     protected handleSaveCrate = async (saveData: any, label = 'Edit RO-Crate') => {
@@ -876,8 +1009,14 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     render(): React.ReactNode {
+        const startedAt = this.nowMs()
+        const seq = ++this.renderPerfSeq
+        let state = 'crate'
+        let result: React.ReactNode
+
         if (!this.localCrate) {
-            return (
+            state = 'missing-crate'
+            result = (
                 <div
                     style={{
                         alignItems: 'center',
@@ -915,35 +1054,46 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     </div>
                 </div>
             )
+        } else {
+            result = (
+                <div
+                    style={{
+                        height: '100%',
+                        minHeight: 0,
+                        overflow: 'hidden',
+                        padding: 10,
+                        boxSizing: 'border-box',
+                    }}
+                >
+                    <DescriboCrateBuilderWrapper
+                        crate={this.localCrate}
+                        roCrateApproval={this.localRoCrateApproval}
+                        profile={this.localProfile}
+                        entityId={this.getActiveEntityId()}
+                        scrollToFieldRequest={this.validationFieldScrollRequest}
+                        profileKey={this.profileRevision}
+                        instanceId={this.id}
+                        onSaveCrate={this.handleSaveCrate}
+                        onSaveRoCrateApproval={this.handleSaveRoCrateApproval}
+                        onNavigation={this.handleNavigation}
+                        onOpenSchemaManager={this.handleOpenSchemaManager}
+                        onRemoveProfile={this.handleRemoveProfile}
+                        onDropEntityToHasPart={this.handleDropEntityToHasPart}
+                    />
+                </div>
+            )
         }
 
-        return (
-            <div
-                style={{
-                    height: '100%',
-                    minHeight: 0,
-                    overflow: 'hidden',
-                    padding: 10,
-                    boxSizing: 'border-box',
-                }}
-            >
-                <DescriboCrateBuilderWrapper
-                    crate={this.localCrate}
-                    roCrateApproval={this.localRoCrateApproval}
-                    profile={this.localProfile}
-                    entityId={this.getActiveEntityId()}
-                    scrollToFieldRequest={this.validationFieldScrollRequest}
-                    profileKey={this.profileRevision}
-                    instanceId={this.id}
-                    onSaveCrate={this.handleSaveCrate}
-                    onSaveRoCrateApproval={this.handleSaveRoCrateApproval}
-                    onNavigation={this.handleNavigation}
-                    onOpenSchemaManager={this.handleOpenSchemaManager}
-                    onRemoveProfile={this.handleRemoveProfile}
-                    onDropEntityToHasPart={this.handleDropEntityToHasPart}
-                />
-            </div>
-        )
+        this.logPerf('render', {
+            seq,
+            state,
+            totalMs: this.roundMs(this.nowMs() - startedAt),
+            graphEntityCount: this.getGraphEntityCount(this.localCrate),
+            entityId: this.getActiveEntityId(),
+            profileRevision: this.profileRevision,
+        })
+
+        return result
     }
 
     getResourceUri(): URI | undefined {
@@ -1404,18 +1554,48 @@ protected handleDropEntityToHasPart = async (
         return result
     }
 
+    protected getFallbackProfileClone(profile: Record<string, any>): {
+        profile: Record<string, any>
+        cacheHit: boolean
+    } {
+        const cached = this.fallbackProfileCloneCache.get(profile)
+        if (cached) {
+            return { profile: cached, cacheHit: true }
+        }
+
+        const clone = JSON.parse(JSON.stringify(profile))
+        this.fallbackProfileCloneCache.set(profile, clone)
+        return { profile: clone, cacheHit: false }
+    }
+
     protected async updateProfileWithEntitySchemas(
         baseProfile: Record<string, any>,
         entityId: string,
         validationMode: ProfileValidationMode = 'none',
+        validationScope: ProfileValidationScope = 'full',
     ) {
+        const startedAt = this.nowMs()
+        const timings: Record<string, any> = {
+            graphEntityCount: this.getGraphEntityCount(this.localCrate),
+            entityId,
+            validationMode,
+            validationScope,
+        }
+        let mode = 'unknown'
+
         if (this.isRefreshingProfile) {
             this.pendingSchemasRefresh = true
             this.pendingSchemasRefreshBaseProfile = baseProfile
             this.pendingSchemasRefreshEntityId = entityId
             if (validationMode === 'always') {
                 this.pendingSchemasRefreshValidationMode = 'always'
+                this.pendingSchemasRefreshValidationScope = validationScope
             }
+            this.logPerf('updateProfileWithEntitySchemas.complete', {
+                ...timings,
+                mode: 'pending',
+                totalMs: this.roundMs(this.nowMs() - startedAt),
+            })
             return
         }
 
@@ -1423,16 +1603,27 @@ protected handleDropEntityToHasPart = async (
 
         try {
             if (!this.localCrate || !Array.isArray(this.localCrate['@graph'])) {
+                mode = 'missing-crate'
                 return
             }
 
+            const findEntityStartedAt = this.nowMs()
             const entity = this.findEntity(this.localCrate, entityId)
+            timings.findEntityMs = this.roundMs(this.nowMs() - findEntityStartedAt)
             if (!entity) {
+                mode = 'missing-entity'
                 return
             }
+            const rawEntityType = entity?.['@type']
+            const entityType = Array.isArray(rawEntityType)
+                ? rawEntityType.find((type: any) => typeof type === 'string' && type.trim())
+                : rawEntityType
 
             const profileList = this.appStateService.profileList
+            const conformsToStartedAt = this.nowMs()
             const conformsTos = this.computeConformsToIdsForSelectedEntity(entityId)
+            timings.conformsToMs = this.roundMs(this.nowMs() - conformsToStartedAt)
+            timings.conformsToCount = conformsTos.length
 
             if (
                 this.lastAppliedEntityId === entityId &&
@@ -1440,7 +1631,10 @@ protected handleDropEntityToHasPart = async (
                 this.lastAppliedCrate === this.localCrate &&
                 this.lastAppliedProfileList === profileList
             ) {
+                const updateStartedAt = this.nowMs()
                 this.update()
+                timings.updateMs = this.roundMs(this.nowMs() - updateStartedAt)
+                mode = 'cache-hit'
                 return
             }
 
@@ -1449,9 +1643,11 @@ protected handleDropEntityToHasPart = async (
                     !this.isFileOrDatasetEntity(entity) && this.localCompleteProfile
                         ? this.localCompleteProfile
                         : baseProfile
-                const nextProfile = JSON.parse(
-                    JSON.stringify(fallbackProfile ?? baseProfile),
-                )
+                const cloneStartedAt = this.nowMs()
+                const fallbackResult = this.getFallbackProfileClone(fallbackProfile ?? baseProfile)
+                const nextProfile = fallbackResult.profile
+                timings.cloneProfileMs = this.roundMs(this.nowMs() - cloneStartedAt)
+                timings.fallbackProfileCacheHit = fallbackResult.cacheHit
                 const didProfileChange = this.localProfile !== nextProfile
 
                 this.localProfile = nextProfile
@@ -1463,13 +1659,19 @@ protected handleDropEntityToHasPart = async (
                 this.lastAppliedConformsTo = []
                 this.lastAppliedCrate = this.localCrate
                 this.lastAppliedProfileList = profileList
+                const updateStartedAt = this.nowMs()
                 this.update()
+                timings.updateMs = this.roundMs(this.nowMs() - updateStartedAt)
+                mode = 'fallback'
                 return
             }
 
+            const baseCloneStartedAt = this.nowMs()
             let updateProfile = JSON.parse(JSON.stringify(baseProfile))
+            timings.cloneProfileMs = this.roundMs(this.nowMs() - baseCloneStartedAt)
             let didUpdateProfile = false
             let foundMatchingProfile = false
+            let mergeMs = 0
 
             for (const conformsToUrl of conformsTos) {
                 const convertedContent = profileList?.find(
@@ -1479,12 +1681,25 @@ protected handleDropEntityToHasPart = async (
                 if (convertedContent) {
                     foundMatchingProfile = true
                     if (this.localCrate) {
-                        const merged = await this.schemaManagerService.getMergedProfile(
-                            this.localCrate,
-                            convertedContent,
-                            updateProfile,
-                            conformsToUrl,
-                        )
+                        const mergeStartedAt = this.nowMs()
+                        const targetedMerge = (this.schemaManagerService as any)
+                            .getMergedProfileForClass
+                        const merged =
+                            typeof targetedMerge === 'function' && typeof entityType === 'string'
+                                ? await targetedMerge.call(
+                                      this.schemaManagerService,
+                                      convertedContent,
+                                      updateProfile,
+                                      entityType,
+                                      conformsToUrl,
+                                  )
+                                : await this.schemaManagerService.getMergedProfile(
+                                      this.localCrate,
+                                      convertedContent,
+                                      updateProfile,
+                                      conformsToUrl,
+                                  )
+                        mergeMs += this.nowMs() - mergeStartedAt
                         updateProfile = merged
                         didUpdateProfile = true
                         this.updateEntityConformsTo(entityId, conformsToUrl)
@@ -1509,6 +1724,7 @@ protected handleDropEntityToHasPart = async (
                     console.warn(`No profile found in state for conformsTo URL: ${conformsToUrl}`)
                 }
             }
+            timings.mergeProfileMs = this.roundMs(mergeMs)
 
             if (didUpdateProfile || !foundMatchingProfile) {
                 this.localProfile = updateProfile
@@ -1521,14 +1737,32 @@ protected handleDropEntityToHasPart = async (
             this.lastAppliedConformsTo = conformsTos.slice()
             this.lastAppliedCrate = this.localCrate
             this.lastAppliedProfileList = profileList
+            const updateStartedAt = this.nowMs()
             this.update()
+            timings.updateMs = this.roundMs(this.nowMs() - updateStartedAt)
+            mode = foundMatchingProfile ? 'merged' : 'no-matching-profile'
         } finally {
+            const beforeValidationMs = this.nowMs() - startedAt
             if (validationMode === 'always') {
-                await this.validateCurrentCrate()
+                if (validationScope === 'targeted') {
+                    const validationStartedAt = this.nowMs()
+                    await this.validateTargetedEntitiesNow([entityId])
+                    timings.validationMs = this.roundMs(this.nowMs() - validationStartedAt)
+                } else {
+                    const invalidateEntities = (this.schemaValidator as any).invalidateEntities
+                    if (typeof invalidateEntities === 'function') {
+                        invalidateEntities.call(this.schemaValidator, [entityId])
+                    }
+                    const validationStartedAt = this.nowMs()
+                    await this.validateCurrentCrate()
+                    timings.validationMs = this.roundMs(this.nowMs() - validationStartedAt)
+                }
             }
+            timings.beforeValidationMs = this.roundMs(beforeValidationMs)
 
             this.isRefreshingProfile = false
 
+            const pendingRefreshQueued = this.pendingSchemasRefresh
             if (this.pendingSchemasRefresh) {
                 this.pendingSchemasRefresh = false
                 const baseProfile = this.pendingSchemasRefreshBaseProfile ?? this.baseProfile
@@ -1539,10 +1773,12 @@ protected handleDropEntityToHasPart = async (
                     this.localSelectedEntityId ??
                     './'
                 const pendingValidationMode = this.pendingSchemasRefreshValidationMode
+                const pendingValidationScope = this.pendingSchemasRefreshValidationScope
 
                 this.pendingSchemasRefreshBaseProfile = undefined
                 this.pendingSchemasRefreshEntityId = undefined
                 this.pendingSchemasRefreshValidationMode = 'none'
+                this.pendingSchemasRefreshValidationScope = 'full'
 
                 if (baseProfile && crate) {
                     queueMicrotask(() => {
@@ -1550,10 +1786,18 @@ protected handleDropEntityToHasPart = async (
                             baseProfile,
                             entityId,
                             pendingValidationMode,
+                            pendingValidationScope,
                         )
                     })
                 }
             }
+
+            this.logPerf('updateProfileWithEntitySchemas.complete', {
+                ...timings,
+                mode,
+                totalMs: this.roundMs(this.nowMs() - startedAt),
+                pendingRefreshQueued,
+            })
         }
     }
 
@@ -1793,19 +2037,31 @@ protected handleDropEntityToHasPart = async (
 
         try {
             await writeUtf8TextFile(this.fileService, metadataUri, JSON.stringify(crateData, null, 2))
-            const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
-            await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
+        } catch (error) {
+            console.error('Failed to persist RO-Crate metadata:', error)
+            return
+        }
+
+        try {
             await this.writeRoCrateApprovalFile(
                 this.appStateService.roCrateApproval as RoCrateApprovalFile | undefined,
             )
+        } catch (error) {
+            console.warn('Failed to persist RO-Crate approval sidecar:', error)
+        }
+
+        try {
+            const htmlContent = this.roCrateHtmlGenerator.generate(crateData)
+            await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
+        } catch (error) {
+            console.warn('Failed to persist RO-Crate preview sidecar:', error)
+        } finally {
             this.appStateService.setRoCrateSnapshot(crateData)
             this.appStateService.dirty = false
             this.captureEntityBaseline(
                 this.assignedEntityId ?? this.localSelectedEntityId ?? './',
                 crateData,
             )
-        } catch (error) {
-            console.error('Failed to persist RO-Crate metadata:', error)
         }
     }
 

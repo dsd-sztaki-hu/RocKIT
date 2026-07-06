@@ -149,6 +149,18 @@ export class EntitiesOverviewWidget extends TreeWidget {
     protected advancedFilterState: AdvancedFilterState | undefined
     protected advancedEntityMatcher: AdvancedEntityMatcher | undefined
     protected advancedRuleCount = 0
+    protected renderPerfSeq = 0
+
+    protected nowMs(): number {
+        if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+            return performance.now()
+        }
+        return Date.now()
+    }
+
+    protected roundMs(value: number): number {
+        return Number(value.toFixed(2))
+    }
 
     protected override renderIcon(node: TreeNode, props: NodeProps): React.ReactNode {
         const entityIcon = this.getEntityIconClass(node)
@@ -417,7 +429,16 @@ export class EntitiesOverviewWidget extends TreeWidget {
     }
 
     protected override render(): React.ReactNode {
+        const renderStartedAt = this.nowMs()
+        const seq = ++this.renderPerfSeq
+        const graphEntityCount = Array.isArray(this.appStateService.roCrate?.['@graph'])
+            ? this.appStateService.roCrate['@graph'].length
+            : 0
+
+        const availableTypesStartedAt = this.nowMs()
         const availableTypes = this.model.getAvailableTypes()
+        const availableTypesMs = this.nowMs() - availableTypesStartedAt
+
         const activeFilters = this.getActiveFilters()
         const selectedTypes = this.normalizeSelectedTypes(availableTypes, activeFilters)
         const isAdvanced = this.filterMode === 'advanced'
@@ -434,7 +455,11 @@ export class EntitiesOverviewWidget extends TreeWidget {
             this.advancedFilters.entityNameFilter.trim() === '' &&
             this.advancedFilters.validityFilter === 'all'
 
-        return (
+        const renderTreeStartedAt = this.nowMs()
+        const tree = this.renderTree(this.model)
+        const renderTreeMs = this.nowMs() - renderTreeStartedAt
+
+        const result = (
             <AntdThemeProvider themeService={this.themeService}>
                 <div className="entities-overview-panel-content">
                     <div
@@ -573,10 +598,25 @@ export class EntitiesOverviewWidget extends TreeWidget {
                         </Button>
                     </div>
 
-                    <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
+                    <div {...this.createContainerAttributes()}>{tree}</div>
                 </div>
             </AntdThemeProvider>
         )
+
+        console.info('[entities-overview:perf] render', {
+            seq,
+            totalMs: this.roundMs(this.nowMs() - renderStartedAt),
+            availableTypesMs: this.roundMs(availableTypesMs),
+            renderTreeMs: this.roundMs(renderTreeMs),
+            graphEntityCount,
+            availableTypeCount: availableTypes.length,
+            selectedTypeCount: selectedTypes.length,
+            filterMode: this.filterMode,
+            filtersVisible: this.filtersVisible,
+            advancedRuleCount: this.advancedRuleCount,
+        })
+
+        return result
     }
 
     isFiltersVisible(): boolean {

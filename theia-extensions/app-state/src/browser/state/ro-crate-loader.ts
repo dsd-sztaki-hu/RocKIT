@@ -84,6 +84,9 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     protected lastObservedConformsToKey = ''
     protected perfSeq = 0
     protected invalidMetadataPromptInFlight = false
+    protected schemasByConformsToCache?: Map<string, any>
+    protected schemasByConformsToCachePromise?: Promise<Map<string, any>>
+    protected readonly convertedProfileContentCache = new Map<string, any>()
 
     /**
      * Critical: lets us distinguish between:
@@ -101,6 +104,41 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
     protected logPerf(event: string, payload: Record<string, unknown>): void {
         console.info(`[ro-crate-loader:perf] ${event}`, payload)
+    }
+
+    protected delay(ms: number): Promise<void> {
+        return new Promise((resolve) => setTimeout(resolve, ms))
+    }
+
+    protected isTransientFilesystemError(error: unknown): boolean {
+        const message = String((error as any)?.message ?? error ?? '')
+        return /reconnecting channel|connection.*closed|connection.*disposed|channel.*closed|socket closed/i.test(
+            message,
+        )
+    }
+
+    protected async metadataFileExistsWithRetry(
+        metadataUri: URI,
+        attempts = 3,
+        delayMs = 400,
+    ): Promise<boolean | undefined> {
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+            if (attempt > 0) {
+                await this.delay(delayMs)
+            }
+            try {
+                if (await this.fileService.exists(metadataUri)) {
+                    return true
+                }
+            } catch (error) {
+                if (this.isTransientFilesystemError(error)) {
+                    console.warn('Metadata file check hit transient filesystem error:', error)
+                    return undefined
+                }
+                throw error
+            }
+        }
+        return false
     }
 
     async onStart(app: FrontendApplication): Promise<void> {
@@ -206,7 +244,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
             try {
                 const roCrateUri = rootUri.resolve('ro-crate-metadata.json')
-                const exists = await this.fileService.exists(roCrateUri)
+                const exists = await this.metadataFileExistsWithRetry(roCrateUri)
+                if (exists === undefined) {
+                    return
+                }
 
                 if (exists) {
                     try {
@@ -231,6 +272,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
                 await this.refreshCompleteProfile(undefined)
                 void this.promptForCrateRecovery(rootUri, false)
             } catch (error) {
+                if (this.isTransientFilesystemError(error)) {
+                    console.warn('Skipping RO-Crate workspace sync during transient filesystem error:', error)
+                    return
+                }
                 this.updateState(undefined, true)
                 await this.refreshProfileList(undefined)
                 await this.refreshCompleteProfile(undefined)
@@ -537,7 +582,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             return
         }
         const metadataUri = root.resolve('ro-crate-metadata.json')
-        const exists = await this.fileService.exists(metadataUri)
+        const exists = await this.metadataFileExistsWithRetry(metadataUri)
+        if (exists === undefined) {
+            this.scheduleExternalMetadataCheck()
+            return
+        }
         if (!exists) {
             const shouldWarn = Boolean(
                 this.appStateService.roCrate || this.lastKnownMetadataJson,
@@ -890,6 +939,9 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
     protected watchSchemaChanges(): void {
         this.schemaManagerService.onDidChangeSchemas(() => {
+            this.schemasByConformsToCache = undefined
+            this.schemasByConformsToCachePromise = undefined
+            this.convertedProfileContentCache.clear()
             void this.refreshProfileList(this.appStateService.roCrate)
             void this.refreshCompleteProfile(this.appStateService.roCrate)
         })
@@ -938,13 +990,30 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
         const ids = this.extractAllConformsToIds(crate)
             .map((id) => (typeof id === 'string' ? id.trim() : ''))
-            .filter((id) => id.length !== 0)
+            .filter((id) => id.length !== 0 && !this.isBuiltInRoCrateConformsTo(id))
             .sort()
 
         return ids.join('|')
     }
 
     protected async loadSchemasByConformsTo(): Promise<Map<string, any>> {
+        if (this.schemasByConformsToCache) {
+            return this.schemasByConformsToCache
+        }
+        if (this.schemasByConformsToCachePromise) {
+            return this.schemasByConformsToCachePromise
+        }
+
+        this.schemasByConformsToCachePromise = this.loadSchemasByConformsToUncached()
+        try {
+            this.schemasByConformsToCache = await this.schemasByConformsToCachePromise
+            return this.schemasByConformsToCache
+        } finally {
+            this.schemasByConformsToCachePromise = undefined
+        }
+    }
+
+    protected async loadSchemasByConformsToUncached(): Promise<Map<string, any>> {
         const allSchemas = await this.schemaManagerService.loadAllSchemas()
         const byConformsTo = new Map<string, any>()
         for (const schema of allSchemas) {
@@ -955,6 +1024,23 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             byConformsTo.set(conformsTo, schema)
         }
         return byConformsTo
+    }
+
+    protected async getCachedConvertedProfileContent(convertedPath: string): Promise<any> {
+        const key = typeof convertedPath === 'string' ? convertedPath.trim() : ''
+        if (!key) {
+            return undefined
+        }
+        if (this.convertedProfileContentCache.has(key)) {
+            return this.convertedProfileContentCache.get(key)
+        }
+        const content = await this.schemaManagerService.getConvertedProfileContent(key)
+        this.convertedProfileContentCache.set(key, content)
+        return content
+    }
+
+    protected isBuiltInRoCrateConformsTo(id: string): boolean {
+        return /^https:\/\/w3id\.org\/ro\/crate\/[\d.]+\/?$/i.test(id.trim())
     }
 
     protected async updateProfileListIncrementally(
@@ -975,7 +1061,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
             const nextIds = this.extractAllConformsToIds(crate)
                 .map((id) => (typeof id === 'string' ? id.trim() : ''))
-                .filter((id) => id.length !== 0)
+                .filter((id) => id.length !== 0 && !this.isBuiltInRoCrateConformsTo(id))
 
             const nextUnique = Array.from(new Set(nextIds)).sort()
 
@@ -1030,7 +1116,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
                             return undefined
                         }
                         try {
-                            const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
+                            const convertedContent = await this.getCachedConvertedProfileContent(
                                 matchingSchema.files.convertedPath,
                             )
                             if (!convertedContent) {
@@ -1084,6 +1170,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             }
 
             const conformsToIds = this.extractAllConformsToIds(crate)
+                .filter((id) => !this.isBuiltInRoCrateConformsTo(id))
             conformsToCount = conformsToIds.length
             if (conformsToIds.length === 0) {
                 this.appStateService.profileList = undefined
@@ -1112,7 +1199,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
                         return undefined
                     }
                     try {
-                        const convertedContent = await this.schemaManagerService.getConvertedProfileContent(
+                        const convertedContent = await this.getCachedConvertedProfileContent(
                             matchingSchema.files.convertedPath,
                         )
                         if (!convertedContent) {

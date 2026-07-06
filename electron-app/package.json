@@ -66,7 +66,7 @@
     "target": "electron",
     "backend": {
       "config": {
-        "singleInstance": false
+        "singleInstance": true
       }
     },
     "frontend": {

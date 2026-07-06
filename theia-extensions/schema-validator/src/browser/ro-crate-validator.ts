@@ -48,6 +48,17 @@ function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
+function nowMs(): number {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+function roundMs(value: number): number {
+  return Number(value.toFixed(2));
+}
+
 async function maybeYield(
   processedCount: number,
   yieldEvery: number,
@@ -358,9 +369,15 @@ export async function validateEntities(
   schemaManagerService: MetadataSchemaManager,
   options: ValidationRunOptions = {},
 ) {
+  const totalStartedAt = nowMs();
   throwIfAborted(options.signal);
 
   if (!crate || !Array.isArray(crate['@graph'])) {
+    console.info('[ro-crate-validator:perf] validateEntities', {
+      status: 'skipped',
+      reason: 'missing-crate-graph',
+      totalMs: roundMs(nowMs() - totalStartedAt),
+    });
     return undefined;
   }
 
@@ -376,6 +393,7 @@ export async function validateEntities(
   const validationErrors: ValidationError[] = [];
   const graph = crate['@graph'] as any[];
   const profileById = new Map<string, any>();
+  const profileIndexStartedAt = nowMs();
   for (const profileEntry of profileList ?? []) {
     const id = typeof profileEntry?.id === 'string' ? profileEntry.id.trim() : '';
     if (!id) {
@@ -383,24 +401,68 @@ export async function validateEntities(
     }
     profileById.set(id, profileEntry?.content);
   }
+  const profileIndexMs = nowMs() - profileIndexStartedAt;
 
   const warnedMissingProfileUrls = new Set<string>();
   let processedCount = 0;
+  let targetSkippedCount = 0;
+  let invalidEntrySkippedCount = 0;
+  let yieldMs = 0;
+  let profileResolveMs = 0;
+  let profileMergeMs = 0;
+  let ruleCompileMs = 0;
+  let ruleValidationMs = 0;
+  let profileCacheHits = 0;
+  let profileCacheMisses = 0;
+  let compiledRuleCacheHits = 0;
+  let compiledRuleCacheMisses = 0;
+  let profileMergeAttempts = 0;
+  let profileMergeSuccesses = 0;
+  let conformsToEntityCount = 0;
+  let completeProfileEntityCount = 0;
+  let baseProfileEntityCount = 0;
+  const validationEntries: any[] = [];
+  const targetEntityIds = options.targetEntityIds;
 
-  for (let index = 0; index < graph.length; index += 1) {
-    throwIfAborted(options.signal);
-    const entity = graph[index];
-    if (!entity || typeof entity !== 'object') {
-      continue;
+  if (targetEntityIds && targetEntityIds.size > 0) {
+    const foundTargetIds = new Set<string>();
+    for (let index = 0; index < graph.length; index += 1) {
+      const entity = graph[index];
+      if (!entity || typeof entity !== 'object') {
+        invalidEntrySkippedCount += 1;
+        continue;
+      }
+
+      const entityId = normalizeEntityId(entity, index);
+      if (!targetEntityIds.has(entityId)) {
+        targetSkippedCount += 1;
+        continue;
+      }
+
+      validationEntries.push(entity);
+      foundTargetIds.add(entityId);
+      if (foundTargetIds.size >= targetEntityIds.size) {
+        targetSkippedCount += Math.max(0, graph.length - index - 1);
+        break;
+      }
     }
+  } else {
+    for (let index = 0; index < graph.length; index += 1) {
+      validationEntries.push(graph[index]);
+    }
+  }
 
-    const entityId = normalizeEntityId(entity, index);
-    if (options.targetEntityIds && !options.targetEntityIds.has(entityId)) {
+  for (const entity of validationEntries) {
+    throwIfAborted(options.signal);
+    if (!entity || typeof entity !== 'object') {
+      invalidEntrySkippedCount += 1;
       continue;
     }
 
     processedCount += 1;
+    const yieldStartedAt = nowMs();
     await maybeYield(processedCount, options.yieldEvery ?? 0, options.signal);
+    yieldMs += nowMs() - yieldStartedAt;
 
     const entityType = normalizeEntityType(entity);
     const conformsToIds = extractConformsToIds(entity).slice().sort();
@@ -410,10 +472,18 @@ export async function validateEntities(
     let compiledRules = options.compiledRuleCache?.get(namespacedKey);
 
     if (!compiledRules) {
+      compiledRuleCacheMisses += 1;
       const cachedProfile = profileCache.get(cacheKey);
+      if (cachedProfile) {
+        profileCacheHits += 1;
+      } else {
+        profileCacheMisses += 1;
+      }
       let profileForEntity: Record<string, any> = cachedProfile ?? baseProfile;
       if (!cachedProfile) {
+        const profileResolveStartedAt = nowMs();
         if (conformsToIds.length > 0) {
+          conformsToEntityCount += 1;
           let updatedProfile = clone(baseProfile);
           for (const conformsToUrl of conformsToIds) {
             throwIfAborted(options.signal);
@@ -427,38 +497,83 @@ export async function validateEntities(
               continue;
             }
             try {
+              profileMergeAttempts += 1;
+              const profileMergeStartedAt = nowMs();
               updatedProfile = await schemaManagerService.getMergedProfile(
                 crate,
                 convertedContent,
                 updatedProfile,
                 conformsToUrl,
               );
+              profileMergeMs += nowMs() - profileMergeStartedAt;
+              profileMergeSuccesses += 1;
             } catch (error) {
               console.warn('Failed to merge profile for conformsTo URL:', conformsToUrl, error);
             }
           }
           profileForEntity = updatedProfile;
         } else if (options.completeProfile && !isFileOrDatasetEntity(entity)) {
+          completeProfileEntityCount += 1;
           profileForEntity = options.completeProfile;
         } else {
+          baseProfileEntityCount += 1;
           profileForEntity = baseProfile;
         }
+        profileResolveMs += nowMs() - profileResolveStartedAt;
         profileCache.set(cacheKey, profileForEntity);
       }
 
+      const ruleCompileStartedAt = nowMs();
       compiledRules = compileRulesForEntityType(entityType, profileForEntity);
+      ruleCompileMs += nowMs() - ruleCompileStartedAt;
       if (options.compiledRuleCache) {
         options.compiledRuleCache.set(namespacedKey, compiledRules);
       }
+    } else {
+      compiledRuleCacheHits += 1;
     }
 
+    const ruleValidationStartedAt = nowMs();
     const errors = validateWithCompiledRules(entity, entityType, compiledRules);
+    ruleValidationMs += nowMs() - ruleValidationStartedAt;
     if (errors.length) {
       validationErrors.push(...errors);
     }
   }
 
-  return validationErrors.length !== 0 ? validationErrors : undefined;
+  const result = validationErrors.length !== 0 ? validationErrors : undefined;
+  console.info('[ro-crate-validator:perf] validateEntities', {
+    status: 'completed',
+    totalMs: roundMs(nowMs() - totalStartedAt),
+    profileIndexMs: roundMs(profileIndexMs),
+    yieldMs: roundMs(yieldMs),
+    profileResolveMs: roundMs(profileResolveMs),
+    profileMergeMs: roundMs(profileMergeMs),
+    ruleCompileMs: roundMs(ruleCompileMs),
+    ruleValidationMs: roundMs(ruleValidationMs),
+    graphEntityCount: graph.length,
+    targetEntityCount: options.targetEntityIds?.size,
+    processedCount,
+    targetSkippedCount,
+    invalidEntrySkippedCount,
+    errorCount: result?.length ?? 0,
+    profileListCount: profileById.size,
+    profileCacheHits,
+    profileCacheMisses,
+    profileCacheSize: profileCache.size,
+    compiledRuleCacheHits,
+    compiledRuleCacheMisses,
+    compiledRuleCacheSize: options.compiledRuleCache?.size,
+    profileMergeAttempts,
+    profileMergeSuccesses,
+    missingProfileUrlCount: warnedMissingProfileUrls.size,
+    conformsToEntityCount,
+    completeProfileEntityCount,
+    baseProfileEntityCount,
+    yieldEvery: options.yieldEvery ?? 0,
+  });
+
+  return result;
 }
 
 export function validate(entity: Record<string, any>, profile: Record<string, any>) {

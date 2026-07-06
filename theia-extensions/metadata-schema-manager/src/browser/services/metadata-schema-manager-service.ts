@@ -1361,6 +1361,26 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     return profile
   }
 
+  public async getMergedProfileForClass(
+    newProfile: Record<string, any>,
+    profile: Record<string, any>,
+    className: string,
+    profileUrl?: string,
+  ) {
+    const normalizedClassName = typeof className === 'string' ? className.trim() : ''
+    if (!normalizedClassName || normalizedClassName === 'CreativeWork') {
+      return profile
+    }
+
+    this.addProfileToClass(
+      newProfile,
+      normalizedClassName,
+      profile,
+      typeof profileUrl === 'string' && profileUrl.trim() ? profileUrl.trim() : undefined,
+    )
+    return profile
+  }
+
   protected addProfileToClass(profileToAdd: Record<string, any>, className: string, rootProfile: Record<string, any>, profileUrl?: string) {
     if (!profileToAdd || !profileToAdd.classes || !profileToAdd.classes.Dataset) {
       console.warn('Invalid profileToAdd structure:', profileToAdd);

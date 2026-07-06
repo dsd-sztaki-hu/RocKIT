@@ -20,12 +20,30 @@ type SingleEntityDropPayload = {
 
 const ENTITIES_OVERVIEW_DND_MIME = 'application/x-rockit-entity-drag'
 
+const nowMs = (): number => {
+    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+        return performance.now()
+    }
+    return Date.now()
+}
+
+const roundMs = (value: number): number => Number(value.toFixed(2))
+
+const getGraphEntityCount = (crate: Record<string, any> | undefined): number => (
+    Array.isArray(crate?.['@graph']) ? crate['@graph'].length : 0
+)
+
+const logPerf = (label: string, data: Record<string, any>): void => {
+    console.info(`[recrate-wrapper:perf] ${label}`, data)
+}
+
 export const DescriboCrateBuilderWrapper = ({
                                                 crate,
                                                 roCrateApproval,
                                                 profile,
                                                 entityId,
                                                 scrollToFieldRequest,
+                                                profileKey,
                                                 instanceId,
                                                 onSaveCrate,
                                                 onSaveRoCrateApproval,
@@ -52,6 +70,7 @@ export const DescriboCrateBuilderWrapper = ({
     onRemoveProfile: (tabData: any) => void
     onDropEntityToHasPart: (payload: SingleEntityDropPayload, destinationEntityId: string) => Promise<void>
 }) => {
+    const renderStartedAt = nowMs()
     const [currentEntityId, setCurrentEntityId] = React.useState<string | undefined>(entityId)
     const [loading, setLoading] = React.useState<boolean>(false)
     const lastNavTarget = React.useRef<string | undefined>(undefined)
@@ -59,6 +78,46 @@ export const DescriboCrateBuilderWrapper = ({
     const containerRef = React.useRef<HTMLDivElement>(null)
     const [dropState, setDropState] = React.useState<'idle' | 'valid' | 'invalid'>('idle')
     const [dropMessage, setDropMessage] = React.useState<string>('')
+    const renderSeq = React.useRef(0)
+    const perfContext = {
+        graphEntityCount: getGraphEntityCount(crate),
+        entityId,
+        instanceId,
+        profileKey,
+        hasProfile: !!profile,
+        approvalKind: Array.isArray(roCrateApproval)
+            ? 'array'
+            : roCrateApproval
+                ? typeof roCrateApproval
+                : 'none',
+    }
+
+    React.useEffect(() => {
+        logPerf('mount', perfContext)
+        return () => logPerf('unmount', perfContext)
+    }, [])
+
+    React.useEffect(() => {
+        logPerf('commit', {
+            ...perfContext,
+            currentEntityId,
+            loading,
+        })
+    })
+
+    React.useEffect(() => {
+        if (!lastNavTarget.current && entityId && entityId !== currentEntityId) {
+            setCurrentEntityId(entityId)
+        }
+        if (entityId && entityId === lastNavTarget.current) {
+            lastNavTarget.current = undefined
+            setLoading(false)
+            if (transitionTimeoutRef.current) {
+                clearTimeout(transitionTimeoutRef.current)
+                transitionTimeoutRef.current = undefined
+            }
+        }
+    }, [entityId, currentEntityId])
 
     const getEntityById = React.useCallback((id: string) => {
         const graph = Array.isArray(crate?.['@graph']) ? (crate['@graph'] as Record<string, any>[]) : []
@@ -262,6 +321,15 @@ export const DescriboCrateBuilderWrapper = ({
     )
 
     const DescriboCrateBuilderComponent = DescriboCrateBuilder as React.ComponentType<any>
+    const renderMs = roundMs(nowMs() - renderStartedAt)
+    logPerf('render', {
+        ...perfContext,
+        seq: ++renderSeq.current,
+        totalMs: renderMs,
+        currentEntityId,
+        loading,
+        dropState,
+    })
 
     return (
         <div
@@ -277,34 +345,49 @@ export const DescriboCrateBuilderWrapper = ({
 
             {loading && <div style={{ padding: '0.5rem', color: '#888' }}>Loading entity...</div>}
 
-            <DescriboCrateBuilderComponent
-                crate={crate}
-                roCrateApproval={roCrateApproval}
-                profile={profile}
-                scrollToFieldRequest={scrollToFieldRequest}
-                stateScopeKey={`theia:${instanceId}`}
-                onAddNewProfileRequest={handleAddNewProfileRequest}
-                onRemoveProfile={onRemoveProfile}
-                entityId={entityId}
-                onSaveCrate={onSaveCrate}
-                onSaveRoCrateApproval={onSaveRoCrateApproval}
-                onNavigation={handleNavigationWrapper}
-                onWarning={(w: any) => console.log('warning', w)}
-                onError={(e: any) => console.log('error', e)}
-                enableReverseLinkBrowser={true}
-                enableBrowseEntities={false}
-                enableContextEditor={false}
-                enableCratePreview={false}
-                enableUrlMarkup={false}
-                enableBulkAdd={false}
-                language={'en'}
-                readonly={loading}
-                tabLocation={'left'}
-                showControls={true}
-                resetTabOnEntityChange={false}
-                resetTabOnProfileChange={false}
-				purgeUnlinkedEntities={false}
-            />
+            <React.Profiler
+                id={`recrate:${instanceId}`}
+                onRender={(id, phase, actualDuration, baseDuration, startTime, commitTime) => {
+                    logPerf('profiler', {
+                        ...perfContext,
+                        id,
+                        phase,
+                        actualDurationMs: roundMs(actualDuration),
+                        baseDurationMs: roundMs(baseDuration),
+                        startTimeMs: roundMs(startTime),
+                        commitTimeMs: roundMs(commitTime),
+                    })
+                }}
+            >
+                <DescriboCrateBuilderComponent
+                    crate={crate}
+                    roCrateApproval={roCrateApproval}
+                    profile={profile}
+                    scrollToFieldRequest={scrollToFieldRequest}
+                    stateScopeKey={`theia:${instanceId}`}
+                    onAddNewProfileRequest={handleAddNewProfileRequest}
+                    onRemoveProfile={onRemoveProfile}
+                    entityId={currentEntityId}
+                    onSaveCrate={onSaveCrate}
+                    onSaveRoCrateApproval={onSaveRoCrateApproval}
+                    onNavigation={handleNavigationWrapper}
+                    onWarning={(w: any) => console.log('warning', w)}
+                    onError={(e: any) => console.log('error', e)}
+                    enableReverseLinkBrowser={true}
+                    enableBrowseEntities={false}
+                    enableContextEditor={false}
+                    enableCratePreview={false}
+                    enableUrlMarkup={false}
+                    enableBulkAdd={false}
+                    language={'en'}
+                    readonly={loading}
+                    tabLocation={'left'}
+                    showControls={true}
+                    resetTabOnEntityChange={false}
+                    resetTabOnProfileChange={false}
+                    purgeUnlinkedEntities={false}
+                />
+            </React.Profiler>
         </div>
     )
 }

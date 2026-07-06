@@ -120,9 +120,16 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
     const nodePath =
       process.env.ROCKIT_ROCRATE_MCP_NODE_PATH
     if (nodePath) {
+      const env = { ...process.env }
+      if (
+        process.versions.electron ||
+        env.ROCKIT_ROCRATE_MCP_ELECTRON_RUN_AS_NODE === '1'
+      ) {
+        env.ELECTRON_RUN_AS_NODE = '1'
+      }
       return {
         command: nodePath,
-        env: process.env,
+        env,
       }
     }
 
