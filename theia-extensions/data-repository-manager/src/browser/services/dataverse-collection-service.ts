@@ -62,6 +62,24 @@ export class DataverseCollectionService {
         }
     }
 
+    public async searchDataverseCollections(searchText: string): Promise<DataverseCollectionTreeItem[]> {
+        const trimmed = searchText.trim();
+        if (!trimmed) {
+            return [];
+        }
+        return this.searchCollections(this.toPartialSearchQuery(trimmed), 100, 1);
+    }
+
+    private toPartialSearchQuery(searchText: string): string {
+        const parts = searchText.split(/\s+/).filter(Boolean);
+        if (!parts.length) {
+            return '*';
+        }
+        const last = parts[parts.length - 1];
+        parts[parts.length - 1] = /[*?]$/.test(last) ? last : `${last}*`;
+        return parts.join(' ');
+    }
+
     private async getImmediateChildCollections(collectionAlias: string): Promise<DataverseCollectionTreeItem[]> {
         if (!this.apiBaseUrl) {
             throw new Error('Dataverse client is not initialized.');
@@ -167,18 +185,16 @@ export class DataverseCollectionService {
         }
     }
 
-    private async searchCollections(): Promise<DataverseCollectionTreeItem[]> {
+    private async searchCollections(searchText = '*', perPage = 100, maxPages = 20): Promise<DataverseCollectionTreeItem[]> {
         if (!this.apiBaseUrl) {
             throw new Error('Dataverse client is not initialized.');
         }
 
         const items: any[] = [];
-        const perPage = 100;
-        const maxPages = 20;
 
         for (let page = 1; page <= maxPages; page += 1) {
             const query = new URLSearchParams({
-                q: '*',
+                q: searchText,
                 type: 'dataverse',
                 sort: 'name',
                 order: 'asc',
