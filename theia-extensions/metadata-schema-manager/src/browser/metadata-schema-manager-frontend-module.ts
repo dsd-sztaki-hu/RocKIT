@@ -1,6 +1,7 @@
 import { ContainerModule } from 'inversify';
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common';
 import { WidgetFactory, FrontendApplicationContribution, WebSocketConnectionProvider } from '@theia/core/lib/browser';
+import { TabBarToolbarContribution } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 
 import { MetadataSchemaManagerWidget, METADATA_SCHEMA_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
 import { MetadataSchemaManagerContribution } from './metadata-schema-manager-contribution';
@@ -39,6 +40,7 @@ export default new ContainerModule(bind => {
     bind(CommandContribution).toService(MetadataSchemaManagerContribution);
     bind(MenuContribution).toService(MetadataSchemaManagerContribution);
     bind(FrontendApplicationContribution).toService(MetadataSchemaManagerContribution);
+    bind(TabBarToolbarContribution).toService(MetadataSchemaManagerContribution);
 
     // 4. Schema Selector Dialog
     bind(MetadataSchemaSelectorContribution).toSelf().inSingletonScope();
