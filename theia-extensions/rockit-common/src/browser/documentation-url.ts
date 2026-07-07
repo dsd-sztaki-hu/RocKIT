@@ -1,10 +1,39 @@
+import { OpenerService, open } from '@theia/core/lib/browser'
+import {
+  ApplicationServer,
+} from '@theia/core/lib/common/application-protocol'
+import URI from '@theia/core/lib/common/uri'
+
+export const ROCKIT_DOCUMENTATION_PAGES = {
+  WORKSPACE_AND_FILE_HANDLING: 'interface/workspace-and-file-handling',
+  RO_CRATE_STRUCTURE_PANEL: 'interface/ro-crate-structure-panel',
+  ENTITIES_PANEL: 'interface/entities-panel',
+  RO_CRATE_EDITOR: 'editing/ro-crate-editor',
+  METADATA_SCHEMA_MANAGER: 'schemas/metadata-schema-manager',
+  DATA_REPOSITORY_MANAGER: 'repositories/data-repository-manager',
+  VALIDATION: 'editing/validation',
+  PREVIEW: 'editing/preview',
+} as const
+
 export function documentationVersion(version: string): string {
   const trimmed = version.trim().replace(/^v\s*/i, '')
   const match = /^(\d+)\.(\d+)/.exec(trimmed)
   return match ? `${match[1]}.${match[2]}` : 'latest'
 }
 
-export function buildDocumentationUrl(version: string): string {
+export function buildDocumentationUrl(version: string, pagePath = ''): string {
   const segment = encodeURIComponent(documentationVersion(version))
-  return `https://repo.researchdata.hu/rockit/${segment}/`
+  const baseUrl = `https://repo.researchdata.hu/rockit/${segment}/`
+  const normalizedPath = pagePath.trim().replace(/^\/+/, '')
+  return normalizedPath ? `${baseUrl}${normalizedPath}` : baseUrl
+}
+
+export async function openRockitDocumentationPage(
+  applicationServer: ApplicationServer,
+  openerService: OpenerService,
+  pagePath: string,
+): Promise<void> {
+  const appInfo = await applicationServer.getApplicationInfo()
+  const url = buildDocumentationUrl(appInfo?.version ?? 'latest', pagePath)
+  await open(openerService, new URI(url), { openExternalApp: true })
 }
