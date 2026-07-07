@@ -1,6 +1,7 @@
 import { ContainerModule } from 'inversify';
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common';
 import { WidgetFactory, FrontendApplicationContribution } from '@theia/core/lib/browser';
+import { TabBarToolbarContribution } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 
 import { DataRepositoryManagerWidget, DATA_REPOSITORY_MANAGER_WIDGET_ID } from './data-repository-manager-widget';
 import { DataRepositoryManagerContribution } from './data-repository-manager-contribution';
@@ -38,4 +39,5 @@ export default new ContainerModule(bind => {
     bind(CommandContribution).toService(DataRepositoryManagerContribution);
     bind(MenuContribution).toService(DataRepositoryManagerContribution);
     bind(FrontendApplicationContribution).toService(DataRepositoryManagerContribution);
+    bind(TabBarToolbarContribution).toService(DataRepositoryManagerContribution);
 });
