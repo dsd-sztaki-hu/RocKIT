@@ -53,7 +53,7 @@ import { EXPLORER_VIEW_CONTAINER_ID, EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS } fro
 import { FILE_NAVIGATOR_ID, FileNavigatorWidget } from './navigator-widget';
 import { FileNavigatorPreferences } from '../common/navigator-preferences';
 import { FileNavigatorFilter } from './navigator-filter';
-import { WorkspaceNode } from './navigator-tree';
+import { NavigatorRootNode, WorkspaceNode } from './navigator-tree';
 import { NavigatorContextKeyService } from './navigator-context-key-service';
 import {
     RenderedToolbarAction,
@@ -419,6 +419,16 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
                 const root = navigator?.getContainerTreeNode();
                 return selection === root;
             }
+        });
+        registry.registerCommand(FileNavigatorCommands.COPY_ROOT_PATH, {
+            execute: async () => {
+                const root = this.getFocusedNavigatorRoot();
+                if (root) {
+                    await this.clipboardService.writeText(root.uri.path.fsPath());
+                }
+            },
+            isEnabled: () => !!this.getFocusedNavigatorRoot(),
+            isVisible: () => !!this.getFocusedNavigatorRoot()
         });
 
         registry.registerCommand(NavigatorDiffCommands.COMPARE_FIRST, {
@@ -1166,6 +1176,11 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             order: 'c'
         });
         registry.registerMenuAction(NavigatorContextMenu.CLIPBOARD, {
+            commandId: FileNavigatorCommands.COPY_ROOT_PATH.id,
+            label: FileNavigatorCommands.COPY_ROOT_PATH.label,
+            order: 'c1'
+        });
+        registry.registerMenuAction(NavigatorContextMenu.CLIPBOARD, {
             commandId: WorkspaceCommands.COPY_RELATIVE_FILE_PATH.id,
             label: WorkspaceCommands.COPY_RELATIVE_FILE_PATH.label,
             order: 'd'
@@ -1380,6 +1395,11 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         if (SelectableTreeNode.is(firstChild)) {
             model.selectNode(firstChild);
         }
+    }
+
+    protected getFocusedNavigatorRoot(): NavigatorRootNode | undefined {
+        const focused = this.tryGetWidget()?.model.getFocusedNode();
+        return NavigatorRootNode.is(focused) ? focused : undefined;
     }
 
     protected getFileNavigatorActionRoot(model: FileNavigatorModel): CompositeTreeNode | undefined {
