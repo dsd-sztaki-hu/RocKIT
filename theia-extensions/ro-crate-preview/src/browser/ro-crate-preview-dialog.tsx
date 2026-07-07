@@ -24,9 +24,14 @@ const RoCrateJsonView = React.memo<{ jsonObject: any }>(({ jsonObject }) => {
 interface RoCrateContentProps {
   jsonObject: any
   error: string | null
+  onOpenDocumentation: () => void
 }
 
-const RoCrateContent: React.FC<RoCrateContentProps> = ({ jsonObject, error }) => {
+const RoCrateContent: React.FC<RoCrateContentProps> = ({
+  jsonObject,
+  error,
+  onOpenDocumentation,
+}) => {
   const [isCopied, setIsCopied] = React.useState(false)
 
   const handleCopy = async (e: React.MouseEvent) => {
@@ -50,20 +55,33 @@ const RoCrateContent: React.FC<RoCrateContentProps> = ({ jsonObject, error }) =>
           <span style={{ color: '#ce9178', fontFamily: 'monospace' }}>AppState</span>
         </h3>
 
-        <button
-          className={'roCratePreviewCopyButton'}
-          title="Copy raw JSON to clipboard"
-          onClick={handleCopy}
-          style={{
-            color: isCopied ? '#4caf50' : 'var(--theia-ui-font-color1)',
-          }}
-        >
-          {isCopied ? <span>Copied</span> : <span>Copy JSON</span>}
-          <i
-            className={isCopied ? 'fa fa-check' : 'fa fa-clipboard'}
-            style={{ fontSize: '14px' }}
-          ></i>
-        </button>
+        <div className="roCratePreviewHeaderActions">
+          <button
+            className={'roCratePreviewCopyButton'}
+            title="Open RO-Crate Preview documentation"
+            onClick={(event) => {
+              event.stopPropagation()
+              onOpenDocumentation()
+            }}
+          >
+            <i className="codicon codicon-info" style={{ fontSize: '14px' }} />
+          </button>
+
+          <button
+            className={'roCratePreviewCopyButton'}
+            title="Copy raw JSON to clipboard"
+            onClick={handleCopy}
+            style={{
+              color: isCopied ? '#4caf50' : 'var(--theia-ui-font-color1)',
+            }}
+          >
+            {isCopied ? <span>Copied</span> : <span>Copy JSON</span>}
+            <i
+              className={isCopied ? 'fa fa-check' : 'fa fa-clipboard'}
+              style={{ fontSize: '14px' }}
+            ></i>
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -85,6 +103,7 @@ const RoCrateContent: React.FC<RoCrateContentProps> = ({ jsonObject, error }) =>
 export class ROCratePreviewDialog extends ReactDialog<string> {
   constructor(
     @inject(AppStateService) protected readonly appStateService: AppStateService,
+    protected readonly onOpenDocumentation: () => void,
   ) {
     super({ title: 'RO-Crate Preview' })
     this.appendCloseButton('Close')
@@ -104,7 +123,13 @@ export class ROCratePreviewDialog extends ReactDialog<string> {
       error = `Could not read RO-Crate from Appstate: ${err.message}`
     }
 
-    return <RoCrateContent jsonObject={jsonObject} error={error} />
+    return (
+      <RoCrateContent
+        jsonObject={jsonObject}
+        error={error}
+        onOpenDocumentation={this.onOpenDocumentation}
+      />
+    )
   }
 
   get value(): string {
