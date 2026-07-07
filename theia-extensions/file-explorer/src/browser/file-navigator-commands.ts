@@ -60,6 +60,11 @@ export namespace FileNavigatorCommands {
         id: 'navigator.addDataSource.toolbar',
         iconClass: codicon('add')
     };
+    export const OPEN_DOCUMENTATION: Command = Command.toDefaultLocalizedCommand({
+        id: 'navigator.openDocumentation',
+        label: 'Open Workspace Documentation',
+        iconClass: codicon('info')
+    });
     export const ADD_ROOT_FOLDER: Command = {
         id: 'navigator.addRootFolder'
     };
