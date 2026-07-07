@@ -233,6 +233,9 @@ export type ValidityFilter = 'all' | 'valid' | 'invalid'
 
 @injectable()
 export class EntitiesOverviewModel extends TreeModelImpl {
+    private static readonly INITIAL_RENDERED_CHILDREN = 150
+    private static readonly RENDERED_CHILDREN_BATCH = 200
+
     @inject(EntitiesOverviewTreeItemFactory)
     private readonly itemFactory: EntitiesOverviewTreeItemFactory
 
@@ -429,6 +432,38 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         return getAvailableTypes(this.currentCrate, this.appStateService.completeProfile)
     }
 
+    protected override handleExpansion(node: Readonly<ExpandableTreeNode>): void {
+        super.handleExpansion(node)
+        if (!ExampleTreeNode.is(node)) {
+            return
+        }
+
+        this.rebuildLeafIndex(this.tree.root)
+        this.updateLeafSelection(Array.from(this.selectedEntityIds))
+    }
+
+    async loadMoreVisibleChildren(
+        batchSize = EntitiesOverviewModel.RENDERED_CHILDREN_BATCH,
+    ): Promise<boolean> {
+        const root = this.tree.root
+        if (!root) {
+            return false
+        }
+
+        for (const node of new DepthFirstTreeIterator(root)) {
+            if (!ExampleTreeNode.is(node) || !node.expanded || !this.hasMoreChildren(node)) {
+                continue
+            }
+
+            this.appendChildren(node, batchSize)
+            this.rebuildLeafIndex(root)
+            await this.refresh(node)
+            return true
+        }
+
+        return false
+    }
+
     private refreshFilteredTree(): void {
         // main: keep nodes stable between refreshes
         const existingNodes = new Map<string, TreeNode>()
@@ -494,9 +529,21 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         ;(node as ExampleTreeNode | ExampleTreeLeaf).data = item
 
         if (ExampleTreeNode.is(node)) {
-            const children = (item.children ?? []).map((child) =>
-                this.buildTreeNode(child, node, existingNodes, shouldExpand),
-            )
+            const sourceChildren = item.children ?? []
+            const existingChildCount =
+                existing && ExampleTreeNode.is(existing) ? existing.children.length : 0
+            const childLimit = shouldExpand
+                ? Math.min(
+                      sourceChildren.length,
+                      Math.max(
+                          existingChildCount,
+                          EntitiesOverviewModel.INITIAL_RENDERED_CHILDREN,
+                      ),
+                  )
+                : 0
+            const children = sourceChildren
+                .slice(0, childLimit)
+                .map((child) => this.buildTreeNode(child, node, existingNodes, shouldExpand))
             node.children = children
             if (!existing || !ExampleTreeNode.is(existing)) {
                 node.expanded = shouldExpand
@@ -515,6 +562,31 @@ export class EntitiesOverviewModel extends TreeModelImpl {
 
     private setParent(node: TreeNode, parent: CompositeTreeNode): void {
         ;(node as { parent: CompositeTreeNode | undefined }).parent = parent
+    }
+
+    private hasMoreChildren(node: ExampleTreeNode): boolean {
+        return node.children.length < (node.data.children?.length ?? 0)
+    }
+
+    private appendChildren(node: ExampleTreeNode, batchSize: number): TreeNode[] {
+        const sourceChildren = node.data.children ?? []
+        const start = node.children.length
+        const end = Math.min(sourceChildren.length, start + batchSize)
+        if (start >= end) {
+            return []
+        }
+
+        const children = node.children as TreeNode[]
+        const added = sourceChildren.slice(start, end).map((item) => {
+            const child = this.itemFactory.toTreeNode(item)
+            if (ExampleTreeLeaf.is(child) && child.data.entityId) {
+                child.data.selected = this.selectedEntityIds.has(child.data.entityId)
+            }
+            this.setParent(child, node)
+            return child
+        })
+        children.push(...added)
+        return added
     }
 
     // branch: update leaf node selection (requires EntitiesOverviewTree.notifyUpdated)

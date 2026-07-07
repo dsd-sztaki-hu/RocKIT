@@ -4,6 +4,8 @@ import { inject } from '@theia/core/shared/inversify'
 import { ExampleTreeNode, ROOT_NODE_ID } from './entities-overview-model'
 import { EntitiesOverviewTreeItemFactory } from './entities-overview-tree-item-factory'
 
+const INITIAL_RENDERED_CHILDREN = 150
+
 /**
  * Tree implementation.
  *
@@ -30,18 +32,22 @@ export class EntitiesOverviewTree extends TreeImpl {
       return []
     }
 
-    // performance optimization - if the children are resolved already and the number of children is still correct
-    // we reuse the already resolved items.
-    // Note: In a real application this comparison might require more logic, because if a child is replaced by a
-    // different one or if children are reordered, this code would not work...
-    if (parent.children.length === parent.data.children?.length) {
+    // Keep already materialized children. Additional children are appended by the model
+    // as the user scrolls, so expansion does not instantiate every entity at once.
+    if (parent.children.length > 0) {
       return [...parent.children]
     }
 
     // simulate asynchronous loading of children. In the UI we can see a busy marker when we expand a node because of this.
     // (in practice, we would call an expensive function to fetch the children and return the corresponding promise)
     // await wait(2000);
-    return (parent.data.children ?? []).map((i) => this.itemFactory.toTreeNode(i))
+    return (parent.data.children ?? [])
+      .slice(0, INITIAL_RENDERED_CHILDREN)
+      .map((item) => {
+        const child = this.itemFactory.toTreeNode(item)
+        ;(child as { parent: CompositeTreeNode }).parent = parent
+        return child
+      })
   }
 
   notifyUpdated(nodes: TreeNode[]): void {
