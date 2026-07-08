@@ -57,7 +57,7 @@ const RoCrateContent: React.FC<RoCrateContentProps> = ({
 
         <div className="roCratePreviewHeaderActions">
           <button
-            className={'roCratePreviewCopyButton'}
+            className={'roCratePreviewCopyButton roCratePreviewHelpButton'}
             title="Open RO-Crate Preview documentation"
             onClick={(event) => {
               event.stopPropagation()
