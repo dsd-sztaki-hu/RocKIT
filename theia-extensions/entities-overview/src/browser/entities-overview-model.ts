@@ -249,7 +249,6 @@ export class EntitiesOverviewModel extends TreeModelImpl {
     private lastSelectedEntityId: string | undefined
     private leafNodesByEntityId = new Map<string, ExampleTreeLeaf[]>()
     private visibleEntityIds: string[] = []
-    private refreshPerfSeq = 0
     private availableTypesCache:
         | {
               crate: Record<string, any> | undefined
@@ -260,17 +259,6 @@ export class EntitiesOverviewModel extends TreeModelImpl {
 
     getSelectedEntityIds(): string[] {
         return Array.from(this.selectedEntityIds)
-    }
-
-    private nowMs(): number {
-        if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-            return performance.now()
-        }
-        return Date.now()
-    }
-
-    private roundMs(value: number): number {
-        return Number(value.toFixed(2))
     }
 
     getVisibleEntityIds(): string[] {
@@ -404,16 +392,13 @@ export class EntitiesOverviewModel extends TreeModelImpl {
     }
 
     getAvailableTypes(): string[] {
-        const startedAt = this.nowMs()
         const profile = this.appStateService.completeProfile
-        let cacheHit = false
         let result = this.availableTypesCache?.types
         if (
             result &&
             this.availableTypesCache?.crate === this.currentCrate &&
             this.availableTypesCache?.profile === profile
         ) {
-            cacheHit = true
         } else {
             result = getAvailableTypes(this.currentCrate, profile)
             this.availableTypesCache = {
@@ -422,34 +407,12 @@ export class EntitiesOverviewModel extends TreeModelImpl {
                 types: result,
             }
         }
-        const totalMs = this.nowMs() - startedAt
-        const graphEntityCount = Array.isArray(this.currentCrate?.['@graph'])
-            ? this.currentCrate['@graph'].length
-            : 0
-
-        if (graphEntityCount > 1000 || totalMs > 5) {
-            console.info('[entities-overview:perf] getAvailableTypes', {
-                totalMs: this.roundMs(totalMs),
-                graphEntityCount,
-                availableTypeCount: result.length,
-                cacheHit,
-            })
-        }
-
         return result
     }
 
     private refreshFilteredTree(): void {
-        const totalStartedAt = this.nowMs()
-        const seq = ++this.refreshPerfSeq
-        const graphEntityCount = Array.isArray(this.currentCrate?.['@graph'])
-            ? this.currentCrate['@graph'].length
-            : 0
-
         // main: keep nodes stable between refreshes
-        const existingNodeScanStartedAt = this.nowMs()
         const existingNodes = this.collectExistingNodes(this.tree.root)
-        const existingNodeScanMs = this.nowMs() - existingNodeScanStartedAt
 
         const root: CompositeTreeNode = {
             id: ROOT_NODE_ID,
@@ -465,16 +428,13 @@ export class EntitiesOverviewModel extends TreeModelImpl {
             this.advancedEntityMatcher,
         )
 
-        const invalidEntitySetStartedAt = this.nowMs()
         const invalidEntityIds = new Set(
             (this.appStateService.validationErrors ?? [])
                 .map((error) => error?.entityId)
                 .filter((entityId): entityId is string => Boolean(entityId)),
         )
-        const invalidEntitySetMs = this.nowMs() - invalidEntitySetStartedAt
 
         const selected = new Set(this.selectedEntityIds)
-        const createDataStartedAt = this.nowMs()
         const groupedItems = createEntitiesData(
             this.currentCrate,
             this.appStateService.completeProfile,
@@ -485,13 +445,7 @@ export class EntitiesOverviewModel extends TreeModelImpl {
             selected,
             this.advancedEntityMatcher,
         )
-        const createEntitiesDataMs = this.nowMs() - createDataStartedAt
-        const visibleLeafCount = groupedItems.reduce(
-            (count, item) => count + (item.children?.length ?? 0),
-            0,
-        )
 
-        const buildTreeNodesStartedAt = this.nowMs()
         const nextLeafIndex = new Map<string, ExampleTreeLeaf[]>()
         const nextVisibleEntityIds: string[] = []
         const seenVisibleEntityIds = new Set<string>()
@@ -507,41 +461,14 @@ export class EntitiesOverviewModel extends TreeModelImpl {
             )
             CompositeTreeNode.addChild(root, node)
         }
-        const buildTreeNodesMs = this.nowMs() - buildTreeNodesStartedAt
 
         this.tree.root = root
 
-        const rebuildLeafIndexStartedAt = this.nowMs()
         this.leafNodesByEntityId = nextLeafIndex
         this.visibleEntityIds = nextVisibleEntityIds
-        const rebuildLeafIndexMs = this.nowMs() - rebuildLeafIndexStartedAt
 
         // keep leaf "selected" flags in sync after rebuild
-        const updateSelectionStartedAt = this.nowMs()
         this.updateLeafSelection(Array.from(this.selectedEntityIds))
-        const updateSelectionMs = this.nowMs() - updateSelectionStartedAt
-
-        console.info('[entities-overview:perf] refreshFilteredTree', {
-            seq,
-            totalMs: this.roundMs(this.nowMs() - totalStartedAt),
-            existingNodeScanMs: this.roundMs(existingNodeScanMs),
-            invalidEntitySetMs: this.roundMs(invalidEntitySetMs),
-            createEntitiesDataMs: this.roundMs(createEntitiesDataMs),
-            buildTreeNodesMs: this.roundMs(buildTreeNodesMs),
-            rebuildLeafIndexMs: this.roundMs(rebuildLeafIndexMs),
-            updateSelectionMs: this.roundMs(updateSelectionMs),
-            graphEntityCount,
-            existingNodeCount: existingNodes.size,
-            typeGroupCount: groupedItems.length,
-            visibleLeafCount,
-            invalidEntityCount: invalidEntityIds.size,
-            selectedEntityCount: this.selectedEntityIds.size,
-            nameFilterLength: this.entityNameFilter.length,
-            typeFilterCount: this.entityTypeFilters.length,
-            validityFilter: this.validityFilter,
-            hasAdvancedMatcher: Boolean(this.advancedEntityMatcher),
-            shouldExpand,
-        })
     }
 
     // main: stable tree nodes

@@ -130,29 +130,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         nonce: number
     }
     protected validationFieldScrollNonce = 0
-    protected renderPerfSeq = 0
-
-    protected nowMs(): number {
-        if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-            return performance.now()
-        }
-        return Date.now()
-    }
-
-    protected roundMs(value: number): number {
-        return Number(value.toFixed(2))
-    }
-
-    protected getGraphEntityCount(crate: Record<string, any> | undefined): number {
-        return Array.isArray(crate?.['@graph']) ? crate['@graph'].length : 0
-    }
-
-    protected logPerf(label: string, data: Record<string, any>): void {
-        console.info(`[ro-crate-editor:perf] ${label}`, {
-            widget: this.id,
-            ...data,
-        })
-    }
 
     protected buildValidationErrorKey(error: ValidationError): string {
         return [
@@ -410,14 +387,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     protected onAfterAttach(msg: Message): void {
-        const startedAt = this.nowMs()
         super.onAfterAttach(msg)
         this.node.addEventListener('focusin', this.handleFocusIn, true)
-        this.logPerf('onAfterAttach', {
-            totalMs: this.roundMs(this.nowMs() - startedAt),
-            graphEntityCount: this.getGraphEntityCount(this.localCrate),
-            entityId: this.getActiveEntityId(),
-        })
     }
 
     protected handleFocusIn = (e: Event): void => {
@@ -452,15 +423,11 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     async initialize(options: RoCrateEditorWidgetOptions = {}): Promise<void> {
-        const initializeStartedAt = this.nowMs()
         this.instanceId =
             options.instanceId ??
             `${RoCrateEditorWidget.ID}:${Math.random().toString(36).substring(2)}`
 
         this.id = this.instanceId
-        this.logPerf('initialize.start', {
-            optionEntityId: options.entityId,
-        })
 
         try {
             const mapping = this.appStateService.EIRCEIA
@@ -505,16 +472,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 (p: any) => (p as any)?.flag !== 'missing',
             ).length
             : 0
-        this.logPerf('initialize.state-snapshot', {
-            totalMs: this.roundMs(this.nowMs() - initializeStartedAt),
-            graphEntityCount: this.getGraphEntityCount(this.localCrate),
-            hasApproval: !!this.localRoCrateApproval,
-            hasBaseProfile: !!this.baseProfile,
-            hasCompleteProfile: !!this.localCompleteProfile,
-            profileListCount: Array.isArray(this.appStateService.profileList)
-                ? this.appStateService.profileList.length
-                : 0,
-        })
 
         this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
             async (crate) => {
@@ -677,32 +634,15 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
         const initialEntity = this.resolveInitialEntityId(options.entityId)
         this.assignEntity(initialEntity)
-        this.logPerf('initialize.assigned-entity', {
-            totalMs: this.roundMs(this.nowMs() - initializeStartedAt),
-            entityId: this.getActiveEntityId(),
-        })
 
         if (this.baseProfile && this.localCrate && Array.isArray(this.localCrate['@graph'])) {
             const entityId = this.getActiveEntityId()
             if (entityId) {
-                const profileStartedAt = this.nowMs()
                 await this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'none')
-                this.logPerf('initialize.initial-profile', {
-                    totalMs: this.roundMs(this.nowMs() - profileStartedAt),
-                    sinceInitializeStartMs: this.roundMs(this.nowMs() - initializeStartedAt),
-                    entityId,
-                })
             }
         }
 
-        const validationStartedAt = this.nowMs()
         await this.validateCurrentCrate()
-        this.logPerf('initialize.complete', {
-            totalMs: this.roundMs(this.nowMs() - initializeStartedAt),
-            validationMs: this.roundMs(this.nowMs() - validationStartedAt),
-            graphEntityCount: this.getGraphEntityCount(this.localCrate),
-            entityId: this.getActiveEntityId(),
-        })
     }
 
     protected handleSaveCrate = async (saveData: any, label = 'Edit RO-Crate') => {
@@ -1009,13 +949,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     render(): React.ReactNode {
-        const startedAt = this.nowMs()
-        const seq = ++this.renderPerfSeq
-        let state = 'crate'
         let result: React.ReactNode
 
         if (!this.localCrate) {
-            state = 'missing-crate'
             result = (
                 <div
                     style={{
@@ -1071,7 +1007,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                         profile={this.localProfile}
                         entityId={this.getActiveEntityId()}
                         scrollToFieldRequest={this.validationFieldScrollRequest}
-                        profileKey={this.profileRevision}
                         instanceId={this.id}
                         onSaveCrate={this.handleSaveCrate}
                         onSaveRoCrateApproval={this.handleSaveRoCrateApproval}
@@ -1083,15 +1018,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 </div>
             )
         }
-
-        this.logPerf('render', {
-            seq,
-            state,
-            totalMs: this.roundMs(this.nowMs() - startedAt),
-            graphEntityCount: this.getGraphEntityCount(this.localCrate),
-            entityId: this.getActiveEntityId(),
-            profileRevision: this.profileRevision,
-        })
 
         return result
     }
@@ -1574,15 +1500,6 @@ protected handleDropEntityToHasPart = async (
         validationMode: ProfileValidationMode = 'none',
         validationScope: ProfileValidationScope = 'full',
     ) {
-        const startedAt = this.nowMs()
-        const timings: Record<string, any> = {
-            graphEntityCount: this.getGraphEntityCount(this.localCrate),
-            entityId,
-            validationMode,
-            validationScope,
-        }
-        let mode = 'unknown'
-
         if (this.isRefreshingProfile) {
             this.pendingSchemasRefresh = true
             this.pendingSchemasRefreshBaseProfile = baseProfile
@@ -1591,11 +1508,6 @@ protected handleDropEntityToHasPart = async (
                 this.pendingSchemasRefreshValidationMode = 'always'
                 this.pendingSchemasRefreshValidationScope = validationScope
             }
-            this.logPerf('updateProfileWithEntitySchemas.complete', {
-                ...timings,
-                mode: 'pending',
-                totalMs: this.roundMs(this.nowMs() - startedAt),
-            })
             return
         }
 
@@ -1603,15 +1515,11 @@ protected handleDropEntityToHasPart = async (
 
         try {
             if (!this.localCrate || !Array.isArray(this.localCrate['@graph'])) {
-                mode = 'missing-crate'
                 return
             }
 
-            const findEntityStartedAt = this.nowMs()
             const entity = this.findEntity(this.localCrate, entityId)
-            timings.findEntityMs = this.roundMs(this.nowMs() - findEntityStartedAt)
             if (!entity) {
-                mode = 'missing-entity'
                 return
             }
             const rawEntityType = entity?.['@type']
@@ -1620,10 +1528,7 @@ protected handleDropEntityToHasPart = async (
                 : rawEntityType
 
             const profileList = this.appStateService.profileList
-            const conformsToStartedAt = this.nowMs()
             const conformsTos = this.computeConformsToIdsForSelectedEntity(entityId)
-            timings.conformsToMs = this.roundMs(this.nowMs() - conformsToStartedAt)
-            timings.conformsToCount = conformsTos.length
 
             if (
                 this.lastAppliedEntityId === entityId &&
@@ -1631,10 +1536,7 @@ protected handleDropEntityToHasPart = async (
                 this.lastAppliedCrate === this.localCrate &&
                 this.lastAppliedProfileList === profileList
             ) {
-                const updateStartedAt = this.nowMs()
                 this.update()
-                timings.updateMs = this.roundMs(this.nowMs() - updateStartedAt)
-                mode = 'cache-hit'
                 return
             }
 
@@ -1643,11 +1545,8 @@ protected handleDropEntityToHasPart = async (
                     !this.isFileOrDatasetEntity(entity) && this.localCompleteProfile
                         ? this.localCompleteProfile
                         : baseProfile
-                const cloneStartedAt = this.nowMs()
                 const fallbackResult = this.getFallbackProfileClone(fallbackProfile ?? baseProfile)
                 const nextProfile = fallbackResult.profile
-                timings.cloneProfileMs = this.roundMs(this.nowMs() - cloneStartedAt)
-                timings.fallbackProfileCacheHit = fallbackResult.cacheHit
                 const didProfileChange = this.localProfile !== nextProfile
 
                 this.localProfile = nextProfile
@@ -1659,19 +1558,13 @@ protected handleDropEntityToHasPart = async (
                 this.lastAppliedConformsTo = []
                 this.lastAppliedCrate = this.localCrate
                 this.lastAppliedProfileList = profileList
-                const updateStartedAt = this.nowMs()
                 this.update()
-                timings.updateMs = this.roundMs(this.nowMs() - updateStartedAt)
-                mode = 'fallback'
                 return
             }
 
-            const baseCloneStartedAt = this.nowMs()
             let updateProfile = JSON.parse(JSON.stringify(baseProfile))
-            timings.cloneProfileMs = this.roundMs(this.nowMs() - baseCloneStartedAt)
             let didUpdateProfile = false
             let foundMatchingProfile = false
-            let mergeMs = 0
 
             for (const conformsToUrl of conformsTos) {
                 const convertedContent = profileList?.find(
@@ -1681,7 +1574,6 @@ protected handleDropEntityToHasPart = async (
                 if (convertedContent) {
                     foundMatchingProfile = true
                     if (this.localCrate) {
-                        const mergeStartedAt = this.nowMs()
                         const targetedMerge = (this.schemaManagerService as any)
                             .getMergedProfileForClass
                         const merged =
@@ -1699,7 +1591,6 @@ protected handleDropEntityToHasPart = async (
                                       updateProfile,
                                       conformsToUrl,
                                   )
-                        mergeMs += this.nowMs() - mergeStartedAt
                         updateProfile = merged
                         didUpdateProfile = true
                         this.updateEntityConformsTo(entityId, conformsToUrl)
@@ -1724,7 +1615,6 @@ protected handleDropEntityToHasPart = async (
                     console.warn(`No profile found in state for conformsTo URL: ${conformsToUrl}`)
                 }
             }
-            timings.mergeProfileMs = this.roundMs(mergeMs)
 
             if (didUpdateProfile || !foundMatchingProfile) {
                 this.localProfile = updateProfile
@@ -1737,32 +1627,22 @@ protected handleDropEntityToHasPart = async (
             this.lastAppliedConformsTo = conformsTos.slice()
             this.lastAppliedCrate = this.localCrate
             this.lastAppliedProfileList = profileList
-            const updateStartedAt = this.nowMs()
             this.update()
-            timings.updateMs = this.roundMs(this.nowMs() - updateStartedAt)
-            mode = foundMatchingProfile ? 'merged' : 'no-matching-profile'
         } finally {
-            const beforeValidationMs = this.nowMs() - startedAt
             if (validationMode === 'always') {
                 if (validationScope === 'targeted') {
-                    const validationStartedAt = this.nowMs()
                     await this.validateTargetedEntitiesNow([entityId])
-                    timings.validationMs = this.roundMs(this.nowMs() - validationStartedAt)
                 } else {
                     const invalidateEntities = (this.schemaValidator as any).invalidateEntities
                     if (typeof invalidateEntities === 'function') {
                         invalidateEntities.call(this.schemaValidator, [entityId])
                     }
-                    const validationStartedAt = this.nowMs()
                     await this.validateCurrentCrate()
-                    timings.validationMs = this.roundMs(this.nowMs() - validationStartedAt)
                 }
             }
-            timings.beforeValidationMs = this.roundMs(beforeValidationMs)
 
             this.isRefreshingProfile = false
 
-            const pendingRefreshQueued = this.pendingSchemasRefresh
             if (this.pendingSchemasRefresh) {
                 this.pendingSchemasRefresh = false
                 const baseProfile = this.pendingSchemasRefreshBaseProfile ?? this.baseProfile
@@ -1791,13 +1671,6 @@ protected handleDropEntityToHasPart = async (
                     })
                 }
             }
-
-            this.logPerf('updateProfileWithEntitySchemas.complete', {
-                ...timings,
-                mode,
-                totalMs: this.roundMs(this.nowMs() - startedAt),
-                pendingRefreshQueued,
-            })
         }
     }
 

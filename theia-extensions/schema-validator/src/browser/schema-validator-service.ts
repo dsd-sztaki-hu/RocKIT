@@ -43,25 +43,6 @@ export class SchemaValidatorService implements SchemaValidator {
     }
   }
 
-  protected nowMs(): number {
-    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-      return performance.now();
-    }
-    return Date.now();
-  }
-
-  protected roundMs(value: number): number {
-    return Number(value.toFixed(2));
-  }
-
-  protected getGraphEntityCount(crate: Record<string, any> | undefined): number {
-    return Array.isArray(crate?.['@graph']) ? crate['@graph'].length : 0;
-  }
-
-  protected logValidationPerf(operation: string, data: Record<string, any>): void {
-    console.info(`[schema-validator-service:perf] ${operation}`, data);
-  }
-
   protected getCacheNamespace(): string {
     return `ctx:${this.contextRevision}`;
   }
@@ -361,8 +342,6 @@ export class SchemaValidatorService implements SchemaValidator {
     baseProfile: Record<string, any>,
     entityIds: string[] | Set<string>,
   ): Promise<ValidationError[] | undefined> {
-    const totalStartedAt = this.nowMs();
-    const graphEntityCount = this.getGraphEntityCount(crate);
     const targetEntityIds = new Set<string>();
     for (const rawId of entityIds) {
       const id = typeof rawId === 'string' ? rawId.trim() : '';
@@ -373,37 +352,19 @@ export class SchemaValidatorService implements SchemaValidator {
 
     if (!crate || !Array.isArray(crate['@graph']) || !baseProfile || targetEntityIds.size === 0) {
       this.lastRunMode = 'incremental';
-      this.logValidationPerf('validateEntitiesTargeted', {
-        mode: 'skipped',
-        reason: targetEntityIds.size === 0 ? 'missing-target-entity-ids' : 'missing-crate-graph-or-profile',
-        totalMs: this.roundMs(this.nowMs() - totalStartedAt),
-        graphEntityCount,
-        targetEntityCount: targetEntityIds.size,
-      });
       return this.flattenErrorMap(this.previousErrorsByEntity);
     }
 
     if (this.previousEntityHashes.size === 0) {
-      this.logValidationPerf('validateEntitiesTargeted', {
-        mode: 'fallback-full',
-        reason: 'missing-previous-validation-state',
-        totalMs: this.roundMs(this.nowMs() - totalStartedAt),
-        graphEntityCount,
-        targetEntityCount: targetEntityIds.size,
-      });
       return this.validateEntities(crate, baseProfile);
     }
 
     const profileList = this.appStateService.profileList;
     const completeProfile = this.appStateService.completeProfile;
-    const contextStartedAt = this.nowMs();
-    const contextChange = this.refreshValidationContext(baseProfile, profileList, completeProfile);
-    const contextMs = this.nowMs() - contextStartedAt;
+    this.refreshValidationContext(baseProfile, profileList, completeProfile);
 
-    const collectTargetsStartedAt = this.nowMs();
-    const { hashes: targetHashes, removedIds, scannedCount } =
+    const { hashes: targetHashes, removedIds } =
       this.collectTargetEntityHashes(crate, targetEntityIds);
-    const collectTargetHashesMs = this.nowMs() - collectTargetsStartedAt;
 
     this.abortActiveValidation();
     this.abortActiveFullSweep();
@@ -413,9 +374,7 @@ export class SchemaValidatorService implements SchemaValidator {
 
     try {
       let partialErrors: ValidationError[] | undefined = undefined;
-      let runEntityValidationMs = 0;
       if (targetHashes.size > 0) {
-        const validationStartedAt = this.nowMs();
         partialErrors = await runEntityValidation(
           crate,
           baseProfile,
@@ -430,34 +389,10 @@ export class SchemaValidatorService implements SchemaValidator {
             completeProfile,
           },
         );
-        runEntityValidationMs = this.nowMs() - validationStartedAt;
       }
 
       this.lastRunMode = 'incremental';
-      const applyStartedAt = this.nowMs();
       const result = this.applyTargetedResult(targetEntityIds, removedIds, partialErrors, targetHashes);
-      const applyResultMs = this.nowMs() - applyStartedAt;
-
-      this.logValidationPerf('validateEntitiesTargeted', {
-        mode: 'targeted',
-        totalMs: this.roundMs(this.nowMs() - totalStartedAt),
-        contextMs: this.roundMs(contextMs),
-        collectTargetHashesMs: this.roundMs(collectTargetHashesMs),
-        runEntityValidationMs: this.roundMs(runEntityValidationMs),
-        applyResultMs: this.roundMs(applyResultMs),
-        graphEntityCount,
-        scannedCount,
-        targetEntityCount: targetEntityIds.size,
-        foundTargetEntityCount: targetHashes.size,
-        removedCount: removedIds.size,
-        errorCount: result?.length ?? 0,
-        rawErrorCount: partialErrors?.length ?? 0,
-        cachedEntityErrorCount: this.previousErrorsByEntity.size,
-        compiledRuleCacheSize: this.compiledRuleCache.size,
-        contextChanged: contextChange.changed,
-        forceFullContext: contextChange.forceFull,
-        affectedProfileCount: contextChange.affectedProfileIds.size,
-      });
 
       return result;
     } finally {
@@ -471,42 +406,25 @@ export class SchemaValidatorService implements SchemaValidator {
     crate: Record<string, any>,
     baseProfile: Record<string, any>,
   ): Promise<ValidationError[] | undefined> {
-    const totalStartedAt = this.nowMs();
-    const graphEntityCount = this.getGraphEntityCount(crate);
-
     if (!crate || !Array.isArray(crate['@graph']) || !baseProfile) {
       this.previousEntityHashes.clear();
       this.previousErrorsByEntity.clear();
       this.compiledRuleCache.clear();
       this.lastRunMode = 'full';
-      this.logValidationPerf('validateEntities', {
-        mode: 'skipped',
-        reason: 'missing-crate-graph-or-profile',
-        totalMs: this.roundMs(this.nowMs() - totalStartedAt),
-        graphEntityCount,
-      });
       return undefined;
     }
 
     const profileList = this.appStateService.profileList;
     const completeProfile = this.appStateService.completeProfile;
-    const contextStartedAt = this.nowMs();
     const contextChange = this.refreshValidationContext(baseProfile, profileList, completeProfile);
-    const contextMs = this.nowMs() - contextStartedAt;
 
-    const collectHashesStartedAt = this.nowMs();
     const currentHashes = this.collectEntityHashes(crate);
-    const collectHashesMs = this.nowMs() - collectHashesStartedAt;
 
     const hasPreviousState = this.previousEntityHashes.size > 0;
-    const diffStartedAt = this.nowMs();
     const { changedIds, removedIds } = this.computeDiff(currentHashes);
-    const diffMs = this.nowMs() - diffStartedAt;
-    const profileAffectedStartedAt = this.nowMs();
     const profileAffectedEntityIds = contextChange.forceFull
       ? new Set<string>()
       : this.collectEntityIdsForProfiles(crate, contextChange.affectedProfileIds);
-    const profileAffectedMs = this.nowMs() - profileAffectedStartedAt;
     const invalidatedIds = new Set<string>(changedIds);
     for (const id of profileAffectedEntityIds) {
       invalidatedIds.add(id);
@@ -514,31 +432,7 @@ export class SchemaValidatorService implements SchemaValidator {
 
     if (!contextChange.changed && hasPreviousState && changedIds.size === 0 && removedIds.size === 0) {
       this.lastRunMode = 'cached';
-      const flattenStartedAt = this.nowMs();
       const cached = this.flattenErrorMap(this.previousErrorsByEntity);
-      const flattenErrorsMs = this.nowMs() - flattenStartedAt;
-      this.logValidationPerf('validateEntities', {
-        mode: this.lastRunMode,
-        totalMs: this.roundMs(this.nowMs() - totalStartedAt),
-        contextMs: this.roundMs(contextMs),
-        collectHashesMs: this.roundMs(collectHashesMs),
-        diffMs: this.roundMs(diffMs),
-        profileAffectedMs: this.roundMs(profileAffectedMs),
-        flattenErrorsMs: this.roundMs(flattenErrorsMs),
-        graphEntityCount,
-        currentEntityCount: currentHashes.size,
-        changedCount: changedIds.size,
-        removedCount: removedIds.size,
-        invalidatedCount: invalidatedIds.size,
-        affectedProfileCount: contextChange.affectedProfileIds.size,
-        profileAffectedEntityCount: profileAffectedEntityIds.size,
-        errorCount: cached.length,
-        cachedEntityErrorCount: this.previousErrorsByEntity.size,
-        compiledRuleCacheSize: this.compiledRuleCache.size,
-        contextChanged: contextChange.changed,
-        forceFullContext: contextChange.forceFull,
-        hasPreviousState,
-      });
       return cached.length ? cached : undefined;
     }
 
@@ -558,7 +452,6 @@ export class SchemaValidatorService implements SchemaValidator {
           contextChange.affectedProfileIds.size === 0);
 
       if (shouldRunFull) {
-        const validationStartedAt = this.nowMs();
         const fullErrors = await runEntityValidation(
           crate,
           baseProfile,
@@ -572,38 +465,9 @@ export class SchemaValidatorService implements SchemaValidator {
             completeProfile,
           },
         );
-        const runEntityValidationMs = this.nowMs() - validationStartedAt;
 
         this.lastRunMode = 'full';
-        const applyStartedAt = this.nowMs();
         const result = this.applyFullResult(fullErrors, currentHashes);
-        const applyResultMs = this.nowMs() - applyStartedAt;
-
-        this.logValidationPerf('validateEntities', {
-          mode: this.lastRunMode,
-          totalMs: this.roundMs(this.nowMs() - totalStartedAt),
-          contextMs: this.roundMs(contextMs),
-          collectHashesMs: this.roundMs(collectHashesMs),
-          diffMs: this.roundMs(diffMs),
-          profileAffectedMs: this.roundMs(profileAffectedMs),
-          runEntityValidationMs: this.roundMs(runEntityValidationMs),
-          applyResultMs: this.roundMs(applyResultMs),
-          graphEntityCount,
-          currentEntityCount: currentHashes.size,
-          changedCount: changedIds.size,
-          removedCount: removedIds.size,
-          invalidatedCount: invalidatedIds.size,
-          affectedProfileCount: contextChange.affectedProfileIds.size,
-          profileAffectedEntityCount: profileAffectedEntityIds.size,
-          targetEntityCount: currentHashes.size,
-          errorCount: result?.length ?? 0,
-          rawErrorCount: fullErrors?.length ?? 0,
-          cachedEntityErrorCount: this.previousErrorsByEntity.size,
-          compiledRuleCacheSize: this.compiledRuleCache.size,
-          contextChanged: contextChange.changed,
-          forceFullContext: contextChange.forceFull,
-          hasPreviousState,
-        });
 
         return result;
       }
@@ -616,9 +480,7 @@ export class SchemaValidatorService implements SchemaValidator {
       }
 
       let partialErrors: ValidationError[] | undefined = undefined;
-      let runEntityValidationMs = 0;
       if (targetEntityIds.size > 0) {
-        const validationStartedAt = this.nowMs();
         partialErrors = await runEntityValidation(
           crate,
           baseProfile,
@@ -633,39 +495,10 @@ export class SchemaValidatorService implements SchemaValidator {
             completeProfile,
           },
         );
-        runEntityValidationMs = this.nowMs() - validationStartedAt;
       }
 
       this.lastRunMode = 'incremental';
-      const applyStartedAt = this.nowMs();
       const result = this.applyIncrementalResult(invalidatedIds, removedIds, partialErrors, currentHashes);
-      const applyResultMs = this.nowMs() - applyStartedAt;
-
-      this.logValidationPerf('validateEntities', {
-        mode: this.lastRunMode,
-        totalMs: this.roundMs(this.nowMs() - totalStartedAt),
-        contextMs: this.roundMs(contextMs),
-        collectHashesMs: this.roundMs(collectHashesMs),
-        diffMs: this.roundMs(diffMs),
-        profileAffectedMs: this.roundMs(profileAffectedMs),
-        runEntityValidationMs: this.roundMs(runEntityValidationMs),
-        applyResultMs: this.roundMs(applyResultMs),
-        graphEntityCount,
-        currentEntityCount: currentHashes.size,
-        changedCount: changedIds.size,
-        removedCount: removedIds.size,
-        invalidatedCount: invalidatedIds.size,
-        affectedProfileCount: contextChange.affectedProfileIds.size,
-        profileAffectedEntityCount: profileAffectedEntityIds.size,
-        targetEntityCount: targetEntityIds.size,
-        errorCount: result?.length ?? 0,
-        rawErrorCount: partialErrors?.length ?? 0,
-        cachedEntityErrorCount: this.previousErrorsByEntity.size,
-        compiledRuleCacheSize: this.compiledRuleCache.size,
-        contextChanged: contextChange.changed,
-        forceFullContext: contextChange.forceFull,
-        hasPreviousState,
-      });
 
       return result;
     } finally {
@@ -679,39 +512,25 @@ export class SchemaValidatorService implements SchemaValidator {
     crate: Record<string, any>,
     baseProfile: Record<string, any>,
   ): Promise<ValidationError[] | undefined> {
-    const totalStartedAt = this.nowMs();
-    const graphEntityCount = this.getGraphEntityCount(crate);
-
     if (!crate || !Array.isArray(crate['@graph']) || !baseProfile) {
       this.previousEntityHashes.clear();
       this.previousErrorsByEntity.clear();
       this.compiledRuleCache.clear();
       this.lastRunMode = 'full';
-      this.logValidationPerf('validateEntitiesFull', {
-        mode: 'skipped',
-        reason: 'missing-crate-graph-or-profile',
-        totalMs: this.roundMs(this.nowMs() - totalStartedAt),
-        graphEntityCount,
-      });
       return undefined;
     }
 
     const profileList = this.appStateService.profileList;
     const completeProfile = this.appStateService.completeProfile;
-    const contextStartedAt = this.nowMs();
     this.refreshValidationContext(baseProfile, profileList, completeProfile);
-    const contextMs = this.nowMs() - contextStartedAt;
 
-    const collectHashesStartedAt = this.nowMs();
     const currentHashes = this.collectEntityHashes(crate);
-    const collectHashesMs = this.nowMs() - collectHashesStartedAt;
 
     this.abortActiveFullSweep();
     const controller = new AbortController();
     this.activeFullSweepController = controller;
 
     try {
-      const validationStartedAt = this.nowMs();
       const fullErrors = await runEntityValidation(
         crate,
         baseProfile,
@@ -725,28 +544,9 @@ export class SchemaValidatorService implements SchemaValidator {
           completeProfile,
         },
       );
-      const runEntityValidationMs = this.nowMs() - validationStartedAt;
 
       this.lastRunMode = 'full';
-      const applyStartedAt = this.nowMs();
       const result = this.applyFullResult(fullErrors, currentHashes);
-      const applyResultMs = this.nowMs() - applyStartedAt;
-
-      this.logValidationPerf('validateEntitiesFull', {
-        mode: this.lastRunMode,
-        totalMs: this.roundMs(this.nowMs() - totalStartedAt),
-        contextMs: this.roundMs(contextMs),
-        collectHashesMs: this.roundMs(collectHashesMs),
-        runEntityValidationMs: this.roundMs(runEntityValidationMs),
-        applyResultMs: this.roundMs(applyResultMs),
-        graphEntityCount,
-        currentEntityCount: currentHashes.size,
-        targetEntityCount: currentHashes.size,
-        errorCount: result?.length ?? 0,
-        rawErrorCount: fullErrors?.length ?? 0,
-        cachedEntityErrorCount: this.previousErrorsByEntity.size,
-        compiledRuleCacheSize: this.compiledRuleCache.size,
-      });
 
       return result;
     } finally {

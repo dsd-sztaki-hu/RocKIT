@@ -56,7 +56,6 @@ export const RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU: MenuPath = [
 export class RoCrateStructurePanelWidget extends ReactWidget {
     static readonly ID = 'dataset-panel:widget'
     protected instanceId: string = ''
-    protected renderPerfSeq = 0
     protected cachedCrateRef: Record<string, any> | undefined
     protected cachedRoot: CrateNode | undefined
     protected cachedTreeData: TreeDataNode[] | undefined
@@ -116,14 +115,20 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         this.invalidEntityIds = this.buildInvalidEntityIdSet(
             this.appStateService.validationErrors,
         )
+        this.validationIssueCount = this.appStateService.validationErrors?.length ?? 0
         this.validationSubscription = this.appStateService.onDidChangeSelector(
             (s) => s.validationErrors,
         )((errors) => {
             const next = this.buildInvalidEntityIdSet(errors)
-            if (this.sameEntityIdSet(this.invalidEntityIds, next)) {
+            const nextCount = errors?.length ?? 0
+            if (
+                this.validationIssueCount === nextCount &&
+                this.sameEntityIdSet(this.invalidEntityIds, next)
+            ) {
                 return
             }
             this.invalidEntityIds = next
+            this.validationIssueCount = nextCount
             this.update()
         })
         this.shellFocusSubscription = this.shell.onDidChangeCurrentWidget(({ newValue }) => {
@@ -159,6 +164,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
     // validation + selection
     protected invalidEntityIds = new Set<string>()
+    protected validationIssueCount = 0
     protected selectedEntityIds = new Set<string>()
     protected selectedKeys: React.Key[] = []
     protected lastSelectedEntityId: string | undefined
@@ -174,21 +180,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
 
     protected MemoTooltip: React.ComponentType<any> = React.memo(Tooltip as any)
-
-    protected nowMs(): number {
-        if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-            return performance.now()
-        }
-        return Date.now()
-    }
-
-    protected roundMs(value: number): number {
-        return Number(value.toFixed(2))
-    }
-
-    protected logPerf(label: string, data: Record<string, any>): void {
-        console.info(`[ro-crate-structure-panel:perf] ${label}`, data)
-    }
 
     protected invalidateTreeCache(): void {
         this.cachedCrateRef = undefined
@@ -462,7 +453,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     // - ctrl/cmd+click: toggle specific row
     // - shift+click: additive range selection across expanded rows
     protected handleTreeSelect = (_keys: React.Key[], info: any): void => {
-        const startedAt = this.nowMs()
         this.focusContainer()
 
         const entityId = info.node?.entityId
@@ -484,17 +474,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         if (event?.altKey) {
             void this.openRoCrateEditor(entityId, { forceNewWindow: true })
         }
-
-        this.logPerf('select', {
-            totalMs: this.roundMs(this.nowMs() - startedAt),
-            entityId,
-            selectedEntityCount: this.selectedEntityIds.size,
-            selectedKeyCount: this.selectedKeys.length,
-            usedIndexedKey: nodeKey !== undefined && this.getNodeKeyForEntity(entityId) === nodeKey,
-            shiftKey: Boolean(event?.shiftKey),
-            toggleKey: Boolean(event?.ctrlKey || event?.metaKey),
-            altKey: Boolean(event?.altKey),
-        })
     }
 
     protected handleEntityDoubleClick(
@@ -502,7 +481,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         event: React.MouseEvent,
         nodeKey?: React.Key,
     ): void {
-        const startedAt = this.nowMs()
         event.preventDefault()
         event.stopPropagation()
         if (event.altKey || event.shiftKey) {
@@ -510,13 +488,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         }
         this.selectSingle(entityId, nodeKey)
         void this.openRoCrateEditor(entityId)
-        this.logPerf('doubleClick', {
-            totalMs: this.roundMs(this.nowMs() - startedAt),
-            entityId,
-            selectedEntityCount: this.selectedEntityIds.size,
-            selectedKeyCount: this.selectedKeys.length,
-            hadNodeKey: nodeKey !== undefined,
-        })
     }
 
     protected selectSingle(entityId: string, nodeKey?: React.Key): void {
@@ -786,15 +757,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         entityId: string,
         options?: { forceNewWindow?: boolean },
     ): Promise<void> {
-        const startedAt = this.nowMs()
-        let mode = 'unknown'
         if (!entityId) {
             return
         }
         const forceNewWindow = options?.forceNewWindow === true
         const dedupeByEntity = !forceNewWindow
         if (dedupeByEntity && this.openingEntities.has(entityId)) {
-            mode = 'deduped'
             return
         }
         if (dedupeByEntity) {
@@ -811,7 +779,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 if (existingWidgetId) {
                     const existing = this.shell.getWidgetById(existingWidgetId)
                     if (existing) {
-                        mode = 'existing-entity-editor'
                         this.ensureWidgetInMain(existing)
                         this.appStateService.registerEntityEditor(existingWidgetId, entityId)
                         await this.shell.activateWidget(existing.id)
@@ -822,7 +789,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
                 const lastFocusedEditor = this.getPreferredRoCrateEditorWidget()
                 if (lastFocusedEditor) {
-                    mode = 'retarget-focused-editor'
                     this.ensureWidgetInMain(lastFocusedEditor)
                     this.appStateService.registerEntityEditor(lastFocusedEditor.id, entityId)
                     await this.shell.activateWidget(lastFocusedEditor.id)
@@ -836,7 +802,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 instanceId,
                 entityId,
             })
-            mode = forceNewWindow ? 'new-forced-editor' : 'new-editor'
 
             const addOptions: {
                 area: 'main'
@@ -863,12 +828,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             if (dedupeByEntity) {
                 this.openingEntities.delete(entityId)
             }
-            this.logPerf('openRoCrateEditor', {
-                totalMs: this.roundMs(this.nowMs() - startedAt),
-                entityId,
-                mode,
-                forceNewWindow,
-            })
         }
     }
 
@@ -993,32 +952,19 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
 
     render(): React.ReactNode {
-        const renderStartedAt = this.nowMs()
-        const seq = ++this.renderPerfSeq
         const crateToUse = this.appStateService.roCrate
-        const graphEntityCount = Array.isArray(crateToUse?.['@graph'])
-            ? crateToUse['@graph'].length
-            : 0
 
         let root: CrateNode | undefined
         let treeData: TreeDataNode[] = []
-        let buildCrateTreeMs = 0
-        let buildTreeDataMs = 0
-        let cacheHit = false
 
         if (crateToUse === this.cachedCrateRef && this.cachedTreeData) {
-            cacheHit = true
             root = this.cachedRoot
             treeData = this.cachedTreeData
         } else {
-            const buildCrateTreeStartedAt = this.nowMs()
             const built = this.buildCrateTree(crateToUse)
             root = built.root
-            buildCrateTreeMs = this.nowMs() - buildCrateTreeStartedAt
 
-            const treeDataStartedAt = this.nowMs()
             treeData = this.buildTreeDataFromRoot(root)
-            buildTreeDataMs = this.nowMs() - treeDataStartedAt
 
             this.cachedCrateRef = crateToUse
             this.cachedRoot = root
@@ -1176,20 +1122,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         const result = (
             <AntdThemeProvider themeService={this.themeService}>{content}</AntdThemeProvider>
         )
-
-        const totalMs = this.nowMs() - renderStartedAt
-        console.info('[ro-crate-structure-panel:perf] render', {
-            seq,
-            totalMs: Number(totalMs.toFixed(2)),
-            graphEntityCount,
-            selectedEntityCount: this.selectedEntityIds.size,
-            invalidEntityCount: this.invalidEntityIds.size,
-            buildCrateTreeMs: Number(buildCrateTreeMs.toFixed(2)),
-            buildTreeDataMs: Number(buildTreeDataMs.toFixed(2)),
-            cacheHit,
-            rootPresent: Boolean(root),
-            treeNodeCount: treeData.length,
-        })
 
         return result
     }
