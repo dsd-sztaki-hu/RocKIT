@@ -29,6 +29,7 @@ import {
 } from './services/native-dataverse-export-service'
 import { NativeDataverseImportService } from './services/native-dataverse-import-service'
 import { RoCrateFileHashService } from './services/ro-crate-file-hash-service'
+import { ZenodoExportService } from './services/zenodo-export-service'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
 
@@ -68,6 +69,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly capabilityService: DataverseCapabilityService,
     @inject(RoCrateFileHashService)
     protected readonly fileHashService: RoCrateFileHashService,
+    @inject(ZenodoExportService)
+    protected readonly zenodoExportService: ZenodoExportService,
     @inject(AppStateService)
     protected readonly appStateService: AppStateService,
   ) {
@@ -236,6 +239,30 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const selectedRepo = repositorySelection.repository
     const capabilities = repositorySelection.capabilities
     const selectedExportTarget = repositorySelection.exportTarget
+
+    if (capabilities.supportsZenodoApi) {
+      const progress = await this.messageService.showProgress({
+        text: `Uploading RO-Crate ZIP to ${selectedRepo.title}...`,
+      })
+      try {
+        const exportResult =
+          await this.zenodoExportService.createDraftAndUploadRoCrate(selectedRepo)
+        this.messageService.info(
+          `Zenodo draft deposition created: ${exportResult.target}. Uploaded ${exportResult.filename}.`,
+          { timeout: 10000 },
+        )
+        console.log('RO-Crate ZIP exported to Zenodo:', exportResult)
+      } catch (error) {
+        console.error('Zenodo RO-Crate export failed:', error)
+        this.messageService.error(
+          `Zenodo export failed: ${error instanceof Error ? error.message : String(error)}`,
+          { timeout: 10000 },
+        )
+      } finally {
+        progress.cancel()
+      }
+      return
+    }
 
     if (!capabilities.supportsNativeDataverseApi) {
       this.messageService.error(

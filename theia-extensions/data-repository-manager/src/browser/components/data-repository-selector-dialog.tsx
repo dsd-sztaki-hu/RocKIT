@@ -34,8 +34,10 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
             title: 'Select Data Repository'
         });
 
-        this.contentNode.style.width = '500px';
-        this.contentNode.style.height = '400px';
+        this.contentNode.style.width = '720px';
+        this.contentNode.style.maxWidth = '90vw';
+        this.contentNode.style.height = '560px';
+        this.contentNode.style.maxHeight = '85vh';
         this.contentNode.style.padding = '0';
 
         if (this.onShowRecentValidationResponse) {
@@ -94,7 +96,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                         <div>
                             <div className="data-repo-selector__title">Choose Repository</div>
                             <div className="data-repo-selector__description">
-                                Select a remote repository to browse collections.
+                                Select a remote repository for import or export.
                             </div>
                         </div>
                     </div>
