@@ -216,6 +216,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const exportTargetsByRepositoryId = this.mergeExportTargets(
       await this.arpExportService.listExportTargets(repositories),
       await this.nativeExportService.listExportTargets(repositories),
+      await this.zenodoExportService.listExportTargets(repositories),
     )
 
     // Show repository selector first, matching the UX requested.
@@ -242,16 +243,30 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     if (capabilities.supportsZenodoApi) {
       const progress = await this.messageService.showProgress({
-        text: `Uploading RO-Crate ZIP to ${selectedRepo.title}...`,
+        text: `Uploading RO-Crate files to ${selectedRepo.title}...`,
       })
       try {
         const exportResult =
-          await this.zenodoExportService.createDraftAndUploadRoCrate(selectedRepo)
+          await this.zenodoExportService.createDraftAndUploadRoCrate(
+            selectedRepo,
+            (update) =>
+              progress.report({
+                message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+                work: {
+                  done: update.completedSteps,
+                  total: update.totalSteps,
+                },
+              }),
+          )
         this.messageService.info(
-          `Zenodo draft deposition created: ${exportResult.target}. Uploaded ${exportResult.filename}.`,
+          `Zenodo draft deposition created: ${exportResult.target}. Uploaded ${exportResult.uploadedFiles.length} file(s).`,
           { timeout: 10000 },
         )
-        console.log('RO-Crate ZIP exported to Zenodo:', exportResult)
+        this.messageService.info(
+          'Zenodo metadata defaults were applied: upload type dataset, access right open, and license cc-zero. These can be changed in Zenodo.',
+          { timeout: 12000 },
+        )
+        console.log('RO-Crate files exported to Zenodo:', exportResult)
       } catch (error) {
         console.error('Zenodo RO-Crate export failed:', error)
         this.messageService.error(

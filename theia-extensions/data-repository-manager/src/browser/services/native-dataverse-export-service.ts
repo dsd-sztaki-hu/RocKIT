@@ -322,7 +322,7 @@ export class NativeDataverseExportService {
         reportProgress?.({
             completedSteps: totalSteps,
             totalSteps,
-            message: 'Uploaded rewritten ro-crate-metadata.json.'
+            message: 'Dataverse export complete.'
         });
         const target = this.buildPidTarget(persistentId) || persistentId;
         await this.appendExportLog(rootUri, {
@@ -1201,11 +1201,6 @@ export class NativeDataverseExportService {
                 message: `Uploading ${file.entryPath}...`
             });
             results.push(await this.uploadFile(baseUrl, apiKey, persistentId, file));
-            reportProgress?.({
-                completedSteps: completedOffset + index + 1,
-                totalSteps,
-                message: `Uploaded ${file.entryPath}.`
-            });
         }
         return results;
     }

@@ -1,5 +1,4 @@
-import JSZip = require('jszip')
-
+import { BinaryBuffer } from '@theia/core/lib/common/buffer'
 import { FileUri } from '@theia/core/lib/common/file-uri'
 import { URI } from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -9,24 +8,69 @@ import {
   RoCrateExportFileSource,
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import { inject, injectable } from 'inversify'
-import { DataRepositoryConfig } from '../types'
+import { DataRepositoryConfig, DataRepositoryExportTarget } from '../types'
 
 type RoCrateEntity = Record<string, unknown>
 type RoCrate = Record<string, unknown>
+type RoCrateEntityIdMapping = Record<string, string>
 
 interface LocalizedExternalFileReferences {
   entries: Map<string, URI>
+  originalToUploadIds: Map<string, string>
+}
+
+interface ZenodoUploadFile {
+  filename: string
+  content: Blob
+  size: number
+  entityId?: string
+}
+
+interface ZenodoDepositionMetadata {
+  upload_type: 'dataset'
+  publication_date: string
+  title: string
+  creators: Array<{ name: string }>
+  description: string
+  access_right: 'open'
+  license: 'cc-zero'
 }
 
 export interface ZenodoExportResult {
   depositionId: string
   target: string
   bucketUrl: string
-  filename: string
-  size: number
+  uploadedFiles: Array<{
+    filename: string
+    size: number
+    response: unknown
+    remoteId?: string
+    entityId?: string
+  }>
+  mappingFileName: string
+  unmappedEntityIds: string[]
+  metadata: ZenodoDepositionMetadata
   createResponse: unknown
-  uploadResponse: unknown
 }
+
+export interface ZenodoExportProgress {
+  completedSteps: number
+  totalSteps: number
+  message: string
+}
+
+export type ZenodoExportProgressReporter = (progress: ZenodoExportProgress) => void
+
+interface ExportLogEntry {
+  target: string
+  repository: string
+  mappingFile: string
+  syncType: 'create' | 'update'
+  syncedAt: string
+  datasetName?: string
+}
+
+const EXPORT_LOG_FILE_NAME = 'export-log.json'
 
 @injectable()
 export class ZenodoExportService {
@@ -37,6 +81,7 @@ export class ZenodoExportService {
 
   public async createDraftAndUploadRoCrate(
     repository: DataRepositoryConfig,
+    reportProgress?: ZenodoExportProgressReporter,
   ): Promise<ZenodoExportResult> {
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const token = repository.apiKey?.trim()
@@ -46,18 +91,26 @@ export class ZenodoExportService {
 
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
+    const depositionMetadata = this.buildDepositionMetadata(crate, rootUri)
     const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
     const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
       uploadCrate,
       rootUri,
     )
-    const zip = await this.buildRoCrateZip(
+    const uploadFiles = await this.buildUploadFiles(
       uploadCrate,
       rootUri,
       localizedExternalFiles.entries,
     )
+    const totalSteps = uploadFiles.length + 2
+    let completedSteps = 0
 
     const createUrl = new URL('/api/deposit/depositions', `${baseUrl}/`)
+    reportProgress?.({
+      completedSteps,
+      totalSteps,
+      message: 'Creating Zenodo draft deposition...',
+    })
     const createResponse = await this.fetchWithTimeout(createUrl.toString(), {
       method: 'POST',
       headers: {
@@ -65,7 +118,7 @@ export class ZenodoExportService {
         authorization: `Bearer ${token}`,
         'content-type': 'application/json',
       },
-      body: '{}',
+      body: JSON.stringify({ metadata: depositionMetadata }),
     })
     const createPayload = await this.readResponsePayload(createResponse)
     if (!createResponse.ok) {
@@ -79,34 +132,122 @@ export class ZenodoExportService {
     if (!depositionId || !bucketUrl) {
       throw new Error('Zenodo created a deposition, but the response did not include an id and bucket link.')
     }
+    completedSteps += 1
 
-    const filename = 'ro-crate.zip'
-    const uploadUrl = `${bucketUrl.replace(/\/+$/, '')}/${encodeURIComponent(filename)}`
-    const uploadResponse = await this.fetchWithTimeout(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        accept: 'application/json',
-        authorization: `Bearer ${token}`,
-        'content-type': 'application/octet-stream',
-      },
-      body: new Blob([zip], { type: 'application/octet-stream' }),
-    })
-    const uploadPayload = await this.readResponsePayload(uploadResponse)
-    if (!uploadResponse.ok) {
-      throw new Error(
-        `Zenodo RO-Crate upload failed (${uploadResponse.status}) at ${uploadResponse.url || uploadUrl}: ${this.payloadSummary(uploadPayload)}`,
-      )
+    const uploadedFiles: ZenodoExportResult['uploadedFiles'] = []
+    for (const file of uploadFiles) {
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: `Uploading ${file.filename}...`,
+      })
+      const uploadUrl = `${bucketUrl.replace(/\/+$/, '')}/${encodeURIComponent(file.filename)}`
+      const uploadResponse = await this.fetchWithTimeout(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          accept: 'application/json',
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/octet-stream',
+        },
+        body: file.content,
+      })
+      const uploadPayload = await this.readResponsePayload(uploadResponse)
+      if (!uploadResponse.ok) {
+        throw new Error(
+          `Zenodo file upload failed for '${file.filename}' (${uploadResponse.status}) at ${uploadResponse.url || uploadUrl}: ${this.payloadSummary(uploadPayload)}`,
+        )
+      }
+      uploadedFiles.push({
+        filename: file.filename,
+        size: file.size,
+        response: uploadPayload,
+        remoteId: this.extractUploadedFileRemoteId(uploadPayload),
+        entityId: file.entityId,
+      })
+      completedSteps += 1
     }
+
+    reportProgress?.({
+      completedSteps,
+      totalSteps,
+      message: 'Writing local export mapping...',
+    })
+    const uploadMapping = this.buildEntityIdMapping(uploadCrate, uploadedFiles)
+    const metadataMapping = this.toMetadataEntityIdMapping(
+      crate,
+      uploadMapping,
+      localizedExternalFiles.originalToUploadIds,
+    )
+    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
+    await this.saveEntityIdMapping(rootUri, mappingFileName, metadataMapping)
+    const target =
+      this.extractHtmlUrl(createPayload) ??
+      `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`
+    await this.appendExportLog(rootUri, {
+      target,
+      repository: baseUrl,
+      mappingFile: mappingFileName,
+      syncType: 'create',
+      syncedAt: new Date().toISOString(),
+      datasetName: this.getRootDatasetName(crate),
+    })
+    const unmappedEntityIds = Object.entries(metadataMapping)
+      .filter(([, remoteId]) => !remoteId)
+      .map(([metadataId]) => metadataId)
+    reportProgress?.({
+      completedSteps: totalSteps,
+      totalSteps,
+      message: 'Zenodo export complete.',
+    })
 
     return {
       depositionId,
-      target: this.extractHtmlUrl(createPayload) ?? `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`,
+      target,
       bucketUrl,
-      filename,
-      size: zip.byteLength,
+      uploadedFiles,
+      mappingFileName,
+      unmappedEntityIds,
+      metadata: depositionMetadata,
       createResponse: createPayload,
-      uploadResponse: uploadPayload,
     }
+  }
+
+  public async listExportTargets(
+    repositories: DataRepositoryConfig[],
+  ): Promise<Record<string, DataRepositoryExportTarget[]>> {
+    const rootUri = this.getWorkspaceRoot()
+    const currentDatasetName = await this.tryReadCurrentRootDatasetName(rootUri)
+    const entries = await this.readExportLogEntries(
+      rootUri.resolve('.rockit').resolve(EXPORT_LOG_FILE_NAME),
+    )
+    const targetsByRepositoryId: Record<string, DataRepositoryExportTarget[]> = {}
+
+    for (const repository of repositories) {
+      const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+      const latestByMappingFile = new Map<string, DataRepositoryExportTarget>()
+      for (const entry of entries) {
+        if (this.normalizeBaseUrl(entry.repository) !== baseUrl) {
+          continue
+        }
+        const depositionId = this.extractDepositionIdFromTarget(entry.target)
+        if (!depositionId || !entry.mappingFile) {
+          continue
+        }
+        latestByMappingFile.set(entry.mappingFile, {
+          pid: depositionId,
+          target: entry.target,
+          repository: entry.repository,
+          mappingFile: entry.mappingFile,
+          syncedAt: entry.syncedAt,
+          syncType: entry.syncType,
+          datasetName: currentDatasetName ?? entry.datasetName,
+        })
+      }
+      targetsByRepositoryId[repository.id] = Array.from(latestByMappingFile.values())
+        .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
+    }
+
+    return targetsByRepositoryId
   }
 
   protected getWorkspaceRoot(): URI {
@@ -132,14 +273,20 @@ export class ZenodoExportService {
     }
   }
 
-  protected async buildRoCrateZip(
+  protected async buildUploadFiles(
     crate: RoCrate,
     rootUri: URI,
     externalFileEntries = new Map<string, URI>(),
-  ): Promise<Uint8Array> {
-    const zip = new JSZip()
-    zip.file('ro-crate-metadata.json', `${JSON.stringify(crate, null, 2)}\n`)
-
+  ): Promise<ZenodoUploadFile[]> {
+    const metadataContent = `${JSON.stringify(crate, null, 2)}\n`
+    const files: ZenodoUploadFile[] = [
+      {
+        filename: 'ro-crate-metadata.json',
+        content: new Blob([metadataContent], { type: 'application/octet-stream' }),
+        size: new TextEncoder().encode(metadataContent).byteLength,
+        entityId: 'ro-crate-metadata.json',
+      },
+    ]
     const fileEntries = new Map(externalFileEntries)
     for (const relativePath of this.extractCrateFilePaths(crate)) {
       if (relativePath === 'ro-crate-metadata.json' || fileEntries.has(relativePath)) {
@@ -150,7 +297,7 @@ export class ZenodoExportService {
         throw new Error(`Refusing to include path outside crate root: ${relativePath}`)
       }
       if (!(await this.fileService.exists(uri))) {
-        throw new Error(`Referenced file not found for ZIP upload: ${relativePath}`)
+        throw new Error(`Referenced file not found for Zenodo upload: ${relativePath}`)
       }
       const stat = await this.fileService.resolve(uri)
       if (stat.isDirectory) {
@@ -159,14 +306,62 @@ export class ZenodoExportService {
       fileEntries.set(relativePath, uri)
     }
 
+    const zenodoFilenameByEntryPath = this.buildZenodoFilenameMap(Array.from(fileEntries.keys()))
     for (const [name, uri] of Array.from(fileEntries.entries()).sort((a, b) =>
       a[0].localeCompare(b[0]),
     )) {
       const content = await this.fileService.readFile(uri)
-      zip.file(name, content.value.buffer)
+      files.push({
+        filename: zenodoFilenameByEntryPath.get(name) ?? this.sanitizeZenodoFilename(name),
+        content: new Blob([content.value.buffer], { type: 'application/octet-stream' }),
+        size: content.value.buffer.byteLength,
+        entityId: name,
+      })
     }
 
-    return zip.generateAsync({ type: 'uint8array', compression: 'STORE' })
+    return files
+  }
+
+  protected buildDepositionMetadata(
+    crate: RoCrate,
+    rootUri: URI,
+  ): ZenodoDepositionMetadata {
+    const graph = this.readGraphEntities(crate)
+    const root = graph.find((entity) => entity['@id'] === './')
+    const title =
+      (root ? this.firstMeaningfulString(root.title, root.name) : undefined) ??
+      this.workspaceName(rootUri) ??
+      'Untitled RO-Crate'
+    const description =
+      (root
+        ? this.firstMeaningfulString(
+            root.description,
+            ...this.resolveEntities(root.dsDescription, graph).flatMap((entity) => [
+              entity.dsDescriptionValue,
+              entity.description,
+              entity.name,
+            ]),
+          )
+        : undefined) ?? 'RO-Crate exported from AROMA.'
+    const creators = root
+      ? this.extractCreators(root, graph).map((name) => ({ name }))
+      : []
+
+    if (!creators.length) {
+      throw new Error(
+        'Zenodo export requires at least one creator. Add an author name to the RO-Crate root Dataset before exporting.',
+      )
+    }
+
+    return {
+      upload_type: 'dataset',
+      publication_date: this.currentDate(),
+      title,
+      creators,
+      description,
+      access_right: 'open',
+      license: 'cc-zero',
+    }
   }
 
   protected async localizeExternalLocalFileReferences(
@@ -174,6 +369,7 @@ export class ZenodoExportService {
     rootUri: URI,
   ): Promise<LocalizedExternalFileReferences> {
     const externalFileEntries = new Map<string, URI>()
+    const originalToUploadIds = new Map<string, string>()
     const localizedReferences = await localizeExternalRoCrateFileReferences(crate, {
       existingEntryPaths: this.extractCrateFilePaths(crate),
       resolveLocalSource: async (sources) => {
@@ -184,9 +380,10 @@ export class ZenodoExportService {
 
     for (const reference of localizedReferences) {
       externalFileEntries.set(reference.importedPath, reference.resolvedSource)
+      originalToUploadIds.set(reference.reference.entityId, reference.importedPath)
     }
 
-    return { entries: externalFileEntries }
+    return { entries: externalFileEntries, originalToUploadIds }
   }
 
   protected async resolveFirstReadableLocalSource(
@@ -306,6 +503,310 @@ export class ZenodoExportService {
       throw new Error('Repository base URL is empty.')
     }
     return normalized
+  }
+
+  protected buildZenodoFilenameMap(entryPaths: string[]): Map<string, string> {
+    const used = new Set<string>()
+    const filenames = new Map<string, string>()
+    for (const entryPath of entryPaths) {
+      const preferred = this.sanitizeZenodoFilename(entryPath)
+      let candidate = preferred
+      let suffix = 2
+      while (used.has(candidate)) {
+        candidate = this.addFilenameSuffix(preferred, suffix)
+        suffix += 1
+      }
+      used.add(candidate)
+      filenames.set(entryPath, candidate)
+    }
+    return filenames
+  }
+
+  protected sanitizeZenodoFilename(filename: string): string {
+    const sanitized = filename
+      .replace(/\\/g, '/')
+      .replace(/\//g, '__')
+      .replace(/[\u0000-\u001f]/g, '_')
+      .trim()
+    return sanitized || 'file'
+  }
+
+  protected addFilenameSuffix(filename: string, suffix: number): string {
+    const index = filename.lastIndexOf('.')
+    if (index <= 0) {
+      return `${filename}-${suffix}`
+    }
+    return `${filename.slice(0, index)}-${suffix}${filename.slice(index)}`
+  }
+
+  protected buildEntityIdMapping(
+    crate: RoCrate,
+    uploadedFiles: ZenodoExportResult['uploadedFiles'],
+  ): RoCrateEntityIdMapping {
+    const remoteIdsByEntityId = new Map(
+      uploadedFiles
+        .filter((file) => !!file.entityId)
+        .map((file) => [file.entityId as string, file.remoteId ?? '']),
+    )
+    const mapping: RoCrateEntityIdMapping = {}
+    for (const [entityId, remoteId] of remoteIdsByEntityId) {
+      mapping[entityId] = remoteId
+    }
+    return Object.fromEntries(
+      Object.entries(mapping).sort((a, b) => a[0].localeCompare(b[0])),
+    )
+  }
+
+  protected toMetadataEntityIdMapping(
+    metadataCrate: RoCrate,
+    uploadMapping: RoCrateEntityIdMapping,
+    originalToUploadIds: Map<string, string>,
+  ): RoCrateEntityIdMapping {
+    const mapping: RoCrateEntityIdMapping = {}
+    for (const [uploadId, remoteId] of Object.entries(uploadMapping)) {
+      const metadataId = this.metadataEntityIdForUploadId(uploadId, originalToUploadIds)
+      mapping[metadataId] = remoteId
+    }
+    return Object.fromEntries(
+      Object.entries(mapping).sort((a, b) => a[0].localeCompare(b[0])),
+    )
+  }
+
+  protected metadataEntityIdForUploadId(
+    uploadId: string,
+    originalToUploadIds: Map<string, string>,
+  ): string {
+    for (const [originalId, localizedUploadId] of originalToUploadIds) {
+      if (localizedUploadId === uploadId) {
+        return originalId
+      }
+    }
+    return uploadId
+  }
+
+  protected extractUploadedFileRemoteId(payload: unknown): string | undefined {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return undefined
+    }
+    const record = payload as Record<string, unknown>
+    for (const key of ['id', 'key', 'filename']) {
+      const value = record[key]
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim()
+      }
+      if (typeof value === 'number') {
+        return String(value)
+      }
+    }
+    const links = this.extractLinks(payload)
+    for (const key of ['self', 'download']) {
+      const value = links?.[key]
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim()
+      }
+    }
+    return undefined
+  }
+
+  protected getRootDatasetName(crate: RoCrate): string | undefined {
+    const root = this.readGraphEntities(crate).find((entity) => entity['@id'] === './')
+    return root
+      ? this.readOptionalEntityString(root, 'title') ??
+          this.readOptionalEntityString(root, 'name')
+      : undefined
+  }
+
+  protected extractCreators(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
+    const authorEntities = this.uniqueEntities([
+      ...this.resolveEntities(root.author, graph),
+      ...this.entitiesWithType(graph, 'author'),
+    ])
+    const names = [
+      ...authorEntities.flatMap((entity) =>
+        this.readStrings(
+          entity.authorName ??
+            entity['author-name'] ??
+            entity.name ??
+            entity.givenName ??
+            entity.familyName,
+        ),
+      ),
+      ...this.readStrings(root.author).filter((value) => !this.looksLikeEntityId(value)),
+    ]
+    return this.uniqueStrings(names)
+  }
+
+  protected resolveEntities(value: unknown, graph: RoCrateEntity[]): RoCrateEntity[] {
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => this.resolveEntities(item, graph))
+    }
+    if (value && typeof value === 'object') {
+      const entity = value as RoCrateEntity
+      const linkedEntity = this.readStrings(entity['@id'])
+        .map((id) => graph.find((graphEntity) => graphEntity['@id'] === id))
+        .find((graphEntity): graphEntity is RoCrateEntity => !!graphEntity)
+      return linkedEntity ? [linkedEntity] : [entity]
+    }
+    return this.readStrings(value)
+      .map((id) => graph.find((graphEntity) => graphEntity['@id'] === id))
+      .filter((entity): entity is RoCrateEntity => !!entity)
+  }
+
+  protected entitiesWithType(graph: RoCrateEntity[], typeName: string): RoCrateEntity[] {
+    return graph.filter((entity) => this.entityTypes(entity).includes(typeName))
+  }
+
+  protected uniqueEntities(entities: RoCrateEntity[]): RoCrateEntity[] {
+    const seen = new Set<string>()
+    const unique: RoCrateEntity[] = []
+    for (const entity of entities) {
+      const key = this.readStrings(entity['@id'])[0] ?? JSON.stringify(entity)
+      if (seen.has(key)) {
+        continue
+      }
+      seen.add(key)
+      unique.push(entity)
+    }
+    return unique
+  }
+
+  protected firstMeaningfulString(...values: unknown[]): string | undefined {
+    return values
+      .flatMap((value) => this.readStrings(value))
+      .find((value) => value !== './' && value !== '.')
+  }
+
+  protected readStrings(value: unknown): string[] {
+    if (typeof value === 'string') {
+      return value.trim() ? [value.trim()] : []
+    }
+    if (Array.isArray(value)) {
+      return this.uniqueStrings(value.flatMap((item) => this.readStrings(item)))
+    }
+    return []
+  }
+
+  protected uniqueStrings(values: string[]): string[] {
+    return Array.from(new Set(values.filter((value) => value.trim() !== '')))
+  }
+
+  protected looksLikeEntityId(value: string): boolean {
+    return (
+      value.startsWith('#') ||
+      value.startsWith('./') ||
+      /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)
+    )
+  }
+
+  protected workspaceName(rootUri: URI): string | undefined {
+    const path = rootUri.path
+    const name = path.base
+    return name && name !== '/' ? name : undefined
+  }
+
+  protected currentDate(): string {
+    return new Date().toISOString().slice(0, 10)
+  }
+
+  protected async tryReadCurrentRootDatasetName(rootUri: URI): Promise<string | undefined> {
+    try {
+      return this.getRootDatasetName(
+        await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json')),
+      )
+    } catch {
+      return undefined
+    }
+  }
+
+  protected async createUniqueMappingFileName(rootUri: URI): Promise<string> {
+    const rockitUri = rootUri.resolve('.rockit')
+    if (!(await this.fileService.exists(rockitUri))) {
+      await this.fileService.createFolder(rockitUri)
+    }
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const fileName = `${this.randomId(16)}.json`
+      if (!(await this.fileService.exists(rockitUri.resolve(fileName)))) {
+        return fileName
+      }
+    }
+    return `${Date.now()}-${this.randomId(16)}.json`
+  }
+
+  protected async saveEntityIdMapping(
+    rootUri: URI,
+    mappingFileName: string,
+    mapping: RoCrateEntityIdMapping,
+  ): Promise<void> {
+    const rockitUri = rootUri.resolve('.rockit')
+    if (!(await this.fileService.exists(rockitUri))) {
+      await this.fileService.createFolder(rockitUri)
+    }
+    await this.fileService.writeFile(
+      rockitUri.resolve(mappingFileName),
+      BinaryBuffer.fromString(`${JSON.stringify(mapping, null, 2)}\n`),
+    )
+  }
+
+  protected async appendExportLog(rootUri: URI, entry: ExportLogEntry): Promise<void> {
+    const rockitUri = rootUri.resolve('.rockit')
+    if (!(await this.fileService.exists(rockitUri))) {
+      await this.fileService.createFolder(rockitUri)
+    }
+    const logUri = rockitUri.resolve(EXPORT_LOG_FILE_NAME)
+    const entries = await this.readExportLogEntries(logUri)
+    entries.push(entry)
+    await this.fileService.writeFile(
+      logUri,
+      BinaryBuffer.fromString(`${JSON.stringify(entries, null, 2)}\n`),
+    )
+  }
+
+  protected async readExportLogEntries(logUri: URI): Promise<ExportLogEntry[]> {
+    if (!(await this.fileService.exists(logUri))) {
+      return []
+    }
+    try {
+      const parsed = JSON.parse((await this.fileService.readFile(logUri)).value.toString())
+      return Array.isArray(parsed)
+        ? parsed.filter(
+            (entry): entry is ExportLogEntry =>
+              !!entry && typeof entry === 'object' && !Array.isArray(entry),
+          )
+        : []
+    } catch (error) {
+      console.warn('Failed to parse .rockit/export-log.json; starting a new export log.', error)
+      return []
+    }
+  }
+
+  protected extractDepositionIdFromTarget(value: string): string | undefined {
+    const trimmed = value.trim()
+    const direct = trimmed.match(/^(?:zenodo:)?(\d+)$/i)
+    if (direct) {
+      return direct[1]
+    }
+    try {
+      const url = new URL(trimmed)
+      const match = url.pathname.match(/\/(?:deposit|record)\/(\d+)/)
+      return match?.[1]
+    } catch {
+      return undefined
+    }
+  }
+
+  protected randomId(length: number): string {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    const bytes = new Uint8Array(length)
+    window.crypto.getRandomValues(bytes)
+    return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('')
+  }
+
+  protected readOptionalEntityString(
+    entity: RoCrateEntity,
+    key: string,
+  ): string | undefined {
+    const value = entity[key]
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined
   }
 
   protected extractDepositionId(payload: unknown): string | undefined {

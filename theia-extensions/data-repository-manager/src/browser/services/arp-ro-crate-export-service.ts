@@ -321,11 +321,6 @@ export class ArpRoCrateExportService {
       uploadMapping[file.localId] = uploadedFileId
       metadataMapping[uploadIdToMetadataId[file.localId] ?? file.localId] = uploadedFileId
       completedSteps += 1
-      reportProgress?.({
-        completedSteps,
-        totalSteps,
-        message: `Uploaded ${file.localId}.`,
-      })
     }
     for (const file of changedFilesToReplace) {
       reportProgress?.({
@@ -358,11 +353,6 @@ export class ArpRoCrateExportService {
       metadataMapping[uploadIdToMetadataId[file.localId] ?? file.localId] =
         replacementFileId
       completedSteps += 1
-      reportProgress?.({
-        completedSteps,
-        totalSteps,
-        message: `Replaced ${file.localId}.`,
-      })
     }
     for (const file of diff.removedFiles) {
       reportProgress?.({
@@ -384,11 +374,6 @@ export class ArpRoCrateExportService {
       this.removeMappingEntriesByRemoteId(uploadMapping, file.remoteId)
       this.removeMappingEntriesByRemoteId(metadataMapping, file.remoteId)
       completedSteps += 1
-      reportProgress?.({
-        completedSteps,
-        totalSteps,
-        message: `Removed ${file.remoteId}.`,
-      })
     }
     reportProgress?.({
       completedSteps,
