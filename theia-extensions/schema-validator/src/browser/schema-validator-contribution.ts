@@ -1,20 +1,32 @@
 import { injectable } from '@theia/core/shared/inversify';
 import { MenuModelRegistry } from '@theia/core';
 import { SchemaValidatorWidget } from './schema-validator-widget';
-import { AbstractViewContribution, FrontendApplicationContribution } from '@theia/core/lib/browser';
+import { AbstractViewContribution, FrontendApplicationContribution, OpenerService, codicon } from '@theia/core/lib/browser';
+import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { Command, CommandRegistry } from '@theia/core/lib/common/command';
+import { ApplicationServer } from '@theia/core/lib/common/application-protocol';
 import { inject } from '@theia/core/shared/inversify';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
+import { openRockitDocumentationPage, ROCKIT_DOCUMENTATION_PAGES } from 'rockit-common/lib/browser';
 
 export const SchemaValidatorCommand: Command = { id: 'validation-errors:command' };
+export const SchemaValidatorDocumentationCommand: Command = {
+    id: 'validation-errors:open-documentation',
+    label: 'Open Validation Errors Documentation',
+    iconClass: codicon('info')
+};
 
 @injectable()
 export class SchemaValidatorContribution
     extends AbstractViewContribution<SchemaValidatorWidget>
-    implements FrontendApplicationContribution {
+    implements FrontendApplicationContribution, TabBarToolbarContribution {
 
     @inject(AppStateService)
     protected readonly appStateService!: AppStateService;
+    @inject(ApplicationServer)
+    protected readonly applicationServer!: ApplicationServer;
+    @inject(OpenerService)
+    protected readonly openerService!: OpenerService;
 
     protected previousValidationErrorCount = 0;
 
@@ -70,6 +82,15 @@ export class SchemaValidatorContribution
         commands.registerCommand(SchemaValidatorCommand, {
             execute: () => super.openView({ activate: false, reveal: true })
         });
+        commands.registerCommand(SchemaValidatorDocumentationCommand, {
+            execute: () => openRockitDocumentationPage(
+                this.applicationServer,
+                this.openerService,
+                ROCKIT_DOCUMENTATION_PAGES.VALIDATION,
+            ),
+            isEnabled: widget => widget instanceof SchemaValidatorWidget,
+            isVisible: widget => widget instanceof SchemaValidatorWidget
+        });
     }
 
     /**
@@ -88,5 +109,14 @@ export class SchemaValidatorContribution
      */
     registerMenus(menus: MenuModelRegistry): void {
         super.registerMenus(menus);
+    }
+
+    async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
+        toolbarRegistry.registerItem({
+            id: SchemaValidatorDocumentationCommand.id,
+            command: SchemaValidatorDocumentationCommand.id,
+            tooltip: SchemaValidatorDocumentationCommand.label,
+            priority: -100
+        });
     }
 }

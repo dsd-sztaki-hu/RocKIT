@@ -13,6 +13,8 @@ import { ApplicationRoCrateMenuContribution } from './application-ro-crate-menu-
 import { ApplicationViewMenuOverrides } from './application-view-menu-overrides'
 import { ConnectionNotificationContribution } from './connection-notification-contribution'
 import { FileEditorLanguageContribution } from './file-editor-language-contribution'
+import { HelpIconsToggleContribution } from './help-icons-toggle-contribution'
+import '../../src/browser/style/help-icons.css'
 import '../../src/browser/style/panel-backgrounds.css'
 
 export default new ContainerModule((bind) => {
@@ -40,4 +42,8 @@ export default new ContainerModule((bind) => {
   bind(FrontendApplicationContribution).toService(RoCrateDefaultLayoutContribution)
   bind(FileEditorLanguageContribution).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(FileEditorLanguageContribution)
+  bind(HelpIconsToggleContribution).toSelf().inSingletonScope()
+  bind(FrontendApplicationContribution).toService(HelpIconsToggleContribution)
+  bind(CommandContribution).toService(HelpIconsToggleContribution)
+  bind(MenuContribution).toService(HelpIconsToggleContribution)
 })

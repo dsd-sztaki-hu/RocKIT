@@ -1,8 +1,13 @@
 import { Command, CommandRegistry, MenuModelRegistry } from '@theia/core'
-import { AbstractViewContribution, codicon } from '@theia/core/lib/browser'
+import { AbstractViewContribution, codicon, OpenerService } from '@theia/core/lib/browser'
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar'
-import { injectable } from '@theia/core/shared/inversify'
-import { RoCrateDeleteSelectedEntitiesCommand } from 'rockit-common/lib/browser'
+import { ApplicationServer } from '@theia/core/lib/common/application-protocol'
+import { inject, injectable } from '@theia/core/shared/inversify'
+import {
+  openRockitDocumentationPage,
+  ROCKIT_DOCUMENTATION_PAGES,
+  RoCrateDeleteSelectedEntitiesCommand,
+} from 'rockit-common/lib/browser'
 // import { ExampleTreeNode } from './entities-overview-model'
 import {
   EntitiesOverviewWidget,
@@ -29,6 +34,12 @@ export const ExpandAllEntitiesOverviewNodes: Command = {
   iconClass: codicon('expand-all'),
 }
 
+export const OpenEntitiesOverviewDocumentation: Command = {
+  id: 'entities-overview:open-documentation',
+  label: 'Open Entities Documentation',
+  iconClass: codicon('info'),
+}
+
 export const EntitiesOverviewContextEditCommand: Command = {
   id: 'entities-overview:context-edit',
   label: 'Edit',
@@ -45,7 +56,10 @@ export const EntitiesOverviewContextEditCommand: Command = {
  */
 @injectable()
 export class EntitiesOverviewViewContribution extends AbstractViewContribution<EntitiesOverviewWidget> implements TabBarToolbarContribution {
-  constructor() {
+  constructor(
+    @inject(ApplicationServer) protected readonly applicationServer: ApplicationServer,
+    @inject(OpenerService) protected readonly openerService: OpenerService,
+  ) {
     super({
       widgetId: EntitiesOverviewWidget.ID,
       widgetName: EntitiesOverviewWidget.LABEL,
@@ -135,6 +149,16 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
       isVisible: (widget) => this.withWidget(widget, () => true) || false,
     })
 
+    commands.registerCommand(OpenEntitiesOverviewDocumentation, {
+      execute: () =>
+        openRockitDocumentationPage(
+          this.applicationServer,
+          this.openerService,
+          ROCKIT_DOCUMENTATION_PAGES.ENTITIES_PANEL,
+        ),
+      isEnabled: (widget) => this.withWidget(widget, () => true) || false,
+      isVisible: (widget) => this.withWidget(widget, () => true) || false,
+    })
   }
 
   async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
@@ -146,6 +170,13 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
       command: ToggleEntitiesOverviewFilters.id,
       tooltip: 'Show/Hide Filters',
       priority: 0,
+    })
+
+    toolbarRegistry.registerItem({
+      id: OpenEntitiesOverviewDocumentation.id,
+      command: OpenEntitiesOverviewDocumentation.id,
+      tooltip: OpenEntitiesOverviewDocumentation.label,
+      priority: -100,
     })
 
     toolbarRegistry.registerItem({

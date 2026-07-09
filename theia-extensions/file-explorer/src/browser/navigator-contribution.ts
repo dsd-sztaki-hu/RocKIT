@@ -42,6 +42,7 @@ import {
     PreferenceService,
     QuickInputService,
 } from '@theia/core/lib/common';
+import { ApplicationServer } from '@theia/core/lib/common/application-protocol';
 import {
     DidCreateNewResourceEvent,
     WorkspaceCommandContribution,
@@ -82,6 +83,10 @@ import {
     RoCrateDescriptionOperationsService,
     RoCrateWorkspaceResource
 } from './ro-crate-description-operations-service';
+import {
+    openRockitDocumentationPage,
+    ROCKIT_DOCUMENTATION_PAGES,
+} from 'rockit-common/lib/browser';
 export { FileNavigatorCommands };
 
 /**
@@ -199,6 +204,9 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
 
     @inject(OpenWithService)
     protected readonly openWithService: OpenWithService;
+
+    @inject(ApplicationServer)
+    protected readonly applicationServer: ApplicationServer;
 
     @inject(FileSearchService)
     protected readonly fileSearchService: FileSearchService;
@@ -400,6 +408,15 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             execute: (...args) => registry.executeCommand(AddDataSourceCommand.id, ...args),
             isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
             isVisible: widget => this.withWidget(widget, () => this.workspaceService.opened)
+        });
+        registry.registerCommand(FileNavigatorCommands.OPEN_DOCUMENTATION, {
+            execute: () => openRockitDocumentationPage(
+                this.applicationServer,
+                this.openerService,
+                ROCKIT_DOCUMENTATION_PAGES.WORKSPACE_AND_FILE_HANDLING,
+            ),
+            isEnabled: widget => this.withWidget(widget, () => true),
+            isVisible: widget => this.withWidget(widget, () => true)
         });
         registry.registerCommand(FileNavigatorCommands.REFRESH_NAVIGATOR, {
             execute: widget => this.withWidget(widget, () => this.refreshWorkspace()),
@@ -1293,6 +1310,12 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             command: FileNavigatorCommands.ADD_DATA_SOURCE_TOOLBAR.id,
             tooltip: AddDataSourceCommand.label,
             priority: 0,
+        });
+        toolbarRegistry.registerItem({
+            id: FileNavigatorCommands.OPEN_DOCUMENTATION.id,
+            command: FileNavigatorCommands.OPEN_DOCUMENTATION.id,
+            tooltip: FileNavigatorCommands.OPEN_DOCUMENTATION.label,
+            priority: -100,
         });
         toolbarRegistry.registerItem({
             id: FileNavigatorCommands.COLLAPSE_ALL.id,
