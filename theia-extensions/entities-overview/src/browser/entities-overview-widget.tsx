@@ -124,9 +124,19 @@ export class EntitiesOverviewWidget extends TreeWidget {
                 }
             }),
         )
+
+        this.toDispose.push(
+            this.onScroll(() => {
+                if (this.isScrolledToBottom()) {
+                    this.scheduleLoadMoreVisibleChildren()
+                }
+            }),
+        )
     }
 
     protected readonly openingEntities = new Set<string>()
+    protected loadMoreVisibleChildrenScheduled = false
+    protected loadingMoreVisibleChildren = false
 
     protected readonly simpleFilters = {
         entityNameFilter: '',
@@ -584,6 +594,34 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
     isFiltersVisible(): boolean {
         return this.filtersVisible
+    }
+
+    protected scheduleLoadMoreVisibleChildren(): void {
+        if (this.loadMoreVisibleChildrenScheduled || this.loadingMoreVisibleChildren) {
+            return
+        }
+
+        this.loadMoreVisibleChildrenScheduled = true
+        window.requestAnimationFrame(() => {
+            this.loadMoreVisibleChildrenScheduled = false
+            void this.loadMoreVisibleChildren()
+        })
+    }
+
+    protected async loadMoreVisibleChildren(): Promise<void> {
+        if (this.loadingMoreVisibleChildren || !this.isScrolledToBottom()) {
+            return
+        }
+
+        this.loadingMoreVisibleChildren = true
+        try {
+            const loaded = await this.model.loadMoreVisibleChildren()
+            if (loaded && this.isScrolledToBottom()) {
+                this.scheduleLoadMoreVisibleChildren()
+            }
+        } finally {
+            this.loadingMoreVisibleChildren = false
+        }
     }
 
     toggleFiltersVisibility(): void {
