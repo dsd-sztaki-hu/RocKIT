@@ -1,4 +1,5 @@
-import { MetadataSchemaManager } from "rockit-common/lib/browser";
+import type { MetadataSchemaManager } from "rockit-common/lib/browser";
+import { isMissingRoCrateEntityName } from "rockit-common/lib/common/ro-crate-entity-name";
 import type { AppState } from 'app-state/lib/browser/state/app-state';
 
 export type ValidationError = {
@@ -325,6 +326,35 @@ function validateWithCompiledRules(
   return errors;
 }
 
+function ensureRequiredEntityNameError(
+  entity: Record<string, any>,
+  entityType: string,
+  errors: ValidationError[],
+): ValidationError[] {
+  if (!isMissingRoCrateEntityName(entity.name)) {
+    return errors;
+  }
+  if (
+    errors.some(
+      error => error.fieldName === 'name' && error.errorCode === 'REQUIRED_NOT_SET',
+    )
+  ) {
+    return errors;
+  }
+  return [
+    errorFor(
+      entity,
+      entityType,
+      'name',
+      'Name',
+      'Required value not set',
+      'Kötelező érték nincs beállítva',
+      'REQUIRED_NOT_SET',
+    ),
+    ...errors,
+  ];
+}
+
 function extractConformsToIds(entity: Record<string, any>): string[] {
   const value: any = entity?.conformsTo;
   const ids: string[] = [];
@@ -452,7 +482,11 @@ export async function validateEntities(
       }
     }
 
-    const errors = validateWithCompiledRules(entity, entityType, compiledRules);
+    const errors = ensureRequiredEntityNameError(
+      entity,
+      entityType,
+      validateWithCompiledRules(entity, entityType, compiledRules),
+    );
     if (errors.length) {
       validationErrors.push(...errors);
     }
@@ -464,5 +498,9 @@ export async function validateEntities(
 export function validate(entity: Record<string, any>, profile: Record<string, any>) {
   const entityType = normalizeEntityType(entity);
   const rules = compileRulesForEntityType(entityType, profile);
-  return validateWithCompiledRules(entity, entityType, rules);
+  return ensureRequiredEntityNameError(
+    entity,
+    entityType,
+    validateWithCompiledRules(entity, entityType, rules),
+  );
 }

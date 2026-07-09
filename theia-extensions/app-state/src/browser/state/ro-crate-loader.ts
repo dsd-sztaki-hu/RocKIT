@@ -8,8 +8,15 @@ import { CommandService, MessageService, PreferenceService } from '@theia/core/l
 import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
-import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { MetadataSchemaManager, RoCrateHtmlGenerator, readUtf8TextFile, writeUtf8TextFile } from 'rockit-common/lib/browser'
+import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
+import {
+    findMissingRoCrateEntityNames,
+    MetadataSchemaManager,
+    repairMissingRoCrateEntityNames,
+    RoCrateHtmlGenerator,
+    readUtf8TextFile,
+    writeUtf8TextFile,
+} from 'rockit-common/lib/browser'
 import {
     ROCKIT_IGNORE_DIR,
     ROCKIT_IGNORE_FILE,
@@ -25,6 +32,7 @@ import {
     collectRoCrateChangedProperties,
     maintainRoCrateApprovalFile,
     parseRoCrateApprovalFile,
+    removeRoCrateApprovalProperties,
     RO_CRATE_APPROVAL_FILE,
     RO_CRATE_APPROVAL_FILE_NAME,
     type RoCrateApprovalFile,
@@ -33,10 +41,25 @@ import { AppStateService } from './app-state-service'
 import { RoCrateHistoryService } from './ro-crate-history-service'
 import { ROCrateDialog } from './ro-crate-dialog'
 import { RoCrateIdConversionDialog } from './ro-crate-id-conversion-dialog'
+import { RoCrateMissingNamesDialog } from './ro-crate-missing-names-dialog'
 
 // import { loadInitialCrateAndProfile } from './initial-state-loader'
 
 const REMOTE_RO_CRATE_CONVERSION_COMMAND_ID = 'RemoteRoCrateConversion.command'
+
+class RoCrateOpeningCancelledError extends Error {
+    constructor() {
+        super('RO-Crate opening was cancelled')
+        this.name = 'RoCrateOpeningCancelledError'
+    }
+}
+
+class RoCrateOpeningDeferredError extends Error {
+    constructor() {
+        super('RO-Crate opening was deferred until frontend startup completes')
+        this.name = 'RoCrateOpeningDeferredError'
+    }
+}
 
 @injectable()
 export class RoCrateLoaderContribution implements FrontendApplicationContribution {
@@ -84,6 +107,8 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     protected lastObservedConformsToKey = ''
     protected perfSeq = 0
     protected invalidMetadataPromptInFlight = false
+    protected frontendStarted = false
+    protected missingNamesPromptInFlight?: string
 
     /**
      * Critical: lets us distinguish between:
@@ -136,6 +161,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         this.workspaceService.onWorkspaceLocationChanged(() => {
             void this.syncRoCrateFromWorkspace()
         })
+        this.frontendStarted = true
     }
 
     public async refresh(): Promise<void> {
@@ -170,6 +196,12 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             await this.refreshCompleteProfile(crate)
             return changed
         } catch (parseError) {
+            if (
+                parseError instanceof RoCrateOpeningCancelledError ||
+                parseError instanceof RoCrateOpeningDeferredError
+            ) {
+                return false
+            }
             console.error('Parsing error: ', parseError)
             this.updateState(undefined, true)
             await this.refreshProfileList(undefined)
@@ -216,6 +248,12 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
                         await this.refreshProfileList(crate)
                         await this.refreshCompleteProfile(crate)
                     } catch (parseError) {
+                        if (
+                            parseError instanceof RoCrateOpeningCancelledError ||
+                            parseError instanceof RoCrateOpeningDeferredError
+                        ) {
+                            return
+                        }
                         console.error('Parsing error: ', parseError)
                         this.updateState(undefined, true)
                         await this.refreshProfileList(undefined)
@@ -282,6 +320,12 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             await this.refreshProfileList(crate)
             await this.refreshCompleteProfile(crate)
         } catch (error) {
+            if (
+                error instanceof RoCrateOpeningCancelledError ||
+                error instanceof RoCrateOpeningDeferredError
+            ) {
+                return
+            }
             this.updateState(undefined, true)
             await this.refreshProfileList(undefined)
             await this.refreshCompleteProfile(undefined)
@@ -292,11 +336,129 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         metadataUri: URI,
     ): Promise<Record<string, any>> {
         const crate = await this.readRoCrateJson(metadataUri)
-        return this.ensureRelativeIdsIfNeeded(metadataUri, crate)
+        const crateWithNormalizedIds = await this.ensureRelativeIdsIfNeeded(metadataUri, crate)
+        return this.ensureEntityNames(metadataUri, crateWithNormalizedIds)
     }
 
     private async readRoCrateJson(metadataUri: URI): Promise<Record<string, any>> {
         return JSON.parse(await readUtf8TextFile(this.fileService, metadataUri))
+    }
+
+    private async ensureEntityNames(
+        metadataUri: URI,
+        crate: Record<string, any>,
+    ): Promise<Record<string, any>> {
+        const missingNames = findMissingRoCrateEntityNames(crate)
+        if (missingNames.length === 0) {
+            return crate
+        }
+
+        if (!this.frontendStarted) {
+            this.deferMissingNamesPrompt(metadataUri, crate)
+            throw new RoCrateOpeningDeferredError()
+        }
+
+        return this.promptToGenerateMissingNames(metadataUri, crate)
+    }
+
+    private deferMissingNamesPrompt(
+        metadataUri: URI,
+        crate: Record<string, any>,
+    ): void {
+        const promptKey = metadataUri.toString()
+        if (this.missingNamesPromptInFlight === promptKey) {
+            return
+        }
+
+        this.missingNamesPromptInFlight = promptKey
+        this.updateState(undefined, false)
+        this.appStateService.profileList = undefined
+        this.appStateService.completeProfile = undefined
+
+        setTimeout(() => {
+            void (async () => {
+                try {
+                    const currentRoot = this.workspaceService.tryGetRoots()?.[0]?.resource
+                    if (
+                        !currentRoot ||
+                        currentRoot.resolve('ro-crate-metadata.json').toString() !== promptKey
+                    ) {
+                        return
+                    }
+                    await this.promptToGenerateMissingNames(metadataUri, crate)
+                    await this.syncRoCrateFromWorkspace()
+                } catch (error) {
+                    if (!(error instanceof RoCrateOpeningCancelledError)) {
+                        console.error('Failed to resolve missing RO-Crate entity names:', error)
+                        this.messageService.error(
+                            'Failed to generate missing RO-Crate entity names.',
+                        )
+                    }
+                } finally {
+                    if (this.missingNamesPromptInFlight === promptKey) {
+                        this.missingNamesPromptInFlight = undefined
+                    }
+                }
+            })()
+        }, 0)
+    }
+
+    private async promptToGenerateMissingNames(
+        metadataUri: URI,
+        crate: Record<string, any>,
+    ): Promise<Record<string, any>> {
+        const missingNames = findMissingRoCrateEntityNames(crate)
+        if (missingNames.length === 0) {
+            return crate
+        }
+
+        const dialog = new RoCrateMissingNamesDialog(missingNames)
+        const shouldGenerate = await dialog.open()
+        if (shouldGenerate !== true) {
+            await this.commandService.executeCommand(WorkspaceCommands.CLOSE.id)
+            throw new RoCrateOpeningCancelledError()
+        }
+
+        const repairedCrate = repairMissingRoCrateEntityNames(crate, missingNames)
+        this.appStateService.beginRoCrateSave()
+        try {
+            await writeUtf8TextFile(
+                this.fileService,
+                metadataUri,
+                JSON.stringify(repairedCrate, null, 2),
+            )
+
+            const existingApproval = await this.loadRoCrateApprovalForMetadata(metadataUri)
+            const repairedApproval = removeRoCrateApprovalProperties(
+                existingApproval,
+                missingNames
+                    .filter((issue): issue is typeof issue & { entityId: string } =>
+                        typeof issue.entityId === 'string',
+                    )
+                    .map((issue) => ({
+                        entityId: issue.entityId,
+                        propertyName: 'name',
+                    })),
+            )
+            if (existingApproval !== undefined) {
+                await this.writeRoCrateApprovalFile(metadataUri, repairedApproval)
+            }
+
+            try {
+                const previewUri = metadataUri.parent.resolve(RO_CRATE_PREVIEW_FILE)
+                const htmlContent = this.roCrateHtmlGenerator.generate(repairedCrate)
+                await writeUtf8TextFile(this.fileService, previewUri, htmlContent)
+            } catch (error) {
+                console.warn('Failed to update RO-Crate preview after generating names:', error)
+            }
+        } finally {
+            this.appStateService.endRoCrateSave()
+        }
+
+        this.messageService.info(
+            `Generated ${missingNames.length} missing entity ${missingNames.length === 1 ? 'name' : 'names'}.`,
+        )
+        return repairedCrate
     }
 
     private async ensureRelativeIdsIfNeeded(
@@ -707,6 +869,12 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             await this.refreshProfileList(crate)
             await this.refreshCompleteProfile(crate)
         } catch (error) {
+            if (
+                error instanceof RoCrateOpeningCancelledError ||
+                error instanceof RoCrateOpeningDeferredError
+            ) {
+                return
+            }
             console.error('Failed to reload RO-Crate after external change:', error)
             this.messageService.error(
                 'Failed to reload ro-crate-metadata.json after external change.',

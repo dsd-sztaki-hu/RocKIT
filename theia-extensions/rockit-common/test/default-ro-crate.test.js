@@ -4,6 +4,10 @@ const {
   createDefaultRoCrateWorkspace,
   withDefaultIgnoredEntries,
 } = require('../lib/common/default-ro-crate')
+const {
+  findMissingRoCrateEntityNames,
+  repairMissingRoCrateEntityNames,
+} = require('../lib/common/ro-crate-entity-name')
 
 async function main() {
   const files = new Map([
@@ -101,6 +105,37 @@ async function main() {
   const defaults = withDefaultIgnoredEntries(['custom.tmp'])
   assert.ok(defaults.includes('.rockit/'), 'Default ignored entries include .rockit/')
   assert.ok(defaults.includes('custom.tmp'), 'Custom entries survive normalization')
+
+  const crateWithMissingNames = {
+    '@graph': [
+      { '@id': '#contact', '@type': 'Person' },
+      { '@id': 'empty', '@type': 'Thing', name: '   ' },
+      { '@id': 'present', '@type': 'Thing', name: 'Present' },
+    ],
+  }
+  const missingNames = findMissingRoCrateEntityNames(crateWithMissingNames)
+  assert.deepEqual(missingNames, [
+    {
+      graphIndex: 0,
+      entityId: '#contact',
+      entityType: 'Person',
+      generatedName: 'contact',
+    },
+    {
+      graphIndex: 1,
+      entityId: 'empty',
+      entityType: 'Thing',
+      generatedName: 'empty',
+    },
+  ])
+  const repairedCrate = repairMissingRoCrateEntityNames(
+    crateWithMissingNames,
+    missingNames,
+  )
+  assert.equal(repairedCrate['@graph'][0].name, 'contact')
+  assert.equal(repairedCrate['@graph'][1].name, 'empty')
+  assert.equal(repairedCrate['@graph'][2].name, 'Present')
+  assert.equal(crateWithMissingNames['@graph'][0].name, undefined)
 
   console.log('rockit-common default RO-Crate test passed')
 }
