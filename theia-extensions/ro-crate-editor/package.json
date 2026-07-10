@@ -14,7 +14,8 @@
     "@theia/workspace": "1.65.2",
     "app-state": "0.0.1",
     "save-ro-crate": "0.0.0",
-    "rockit-common": "0.0.0"
+    "rockit-common": "0.0.0",
+    "rockit-loadmask": "0.0.0"
   },  
   "devDependencies": {
     "rimraf": "^5.0.0",

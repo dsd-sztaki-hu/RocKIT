@@ -1,5 +1,6 @@
 import {
     CompositeTreeNode,
+    DepthFirstTreeIterator,
     ExpandableTreeNode,
     SelectableTreeNode,
     TreeModelImpl,
@@ -232,6 +233,9 @@ export type ValidityFilter = 'all' | 'valid' | 'invalid'
 
 @injectable()
 export class EntitiesOverviewModel extends TreeModelImpl {
+    private static readonly INITIAL_RENDERED_CHILDREN = 150
+    private static readonly RENDERED_CHILDREN_BATCH = 200
+
     @inject(EntitiesOverviewTreeItemFactory)
     private readonly itemFactory: EntitiesOverviewTreeItemFactory
 
@@ -248,21 +252,54 @@ export class EntitiesOverviewModel extends TreeModelImpl {
     private readonly selectedEntityIds = new Set<string>()
     private lastSelectedEntityId: string | undefined
     private leafNodesByEntityId = new Map<string, ExampleTreeLeaf[]>()
-    private visibleEntityIds: string[] = []
-    private availableTypesCache:
-        | {
-              crate: Record<string, any> | undefined
-              profile: Record<string, any> | undefined
-              types: string[]
-          }
-        | undefined
 
     getSelectedEntityIds(): string[] {
         return Array.from(this.selectedEntityIds)
     }
 
     getVisibleEntityIds(): string[] {
-        return [...this.visibleEntityIds]
+        const root = this.tree.root
+        if (!root) {
+            return []
+        }
+        const unique = new Set<string>()
+        for (const node of new DepthFirstTreeIterator(root)) {
+            if (ExampleTreeLeaf.is(node)) {
+                const entityId = node.data.entityId
+                if (entityId) {
+                    unique.add(entityId)
+                }
+            }
+        }
+        return Array.from(unique)
+    }
+
+    async getVisibleEntityIdsAsync(
+        onProgress?: (worked: number) => void,
+    ): Promise<string[]> {
+        const root = this.tree.root
+        if (!root) {
+            return []
+        }
+        const unique = new Set<string>()
+        let processed = 0
+        let sliceStarted = performance.now()
+        for (const node of new DepthFirstTreeIterator(root)) {
+            if (ExampleTreeLeaf.is(node)) {
+                const entityId = node.data.entityId
+                if (entityId) {
+                    unique.add(entityId)
+                }
+            }
+            processed += 1
+            if (processed % 250 === 0 && performance.now() - sliceStarted >= 12) {
+                onProgress?.(processed)
+                await new Promise<void>((resolve) => setTimeout(resolve, 0))
+                sliceStarted = performance.now()
+            }
+        }
+        onProgress?.(processed)
+        return Array.from(unique)
     }
 
     clearSelection(): void {
@@ -392,27 +429,49 @@ export class EntitiesOverviewModel extends TreeModelImpl {
     }
 
     getAvailableTypes(): string[] {
-        const profile = this.appStateService.completeProfile
-        let result = this.availableTypesCache?.types
-        if (
-            result &&
-            this.availableTypesCache?.crate === this.currentCrate &&
-            this.availableTypesCache?.profile === profile
-        ) {
-        } else {
-            result = getAvailableTypes(this.currentCrate, profile)
-            this.availableTypesCache = {
-                crate: this.currentCrate,
-                profile,
-                types: result,
-            }
+        return getAvailableTypes(this.currentCrate, this.appStateService.completeProfile)
+    }
+
+    protected override handleExpansion(node: Readonly<ExpandableTreeNode>): void {
+        super.handleExpansion(node)
+        if (!ExampleTreeNode.is(node)) {
+            return
         }
-        return result
+
+        this.rebuildLeafIndex(this.tree.root)
+        this.updateLeafSelection(Array.from(this.selectedEntityIds))
+    }
+
+    async loadMoreVisibleChildren(
+        batchSize = EntitiesOverviewModel.RENDERED_CHILDREN_BATCH,
+    ): Promise<boolean> {
+        const root = this.tree.root
+        if (!root) {
+            return false
+        }
+
+        for (const node of new DepthFirstTreeIterator(root)) {
+            if (!ExampleTreeNode.is(node) || !node.expanded || !this.hasMoreChildren(node)) {
+                continue
+            }
+
+            this.appendChildren(node, batchSize)
+            this.rebuildLeafIndex(root)
+            await this.refresh(node)
+            return true
+        }
+
+        return false
     }
 
     private refreshFilteredTree(): void {
         // main: keep nodes stable between refreshes
-        const existingNodes = this.collectExistingNodes(this.tree.root)
+        const existingNodes = new Map<string, TreeNode>()
+        if (this.tree.root) {
+            for (const treeNode of new DepthFirstTreeIterator(this.tree.root)) {
+                existingNodes.set(treeNode.id, treeNode)
+            }
+        }
 
         const root: CompositeTreeNode = {
             id: ROOT_NODE_ID,
@@ -445,27 +504,11 @@ export class EntitiesOverviewModel extends TreeModelImpl {
             selected,
             this.advancedEntityMatcher,
         )
-
-        const nextLeafIndex = new Map<string, ExampleTreeLeaf[]>()
-        const nextVisibleEntityIds: string[] = []
-        const seenVisibleEntityIds = new Set<string>()
-        for (const item of groupedItems) {
-            const node = this.buildTreeNode(
-                item,
-                root,
-                existingNodes,
-                shouldExpand,
-                nextLeafIndex,
-                nextVisibleEntityIds,
-                seenVisibleEntityIds,
-            )
-            CompositeTreeNode.addChild(root, node)
-        }
-
+        groupedItems
+            .map((item) => this.buildTreeNode(item, root, existingNodes, shouldExpand))
+            .forEach((node) => CompositeTreeNode.addChild(root, node))
         this.tree.root = root
-
-        this.leafNodesByEntityId = nextLeafIndex
-        this.visibleEntityIds = nextVisibleEntityIds
+        this.rebuildLeafIndex(root)
 
         // keep leaf "selected" flags in sync after rebuild
         this.updateLeafSelection(Array.from(this.selectedEntityIds))
@@ -477,9 +520,6 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         parent: CompositeTreeNode,
         existingNodes: Map<string, TreeNode>,
         shouldExpand: boolean,
-        leafIndex: Map<string, ExampleTreeLeaf[]>,
-        visibleEntityIds: string[],
-        seenVisibleEntityIds: Set<string>,
     ): TreeNode {
         const freshNode = this.itemFactory.toTreeNode(item)
         const existing = existingNodes.get(freshNode.id)
@@ -489,67 +529,28 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         ;(node as ExampleTreeNode | ExampleTreeLeaf).data = item
 
         if (ExampleTreeNode.is(node)) {
-            const children = (item.children ?? []).map((child) =>
-                this.buildTreeNode(
-                    child,
-                    node,
-                    existingNodes,
-                    shouldExpand,
-                    leafIndex,
-                    visibleEntityIds,
-                    seenVisibleEntityIds,
-                ),
-            )
+            const sourceChildren = item.children ?? []
+            const existingChildCount =
+                existing && ExampleTreeNode.is(existing) ? existing.children.length : 0
+            const childLimit = shouldExpand
+                ? Math.min(
+                      sourceChildren.length,
+                      Math.max(
+                          existingChildCount,
+                          EntitiesOverviewModel.INITIAL_RENDERED_CHILDREN,
+                      ),
+                  )
+                : 0
+            const children = sourceChildren
+                .slice(0, childLimit)
+                .map((child) => this.buildTreeNode(child, node, existingNodes, shouldExpand))
             node.children = children
             if (!existing || !ExampleTreeNode.is(existing)) {
                 node.expanded = shouldExpand
             }
-        } else if (ExampleTreeLeaf.is(node)) {
-            this.addLeafToIndex(node, leafIndex, visibleEntityIds, seenVisibleEntityIds)
         }
 
         return node
-    }
-
-    private collectExistingNodes(root: TreeNode | undefined): Map<string, TreeNode> {
-        const existingNodes = new Map<string, TreeNode>()
-        if (!root) {
-            return existingNodes
-        }
-
-        const stack: TreeNode[] = [root]
-        while (stack.length > 0) {
-            const node = stack.pop()!
-            existingNodes.set(node.id, node)
-            if (CompositeTreeNode.is(node)) {
-                for (let index = node.children.length - 1; index >= 0; index -= 1) {
-                    stack.push(node.children[index])
-                }
-            }
-        }
-
-        return existingNodes
-    }
-
-    private addLeafToIndex(
-        node: ExampleTreeLeaf,
-        leafIndex: Map<string, ExampleTreeLeaf[]>,
-        visibleEntityIds: string[],
-        seenVisibleEntityIds: Set<string>,
-    ): void {
-        const entityId = node.data.entityId
-        if (!entityId) {
-            return
-        }
-
-        const bucket = leafIndex.get(entityId) ?? []
-        bucket.push(node)
-        leafIndex.set(entityId, bucket)
-
-        if (!seenVisibleEntityIds.has(entityId)) {
-            seenVisibleEntityIds.add(entityId)
-            visibleEntityIds.push(entityId)
-        }
     }
 
     private isSameNodeType(a: TreeNode, b: TreeNode): boolean {
@@ -561,6 +562,31 @@ export class EntitiesOverviewModel extends TreeModelImpl {
 
     private setParent(node: TreeNode, parent: CompositeTreeNode): void {
         ;(node as { parent: CompositeTreeNode | undefined }).parent = parent
+    }
+
+    private hasMoreChildren(node: ExampleTreeNode): boolean {
+        return node.children.length < (node.data.children?.length ?? 0)
+    }
+
+    private appendChildren(node: ExampleTreeNode, batchSize: number): TreeNode[] {
+        const sourceChildren = node.data.children ?? []
+        const start = node.children.length
+        const end = Math.min(sourceChildren.length, start + batchSize)
+        if (start >= end) {
+            return []
+        }
+
+        const children = node.children as TreeNode[]
+        const added = sourceChildren.slice(start, end).map((item) => {
+            const child = this.itemFactory.toTreeNode(item)
+            if (ExampleTreeLeaf.is(child) && child.data.entityId) {
+                child.data.selected = this.selectedEntityIds.has(child.data.entityId)
+            }
+            this.setParent(child, node)
+            return child
+        })
+        children.push(...added)
+        return added
     }
 
     // branch: update leaf node selection (requires EntitiesOverviewTree.notifyUpdated)
@@ -583,4 +609,24 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         }
     }
 
+    private rebuildLeafIndex(root: TreeNode | undefined): void {
+        const next = new Map<string, ExampleTreeLeaf[]>()
+        if (!root) {
+            this.leafNodesByEntityId = next
+            return
+        }
+        for (const node of new DepthFirstTreeIterator(root)) {
+            if (!ExampleTreeLeaf.is(node)) {
+                continue
+            }
+            const entityId = node.data.entityId
+            if (!entityId) {
+                continue
+            }
+            const bucket = next.get(entityId) ?? []
+            bucket.push(node)
+            next.set(entityId, bucket)
+        }
+        this.leafNodesByEntityId = next
+    }
 }

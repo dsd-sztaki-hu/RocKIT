@@ -11,6 +11,7 @@ export * from './antd-theme-provider';
 export * from './ro-crate-entity-delete-service';
 export * from './entity-icon-classes';
 export * from './utf8-text-file';
+export * from './documentation-url';
 
 // Future shared protocols will be exported below...
 // export * from '../common/validation-protocol';

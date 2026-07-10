@@ -35,6 +35,12 @@
   cursor: text;
 }
 
+.roCratePreviewHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .roCratePreviewCopyButton {
   background: none;
   border: none;

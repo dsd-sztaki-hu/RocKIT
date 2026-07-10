@@ -295,3 +295,15 @@
     font-size: 20px !important;
 }
 
+.data-repo-selector__validation-error-button {
+    color: var(--theia-inputValidation-errorForeground, var(--theia-errorForeground));
+    border-color: var(--theia-inputValidation-errorBorder, var(--theia-errorForeground));
+    background-color: var(--theia-inputValidation-errorBackground, var(--theia-button-secondaryBackground));
+}
+
+.data-repo-selector__validation-error-button:hover,
+.data-repo-selector__validation-error-button:focus {
+    color: var(--theia-inputValidation-errorForeground, var(--theia-errorForeground));
+    background-color: var(--theia-inputValidation-errorBackground, var(--theia-button-secondaryHoverBackground));
+    border-color: var(--theia-errorForeground);
+}

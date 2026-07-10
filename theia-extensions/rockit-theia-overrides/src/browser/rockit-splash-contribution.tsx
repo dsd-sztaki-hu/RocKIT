@@ -21,6 +21,7 @@ import {
 import URI from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from 'react'
+import { buildDocumentationUrl } from 'rockit-common/lib/browser'
 import { ROCKIT_SPLASH_SHOW_AT_STARTUP } from '../common/rockit-splash-preferences'
 
 import '../../src/browser/style/rockit-splash.css'
@@ -45,17 +46,6 @@ interface RockitSplashDialogProps {
   showAtStartup: boolean
   onShowAtStartupChanged: (value: boolean) => void
   onOpenLink: (url: string) => void
-}
-
-function documentationVersion(version: string): string {
-  const trimmed = version.trim().replace(/^v\s*/i, '')
-  const match = /^(\d+)\.(\d+)/.exec(trimmed)
-  return match ? `${match[1]}.${match[2]}` : 'latest'
-}
-
-function buildDocumentationUrl(version: string): string {
-  const segment = encodeURIComponent(documentationVersion(version))
-  return `https://repo.researchdata.hu/rockit/${segment}/`
 }
 
 function RockitSplashContent({

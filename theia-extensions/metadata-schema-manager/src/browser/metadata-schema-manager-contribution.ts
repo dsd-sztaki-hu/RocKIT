@@ -1,7 +1,10 @@
 // src/browser/metadata-schema-manager-contribution.ts
 import { injectable, inject } from 'inversify';
 import { Command, CommandContribution, CommandRegistry, MenuContribution, MenuModelRegistry } from '@theia/core/lib/common';
-import { FrontendApplicationContribution, WidgetManager, CommonMenus, ApplicationShell } from '@theia/core/lib/browser';
+import { FrontendApplicationContribution, WidgetManager, CommonMenus, ApplicationShell, OpenerService, codicon } from '@theia/core/lib/browser';
+import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
+import { ApplicationServer } from '@theia/core/lib/common/application-protocol';
+import { openRockitDocumentationPage, ROCKIT_DOCUMENTATION_PAGES } from 'rockit-common/lib/browser';
 import { METADATA_SCHEMA_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
 
 export namespace MetadataSchemaManagerCommands {
@@ -9,15 +12,22 @@ export namespace MetadataSchemaManagerCommands {
         id: 'metadata-schema-manager:open',
         label: 'Open Metadata Schema Manager'
     };
+    export const OPEN_DOCUMENTATION: Command = {
+        id: 'metadata-schema-manager:open-documentation',
+        label: 'Open Metadata Schema Manager Documentation',
+        iconClass: codicon('info')
+    };
 }
 
 @injectable()
-export class MetadataSchemaManagerContribution implements CommandContribution, MenuContribution, FrontendApplicationContribution {
+export class MetadataSchemaManagerContribution implements CommandContribution, MenuContribution, FrontendApplicationContribution, TabBarToolbarContribution {
     
     // Clean, standard Inversify constructor injection. Avoids double-initialization.
     constructor(
         @inject(WidgetManager) protected readonly widgetManager: WidgetManager,
-        @inject(ApplicationShell) protected readonly shell: ApplicationShell
+        @inject(ApplicationShell) protected readonly shell: ApplicationShell,
+        @inject(ApplicationServer) protected readonly applicationServer: ApplicationServer,
+        @inject(OpenerService) protected readonly openerService: OpenerService
     ) {}
 
     async initializeLayout(): Promise<void> {
@@ -40,6 +50,15 @@ export class MetadataSchemaManagerContribution implements CommandContribution, M
                 }
             }
         });
+        commands.registerCommand(MetadataSchemaManagerCommands.OPEN_DOCUMENTATION, {
+            execute: () => openRockitDocumentationPage(
+                this.applicationServer,
+                this.openerService,
+                ROCKIT_DOCUMENTATION_PAGES.METADATA_SCHEMA_MANAGER,
+            ),
+            isEnabled: widget => this.isMetadataSchemaManagerWidget(widget),
+            isVisible: widget => this.isMetadataSchemaManagerWidget(widget)
+        });
     }
 
     registerMenus(menus: MenuModelRegistry): void {
@@ -48,5 +67,18 @@ export class MetadataSchemaManagerContribution implements CommandContribution, M
             label: 'Metadata Schema Manager',
             order: 'z50'
         });
+    }
+
+    async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
+        toolbarRegistry.registerItem({
+            id: MetadataSchemaManagerCommands.OPEN_DOCUMENTATION.id,
+            command: MetadataSchemaManagerCommands.OPEN_DOCUMENTATION.id,
+            tooltip: MetadataSchemaManagerCommands.OPEN_DOCUMENTATION.label,
+            priority: -100
+        });
+    }
+
+    protected isMetadataSchemaManagerWidget(widget: unknown): boolean {
+        return Boolean(widget && typeof widget === 'object' && (widget as { id?: string }).id === METADATA_SCHEMA_MANAGER_WIDGET_ID);
     }
 }

@@ -14,6 +14,7 @@
     "app-state": "0.0.1",
     "rockit-common": "0.0.0",
     "multi-edit": "0.0.0",
+    "rockit-loadmask": "0.0.0",
     "ro-crate-editor": "0.0.0"
   },
   "devDependencies": {

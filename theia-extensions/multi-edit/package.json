@@ -12,7 +12,8 @@
     "@theia/core": "1.65.2",
     "antd": "^5.29.1",
     "app-state": "0.0.1",
-    "rockit-common": "0.0.0"
+    "rockit-common": "0.0.0",
+    "rockit-loadmask": "0.0.0"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",

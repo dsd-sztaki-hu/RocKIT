@@ -60,9 +60,18 @@ export namespace FileNavigatorCommands {
         id: 'navigator.addDataSource.toolbar',
         iconClass: codicon('add')
     };
+    export const OPEN_DOCUMENTATION: Command = Command.toDefaultLocalizedCommand({
+        id: 'navigator.openDocumentation',
+        label: 'Open Workspace Documentation',
+        iconClass: codicon('info')
+    });
     export const ADD_ROOT_FOLDER: Command = {
         id: 'navigator.addRootFolder'
     };
+    export const COPY_ROOT_PATH = Command.toDefaultLocalizedCommand({
+        id: 'navigator.copyRootPath',
+        label: 'Copy Path'
+    });
     export const FOCUS = Command.toDefaultLocalizedCommand({
         id: 'workbench.files.action.focusFilesExplorer',
         category: CommonCommands.FILE_CATEGORY,

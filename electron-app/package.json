@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "electron-app",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "homepage": "https://repo.researchdata.hu/rockit/",
   "author": {
     "name": "HUN-REN SZTAKI, DSD",
@@ -26,6 +26,7 @@
     "app-state": "0.0.1",
     "app-state-sample": "0.0.1",
     "rockit-common": "0.0.0",
+    "rockit-loadmask": "0.0.0",
     "rocrate-mcp-server": "0.0.1",
     "data-repository-manager": "0.0.0",
     "data-sources": "0.0.0",
@@ -88,7 +89,8 @@
       "node_modules/rocrate-context-core/**",
       "node_modules/cedar-template-converter/**",
       "node_modules/metadata-profile-core/**",
-      "node_modules/@modelcontextprotocol/sdk/**"
+      "node_modules/@modelcontextprotocol/sdk/**",
+      "lib/build/Release/**"
     ],
     "win": {
       "icon": "../resources/icon.ico"

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TreeView } from '@mui/x-tree-view/TreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -43,6 +43,10 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
     const [rawSearchInput, setRawSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+    const isFiltering = rawSearchInput.trim() !== searchQuery;
+    const [searchResults, setSearchResults] = useState<TreeNode[]>([]);
+    const [isSearchLoading, setIsSearchLoading] = useState(false);
+    const [searchErrorMsg, setSearchErrorMsg] = useState<string | null>(null);
 
     const toTreeNode = (collection: any): TreeNode => ({
         id: collection.alias,
@@ -128,16 +132,16 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
         }
     };
 
-    const handleToggle = (_event: React.SyntheticEvent, nodeIds: string[]) => {
+    const handleToggle = useCallback((_event: React.SyntheticEvent, nodeIds: string[]) => {
         const newlyExpanded = nodeIds.filter(id => !expandedNodes.includes(id));
         setExpandedNodes(nodeIds);
         for (const nodeId of newlyExpanded) {
             const node = findNode(treeData, nodeId);
             if (node) void loadChildren(node);
         }
-    };
+    }, [expandedNodes, treeData, loadingNodeIds]);
 
-    const onNodeClick = async (node: TreeNode, e: React.MouseEvent) => {
+    const onNodeClick = useCallback(async (node: TreeNode, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
         
@@ -150,42 +154,54 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
             isWritable: canWrite
         });
 
-    };
-
-    const { filteredNodes, searchExpandedIds } = useMemo(() => {
-        if (!searchQuery) return { filteredNodes: treeData, searchExpandedIds: [] };
-        const lowerQuery = searchQuery.toLowerCase();
-        let expandedIds: string[] = [];
-        
-        const filter = (nodes: TreeNode[]): TreeNode[] => {
-            return nodes.map(node => {
-                const matches = node.name.toLowerCase().includes(lowerQuery) || node.alias.toLowerCase().includes(lowerQuery);
-                const results = filter(node.children);
-                if (matches || results.length > 0) {
-                    if (results.length > 0) expandedIds.push(node.id);
-                    return { ...node, children: results };
-                }
-                return null;
-            }).filter(n => n !== null) as TreeNode[];
-        };
-        
-        return { filteredNodes: filter(treeData), searchExpandedIds: expandedIds };
-    }, [treeData, searchQuery]);
+    }, [props.collectionService, props.onCollectionSelected]);
 
     useEffect(() => {
-        if (searchQuery && searchExpandedIds.length > 0) {
-            setExpandedNodes(prev => Array.from(new Set([...prev, ...searchExpandedIds])));
-        }
-    }, [searchExpandedIds, searchQuery]);
-
-    useEffect(() => {
-        const delaySearch = setTimeout(() => {
+        const handle = window.setTimeout(() => {
             setSearchQuery(rawSearchInput.trim());
         }, 300);
-        return () => clearTimeout(delaySearch);
+        return () => window.clearTimeout(handle);
     }, [rawSearchInput]);
 
-    const renderTree = (nodes: TreeNode[]) =>
+    useEffect(() => {
+        let ignore = false;
+        if (!searchQuery) {
+            setSearchResults([]);
+            setIsSearchLoading(false);
+            setSearchErrorMsg(null);
+            return () => { ignore = true; };
+        }
+
+        setIsSearchLoading(true);
+        setSearchErrorMsg(null);
+        props.collectionService.searchDataverseCollections(searchQuery)
+            .then(results => {
+                if (ignore) return;
+                setSearchResults(results.map(collection => ({
+                    ...toTreeNode(collection),
+                    hasChildren: false,
+                    isFolder: false,
+                    childrenLoaded: true
+                })));
+            })
+            .catch(err => {
+                if (ignore) return;
+                console.error('DataverseTree search error:', err);
+                setSearchErrorMsg(`Failed to search collections: ${err.message || 'Unknown error'}`);
+                setSearchResults([]);
+            })
+            .finally(() => {
+                if (!ignore) {
+                    setIsSearchLoading(false);
+                }
+            });
+
+        return () => { ignore = true; };
+    }, [props.collectionService, searchQuery]);
+
+    const visibleNodes = searchQuery ? searchResults : treeData;
+
+    const renderTree = useCallback((nodes: TreeNode[]): React.ReactNode =>
         nodes.map((node) => (
             <TreeItem
                 key={node.id}
@@ -251,7 +267,9 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                         )
                     : undefined}
             </TreeItem>
-        ));
+        )), [loadingNodeIds, onNodeClick, props.selectedCollectionId]);
+
+    const renderedTree = useMemo(() => renderTree(visibleNodes), [visibleNodes, renderTree]);
 
     return (
         <div className="dataverse-tree">
@@ -296,15 +314,24 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                     </div>
                 )}
                 {errorMsg && <div className="dataverse-tree__error">{errorMsg}</div>}
+                {searchErrorMsg && <div className="dataverse-tree__error">{searchErrorMsg}</div>}
                 {!isLoading && treeData.length === 0 && !errorMsg && (
                     <div className="dataverse-tree__empty">No collections found.</div>
                 )}
-                {filteredNodes.length > 0 && (
+                {(isFiltering || isSearchLoading) && (
+                    <div className="dataverse-tree__filtering">
+                        <LinearProgress style={{ width: '100%' }} />
+                    </div>
+                )}
+                {searchQuery && !isSearchLoading && !searchErrorMsg && searchResults.length === 0 && (
+                    <div className="dataverse-tree__empty">No matching collections found.</div>
+                )}
+                {visibleNodes.length > 0 && (
                     <TreeView
                         defaultCollapseIcon={<ExpandMoreIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
                         defaultExpandIcon={<ChevronRightIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
-                        expanded={expandedNodes}
-                        onNodeToggle={handleToggle}
+                        expanded={searchQuery ? [] : expandedNodes}
+                        onNodeToggle={searchQuery ? undefined : handleToggle}
                         selected={props.selectedCollectionId ?? ''}
                         sx={{
                             flexGrow: 1,
@@ -315,7 +342,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                             '&:focus-visible': { outline: 'none !important' }
                         }}
                     >
-                        {renderTree(filteredNodes)}
+                        {renderedTree}
                     </TreeView>
                 )}
             </div>

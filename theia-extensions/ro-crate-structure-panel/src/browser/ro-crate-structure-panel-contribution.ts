@@ -2,10 +2,18 @@ import type { MenuModelRegistry } from '@theia/core'
 import {
   AbstractViewContribution,
   ApplicationShell,
+  codicon,
   CommonMenus,
+  OpenerService,
   WidgetManager,
 } from '@theia/core/lib/browser'
-import { RoCrateDeleteSelectedEntitiesCommand } from 'rockit-common/lib/browser'
+import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar'
+import { ApplicationServer } from '@theia/core/lib/common/application-protocol'
+import {
+  openRockitDocumentationPage,
+  ROCKIT_DOCUMENTATION_PAGES,
+  RoCrateDeleteSelectedEntitiesCommand,
+} from 'rockit-common/lib/browser'
 import type { Command, CommandRegistry } from '@theia/core/lib/common/command'
 import { inject, injectable } from 'inversify'
 import {
@@ -23,11 +31,19 @@ export const RoCrateStructurePanelEditCommand: Command = {
   label: 'Edit',
 }
 
+export const RoCrateStructurePanelDocumentationCommand: Command = {
+  id: 'ro-crate-structure-panel:open-documentation',
+  label: 'Open RO-Crate Structure Panel Documentation',
+  iconClass: codicon('info'),
+}
+
 @injectable()
-export class RoCrateStructurePanelContribution extends AbstractViewContribution<RoCrateStructurePanelWidget> {
+export class RoCrateStructurePanelContribution extends AbstractViewContribution<RoCrateStructurePanelWidget> implements TabBarToolbarContribution {
   constructor(
     @inject(WidgetManager) protected readonly widgetManager: WidgetManager,
     @inject(ApplicationShell) protected readonly shell: ApplicationShell,
+    @inject(ApplicationServer) protected readonly applicationServer: ApplicationServer,
+    @inject(OpenerService) protected readonly openerService: OpenerService,
   ) {
     super({
       widgetId: RoCrateStructurePanelWidget.ID,
@@ -62,6 +78,17 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
       isVisible: () => Boolean(this.getActiveStructureWidget()),
     })
 
+    registry.registerCommand(RoCrateStructurePanelDocumentationCommand, {
+      execute: () =>
+        openRockitDocumentationPage(
+          this.applicationServer,
+          this.openerService,
+          ROCKIT_DOCUMENTATION_PAGES.RO_CRATE_STRUCTURE_PANEL,
+        ),
+      isEnabled: (widget) => widget instanceof RoCrateStructurePanelWidget,
+      isVisible: (widget) => widget instanceof RoCrateStructurePanelWidget,
+    })
+
   }
 
   registerMenus(menus: MenuModelRegistry): void {
@@ -89,5 +116,14 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
     return mainWidgets.find(
       (widget) => widget instanceof RoCrateStructurePanelWidget,
     ) as RoCrateStructurePanelWidget | undefined
+  }
+
+  async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
+    toolbarRegistry.registerItem({
+      id: RoCrateStructurePanelDocumentationCommand.id,
+      command: RoCrateStructurePanelDocumentationCommand.id,
+      tooltip: RoCrateStructurePanelDocumentationCommand.label,
+      priority: -100,
+    })
   }
 }

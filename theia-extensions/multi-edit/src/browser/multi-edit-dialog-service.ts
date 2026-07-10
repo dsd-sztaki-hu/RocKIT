@@ -1,30 +1,78 @@
-import { injectable, inject, optional } from '@theia/core/shared/inversify'
+import { inject, injectable, optional } from '@theia/core/shared/inversify'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import {
-  MetadataSchemaManager as MetadataSchemaManagerToken,
-  type MetadataSchemaManager,
+    MetadataSchemaManager as MetadataSchemaManagerToken,
+    type MetadataSchemaManager,
 } from 'rockit-common/lib/browser'
+import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
 import { MultiEditDialog } from './multi-edit-dialog'
 
 @injectable()
 export class MultiEditDialogService {
-  @inject(AppStateService)
-  protected readonly appStateService!: AppStateService
+    @inject(AppStateService)
+    protected readonly appStateService!: AppStateService
 
-  @inject(RoCrateHistoryService)
-  protected readonly roCrateHistoryService!: RoCrateHistoryService
+    @inject(RoCrateHistoryService)
+    protected readonly roCrateHistoryService!: RoCrateHistoryService
 
-  @inject(MetadataSchemaManagerToken) @optional()
-  protected readonly schemaManagerService?: MetadataSchemaManager
+    @inject(MetadataSchemaManagerToken)
+    @optional()
+    protected readonly schemaManagerService?: MetadataSchemaManager
 
-  async open(entityIds: string[]): Promise<void> {
-    const dialog = new MultiEditDialog(
-      entityIds,
-      this.appStateService,
-      this.schemaManagerService,
-      this.roCrateHistoryService,
-    )
-    await dialog.open()
-  }
+    @inject(LoadMaskService)
+    protected readonly loadMaskService!: LoadMaskService
+
+    async open(entityIds: string[]): Promise<void> {
+        const isLargeSelection = entityIds.length >= 1_000
+        const loadMask = this.loadMaskService.show({
+            message: 'Preparing multi-edit...',
+            delay: isLargeSelection ? 0 : undefined,
+        })
+
+        let dialogResult: Promise<unknown> | undefined
+
+        try {
+            if (isLargeSelection) {
+                await this.waitForLoadMaskPaint()
+            }
+
+            const dialog = new MultiEditDialog(
+                entityIds,
+                this.appStateService,
+                this.schemaManagerService,
+                this.roCrateHistoryService,
+                this.loadMaskService,
+            )
+
+            await dialog.prepare((worked, total) => {
+                loadMask.update({ progress: { worked, total } })
+            })
+
+            dialogResult = dialog.open()
+            await new Promise<void>((resolve) => setTimeout(resolve, 0))
+        } finally {
+            loadMask.dispose()
+        }
+
+        await dialogResult
+    }
+
+    protected async waitForLoadMaskPaint(): Promise<void> {
+        await new Promise<void>((resolve) => {
+            let settled = false
+
+            const finish = () => {
+                if (settled) {
+                    return
+                }
+
+                settled = true
+                resolve()
+            }
+
+            setTimeout(finish, 50)
+            requestAnimationFrame(() => requestAnimationFrame(finish))
+        })
+    }
 }

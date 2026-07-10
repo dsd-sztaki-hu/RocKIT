@@ -42,6 +42,7 @@ import {
     PreferenceService,
     QuickInputService,
 } from '@theia/core/lib/common';
+import { ApplicationServer } from '@theia/core/lib/common/application-protocol';
 import {
     DidCreateNewResourceEvent,
     WorkspaceCommandContribution,
@@ -53,7 +54,7 @@ import { EXPLORER_VIEW_CONTAINER_ID, EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS } fro
 import { FILE_NAVIGATOR_ID, FileNavigatorWidget } from './navigator-widget';
 import { FileNavigatorPreferences } from '../common/navigator-preferences';
 import { FileNavigatorFilter } from './navigator-filter';
-import { WorkspaceNode } from './navigator-tree';
+import { NavigatorRootNode, WorkspaceNode } from './navigator-tree';
 import { NavigatorContextKeyService } from './navigator-context-key-service';
 import {
     RenderedToolbarAction,
@@ -82,6 +83,10 @@ import {
     RoCrateDescriptionOperationsService,
     RoCrateWorkspaceResource
 } from './ro-crate-description-operations-service';
+import {
+    openRockitDocumentationPage,
+    ROCKIT_DOCUMENTATION_PAGES,
+} from 'rockit-common/lib/browser';
 export { FileNavigatorCommands };
 
 /**
@@ -199,6 +204,9 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
 
     @inject(OpenWithService)
     protected readonly openWithService: OpenWithService;
+
+    @inject(ApplicationServer)
+    protected readonly applicationServer: ApplicationServer;
 
     @inject(FileSearchService)
     protected readonly fileSearchService: FileSearchService;
@@ -401,6 +409,15 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
             isVisible: widget => this.withWidget(widget, () => this.workspaceService.opened)
         });
+        registry.registerCommand(FileNavigatorCommands.OPEN_DOCUMENTATION, {
+            execute: () => openRockitDocumentationPage(
+                this.applicationServer,
+                this.openerService,
+                ROCKIT_DOCUMENTATION_PAGES.WORKSPACE_AND_FILE_HANDLING,
+            ),
+            isEnabled: widget => this.withWidget(widget, () => true),
+            isVisible: widget => this.withWidget(widget, () => true)
+        });
         registry.registerCommand(FileNavigatorCommands.REFRESH_NAVIGATOR, {
             execute: widget => this.withWidget(widget, () => this.refreshWorkspace()),
             isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
@@ -419,6 +436,16 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
                 const root = navigator?.getContainerTreeNode();
                 return selection === root;
             }
+        });
+        registry.registerCommand(FileNavigatorCommands.COPY_ROOT_PATH, {
+            execute: async () => {
+                const root = this.getFocusedNavigatorRoot();
+                if (root) {
+                    await this.clipboardService.writeText(root.uri.path.fsPath());
+                }
+            },
+            isEnabled: () => !!this.getFocusedNavigatorRoot(),
+            isVisible: () => !!this.getFocusedNavigatorRoot()
         });
 
         registry.registerCommand(NavigatorDiffCommands.COMPARE_FIRST, {
@@ -1166,6 +1193,11 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             order: 'c'
         });
         registry.registerMenuAction(NavigatorContextMenu.CLIPBOARD, {
+            commandId: FileNavigatorCommands.COPY_ROOT_PATH.id,
+            label: FileNavigatorCommands.COPY_ROOT_PATH.label,
+            order: 'c1'
+        });
+        registry.registerMenuAction(NavigatorContextMenu.CLIPBOARD, {
             commandId: WorkspaceCommands.COPY_RELATIVE_FILE_PATH.id,
             label: WorkspaceCommands.COPY_RELATIVE_FILE_PATH.label,
             order: 'd'
@@ -1280,6 +1312,12 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             priority: 0,
         });
         toolbarRegistry.registerItem({
+            id: FileNavigatorCommands.OPEN_DOCUMENTATION.id,
+            command: FileNavigatorCommands.OPEN_DOCUMENTATION.id,
+            tooltip: FileNavigatorCommands.OPEN_DOCUMENTATION.label,
+            priority: -100,
+        });
+        toolbarRegistry.registerItem({
             id: FileNavigatorCommands.COLLAPSE_ALL.id,
             command: FileNavigatorCommands.COLLAPSE_ALL.id,
             tooltip: nls.localizeByDefault('Collapse All'),
@@ -1380,6 +1418,11 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         if (SelectableTreeNode.is(firstChild)) {
             model.selectNode(firstChild);
         }
+    }
+
+    protected getFocusedNavigatorRoot(): NavigatorRootNode | undefined {
+        const focused = this.tryGetWidget()?.model.getFocusedNode();
+        return NavigatorRootNode.is(focused) ? focused : undefined;
     }
 
     protected getFileNavigatorActionRoot(model: FileNavigatorModel): CompositeTreeNode | undefined {

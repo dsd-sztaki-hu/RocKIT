@@ -11,8 +11,14 @@ import { DataRepositorySelectorDialog } from './components/data-repository-selec
 import { DataRepositoryTable } from './components/data-repository-table'
 import { DataRepositoryToolbar } from './components/data-repository-toolbar'
 import { DataverseCollectionBrowserDialog } from './components/dataverse-collection-browser-dialog'
+import { ArpRoCrateImportDialog } from './components/arp-ro-crate-import-dialog'
+import { ArpRoCrateValidationErrorsDialog } from './components/arp-ro-crate-validation-errors-dialog'
 import { NativeDataverseDatasetMetadataDialog } from './components/native-dataverse-dataset-metadata-dialog'
-import { ArpRoCrateExportService } from './services/arp-ro-crate-export-service'
+import {
+  ArpRoCrateExportService,
+  ArpRoCrateValidationError,
+} from './services/arp-ro-crate-export-service'
+import { ArpRoCrateImportService } from './services/arp-ro-crate-import-service'
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
 import { DataverseCapabilityService } from './services/dataverse-capability-service'
 import { DataverseCollectionService } from './services/dataverse-collection-service'
@@ -21,8 +27,9 @@ import {
   NativeDataverseDatasetMetadata,
   NativeDataverseExportService,
 } from './services/native-dataverse-export-service'
+import { NativeDataverseImportService } from './services/native-dataverse-import-service'
 import { RoCrateFileHashService } from './services/ro-crate-file-hash-service'
-import { DataRepositoryConfig } from './types'
+import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
 
 type RoCrateEntity = Record<string, unknown>
@@ -39,6 +46,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   protected repositories: DataRepositoryConfig[] = []
   protected isLoading = true
   protected selectedKeys: React.Key[] = []
+  protected recentArpValidationError: ArpRoCrateValidationError | undefined
   protected readonly disposables = new DisposableCollection()
 
   constructor(
@@ -52,6 +60,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly nativeExportService: NativeDataverseExportService,
     @inject(ArpRoCrateExportService)
     protected readonly arpExportService: ArpRoCrateExportService,
+    @inject(ArpRoCrateImportService)
+    protected readonly arpImportService: ArpRoCrateImportService,
+    @inject(NativeDataverseImportService)
+    protected readonly nativeImportService: NativeDataverseImportService,
     @inject(DataverseCapabilityService)
     protected readonly capabilityService: DataverseCapabilityService,
     @inject(RoCrateFileHashService)
@@ -89,7 +101,86 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   }
 
   protected handleImport = () => {
-    this.messageService.info('Import placeholder clicked!', { timeout: 5000 })
+    void this.handleImportFromRemote()
+  }
+
+  public async handleImportFromRemote(): Promise<void> {
+    const repositories = await this.storeService.loadRepositories()
+    this.repositories = repositories
+    this.update()
+
+    const selector = new DataRepositorySelectorDialog(
+      repositories,
+      this.storeService,
+      this.dataverseService,
+      this.capabilityService,
+    )
+    const repositorySelection = await selector.open()
+    if (!repositorySelection) {
+      return
+    }
+
+    const selectedRepo = repositorySelection.repository
+    const capabilities = repositorySelection.capabilities
+    if (!capabilities.supportsNativeDataverseApi) {
+      this.messageService.warn(
+        `Import is currently only implemented for Dataverse-based repositories. '${selectedRepo.title}' does not expose a supported Dataverse API.`,
+        { timeout: 10000 },
+      )
+      return
+    }
+
+    const importDialog = new ArpRoCrateImportDialog(
+      capabilities.supportsArpRoCrateZipUpload
+        ? undefined
+        : {
+            title: 'Import Dataverse Dataset',
+            description:
+              'Enter the dataset persistent ID or dataset URL for the Dataverse dataset to import.',
+            placeholder: 'doi:10.70122/FK2/N2XGBJ',
+          },
+    )
+    const importInput = await importDialog.open()
+    if (!importInput) {
+      return
+    }
+
+    const progress = await this.messageService.showProgress({
+      text: `Importing dataset from ${selectedRepo.title}...`,
+    })
+    try {
+      const result = capabilities.supportsArpRoCrateZipUpload
+        ? await this.arpImportService.importFromDatasetUrl(
+            selectedRepo,
+            importInput.datasetUrl,
+          )
+        : await this.nativeImportService.importFromDatasetUrl(
+            selectedRepo,
+            importInput.datasetUrl,
+          )
+      if (!result) {
+        return
+      }
+      if ('hasRoCrateMetadata' in result && !result.hasRoCrateMetadata) {
+        this.messageService.info(
+          `Dataverse dataset imported to ${result.targetDirectory.path.fsPath()}. Extracted ${result.extractedFileCount} file(s). No ro-crate-metadata.json was included, so the workspace can create one after opening.`,
+          { timeout: 10000 },
+        )
+      } else {
+        this.messageService.info(
+          `Dataset imported to ${result.targetDirectory.path.fsPath()}. Extracted ${result.extractedFileCount} file(s).`,
+          { timeout: 10000 },
+        )
+      }
+    } catch (error) {
+      console.error('Remote dataset import failed:', error)
+      this.messageService.error(
+        `Dataset import failed: ${error instanceof Error ? error.message : String(error)}`,
+        { timeout: 10000 },
+      )
+    } finally {
+      progress.cancel()
+    }
   }
 
   protected handleExport = () => {
@@ -97,6 +188,14 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   }
 
   public async handleExportToRemote(): Promise<void> {
+    if (this.hasUnsavedRoCrateChanges()) {
+      this.messageService.warn(
+        'Remote export is not possible while the RO-Crate has unsaved changes. Save the RO-Crate first, then export again.',
+        { timeout: 10000 },
+      )
+      return
+    }
+
     try {
       await this.fileHashService.persistFileMetadata()
     } catch (error) {
@@ -111,8 +210,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const repositories = await this.storeService.loadRepositories()
     this.repositories = repositories
     this.update()
-    const exportTargetsByRepositoryId =
-      await this.arpExportService.listExportTargets(repositories)
+    const exportTargetsByRepositoryId = this.mergeExportTargets(
+      await this.arpExportService.listExportTargets(repositories),
+      await this.nativeExportService.listExportTargets(repositories),
+    )
 
     // Show repository selector first, matching the UX requested.
     const selector = new DataRepositorySelectorDialog(
@@ -121,6 +222,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.dataverseService,
       this.capabilityService,
       exportTargetsByRepositoryId,
+      this.recentArpValidationError
+        ? () => {
+            void this.openRecentArpValidationResponse()
+          }
+        : undefined,
     )
     const repositorySelection = await selector.open()
 
@@ -176,6 +282,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         }
       } catch (error) {
         console.error('ARP file update failed:', error)
+        if (error instanceof ArpRoCrateValidationError) {
+          progress.cancel()
+          await this.showArpValidationFailure(error)
+          return
+        }
         this.messageService.error(
           `ARP file update failed: ${error instanceof Error ? error.message : String(error)}`,
           { timeout: 10000 },
@@ -193,6 +304,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       try {
         const updateResult = await this.nativeExportService.updateDataset(
           selectedRepo,
+          selectedExportTarget,
           (update) =>
             progress.report({
               message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
@@ -272,6 +384,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           console.log('RO-Crate ZIP exported to ARP:', exportResult)
         } catch (error) {
           console.error('RO-Crate ZIP export failed:', error)
+          if (error instanceof ArpRoCrateValidationError) {
+            progress.cancel()
+            await this.showArpValidationFailure(error)
+            return
+          }
           this.messageService.error(
             `RO-Crate ZIP export failed: ${error instanceof Error ? error.message : String(error)}`,
             { timeout: 10000 },
@@ -349,6 +466,43 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     }
   }
 
+  protected async showArpValidationFailure(
+    error: ArpRoCrateValidationError,
+  ): Promise<void> {
+    this.recentArpValidationError = error
+    this.update()
+    const issueCount = error.validationErrors.reduce(
+      (count, entityError) => count + entityError.errors.length,
+      0,
+    )
+    const action = await this.messageService.error(
+      `Server RO-Crate validation failed. The backend validation endpoint rejected the upload with ${issueCount} issue${issueCount === 1 ? '' : 's'} across ${error.validationErrors.length} entit${error.validationErrors.length === 1 ? 'y' : 'ies'}.`,
+      { timeout: 0 },
+      'Show issues',
+    )
+    if (action === 'Show issues') {
+      await this.openArpValidationResponse(error)
+    }
+  }
+
+  protected async openRecentArpValidationResponse(): Promise<void> {
+    if (!this.recentArpValidationError) {
+      return
+    }
+    await this.openArpValidationResponse(this.recentArpValidationError)
+  }
+
+  protected async openArpValidationResponse(
+    error: ArpRoCrateValidationError,
+  ): Promise<void> {
+    const dialog = new ArpRoCrateValidationErrorsDialog(
+      error.validationErrors,
+      error.requestUrl,
+      error.payload,
+    )
+    await dialog.open()
+  }
+
   protected handleAddRepository = async () => {
     const dialog = new DataRepositoryConfigDialog(this.dataverseService)
     const result = await dialog.open()
@@ -363,6 +517,33 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     if (result) {
       await this.storeService.saveRepository(result)
     }
+  }
+
+  protected hasUnsavedRoCrateChanges(): boolean {
+    const crate = this.appStateService.roCrate
+    return this.appStateService.dirty || (!!crate && this.appStateService.isRoCrateDirty(crate))
+  }
+
+  protected mergeExportTargets(
+    ...targetMaps: Array<Record<string, DataRepositoryExportTarget[]>>
+  ): Record<string, DataRepositoryExportTarget[]> {
+    const merged: Record<string, DataRepositoryExportTarget[]> = {}
+    for (const targetMap of targetMaps) {
+      for (const [repositoryId, targets] of Object.entries(targetMap)) {
+        const latestByMappingFile = new Map(
+          (merged[repositoryId] ?? []).map((target) => [target.mappingFile, target]),
+        )
+        for (const target of targets) {
+          const previous = latestByMappingFile.get(target.mappingFile)
+          if (!previous || previous.syncedAt.localeCompare(target.syncedAt) < 0) {
+            latestByMappingFile.set(target.mappingFile, target)
+          }
+        }
+        merged[repositoryId] = Array.from(latestByMappingFile.values())
+          .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
+      }
+    }
+    return merged
   }
 
   protected getMissingArpDatasetCreationMetadata(): string[] {
