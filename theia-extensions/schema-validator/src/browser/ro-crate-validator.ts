@@ -1,4 +1,5 @@
-import { MetadataSchemaManager } from "rockit-common/lib/browser";
+import type { MetadataSchemaManager } from "rockit-common/lib/browser";
+import { isMissingRoCrateEntityName } from "rockit-common/lib/common/ro-crate-entity-name";
 import type { AppState } from 'app-state/lib/browser/state/app-state';
 
 export type ValidationError = {
@@ -325,6 +326,35 @@ function validateWithCompiledRules(
   return errors;
 }
 
+function ensureRequiredEntityNameError(
+  entity: Record<string, any>,
+  entityType: string,
+  errors: ValidationError[],
+): ValidationError[] {
+  if (!isMissingRoCrateEntityName(entity.name)) {
+    return errors;
+  }
+  if (
+    errors.some(
+      error => error.fieldName === 'name' && error.errorCode === 'REQUIRED_NOT_SET',
+    )
+  ) {
+    return errors;
+  }
+  return [
+    errorFor(
+      entity,
+      entityType,
+      'name',
+      'Name',
+      'Required value not set',
+      'Kötelező érték nincs beállítva',
+      'REQUIRED_NOT_SET',
+    ),
+    ...errors,
+  ];
+}
+
 function extractConformsToIds(entity: Record<string, any>): string[] {
   const value: any = entity?.conformsTo;
   const ids: string[] = [];
@@ -386,16 +416,37 @@ export async function validateEntities(
 
   const warnedMissingProfileUrls = new Set<string>();
   let processedCount = 0;
+  const validationEntries: any[] = [];
+  const targetEntityIds = options.targetEntityIds;
 
-  for (let index = 0; index < graph.length; index += 1) {
-    throwIfAborted(options.signal);
-    const entity = graph[index];
-    if (!entity || typeof entity !== 'object') {
-      continue;
+  if (targetEntityIds && targetEntityIds.size > 0) {
+    const foundTargetIds = new Set<string>();
+    for (let index = 0; index < graph.length; index += 1) {
+      const entity = graph[index];
+      if (!entity || typeof entity !== 'object') {
+        continue;
+      }
+
+      const entityId = normalizeEntityId(entity, index);
+      if (!targetEntityIds.has(entityId)) {
+        continue;
+      }
+
+      validationEntries.push(entity);
+      foundTargetIds.add(entityId);
+      if (foundTargetIds.size >= targetEntityIds.size) {
+        break;
+      }
     }
+  } else {
+    for (let index = 0; index < graph.length; index += 1) {
+      validationEntries.push(graph[index]);
+    }
+  }
 
-    const entityId = normalizeEntityId(entity, index);
-    if (options.targetEntityIds && !options.targetEntityIds.has(entityId)) {
+  for (const entity of validationEntries) {
+    throwIfAborted(options.signal);
+    if (!entity || typeof entity !== 'object') {
       continue;
     }
 
@@ -452,17 +503,26 @@ export async function validateEntities(
       }
     }
 
-    const errors = validateWithCompiledRules(entity, entityType, compiledRules);
+    const errors = ensureRequiredEntityNameError(
+      entity,
+      entityType,
+      validateWithCompiledRules(entity, entityType, compiledRules),
+    );
     if (errors.length) {
       validationErrors.push(...errors);
     }
   }
 
-  return validationErrors.length !== 0 ? validationErrors : undefined;
+  const result = validationErrors.length !== 0 ? validationErrors : undefined;
+  return result;
 }
 
 export function validate(entity: Record<string, any>, profile: Record<string, any>) {
   const entityType = normalizeEntityType(entity);
   const rules = compileRulesForEntityType(entityType, profile);
-  return validateWithCompiledRules(entity, entityType, rules);
+  return ensureRequiredEntityNameError(
+    entity,
+    entityType,
+    validateWithCompiledRules(entity, entityType, rules),
+  );
 }

@@ -70,3 +70,7 @@
     color: var(--theia-button-secondaryForeground) !important; 
     border: 1px solid var(--theia-contrastBorder, var(--theia-button-border, transparent)) !important;
 }
+
+#theia-statusBar .metadata-profile-health-status {
+    font-weight: 600;
+}

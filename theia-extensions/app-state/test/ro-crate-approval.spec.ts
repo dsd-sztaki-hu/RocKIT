@@ -1,5 +1,6 @@
 import {
   maintainRoCrateApprovalFile,
+  removeRoCrateApprovalProperties,
   type RoCrateApprovalFile,
 } from '../src/browser/state/ro-crate-approval'
 
@@ -89,6 +90,56 @@ describe('maintainRoCrateApprovalFile', () => {
         operation: 'update',
         approved: false,
         timestamp: '2026-06-12T10:00:00.000Z',
+      },
+    ])
+  })
+})
+
+describe('removeRoCrateApprovalProperties', () => {
+  it('removes trusted system changes without dropping other review items', () => {
+    const existing: RoCrateApprovalFile = [
+      {
+        '@id': '#contact',
+        approval: [
+          {
+            propertyName: 'name',
+            operation: 'create',
+            approved: false,
+            timestamp: '2026-06-01T10:00:00.000Z',
+          },
+          {
+            propertyName: 'email',
+            operation: 'update',
+            approved: false,
+            timestamp: '2026-06-01T10:00:00.000Z',
+          },
+        ],
+      },
+      {
+        '@id': './',
+        approval: [
+          {
+            propertyName: 'description',
+            operation: 'update',
+            approved: false,
+            timestamp: '2026-06-01T10:00:00.000Z',
+          },
+        ],
+      },
+    ]
+
+    const result = removeRoCrateApprovalProperties(existing, [
+      { entityId: '#contact', propertyName: 'name' },
+    ])
+
+    expect(result).toEqual([
+      {
+        '@id': '#contact',
+        approval: [expect.objectContaining({ propertyName: 'email' })],
+      },
+      {
+        '@id': './',
+        approval: [expect.objectContaining({ propertyName: 'description' })],
       },
     ])
   })

@@ -136,7 +136,6 @@ export class ArpRoCrateExportService {
       rootUri,
       localizedExternalFiles.entries,
     )
-    await this.saveDebugUploadZip(rootUri, zip)
     const uploadUrl = new URL('/api/arp/uploadRoCrateZip', `${baseUrl}/`)
     uploadUrl.searchParams.set('ownerId', collection.alias || collection.id)
 
@@ -579,11 +578,6 @@ export class ArpRoCrateExportService {
     }
 
     return zip.generateAsync({ type: 'uint8array', compression: 'STORE' })
-  }
-
-  protected async saveDebugUploadZip(rootUri: URI, zip: Uint8Array): Promise<void> {
-    const debugZipUri = rootUri.resolve('arp-upload-debug.zip')
-    await this.fileService.writeFile(debugZipUri, BinaryBuffer.wrap(zip))
   }
 
   protected async localizeExternalLocalFileReferences(

@@ -5,3 +5,149 @@
     padding: 10px;
     text-transform: uppercase;
 }
+
+.schema-validator-widget {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    padding: 8px;
+}
+
+.schema-validator-toolbar {
+    align-items: start;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    flex: 0 0 auto;
+    margin-bottom: 4px;
+}
+
+.schema-validator-toolbar .theia-alert-message {
+    margin: 0;
+    min-width: 0;
+    width: 100%;
+}
+
+.schema-validator-error-list {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    margin-top: 4px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.schema-validator-error-viewport {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    position: relative;
+}
+
+.schema-validator-error-spacer {
+    min-height: 100%;
+    position: relative;
+}
+
+.schema-validator-error-row {
+    background: color-mix(in srgb, var(--theia-errorForeground) 13%, transparent);
+    border: 0;
+    border-left: 3px solid color-mix(in srgb, var(--theia-errorForeground) 70%, transparent);
+    border-radius: 6px;
+    color: var(--theia-foreground);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    left: 0;
+    line-height: 1.35;
+    padding: 8px 10px;
+    position: absolute;
+    right: 0;
+    text-align: left;
+    top: 0;
+    width: 100%;
+}
+
+.schema-validator-error-row:hover {
+    background: color-mix(in srgb, var(--theia-errorForeground) 20%, var(--theia-list-hoverBackground));
+}
+
+.schema-validator-error-row:focus-visible {
+    outline: 1px solid var(--theia-focusBorder);
+    outline-offset: -2px;
+}
+
+.schema-validator-error-row:disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.schema-validator-error-row-top,
+.schema-validator-error-field,
+.schema-validator-error-message {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.schema-validator-error-row-top {
+    align-items: baseline;
+    display: flex;
+    gap: 6px;
+    width: 100%;
+}
+
+.schema-validator-error-type {
+    color: var(--theia-foreground);
+    flex: 0 1 auto;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.schema-validator-error-id {
+    color: var(--theia-descriptionForeground);
+    flex: 1 1 auto;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.schema-validator-error-field {
+    align-self: flex-start;
+    background: color-mix(in srgb, var(--theia-editorWidget-border) 45%, transparent);
+    border-radius: 4px;
+    color: var(--theia-symbolIcon-propertyForeground, var(--theia-foreground));
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    max-width: 100%;
+    padding: 2px 6px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.schema-validator-error-message {
+    color: var(--theia-errorForeground);
+    display: -webkit-box;
+    font-size: 12px;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+@media (max-width: 360px) {
+    .schema-validator-widget {
+        padding: 6px;
+    }
+
+    .schema-validator-toolbar {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+}
