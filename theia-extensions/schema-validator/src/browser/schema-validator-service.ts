@@ -16,6 +16,7 @@ export class SchemaValidatorService implements SchemaValidator {
 
   protected lastBaseProfileRef?: Record<string, any>;
   protected lastProfileListRef: any;
+  protected lastProfileContentById = new Map<string, any>();
   protected lastCompleteProfileRef?: Record<string, any>;
   protected contextRevision = 0;
 
@@ -30,6 +31,16 @@ export class SchemaValidatorService implements SchemaValidator {
 
   getLastRunMode(): ValidationMode {
     return this.lastRunMode;
+  }
+
+  invalidateEntities(entityIds: string[] | Set<string>): void {
+    for (const rawId of entityIds) {
+      const id = typeof rawId === 'string' ? rawId.trim() : '';
+      if (!id) {
+        continue;
+      }
+      this.previousEntityHashes.delete(id);
+    }
   }
 
   protected getCacheNamespace(): string {
@@ -68,28 +79,140 @@ export class SchemaValidatorService implements SchemaValidator {
     return hashes;
   }
 
+  protected collectTargetEntityHashes(
+    crate: Record<string, any>,
+    targetEntityIds: Set<string>,
+  ): { hashes: Map<string, string>; removedIds: Set<string>; scannedCount: number } {
+    const graph = Array.isArray(crate?.['@graph']) ? (crate['@graph'] as Record<string, any>[]) : [];
+    const hashes = new Map<string, string>();
+    const foundIds = new Set<string>();
+    let scannedCount = 0;
+
+    if (targetEntityIds.size === 0) {
+      return { hashes, removedIds: new Set<string>(), scannedCount };
+    }
+
+    for (let index = 0; index < graph.length; index += 1) {
+      scannedCount += 1;
+      const entity = graph[index];
+      if (!entity || typeof entity !== 'object') {
+        continue;
+      }
+
+      const id = this.normalizeEntityId(entity, index);
+      if (!targetEntityIds.has(id)) {
+        continue;
+      }
+
+      hashes.set(id, this.hashEntity(entity));
+      foundIds.add(id);
+      if (foundIds.size >= targetEntityIds.size) {
+        break;
+      }
+    }
+
+    const removedIds = new Set<string>();
+    for (const id of targetEntityIds) {
+      if (!foundIds.has(id)) {
+        removedIds.add(id);
+      }
+    }
+
+    return { hashes, removedIds, scannedCount };
+  }
+
+  protected getProfileContentById(profileList: any): Map<string, any> {
+    const byId = new Map<string, any>();
+    if (!Array.isArray(profileList)) {
+      return byId;
+    }
+
+    for (const item of profileList) {
+      const id = typeof item?.id === 'string' ? item.id.trim() : '';
+      if (id) {
+        byId.set(id, item?.content);
+      }
+    }
+    return byId;
+  }
+
+  protected extractConformsToIds(entity: Record<string, any>): string[] {
+    const value: any = entity?.conformsTo;
+    const entries = value ? (Array.isArray(value) ? value : [value]) : [];
+    return entries
+      .map((entry: any) => {
+        if (typeof entry === 'string') {
+          return entry.trim();
+        }
+        if (entry && typeof entry === 'object') {
+          const id = entry['@id'] ?? entry.id;
+          return typeof id === 'string' ? id.trim() : '';
+        }
+        return '';
+      })
+      .filter((id: string) => id.length > 0);
+  }
+
+  protected collectEntityIdsForProfiles(
+    crate: Record<string, any>,
+    profileIds: Set<string>,
+  ): Set<string> {
+    const result = new Set<string>();
+    if (profileIds.size === 0) {
+      return result;
+    }
+
+    const graph = Array.isArray(crate?.['@graph']) ? (crate['@graph'] as Record<string, any>[]) : [];
+    for (let index = 0; index < graph.length; index += 1) {
+      const entity = graph[index];
+      if (!entity || typeof entity !== 'object') {
+        continue;
+      }
+      const conformsToIds = this.extractConformsToIds(entity);
+      if (conformsToIds.some((id) => profileIds.has(id))) {
+        result.add(this.normalizeEntityId(entity, index));
+      }
+    }
+    return result;
+  }
+
   protected refreshValidationContext(
     baseProfile: Record<string, any>,
     profileList: any,
     completeProfile: Record<string, any> | undefined,
-  ): boolean {
-    const changed =
+  ): { changed: boolean; forceFull: boolean; affectedProfileIds: Set<string> } {
+    const nextProfileContentById = this.getProfileContentById(profileList);
+    const affectedProfileIds = new Set<string>();
+    for (const [id, content] of nextProfileContentById.entries()) {
+      if (this.lastProfileContentById.get(id) !== content) {
+        affectedProfileIds.add(id);
+      }
+    }
+    for (const id of this.lastProfileContentById.keys()) {
+      if (!nextProfileContentById.has(id)) {
+        affectedProfileIds.add(id);
+      }
+    }
+
+    const forceFull =
       this.lastBaseProfileRef !== baseProfile ||
-      this.lastProfileListRef !== profileList ||
       this.lastCompleteProfileRef !== completeProfile;
 
+    const changed = forceFull || affectedProfileIds.size !== 0;
+
     if (!changed) {
-      return false;
+      this.lastProfileListRef = profileList;
+      this.lastProfileContentById = nextProfileContentById;
+      return { changed: false, forceFull: false, affectedProfileIds };
     }
 
     this.contextRevision += 1;
     this.lastBaseProfileRef = baseProfile;
     this.lastProfileListRef = profileList;
+    this.lastProfileContentById = nextProfileContentById;
     this.lastCompleteProfileRef = completeProfile;
-    this.previousEntityHashes.clear();
-    this.previousErrorsByEntity.clear();
     this.compiledRuleCache.clear();
-    return true;
+    return { changed: true, forceFull, affectedProfileIds };
   }
 
   protected computeDiff(
@@ -188,6 +311,97 @@ export class SchemaValidatorService implements SchemaValidator {
     return flattened.length ? flattened : undefined;
   }
 
+  protected applyTargetedResult(
+    targetEntityIds: Set<string>,
+    removedIds: Set<string>,
+    partialErrors: ValidationError[] | undefined,
+    targetHashes: Map<string, string>,
+  ): ValidationError[] | undefined {
+    for (const id of targetEntityIds) {
+      this.previousErrorsByEntity.delete(id);
+    }
+    for (const id of removedIds) {
+      this.previousEntityHashes.delete(id);
+      this.previousErrorsByEntity.delete(id);
+    }
+
+    const nextErrorsByEntity = this.toErrorMap(partialErrors);
+    for (const [id, errors] of nextErrorsByEntity.entries()) {
+      this.previousErrorsByEntity.set(id, errors);
+    }
+    for (const [id, hash] of targetHashes.entries()) {
+      this.previousEntityHashes.set(id, hash);
+    }
+
+    const flattened = this.flattenErrorMap(this.previousErrorsByEntity);
+    return flattened.length ? flattened : undefined;
+  }
+
+  async validateEntitiesTargeted(
+    crate: Record<string, any>,
+    baseProfile: Record<string, any>,
+    entityIds: string[] | Set<string>,
+  ): Promise<ValidationError[] | undefined> {
+    const targetEntityIds = new Set<string>();
+    for (const rawId of entityIds) {
+      const id = typeof rawId === 'string' ? rawId.trim() : '';
+      if (id) {
+        targetEntityIds.add(id);
+      }
+    }
+
+    if (!crate || !Array.isArray(crate['@graph']) || !baseProfile || targetEntityIds.size === 0) {
+      this.lastRunMode = 'incremental';
+      return this.flattenErrorMap(this.previousErrorsByEntity);
+    }
+
+    if (this.previousEntityHashes.size === 0) {
+      return this.validateEntities(crate, baseProfile);
+    }
+
+    const profileList = this.appStateService.profileList;
+    const completeProfile = this.appStateService.completeProfile;
+    this.refreshValidationContext(baseProfile, profileList, completeProfile);
+
+    const { hashes: targetHashes, removedIds } =
+      this.collectTargetEntityHashes(crate, targetEntityIds);
+
+    this.abortActiveValidation();
+    this.abortActiveFullSweep();
+
+    const controller = new AbortController();
+    this.activeValidationController = controller;
+
+    try {
+      let partialErrors: ValidationError[] | undefined = undefined;
+      if (targetHashes.size > 0) {
+        partialErrors = await runEntityValidation(
+          crate,
+          baseProfile,
+          profileList,
+          this.schemaManagerService,
+          {
+            targetEntityIds: new Set(targetHashes.keys()),
+            signal: controller.signal,
+            yieldEvery: 0,
+            compiledRuleCache: this.compiledRuleCache,
+            cacheNamespace: this.getCacheNamespace(),
+            completeProfile,
+          },
+        );
+      }
+
+      this.lastRunMode = 'incremental';
+      const result = this.applyTargetedResult(targetEntityIds, removedIds, partialErrors, targetHashes);
+
+      return result;
+    } finally {
+      if (this.activeValidationController === controller) {
+        this.activeValidationController = undefined;
+      }
+    }
+  }
+
   async validateEntities(
     crate: Record<string, any>,
     baseProfile: Record<string, any>,
@@ -202,13 +416,21 @@ export class SchemaValidatorService implements SchemaValidator {
 
     const profileList = this.appStateService.profileList;
     const completeProfile = this.appStateService.completeProfile;
-    const contextChanged = this.refreshValidationContext(baseProfile, profileList, completeProfile);
+    const contextChange = this.refreshValidationContext(baseProfile, profileList, completeProfile);
+
     const currentHashes = this.collectEntityHashes(crate);
 
     const hasPreviousState = this.previousEntityHashes.size > 0;
     const { changedIds, removedIds } = this.computeDiff(currentHashes);
+    const profileAffectedEntityIds = contextChange.forceFull
+      ? new Set<string>()
+      : this.collectEntityIdsForProfiles(crate, contextChange.affectedProfileIds);
+    const invalidatedIds = new Set<string>(changedIds);
+    for (const id of profileAffectedEntityIds) {
+      invalidatedIds.add(id);
+    }
 
-    if (!contextChanged && hasPreviousState && changedIds.size === 0 && removedIds.size === 0) {
+    if (!contextChange.changed && hasPreviousState && changedIds.size === 0 && removedIds.size === 0) {
       this.lastRunMode = 'cached';
       const cached = this.flattenErrorMap(this.previousErrorsByEntity);
       return cached.length ? cached : undefined;
@@ -222,9 +444,12 @@ export class SchemaValidatorService implements SchemaValidator {
 
     try {
       const shouldRunFull =
-        contextChanged ||
+        contextChange.forceFull ||
         !hasPreviousState ||
-        changedIds.size > Math.max(50, Math.floor(currentHashes.size * 0.6));
+        invalidatedIds.size > Math.max(50, Math.floor(currentHashes.size * 0.6)) ||
+        (contextChange.changed &&
+          invalidatedIds.size === 0 &&
+          contextChange.affectedProfileIds.size === 0);
 
       if (shouldRunFull) {
         const fullErrors = await runEntityValidation(
@@ -242,11 +467,13 @@ export class SchemaValidatorService implements SchemaValidator {
         );
 
         this.lastRunMode = 'full';
-        return this.applyFullResult(fullErrors, currentHashes);
+        const result = this.applyFullResult(fullErrors, currentHashes);
+
+        return result;
       }
 
       const targetEntityIds = new Set<string>();
-      for (const id of changedIds) {
+      for (const id of invalidatedIds) {
         if (currentHashes.has(id)) {
           targetEntityIds.add(id);
         }
@@ -271,7 +498,9 @@ export class SchemaValidatorService implements SchemaValidator {
       }
 
       this.lastRunMode = 'incremental';
-      return this.applyIncrementalResult(changedIds, removedIds, partialErrors, currentHashes);
+      const result = this.applyIncrementalResult(invalidatedIds, removedIds, partialErrors, currentHashes);
+
+      return result;
     } finally {
       if (this.activeValidationController === controller) {
         this.activeValidationController = undefined;
@@ -294,6 +523,7 @@ export class SchemaValidatorService implements SchemaValidator {
     const profileList = this.appStateService.profileList;
     const completeProfile = this.appStateService.completeProfile;
     this.refreshValidationContext(baseProfile, profileList, completeProfile);
+
     const currentHashes = this.collectEntityHashes(crate);
 
     this.abortActiveFullSweep();
@@ -316,7 +546,9 @@ export class SchemaValidatorService implements SchemaValidator {
       );
 
       this.lastRunMode = 'full';
-      return this.applyFullResult(fullErrors, currentHashes);
+      const result = this.applyFullResult(fullErrors, currentHashes);
+
+      return result;
     } finally {
       if (this.activeFullSweepController === controller) {
         this.activeFullSweepController = undefined;

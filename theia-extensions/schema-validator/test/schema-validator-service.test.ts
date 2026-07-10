@@ -92,6 +92,7 @@ describe('SchemaValidatorService', () => {
         {
           '@id': '#contact',
           '@type': 'datasetContact',
+          name: 'Ada Example',
           datasetContactName: 'Ada Example',
         },
       ],
@@ -125,6 +126,7 @@ describe('SchemaValidatorService', () => {
         {
           '@id': '#contact',
           '@type': 'datasetContact',
+          name: 'Ada Example',
           datasetContactName: 'Ada Example',
         },
       ],

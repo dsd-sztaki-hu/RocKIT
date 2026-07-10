@@ -7,6 +7,60 @@ describe('validateEntities', () => {
     getMergedProfile: jest.fn(),
   } as any
 
+  it('reports a missing entity name independently of the active profile', async () => {
+    const crate = {
+      '@graph': [
+        {
+          '@id': '#contact',
+          '@type': 'datasetContact',
+        },
+      ],
+    }
+
+    const errors = await validateEntities(crate, { classes: {} }, [], schemaManager)
+
+    expect(errors).toEqual([
+      expect.objectContaining({
+        entityId: '#contact',
+        entityType: 'datasetContact',
+        fieldName: 'name',
+        fieldLabel: 'Name',
+        errorCode: 'REQUIRED_NOT_SET',
+      }),
+    ])
+  })
+
+  it('does not duplicate a missing-name error from the active profile', async () => {
+    const profile = {
+      classes: {
+        datasetContact: {
+          inputs: [
+            {
+              name: 'name',
+              label: 'Name',
+              type: ['Text'],
+              required: true,
+              multiple: false,
+            },
+          ],
+        },
+      },
+    }
+    const crate = {
+      '@graph': [
+        {
+          '@id': '#contact',
+          '@type': 'datasetContact',
+          name: '   ',
+        },
+      ],
+    }
+
+    const errors = await validateEntities(crate, profile, [], schemaManager)
+
+    expect(errors?.filter(error => error.fieldName === 'name')).toHaveLength(1)
+  })
+
   it('reports required-field errors on linked non-root entities', async () => {
     const profile = {
       classes: {
@@ -44,6 +98,7 @@ describe('validateEntities', () => {
         {
           '@id': '#contact',
           '@type': 'datasetContact',
+          name: 'Ada Example',
           datasetContactName: 'Ada Example',
         },
       ],
@@ -140,6 +195,7 @@ describe('validateEntities', () => {
         {
           '@id': '#contact',
           '@type': 'datasetContact',
+          name: 'Ada Example',
           datasetContactName: 'Ada Example',
         },
       ],

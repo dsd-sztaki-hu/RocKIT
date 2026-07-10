@@ -43,7 +43,6 @@ export const DescriboCrateBuilderWrapper = ({
         fieldName: string
         nonce: number
     }
-    profileKey: number
     instanceId: string
     onSaveCrate: (data: any) => void
     onSaveRoCrateApproval: (data: any) => void
@@ -59,6 +58,20 @@ export const DescriboCrateBuilderWrapper = ({
     const containerRef = React.useRef<HTMLDivElement>(null)
     const [dropState, setDropState] = React.useState<'idle' | 'valid' | 'invalid'>('idle')
     const [dropMessage, setDropMessage] = React.useState<string>('')
+
+    React.useEffect(() => {
+        if (!lastNavTarget.current && entityId && entityId !== currentEntityId) {
+            setCurrentEntityId(entityId)
+        }
+        if (entityId && entityId === lastNavTarget.current) {
+            lastNavTarget.current = undefined
+            setLoading(false)
+            if (transitionTimeoutRef.current) {
+                clearTimeout(transitionTimeoutRef.current)
+                transitionTimeoutRef.current = undefined
+            }
+        }
+    }, [entityId, currentEntityId])
 
     const getEntityById = React.useCallback((id: string) => {
         const graph = Array.isArray(crate?.['@graph']) ? (crate['@graph'] as Record<string, any>[]) : []
@@ -285,7 +298,7 @@ export const DescriboCrateBuilderWrapper = ({
                 stateScopeKey={`theia:${instanceId}`}
                 onAddNewProfileRequest={handleAddNewProfileRequest}
                 onRemoveProfile={onRemoveProfile}
-                entityId={entityId}
+                entityId={currentEntityId}
                 onSaveCrate={onSaveCrate}
                 onSaveRoCrateApproval={onSaveRoCrateApproval}
                 onNavigation={handleNavigationWrapper}
@@ -303,7 +316,7 @@ export const DescriboCrateBuilderWrapper = ({
                 showControls={true}
                 resetTabOnEntityChange={false}
                 resetTabOnProfileChange={false}
-				purgeUnlinkedEntities={false}
+                purgeUnlinkedEntities={false}
             />
         </div>
     )
