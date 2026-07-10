@@ -22,6 +22,7 @@ import { ArpRoCrateImportService } from './services/arp-ro-crate-import-service'
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
 import { DataverseCapabilityService } from './services/dataverse-capability-service'
 import { DataverseCollectionService } from './services/dataverse-collection-service'
+import { DataverseMetadataBlockCacheService } from './services/dataverse-metadata-block-cache-service'
 import { DataverseService } from './services/dataverse-service'
 import {
   NativeDataverseDatasetMetadata,
@@ -67,6 +68,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly nativeImportService: NativeDataverseImportService,
     @inject(DataverseCapabilityService)
     protected readonly capabilityService: DataverseCapabilityService,
+    @inject(DataverseMetadataBlockCacheService)
+    protected readonly metadataBlockCacheService: DataverseMetadataBlockCacheService,
     @inject(RoCrateFileHashService)
     protected readonly fileHashService: RoCrateFileHashService,
     @inject(ZenodoExportService)
@@ -132,6 +135,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       )
       return
     }
+    await this.loadDataverseMetadataBlocks(selectedRepo)
 
     const importDialog = new ArpRoCrateImportDialog(
       capabilities.supportsArpRoCrateZipUpload
@@ -286,6 +290,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       )
       return
     }
+    await this.loadDataverseMetadataBlocks(selectedRepo)
 
     if (capabilities.supportsArpRoCrateZipUpload && selectedExportTarget) {
       const progress = await this.messageService.showProgress({
@@ -543,6 +548,27 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       error.payload,
     )
     await dialog.open()
+  }
+
+  protected async loadDataverseMetadataBlocks(
+    repository: DataRepositoryConfig,
+  ): Promise<void> {
+    const progress = await this.messageService.showProgress({
+      text: `Loading Dataverse metadata schemas from ${repository.title}...`,
+    })
+    try {
+      const saved =
+        await this.metadataBlockCacheService.loadTargetMetadataBlocks(repository)
+      console.log('Dataverse metadata blocks loaded:', saved)
+    } catch (error) {
+      console.warn('Failed to load Dataverse metadata blocks:', error)
+      this.messageService.warn(
+        `Dataverse metadata schemas could not be loaded: ${error instanceof Error ? error.message : String(error)}`,
+        { timeout: 10000 },
+      )
+    } finally {
+      progress.cancel()
+    }
   }
 
   protected handleAddRepository = async () => {
