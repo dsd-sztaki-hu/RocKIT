@@ -10,6 +10,7 @@ import {
     RoCrateExportFileSource
 } from 'rockit-common/lib/common/ro-crate-export-file-references';
 import { DataRepositoryConfig, DataRepositoryExportTarget, DataverseCollection } from '../types';
+import { DataverseMetadataMappingService } from './dataverse-metadata-mapping-service';
 
 type RoCrateEntity = Record<string, unknown>;
 type RoCrate = Record<string, unknown>;
@@ -240,7 +241,9 @@ export class NativeDataverseExportService {
 
     constructor(
         @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
-        @inject(FileService) protected readonly fileService: FileService
+        @inject(FileService) protected readonly fileService: FileService,
+        @inject(DataverseMetadataMappingService)
+        protected readonly metadataMappingService: DataverseMetadataMappingService
     ) { }
 
     public async createDataset(
@@ -258,7 +261,7 @@ export class NativeDataverseExportService {
             repository.apiKey,
             collectionId
         );
-        const payload = this.buildDatasetCreationPayload(datasetMetadata, crate, enabledMetadataBlocks);
+        const payload = await this.buildDatasetCreationPayload(datasetMetadata, crate, enabledMetadataBlocks);
         const uploadCollection = await this.collectRoCrateUploadFiles(crate, rootUri);
         const uploadFiles = uploadCollection.files;
         const totalSteps = uploadFiles.length + 2;
@@ -276,6 +279,7 @@ export class NativeDataverseExportService {
             headers['x-dataverse-key'] = repository.apiKey;
         }
 
+        await this.writeDebugMetadataPayload(payload);
         const response = await fetch(requestUrl, {
             method: 'POST',
             headers,
@@ -566,11 +570,11 @@ export class NativeDataverseExportService {
         }
     }
 
-    protected buildDatasetCreationPayload(
+    protected async buildDatasetCreationPayload(
         datasetMetadata: NativeDataverseDatasetMetadata,
         crate?: RoCrate,
         enabledMetadataBlocks?: Set<string>
-    ): Record<string, unknown> {
+    ): Promise<Record<string, unknown>> {
         const title = datasetMetadata.title.trim();
         const authors = this.uniqueStrings(datasetMetadata.authorNames.map(value => value.trim()));
         const contactEmails = this.uniqueStrings(datasetMetadata.contactEmails.map(value => value.trim()));
@@ -614,7 +618,14 @@ export class NativeDataverseExportService {
             }
         };
         if (crate) {
-            Object.assign(metadataBlocks, this.buildNativeDataverseMetadataBlocks(crate, enabledMetadataBlocks));
+            const mappedBlocks = await this.buildMappedNativeMetadataBlocks(crate, enabledMetadataBlocks);
+            for (const [blockAlias, block] of Object.entries(mappedBlocks)) {
+                metadataBlocks[blockAlias] = this.mergeNativeMetadataBlockFields(
+                    metadataBlocks[blockAlias],
+                    block.displayName,
+                    block.fields
+                );
+            }
         }
 
         return {
@@ -755,6 +766,7 @@ export class NativeDataverseExportService {
         if (!payload) {
             return;
         }
+        await this.writeDebugMetadataPayload(payload);
 
         const requestUrl = new URL('/api/datasets/:persistentId/metadata', `${baseUrl}/`);
         requestUrl.searchParams.set('persistentId', persistentId);
@@ -789,10 +801,11 @@ export class NativeDataverseExportService {
         enabledMetadataBlocks?: Set<string>
     ): Promise<void> {
         const currentData = await this.fetchDatasetVersionData(baseUrl, apiKey, persistentId, ':draft');
-        const payload = this.buildDatasetNativeMetadataUpdatePayload(currentData, crate, enabledMetadataBlocks);
+        const payload = await this.buildDatasetNativeMetadataUpdatePayload(currentData, crate, enabledMetadataBlocks);
         if (!payload) {
             return;
         }
+        await this.writeDebugMetadataPayload(payload);
 
         const requestUrl = `${baseUrl}/api/datasets/:persistentId/versions/:draft?persistentId=${encodeURIComponent(persistentId)}`;
         const headers: Record<string, string> = {
@@ -803,22 +816,40 @@ export class NativeDataverseExportService {
             headers['x-dataverse-key'] = apiKey;
         }
 
-        const response = await fetch(requestUrl, {
-            method: 'PUT',
-            headers,
-            body: JSON.stringify(payload)
-        });
-        const responsePayload = await this.readResponsePayload(response);
-        if (!response.ok || responsePayload.status === 'ERROR') {
-            throw new Error(`Dataverse native metadata update failed (${response.status}): ${this.payloadSummary(responsePayload)}`);
+        let nextPayload = payload;
+        const adjustedFields = new Set<string>();
+        for (let attempt = 0; attempt < 10; attempt++) {
+            const response = await fetch(requestUrl, {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify(nextPayload)
+            });
+            const responsePayload = await this.readResponsePayload(response);
+            if (response.ok && responsePayload.status !== 'ERROR') {
+                return;
+            }
+
+            const incorrectMultipleField = this.extractIncorrectMultipleField(responsePayload);
+            if (!incorrectMultipleField || adjustedFields.has(incorrectMultipleField)) {
+                throw new Error(`Dataverse native metadata update failed (${response.status}): ${this.payloadSummary(responsePayload)}`);
+            }
+
+            nextPayload = JSON.parse(JSON.stringify(nextPayload)) as Record<string, unknown>;
+            if (!this.adjustFieldMultiplicity(nextPayload, incorrectMultipleField)) {
+                throw new Error(`Dataverse native metadata update failed (${response.status}): ${this.payloadSummary(responsePayload)}`);
+            }
+            adjustedFields.add(incorrectMultipleField);
+            await this.writeDebugMetadataPayload(nextPayload);
+            console.warn(`Retrying Dataverse native metadata update after adjusting multiple flag for field ${incorrectMultipleField}.`);
         }
+        throw new Error('Dataverse native metadata update failed after retrying field multiplicity adjustments.');
     }
 
-    protected buildDatasetNativeMetadataUpdatePayload(
+    protected async buildDatasetNativeMetadataUpdatePayload(
         currentData: Record<string, unknown>,
         crate: RoCrate,
         enabledMetadataBlocks?: Set<string>
-    ): Record<string, unknown> | undefined {
+    ): Promise<Record<string, unknown> | undefined> {
         const metadataBlocks = currentData.metadataBlocks;
         if (!metadataBlocks || typeof metadataBlocks !== 'object' || Array.isArray(metadataBlocks)) {
             return undefined;
@@ -827,20 +858,52 @@ export class NativeDataverseExportService {
         const updatePayload = { ...currentData };
         delete updatePayload.files;
         const updatedMetadataBlocks: Record<string, unknown> = { ...(metadataBlocks as Record<string, unknown>) };
-        const localBlocks = this.buildNativeDataverseMetadataBlocks(crate, enabledMetadataBlocks);
-        const localCitationFields = this.buildNativeCitationMetadataFields(crate);
-        if (localCitationFields.length) {
-            updatedMetadataBlocks.citation = this.mergeNativeMetadataBlockFields(
-                updatedMetadataBlocks.citation,
-                'Citation Metadata',
-                localCitationFields
-            );
-        }
+        const localBlocks = await this.buildMappedNativeMetadataBlocks(crate, enabledMetadataBlocks);
         for (const [blockAlias, block] of Object.entries(localBlocks)) {
-            updatedMetadataBlocks[blockAlias] = block;
+            updatedMetadataBlocks[blockAlias] = this.mergeNativeMetadataBlockFields(
+                updatedMetadataBlocks[blockAlias],
+                block.displayName,
+                block.fields
+            );
         }
         updatePayload.metadataBlocks = updatedMetadataBlocks;
         return updatePayload;
+    }
+
+    protected async writeDebugMetadataPayload(payload: Record<string, unknown>): Promise<void> {
+        try {
+            const rootUri = this.getWorkspaceRoot();
+            const rockitUri = rootUri.resolve('.rockit');
+            if (!await this.fileService.exists(rockitUri)) {
+                await this.fileService.createFolder(rockitUri);
+            }
+            await this.fileService.writeFile(
+                rockitUri.resolve('dataverse-metadata-update.json'),
+                BinaryBuffer.fromString(`${JSON.stringify(payload, null, 2)}\n`)
+            );
+        } catch (error) {
+            console.warn('Failed to write Dataverse metadata debug payload:', error);
+        }
+    }
+
+    protected async buildMappedNativeMetadataBlocks(
+        crate: RoCrate,
+        enabledMetadataBlocks?: Set<string>
+    ): Promise<Record<string, { displayName: string; fields: DataverseMetadataField[] }>> {
+        try {
+            return await this.metadataMappingService.buildMetadataBlocks(crate, enabledMetadataBlocks) as Record<string, { displayName: string; fields: DataverseMetadataField[] }>;
+        } catch (error) {
+            console.warn('Falling back to hardcoded Dataverse metadata mapping:', error);
+            const blocks = this.buildNativeDataverseMetadataBlocks(crate, enabledMetadataBlocks);
+            const citationFields = this.buildNativeCitationMetadataFields(crate);
+            if (citationFields.length) {
+                blocks.citation = {
+                    displayName: 'Citation Metadata',
+                    fields: citationFields
+                };
+            }
+            return blocks;
+        }
     }
 
     protected mergeNativeMetadataBlockFields(
@@ -867,6 +930,70 @@ export class NativeDataverseExportService {
                 ...replacementFields
             ]
         };
+    }
+
+    protected extractIncorrectMultipleField(payload: NativeDataverseResponse): string | undefined {
+        const message = this.readOptionalString(payload.message);
+        return message?.match(/incorrect multiple\s+for field\s+(.+)$/i)?.[1]?.trim();
+    }
+
+    protected adjustFieldMultiplicity(payload: Record<string, unknown>, fieldName: string): boolean {
+        const metadataBlocks = payload.metadataBlocks;
+        if (!metadataBlocks || typeof metadataBlocks !== 'object' || Array.isArray(metadataBlocks)) {
+            return false;
+        }
+
+        for (const block of Object.values(metadataBlocks as Record<string, unknown>)) {
+            if (!block || typeof block !== 'object' || Array.isArray(block)) {
+                continue;
+            }
+            const fields = (block as Record<string, unknown>).fields;
+            if (Array.isArray(fields) && this.adjustFieldMultiplicityInList(fields, fieldName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected adjustFieldMultiplicityInList(fields: unknown[], fieldName: string): boolean {
+        for (const field of fields) {
+            if (this.adjustFieldMultiplicityInField(field, fieldName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected adjustFieldMultiplicityInField(field: unknown, fieldName: string): boolean {
+        if (!field || typeof field !== 'object' || Array.isArray(field)) {
+            return false;
+        }
+        const record = field as Record<string, unknown>;
+        if (record.typeName === fieldName) {
+            const isMultiple = record.multiple === true;
+            record.multiple = !isMultiple;
+            if (isMultiple && Array.isArray(record.value)) {
+                record.value = record.value[0];
+            } else if (!isMultiple && record.value !== undefined) {
+                record.value = Array.isArray(record.value) ? record.value : [record.value];
+            }
+            return true;
+        }
+
+        if (record.typeClass === 'compound') {
+            const compoundValues = Array.isArray(record.value) ? record.value : [record.value];
+            for (const compoundValue of compoundValues) {
+                if (!compoundValue || typeof compoundValue !== 'object' || Array.isArray(compoundValue)) {
+                    continue;
+                }
+                for (const childField of Object.values(compoundValue as Record<string, unknown>)) {
+                    if (this.adjustFieldMultiplicityInField(childField, fieldName)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     protected async fetchCollectionMetadataBlockAliases(
