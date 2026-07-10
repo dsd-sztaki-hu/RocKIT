@@ -10,7 +10,7 @@ import { Emitter, Event } from '@theia/core/lib/common/event';
 
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
-import type { SchemaInfo, SchemaIndex, RemoteSchemaProviderConfig } from '../types';
+import type { ProfileHealthIssue, ProfileHealthStatus, SchemaInfo, SchemaIndex, RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
 import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'rockit-common/lib/browser';
 import {
@@ -969,6 +969,54 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     return requiredIds;
   }
 
+  public async getProfileHealthForCrate(roCrate: any): Promise<ProfileHealthStatus> {
+    const requiredIds = this.extractSchemaIds(roCrate);
+    if (requiredIds.size === 0) {
+      return { requiredCount: 0, okCount: 0, issues: [] };
+    }
+
+    const profiles = await this.loadAllSchemas();
+    const issues: ProfileHealthIssue[] = [];
+    let okCount = 0;
+
+    for (const conformsTo of requiredIds) {
+      const matchingProfiles = profiles.filter(profile =>
+        profile.aux.reference === conformsTo ||
+        profile.conformsTo === conformsTo ||
+        profile.downloadUrl === conformsTo
+      );
+
+      const availableProfile = matchingProfiles.find(profile => !profile.status || profile.status === 'ok');
+      if (availableProfile) {
+        okCount += 1;
+        continue;
+      }
+
+      const failedProfile = matchingProfiles.find(profile => profile.status === 'failed');
+      if (failedProfile) {
+        issues.push({
+          conformsTo,
+          status: 'failed',
+          profileName: failedProfile.name,
+          message: failedProfile.statusMessage || 'Referenced profile could not be downloaded.'
+        });
+        continue;
+      }
+
+      const matching = matchingProfiles[0];
+      if (!matching) {
+        issues.push({
+          conformsTo,
+          status: 'missing',
+          message: 'Referenced profile is not available locally.'
+        });
+        continue;
+      }
+    }
+
+    return { requiredCount: requiredIds.size, okCount, issues };
+  }
+
   public async getSchemaByConformsTo(conformsToUrl: string): Promise<SchemaInfo | undefined> {
     const all = await this.loadAllSchemas();
     return all.find(s => s.conformsTo === conformsToUrl || s.aux.reference === conformsToUrl);
@@ -1358,6 +1406,26 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         throw error
       }
     }
+    return profile
+  }
+
+  public async getMergedProfileForClass(
+    newProfile: Record<string, any>,
+    profile: Record<string, any>,
+    className: string,
+    profileUrl?: string,
+  ) {
+    const normalizedClassName = typeof className === 'string' ? className.trim() : ''
+    if (!normalizedClassName || normalizedClassName === 'CreativeWork') {
+      return profile
+    }
+
+    this.addProfileToClass(
+      newProfile,
+      normalizedClassName,
+      profile,
+      typeof profileUrl === 'string' && profileUrl.trim() ? profileUrl.trim() : undefined,
+    )
     return profile
   }
 

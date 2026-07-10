@@ -431,6 +431,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
     protected override render(): React.ReactNode {
         const availableTypes = this.model.getAvailableTypes()
+
         const activeFilters = this.getActiveFilters()
         const selectedTypes = this.normalizeSelectedTypes(availableTypes, activeFilters)
         const isAdvanced = this.filterMode === 'advanced'
@@ -447,7 +448,10 @@ export class EntitiesOverviewWidget extends TreeWidget {
             this.advancedFilters.entityNameFilter.trim() === '' &&
             this.advancedFilters.validityFilter === 'all'
 
-        return (
+        const tree = this.renderTree(this.model)
+
+
+        const result = (
             <AntdThemeProvider themeService={this.themeService}>
                 <div className="entities-overview-panel-content">
                     <div
@@ -586,10 +590,12 @@ export class EntitiesOverviewWidget extends TreeWidget {
                         </Button>
                     </div>
 
-                    <div {...this.createContainerAttributes()}>{this.renderTree(this.model)}</div>
+                    <div {...this.createContainerAttributes()}>{tree}</div>
                 </div>
             </AntdThemeProvider>
         )
+
+        return result
     }
 
     isFiltersVisible(): boolean {

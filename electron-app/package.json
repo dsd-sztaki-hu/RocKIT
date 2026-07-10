@@ -47,7 +47,7 @@
     "multi-edit": "0.0.0"
   },
   "devDependencies": {
-    "@arpproject/recrate": "0.1.45",
+    "@arpproject/recrate": "0.1.46",
     "@theia/cli": "1.65.2",
     "allotment": "^1.20.5",
     "electron": "37.2.1"
@@ -67,7 +67,7 @@
     "target": "electron",
     "backend": {
       "config": {
-        "singleInstance": false
+        "singleInstance": true
       }
     },
     "frontend": {

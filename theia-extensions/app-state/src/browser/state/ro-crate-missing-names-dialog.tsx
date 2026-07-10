@@ -1,6 +1,6 @@
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import * as React from '@theia/core/shared/react'
-import type { MissingRoCrateEntityName } from 'rockit-common/lib/browser'
+import type { MissingRoCrateEntityName } from 'rockit-common/lib/common/ro-crate-entity-name'
 
 const PREVIEW_LIMIT = 8
 

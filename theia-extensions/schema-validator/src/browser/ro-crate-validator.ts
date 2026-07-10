@@ -416,16 +416,37 @@ export async function validateEntities(
 
   const warnedMissingProfileUrls = new Set<string>();
   let processedCount = 0;
+  const validationEntries: any[] = [];
+  const targetEntityIds = options.targetEntityIds;
 
-  for (let index = 0; index < graph.length; index += 1) {
-    throwIfAborted(options.signal);
-    const entity = graph[index];
-    if (!entity || typeof entity !== 'object') {
-      continue;
+  if (targetEntityIds && targetEntityIds.size > 0) {
+    const foundTargetIds = new Set<string>();
+    for (let index = 0; index < graph.length; index += 1) {
+      const entity = graph[index];
+      if (!entity || typeof entity !== 'object') {
+        continue;
+      }
+
+      const entityId = normalizeEntityId(entity, index);
+      if (!targetEntityIds.has(entityId)) {
+        continue;
+      }
+
+      validationEntries.push(entity);
+      foundTargetIds.add(entityId);
+      if (foundTargetIds.size >= targetEntityIds.size) {
+        break;
+      }
     }
+  } else {
+    for (let index = 0; index < graph.length; index += 1) {
+      validationEntries.push(graph[index]);
+    }
+  }
 
-    const entityId = normalizeEntityId(entity, index);
-    if (options.targetEntityIds && !options.targetEntityIds.has(entityId)) {
+  for (const entity of validationEntries) {
+    throwIfAborted(options.signal);
+    if (!entity || typeof entity !== 'object') {
       continue;
     }
 
@@ -492,7 +513,8 @@ export async function validateEntities(
     }
   }
 
-  return validationErrors.length !== 0 ? validationErrors : undefined;
+  const result = validationErrors.length !== 0 ? validationErrors : undefined;
+  return result;
 }
 
 export function validate(entity: Record<string, any>, profile: Record<string, any>) {

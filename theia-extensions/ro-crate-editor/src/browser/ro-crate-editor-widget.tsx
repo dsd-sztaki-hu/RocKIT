@@ -38,6 +38,7 @@ interface RoCrateEditorWidgetOptions {
 
 type NavigationEntity = { ['@id']?: string } & Record<string, unknown>
 type ProfileValidationMode = 'none' | 'always'
+type ProfileValidationScope = 'full' | 'targeted'
 
 type EntityOverviewDropPayload = {
   entityId?: string
@@ -95,27 +96,30 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected eirceiaSubscription?: Disposable
   protected schemasSubscription?: Disposable
 
-  protected localCrate: Record<string, any> | undefined
-  protected localRoCrateApproval: RoCrateApprovalFile | undefined
-  protected localProfile: Record<string, any> | undefined
-  protected baseProfile: Record<string, any> | undefined
-  protected localCompleteProfile: Record<string, any> | undefined
-  protected localSelectedEntityId: string | undefined
-  protected isRefreshingProfile = false
-  protected pendingSchemasRefresh = false
-  protected pendingSchemasRefreshBaseProfile?: Record<string, any>
-  protected pendingSchemasRefreshEntityId?: string
-  protected pendingSchemasRefreshValidationMode: ProfileValidationMode = 'none'
-  protected profileRevision = 0
-  protected lastSeenNonMissingProfileCount = 0
-  protected lastFocusedElement?: HTMLElement
-  protected lastSelectionStart?: number
-  protected lastSelectionEnd?: number
+    protected localCrate: Record<string, any> | undefined
+    protected localRoCrateApproval: RoCrateApprovalFile | undefined
+    protected localProfile: Record<string, any> | undefined
+    protected baseProfile: Record<string, any> | undefined
+    protected localCompleteProfile: Record<string, any> | undefined
+    protected localSelectedEntityId: string | undefined
+    protected isRefreshingProfile = false
+    protected pendingSchemasRefresh = false
+    protected pendingSchemasRefreshBaseProfile?: Record<string, any>
+    protected pendingSchemasRefreshEntityId?: string
+    protected pendingSchemasRefreshValidationMode: ProfileValidationMode = 'none'
+    protected pendingSchemasRefreshValidationScope: ProfileValidationScope = 'full'
+    protected nextProfileListValidationScope: ProfileValidationScope = 'full'
+    protected profileRevision = 0
+    protected lastSeenNonMissingProfileCount = 0
+    protected lastFocusedElement?: HTMLElement
+    protected lastSelectionStart?: number
+    protected lastSelectionEnd?: number
 
-  protected lastAppliedEntityId?: string
-  protected lastAppliedCrate: Record<string, any> | undefined
-  protected lastAppliedProfileList: Record<string, any> | undefined
-  protected lastAppliedConformsTo: string[] = []
+    protected lastAppliedEntityId?: string
+    protected lastAppliedCrate: Record<string, any> | undefined
+    protected lastAppliedProfileList: Record<string, any> | undefined
+    protected lastAppliedConformsTo: string[] = []
+    protected readonly fallbackProfileCloneCache = new WeakMap<object, Record<string, any>>()
 
   protected baselineEntityId?: string
   protected baselineEntitySnapshot?: string
@@ -131,69 +135,74 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
     protected validationFieldScrollNonce = 0
 
-  protected normalizeValidationErrors(
-    errors: ValidationError[] | undefined,
-  ): ValidationError[] {
-    if (!errors || errors.length === 0) {
-      return []
+    protected buildValidationErrorKey(error: ValidationError): string {
+        return [
+            error.entityId ?? '',
+            error.entityType ?? '',
+            error.fieldName ?? '',
+            error.fieldLabel ?? '',
+            error.errorCode ?? '',
+            error.error ?? '',
+            error.path ?? '',
+        ].join('|')
     }
 
-    const seen = new Set<string>()
-    const result: ValidationError[] = []
+    protected updateValidationSignatureHash(hash: number, key: string): number {
+        let next = hash
+        for (let index = 0; index < key.length; index += 1) {
+            next ^= key.charCodeAt(index)
+            next = Math.imul(next, 16777619)
+        }
+        return next >>> 0
+    }
 
-    for (const error of errors) {
-      if (!error) {
-        continue
-      }
-      const key = [
-        error.entityId ?? '',
-        error.entityType ?? '',
-        error.fieldName ?? '',
-        error.fieldLabel ?? '',
-        error.errorCode ?? '',
-        error.error ?? '',
-        error.path ?? '',
-      ].join('|')
+    protected normalizeValidationErrorsWithSignature(
+        errors: ValidationError[] | undefined,
+    ): { errors: ValidationError[]; signature: string } {
+        if (!errors || errors.length === 0) {
+            return { errors: [], signature: '' }
+        }
+
+        const seen = new Set<string>()
+        const result: ValidationError[] = []
+        let hash = 2166136261
+        let firstKey = ''
+        let lastKey = ''
+
+        for (const error of errors) {
+            if (!error) {
+                continue
+            }
+            const key = this.buildValidationErrorKey(error)
 
       if (seen.has(key)) {
         continue
       }
 
-      seen.add(key)
-      result.push(error)
+            seen.add(key)
+            result.push(error)
+            hash = this.updateValidationSignatureHash(hash, key)
+            if (!firstKey) {
+                firstKey = key
+            }
+            lastKey = key
+        }
+
+        return {
+            errors: result,
+            signature: `${result.length}:${hash.toString(36)}:${firstKey}:${lastKey}`,
+        }
     }
 
-    return result
-  }
-
-  protected buildValidationSignature(errors: ValidationError[]): string {
-    if (errors.length === 0) {
-      return ''
+    protected publishValidationErrors(errors: ValidationError[] | undefined): void {
+        const normalized = this.normalizeValidationErrorsWithSignature(errors)
+        const signature = normalized.signature
+        if (signature === this.lastValidationErrorSignature) {
+            return
+        }
+        this.lastValidationErrorSignature = signature
+        this.appStateService.validationErrors = normalized.errors
     }
-    return errors
-      .map((error) =>
-        [
-          error.entityId ?? '',
-          error.entityType ?? '',
-          error.fieldName ?? '',
-          error.fieldLabel ?? '',
-          error.errorCode ?? '',
-          error.error ?? '',
-          error.path ?? '',
-        ].join('|'),
-      )
-      .join('||')
-  }
-
-  protected publishValidationErrors(errors: ValidationError[] | undefined): void {
-    const normalized = this.normalizeValidationErrors(errors)
-    const signature = this.buildValidationSignature(normalized)
-    if (signature === this.lastValidationErrorSignature) {
-      return
-    }
-    this.lastValidationErrorSignature = signature
-    this.appStateService.validationErrors = normalized
-  }
 
   protected clearBackgroundValidationTimer(): void {
     if (this.backgroundValidationTimer) {
@@ -279,9 +288,60 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         return
       }
 
-      void this.performCrateValidation(run)
-    }, 500)
-  }
+            void this.performCrateValidation(run)
+        }, 500)
+    }
+
+    protected async validateTargetedEntitiesNow(entityIds: string[]): Promise<void> {
+        const run = ++this.validationRun
+
+        this.clearBackgroundValidationTimer()
+
+        if (this.validationTimer) {
+            clearTimeout(this.validationTimer)
+            this.validationTimer = undefined
+        }
+
+        const crate = this.localCrate ?? this.appStateService.roCrate
+        const baseProfile = this.baseProfile
+
+        if (!crate || !Array.isArray(crate['@graph']) || !baseProfile) {
+            if (run === this.validationRun) {
+                this.publishValidationErrors([])
+            }
+            return
+        }
+
+        let validationErrors: ValidationError[] | undefined
+        try {
+            const targetedValidator = this.schemaValidator as any
+            if (typeof targetedValidator.validateEntitiesTargeted === 'function') {
+                validationErrors = await targetedValidator.validateEntitiesTargeted(
+                    crate,
+                    baseProfile,
+                    entityIds,
+                )
+            } else {
+                const invalidateEntities = targetedValidator.invalidateEntities
+                if (typeof invalidateEntities === 'function') {
+                    invalidateEntities.call(this.schemaValidator, entityIds)
+                }
+                validationErrors = await this.schemaValidator.validateEntities(crate, baseProfile)
+            }
+        } catch (error: any) {
+            if (error?.name === 'AbortError') {
+                return
+            }
+            console.warn('RoCrateEditorWidget: targeted validation failed', error)
+            validationErrors = []
+        }
+
+        if (run !== this.validationRun) {
+            return
+        }
+
+        this.publishValidationErrors(validationErrors)
+    }
 
   protected async performCrateValidation(run: number): Promise<void> {
     const crate = this.localCrate ?? this.appStateService.roCrate
@@ -405,23 +465,26 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       })
     }
 
-    this.localCrate = this.appStateService.roCrate
-    this.localRoCrateApproval = this.appStateService.roCrateApproval as
-      | RoCrateApprovalFile
-      | undefined
-    this.localCompleteProfile = this.appStateService.completeProfile
-    this.baseProfile = this.appStateService.getInitialProfileTemplate()
-    this.localProfile = this.baseProfile
-      ? JSON.parse(JSON.stringify(this.baseProfile))
-      : this.baseProfile
-    console.log('baseProfile', this.baseProfile)
-    console.log('localCompleteProfile', this.localCompleteProfile)
-    this.setDirtyState(false)
-    this.lastSeenNonMissingProfileCount = Array.isArray(this.appStateService.profileList)
-      ? this.appStateService.profileList.filter(
-          (p: any) => (p as any)?.flag !== 'missing',
-        ).length
-      : 0
+        this.localCrate = this.appStateService.roCrate
+        this.localRoCrateApproval = this.appStateService.roCrateApproval as
+            | RoCrateApprovalFile
+            | undefined
+        this.localCompleteProfile = this.appStateService.completeProfile
+        this.baseProfile = this.appStateService.getInitialProfileTemplate()
+        this.localProfile = this.baseProfile
+            ? JSON.parse(JSON.stringify(this.baseProfile))
+            : this.baseProfile
+        if (this.baseProfile && this.localProfile) {
+            this.fallbackProfileCloneCache.set(this.baseProfile, this.localProfile)
+        }
+        console.log('baseProfile', this.baseProfile)
+        console.log('localCompleteProfile', this.localCompleteProfile)
+        this.setDirtyState(false)
+        this.lastSeenNonMissingProfileCount = Array.isArray(this.appStateService.profileList)
+            ? this.appStateService.profileList.filter(
+                (p: any) => (p as any)?.flag !== 'missing',
+            ).length
+            : 0
 
         this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
             async (crate) => {
@@ -446,7 +509,8 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     this.close()
                     return
                 }
-                await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always')
+                this.nextProfileListValidationScope = 'targeted'
+                await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always', 'targeted')
             },
         )
 
@@ -492,31 +556,40 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         this.messageService.info('Adding profile…', { timeout: 10000 })
       }
 
-      if (this.isRefreshingProfile) {
-        this.pendingSchemasRefresh = true
-        this.pendingSchemasRefreshValidationMode = 'always'
-        return
-      }
-      if (!this.baseProfile || !this.localCrate) {
-        return
-      }
-      const entityId = this.getActiveEntityId()
-      if (!entityId) {
-        return
-      }
+            if (this.isRefreshingProfile) {
+                this.pendingSchemasRefresh = true
+                this.pendingSchemasRefreshValidationMode = 'always'
+                this.pendingSchemasRefreshValidationScope = this.nextProfileListValidationScope
+                this.nextProfileListValidationScope = 'full'
+                return
+            }
+            if (!this.baseProfile || !this.localCrate) {
+                return
+            }
+            const entityId = this.getActiveEntityId()
+            if (!entityId) {
+                return
+            }
 
-      try {
-        await this.updateProfileWithEntitySchemas(this.baseProfile, entityId, 'always')
-        if (isAddingProfile) {
-          this.messageService.info('Profile added.', { timeout: 5000 })
-        }
-      } catch (error) {
-        if (isAddingProfile) {
-          this.messageService.error('Failed to add profile.', { timeout: 7000 })
-        }
-        throw error
-      }
-    })
+            try {
+                const validationScope = this.nextProfileListValidationScope
+                this.nextProfileListValidationScope = 'full'
+                await this.updateProfileWithEntitySchemas(
+                    this.baseProfile,
+                    entityId,
+                    'always',
+                    validationScope,
+                )
+                if (isAddingProfile) {
+                    this.messageService.info('Profile added.', { timeout: 5000 })
+                }
+            } catch (error) {
+                if (isAddingProfile) {
+                    this.messageService.error('Failed to add profile.', { timeout: 7000 })
+                }
+                throw error
+            }
+        })
 
     this.eirceiaSubscription = this.appStateService.onDidChangeSelector((s) => s.EIRCEIA)(
       async (mapping) => {
@@ -908,8 +981,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   }
 
     render(): React.ReactNode {
+        let result: React.ReactNode
+
         if (!this.localCrate) {
-            return (
+            result = (
                 <div
                     style={{
                         alignItems: 'center',
@@ -947,35 +1022,36 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     </div>
                 </div>
             )
+        } else {
+            result = (
+                <div
+                    style={{
+                        height: '100%',
+                        minHeight: 0,
+                        overflow: 'hidden',
+                        padding: 10,
+                        boxSizing: 'border-box',
+                    }}
+                >
+                    <DescriboCrateBuilderWrapper
+                        crate={this.localCrate}
+                        roCrateApproval={this.localRoCrateApproval}
+                        profile={this.localProfile}
+                        entityId={this.getActiveEntityId()}
+                        scrollToFieldRequest={this.validationFieldScrollRequest}
+                        instanceId={this.id}
+                        onSaveCrate={this.handleSaveCrate}
+                        onSaveRoCrateApproval={this.handleSaveRoCrateApproval}
+                        onNavigation={this.handleNavigation}
+                        onOpenSchemaManager={this.handleOpenSchemaManager}
+                        onRemoveProfile={this.handleRemoveProfile}
+                        onDropEntityToHasPart={this.handleDropEntityToHasPart}
+                    />
+                </div>
+            )
         }
 
-        return (
-            <div
-                style={{
-                    height: '100%',
-                    minHeight: 0,
-                    overflow: 'hidden',
-                    padding: 10,
-                    boxSizing: 'border-box',
-                }}
-            >
-                <DescriboCrateBuilderWrapper
-                    crate={this.localCrate}
-                    roCrateApproval={this.localRoCrateApproval}
-                    profile={this.localProfile}
-                    entityId={this.getActiveEntityId()}
-                    scrollToFieldRequest={this.validationFieldScrollRequest}
-                    profileKey={this.profileRevision}
-                    instanceId={this.id}
-                    onSaveCrate={this.handleSaveCrate}
-                    onSaveRoCrateApproval={this.handleSaveRoCrateApproval}
-                    onNavigation={this.handleNavigation}
-                    onOpenSchemaManager={this.handleOpenSchemaManager}
-                    onRemoveProfile={this.handleRemoveProfile}
-                    onDropEntityToHasPart={this.handleDropEntityToHasPart}
-                />
-            </div>
-        )
+        return result
     }
 
   getResourceUri(): URI | undefined {
@@ -1409,40 +1485,56 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     })
   }
 
-  protected isSameStringSet(a: string[], b: string[]): boolean {
-    let result = true
-    if (a.length !== b.length) {
-      result = false
-    } else {
-      const setA = new Set(a)
-      if (setA.size !== b.length) {
-        result = false
-      } else {
-        for (const value of b) {
-          if (!setA.has(value)) {
+    protected isSameStringSet(a: string[], b: string[]): boolean {
+        let result = true
+        if (a.length !== b.length) {
             result = false
-            break
-          }
+        } else {
+            const setA = new Set(a)
+            if (setA.size !== b.length) {
+                result = false
+            } else {
+                for (const value of b) {
+                    if (!setA.has(value)) {
+                        result = false
+                        break
+                    }
+                }
+            }
         }
-      }
+        return result
     }
-    return result
-  }
 
-  protected async updateProfileWithEntitySchemas(
-    baseProfile: Record<string, any>,
-    entityId: string,
-    validationMode: ProfileValidationMode = 'none',
-  ) {
-    if (this.isRefreshingProfile) {
-      this.pendingSchemasRefresh = true
-      this.pendingSchemasRefreshBaseProfile = baseProfile
-      this.pendingSchemasRefreshEntityId = entityId
-      if (validationMode === 'always') {
-        this.pendingSchemasRefreshValidationMode = 'always'
-      }
-      return
+    protected getFallbackProfileClone(profile: Record<string, any>): {
+        profile: Record<string, any>
+        cacheHit: boolean
+    } {
+        const cached = this.fallbackProfileCloneCache.get(profile)
+        if (cached) {
+            return { profile: cached, cacheHit: true }
+        }
+
+        const clone = JSON.parse(JSON.stringify(profile))
+        this.fallbackProfileCloneCache.set(profile, clone)
+        return { profile: clone, cacheHit: false }
     }
+
+    protected async updateProfileWithEntitySchemas(
+        baseProfile: Record<string, any>,
+        entityId: string,
+        validationMode: ProfileValidationMode = 'none',
+        validationScope: ProfileValidationScope = 'full',
+    ) {
+        if (this.isRefreshingProfile) {
+            this.pendingSchemasRefresh = true
+            this.pendingSchemasRefreshBaseProfile = baseProfile
+            this.pendingSchemasRefreshEntityId = entityId
+            if (validationMode === 'always') {
+                this.pendingSchemasRefreshValidationMode = 'always'
+                this.pendingSchemasRefreshValidationScope = validationScope
+            }
+            return
+        }
 
     this.isRefreshingProfile = true
 
@@ -1451,10 +1543,14 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         return
       }
 
-      const entity = this.findEntity(this.localCrate, entityId)
-      if (!entity) {
-        return
-      }
+            const entity = this.findEntity(this.localCrate, entityId)
+            if (!entity) {
+                return
+            }
+            const rawEntityType = entity?.['@type']
+            const entityType = Array.isArray(rawEntityType)
+                ? rawEntityType.find((type: any) => typeof type === 'string' && type.trim())
+                : rawEntityType
 
       const profileList = this.appStateService.profileList
       const conformsTos = this.computeConformsToIdsForSelectedEntity(entityId)
@@ -1469,13 +1565,14 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         return
       }
 
-      if (!conformsTos || conformsTos.length === 0) {
-        const fallbackProfile =
-          !this.isFileOrDatasetEntity(entity) && this.localCompleteProfile
-            ? this.localCompleteProfile
-            : baseProfile
-        const nextProfile = JSON.parse(JSON.stringify(fallbackProfile ?? baseProfile))
-        const didProfileChange = this.localProfile !== nextProfile
+            if (!conformsTos || conformsTos.length === 0) {
+                const fallbackProfile =
+                    !this.isFileOrDatasetEntity(entity) && this.localCompleteProfile
+                        ? this.localCompleteProfile
+                        : baseProfile
+                const fallbackResult = this.getFallbackProfileClone(fallbackProfile ?? baseProfile)
+                const nextProfile = fallbackResult.profile
+                const didProfileChange = this.localProfile !== nextProfile
 
         this.localProfile = nextProfile
         if (didProfileChange) {
@@ -1499,25 +1596,36 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
           (p: any) => (p?.id ?? '').trim() === conformsToUrl.trim(),
         )?.content
 
-        if (convertedContent) {
-          foundMatchingProfile = true
-          if (this.localCrate) {
-            const merged = await this.schemaManagerService.getMergedProfile(
-              this.localCrate,
-              convertedContent,
-              updateProfile,
-              conformsToUrl,
-            )
-            updateProfile = merged
-            didUpdateProfile = true
-            this.updateEntityConformsTo(entityId, conformsToUrl)
-          }
-        } else {
-          const id = typeof conformsToUrl === 'string' ? conformsToUrl.trim() : ''
-          if (id) {
-            const hasEntry = Array.isArray(profileList)
-              ? profileList.some((p: any) => (p?.id ?? '').trim() === id)
-              : false
+                if (convertedContent) {
+                    foundMatchingProfile = true
+                    if (this.localCrate) {
+                        const targetedMerge = (this.schemaManagerService as any)
+                            .getMergedProfileForClass
+                        const merged =
+                            typeof targetedMerge === 'function' && typeof entityType === 'string'
+                                ? await targetedMerge.call(
+                                      this.schemaManagerService,
+                                      convertedContent,
+                                      updateProfile,
+                                      entityType,
+                                      conformsToUrl,
+                                  )
+                                : await this.schemaManagerService.getMergedProfile(
+                                      this.localCrate,
+                                      convertedContent,
+                                      updateProfile,
+                                      conformsToUrl,
+                                  )
+                        updateProfile = merged
+                        didUpdateProfile = true
+                        this.updateEntityConformsTo(entityId, conformsToUrl)
+                    }
+                } else {
+                    const id = typeof conformsToUrl === 'string' ? conformsToUrl.trim() : ''
+                    if (id) {
+                        const hasEntry = Array.isArray(profileList)
+                            ? profileList.some((p: any) => (p?.id ?? '').trim() === id)
+                            : false
 
             if (!hasEntry) {
               const prev = Array.isArray(this.appStateService.profileList)
@@ -1540,45 +1648,56 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         }
       }
 
-      this.lastAppliedEntityId = entityId
-      this.lastAppliedConformsTo = conformsTos.slice()
-      this.lastAppliedCrate = this.localCrate
-      this.lastAppliedProfileList = profileList
-      this.update()
-    } finally {
-      if (validationMode === 'always') {
-        await this.validateCurrentCrate()
-      }
+            this.lastAppliedEntityId = entityId
+            this.lastAppliedConformsTo = conformsTos.slice()
+            this.lastAppliedCrate = this.localCrate
+            this.lastAppliedProfileList = profileList
+            this.update()
+        } finally {
+            if (validationMode === 'always') {
+                if (validationScope === 'targeted') {
+                    await this.validateTargetedEntitiesNow([entityId])
+                } else {
+                    const invalidateEntities = (this.schemaValidator as any).invalidateEntities
+                    if (typeof invalidateEntities === 'function') {
+                        invalidateEntities.call(this.schemaValidator, [entityId])
+                    }
+                    await this.validateCurrentCrate()
+                }
+            }
 
       this.isRefreshingProfile = false
 
-      if (this.pendingSchemasRefresh) {
-        this.pendingSchemasRefresh = false
-        const baseProfile = this.pendingSchemasRefreshBaseProfile ?? this.baseProfile
-        const crate = this.localCrate
-        const entityId =
-          this.pendingSchemasRefreshEntityId ??
-          this.assignedEntityId ??
-          this.localSelectedEntityId ??
-          './'
-        const pendingValidationMode = this.pendingSchemasRefreshValidationMode
+            if (this.pendingSchemasRefresh) {
+                this.pendingSchemasRefresh = false
+                const baseProfile = this.pendingSchemasRefreshBaseProfile ?? this.baseProfile
+                const crate = this.localCrate
+                const entityId =
+                    this.pendingSchemasRefreshEntityId ??
+                    this.assignedEntityId ??
+                    this.localSelectedEntityId ??
+                    './'
+                const pendingValidationMode = this.pendingSchemasRefreshValidationMode
+                const pendingValidationScope = this.pendingSchemasRefreshValidationScope
 
-        this.pendingSchemasRefreshBaseProfile = undefined
-        this.pendingSchemasRefreshEntityId = undefined
-        this.pendingSchemasRefreshValidationMode = 'none'
+                this.pendingSchemasRefreshBaseProfile = undefined
+                this.pendingSchemasRefreshEntityId = undefined
+                this.pendingSchemasRefreshValidationMode = 'none'
+                this.pendingSchemasRefreshValidationScope = 'full'
 
-        if (baseProfile && crate) {
-          queueMicrotask(() => {
-            void this.updateProfileWithEntitySchemas(
-              baseProfile,
-              entityId,
-              pendingValidationMode,
-            )
-          })
+                if (baseProfile && crate) {
+                    queueMicrotask(() => {
+                        void this.updateProfileWithEntitySchemas(
+                            baseProfile,
+                            entityId,
+                            pendingValidationMode,
+                            pendingValidationScope,
+                        )
+                    })
+                }
+            }
         }
-      }
     }
-  }
 
   protected findEntity(crate: Record<string, any>, id: string) {
     const result = (crate['@graph'] as Record<string, any>[]).find(
@@ -1805,23 +1924,23 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
     try {
       await this.persistenceService.write(rootUri, crateData)
+    } catch (error) {
+      console.error('Failed to persist RO-Crate metadata:', error)
+      return
+    }
+
+    try {
       await this.writeRoCrateApprovalFile(
         this.appStateService.roCrateApproval as RoCrateApprovalFile | undefined,
       )
-      this.appStateService.setRoCrateSnapshot(crateData)
-      this.appStateService.dirty = false
-      this.captureEntityBaseline(
-        this.assignedEntityId ?? this.localSelectedEntityId ?? './',
-        crateData,
-      )
     } catch (error) {
-      console.error('Failed to persist RO-Crate metadata:', error)
-      const message = error instanceof Error ? error.message : String(error)
-      this.messageService.error(`Failed to save RO-Crate: ${message}`, {
-        timeout: 10000,
-      })
-      throw error
+      console.warn('Failed to persist RO-Crate approval sidecar:', error)
     }
+
+    this.captureEntityBaseline(
+      this.assignedEntityId ?? this.localSelectedEntityId ?? './',
+      crateData,
+    )
   }
 
   protected async writeRoCrateApprovalFile(
