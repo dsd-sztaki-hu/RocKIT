@@ -164,6 +164,28 @@ export function maintainRoCrateApprovalFile(
     .sort((left, right) => left['@id'].localeCompare(right['@id']))
 }
 
+export function removeRoCrateApprovalProperties(
+  existing: RoCrateApprovalFile | undefined,
+  properties: Array<{ entityId: string; propertyName: string }>,
+): RoCrateApprovalFile | undefined {
+  if (!existing) {
+    return undefined
+  }
+
+  const trustedPropertyKeys = new Set(
+    properties.map(({ entityId, propertyName }) => approvalKey(entityId, propertyName)),
+  )
+
+  return existing
+    .map((entity) => ({
+      ...entity,
+      approval: entity.approval.filter(
+        (item) => !trustedPropertyKeys.has(approvalKey(entity['@id'], item.propertyName)),
+      ),
+    }))
+    .filter((entity) => entity.approval.length > 0)
+}
+
 export function parseRoCrateApprovalFile(value: unknown): RoCrateApprovalFile | undefined {
   if (Array.isArray(value)) {
     return value as RoCrateApprovalFile

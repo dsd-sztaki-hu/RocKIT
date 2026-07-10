@@ -41,5 +41,11 @@ export interface MetadataSchemaManager {
     profile: Record<string, any>,
     profileUrl?: string
   ): Promise<Record<string, any>>
+  getMergedProfileForClass(
+    newProfile: Record<string, any>,
+    profile: Record<string, any>,
+    className: string,
+    profileUrl?: string
+  ): Promise<Record<string, any>>
   readonly onDidChangeSchemas: Event<void>
 }

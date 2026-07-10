@@ -31,6 +31,21 @@ export interface SchemaInfo {
   statusMessage?: string;
 }
 
+export type ProfileHealthIssueStatus = 'missing' | 'failed';
+
+export interface ProfileHealthIssue {
+  conformsTo: string;
+  status: ProfileHealthIssueStatus;
+  profileName?: string;
+  message?: string;
+}
+
+export interface ProfileHealthStatus {
+  requiredCount: number;
+  okCount: number;
+  issues: ProfileHealthIssue[];
+}
+
 export interface SchemaIndex {
   profiles: SchemaInfo[];
   conformsToIndex: Record<string, string[]>;
