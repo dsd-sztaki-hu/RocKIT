@@ -255,17 +255,26 @@ export class DataverseMetadataMappingService {
 
     protected normalizeValue(fieldName: string, value: DataverseValue, schema: DataverseFieldSchema): DataverseValue | undefined {
         const trimmed = String(value).trim();
-        if (!trimmed) {
+        if (!trimmed || trimmed === './') {
             return undefined;
         }
-        if (schema.type === 'DATE' || /date$/i.test(fieldName)) {
+        const schemaType = schema.type?.toUpperCase();
+        if (schemaType === 'DATE' || /date$/i.test(fieldName)) {
             const dateOnly = trimmed.match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?/);
             return dateOnly?.[0] ?? undefined;
         }
-        if (schema.type === 'EMAIL' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        if (schemaType === 'EMAIL' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
             return undefined;
         }
-        if (schema.type === 'FLOAT' || schema.type === 'INT') {
+        if (schemaType === 'URL') {
+            try {
+                const url = new URL(trimmed);
+                return url.protocol === 'http:' || url.protocol === 'https:' ? trimmed : undefined;
+            } catch {
+                return undefined;
+            }
+        }
+        if (schemaType === 'FLOAT' || schemaType === 'INT') {
             const numeric = Number(trimmed);
             return Number.isFinite(numeric) ? numeric : undefined;
         }

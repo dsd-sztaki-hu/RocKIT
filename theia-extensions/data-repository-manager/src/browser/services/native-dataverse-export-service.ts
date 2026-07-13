@@ -279,7 +279,6 @@ export class NativeDataverseExportService {
             headers['x-dataverse-key'] = repository.apiKey;
         }
 
-        await this.writeDebugMetadataPayload(payload);
         const response = await fetch(requestUrl, {
             method: 'POST',
             headers,
@@ -766,8 +765,6 @@ export class NativeDataverseExportService {
         if (!payload) {
             return;
         }
-        await this.writeDebugMetadataPayload(payload);
-
         const requestUrl = new URL('/api/datasets/:persistentId/metadata', `${baseUrl}/`);
         requestUrl.searchParams.set('persistentId', persistentId);
         if (replace) {
@@ -805,8 +802,6 @@ export class NativeDataverseExportService {
         if (!payload) {
             return;
         }
-        await this.writeDebugMetadataPayload(payload);
-
         const requestUrl = `${baseUrl}/api/datasets/:persistentId/versions/:draft?persistentId=${encodeURIComponent(persistentId)}`;
         const headers: Record<string, string> = {
             accept: 'application/json',
@@ -839,7 +834,6 @@ export class NativeDataverseExportService {
                 throw new Error(`Dataverse native metadata update failed (${response.status}): ${this.payloadSummary(responsePayload)}`);
             }
             adjustedFields.add(incorrectMultipleField);
-            await this.writeDebugMetadataPayload(nextPayload);
             console.warn(`Retrying Dataverse native metadata update after adjusting multiple flag for field ${incorrectMultipleField}.`);
         }
         throw new Error('Dataverse native metadata update failed after retrying field multiplicity adjustments.');
@@ -868,22 +862,6 @@ export class NativeDataverseExportService {
         }
         updatePayload.metadataBlocks = updatedMetadataBlocks;
         return updatePayload;
-    }
-
-    protected async writeDebugMetadataPayload(payload: Record<string, unknown>): Promise<void> {
-        try {
-            const rootUri = this.getWorkspaceRoot();
-            const rockitUri = rootUri.resolve('.rockit');
-            if (!await this.fileService.exists(rockitUri)) {
-                await this.fileService.createFolder(rockitUri);
-            }
-            await this.fileService.writeFile(
-                rockitUri.resolve('dataverse-metadata-update.json'),
-                BinaryBuffer.fromString(`${JSON.stringify(payload, null, 2)}\n`)
-            );
-        } catch (error) {
-            console.warn('Failed to write Dataverse metadata debug payload:', error);
-        }
     }
 
     protected async buildMappedNativeMetadataBlocks(
