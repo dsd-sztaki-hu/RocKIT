@@ -51,6 +51,7 @@ export interface ZenodoExportResult {
   unmappedEntityIds: string[]
   metadata: ZenodoDepositionMetadata
   createResponse: unknown
+  metadataResponse: unknown
 }
 
 export interface ZenodoExportProgress {
@@ -102,7 +103,7 @@ export class ZenodoExportService {
       rootUri,
       localizedExternalFiles.entries,
     )
-    const totalSteps = uploadFiles.length + 2
+    const totalSteps = uploadFiles.length + 3
     let completedSteps = 0
 
     const createUrl = new URL('/api/deposit/depositions', `${baseUrl}/`)
@@ -118,7 +119,7 @@ export class ZenodoExportService {
         authorization: `Bearer ${token}`,
         'content-type': 'application/json',
       },
-      body: JSON.stringify({ metadata: depositionMetadata }),
+      body: JSON.stringify({}),
     })
     const createPayload = await this.readResponsePayload(createResponse)
     if (!createResponse.ok) {
@@ -170,6 +171,34 @@ export class ZenodoExportService {
     reportProgress?.({
       completedSteps,
       totalSteps,
+      message: 'Uploading Zenodo deposition metadata...',
+    })
+    const metadataUrl =
+      this.extractSelfUrl(createPayload) ??
+      new URL(
+        `/api/deposit/depositions/${encodeURIComponent(depositionId)}`,
+        `${baseUrl}/`,
+      ).toString()
+    const metadataResponse = await this.fetchWithTimeout(metadataUrl, {
+      method: 'PUT',
+      headers: {
+        accept: 'application/json',
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ metadata: depositionMetadata }),
+    })
+    const metadataPayload = await this.readResponsePayload(metadataResponse)
+    if (!metadataResponse.ok) {
+      throw new Error(
+        `Zenodo metadata upload failed (${metadataResponse.status}) at ${metadataResponse.url || metadataUrl}: ${this.payloadSummary(metadataPayload)}`,
+      )
+    }
+    completedSteps += 1
+
+    reportProgress?.({
+      completedSteps,
+      totalSteps,
       message: 'Writing local export mapping...',
     })
     const uploadMapping = this.buildEntityIdMapping(uploadCrate, uploadedFiles)
@@ -209,6 +238,7 @@ export class ZenodoExportService {
       unmappedEntityIds,
       metadata: depositionMetadata,
       createResponse: createPayload,
+      metadataResponse: metadataPayload,
     }
   }
 
@@ -830,6 +860,12 @@ export class ZenodoExportService {
     const links = this.extractLinks(payload)
     const html = links?.html ?? links?.latest_draft_html
     return typeof html === 'string' && html.trim() ? html.trim() : undefined
+  }
+
+  protected extractSelfUrl(payload: unknown): string | undefined {
+    const links = this.extractLinks(payload)
+    const self = links?.self
+    return typeof self === 'string' && self.trim() ? self.trim() : undefined
   }
 
   protected extractLinks(payload: unknown): Record<string, unknown> | undefined {

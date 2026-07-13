@@ -267,7 +267,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           { timeout: 10000 },
         )
         this.messageService.info(
-          'Zenodo metadata defaults were applied: upload type dataset, access right open, and license cc-zero. These can be changed in Zenodo.',
+          'RO-Crate metadata was converted to an in-memory Zenodo JSON payload and uploaded to the draft.',
           { timeout: 12000 },
         )
         console.log('RO-Crate files exported to Zenodo:', exportResult)
