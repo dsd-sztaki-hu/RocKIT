@@ -135,6 +135,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   }
 
   async onStart(): Promise<void> {
+    // Initialize the one-time default provider before the user opens any schema UI.
+    await this.providerStoreService.loadProviders();
     await this.synchronizeIndex();
 
     const currentCrate = this.appStateService.roCrate;

@@ -76,3 +76,19 @@ export interface RemoteSchemaProviderConfig {
   dataverseProxyBaseUrl?: string;
   apiKey?: string;
 }
+
+export const DEFAULT_ARP_PRODUCTION_PROVIDER: Readonly<RemoteSchemaProviderConfig> = {
+  id: 'arp-prod',
+  title: 'ARP Production',
+  baseUrl: 'https://cedar.schema.researchdata.hu/',
+  domainBase: 'schema.researchdata.hu',
+  type: 'CEDAR',
+  resourceBaseUrl: 'https://resource.schema.researchdata.hu',
+  registryFolderId: 'https://repo.schema.researchdata.hu/folders/49ba90b3-86ee-45b8-a623-d4a7a7df926c',
+  accessMode: 'dataverseProxy',
+  dataverseProxyBaseUrl: 'https://repo.researchdata.hu'
+};
+
+export function createDefaultArpProductionProvider(): RemoteSchemaProviderConfig {
+  return { ...DEFAULT_ARP_PRODUCTION_PROVIDER };
+}

@@ -5,7 +5,7 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { URI } from '@theia/core/lib/common/uri';
 
-import { RemoteSchemaProviderConfig } from '../types';
+import { createDefaultArpProductionProvider, RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
 import { SecureStorageService } from 'rockit-common/lib/common/secure-storage-protocol';
 
@@ -76,6 +76,12 @@ export class RemoteSchemaProviderStoreService {
                         : [];
 
                 configs = rawProviders.filter(this.isProviderConfig);
+            } else {
+                // The config file itself is the initialization marker. An empty
+                // existing array means the user deliberately removed all providers
+                // and must not cause the default to be recreated.
+                configs = [createDefaultArpProductionProvider()];
+                await this.writeProviderConfigs(uri, configs);
             }
         } catch (error) {
             console.error('Failed to read remote schema config file:', error);
@@ -118,17 +124,7 @@ export class RemoteSchemaProviderStoreService {
         const uri = await this.getConfigUri();
         const { keytarService } = await this.getEnvConfig();
 
-        const cleanConfigs = providers.map(p => {
-            const { apiKey, ...safeConfig } = p;
-            return safeConfig;
-        });
-
-        const content = JSON.stringify(cleanConfigs, null, 4);
-        
-        if (!await this.fileService.exists(uri.parent)) {
-            await this.fileService.createFolder(uri.parent);
-        }
-        await this.fileService.write(uri, content);
+        await this.writeProviderConfigs(uri, providers);
 
         for (const provider of providers) {
             try {
@@ -144,6 +140,18 @@ export class RemoteSchemaProviderStoreService {
                 console.warn(`[RemoteSchemaStore] Failed to update credentials for ${provider.id}:`, error);
             }
         }
+    }
+
+    protected async writeProviderConfigs(uri: URI, providers: RemoteSchemaProviderConfig[]): Promise<void> {
+        const cleanConfigs = providers.map(p => {
+            const { apiKey, ...safeConfig } = p;
+            return safeConfig;
+        });
+
+        if (!await this.fileService.exists(uri.parent)) {
+            await this.fileService.createFolder(uri.parent);
+        }
+        await this.fileService.write(uri, JSON.stringify(cleanConfigs, null, 4));
     }
 
     protected isProviderConfig(value: unknown): value is RemoteSchemaProviderConfig {
