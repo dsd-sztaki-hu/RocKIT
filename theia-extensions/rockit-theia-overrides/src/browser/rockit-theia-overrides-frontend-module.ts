@@ -1,23 +1,34 @@
-import {
-  FrontendApplicationContribution,
-} from '@theia/core/lib/browser'
+import { FrontendApplicationContribution, WidgetFactory } from '@theia/core/lib/browser'
 import { ShellLayoutTransformer } from '@theia/core/lib/browser/shell/shell-layout-restorer'
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common'
 import { ContainerModule } from '@theia/core/shared/inversify'
 import { bindRockitSplashPreferences } from '../common/rockit-splash-preferences'
-import { RockitSplashContribution } from './rockit-splash-contribution'
 import { RoCrateDefaultLayoutContribution } from './application-default-layout-contribution'
 import { ApplicationEditMenuOverrides } from './application-edit-menu-overrides'
 import { ApplicationFileMenuOverrides } from './application-file-menu-overrides'
 import { ApplicationRoCrateMenuContribution } from './application-ro-crate-menu-contribution'
 import { ApplicationViewMenuOverrides } from './application-view-menu-overrides'
 import { ConnectionNotificationContribution } from './connection-notification-contribution'
+import { EmptyWorkspaceWidget } from './empty-workspace-widget'
 import { FileEditorLanguageContribution } from './file-editor-language-contribution'
 import { HelpIconsToggleContribution } from './help-icons-toggle-contribution'
+import { RockitSplashContribution } from './rockit-splash-contribution'
+import '../../src/browser/style/empty-workspace.css'
 import '../../src/browser/style/help-icons.css'
 import '../../src/browser/style/panel-backgrounds.css'
 
 export default new ContainerModule((bind) => {
+  bind(EmptyWorkspaceWidget).toSelf()
+  bind(WidgetFactory)
+    .toDynamicValue((ctx) => ({
+      id: EmptyWorkspaceWidget.ID,
+      createWidget: async () => {
+        const widget = ctx.container.get(EmptyWorkspaceWidget)
+        await widget.initialize()
+        return widget
+      },
+    }))
+    .inSingletonScope()
   bindRockitSplashPreferences(bind)
   bind(ApplicationEditMenuOverrides).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(ApplicationEditMenuOverrides)
