@@ -9,6 +9,7 @@ import { ApplicationFileMenuOverrides } from './application-file-menu-overrides'
 import { ApplicationRoCrateMenuContribution } from './application-ro-crate-menu-contribution'
 import { ApplicationViewMenuOverrides } from './application-view-menu-overrides'
 import { ConnectionNotificationContribution } from './connection-notification-contribution'
+import { DisplayLanguageMenuContribution } from './display-language-menu-contribution'
 import { EmptyWorkspaceWidget } from './empty-workspace-widget'
 import { FileEditorLanguageContribution } from './file-editor-language-contribution'
 import { HelpIconsToggleContribution } from './help-icons-toggle-contribution'
@@ -49,6 +50,8 @@ export default new ContainerModule((bind) => {
   bind(ShellLayoutTransformer).toService(ApplicationViewMenuOverrides)
   bind(ConnectionNotificationContribution).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(ConnectionNotificationContribution)
+  bind(DisplayLanguageMenuContribution).toSelf().inSingletonScope()
+  bind(MenuContribution).toService(DisplayLanguageMenuContribution)
   bind(RoCrateDefaultLayoutContribution).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(RoCrateDefaultLayoutContribution)
   bind(FileEditorLanguageContribution).toSelf().inSingletonScope()

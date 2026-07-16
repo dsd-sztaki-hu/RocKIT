@@ -27,6 +27,7 @@
   },
   "theiaExtensions": [
     {
+      "backend": "lib/node/rockit-localization-backend-module",
       "frontend": "lib/browser/rockit-theia-overrides-frontend-module",
       "electronMain": "lib/electron-main/renderer-failure-module"
     }
