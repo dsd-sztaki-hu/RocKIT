@@ -155,6 +155,38 @@
     flex-shrink: 0;
 }
 
+.remote-provider-config__footer-spacer {
+    flex: 1;
+}
+
+.theia-button.remote-provider-config__btn-defaults {
+    white-space: nowrap;
+    margin-left: 0;
+    padding: 7px 12px;
+    border: 1px solid var(--theia-focusBorder);
+    border-radius: 4px;
+    background-color: var(--theia-secondaryButton-background, var(--theia-button-background));
+    color: var(--theia-secondaryButton-foreground, var(--theia-button-foreground));
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+    transition: background-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.theia-button.remote-provider-config__btn-defaults:hover:not(:disabled) {
+    background-color: var(--theia-secondaryButton-hoverBackground, var(--theia-button-hoverBackground));
+    box-shadow: 0 2px 4px rgb(0 0 0 / 25%);
+    transform: translateY(-1px);
+}
+
+.theia-button.remote-provider-config__btn-defaults:focus {
+    outline: none;
+}
+
+.theia-button.remote-provider-config__btn-defaults:active:not(:disabled) {
+    box-shadow: none;
+    transform: translateY(0);
+}
+
 .remote-provider-config__btn-cancel {
     min-width: 80px;
     border: 1px solid var(--theia-button-border, #ccc);

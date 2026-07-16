@@ -1,10 +1,15 @@
 import { BaseWidget, Message, StatefulWidget } from '@theia/core/lib/browser'
+import { ApplicationServer } from '@theia/core/lib/common/application-protocol'
 import { DisposableCollection } from '@theia/core/lib/common/disposable'
 import { MessageService } from '@theia/core/lib/common/message-service'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 import { createRoot, Root } from 'react-dom/client'
+import {
+  buildDocumentationUrl,
+  ROCKIT_DOCUMENTATION_PAGES,
+} from 'rockit-common/lib/browser'
 import { DataRepositoryConfigDialog } from './components/data-repository-config-dialog'
 import { DataRepositoryDeleteDialog } from './components/data-repository-delete-dialog'
 import { DataRepositorySelectorDialog } from './components/data-repository-selector-dialog'
@@ -73,6 +78,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly zenodoExportService: ZenodoExportService,
     @inject(AppStateService)
     protected readonly appStateService: AppStateService,
+    @inject(ApplicationServer)
+    protected readonly applicationServer: ApplicationServer,
   ) {
     super()
     this.id = DATA_REPOSITORY_MANAGER_WIDGET_ID
@@ -379,8 +386,9 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     if (capabilities.supportsArpRoCrateZipUpload) {
       const missingMetadata = this.getMissingArpDatasetCreationMetadata()
       if (missingMetadata.length) {
+        const documentationUrl = await this.getRepositoryExportDocumentationUrl()
         this.messageService.error(
-          `ARP export requires required citation metadata before creating a Dataverse dataset: ${missingMetadata.join(', ')}. Fill these fields in the root Dataset citation metadata, then export again.`,
+          `ARP export requires required citation metadata before creating a Dataverse dataset: ${missingMetadata.join(', ')}. Fill these fields in the root Dataset citation metadata, then export again. [Learn more in the documentation](${documentationUrl}).`,
           { timeout: 15000 },
         )
         return
@@ -613,6 +621,22 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       missing.push('Subject')
     }
     return missing
+  }
+
+  protected async getRepositoryExportDocumentationUrl(): Promise<string> {
+    try {
+      const appInfo = await this.applicationServer.getApplicationInfo()
+      return buildDocumentationUrl(
+        appInfo?.version ?? 'latest',
+        ROCKIT_DOCUMENTATION_PAGES.REPOSITORY_EXPORT_IMPORT,
+      )
+    } catch (error) {
+      console.warn('Failed to resolve the application version for documentation:', error)
+      return buildDocumentationUrl(
+        'latest',
+        ROCKIT_DOCUMENTATION_PAGES.REPOSITORY_EXPORT_IMPORT,
+      )
+    }
   }
 
   protected hasCompleteAuthors(root: RoCrateEntity, graph: RoCrateEntity[]): boolean {

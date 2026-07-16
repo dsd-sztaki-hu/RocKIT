@@ -16,8 +16,14 @@ async function main() {
   const seededProviders = JSON.parse(fs.readFileSync(providerConfigPath, 'utf8'))
   assert.equal(seededProviders.length, 1)
   assert.equal(seededProviders[0].id, 'arp-prod')
+  assert.equal(seededProviders[0].title, 'ARP Production')
   assert.equal(seededProviders[0].accessMode, 'dataverseProxy')
   assert.equal(seededProviders[0].dataverseProxyBaseUrl, 'https://repo.researchdata.hu')
+
+  const removedDefault = await core.deleteCedarProvider('arp-prod', root)
+  assert.equal(removedDefault.deleted, true)
+  core.ensureProfileStorage(root)
+  assert.deepEqual(JSON.parse(fs.readFileSync(providerConfigPath, 'utf8')), [])
 
   const fixturePath = path.resolve(
     __dirname,

@@ -476,7 +476,7 @@ export async function deleteMetadataProfile(args: {
 export function defaultCedarProvider(): CedarProvider {
   return {
     id: 'arp-prod',
-    title: 'ARP Prod',
+    title: 'ARP Production',
     displayUrl: 'https://cedar.schema.researchdata.hu/',
     domainBase: 'schema.researchdata.hu',
     resourceBaseUrl: 'https://resource.schema.researchdata.hu',

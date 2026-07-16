@@ -15,7 +15,7 @@ import { IconButton } from '@mui/material';
 
 import { ConnectionSuccessDialog } from './connection-success-dialog';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
-import type { RemoteSchemaProviderConfig } from '../types';
+import { createDefaultArpProductionProvider, type RemoteSchemaProviderConfig } from '../types';
 import '../styles/remote-schema-provider-config-dialog.css';
 
 export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchemaProviderConfig | undefined> {
@@ -35,6 +35,7 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
     private showKey = false; 
     private errorMsg: string | null = null;
     private result: RemoteSchemaProviderConfig | undefined;
+    private newProviderDefaults: RemoteSchemaProviderConfig | undefined;
 
     constructor(
         private readonly providerStore: RemoteSchemaProviderStoreService,
@@ -59,6 +60,19 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
 
     get value(): RemoteSchemaProviderConfig | undefined {
         return this.result;
+    }
+
+    private handlePrefillDefaults() {
+        const defaults = createDefaultArpProductionProvider();
+        this.newProviderDefaults = defaults;
+        this.titleValue = defaults.title;
+        this.baseUrlValue = defaults.baseUrl;
+        this.typeValue = defaults.type;
+        this.accessModeValue = defaults.accessMode || 'dataverseProxy';
+        this.dataverseProxyBaseUrlValue = defaults.dataverseProxyBaseUrl || '';
+        this.apiKeyValue = '';
+        this.errorMsg = null;
+        this.render();
     }
 
     private async handleSaveAttempt() {
@@ -86,13 +100,13 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
 
             if (confirmed) {
                 this.result = {
-                    id: this.providerToEdit ? this.providerToEdit.id : Date.now().toString(),
+                    id: this.providerToEdit?.id || this.newProviderDefaults?.id || Date.now().toString(),
                     title: this.titleValue,
                     baseUrl: this.baseUrlValue,
                     domainBase: domainBase,
                     type: this.typeValue,
-                    resourceBaseUrl: this.providerToEdit?.resourceBaseUrl,
-                    registryFolderId: this.providerToEdit?.registryFolderId,
+                    resourceBaseUrl: this.providerToEdit?.resourceBaseUrl || this.newProviderDefaults?.resourceBaseUrl,
+                    registryFolderId: this.providerToEdit?.registryFolderId || this.newProviderDefaults?.registryFolderId,
                     accessMode: this.accessModeValue,
                     dataverseProxyBaseUrl: this.accessModeValue === 'dataverseProxy'
                         ? (this.dataverseProxyBaseUrlValue || this.deriveDataverseProxyBaseUrl(domainBase))
@@ -333,6 +347,16 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
 
                 {/* Footer Section */}
                 <div className="remote-provider-config__footer">
+                    {!this.providerToEdit && (
+                        <button
+                            className="theia-button secondary remote-provider-config__btn-defaults"
+                            onClick={() => this.handlePrefillDefaults()}
+                            disabled={this.isTesting}
+                        >
+                            Use ARP Production defaults
+                        </button>
+                    )}
+                    <div className="remote-provider-config__footer-spacer" />
                     <button 
                         className="theia-button secondary remote-provider-config__btn-cancel"
                         onClick={() => this.handleCancel()}
