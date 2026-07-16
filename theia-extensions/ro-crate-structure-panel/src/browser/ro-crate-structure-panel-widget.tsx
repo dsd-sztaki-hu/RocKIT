@@ -1261,8 +1261,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         }
         event.preventDefault()
         event.stopPropagation()
-        event.dataTransfer.dropEffect = this.extractEntityDragPayload(event.dataTransfer)
-            ? event.altKey
+        const entityPayload = this.extractEntityDragPayload(event.dataTransfer)
+        event.dataTransfer.dropEffect = entityPayload
+            ? event.altKey || entityPayload.source === 'entities-overview'
                 ? 'copy'
                 : 'move'
             : 'link'
@@ -1442,7 +1443,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             this.appStateService.selectedEntityId ??
             './'
         const datasetTargetEntityId = this.resolveDatasetTargetEntityId(crate, targetEntityId)
-        const copyMode = event.altKey
+        const copyMode = event.altKey || payload.source === 'entities-overview'
         const result = this.applyDroppedEntitiesToCrate(
             crate,
             datasetTargetEntityId,
