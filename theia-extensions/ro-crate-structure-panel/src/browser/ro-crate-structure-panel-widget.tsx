@@ -19,6 +19,7 @@ import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-hist
 import {
     getSharedDatasetIconClass,
     getSharedFileIconClass,
+    RoCrateEntityDeleteService,
 } from 'rockit-common/lib/browser'
 import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
 import { MultiEditDialogService } from 'multi-edit/lib/browser/multi-edit-dialog-service'
@@ -88,6 +89,8 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected readonly themeService: ThemeService
     @inject(MultiEditDialogService)
     protected readonly multiEditDialogService: MultiEditDialogService
+    @inject(RoCrateEntityDeleteService)
+    protected readonly roCrateEntityDeleteService: RoCrateEntityDeleteService
     @inject(MessageService)
     protected readonly messageService: MessageService
 
@@ -207,6 +210,14 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         await this.deleteSelectedEntities()
     }
 
+    public canDeleteEntitiesFromContextMenu(): boolean {
+        return this.getDeletableSelectedEntityIds().length > 0
+    }
+
+    public async deleteEntitiesFromContextMenu(): Promise<void> {
+        await this.deleteSelectedEntitiesPermanently()
+    }
+
     protected async deleteSelectedEntities(): Promise<void> {
         const crate = this.appStateService.roCrate
         const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : undefined
@@ -282,11 +293,48 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         )
     }
 
+    protected getDeletableSelectedEntityIds(): string[] {
+        return Array.from(
+            this.roCrateEntityDeleteService.getDeletableEntityIds(
+                this.selectedEntityIds,
+                './',
+            ),
+        )
+    }
+
+    protected async deleteSelectedEntitiesPermanently(): Promise<void> {
+        const result = await this.roCrateEntityDeleteService.deleteSelectedEntities({
+            selectedEntityIds: this.selectedEntityIds,
+            rootEntityId: './',
+            appStateService: this.appStateService,
+            roCrateHistoryService: this.roCrateHistoryService,
+            shell: this.shell,
+        })
+        if (!result.changed) {
+            return
+        }
+
+        this.selectedEntityIds.clear()
+        this.selectedKeys = []
+        this.lastSelectedNodeKey = undefined
+        this.invalidateTreeCache()
+        this.update()
+    }
+
     protected handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
         if (event.defaultPrevented || event.key !== 'Delete') {
             return
         }
         if (this.shouldIgnoreDeleteKeyEvent(event.target as HTMLElement | null)) {
+            return
+        }
+        if (event.shiftKey) {
+            if (this.getDeletableSelectedEntityIds().length === 0) {
+                return
+            }
+            event.preventDefault()
+            event.stopPropagation()
+            void this.deleteSelectedEntitiesPermanently()
             return
         }
         if (this.getDeletableSelectedOccurrences().length === 0) {
