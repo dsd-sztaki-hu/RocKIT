@@ -1,5 +1,8 @@
 import DescriboCrateBuilder from '@arpproject/recrate'
+import { nls } from '@theia/core/lib/common'
 import * as React from 'react'
+
+import { toRecrateLanguage } from './recrate-language'
 
 import '../../src/browser/style/recrate-scoped.css'
 import '../../src/browser/style/recrate-dark-overrides.css'
@@ -51,6 +54,9 @@ export const DescriboCrateBuilderWrapper = ({
     onRemoveProfile: (tabData: any) => void
     onDropEntityToHasPart: (payload: SingleEntityDropPayload, destinationEntityId: string) => Promise<void>
 }) => {
+    const language = toRecrateLanguage(
+        nls.localization?.languageId ?? nls.locale ?? nls.defaultLocale,
+    )
     const [currentEntityId, setCurrentEntityId] = React.useState<string | undefined>(entityId)
     const [loading, setLoading] = React.useState<boolean>(false)
     const lastNavTarget = React.useRef<string | undefined>(undefined)
@@ -310,7 +316,7 @@ export const DescriboCrateBuilderWrapper = ({
                 enableCratePreview={false}
                 enableUrlMarkup={false}
                 enableBulkAdd={false}
-                language={'en'}
+                language={language}
                 readonly={loading}
                 tabLocation={'left'}
                 showControls={true}

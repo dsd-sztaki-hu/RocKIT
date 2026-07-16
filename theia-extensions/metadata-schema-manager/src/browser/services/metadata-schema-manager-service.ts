@@ -7,6 +7,7 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { URI } from '@theia/core/lib/common/uri';
 import { Emitter, Event } from '@theia/core/lib/common/event';
+import { nls } from '@theia/core/lib/common';
 
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
@@ -19,6 +20,7 @@ import {
 } from 'rockit-common/lib/common/schema-url-resolution';
 import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service';
 import { MissingSchemasDialog } from '../components/missing-schemas-dialog'; 
+import { CedarProfileLanguage, toCedarProfileLanguage } from './cedar-profile-language';
 
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
@@ -41,7 +43,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
   @inject(RemoteSchemaProviderStoreService) public readonly providerStoreService!: RemoteSchemaProviderStoreService; 
 
-  private readonly converter = new CedarTemplateToDescriboProfileConverter();
   private isChecking = false;
   private indexMutex: Promise<void> = Promise.resolve();
 
@@ -151,6 +152,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       const index = await this.loadIndex();
       const validProfiles: SchemaInfo[] = [];
       let indexChanged = false;
+      const conversionLanguage = this.getConversionLanguage();
 
       for (const profile of index.profiles) {
         const sourceUri = root.resolve(profile.files.sourcePath);
@@ -160,6 +162,26 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         const convertedExists = await this.fileService.exists(convertedUri);
 
         if (sourceExists && convertedExists) {
+          if (
+            profile.type === 'cedar' &&
+            profile.aux.conversionLanguage !== conversionLanguage
+          ) {
+            try {
+              const sourceContent = await this.fileService.read(sourceUri);
+              const convertedContent = this.convertCedarTemplate(
+                sourceContent.value,
+                conversionLanguage,
+              );
+              await this.fileService.write(convertedUri, convertedContent);
+              profile.aux.conversionLanguage = conversionLanguage;
+              indexChanged = true;
+            } catch (error) {
+              console.warn(
+                `[SchemaManager] Failed to regenerate ${profile.name} in ${conversionLanguage}`,
+                error,
+              );
+            }
+          }
           validProfiles.push(profile);
         } else {
           console.warn(`[SchemaManager] Removing corrupted index entry: ${profile.name}`);
@@ -199,7 +221,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                 
                 let convertedContent: string;
                 try { 
-                  convertedContent = this.converter.processCedarTemplate(content.value); 
+                  convertedContent = this.convertCedarTemplate(
+                    content.value,
+                    conversionLanguage,
+                  );
                 } catch (convErr) { 
                   continue; 
                 }
@@ -229,7 +254,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                   },
                   aux: {
                     templateUuid: uuidId,
-                    reference: schemaId
+                    reference: schemaId,
+                    conversionLanguage,
                   },
                   conformsTo: conformsTo,
                   downloadUrl: '',
@@ -1221,7 +1247,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     let convertedContent: string;
     try { 
-      convertedContent = this.converter.processCedarTemplate(rawContent); 
+      convertedContent = this.convertCedarTemplate(rawContent);
     } catch (convErr) { 
       throw new Error(`Conversion logic failed: ${convErr}`); 
     }
@@ -1258,7 +1284,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       },
       aux: {
         templateUuid: uuidId,
-        reference: schemaId
+        reference: schemaId,
+        conversionLanguage: this.getConversionLanguage(),
       },
       conformsTo: conformsTo,
       downloadUrl: downloadUrl,
@@ -1287,6 +1314,20 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     }));
 
     return schemaName;
+  }
+
+  private getConversionLanguage(): CedarProfileLanguage {
+    return toCedarProfileLanguage(
+      nls.localization?.languageId ?? nls.locale ?? nls.defaultLocale,
+    );
+  }
+
+  private convertCedarTemplate(
+    rawContent: string,
+    language: CedarProfileLanguage = this.getConversionLanguage(),
+  ): string {
+    return new CedarTemplateToDescriboProfileConverter(language)
+      .processCedarTemplate(rawContent);
   }
 
   public async loadAllSchemas(): Promise<SchemaInfo[]> {

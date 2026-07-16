@@ -10,6 +10,7 @@ export interface SchemaFiles {
 export interface SchemaAux {
   templateUuid?: string;
   reference: string;
+  conversionLanguage?: 'en' | 'hu';
 }
 
 export interface SchemaInfo {
