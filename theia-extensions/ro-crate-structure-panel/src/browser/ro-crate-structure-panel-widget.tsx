@@ -53,6 +53,12 @@ type StructureEntityDragPayload = {
     source?: string
 }
 
+type DroppedFile = {
+    relPath: string
+    sourceUri?: URI
+    parentKey?: string
+}
+
 type SelectedTreeOccurrence = {
     nodeKey: React.Key
     entityId: string
@@ -1320,7 +1326,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             return
         }
 
-        const droppedFiles: { relPath: string; sourceUri?: URI }[] = []
+        const droppedFiles: DroppedFile[] = []
         for (const uriString of uris) {
             try {
                 const uri = this.parseDroppedUri(uriString)
@@ -1337,9 +1343,30 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             }
         }
 
-        const uniqueDroppedFiles = this.dedupeDroppedFilesByPath(droppedFiles)
+        let uniqueDroppedFiles = this.dedupeDroppedFilesByPath(droppedFiles)
         if (!uniqueDroppedFiles.length) {
             return
+        }
+
+        const droppedDirectories = await this.findDroppedDirectories(uniqueDroppedFiles)
+        if (droppedDirectories.length) {
+            const folderLabel =
+                droppedDirectories.length === 1
+                    ? `the folder "${this.getDroppedFileName(droppedDirectories[0])}"`
+                    : `${droppedDirectories.length} selected folders`
+            const includeContents = await new ConfirmDialog({
+                title: 'Include folder contents?',
+                msg: `Do you want to add all files and subfolders inside ${folderLabel} recursively?`,
+                ok: 'Include Contents',
+                cancel: 'Folder Only',
+            }).open()
+
+            if (includeContents) {
+                uniqueDroppedFiles = await this.expandDroppedDirectories(
+                    uniqueDroppedFiles,
+                    droppedDirectories,
+                )
+            }
         }
 
         const crate = this.appStateService.roCrate
@@ -1806,21 +1833,120 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
 
     protected dedupeDroppedFilesByPath(
-        droppedFiles: { relPath: string; sourceUri?: URI }[],
-    ): { relPath: string; sourceUri?: URI }[] {
+        droppedFiles: DroppedFile[],
+    ): DroppedFile[] {
         const seen = new Set<string>()
-        const unique: { relPath: string; sourceUri?: URI }[] = []
+        const unique: DroppedFile[] = []
 
         for (const file of droppedFiles) {
-            const normalized = this.normalizeWorkspaceRelativePath(file.relPath).toLowerCase()
-            if (!normalized || seen.has(normalized)) {
+            const key = this.getDroppedFileKey(file)
+            if (!key || seen.has(key)) {
                 continue
             }
-            seen.add(normalized)
+            seen.add(key)
             unique.push(file)
         }
 
         return unique
+    }
+
+    protected getDroppedFileKey(file: DroppedFile): string {
+        return (
+            file.sourceUri?.toString().toLowerCase() ??
+            this.normalizeWorkspaceRelativePath(file.relPath).toLowerCase()
+        )
+    }
+
+    protected getDroppedFileName(file: DroppedFile): string {
+        return (
+            file.sourceUri?.path?.base ||
+            file.sourceUri?.path?.name ||
+            this.normalizeWorkspaceRelativePath(file.relPath).split('/').pop() ||
+            file.relPath
+        )
+    }
+
+    protected async findDroppedDirectories(droppedFiles: DroppedFile[]): Promise<DroppedFile[]> {
+        const resolved = await Promise.all(
+            droppedFiles.map(async (file) => ({
+                file,
+                info: await this.resolveDroppedEntryInfo(file.relPath, file.sourceUri),
+            })),
+        )
+        return resolved.filter(({ info }) => info.isDirectory).map(({ file }) => file)
+    }
+
+    protected async expandDroppedDirectories(
+        droppedFiles: DroppedFile[],
+        droppedDirectories: DroppedFile[],
+    ): Promise<DroppedFile[]> {
+        const expanded = [...droppedFiles]
+        const entryByKey = new Map(expanded.map((file) => [this.getDroppedFileKey(file), file]))
+        const queue = [...droppedDirectories]
+        const visitedDirectories = new Set<string>()
+
+        while (queue.length) {
+            const directory = queue.shift()
+            if (!directory) {
+                continue
+            }
+            const directoryKey = this.getDroppedFileKey(directory)
+            if (!directoryKey || visitedDirectories.has(directoryKey)) {
+                continue
+            }
+            visitedDirectories.add(directoryKey)
+
+            const directoryUri =
+                directory.sourceUri ?? this.resolveWorkspaceRelativeUri(directory.relPath)
+            if (!directoryUri) {
+                continue
+            }
+
+            try {
+                const stat = await this.fileService.resolve(directoryUri)
+                if (!stat.isDirectory || stat.isSymbolicLink) {
+                    continue
+                }
+                for (const child of stat.children ?? []) {
+                    const relPath = await this.workspaceService.getWorkspaceRelativePath(
+                        child.resource,
+                    )
+                    const childFile: DroppedFile = {
+                        relPath,
+                        sourceUri: child.resource,
+                        parentKey: directoryKey,
+                    }
+                    const childKey = this.getDroppedFileKey(childFile)
+                    const existing = entryByKey.get(childKey)
+                    if (existing) {
+                        existing.parentKey = directoryKey
+                    } else {
+                        expanded.push(childFile)
+                        entryByKey.set(childKey, childFile)
+                    }
+                    if (child.isDirectory && !child.isSymbolicLink) {
+                        queue.push(existing ?? childFile)
+                    }
+                }
+            } catch (error) {
+                console.warn('Failed to read dropped folder contents', directory.relPath, error)
+            }
+        }
+
+        const ordered: DroppedFile[] = []
+        const pending = [...expanded]
+        const addedKeys = new Set<string>()
+        while (pending.length) {
+            const readyIndex = pending.findIndex(
+                (file) => !file.parentKey || addedKeys.has(file.parentKey),
+            )
+            const nextIndex = readyIndex >= 0 ? readyIndex : 0
+            const [next] = pending.splice(nextIndex, 1)
+            ordered.push(next)
+            addedKeys.add(this.getDroppedFileKey(next))
+        }
+
+        return ordered
     }
 
     protected resolveDropTargetEntityId(event: React.DragEvent): string | undefined {
@@ -1943,7 +2069,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected async applyDroppedFilesToCrate(
         crate: Record<string, any>,
         targetEntityId: string,
-        droppedFiles: { relPath: string; sourceUri?: URI }[],
+        droppedFiles: DroppedFile[],
     ): Promise<Record<string, any>> {
         const graph = Array.isArray(crate['@graph']) ? [...crate['@graph']] : []
         const indexById = new Map<string, number>()
@@ -1954,17 +2080,14 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             }
         }
 
-        const targetIndex = indexById.get(targetEntityId) ?? indexById.get('./') ?? undefined
-        if (targetIndex === undefined) {
+        if (!indexById.has(targetEntityId) && !indexById.has('./')) {
             console.warn('No target entity found for drop', targetEntityId)
             return crate
         }
 
-        const targetEntity = { ...graph[targetIndex] }
-        const existingHasPart = this.normalizeHasPart(targetEntity.hasPart)
-        const existingHasPartIds = new Set(existingHasPart.map((part) => part['@id']))
+        const entityIdByDroppedFileKey = new Map<string, string>()
 
-        for (const { relPath, sourceUri } of droppedFiles) {
+        for (const { relPath, sourceUri, parentKey } of droppedFiles) {
             if (!relPath) {
                 continue
             }
@@ -2013,12 +2136,32 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                         if (!nextTypes.includes('Dataset')) {
                             nextTypes.push('Dataset')
                         }
-                        existingEntity['@type'] = nextTypes
-                        graph[existingIndex] = { ...existingEntity }
+                        graph[existingIndex] = {
+                            ...existingEntity,
+                            '@type': nextTypes,
+                        }
                     }
                 }
             }
 
+            entityIdByDroppedFileKey.set(this.getDroppedFileKey({ relPath, sourceUri }), id)
+
+            const requestedParentId = parentKey
+                ? entityIdByDroppedFileKey.get(parentKey)
+                : targetEntityId
+            const targetIndex = requestedParentId
+                ? indexById.get(requestedParentId)
+                : undefined
+            const effectiveTargetIndex =
+                targetIndex ?? (parentKey ? undefined : indexById.get('./'))
+            if (effectiveTargetIndex === undefined) {
+                console.warn('No parent Dataset entity found for dropped entry', relPath)
+                continue
+            }
+
+            const targetEntity = { ...graph[effectiveTargetIndex] }
+            const existingHasPart = this.normalizeHasPart(targetEntity.hasPart)
+            const existingHasPartIds = new Set(existingHasPart.map((part) => part['@id']))
             const hasExistingPart =
                 existingHasPartIds.has(id) ||
                 (isDirectory &&
@@ -2027,14 +2170,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                     ))
             if (!hasExistingPart) {
                 existingHasPart.push({ '@id': id })
-                existingHasPartIds.add(id)
             }
+            if (existingHasPart.length) {
+                targetEntity.hasPart = existingHasPart
+            }
+            graph[effectiveTargetIndex] = targetEntity
         }
-
-        if (existingHasPart.length) {
-            targetEntity.hasPart = existingHasPart
-        }
-        graph[targetIndex] = targetEntity
 
         return { ...crate, '@graph': graph }
     }
