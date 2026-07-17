@@ -347,7 +347,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       );
 
       schema.status = 'processing';
-      schema.statusMessage = 'Converting to RO-Crate...';
+      schema.statusMessage = nls.localize('rockit/schemaManager/converting', 'Converting to RO-Crate...');
       this.onDidChangeSchemasEmitter.fire();
       
       const schemaName = await this.processAndSaveSchema(content, 'remote', undefined, {
@@ -359,7 +359,11 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       this.abortControllers.delete(id);
       this.onDidChangeSchemasEmitter.fire();
       
-      this.messageService.info(`Successfully imported: ${schemaName}`, { timeout: MSG_TIMEOUT });
+      this.messageService.info(nls.localize(
+        'rockit/schemaManager/importedName',
+        'Successfully imported: {0}',
+        schemaName,
+      ), { timeout: MSG_TIMEOUT });
 
     } catch (error: any) {
       if (error.name === 'AbortError' || error.message === 'Aborted') {
@@ -406,7 +410,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     const pendingSchema: SchemaInfo = {
       id,
-      name: 'Remote Template',
+      name: nls.localize('rockit/schemaManager/remoteTemplate', 'Remote Template'),
       version: '...',
       source: 'remote',
       type: 'cedar',
@@ -416,7 +420,11 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       downloadUrl: url,
       createdAt: null, updatedAt: null, downloadedAt: new Date().toISOString(),
       status: 'downloading',
-      statusMessage: `Connecting to ${provider.title}...`
+      statusMessage: nls.localize(
+        'rockit/schemaManager/connectingTo',
+        'Connecting to {0}...',
+        provider.title,
+      )
     };
     this.pendingSchemas.set(id, pendingSchema);
     this.onDidChangeSchemasEmitter.fire();
@@ -442,7 +450,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         : JSON.stringify(schemaContent, null, 2);
 
       pendingSchema.status = 'processing';
-      pendingSchema.statusMessage = 'Converting to RO-Crate...';
+      pendingSchema.statusMessage = nls.localize('rockit/schemaManager/converting', 'Converting to RO-Crate...');
       this.onDidChangeSchemasEmitter.fire();
 
       const name = await this.processAndSaveSchema(rawString, 'remote', undefined, {
@@ -454,7 +462,11 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       this.abortControllers.delete(id);
       this.onDidChangeSchemasEmitter.fire();
 
-      this.messageService.info(`Successfully added schema: ${name}`, { timeout: MSG_TIMEOUT });
+      this.messageService.info(nls.localize(
+        'rockit/schemaManager/addedSchema',
+        'Successfully added schema: {0}',
+        name,
+      ), { timeout: MSG_TIMEOUT });
 
     } catch (error: any) {
       if (error.message === 'Aborted' || error.name === 'AbortError') {
@@ -906,11 +918,16 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         dialog.open().then(() => resolve());
       });
 
-      await this.messageService.showProgress({ text: 'Resolving Missing Schemas...' })
+      await this.messageService.showProgress({
+        text: nls.localize('rockit/schemaManager/resolvingMissing', 'Resolving Missing Schemas...'),
+      })
         .then(async (progress: TaskProgress) => {
           try {
             const total = missingIds.length;
-            progress.report({ message: 'Starting...', work: { done: 0, total } });
+            progress.report({
+              message: nls.localize('rockit/schemaManager/starting', 'Starting...'),
+              work: { done: 0, total },
+            });
 
             await this.processInChunks(missingIds, 5, async (conformsToUrl) => {
               const isDuplicate = Array.from(this.pendingSchemas.values()).some(s => s.downloadUrl === conformsToUrl && s.status !== 'failed');

@@ -8,11 +8,15 @@ import { ApplicationServer } from '@theia/core/lib/common/application-protocol';
 import { inject } from '@theia/core/shared/inversify';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { openRockitDocumentationPage, ROCKIT_DOCUMENTATION_PAGES } from 'rockit-common/lib/browser';
+import { nls } from '@theia/core/lib/common/nls';
 
 export const SchemaValidatorCommand: Command = { id: 'validation-errors:command' };
 export const SchemaValidatorDocumentationCommand: Command = {
     id: 'validation-errors:open-documentation',
-    label: 'Open Validation Errors Documentation',
+    label: nls.localize(
+        'rockit/validation/openDocumentation',
+        'Open Validation Errors Documentation',
+    ),
     iconClass: codicon('info')
 };
 

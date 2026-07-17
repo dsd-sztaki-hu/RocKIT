@@ -7,6 +7,7 @@ import { FrontendApplicationContribution, AbstractDialog } from '@theia/core/lib
 import { Message } from '@lumino/messaging';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
+import { nls } from '@theia/core/lib/common/nls';
 import { IconButton, Tooltip } from '@mui/material'; 
 import CenterFocusWeakIcon from '@mui/icons-material/CenterFocusWeak'; 
 import CancelIcon from '@mui/icons-material/Cancel'; 
@@ -64,7 +65,7 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
         private readonly envVariablesServer: EnvVariablesServer
     ) {
         super({
-            title: `Browse ${provider.title}`
+            title: nls.localize('rockit/schemaManager/browseProvider', 'Browse {0}', provider.title)
         });
 
         this.contentNode.style.width = '600px';
@@ -188,7 +189,7 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                     />
                 ) : (
                     <div className="remote-browser-dialog__loading">
-                        Initializing connection...
+                        {nls.localize('rockit/schemaManager/initializingConnection', 'Initializing connection...')}
                     </div>
                 )}
             </div>
@@ -199,12 +200,12 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                     {selectedName ? (
                         <>
                             <div className="remote-browser-dialog__controls">
-                                <Tooltip title="Locate in Tree" PopperProps={{ style: { zIndex: 99999 } }}>
+                                <Tooltip title={nls.localize('rockit/schemaManager/locateInTree', 'Locate in Tree')} PopperProps={{ style: { zIndex: 99999 } }}>
                                     <IconButton size="small" onClick={handleGoTo} style={{ padding: 2, color: 'var(--theia-icon-foreground)' }}>
                                         <CenterFocusWeakIcon fontSize="small" />
                                     </IconButton>
                                 </Tooltip>
-                                <Tooltip title="Deselect" PopperProps={{ style: { zIndex: 99999 } }}>
+                                <Tooltip title={nls.localize('rockit/schemaManager/deselect', 'Deselect')} PopperProps={{ style: { zIndex: 99999 } }}>
                                     <IconButton size="small" onClick={handleDeselect} style={{ padding: 2, color: 'var(--theia-errorForeground)' }}>
                                         <CancelIcon fontSize="small" />
                                     </IconButton>
@@ -217,7 +218,7 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                         </>
                     ) : (
                         <span className="remote-browser-dialog__placeholder">
-                            Select a template to import...
+                            {nls.localize('rockit/schemaManager/selectTemplate', 'Select a template to import...')}
                         </span>
                     )}
                 </div>
@@ -227,14 +228,14 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                         className="theia-button secondary remote-browser-dialog__btn-cancel"
                         onClick={onCancel}
                     >
-                        Cancel
+                        {nls.localize('rockit/common/cancel', 'Cancel')}
                     </button>
                     <button 
                         className="theia-button main remote-browser-dialog__btn-add"
                         onClick={() => selectedId && onAccept(selectedId)}
                         disabled={!selectedId}
                     >
-                        Add
+                        {nls.localize('rockit/schemaManager/add', 'Add')}
                     </button>
                 </div>
             </div>

@@ -12,6 +12,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import CategoryIcon from '@mui/icons-material/Category';
 import SecurityIcon from '@mui/icons-material/Security';
 import { IconButton } from '@mui/material';
+import { nls } from '@theia/core/lib/common/nls';
 
 import { ConnectionSuccessDialog } from './connection-success-dialog';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
@@ -42,7 +43,9 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
         private readonly providerToEdit?: RemoteSchemaProviderConfig
     ) {
         super({
-            title: providerToEdit ? 'Edit Provider' : 'Add Provider'
+            title: providerToEdit
+                ? nls.localize('rockit/schemaManager/editProvider', 'Edit Provider')
+                : nls.localize('rockit/schemaManager/addProvider', 'Add Provider')
         });
         
         this.contentNode.style.width = '500px';
@@ -77,7 +80,10 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
 
     private async handleSaveAttempt() {
         if (!this.titleValue || !this.baseUrlValue) {
-            this.errorMsg = "Title and Base URL are required.";
+            this.errorMsg = nls.localize(
+                'rockit/schemaManager/titleAndUrlRequired',
+                'Title and Base URL are required.',
+            );
             this.render();
             return;
         }
@@ -116,7 +122,11 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                 this.accept(); 
             }
         } catch (err: any) {
-            this.errorMsg = `Connection failed: ${err.message || 'Unknown error'}`;
+            this.errorMsg = nls.localize(
+                'rockit/schemaManager/connectionFailed',
+                'Connection failed: {0}',
+                err.message || nls.localize('rockit/validation/unknownError', 'Unknown error'),
+            );
         } finally {
             this.isTesting = false; 
             this.render();
@@ -197,17 +207,22 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                         </div>
                         <div>
                             <div className="remote-provider-config__title">
-                                {this.providerToEdit ? 'Edit Connection' : 'New Connection'}
+                                {this.providerToEdit
+                                    ? nls.localize('rockit/schemaManager/editConnection', 'Edit Connection')
+                                    : nls.localize('rockit/schemaManager/newConnection', 'New Connection')}
                             </div>
                             <div className="remote-provider-config__description">
-                                Configure connection details for a remote metadata repository.
+                                {nls.localize(
+                                    'rockit/schemaManager/configureConnectionDescription',
+                                    'Configure connection details for a remote metadata repository.',
+                                )}
                             </div>
                         </div>
                     </div>
 
                     {this.errorMsg && (
                         <div className="remote-provider-config__error">
-                            <strong>Error:</strong> {this.errorMsg}
+                            <strong>{nls.localize('rockit/schemaManager/error', 'Error')}:</strong> {this.errorMsg}
                         </div>
                     )}
 
@@ -217,7 +232,7 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                         {/* Title */}
                         <div>
                             <label className="remote-provider-config__label">
-                                Name (Display)
+                                {nls.localize('rockit/schemaManager/displayName', 'Name (Display)')}
                             </label>
                             <input 
                                 className="theia-input remote-provider-config__input" 
@@ -232,7 +247,7 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                         {/* Base URL */}
                         <div>
                             <label className="remote-provider-config__label">
-                                <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Base URL
+                                <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/schemaManager/baseUrl', 'Base URL')}
                             </label>
                             <input 
                                 className="theia-input remote-provider-config__input" 
@@ -252,7 +267,7 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                         {/* Type Dropdown */}
                         <div>
                             <label className="remote-provider-config__label">
-                                <CategoryIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Type
+                                <CategoryIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/schemaManager/type', 'Type')}
                             </label>
                             <select 
                                 className="theia-select remote-provider-config__select" 
@@ -267,7 +282,7 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                         {/* Access Mode */}
                         <div>
                             <label className="remote-provider-config__label">
-                                <SecurityIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Access
+                                <SecurityIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/schemaManager/access', 'Access')}
                             </label>
                             <select
                                 className="theia-select remote-provider-config__select"
@@ -281,15 +296,15 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                                 }}
                                 disabled={this.isTesting}
                             >
-                                <option value="dataverseProxy">Dataverse proxy (read-only)</option>
-                                <option value="apiKey">CEDAR API key</option>
+                                <option value="dataverseProxy">{nls.localize('rockit/schemaManager/dataverseProxy', 'Dataverse proxy (read-only)')}</option>
+                                <option value="apiKey">{nls.localize('rockit/schemaManager/cedarApiKey', 'CEDAR API key')}</option>
                             </select>
                         </div>
 
                         {this.accessModeValue === 'dataverseProxy' && (
                             <div>
                                 <label className="remote-provider-config__label">
-                                    <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Dataverse Proxy Base URL
+                                    <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/schemaManager/dataverseProxyUrl', 'Dataverse Proxy Base URL')}
                                 </label>
                                 <input
                                     className="theia-input remote-provider-config__input"
@@ -314,7 +329,9 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                                     value={this.isEditingKey ? this.apiKeyValue : '********'}
                                     onChange={(e) => { this.apiKeyValue = e.target.value; this.render(); }}
                                     disabled={!this.isEditingKey || this.isTesting}
-                                    placeholder={this.isEditingKey ? "Paste API Key here" : "Stored securely"}
+                                    placeholder={this.isEditingKey
+                                        ? nls.localize('rockit/schemaManager/pasteApiKey', 'Paste API Key here')
+                                        : nls.localize('rockit/schemaManager/storedSecurely', 'Stored securely')}
                                 />
                                 {this.isEditingKey ? (
                                     <div className="remote-provider-config__visibility-toggle">
@@ -322,7 +339,9 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                                             size="small" 
                                             onClick={() => { this.showKey = !this.showKey; this.render(); }}
                                             style={{ color: 'var(--theia-foreground)', opacity: 0.7 }}
-                                            title={this.showKey ? "Hide API Key" : "Show API Key"}
+                                            title={this.showKey
+                                                ? nls.localize('rockit/schemaManager/hideApiKey', 'Hide API Key')
+                                                : nls.localize('rockit/schemaManager/showApiKey', 'Show API Key')}
                                         >
                                             {this.showKey ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                                         </IconButton>
@@ -336,7 +355,7 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                                             this.render(); 
                                         }}
                                     >
-                                        Change
+                                        {nls.localize('rockit/schemaManager/change', 'Change')}
                                     </button>
                                 )}
                             </div>
@@ -353,7 +372,7 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                             onClick={() => this.handlePrefillDefaults()}
                             disabled={this.isTesting}
                         >
-                            Use ARP Production defaults
+                            {nls.localize('rockit/schemaManager/useArpDefaults', 'Use ARP Production defaults')}
                         </button>
                     )}
                     <div className="remote-provider-config__footer-spacer" />
@@ -362,7 +381,7 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                         onClick={() => this.handleCancel()}
                         disabled={this.isTesting}
                     >
-                        Cancel
+                        {nls.localize('rockit/common/cancel', 'Cancel')}
                     </button>
                     <button 
                         className="theia-button main remote-provider-config__btn-save"
@@ -370,7 +389,9 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                         disabled={this.isTesting}
                     >
                         {this.isTesting && <i className="codicon codicon-loading codicon-modifier-spin" />}
-                        {this.isTesting ? 'Verifying...' : 'Save'}
+                        {this.isTesting
+                            ? nls.localize('rockit/schemaManager/verifying', 'Verifying...')
+                            : nls.localize('rockit/schemaManager/save', 'Save')}
                     </button>
                 </div>
             </div>
