@@ -255,6 +255,10 @@
       gap: 6px;
       margin: 6px 0;
     }
+    .type-difference {
+      background: #fff4d8;
+      color: #704800;
+    }
     .field-description {
       color: var(--muted);
       font-size: 0.88rem;
@@ -489,6 +493,27 @@
     }
 
     function normalizeExpectedValue(field) {
+      const rawValue = normalizeComparableText(field.type || field.typeClass || '');
+      const equivalentTypes = new Map([
+        ['textarea', 'multiline text'],
+        ['textbox', 'multiline text'],
+        ['text area', 'multiline text'],
+        ['text box', 'multiline text'],
+        ['text', 'text'],
+        ['string', 'text'],
+        ['url', 'url'],
+        ['date', 'date'],
+        ['number', 'number'],
+        ['int', 'number'],
+        ['integer', 'number'],
+        ['float', 'number'],
+        ['bool', 'boolean'],
+        ['boolean', 'boolean']
+      ]);
+      return equivalentTypes.get(rawValue) || rawValue;
+    }
+
+    function rawExpectedValue(field) {
       return normalizeComparableText(field.type || field.typeClass || '');
     }
 
@@ -502,6 +527,10 @@
       const descriptionMatches = normalizeComparableText(left.description) === normalizeComparableText(right.description);
       const expectedValueMatches = normalizeExpectedValue(left) === normalizeExpectedValue(right);
       return nameMatches && descriptionMatches && expectedValueMatches;
+    }
+
+    function fieldsHaveRawExpectedValueDifference(left, right) {
+      return fieldsAreBasicallySame(left, right) && rawExpectedValue(left) !== rawExpectedValue(right);
     }
 
     function compareSchemas() {
@@ -540,7 +569,7 @@
       return !query || [row.arpField, row.dataverseField].some(field => field && fieldMatches(field, query));
     }
 
-    function renderFieldCard(field, isMatch, sourceKey) {
+    function renderFieldCard(field, isMatch, hasTypeDifference, sourceKey) {
       if (!field) {
         return '<div class="compare-cell missing" aria-label="No matching property"></div>';
       }
@@ -550,6 +579,7 @@
         + '<div class="file">' + escapeHtml(field.path || field.identifier || '') + '</div>'
         + '<div class="field-meta">'
         + '<span class="badge optional">' + escapeHtml(field.type || field.typeClass || 'Unknown type') + '</span>'
+        + (hasTypeDifference ? '<span class="badge type-difference">format label differs</span>' : '')
         + '</div>'
         + '<div class="field-description">' + renderFieldDescription(field, sourceKey) + '</div>'
         + '</div>';
@@ -579,9 +609,10 @@
       content.innerHTML = comparisons.map((comparison, index) => {
         const rows = comparison.rows.map(row => {
           const isMatch = fieldsAreBasicallySame(row.arpField, row.dataverseField);
+          const hasTypeDifference = fieldsHaveRawExpectedValueDifference(row.arpField, row.dataverseField);
           return '<div class="compare-row">'
-            + renderFieldCard(row.arpField, isMatch, 'arp')
-            + renderFieldCard(row.dataverseField, isMatch, 'dataverse')
+            + renderFieldCard(row.arpField, isMatch, hasTypeDifference, 'arp')
+            + renderFieldCard(row.dataverseField, isMatch, hasTypeDifference, 'dataverse')
             + '</div>';
         }).join('');
         const title = comparison.domain.replace(/\b\w/g, letter => letter.toUpperCase());
