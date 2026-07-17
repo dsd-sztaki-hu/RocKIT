@@ -18,33 +18,33 @@ and tell me when it is complete.
 
 ## Summary
 
-| # | Mapping | Proposed source | Target | Decision   |
-| ---: | --- | --- | --- |------------|
-| 1 | `zenodo.access_conditions` | `accessToSources` (citation, root) | `metadata.access_conditions` | ACCEPT (?) |
-| 2 | `zenodo.access_right` | `conditionsOfAccess` (canonical, root)<br>`accessToSources` (citation, root) | `metadata.access_right` | TODO       |
-| 3 | `zenodo.conference_acronym` | `conferenceAcronym` (canonical, publication) | `metadata.conference_acronym` | TODO       |
-| 4 | `zenodo.conference_dates` | `timePeriodCoveredStart` (citation, timePeriodCovered)<br>`timePeriodCoveredEnd` (citation, timePeriodCovered) | `metadata.conference_dates` | TODO       |
-| 5 | `zenodo.conference_place` | `productionPlace` (citation, root) | `metadata.conference_place` | TODO       |
-| 6 | `zenodo.conference_title` | `publicationCitation` (citation, publication) | `metadata.conference_title` | TODO       |
-| 7 | `zenodo.conference_url` | `publicationURL` (citation, publication) | `metadata.conference_url` | TODO       |
-| 8 | `zenodo.doi` | `otherId` (citation, root)<br>`identifier` (canonical, root) | `metadata.doi` | TODO       |
-| 9 | `zenodo.embargo_date` | `distributionDate` (citation, root) | `metadata.embargo_date` | TODO       |
-| 10 | `zenodo.image_type` | `additionalType` (canonical, root) | `metadata.image_type` | TODO       |
-| 11 | `zenodo.imprint_isbn` | `otherId` (citation, root) | `metadata.imprint_isbn` | TODO       |
-| 12 | `zenodo.imprint_place` | `productionPlace` (citation, root) | `metadata.imprint_place` | TODO       |
-| 13 | `zenodo.imprint_publisher` | `producer` (citation, root) | `metadata.imprint_publisher` | TODO       |
-| 14 | `zenodo.journal_title` | `publicationCitation` (citation, publication)<br>`journalTitle` (canonical, publication) | `metadata.journal_title` | TODO       |
-| 15 | `zenodo.partof_title` | `seriesName` (citation, series)<br>`isPartOf` (canonical, root) | `metadata.partof_title` | TODO       |
-| 16 | `zenodo.publication_type` | `publicationType` (canonical, root)<br>`publicationRelationType` (citation, publication) | `metadata.publication_type` | TODO       |
-| 17 | `zenodo.subjects` | `topicClassification` (citation, root)<br>`keyword` (citation, root)<br>`subject` (citation, root) | `metadata.subjects` | TODO       |
-| 18 | `zenodo.thesis_supervisors` | `contributor` (citation, root) | `metadata.thesis_supervisors` | TODO       |
-| 19 | `zenodo.thesis_university` | `producer` (citation, root) | `metadata.thesis_university` | TODO       |
-| 20 | `zenodo.version` | `softwareVersion` (citation, software)<br>`version` (canonical, root) | `metadata.version` | TODO       |
-| 21 | `zenodo.locations` | `geographicCoverage` (geospatial, root)<br>`geographicBoundingBox` (geospatial, root) | `metadata.locations` | TODO       |
-| 22 | `zenodo.method` | `measurementTechnique` (canonical, root)<br>`samplingProcedure` (socialscience, root)<br>`collectionMode` (socialscience, root)<br>`researchInstrument` (socialscience, root) | `metadata.method` | TODO       |
-| 23 | `dataverse.astrophysics.coverage.Spectral.Bandpass` | `coverage.Spectral:Bandpass` (astrophysics, root) | `astrophysics.coverage.Spectral.Bandpass` | TODO       |
-| 24 | `dataverse.astrophysics.coverage.Spectral.CentralWavelength` | `coverage.Spectral:CentralWavelength` (astrophysics, root) | `astrophysics.coverage.Spectral.CentralWavelength` | TODO       |
-| 25 | `dataverse.astrophysics.coverage.Spectral.Wavelength` | `coverage.Spectral:Wavelength` (astrophysics, root) | `astrophysics.coverage.Spectral.Wavelength` | TODO       |
+| # | Mapping | Proposed source | Target | Decision                                                                                                              |
+| ---: | --- | --- | --- |-----------------------------------------------------------------------------------------------------------------------|
+| 1 | `zenodo.access_conditions` | `accessToSources` (citation, root) | `metadata.access_conditions` | REJECT                                                                                                                |
+| 2 | `zenodo.access_right` | `conditionsOfAccess` (canonical, root)<br>`accessToSources` (citation, root) | `metadata.access_right` | REJECT                                                                                                                |
+| 3 | `zenodo.conference_acronym` | `conferenceAcronym` (canonical, publication) | `metadata.conference_acronym` | REJECT                                                                                                                |
+| 4 | `zenodo.conference_dates` | `timePeriodCoveredStart` (citation, timePeriodCovered)<br>`timePeriodCoveredEnd` (citation, timePeriodCovered) | `metadata.conference_dates` | REJECT                                                                                                                |
+| 5 | `zenodo.conference_place` | `productionPlace` (citation, root) | `metadata.conference_place` | REJECT                                                                                                                |
+| 6 | `zenodo.conference_title` | `publicationCitation` (citation, publication) | `metadata.conference_title` | REJECT                                                                                                                |
+| 7 | `zenodo.conference_url` | `publicationURL` (citation, publication) | `metadata.conference_url` | REJECT                                                                                                                |
+| 8 | `zenodo.doi` | `otherId` (citation, root)<br>`identifier` (canonical, root) | `metadata.doi` | REJECT                                                                                                                |
+| 9 | `zenodo.embargo_date` | `distributionDate` (citation, root) | `metadata.embargo_date` | REJECT                                                                                                                |
+| 10 | `zenodo.image_type` | `additionalType` (canonical, root) | `metadata.image_type` | REJECT                                                                                                                |
+| 11 | `zenodo.imprint_isbn` | `otherId` (citation, root) | `metadata.imprint_isbn` | REJECT                                                                                                                |
+| 12 | `zenodo.imprint_place` | `productionPlace` (citation, root) | `metadata.imprint_place` | REJECT                                                                                                                |
+| 13 | `zenodo.imprint_publisher` | `producer` (citation, root) | `metadata.imprint_publisher` | REJECT                                                                                                                |
+| 14 | `zenodo.journal_title` | `publicationCitation` (citation, publication)<br>`journalTitle` (canonical, publication) | `metadata.journal_title` | REJECT                                                                                                                |
+| 15 | `zenodo.partof_title` | `seriesName` (citation, series)<br>`isPartOf` (canonical, root) | `metadata.partof_title` | REJECT                                                                                                                |
+| 16 | `zenodo.publication_type` | `publicationType` (canonical, root)<br>`publicationRelationType` (citation, publication) | `metadata.publication_type` | REJECT                                                                                                                |
+| 17 | `zenodo.subjects` | `topicClassification` (citation, root)<br>`keyword` (citation, root)<br>`subject` (citation, root) | `metadata.subjects` | ACCEPT, but some "validation" is needed, in ARP/DV the subject field can have preset values only, not free text field |
+| 18 | `zenodo.thesis_supervisors` | `contributor` (citation, root) | `metadata.thesis_supervisors` | REJECT                                                                                                                |
+| 19 | `zenodo.thesis_university` | `producer` (citation, root) | `metadata.thesis_university` | REJECT                                                                                                                |
+| 20 | `zenodo.version` | `softwareVersion` (citation, software)<br>`version` (canonical, root) | `metadata.version` | REJECT                                                                                                                |
+| 21 | `zenodo.locations` | `geographicCoverage` (geospatial, root)<br>`geographicBoundingBox` (geospatial, root) | `metadata.locations` | REJECT                                                                                                                |
+| 22 | `zenodo.method` | `measurementTechnique` (canonical, root)<br>`samplingProcedure` (socialscience, root)<br>`collectionMode` (socialscience, root)<br>`researchInstrument` (socialscience, root) | `metadata.method` | REJECT                                                                                                                |
+| 23 | `dataverse.astrophysics.coverage.Spectral.Bandpass` | `coverage.Spectral:Bandpass` (astrophysics, root) | `astrophysics.coverage.Spectral.Bandpass` | ACCEPT                                                                                                                |
+| 24 | `dataverse.astrophysics.coverage.Spectral.CentralWavelength` | `coverage.Spectral:CentralWavelength` (astrophysics, root) | `astrophysics.coverage.Spectral.CentralWavelength` | ACCEPT                                                                                                                |
+| 25 | `dataverse.astrophysics.coverage.Spectral.Wavelength` | `coverage.Spectral:Wavelength` (astrophysics, root) | `astrophysics.coverage.Spectral.Wavelength` | ACCEPT                                                                                                                |
 
 ## Detailed decisions
 
