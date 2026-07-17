@@ -2,6 +2,7 @@ import { AbstractDialog, Message } from '@theia/core/lib/browser'
 import { Input, Select } from 'antd'
 import * as React from 'react'
 import { createRoot, Root } from 'react-dom/client'
+import { nls } from '@theia/core/lib/common/nls'
 
 import { NativeDataverseDatasetMetadata } from '../services/native-dataverse-export-service'
 import '../styles/native-dataverse-dataset-metadata-dialog.css'
@@ -23,6 +24,23 @@ const DATAVERSE_SUBJECTS = [
   'Agricultural Sciences',
 ]
 
+const DATAVERSE_SUBJECT_LABELS: Record<string, () => string> = {
+  'Other': () => nls.localize('rockit/dataRepository/subjectOther', 'Other'),
+  'Social Sciences': () => nls.localize('rockit/dataRepository/subjectSocialSciences', 'Social Sciences'),
+  'Physics': () => nls.localize('rockit/dataRepository/subjectPhysics', 'Physics'),
+  'Medicine, Health and Life Sciences': () => nls.localize('rockit/dataRepository/subjectMedicine', 'Medicine, Health and Life Sciences'),
+  'Mathematical Sciences': () => nls.localize('rockit/dataRepository/subjectMathematics', 'Mathematical Sciences'),
+  'Law': () => nls.localize('rockit/dataRepository/subjectLaw', 'Law'),
+  'Engineering': () => nls.localize('rockit/dataRepository/subjectEngineering', 'Engineering'),
+  'Earth and Environmental Sciences': () => nls.localize('rockit/dataRepository/subjectEarth', 'Earth and Environmental Sciences'),
+  'Computer and Information Science': () => nls.localize('rockit/dataRepository/subjectComputerScience', 'Computer and Information Science'),
+  'Chemistry': () => nls.localize('rockit/dataRepository/subjectChemistry', 'Chemistry'),
+  'Business and Management': () => nls.localize('rockit/dataRepository/subjectBusiness', 'Business and Management'),
+  'Astronomy and Astrophysics': () => nls.localize('rockit/dataRepository/subjectAstronomy', 'Astronomy and Astrophysics'),
+  'Arts and Humanities': () => nls.localize('rockit/dataRepository/subjectArts', 'Arts and Humanities'),
+  'Agricultural Sciences': () => nls.localize('rockit/dataRepository/subjectAgriculture', 'Agricultural Sciences'),
+}
+
 export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
   NativeDataverseDatasetMetadata | undefined
 > {
@@ -34,7 +52,7 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
   private subjectValue: string
 
   constructor(defaults: NativeDataverseDatasetMetadata) {
-    super({ title: 'Required Dataverse Dataset Metadata' })
+    super({ title: nls.localize('rockit/dataRepository/requiredMetadata', 'Required Dataverse Dataset Metadata') })
 
     this.titleValue = defaults.title
     this.authorNamesValue = defaults.authorNames.join('\n')
@@ -49,7 +67,7 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
     this.contentNode.style.padding = '0'
 
     this.appendCloseButton()
-    this.appendAcceptButton('Export')
+    this.appendAcceptButton(nls.localize('rockit/dataRepository/export', 'Export'))
   }
 
   get value(): NativeDataverseDatasetMetadata | undefined {
@@ -82,42 +100,41 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
     this.reactRoot.render(
       <div className="native-dv-metadata">
         <p className="native-dv-metadata__description">
-          Dataverse requires these citation metadata fields when creating a new dataset.
-          Matching values found in the RO-Crate metadata are used as defaults.
+          {nls.localize('rockit/dataRepository/requiredMetadataDescription', 'Dataverse requires these citation metadata fields when creating a new dataset. Matching values found in the RO-Crate metadata are used as defaults.')}
         </p>
         <div className="native-dv-metadata__form">
           {this.renderInput(
-            'Title',
+            nls.localize('rockit/dataRepository/metadataTitle', 'Title'),
             this.titleValue,
             (value) => {
               this.titleValue = value
             },
             true,
           )}
-          {this.renderTextarea('Author Name', this.authorNamesValue, (value) => {
+          {this.renderTextarea(nls.localize('rockit/dataRepository/authorName', 'Author Name'), this.authorNamesValue, (value) => {
             this.authorNamesValue = value
           })}
           {this.renderTextarea(
-            'Point of Contact Email',
+            nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email'),
             this.contactEmailsValue,
             (value) => {
               this.contactEmailsValue = value
             },
           )}
-          {this.renderTextarea('Description Text', this.descriptionsValue, (value) => {
+          {this.renderTextarea(nls.localize('rockit/dataRepository/descriptionText', 'Description Text'), this.descriptionsValue, (value) => {
             this.descriptionsValue = value
           })}
           <label className="native-dv-metadata__field">
             <span className="native-dv-metadata__label">
-              Subject <span className="native-dv-metadata__required">*</span>
+              {nls.localize('rockit/dataRepository/subject', 'Subject')} <span className="native-dv-metadata__required">*</span>
             </span>
             <Select
               className="native-dv-metadata__select"
               value={this.subjectValue || undefined}
-              placeholder="Select a subject"
+              placeholder={nls.localize('rockit/dataRepository/selectSubject', 'Select a subject')}
               options={DATAVERSE_SUBJECTS.map((subject) => ({
                 value: subject,
-                label: subject,
+                label: DATAVERSE_SUBJECT_LABELS[subject]?.() ?? subject,
               }))}
               popupClassName="native-dv-metadata__select-dropdown"
               onChange={(value) => {
@@ -168,7 +185,7 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
         <Input.TextArea
           className="native-dv-metadata__textarea"
           value={value}
-          placeholder="One value per line"
+          placeholder={nls.localize('rockit/dataRepository/onePerLine', 'One value per line')}
           onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => {
             setValue(event.target.value)
             this.refresh()

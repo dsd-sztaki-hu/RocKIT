@@ -1,4 +1,5 @@
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
+import { nls } from '@theia/core/lib/common/nls'
 import URI from '@theia/core/lib/common/uri'
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -45,12 +46,12 @@ export class ArpRoCrateImportService {
   ): Promise<ArpRoCrateImportResult | undefined> {
     const datasetPid = this.extractDatasetPid(datasetUrl)
     if (!datasetPid) {
-      throw new Error('Could not extract a dataset handle or persistent ID from the dataset URL.')
+      throw new Error(nls.localize('rockit/dataRepository/extractDatasetIdFailed', 'Could not extract a dataset handle or persistent ID from the dataset URL.'))
     }
 
     const importParentDirectory = await this.fileDialogService.showOpenDialog({
-      title: 'Select Import Folder',
-      openLabel: 'Import Here',
+      title: nls.localize('rockit/dataRepository/selectImportFolder', 'Select Import Folder'),
+      openLabel: nls.localize('rockit/dataRepository/importHere', 'Import Here'),
       canSelectFiles: false,
       canSelectFolders: true,
       canSelectMany: false,
@@ -70,7 +71,7 @@ export class ArpRoCrateImportService {
     const extractedFileCount = await this.extractZip(zipBytes, targetDirectory)
     const metadataUri = targetDirectory.resolve('ro-crate-metadata.json')
     if (!(await this.fileService.exists(metadataUri))) {
-      throw new Error('The downloaded ZIP did not contain ro-crate-metadata.json.')
+      throw new Error(nls.localize('rockit/dataRepository/missingDownloadedMetadata', 'The downloaded ZIP did not contain ro-crate-metadata.json.'))
     }
     const crate = await this.readRoCrate(metadataUri)
     const mappingFileName = await this.persistImportedExportState(

@@ -2,6 +2,7 @@ import { AbstractDialog, Message } from '@theia/core/lib/browser';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import { nls } from '@theia/core/lib/common/nls';
 
 import '../styles/data-repository-delete-dialog.css';
 
@@ -11,7 +12,7 @@ export class DataRepositoryDeleteDialog extends AbstractDialog<boolean> {
 
     constructor(private readonly target: string | number) {
         super({
-            title: 'Confirm Deletion'
+            title: nls.localize('rockit/dataRepository/confirmDeletion', 'Confirm Deletion')
         });
 
         this.contentNode.style.width = '400px';
@@ -39,9 +40,9 @@ export class DataRepositoryDeleteDialog extends AbstractDialog<boolean> {
         }
 
         const isCount = typeof this.target === 'number';
-        const titleText = isCount 
-            ? `Delete ${this.target} repository${(this.target as number) > 1 ? 'ies' : ''}?`
-            : `Delete ${this.target}?`;
+        const titleText = isCount
+            ? nls.localize('rockit/dataRepository/deleteRepositoriesQuestion', 'Delete {0} repository/repositories?', this.target)
+            : nls.localize('rockit/dataRepository/deleteRepositoryQuestion', 'Delete {0}?', this.target);
 
         this.reactRoot.render(
             <div className="data-repo-delete-dialog">
@@ -52,7 +53,7 @@ export class DataRepositoryDeleteDialog extends AbstractDialog<boolean> {
                             {titleText}
                         </h3>
                         <p className="data-repo-delete-dialog__message">
-                            Are you sure you want to perform this action? This cannot be undone.
+                            {nls.localize('rockit/dataRepository/deleteWarning', 'Are you sure you want to perform this action? This cannot be undone.')}
                         </p>
                     </div>
                 </div>
@@ -62,13 +63,13 @@ export class DataRepositoryDeleteDialog extends AbstractDialog<boolean> {
                         className="theia-button secondary data-repo-delete-dialog__btn-cancel"
                         onClick={() => this.handleClose()}
                     >
-                        Cancel
+                        {nls.localize('rockit/common/cancel', 'Cancel')}
                     </button>
                     <button 
                         className="theia-button data-repo-delete-dialog__btn-delete"
                         onClick={() => this.handleAccept()}
                     >
-                        Delete
+                        {nls.localize('rockit/dataRepository/delete', 'Delete')}
                     </button>
                 </div>
             </div>

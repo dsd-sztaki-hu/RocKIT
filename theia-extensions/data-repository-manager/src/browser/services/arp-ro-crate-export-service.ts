@@ -1,6 +1,7 @@
 import JSZip = require('jszip')
 
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
+import { nls } from '@theia/core/lib/common/nls'
 import { FileUri } from '@theia/core/lib/common/file-uri'
 import { URI } from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -224,7 +225,7 @@ export class ArpRoCrateExportService {
     reportProgress?.({
       completedSteps: 0,
       totalSteps: 1,
-      message: 'Checking for changes...',
+      message: nls.localize('rockit/dataRepository/checkingChanges', 'Checking for changes...'),
     })
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const rootUri = this.getWorkspaceRoot()
@@ -392,7 +393,7 @@ export class ArpRoCrateExportService {
     reportProgress?.({
       completedSteps,
       totalSteps,
-      message: 'Synchronizing RO-Crate metadata...',
+      message: nls.localize('rockit/dataRepository/synchronizingMetadata', 'Synchronizing RO-Crate metadata...'),
     })
     const metadataUpdateCrate = this.rewriteCrateEntityIds(uploadCrate, uploadMapping)
     await this.fileService.writeFile(
@@ -430,7 +431,7 @@ export class ArpRoCrateExportService {
     reportProgress?.({
       completedSteps: totalSteps,
       totalSteps,
-      message: 'Synchronization complete.',
+      message: nls.localize('rockit/dataRepository/synchronizationComplete', 'Synchronization complete.'),
     })
 
     return {

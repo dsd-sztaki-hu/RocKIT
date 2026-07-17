@@ -3,6 +3,7 @@ import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { nls } from '@theia/core/lib/common/nls';
 
 import { DataRepositoryToolbarProps } from '../types';
 import '../styles/data-repository-toolbar.css';
@@ -18,11 +19,11 @@ export const DataRepositoryToolbar: React.FC<DataRepositoryToolbarProps> = React
         <div className="data-repo-toolbar">
             <button className="data-repo-toolbar__btn data-repo-toolbar__btn--primary" onClick={onImport}>
                 <span className="data-repo-toolbar__btn-icon"><CloudDownloadIcon fontSize="small" /></span>
-                Import
+                {nls.localize('rockit/dataRepository/import', 'Import')}
             </button>
             <button className="data-repo-toolbar__btn data-repo-toolbar__btn--primary" onClick={onExport}>
                 <span className="data-repo-toolbar__btn-icon"><CloudUploadIcon fontSize="small" /></span>
-                Export
+                {nls.localize('rockit/dataRepository/export', 'Export')}
             </button>
             
             <div className="data-repo-toolbar__spacer" />
@@ -32,10 +33,10 @@ export const DataRepositoryToolbar: React.FC<DataRepositoryToolbarProps> = React
                     <button 
                         className="data-repo-toolbar__btn data-repo-toolbar__btn--delete" 
                         onClick={onDeleteSelected}
-                        title="Delete selected repositories"
+                        title={nls.localize('rockit/dataRepository/deleteSelected', 'Delete selected repositories')}
                     >
                         <span className="data-repo-toolbar__btn-icon"><DeleteOutlineIcon fontSize="small" /></span>
-                        Delete ({selectedCount})
+                        {nls.localize('rockit/dataRepository/deleteCount', 'Delete ({0})', selectedCount)}
                     </button>
                     <div className="data-repo-toolbar__separator" />
                 </div>
@@ -43,7 +44,7 @@ export const DataRepositoryToolbar: React.FC<DataRepositoryToolbarProps> = React
             
             <button className="data-repo-toolbar__btn data-repo-toolbar__btn--secondary" onClick={onConfigure}>
                 <span className="data-repo-toolbar__btn-icon"><AddIcon fontSize="small" /></span>
-                Add Repository
+                {nls.localize('rockit/dataRepository/addRepository', 'Add Repository')}
             </button>
         </div>
     );

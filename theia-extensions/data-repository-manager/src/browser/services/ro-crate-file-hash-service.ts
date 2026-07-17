@@ -1,5 +1,6 @@
 import { FileUri } from '@theia/core/lib/common/file-uri';
 import { URI } from '@theia/core/lib/common/uri';
+import { nls } from '@theia/core/lib/common/nls';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { inject, injectable } from 'inversify';
@@ -75,7 +76,7 @@ export class RoCrateFileHashService {
         }
 
         this.historyService.applyRoCrateChange(updatedCrate, {
-            label: 'Refresh file metadata before remote export'
+            label: nls.localize('rockit/dataRepository/refreshFileMetadataHistory', 'Refresh file metadata before remote export')
         });
         await this.persistRoCrate(rootUri, updatedCrate);
         return updatedCount;

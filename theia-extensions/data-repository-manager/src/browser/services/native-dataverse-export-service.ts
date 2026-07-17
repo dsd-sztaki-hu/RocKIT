@@ -1,6 +1,7 @@
 import { URI } from '@theia/core/lib/common/uri';
 import { FileUri } from '@theia/core/lib/common/file-uri';
 import { BinaryBuffer } from '@theia/core/lib/common/buffer';
+import { nls } from '@theia/core/lib/common/nls';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { inject, injectable } from 'inversify';
@@ -300,7 +301,7 @@ export class NativeDataverseExportService {
         reportProgress?.({
             completedSteps: 1,
             totalSteps,
-            message: 'Dataverse dataset created and metadata synchronized.'
+            message: nls.localize('rockit/dataRepository/datasetMetadataSynchronized', 'Dataverse dataset created and metadata synchronized.')
         });
         const uploadedDataFiles = await this.uploadRoCrateFiles(baseUrl, repository.apiKey, persistentId, uploadFiles, reportProgress, 1, totalSteps);
         const entityIdMapping = this.buildEntityIdMapping(crate, uploadedDataFiles, uploadCollection.uploadEntryPathByEntityId);
@@ -308,7 +309,7 @@ export class NativeDataverseExportService {
         reportProgress?.({
             completedSteps: uploadFiles.length + 1,
             totalSteps,
-            message: 'Uploading rewritten ro-crate-metadata.json...'
+            message: nls.localize('rockit/dataRepository/uploadingRewrittenMetadata', 'Uploading rewritten ro-crate-metadata.json...')
         });
         const uploadedMetadata = await this.uploadFile(baseUrl, repository.apiKey, persistentId, metadataUpload);
         const uploadedFiles = [...uploadedDataFiles, uploadedMetadata];
@@ -322,7 +323,7 @@ export class NativeDataverseExportService {
         reportProgress?.({
             completedSteps: totalSteps,
             totalSteps,
-            message: 'Uploaded rewritten ro-crate-metadata.json.'
+            message: nls.localize('rockit/dataRepository/uploadedRewrittenMetadata', 'Uploaded rewritten ro-crate-metadata.json.')
         });
         const target = this.buildPidTarget(persistentId) || persistentId;
         await this.appendExportLog(rootUri, {
@@ -365,7 +366,7 @@ export class NativeDataverseExportService {
         reportProgress?.({
             completedSteps: 0,
             totalSteps: 1,
-            message: 'Checking for changes...'
+            message: nls.localize('rockit/dataRepository/checkingChanges', 'Checking for changes...')
         });
 
         const uploadCollection = await this.collectRoCrateUploadFiles(crate, rootUri);
@@ -456,7 +457,7 @@ export class NativeDataverseExportService {
         reportProgress?.({
             completedSteps,
             totalSteps,
-            message: 'Synchronizing ro-crate-metadata.json...'
+            message: nls.localize('rockit/dataRepository/synchronizingMetadataFile', 'Synchronizing ro-crate-metadata.json...')
         });
         const rewrittenMetadata = this.buildMappedMetadataUploadFile(
             uploadCollection.metadataCrate,
@@ -509,7 +510,7 @@ export class NativeDataverseExportService {
         reportProgress?.({
             completedSteps: totalSteps,
             totalSteps,
-            message: 'Synchronization complete, including dataset metadata.'
+            message: nls.localize('rockit/dataRepository/synchronizationCompleteWithMetadata', 'Synchronization complete, including dataset metadata.')
         });
 
         return {

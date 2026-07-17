@@ -1,4 +1,5 @@
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
+import { nls } from '@theia/core/lib/common/nls'
 import URI from '@theia/core/lib/common/uri'
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -30,12 +31,12 @@ export class NativeDataverseImportService {
   ): Promise<NativeDataverseImportResult | undefined> {
     const persistentId = this.extractPersistentId(datasetUrl)
     if (!persistentId) {
-      throw new Error('Could not extract a dataset persistent ID from the dataset URL.')
+      throw new Error(nls.localize('rockit/dataRepository/extractPersistentIdFailed', 'Could not extract a dataset persistent ID from the dataset URL.'))
     }
 
     const importParentDirectory = await this.fileDialogService.showOpenDialog({
-      title: 'Select Import Folder',
-      openLabel: 'Import Here',
+      title: nls.localize('rockit/dataRepository/selectImportFolder', 'Select Import Folder'),
+      openLabel: nls.localize('rockit/dataRepository/importHere', 'Import Here'),
       canSelectFiles: false,
       canSelectFolders: true,
       canSelectMany: false,

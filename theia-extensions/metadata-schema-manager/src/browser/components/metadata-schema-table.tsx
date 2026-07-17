@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 import { Button, Input, Table, ConfigProvider, theme } from 'antd';
+import enUS from 'antd/es/locale/en_US';
+import huHU from 'antd/es/locale/hu_HU';
 import type { InputRef, TableColumnsType } from 'antd';
 import type { FilterDropdownProps, Key } from 'antd/es/table/interface';
 import SearchIcon from '@mui/icons-material/Search';
@@ -14,6 +16,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import ReplayIcon from '@mui/icons-material/Replay';
 import { IconButton, Tooltip } from '@mui/material';
 import { nls } from '@theia/core/lib/common/nls';
+import { isHungarianLocale } from 'rockit-common/lib/browser';
 
 import type { SchemaInfo, SchemaTableProps } from '../types';
 import '../styles/metadata-schema-table.css';
@@ -261,6 +264,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
 
     return (
         <ConfigProvider
+            locale={isHungarianLocale() ? huHU : enUS}
             getPopupContainer={() => tableWrapperRef.current || document.body}
             theme={{
                 algorithm: theme.darkAlgorithm,
