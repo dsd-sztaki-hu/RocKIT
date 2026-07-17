@@ -31,6 +31,11 @@ export const RoCrateStructurePanelEditCommand: Command = {
   label: 'Edit',
 }
 
+export const RoCrateStructurePanelDeleteEntityCommand: Command = {
+  id: 'ro-crate-structure-panel:delete-entity',
+  label: 'Delete Entity',
+}
+
 export const RoCrateStructurePanelDocumentationCommand: Command = {
   id: 'ro-crate-structure-panel:open-documentation',
   label: 'Open RO-Crate Structure Panel Documentation',
@@ -78,6 +83,19 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
       isVisible: () => Boolean(this.getActiveStructureWidget()),
     })
 
+    registry.registerCommand(RoCrateStructurePanelDeleteEntityCommand, {
+      execute: async () => {
+        const widget = this.getActiveStructureWidget()
+        if (widget) {
+          await widget.deleteEntitiesFromContextMenu()
+        }
+      },
+      isEnabled: () => Boolean(
+        this.getActiveStructureWidget()?.canDeleteEntitiesFromContextMenu(),
+      ),
+      isVisible: () => Boolean(this.getActiveStructureWidget()),
+    })
+
     registry.registerCommand(RoCrateStructurePanelDocumentationCommand, {
       execute: () =>
         openRockitDocumentationPage(
@@ -104,6 +122,10 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
     menus.registerMenuAction(RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU, {
       commandId: RoCrateDeleteSelectedEntitiesCommand.id,
       label: RoCrateDeleteSelectedEntitiesCommand.label,
+    })
+    menus.registerMenuAction(RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU, {
+      commandId: RoCrateStructurePanelDeleteEntityCommand.id,
+      label: 'Delete Entity (Shift+Delete)',
     })
   }
 
