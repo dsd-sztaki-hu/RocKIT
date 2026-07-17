@@ -6,6 +6,7 @@ import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service
 import { EntitiesOverviewWidget } from 'entities-overview/lib/browser/entities-overview-widget'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import { RoCrateStructurePanelWidget } from 'ro-crate-structure-panel/lib/browser/ro-crate-structure-panel-widget'
+import { EmptyWorkspaceWidget } from './empty-workspace-widget'
 
 @injectable()
 export class RoCrateDefaultLayoutContribution implements FrontendApplicationContribution {
@@ -26,6 +27,7 @@ export class RoCrateDefaultLayoutContribution implements FrontendApplicationCont
   async initializeLayout(): Promise<void> {
     const roots = await this.workspaceService.roots
     if (!roots || roots.length === 0) {
+      await this.showEmptyWorkspace()
       return
     }
 
@@ -53,7 +55,37 @@ export class RoCrateDefaultLayoutContribution implements FrontendApplicationCont
     this.applyDefaultColumnRatios(structure.id, editor.id)
   }
 
-  protected applyDefaultColumnRatios(structureWidgetId: string, editorWidgetId: string): void {
+  async onDidInitializeLayout(): Promise<void> {
+    await this.updateEmptyWorkspace(await this.workspaceService.roots)
+    this.workspaceService.onWorkspaceChanged((roots) => {
+      void this.updateEmptyWorkspace(roots)
+    })
+  }
+
+  protected async updateEmptyWorkspace(roots: readonly unknown[]): Promise<void> {
+    if (roots.length === 0) {
+      await this.showEmptyWorkspace()
+      return
+    }
+
+    const welcome = this.shell.getWidgetById(EmptyWorkspaceWidget.ID)
+    if (welcome) {
+      await this.shell.closeWidget(welcome.id, { save: false })
+    }
+  }
+
+  protected async showEmptyWorkspace(): Promise<void> {
+    const welcome = await this.widgetManager.getOrCreateWidget(EmptyWorkspaceWidget.ID)
+    if (!this.shell.getAreaFor(welcome)) {
+      this.shell.addWidget(welcome, { area: 'main' })
+    }
+    this.shell.activateWidget(welcome.id)
+  }
+
+  protected applyDefaultColumnRatios(
+    structureWidgetId: string,
+    editorWidgetId: string,
+  ): void {
     const shellWidth = this.shell.node.getBoundingClientRect().width
     if (shellWidth > 0) {
       const leftPanelWidth = Math.round(shellWidth * this.leftPanelRatio)
@@ -64,7 +96,11 @@ export class RoCrateDefaultLayoutContribution implements FrontendApplicationCont
 
     const mainLayout = this.shell.mainPanel.saveLayout() as any
     const mainArea = mainLayout.main as any
-    if (!mainArea || mainArea.type !== 'split-area' || mainArea.orientation !== 'horizontal') {
+    if (
+      !mainArea ||
+      mainArea.type !== 'split-area' ||
+      mainArea.orientation !== 'horizontal'
+    ) {
       return
     }
     if (mainArea.children.length !== 2 || mainArea.sizes.length !== 2) {

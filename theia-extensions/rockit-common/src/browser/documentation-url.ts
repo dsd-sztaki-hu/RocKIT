@@ -1,10 +1,10 @@
 import { OpenerService, open } from '@theia/core/lib/browser'
-import {
-  ApplicationServer,
-} from '@theia/core/lib/common/application-protocol'
+import { ApplicationServer } from '@theia/core/lib/common/application-protocol'
 import URI from '@theia/core/lib/common/uri'
 
 export const ROCKIT_DOCUMENTATION_PAGES = {
+  QUICK_START_OPEN_AND_EDIT:
+    'getting-started/quick-start-open-and-edit-an-existing-ro-crate',
   WORKSPACE_AND_FILE_HANDLING: 'interface/workspace-and-file-handling',
   RO_CRATE_STRUCTURE_PANEL: 'interface/ro-crate-structure-panel',
   ENTITIES_PANEL: 'interface/entities-panel',
