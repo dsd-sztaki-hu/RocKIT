@@ -17,12 +17,11 @@ export class RockitLocalizationContribution
   implements LocalizationContribution
 {
   async registerLocalizations(registry: LocalizationRegistry): Promise<void> {
-    registry.registerLocalization({
+    registry.registerLocalizationFromRequire({
       languageId: 'hu',
       languageName: 'Hungarian',
       localizedLanguageName: 'Magyar',
       languagePack: true,
-      translations: {},
-    })
+    }, require('../../i18n/nls.hu.json'))
   }
 }

@@ -8,6 +8,7 @@ import {
   CommandRegistry,
   ContributionProvider,
   MenuModelRegistry,
+  nls,
 } from '@theia/core/lib/common'
 import { ShellLayoutTransformer } from '@theia/core/lib/browser/shell/shell-layout-restorer'
 import { inject, injectable, named } from '@theia/core/shared/inversify'
@@ -97,7 +98,7 @@ export class ApplicationViewMenuOverrides
     for (const item of this.topViewItems) {
       this.menuRegistry.registerMenuAction(this.viewWidgetsMenuPath, {
         commandId: item.commandId,
-        label: item.label,
+        label: nls.localize('rockit/menu/filePreview', item.label),
         order: item.order,
       })
     }

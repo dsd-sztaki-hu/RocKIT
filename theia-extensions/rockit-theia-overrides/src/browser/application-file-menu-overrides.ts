@@ -4,7 +4,6 @@ import {
   CommonMenus,
   ConfirmDialog,
   ConfirmSaveDialog,
-  Dialog,
   FrontendApplication,
   FrontendApplicationContribution,
   OnWillStopAction,
@@ -21,6 +20,7 @@ import {
   MenuContribution,
   MenuModelRegistry,
   MessageService,
+  nls,
 } from '@theia/core/lib/common'
 import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
@@ -51,12 +51,12 @@ type UnsavedCloseState = {
 
 const ResetApplicationCommand: Command = {
   id: 'rockit.application.reset',
-  label: 'Reset the application',
+  label: nls.localize('rockit/file/resetApplication', 'Reset the application'),
 }
 
 const RevertToSavedRoCrateCommand: Command = {
   id: 'rockit.ro-crate.revert-to-saved',
-  label: 'Revert to saved RO-Crate',
+  label: nls.localize('rockit/file/revertToSaved', 'Revert to saved RO-Crate'),
 }
 
 @injectable()
@@ -152,7 +152,10 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     }
 
     return {
-      reason: 'Unsaved RO-Crate metadata or ignore list changes',
+      reason: nls.localize(
+        'rockit/file/unsavedReason',
+        'Unsaved RO-Crate metadata or ignore list changes',
+      ),
       priority: 90,
       prepare: () => this.detectUnsavedStateFromDisk(),
       action: (prepared) => this.handleUnsavedCloseAction(prepared),
@@ -185,16 +188,22 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
   }
 
   protected updateWorkspaceLabels(): void {
-    const openFolderLabel = 'Open Folder as RO-Crate'
+    const openFolderLabel = nls.localize(
+      'rockit/file/openFolder',
+      'Open Folder as RO-Crate',
+    )
     WorkspaceCommands.OPEN_FOLDER.label = openFolderLabel
     WorkspaceCommands.OPEN_FOLDER.dialogLabel = openFolderLabel
     this.updateCommandLabel(WorkspaceCommands.OPEN_FOLDER.id, openFolderLabel)
 
-    const openRecentLabel = 'Open Recent RO-Crate'
+    const openRecentLabel = nls.localize(
+      'rockit/file/openRecent',
+      'Open Recent RO-Crate',
+    )
     WorkspaceCommands.OPEN_RECENT_WORKSPACE.label = openRecentLabel
     this.updateCommandLabel(WorkspaceCommands.OPEN_RECENT_WORKSPACE.id, openRecentLabel)
 
-    const closeLabel = 'Close RO-Crate'
+    const closeLabel = nls.localize('rockit/file/close', 'Close RO-Crate')
     WorkspaceCommands.CLOSE.label = closeLabel
     this.updateCommandLabel(WorkspaceCommands.CLOSE.id, closeLabel)
   }
@@ -228,7 +237,7 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     )
     this.menuRegistry.registerMenuAction(CommonMenus.FILE_OPEN, {
       commandId: WorkspaceCommands.OPEN_FOLDER.id,
-      label: 'Open Folder as RO-Crate',
+      label: nls.localize('rockit/file/openFolder', 'Open Folder as RO-Crate'),
       order: 'a02',
     })
   }
@@ -248,11 +257,16 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
   protected async revertToSavedRoCrate(): Promise<void> {
     if (this.hasPotentialUnsavedRoCrateChanges()) {
       const confirmed = await new ConfirmDialog({
-        title: 'Revert to saved RO-Crate',
-        msg:
+        title: nls.localize(
+          'rockit/file/revertTitle',
+          'Revert to saved RO-Crate',
+        ),
+        msg: nls.localize(
+          'rockit/file/revertMessage',
           'This will discard unsaved RO-Crate metadata changes and reload ro-crate-metadata.json from disk. Continue?',
-        ok: 'Revert',
-        cancel: Dialog.CANCEL,
+        ),
+        ok: nls.localize('rockit/file/revert', 'Revert'),
+        cancel: nls.localize('rockit/common/cancel', 'Cancel'),
       }).open()
 
       if (!confirmed) {
@@ -263,12 +277,19 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     try {
       await this.roCrateLoader.revertToSavedRoCrate()
       this.clearRoCrateEditorDirtyFlags()
-      await this.messageService.info('Reloaded saved RO-Crate metadata.', {
+      await this.messageService.info(nls.localize(
+        'rockit/file/reloaded',
+        'Reloaded saved RO-Crate metadata.',
+      ), {
         timeout: 3000,
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      this.messageService.error(`Failed to reload saved RO-Crate: ${message}`)
+      this.messageService.error(nls.localize(
+        'rockit/file/reloadFailed',
+        'Failed to reload saved RO-Crate: {0}',
+        message,
+      ))
     }
   }
 
@@ -288,11 +309,13 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
 
   protected async resetApplication(): Promise<void> {
     const confirmed = await new ConfirmDialog({
-      title: 'Reset the application',
-      msg:
+      title: nls.localize('rockit/file/resetTitle', 'Reset the application'),
+      msg: nls.localize(
+        'rockit/file/resetMessage',
         'This will delete the application configuration directory in your user folder and restart RocKIT. Unsaved changes will be lost. Continue?',
-      ok: 'Reset and restart',
-      cancel: Dialog.CANCEL,
+      ),
+      ok: nls.localize('rockit/file/resetAndRestart', 'Reset and restart'),
+      cancel: nls.localize('rockit/common/cancel', 'Cancel'),
     }).open()
 
     if (!confirmed) {
@@ -308,7 +331,11 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      this.messageService.error(`Failed to reset the application: ${message}`)
+      this.messageService.error(nls.localize(
+        'rockit/file/resetFailed',
+        'Failed to reset the application: {0}',
+        message,
+      ))
     }
   }
 
@@ -371,7 +398,10 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
 
     const messageNode = document.createElement('div')
     const intro = document.createElement('div')
-    intro.textContent = 'You have unsaved changes in:'
+    intro.textContent = nls.localize(
+      'rockit/file/unsavedChanges',
+      'You have unsaved changes in:',
+    )
     messageNode.appendChild(intro)
 
     const list = document.createElement('ul')
@@ -384,11 +414,14 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     messageNode.appendChild(list)
 
     const result = await new ConfirmSaveDialog({
-      title: 'Save Changes Before Closing?',
+      title: nls.localize(
+        'rockit/file/saveBeforeClosing',
+        'Save Changes Before Closing?',
+      ),
       msg: messageNode,
-      dontSave: "Don't Save",
-      save: 'Save',
-      cancel: Dialog.CANCEL,
+      dontSave: nls.localize('rockit/file/dontSave', "Don't Save"),
+      save: nls.localize('rockit/file/save', 'Save'),
+      cancel: nls.localize('rockit/common/cancel', 'Cancel'),
     }).open()
 
     if (result === true) {
@@ -458,7 +491,11 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
       } catch (error) {
         console.error('Failed to persist RO-Crate metadata:', error)
         const message = error instanceof Error ? error.message : String(error)
-        this.messageService.error(`Failed to save RO-Crate: ${message}`, {
+        this.messageService.error(nls.localize(
+          'rockit/file/saveFailed',
+          'Failed to save RO-Crate: {0}',
+          message,
+        ), {
           timeout: 10000,
         })
       }

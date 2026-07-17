@@ -1,0 +1,79 @@
+{
+  "rockit": {
+    "common": {
+      "cancel": "Mégse"
+    },
+    "menu": {
+      "roCrate": "RO-Crate",
+      "workspace": "Munkaterület",
+      "structurePanel": "Struktúrapanel",
+      "roCrateEditor": "RO-Crate-szerkesztő",
+      "entities": "Entitások",
+      "validationErrors": "Érvényesítési hibák",
+      "metadataSchemaManager": "Metadataséma-kezelő",
+      "dataRepositoryManager": "Adatrepozitórium-kezelő",
+      "roCratePreview": "RO-Crate előnézete",
+      "remoteToLocalConversion": "Távoli azonosítók helyivé alakítása",
+      "filePreview": "Fájlelőnézet",
+      "toggleHelpIcons": "Súgóikonok megjelenítése/elrejtése"
+    },
+    "file": {
+      "resetApplication": "Az alkalmazás visszaállítása",
+      "revertToSaved": "Visszaállítás a mentett RO-Crate-re",
+      "openFolder": "Mappa megnyitása RO-Crate-ként",
+      "openRecent": "Legutóbbi RO-Crate megnyitása",
+      "close": "RO-Crate bezárása",
+      "revertTitle": "Visszaállítás a mentett RO-Crate-re",
+      "revertMessage": "Ez elveti a nem mentett RO-Crate-metaadatmódosításokat, és újratölti a ro-crate-metadata.json fájlt a lemezről. Folytatja?",
+      "revert": "Visszaállítás",
+      "reloaded": "A mentett RO-Crate-metaadatok újratöltve.",
+      "reloadFailed": "A mentett RO-Crate újratöltése sikertelen: {0}",
+      "resetTitle": "Az alkalmazás visszaállítása",
+      "resetMessage": "Ez törli az alkalmazás konfigurációs könyvtárát a felhasználói mappából, majd újraindítja a RocKIT-et. A nem mentett módosítások elvesznek. Folytatja?",
+      "resetAndRestart": "Visszaállítás és újraindítás",
+      "resetFailed": "Az alkalmazás visszaállítása sikertelen: {0}",
+      "unsavedReason": "Nem mentett RO-Crate-metaadatok vagy mellőzésilista-módosítások",
+      "unsavedChanges": "Nem mentett módosítások vannak a következő fájlokban:",
+      "saveBeforeClosing": "Menti a módosításokat bezárás előtt?",
+      "dontSave": "Ne mentse",
+      "save": "Mentés",
+      "saveFailed": "Az RO-Crate mentése sikertelen: {0}"
+    },
+    "welcome": {
+      "label": "Üdvözöljük",
+      "title": "Üdvözli a RocKIT RO-Crate-szerkesztő",
+      "emptyPrefix": "A munkaterület üres. Új RO-Crate megnyitásához vagy létrehozásához tekintse meg a gyors kezdési",
+      "documentation": "dokumentációt",
+      "importRemote": "Importálás távoli repozitóriumból"
+    },
+    "about": {
+      "command": "A RocKIT névjegye",
+      "version": "Verzió: {0}",
+      "resources": "RO-Crate-források",
+      "resourcesDescription": "Hozzáférés az ehhez a RocKIT-verzióhoz illeszkedő RO-Crate-referenciaanyagokhoz és alkalmazássúgóhoz.",
+      "roCrateInformation": "RO-Crate információ",
+      "documentation": "RocKIT-dokumentáció",
+      "developedBy": "Fejlesztő",
+      "developedByText": "A RocKIT - RO-Crate Kit fejlesztője:",
+      "support": "Támogatásért lépjen kapcsolatba velünk:",
+      "doNotShowAgain": "Ne jelenjen meg többé ez az ablak",
+      "close": "Bezárás"
+    },
+    "connection": {
+      "restored": "A kapcsolat az alkalmazás háttérfolyamatával helyreállt.",
+      "lost": "Megszakadt a kapcsolat az alkalmazás háttérfolyamatával. Egyes műveletek az újracsatlakozásig nem érhetők el."
+    }
+  },
+  "vscode": {
+    "extensionEditor": {
+      "details": "Részletek",
+      "Version": "Verzió"
+    },
+    "progressService": {
+      "cancel": "Mégse"
+    },
+    "workingCopyBackupTracker": {
+      "ok": "OK"
+    }
+  }
+}

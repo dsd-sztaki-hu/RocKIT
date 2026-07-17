@@ -2,11 +2,13 @@ import {
   MAIN_MENU_BAR,
   MenuContribution,
   MenuModelRegistry,
+  nls,
 } from '@theia/core/lib/common'
 import { injectable } from '@theia/core/shared/inversify'
 
 export type RoCrateMenuItem = {
   commandId: string
+  labelKey: string
   label: string
   order: string
 }
@@ -18,44 +20,52 @@ const RO_CRATE_MANAGERS_MENU_PATH = [...RO_CRATE_MENU_PATH, '2_managers']
 const RO_CRATE_TOOLS_MENU_PATH = [...RO_CRATE_MENU_PATH, '3_tools']
 
 export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
-  { commandId: 'fileNavigator:toggle', label: 'Workspace', order: 'a01' },
+  { commandId: 'fileNavigator:toggle', labelKey: 'rockit/menu/workspace', label: 'Workspace', order: 'a01' },
   {
     commandId: 'dataset-panel:command',
+    labelKey: 'rockit/menu/structurePanel',
     label: 'Structure Panel',
     order: 'a02',
   },
   {
     commandId: 'rocrate.openEditor',
+    labelKey: 'rockit/menu/roCrateEditor',
     label: 'RO-Crate Editor',
     order: 'a03',
   },
   {
     commandId: 'theia-examples:treeview-example-view-command-id',
+    labelKey: 'rockit/menu/entities',
     label: 'Entities',
     order: 'a04',
   },
   {
     commandId: 'validation-errors:command',
+    labelKey: 'rockit/menu/validationErrors',
     label: 'Validation Errors',
     order: 'a05',
   },
   {
     commandId: 'metadata-schema-manager:open',
+    labelKey: 'rockit/menu/metadataSchemaManager',
     label: 'Metadata Schema Manager',
     order: 'a06',
   },
   {
     commandId: 'data-repository-manager:open',
+    labelKey: 'rockit/menu/dataRepositoryManager',
     label: 'Data Repository Manager',
     order: 'a07',
   },
   {
     commandId: 'RO-Crate Preview',
+    labelKey: 'rockit/menu/roCratePreview',
     label: 'RO-Crate Preview',
     order: 'a08',
   },
   {
     commandId: 'RemoteRoCrateConversion.command',
+    labelKey: 'rockit/menu/remoteToLocalConversion',
     label: 'Remote to Locale Conversion',
     order: 'a09',
   },
@@ -64,7 +74,10 @@ export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
 @injectable()
 export class ApplicationRoCrateMenuContribution implements MenuContribution {
   registerMenus(menus: MenuModelRegistry): void {
-    menus.registerSubmenu(RO_CRATE_MENU_PATH, 'RO-Crate')
+    menus.registerSubmenu(
+      RO_CRATE_MENU_PATH,
+      nls.localize('rockit/menu/roCrate', 'RO-Crate'),
+    )
     this.registerMenuGroup(menus, RO_CRATE_WIDGETS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(0, 5))
     this.registerMenuGroup(menus, RO_CRATE_MANAGERS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(5, 7))
     this.registerMenuGroup(menus, RO_CRATE_TOOLS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(7))
@@ -78,7 +91,7 @@ export class ApplicationRoCrateMenuContribution implements MenuContribution {
     for (const item of items) {
       menus.registerMenuAction(menuPath, {
         commandId: item.commandId,
-        label: item.label,
+        label: nls.localize(item.labelKey, item.label),
         order: item.order,
       })
     }

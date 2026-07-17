@@ -11,13 +11,14 @@ import {
   MenuModelRegistry,
   PreferenceScope,
   PreferenceService,
+  nls,
 } from '@theia/core/lib/common'
 import { inject, injectable, optional } from '@theia/core/shared/inversify'
 import { ROCKIT_HELP_ICONS_VISIBLE } from '../common/rockit-splash-preferences'
 
 export const TOGGLE_HELP_ICONS_COMMAND: Command = {
   id: 'rockit.helpIcons.toggle',
-  label: 'Toggle Help Icons',
+  label: nls.localize('rockit/menu/toggleHelpIcons', 'Toggle Help Icons'),
 }
 
 const HELP_TOGGLE_GROUP = [...CommonMenus.HELP, 'z_toggle']

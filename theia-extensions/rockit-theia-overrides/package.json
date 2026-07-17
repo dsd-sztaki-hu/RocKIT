@@ -5,6 +5,7 @@
   ],
   "version": "0.0.0",
   "files": [
+    "i18n",
     "lib",
     "src"
   ],
