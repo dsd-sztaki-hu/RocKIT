@@ -47,7 +47,7 @@ class EmptyPropertyViewWidget extends ReactWidget implements PropertyViewContent
 
   protected emptyComponent: JSX.Element = (
     <div className={'theia-widget-noInfo'}>
-      {nls.localize('theia/property-view/noProperties', 'No properties available.')}
+      {nls.localize('rockit/filePreview/noProperties', 'No properties available.')}
     </div>
   )
 }

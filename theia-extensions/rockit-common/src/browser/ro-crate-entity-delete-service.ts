@@ -2,11 +2,12 @@ import { ApplicationShell } from '@theia/core/lib/browser'
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import type { Command } from '@theia/core/lib/common/command'
 import { CommandContribution, CommandRegistry } from '@theia/core/lib/common/command'
+import { nls } from '@theia/core/lib/common/nls'
 import { inject, injectable } from 'inversify'
 
 export const RoCrateDeleteSelectedEntitiesCommand: Command = {
   id: 'ro-crate:delete-selected-entities',
-  label: 'Delete',
+  label: nls.localize('rockit/entityDelete/delete', 'Delete'),
 }
 
 export type RoCrateEntityDeleteCommandTarget = {
@@ -63,7 +64,9 @@ export class RoCrateEntityDeleteService {
 
     const updatedGraph = this.removeEntitiesAndReferences(graph, idsToRemove)
     const updatedCrate = { ...crate, '@graph': updatedGraph }
-    const label = idsToRemove.size > 1 ? 'Delete entities' : 'Delete entity'
+    const label = idsToRemove.size > 1
+      ? nls.localize('rockit/entityDelete/deleteEntitiesHistory', 'Delete entities')
+      : nls.localize('rockit/entityDelete/deleteEntityHistory', 'Delete entity')
     const changed = options.roCrateHistoryService.applyRoCrateChange(updatedCrate, {
       label,
     })
@@ -99,13 +102,28 @@ export class RoCrateEntityDeleteService {
     }
 
     const confirmed = await new ConfirmDialog({
-      title: deleteCount > 1 ? 'Delete RO-Crate entities?' : 'Delete RO-Crate entity?',
+      title: deleteCount > 1
+        ? nls.localize(
+            'rockit/entityDelete/deleteEntitiesTitle',
+            'Delete RO-Crate entities?',
+          )
+        : nls.localize(
+            'rockit/entityDelete/deleteEntityTitle',
+            'Delete RO-Crate entity?',
+          ),
       msg:
         deleteCount > 1
-          ? `Are you sure you want to delete the ${deleteCount} selected entities?`
-          : 'Are you sure you want to delete the selected entity?',
-      ok: 'Delete',
-      cancel: 'Cancel',
+          ? nls.localize(
+              'rockit/entityDelete/deleteEntitiesMessage',
+              'Are you sure you want to delete the {0} selected entities?',
+              deleteCount,
+            )
+          : nls.localize(
+              'rockit/entityDelete/deleteEntityMessage',
+              'Are you sure you want to delete the selected entity?',
+            ),
+      ok: nls.localize('rockit/entityDelete/delete', 'Delete'),
+      cancel: nls.localize('rockit/common/cancel', 'Cancel'),
     }).open()
     return confirmed === true
   }
