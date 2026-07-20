@@ -278,6 +278,13 @@
       color: var(--ink);
       font-weight: 700;
     }
+    .field-extra .allowed-values {
+      margin: 4px 0 0 20px;
+      padding: 0;
+    }
+    .field-extra .allowed-values li {
+      margin: 2px 0;
+    }
     .field-extra a {
       color: var(--accent);
       text-decoration: none;
@@ -422,28 +429,28 @@
     }
 
     function renderAllowedValues(value, sourceKey) {
-      const text = linkedText(value, sourceKey);
-      return text.split(/(,\s*)/).map(part => {
-        if (/^,\s*$/.test(part) || !part.trim()) {
-          return part;
+      const items = String(value || '').split(',').map(item => item.trim()).filter(Boolean);
+      return '<ul class="allowed-values">' + items.map(item => {
+        const text = linkedText(item, sourceKey);
+        if (text.includes('<a ')) {
+          return '<li>' + text.replace(/(<a [^>]*>)(.*?)(<\/a>)/g, '$1<span class="allowed-value">$2</span>$3') + '</li>';
         }
-        if (part.includes('<a ')) {
-          return part.replace(/(<a [^>]*>)(.*?)(<\/a>)/g, '$1<span class="allowed-value">$2</span>$3');
-        }
-        return '<span class="allowed-value">' + part + '</span>';
-      }).join('');
+        return '<li><span class="allowed-value">' + text + '</span></li>';
+      }).join('') + '</ul>';
     }
 
     function renderFieldDescription(field, sourceKey) {
       const clearButton = activeHash && activeHash === '#' + fieldAnchorId(sourceKey, field)
         ? '<button class="clear-highlight" type="button" data-clear-highlight>Clear highlight</button>'
         : '';
+      const isLicenseGuidance = sourceKey === 'zenodo' && field.name === 'license';
       const extras = [
-        field.allowedValues ? '<div><span class="extra-label">Allowed values:</span> ' + renderAllowedValues(field.allowedValues, sourceKey) + '</div>' : '',
+        field.allowedValues && !isLicenseGuidance ? '<div><span class="extra-label">Allowed values:</span> ' + renderAllowedValues(field.allowedValues, sourceKey) + '</div>' : '',
         field.condition ? '<div><span class="extra-label">Condition:</span> ' + linkedText(field.condition, sourceKey) + clearButton + '</div>' : clearButton
       ].filter(Boolean).join('');
 
       return escapeHtml(field.description || 'No description provided.')
+        + (isLicenseGuidance && field.allowedValues ? ' ' + escapeHtml(field.allowedValues) : '')
         + (extras ? '<div class="field-extra">' + extras + '</div>' : '');
     }
 
