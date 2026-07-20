@@ -1,10 +1,11 @@
 import { injectable, inject } from '@theia/core/shared/inversify';
 import { Command, CommandContribution, CommandRegistry, MenuContribution, MenuModelRegistry } from '@theia/core/lib/common';
+import { nls } from '@theia/core/lib/common/nls';
 import { MultiEditDialogService } from './multi-edit-dialog-service';
 
 export const MultiEditCommand: Command = {
     id: 'multi-edit:open',
-    label: 'Multi Edit'
+    label: nls.localize('rockit/multiEdit/title', 'Multi Edit')
 };
 
 @injectable()
