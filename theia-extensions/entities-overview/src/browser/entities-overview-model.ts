@@ -7,6 +7,7 @@ import {
     TreeNode,
 } from '@theia/core/lib/browser'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
+import { nls } from '@theia/core/lib/common/nls'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import {
     EntitiesOverviewTreeItemFactory,
@@ -42,7 +43,7 @@ function getEntityTypeEntries(
 ): EntityTypeEntry[] {
     const rawTypes = entity?.['@type']
     if (!rawTypes) {
-        return [{ key: 'Unknown', label: 'Unknown' }]
+        return [{ key: 'Unknown', label: nls.localize('rockit/entitiesOverview/unknown', 'Unknown') }]
     }
 
     const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
