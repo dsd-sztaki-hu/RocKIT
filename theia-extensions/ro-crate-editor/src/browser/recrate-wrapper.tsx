@@ -152,7 +152,10 @@ export const DescriboCrateBuilderWrapper = ({
 
             if (!payload?.entityIds || payload.entityIds.length === 0) {
                 setDropState('invalid')
-                setDropMessage('Invalid drag payload')
+                setDropMessage(nls.localize(
+                    'rockit/roCrateEditor/invalidDragPayload',
+                    'Invalid drag payload',
+                ))
                 return
             }
 
@@ -161,10 +164,16 @@ export const DescriboCrateBuilderWrapper = ({
                     event.dataTransfer.dropEffect = 'copy'
                 }
                 setDropState('valid')
-                setDropMessage('Drop to add this entity to hasPart')
+                setDropMessage(nls.localize(
+                    'rockit/roCrateEditor/dropToAdd',
+                    'Drop to add this entity to hasPart',
+                ))
             } else {
                 setDropState('invalid')
-                setDropMessage('Drop disabled: destination must be Dataset')
+                setDropMessage(nls.localize(
+                    'rockit/roCrateEditor/dropDisabled',
+                    'Drop disabled: destination must be Dataset',
+                ))
             }
         }
 
@@ -180,14 +189,20 @@ export const DescriboCrateBuilderWrapper = ({
             const payload = parsePayload(event)
             if (!payload?.entityIds || payload.entityIds.length === 0) {
                 setDropState('invalid')
-                setDropMessage('Drop payload was not available. Please drag again.')
+                setDropMessage(nls.localize(
+                    'rockit/roCrateEditor/dropPayloadUnavailable',
+                    'Drop payload was not available. Please drag again.',
+                ))
                 return
             }
 
             const destinationEntityId = currentEntityId
             if (!destinationEntityId) {
                 setDropState('invalid')
-                setDropMessage('No active destination entity')
+                setDropMessage(nls.localize(
+                    'rockit/roCrateEditor/noDropDestination',
+                    'No active destination entity',
+                ))
                 return
             }
 
@@ -197,14 +212,20 @@ export const DescriboCrateBuilderWrapper = ({
 
             if (!targetValid) {
                 setDropState('invalid')
-                setDropMessage('Drop disabled: destination must be Dataset')
+                setDropMessage(nls.localize(
+                    'rockit/roCrateEditor/dropDisabled',
+                    'Drop disabled: destination must be Dataset',
+                ))
                 return
             }
 
             try {
                 if (!payload.entityIds || !payload.entityNames || !payload.entityTypes) {
                     setDropState('invalid')
-                    setDropMessage('Drop payload was not available. Please drag again.')
+                    setDropMessage(nls.localize(
+                        'rockit/roCrateEditor/dropPayloadUnavailable',
+                        'Drop payload was not available. Please drag again.',
+                    ))
                     return
                 }
                 
@@ -223,7 +244,10 @@ export const DescriboCrateBuilderWrapper = ({
                 setDropMessage('')
             } catch (error: any) {
                 setDropState('invalid')
-                setDropMessage(error?.message || 'Failed to add dropped entity to hasPart')
+                setDropMessage(error?.message || nls.localize(
+                    'rockit/roCrateEditor/dropFailed',
+                    'Failed to add dropped entity to hasPart',
+                ))
             }
         }
 
