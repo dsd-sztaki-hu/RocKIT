@@ -20,7 +20,11 @@ import {
 } from 'rockit-common/lib/common/schema-url-resolution';
 import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service';
 import { MissingSchemasDialog } from '../components/missing-schemas-dialog'; 
-import { CedarProfileLanguage, toCedarProfileLanguage } from './cedar-profile-language';
+import {
+  CedarProfileLanguage,
+  toCedarProfileLanguage,
+  toLocalizedConvertedProfilePath,
+} from './cedar-profile-language';
 
 export const SCHEMA_FIELD_NAME = 'schema:name';
 export const SCHEMA_FIELD_VERSION = 'pav:version';
@@ -152,8 +156,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       const index = await this.loadIndex();
       const validProfiles: SchemaInfo[] = [];
       let indexChanged = false;
-      const conversionLanguage = this.getConversionLanguage();
-
       for (const profile of index.profiles) {
         const sourceUri = root.resolve(profile.files.sourcePath);
         const convertedUri = root.resolve(profile.files.convertedPath);
@@ -161,27 +163,25 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         const sourceExists = await this.fileService.exists(sourceUri);
         const convertedExists = await this.fileService.exists(convertedUri);
 
-        if (sourceExists && convertedExists) {
-          if (
-            profile.type === 'cedar' &&
-            profile.aux.conversionLanguage !== conversionLanguage
-          ) {
-            try {
-              const sourceContent = await this.fileService.read(sourceUri);
-              const convertedContent = this.convertCedarTemplate(
-                sourceContent.value,
-                conversionLanguage,
-              );
-              await this.fileService.write(convertedUri, convertedContent);
-              profile.aux.conversionLanguage = conversionLanguage;
+        if (sourceExists && profile.type === 'cedar') {
+          try {
+            if (await this.ensureCedarConvertedProfiles(root, profile)) {
               indexChanged = true;
-            } catch (error) {
-              console.warn(
-                `[SchemaManager] Failed to regenerate ${profile.name} in ${conversionLanguage}`,
-                error,
-              );
             }
+            validProfiles.push(profile);
+          } catch (error) {
+            // Keep the raw template and index entry. A later language-specific
+            // read can retry conversion without forcing another download.
+            console.warn(
+              `[SchemaManager] Failed to generate localized profiles for ${profile.name}`,
+              error,
+            );
+            validProfiles.push(profile);
           }
+          continue;
+        }
+
+        if (sourceExists && convertedExists) {
           validProfiles.push(profile);
         } else {
           console.warn(`[SchemaManager] Removing corrupted index entry: ${profile.name}`);
@@ -219,22 +219,32 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
                 const conformsTo = this.deriveConformsToFromId(schemaId);
                 
-                let convertedContent: string;
+                let convertedEnglish: string;
+                let convertedHungarian: string;
                 try { 
-                  convertedContent = this.convertCedarTemplate(
-                    content.value,
-                    conversionLanguage,
-                  );
+                  convertedEnglish = this.convertCedarTemplate(content.value, 'en');
+                  convertedHungarian = this.convertCedarTemplate(content.value, 'hu');
                 } catch (convErr) { 
                   continue; 
                 }
                 
                 const relativeRoCratePath = `metadata-schemas/ro-crate/${file.name}`;
+                const relativeHungarianPath = toLocalizedConvertedProfilePath(
+                  relativeRoCratePath,
+                  'hu',
+                );
                 const roCrateUri = root.resolve(relativeRoCratePath);
+                const hungarianUri = root.resolve(relativeHungarianPath);
                 if (!await this.fileService.exists(roCrateUri.parent)) {
                   await this.fileService.createFolder(roCrateUri.parent);
                 }
-                await this.fileService.write(roCrateUri, convertedContent);
+                if (!await this.fileService.exists(hungarianUri.parent)) {
+                  await this.fileService.createFolder(hungarianUri.parent);
+                }
+                await Promise.all([
+                  this.fileService.write(roCrateUri, convertedEnglish),
+                  this.fileService.write(hungarianUri, convertedHungarian),
+                ]);
 
                 const idMatch = schemaId.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
                 const uuidId = idMatch ? idMatch[1] : schemaId;
@@ -250,12 +260,15 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                   type: 'cedar',
                   files: {
                     sourcePath: relativeCedarPath,
-                    convertedPath: relativeRoCratePath
+                    convertedPath: relativeRoCratePath,
+                    convertedPaths: {
+                      en: relativeRoCratePath,
+                      hu: relativeHungarianPath,
+                    },
                   },
                   aux: {
                     templateUuid: uuidId,
                     reference: schemaId,
-                    conversionLanguage,
                   },
                   conformsTo: conformsTo,
                   downloadUrl: '',
@@ -1108,8 +1121,32 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     try {
       const root = await this.getRockitRootUri();
       if (!root) throw new Error('Root directory configuration missing');
-      
-      const convertedRelativePath = sourceRelativePath.replace('metadata-schemas/cedar/', 'metadata-schemas/ro-crate/');
+
+      let convertedRelativePath = sourceRelativePath.replace(
+        'metadata-schemas/cedar/',
+        'metadata-schemas/ro-crate/',
+      );
+      const language = this.getConversionLanguage();
+
+      await (this.indexMutex = this.indexMutex.then(async () => {
+        const index = await this.loadIndex();
+        const profile = index.profiles.find((candidate) => {
+          const paths = candidate.files.convertedPaths;
+          return candidate.files.convertedPath === convertedRelativePath ||
+            paths?.en === convertedRelativePath ||
+            paths?.hu === convertedRelativePath;
+        });
+        if (!profile || profile.type !== 'cedar') {
+          return;
+        }
+        const changed = await this.ensureCedarConvertedProfiles(root, profile);
+        convertedRelativePath = this.getConvertedProfilePaths(profile)[language];
+        if (changed) {
+          this.rebuildConformsToIndex(index);
+          await this.saveIndex(index);
+        }
+      }));
+
       const roCrateUri = root.resolve(convertedRelativePath);
       
       if (!await this.fileService.exists(roCrateUri)) throw new Error('Converted profile file not found.');
@@ -1262,9 +1299,11 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     const safeName = schemaName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
     const fileName = `${safeName}_v${schemaVersion}_${type}_${uniqueHash}.json`;
 
-    let convertedContent: string;
+    let convertedEnglish: string;
+    let convertedHungarian: string;
     try { 
-      convertedContent = this.convertCedarTemplate(rawContent);
+      convertedEnglish = this.convertCedarTemplate(rawContent, 'en');
+      convertedHungarian = this.convertCedarTemplate(rawContent, 'hu');
     } catch (convErr) { 
       throw new Error(`Conversion logic failed: ${convErr}`); 
     }
@@ -1274,16 +1313,23 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     const relativeCedarPath = `metadata-schemas/cedar/${fileName}`;
     const relativeRoCratePath = `metadata-schemas/ro-crate/${fileName}`;
+    const relativeHungarianPath = toLocalizedConvertedProfilePath(
+      relativeRoCratePath,
+      'hu',
+    );
 
     const cedarUri = root.resolve(relativeCedarPath);
     const roCrateUri = root.resolve(relativeRoCratePath);
+    const hungarianUri = root.resolve(relativeHungarianPath);
 
     if (!await this.fileService.exists(cedarUri.parent)) await this.fileService.createFolder(cedarUri.parent);
     if (!await this.fileService.exists(roCrateUri.parent)) await this.fileService.createFolder(roCrateUri.parent);
+    if (!await this.fileService.exists(hungarianUri.parent)) await this.fileService.createFolder(hungarianUri.parent);
 
     await Promise.all([
       this.fileService.write(cedarUri, rawContent),
-      this.fileService.write(roCrateUri, convertedContent)
+      this.fileService.write(roCrateUri, convertedEnglish),
+      this.fileService.write(hungarianUri, convertedHungarian),
     ]);
 
     const idMatch = schemaId.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
@@ -1297,12 +1343,15 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       type: 'cedar',
       files: {
         sourcePath: relativeCedarPath,
-        convertedPath: relativeRoCratePath
+        convertedPath: relativeRoCratePath,
+        convertedPaths: {
+          en: relativeRoCratePath,
+          hu: relativeHungarianPath,
+        },
       },
       aux: {
         templateUuid: uuidId,
         reference: schemaId,
-        conversionLanguage: this.getConversionLanguage(),
       },
       conformsTo: conformsTo,
       downloadUrl: downloadUrl,
@@ -1347,6 +1396,71 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       .processCedarTemplate(rawContent);
   }
 
+  private getConvertedProfilePaths(profile: SchemaInfo): Record<CedarProfileLanguage, string> {
+    const canonicalPath = profile.files.convertedPath;
+    return {
+      en: canonicalPath,
+      hu:
+        profile.files.convertedPaths?.hu ||
+        toLocalizedConvertedProfilePath(canonicalPath, 'hu'),
+    };
+  }
+
+  /**
+   * Generates missing language variants from the canonical raw CEDAR file.
+   * The historic convertedPath is always rewritten as English during migration
+   * so non-UI consumers keep a stable, backwards-compatible profile.
+   */
+  private async ensureCedarConvertedProfiles(
+    root: URI,
+    profile: SchemaInfo,
+  ): Promise<boolean> {
+    const paths = this.getConvertedProfilePaths(profile);
+    const previousLanguage = profile.aux.conversionLanguage;
+    const expectedPaths = { en: paths.en, hu: paths.hu };
+    const pathsChanged =
+      profile.files.convertedPaths?.en !== expectedPaths.en ||
+      profile.files.convertedPaths?.hu !== expectedPaths.hu;
+    const englishUri = root.resolve(paths.en);
+    const hungarianUri = root.resolve(paths.hu);
+    const [englishExists, hungarianExists] = await Promise.all([
+      this.fileService.exists(englishUri),
+      this.fileService.exists(hungarianUri),
+    ]);
+    const regenerateEnglish = !englishExists || previousLanguage === 'hu';
+    const regenerateHungarian = !hungarianExists;
+
+    if (regenerateEnglish || regenerateHungarian) {
+      const sourceContent = await this.fileService.read(root.resolve(profile.files.sourcePath));
+      const writes: Promise<unknown>[] = [];
+      if (regenerateEnglish) {
+        if (!await this.fileService.exists(englishUri.parent)) {
+          await this.fileService.createFolder(englishUri.parent);
+        }
+        writes.push(this.fileService.write(
+          englishUri,
+          this.convertCedarTemplate(sourceContent.value, 'en'),
+        ));
+      }
+      if (regenerateHungarian) {
+        if (!await this.fileService.exists(hungarianUri.parent)) {
+          await this.fileService.createFolder(hungarianUri.parent);
+        }
+        writes.push(this.fileService.write(
+          hungarianUri,
+          this.convertCedarTemplate(sourceContent.value, 'hu'),
+        ));
+      }
+      await Promise.all(writes);
+    }
+
+    profile.files.convertedPaths = expectedPaths;
+    if (profile.aux.conversionLanguage !== undefined) {
+      delete profile.aux.conversionLanguage;
+    }
+    return pathsChanged || previousLanguage !== undefined || regenerateEnglish || regenerateHungarian;
+  }
+
   public async loadAllSchemas(): Promise<SchemaInfo[]> {
     const index = await this.loadIndex();
     
@@ -1387,9 +1501,15 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
               await this.fileService.delete(sourceUri);
             }
 
-            const convertedUri = root.resolve(schema.files.convertedPath);
-            if (await this.fileService.exists(convertedUri)) {
-              await this.fileService.delete(convertedUri);
+            const convertedPaths = new Set([
+              schema.files.convertedPath,
+              ...Object.values(schema.files.convertedPaths ?? {}),
+            ].filter((path): path is string => Boolean(path)));
+            for (const convertedPath of convertedPaths) {
+              const convertedUri = root.resolve(convertedPath);
+              if (await this.fileService.exists(convertedUri)) {
+                await this.fileService.delete(convertedUri);
+              }
             }
             count++;
           } catch (err) { 
@@ -1530,7 +1650,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     if (!selectedLayout) {
       selectedLayout = {
         appliesTo: [className],
-        "about": { label: language == "hu" ? "Alap" : "About", },
+        "about": { label: language == "hu" ? "Alapadatok" : "About", },
         "overflow": { label: language == "hu" ? "Egyéb" : "Other", }
       }
       layouts.push(selectedLayout)

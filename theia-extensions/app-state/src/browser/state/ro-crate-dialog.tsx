@@ -21,6 +21,7 @@ import {
 import type * as React from 'react'
 import SparkMD5 from 'spark-md5'
 import { Message } from '@lumino/messaging'
+import { nls } from '@theia/core/lib/common/nls'
 
 @injectable()
 export class ROCrateDialog extends ReactDialog<string> {
@@ -38,14 +39,19 @@ export class ROCrateDialog extends ReactDialog<string> {
   ) {
     super({
       title: jsonExists
-        ? 'Invalid ro-crate-metadata.json'
-        : 'ro-crate-metadata.json Not Found',
+        ? nls.localize('rockit/appState/recovery/invalidTitle', 'Invalid ro-crate-metadata.json')
+        : nls.localize('rockit/appState/recovery/missingTitle', 'ro-crate-metadata.json Not Found'),
     })
     this.title.closable = false
     this.appendAcceptButton(
-      this.jsonExists ? 'Generate valid JSON file' : 'Generate JSON file',
+      this.jsonExists
+        ? nls.localize('rockit/appState/recovery/generateValid', 'Generate valid JSON file')
+        : nls.localize('rockit/appState/recovery/generate', 'Generate JSON file'),
     )
-    this.closeRoCrateButton = this.appendButton('Close RO-Crate', false)
+    this.closeRoCrateButton = this.appendButton(
+      nls.localize('rockit/appState/recovery/close', 'Close RO-Crate'),
+      false,
+    )
   }
 
   get value(): string {
@@ -68,24 +74,34 @@ export class ROCrateDialog extends ReactDialog<string> {
             style={{ color: '#d9534f', fontSize: '24px' }}
           ></i>
           <span style={{ fontWeight: 'bold', fontSize: '14px' }}>
-            {this.jsonExists ? 'Critical Parsing Error' : 'File Not Found'}
+            {this.jsonExists
+              ? nls.localize('rockit/appState/recovery/parsingError', 'Critical Parsing Error')
+              : nls.localize('rockit/appState/recovery/fileNotFound', 'File Not Found')}
           </span>
         </div>
 
         <p>
           {this.jsonExists ? (
             <>
-              The <code>ro-crate-metadata.json</code> file is invalid or cannot be parsed.
+              {nls.localize(
+                'rockit/appState/recovery/invalidDescription',
+                'The ro-crate-metadata.json file is invalid or cannot be parsed.',
+              )}
             </>
           ) : (
             <>
-              No <code>ro-crate-metadata.json</code> was found in this workspace.
+              {nls.localize(
+                'rockit/appState/recovery/missingDescription',
+                'No ro-crate-metadata.json was found in this workspace.',
+              )}
             </>
           )}
         </p>
         <p style={{ fontSize: '0.9em', color: '#888' }}>
-          Would you like to generate a new default metadata file based on the current
-          workspace files?
+          {nls.localize(
+            'rockit/appState/recovery/question',
+            'Would you like to generate a new default metadata file based on the current workspace files?',
+          )}
         </p>
       </div>
     )
@@ -107,7 +123,11 @@ export class ROCrateDialog extends ReactDialog<string> {
     } catch (err) {
       console.error('Failed to generate RO-Crate:', err)
       this.setErrorMessage(
-        `Could not generate a new RO-Crate: ${this.getErrorMessage(err)}`,
+        nls.localize(
+          'rockit/appState/recovery/generationFailed',
+          'Could not generate a new RO-Crate: {0}',
+          this.getErrorMessage(err),
+        ),
       )
       if (this.acceptButton) {
         this.acceptButton.disabled = false
@@ -135,7 +155,7 @@ export class ROCrateDialog extends ReactDialog<string> {
   protected async createDefaultCrate(): Promise<void> {
     const roots = this.workspaceService.tryGetRoots()
     if (!roots || roots.length === 0) {
-      throw new Error('No workspace is open.')
+      throw new Error(nls.localize('rockit/appState/recovery/noWorkspace', 'No workspace is open.'))
     }
 
     const rootUri = roots[0].resource
@@ -143,6 +163,13 @@ export class ROCrateDialog extends ReactDialog<string> {
 
     const result = await createDefaultRoCrateWorkspace(
       this.createWorkspaceAdapter(rootUri),
+      {
+        rootDatasetDescription: nls.localize(
+          'rockit/appState/recovery/rootDatasetDescription',
+          'RO-Crate for the workspace: {0}',
+          rootUri.path.base,
+        ),
+      },
     )
     const roCrate = result.crate
 
@@ -169,7 +196,10 @@ export class ROCrateDialog extends ReactDialog<string> {
     } catch (error) {
       console.warn('Failed to generate RO-Crate preview:', error)
       this.messageService.warn(
-        'The new RO-Crate metadata was created successfully, but the HTML preview could not be generated because the crate is too large.',
+        nls.localize(
+          'rockit/appState/recovery/previewTooLarge',
+          'The new RO-Crate metadata was created successfully, but the HTML preview could not be generated because the crate is too large.',
+        ),
       )
     }
   }
@@ -205,8 +235,8 @@ export class ROCrateDialog extends ReactDialog<string> {
         this.updateGenerationProgress()
       } else {
         this.acceptButton.textContent = this.jsonExists
-          ? 'Generate valid JSON file'
-          : 'Generate JSON file'
+          ? nls.localize('rockit/appState/recovery/generateValid', 'Generate valid JSON file')
+          : nls.localize('rockit/appState/recovery/generate', 'Generate JSON file')
       }
     }
     if (this.closeRoCrateButton) {
@@ -216,9 +246,11 @@ export class ROCrateDialog extends ReactDialog<string> {
 
   protected updateGenerationProgress(): void {
     if (this.acceptButton) {
-      const fileLabel = this.scannedFileCount === 1 ? 'file' : 'files'
-      this.acceptButton.textContent =
-        `Generating metadata... ${this.scannedFileCount.toLocaleString()} ${fileLabel} processed`
+      this.acceptButton.textContent = nls.localize(
+        'rockit/appState/recovery/generating',
+        'Generating metadata... {0} files processed',
+        this.scannedFileCount.toLocaleString(),
+      )
     }
   }
 

@@ -30,6 +30,7 @@ export interface DefaultRoCrateWorkspaceOptions {
   datePublished?: string
   existingIgnoredEntries?: readonly string[]
   writeIgnoredFile?: boolean
+  rootDatasetDescription?: string
 }
 
 export interface DefaultRoCrateIgnoredFilePlan {
@@ -73,7 +74,8 @@ export async function createDefaultRoCrateWorkspace(
     '@id': './',
     '@type': 'Dataset',
     name: humanizeDatasetName(adapter.rootName) || 'Root Dataset',
-    description: `RO-Crate for the workspace: ${adapter.rootName}`,
+    description:
+      options.rootDatasetDescription ?? `RO-Crate for the workspace: ${adapter.rootName}`,
     datePublished: options.datePublished ?? new Date().toISOString(),
     hasPart: rootHasPart,
   })

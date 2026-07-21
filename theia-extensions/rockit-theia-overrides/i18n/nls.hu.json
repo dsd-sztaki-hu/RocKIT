@@ -3,6 +3,9 @@
     "common": {
       "cancel": "Mégse"
     },
+    "roCrateEditor": {
+      "loadingEntity": "Entitás betöltése…"
+    },
     "menu": {
       "roCrate": "RO-Crate",
       "workspace": "Munkaterület",
@@ -595,6 +598,70 @@
       "setup": "Tömeges szerkesztés beállítása",
       "setupSchemaInstruction": "Válasszon sémát, vagy engedélyezze más ontológiák tulajdonságait.",
       "setupOperationInstruction": "Válasszon tulajdonságot és operátort, majd adjon meg egy értéket."
+    },
+    "appState": {
+      "idConversion": {
+        "title": "RO-Crate-metaadatok átalakítása",
+        "convert": "Átalakítás munkaterület-relatív azonosítókra",
+        "keep": "Meglévő metaadatok megtartása",
+        "identifierExplanation": "Az RO-Crate-metaadatok olyan entitásazonosítókat használnak, mint a(z) {0}, a(z) {1} elérési utak helyett.",
+        "rewriteExplanation": "Az átalakítás átírja az entitásokat, hogy a(z) {0} értékeik megfeleljenek a jelenlegi munkaterület szerkezetének.",
+        "mappingExplanation": "Az ARP-fájlazonosítók bekerülnek a munkaterület export-hozzárendelésébe, így a későbbi frissítések az eredeti távoli adatcsomagot célozhatják.",
+        "question": "Ez biztosítja a fájlkezelő és a többi eszköz szinkronját. Szeretné most elvégezni az átalakítást?",
+        "completed": "Az RO-Crate-azonosítók munkaterület-relatív elérési utakra lettek alakítva.",
+        "failed": "Az RO-Crate-metaadatok munkaterület-relatív azonosítókra frissítése sikertelen."
+      },
+      "missingNames": {
+        "metadata": "RO-Crate-metaadatok",
+        "contact": "Kapcsolattartó",
+        "entity": "Entitás",
+        "title": "Hiányzó entitásnevek",
+        "generate": "Hiányzó nevek létrehozása",
+        "close": "RO-Crate bezárása",
+        "count": "{0} entitás nem rendelkezik a kötelező name tulajdonsággal.",
+        "canRepair": "A RocKIT létre tudja hozni a hiányzó neveket az entitásazonosítókból. Ez frissíti a ro-crate-metadata.json fájlt.",
+        "cannotRepair": "Legalább egy érintett entitásnak nincs használható azonosítója, ezért a RocKIT nem tudja létrehozni az összes hiányzó nevet. Az RO-Crate nem szerkeszthető.",
+        "entitiesChanged": "Módosuló entitások:",
+        "more": "És további {0}…",
+        "closeExplanation": "Ha nem szeretné, hogy a RocKIT elvégezze ezt a módosítást, zárja be az RO-Crate-et.",
+        "failed": "A hiányzó RO-Crate-entitásnevek létrehozása sikertelen.",
+        "generated": "{0} hiányzó entitásnév létrehozva."
+      },
+      "recovery": {
+        "invalidTitle": "Érvénytelen ro-crate-metadata.json",
+        "missingTitle": "A ro-crate-metadata.json nem található",
+        "generateValid": "Érvényes JSON-fájl létrehozása",
+        "generate": "JSON-fájl létrehozása",
+        "close": "RO-Crate bezárása",
+        "parsingError": "Kritikus feldolgozási hiba",
+        "fileNotFound": "A fájl nem található",
+        "invalidDescription": "A ro-crate-metadata.json fájl érvénytelen vagy nem dolgozható fel.",
+        "missingDescription": "Ebben a munkaterületben nem található ro-crate-metadata.json fájl.",
+        "question": "Szeretne új alapértelmezett metaadatfájlt létrehozni a munkaterület jelenlegi fájljai alapján?",
+        "generationFailed": "Az új RO-Crate létrehozása sikertelen: {0}",
+        "noWorkspace": "Nincs megnyitva munkaterület.",
+        "previewTooLarge": "Az új RO-Crate-metaadatok sikeresen létrejöttek, de a HTML-előnézet nem hozható létre, mert az RO-Crate túl nagy.",
+        "generating": "Metaadatok létrehozása… {0} fájl feldolgozva",
+        "rootDatasetDescription": "RO-Crate a következő munkaterülethez: {0}"
+      },
+      "externalChanges": {
+        "revertHistory": "Visszaállítás a mentett RO-Crate-re",
+        "missing": "A ro-crate-metadata.json fájlt eltávolították, vagy hiányzik a lemezről.",
+        "reloading": "A ro-crate-metadata.json az alkalmazáson kívül módosult. Újratöltés folyamatban.",
+        "reload": "Újratöltés",
+        "alwaysReload": "Mindig töltse újra",
+        "ignore": "Mellőzés",
+        "question": "A ro-crate-metadata.json az alkalmazáson kívül módosult. Újratölti a módosításokat?",
+        "cannotIgnore": "A ro-crate-metadata.json külső módosításai nem mellőzhetők, mert nincs betöltve RO-Crate.",
+        "ignoreRestoreFailed": "A ro-crate-metadata.json visszaállítása a külső módosítások mellőzése után sikertelen.",
+        "parseFailed": "A ro-crate-metadata.json megváltozott a lemezen, de nem dolgozható fel.",
+        "restore": "Utolsó érvényes verzió visszaállítása",
+        "invalidQuestion": "A ro-crate-metadata.json érvénytelen. Visszaállítja az alkalmazásban tárolt utolsó érvényes verziót?",
+        "keepInvalid": "Érvénytelen fájl megtartása",
+        "cannotRestore": "A ro-crate-metadata.json nem állítható vissza, mert nincs betöltve érvényes RO-Crate.",
+        "restoreFailed": "A ro-crate-metadata.json visszaállítása az utolsó érvényes verzióból sikertelen.",
+        "reloadFailed": "A ro-crate-metadata.json külső módosítás utáni újratöltése sikertelen."
+      }
     },
     "remoteConversion": {
       "title": "Távoli RO-Crate-azonosítók helyivé alakítása",

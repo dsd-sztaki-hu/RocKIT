@@ -294,7 +294,11 @@ export const DescriboCrateBuilderWrapper = ({
                 </div>
             )}
 
-            {loading && <div style={{ padding: '0.5rem', color: '#888' }}>Loading entity...</div>}
+            {loading && (
+                <div style={{ padding: '0.5rem', color: '#888' }}>
+                    {nls.localize('rockit/roCrateEditor/loadingEntity', 'Loading entity…')}
+                </div>
+            )}
 
             <DescriboCrateBuilderComponent
                 crate={crate}

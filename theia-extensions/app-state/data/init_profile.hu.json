@@ -5,8 +5,8 @@
                 {
                     "id": "https://schema.org/description",
                     "name": "description",
-                    "label": "Description",
-                    "help": "A description of the item.",
+                    "label": "Leírás",
+                    "help": "Az elem leírása.",
                     "multiple": true,
                     "type": [
                         "TextArea"
@@ -15,8 +15,8 @@
                 {
                     "id": "https://schema.org/hasPart",
                     "name": "hasPart",
-                    "label": "Has Part",
-                    "help": "Part of a Dataset",
+                    "label": "Részei",
+                    "help": "Az adatcsomag részét képező elemek",
                     "multiple": "true",
                     "type": [
                         "Dataset",
@@ -26,31 +26,31 @@
                 {
                     "id": "https://schema.org/license",
                     "name": "license",
-                    "label": "License",
-                    "help": "A license document that applies to this content, typically indicated by URL",
+                    "label": "Licenc",
+                    "help": "A tartalomra vonatkozó licencdokumentum, általában URL-lel megadva",
                     "readonly": "true",
                     "type": "URL"
                 },
                 {
                     "id": "https://schema.org/datePublished",
                     "name": "datePublished",
-                    "label": "Date published",
-                    "help": "Date of publication.",
+                    "label": "Közzététel dátuma",
+                    "help": "A közzététel dátuma.",
                     "readonly": "true",
                     "type": "Date"
                 }
             ]
         },
         "File": {
-            "label": "File",
+            "label": "Fájl",
             "definition": "override",
             "subClassOf": [],
             "inputs": [
                 {
                     "id": "https://schema.org/contentSize",
                     "name": "contentSize",
-                    "label": "Content size",
-                    "help": "File size in bytes",
+                    "label": "Tartalom mérete",
+                    "help": "A fájl mérete bájtban",
                     "type": [
                         "Text"
                     ],
@@ -60,8 +60,8 @@
                 {
                     "id": "https://schema.org/encodingFormat",
                     "name": "encodingFormat",
-                    "label": "Encoding type",
-                    "help": "MIME type of file",
+                    "label": "Kódolási formátum",
+                    "help": "A fájl MIME-típusa",
                     "type": [
                         "Text"
                     ],
@@ -71,8 +71,8 @@
                 {
                     "id": "https://schema.org/description",
                     "name": "description",
-                    "label": "Description",
-                    "help": "Description of the file's content",
+                    "label": "Leírás",
+                    "help": "A fájl tartalmának leírása",
                     "type": [
                         "Text"
                     ],
@@ -82,8 +82,8 @@
                 {
                     "id": "https://dataverse.org/schema/file/hash",
                     "name": "hash",
-                    "label": "Hash",
-                    "help": "Hash of the file",
+                    "label": "Ellenőrző összeg",
+                    "help": "A fájl ellenőrző összege",
                     "type": [
                         "Text"
                     ],
@@ -95,7 +95,7 @@
                     "id": "https://dataverse.org/schema/file/arpPid",
                     "name": "@arpPid",
                     "label": "ARP PID",
-                    "help": "ARP specific persistent identifier of the file",
+                    "help": "A fájl ARP-specifikus tartós azonosítója",
                     "type": [
                         "Text"
                     ],
@@ -109,5 +109,10 @@
     "enabledClasses": [
         "Dataset",
         "File"
-    ]
+    ],
+    "localisation": {
+        "language": "hu",
+        "Dataset": "Adatcsomag",
+        "File": "Fájl"
+    }
 }
