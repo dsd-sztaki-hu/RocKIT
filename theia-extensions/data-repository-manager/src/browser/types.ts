@@ -71,4 +71,5 @@ export interface DataRepositoryExportTarget {
     syncedAt: string;
     syncType: 'create' | 'update';
     datasetName?: string;
+    remoteState?: 'draft' | 'published';
 }

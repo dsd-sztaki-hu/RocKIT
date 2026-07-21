@@ -169,14 +169,21 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                     <div className="data-repo-selector__export-meta">
                                         Last updated {this.formatDate(target.syncedAt)}
                                     </div>
+                                    {target.remoteState === 'published' && (
+                                        <div className="data-repo-selector__export-status data-repo-selector__export-status--published">
+                                            Published
+                                        </div>
+                                    )}
                                 </div>
-                                <button
-                                    className="data-repo-selector__export-update"
-                                    title="Update"
-                                    onClick={() => void this.handleSelect(repo, target)}
-                                >
-                                    <ChevronRightIcon className="data-repo-selector__export-update-icon" />
-                                </button>
+                                {target.remoteState !== 'published' && (
+                                    <button
+                                        className="data-repo-selector__export-update"
+                                        title="Update"
+                                        onClick={() => void this.handleSelect(repo, target)}
+                                    >
+                                        <ChevronRightIcon className="data-repo-selector__export-update-icon" />
+                                    </button>
+                                )}
                             </div>
                         ))}
                     </div>

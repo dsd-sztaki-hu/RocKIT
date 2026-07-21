@@ -254,12 +254,15 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     if (capabilities.supportsZenodoApi) {
       const progress = await this.messageService.showProgress({
-        text: `Uploading RO-Crate files to ${selectedRepo.title}...`,
+        text: selectedExportTarget
+          ? `Updating the Zenodo deposition in ${selectedRepo.title}...`
+          : `Uploading RO-Crate files to ${selectedRepo.title}...`,
       })
       try {
-        const exportResult =
-          await this.zenodoExportService.createDraftAndUploadRoCrate(
+        if (selectedExportTarget) {
+          const updateResult = await this.zenodoExportService.updateDeposition(
             selectedRepo,
+            selectedExportTarget,
             (update) =>
               progress.report({
                 message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
@@ -269,6 +272,25 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                 },
               }),
           )
+          this.messageService.info(
+            `Zenodo update completed for ${updateResult.target}. Uploaded ${updateResult.addedFileCount} new file(s), replaced ${updateResult.replacedFileCount}, removed ${updateResult.removedFileCount}, and kept ${updateResult.unchangedFileCount} unchanged.${updateResult.createdNewVersion ? ' A new-version draft was used.' : ''}`,
+            { timeout: 12000 },
+          )
+          console.log('Zenodo deposition updated:', updateResult)
+          return
+        }
+
+        const exportResult = await this.zenodoExportService.createDraftAndUploadRoCrate(
+          selectedRepo,
+          (update) =>
+            progress.report({
+              message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+              work: {
+                done: update.completedSteps,
+                total: update.totalSteps,
+              },
+            }),
+        )
         this.messageService.info(
           `Zenodo draft deposition created: ${exportResult.target}. Uploaded ${exportResult.uploadedFiles.length} file(s).`,
           { timeout: 10000 },

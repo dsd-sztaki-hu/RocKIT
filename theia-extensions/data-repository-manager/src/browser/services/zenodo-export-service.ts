@@ -8,6 +8,7 @@ import {
   RoCrateExportFileSource,
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import { inject, injectable } from 'inversify'
+import * as SparkMD5 from 'spark-md5'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from '../types'
 
 type RoCrateEntity = Record<string, unknown>
@@ -24,6 +25,13 @@ interface ZenodoUploadFile {
   content: Blob
   size: number
   entityId?: string
+}
+
+interface ZenodoRemoteFile {
+  id?: string
+  filename: string
+  checksum?: string
+  response: unknown
 }
 
 interface ZenodoDepositionMetadata {
@@ -52,6 +60,18 @@ export interface ZenodoExportResult {
   metadata: ZenodoDepositionMetadata
   createResponse: unknown
   metadataResponse: unknown
+}
+
+export interface ZenodoUpdateResult {
+  depositionId: string
+  target: string
+  mappingFileName: string
+  addedFileCount: number
+  replacedFileCount: number
+  removedFileCount: number
+  unchangedFileCount: number
+  unmappedEntityIds: string[]
+  createdNewVersion: boolean
 }
 
 export interface ZenodoExportProgress {
@@ -242,6 +262,160 @@ export class ZenodoExportService {
     }
   }
 
+  public async updateDeposition(
+    repository: DataRepositoryConfig,
+    exportTarget: DataRepositoryExportTarget,
+    reportProgress?: ZenodoExportProgressReporter,
+  ): Promise<ZenodoUpdateResult> {
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const token = repository.apiKey?.trim()
+    if (!token) {
+      throw new Error('Zenodo API token is missing.')
+    }
+    if (!exportTarget?.pid) {
+      throw new Error('No existing Zenodo deposition was selected for update.')
+    }
+
+    const rootUri = this.getWorkspaceRoot()
+    const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
+    const depositionMetadata = this.buildDepositionMetadata(crate, rootUri)
+    const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
+    const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
+      uploadCrate,
+      rootUri,
+    )
+    const uploadFiles = await this.buildUploadFiles(
+      uploadCrate,
+      rootUri,
+      localizedExternalFiles.entries,
+    )
+
+    reportProgress?.({ completedSteps: 0, totalSteps: 1, message: 'Loading Zenodo deposition...' })
+    const existingUrl = new URL(
+      `/api/deposit/depositions/${encodeURIComponent(exportTarget.pid)}`,
+      `${baseUrl}/`,
+    ).toString()
+    const existingPayload = await this.requestJson(
+      existingUrl,
+      { method: 'GET', headers: this.authorizationHeaders(token) },
+      'Zenodo deposition lookup failed',
+    )
+    const { payload: draftPayload, createdNewVersion } = await this.resolveWritableDraft(
+      existingPayload,
+      token,
+    )
+    const depositionId = this.extractDepositionId(draftPayload)
+    const bucketUrl = this.extractBucketUrl(draftPayload)
+    if (!depositionId || !bucketUrl) {
+      throw new Error('Zenodo did not return a writable draft id and bucket link.')
+    }
+
+    const remoteFiles = await this.listDepositionFiles(baseUrl, token, depositionId)
+    const remoteByFilename = new Map(remoteFiles.map((file) => [file.filename, file]))
+    const desiredByFilename = new Map(uploadFiles.map((file) => [file.filename, file]))
+    const added: ZenodoUploadFile[] = []
+    const replaced: Array<{ local: ZenodoUploadFile; remote: ZenodoRemoteFile }> = []
+    const unchanged: Array<{ local: ZenodoUploadFile; remote: ZenodoRemoteFile }> = []
+    const removed = remoteFiles.filter((file) => !desiredByFilename.has(file.filename))
+
+    for (const local of uploadFiles) {
+      const remote = remoteByFilename.get(local.filename)
+      if (!remote) {
+        added.push(local)
+      } else if (await this.fileMatchesRemoteChecksum(local, remote.checksum)) {
+        unchanged.push({ local, remote })
+      } else {
+        replaced.push({ local, remote })
+      }
+    }
+
+    const totalSteps = added.length + replaced.length * 2 + removed.length + 3
+    let completedSteps = 1
+    reportProgress?.({
+      completedSteps,
+      totalSteps,
+      message: `Checking complete: ${added.length} file(s) to upload, ${replaced.length} to replace, and ${removed.length} to remove.`,
+    })
+
+    const synchronizedFiles: ZenodoExportResult['uploadedFiles'] = unchanged.map(
+      ({ local, remote }) => ({
+        filename: local.filename,
+        size: local.size,
+        response: remote.response,
+        remoteId: remote.id ?? this.extractUploadedFileRemoteId(remote.response),
+        entityId: local.entityId,
+      }),
+    )
+
+    for (const file of removed) {
+      reportProgress?.({ completedSteps, totalSteps, message: `Removing ${file.filename}...` })
+      await this.deleteDepositionFile(baseUrl, token, depositionId, file)
+      completedSteps += 1
+    }
+    for (const { local, remote } of replaced) {
+      reportProgress?.({ completedSteps, totalSteps, message: `Replacing ${local.filename}...` })
+      await this.deleteDepositionFile(baseUrl, token, depositionId, remote)
+      completedSteps += 1
+      synchronizedFiles.push(await this.uploadFile(bucketUrl, token, local))
+      completedSteps += 1
+    }
+    for (const local of added) {
+      reportProgress?.({ completedSteps, totalSteps, message: `Uploading ${local.filename}...` })
+      synchronizedFiles.push(await this.uploadFile(bucketUrl, token, local))
+      completedSteps += 1
+    }
+
+    reportProgress?.({ completedSteps, totalSteps, message: 'Updating Zenodo metadata...' })
+    const metadataUrl =
+      this.extractSelfUrl(draftPayload) ??
+      new URL(`/api/deposit/depositions/${encodeURIComponent(depositionId)}`, `${baseUrl}/`).toString()
+    await this.requestJson(
+      metadataUrl,
+      {
+        method: 'PUT',
+        headers: this.jsonAuthorizationHeaders(token),
+        body: JSON.stringify({ metadata: depositionMetadata }),
+      },
+      'Zenodo metadata update failed',
+    )
+    completedSteps += 1
+
+    reportProgress?.({ completedSteps, totalSteps, message: 'Writing local export mapping...' })
+    const uploadMapping = this.buildEntityIdMapping(uploadCrate, synchronizedFiles)
+    const metadataMapping = this.toMetadataEntityIdMapping(
+      crate,
+      uploadMapping,
+      localizedExternalFiles.originalToUploadIds,
+    )
+    await this.saveEntityIdMapping(rootUri, exportTarget.mappingFile, metadataMapping)
+    const target =
+      this.extractHtmlUrl(draftPayload) ?? `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`
+    await this.appendExportLog(rootUri, {
+      target,
+      repository: baseUrl,
+      mappingFile: exportTarget.mappingFile,
+      syncType: 'update',
+      syncedAt: new Date().toISOString(),
+      datasetName: this.getRootDatasetName(crate),
+    })
+    const unmappedEntityIds = Object.entries(metadataMapping)
+      .filter(([, remoteId]) => !remoteId)
+      .map(([metadataId]) => metadataId)
+    reportProgress?.({ completedSteps: totalSteps, totalSteps, message: 'Zenodo update complete.' })
+
+    return {
+      depositionId,
+      target,
+      mappingFileName: exportTarget.mappingFile,
+      addedFileCount: added.length,
+      replacedFileCount: replaced.length,
+      removedFileCount: removed.length,
+      unchangedFileCount: unchanged.length,
+      unmappedEntityIds,
+      createdNewVersion,
+    }
+  }
+
   public async listExportTargets(
     repositories: DataRepositoryConfig[],
   ): Promise<Record<string, DataRepositoryExportTarget[]>> {
@@ -275,6 +449,11 @@ export class ZenodoExportService {
       }
       targetsByRepositoryId[repository.id] = Array.from(latestByMappingFile.values())
         .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
+      await Promise.all(
+        targetsByRepositoryId[repository.id].map((target) =>
+          this.populateRemoteState(repository, target),
+        ),
+      )
     }
 
     return targetsByRepositoryId
@@ -822,6 +1001,197 @@ export class ZenodoExportService {
     } catch {
       return undefined
     }
+  }
+
+  protected async resolveWritableDraft(
+    deposition: unknown,
+    token: string,
+  ): Promise<{ payload: unknown; createdNewVersion: boolean }> {
+    if (!this.isSubmittedDeposition(deposition)) {
+      return { payload: deposition, createdNewVersion: false }
+    }
+    throw new Error(
+      'This Zenodo deposition is published and can no longer be updated from AROMA.',
+    )
+  }
+
+  protected async populateRemoteState(
+    repository: DataRepositoryConfig,
+    target: DataRepositoryExportTarget,
+  ): Promise<void> {
+    const token = repository.apiKey?.trim()
+    if (!token) {
+      return
+    }
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const url = new URL(
+      `/api/deposit/depositions/${encodeURIComponent(target.pid)}`,
+      `${baseUrl}/`,
+    ).toString()
+    try {
+      const payload = await this.requestJson(
+        url,
+        { method: 'GET', headers: this.authorizationHeaders(token) },
+        'Zenodo deposition status lookup failed',
+      )
+      target.remoteState = this.isSubmittedDeposition(payload) ? 'published' : 'draft'
+    } catch (error) {
+      console.warn(`Failed to determine Zenodo deposition status for ${target.pid}.`, error)
+    }
+  }
+
+  protected isSubmittedDeposition(payload: unknown): boolean {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('Zenodo returned an invalid deposition response.')
+    }
+    const record = payload as Record<string, unknown>
+    return record.submitted === true || record.state === 'done'
+  }
+
+  protected async listDepositionFiles(
+    baseUrl: string,
+    token: string,
+    depositionId: string,
+  ): Promise<ZenodoRemoteFile[]> {
+    const url = new URL(
+      `/api/deposit/depositions/${encodeURIComponent(depositionId)}/files`,
+      `${baseUrl}/`,
+    ).toString()
+    const payload = await this.requestJson(
+      url,
+      { method: 'GET', headers: this.authorizationHeaders(token) },
+      'Zenodo file listing failed',
+    )
+    if (!Array.isArray(payload)) {
+      throw new Error('Zenodo returned an invalid deposition file list.')
+    }
+    return payload.map((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        throw new Error('Zenodo returned an invalid deposition file entry.')
+      }
+      const record = entry as Record<string, unknown>
+      const filename = this.firstString(record.filename, record.name, record.key)
+      if (!filename) {
+        throw new Error('Zenodo returned a deposition file without a filename.')
+      }
+      return {
+        id: this.firstString(record.id),
+        filename,
+        checksum: this.firstString(record.checksum),
+        response: entry,
+      }
+    })
+  }
+
+  protected async fileMatchesRemoteChecksum(
+    file: ZenodoUploadFile,
+    remoteChecksum?: string,
+  ): Promise<boolean> {
+    if (!remoteChecksum) {
+      return false
+    }
+    const normalizedRemote = remoteChecksum.replace(/^md5:/i, '').toLowerCase()
+    const localChecksum = SparkMD5.ArrayBuffer.hash(await file.content.arrayBuffer()).toLowerCase()
+    return normalizedRemote === localChecksum
+  }
+
+  protected async deleteDepositionFile(
+    baseUrl: string,
+    token: string,
+    depositionId: string,
+    file: ZenodoRemoteFile,
+  ): Promise<void> {
+    if (!file.id) {
+      throw new Error(`Zenodo file '${file.filename}' does not have an id and cannot be removed.`)
+    }
+    const url = new URL(
+      `/api/deposit/depositions/${encodeURIComponent(depositionId)}/files/${encodeURIComponent(file.id)}`,
+      `${baseUrl}/`,
+    ).toString()
+    const response = await this.fetchWithTimeout(url, {
+      method: 'DELETE',
+      headers: this.authorizationHeaders(token),
+    })
+    const payload = await this.readResponsePayload(response)
+    if (!response.ok) {
+      throw new Error(
+        `Zenodo file deletion failed for '${file.filename}' (${response.status}) at ${response.url || url}: ${this.payloadSummary(payload)}`,
+      )
+    }
+  }
+
+  protected async uploadFile(
+    bucketUrl: string,
+    token: string,
+    file: ZenodoUploadFile,
+  ): Promise<ZenodoExportResult['uploadedFiles'][number]> {
+    const uploadUrl = `${bucketUrl.replace(/\/+$/, '')}/${encodeURIComponent(file.filename)}`
+    const response = await this.fetchWithTimeout(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        ...this.authorizationHeaders(token),
+        'content-type': 'application/octet-stream',
+      },
+      body: file.content,
+    })
+    const payload = await this.readResponsePayload(response)
+    if (!response.ok) {
+      throw new Error(
+        `Zenodo file upload failed for '${file.filename}' (${response.status}) at ${response.url || uploadUrl}: ${this.payloadSummary(payload)}`,
+      )
+    }
+    return {
+      filename: file.filename,
+      size: file.size,
+      response: payload,
+      remoteId: this.extractUploadedFileRemoteId(payload),
+      entityId: file.entityId,
+    }
+  }
+
+  protected authorizationHeaders(token: string): Record<string, string> {
+    return { accept: 'application/json', authorization: `Bearer ${token}` }
+  }
+
+  protected jsonAuthorizationHeaders(token: string): Record<string, string> {
+    return { ...this.authorizationHeaders(token), 'content-type': 'application/json' }
+  }
+
+  protected async requestJson(
+    url: string,
+    init: RequestInit,
+    errorPrefix: string,
+  ): Promise<unknown> {
+    const response = await this.fetchWithTimeout(url, init)
+    const payload = await this.readResponsePayload(response)
+    if (!response.ok) {
+      throw new Error(
+        `${errorPrefix} (${response.status}) at ${response.url || url}: ${this.payloadSummary(payload)}`,
+      )
+    }
+    return payload
+  }
+
+  protected firstString(...values: unknown[]): string | undefined {
+    return values.find(
+      (value): value is string => typeof value === 'string' && value.trim() !== '',
+    )?.trim()
+  }
+
+  protected readLink(
+    links: Record<string, unknown> | undefined,
+    name: string,
+  ): string | undefined {
+    const value = links?.[name]
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined
+  }
+
+  protected requireLink(links: Record<string, unknown> | undefined, name: string): string {
+    const value = this.readLink(links, name)
+    if (!value) {
+      throw new Error(`Zenodo response did not include the '${name}' link.`)
+    }
+    return value
   }
 
   protected randomId(length: number): string {
