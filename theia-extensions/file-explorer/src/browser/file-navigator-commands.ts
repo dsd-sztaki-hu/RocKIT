@@ -15,7 +15,7 @@
 // *****************************************************************************
 
 import { codicon, CommonCommands } from '@theia/core/lib/browser';
-import { Command } from '@theia/core/lib/common';
+import { Command, nls } from '@theia/core/lib/common';
 import { WorkspaceCommands } from '@theia/workspace/lib/browser';
 
 export namespace FileNavigatorCommands {
@@ -60,11 +60,14 @@ export namespace FileNavigatorCommands {
         id: 'navigator.addDataSource.toolbar',
         iconClass: codicon('add')
     };
-    export const OPEN_DOCUMENTATION: Command = Command.toDefaultLocalizedCommand({
+    export const OPEN_DOCUMENTATION: Command = {
         id: 'navigator.openDocumentation',
-        label: 'Open Workspace Documentation',
+        label: nls.localize(
+            'rockit/fileExplorer/openDocumentation',
+            'Open Workspace Documentation',
+        ),
         iconClass: codicon('info')
-    });
+    };
     export const ADD_ROOT_FOLDER: Command = {
         id: 'navigator.addRootFolder'
     };
@@ -85,11 +88,17 @@ export namespace FileNavigatorCommands {
     };
     export const INCLUDE_IN_RO_CRATE_DESCRIPTION: Command = {
         id: 'navigator.includeInRoCrateDescription',
-        label: 'Include in RO-Crate Description'
+        label: nls.localize(
+            'rockit/fileExplorer/includeDescription',
+            'Include in RO-Crate Description',
+        )
     };
     export const OMIT_FROM_RO_CRATE_DESCRIPTION: Command = {
         id: 'navigator.omitFromRoCrateDescription',
-        label: 'Omit from RO-Crate Description'
+        label: nls.localize(
+            'rockit/fileExplorer/omitDescription',
+            'Omit from RO-Crate Description',
+        )
     };
     export const NEW_FILE_TOOLBAR: Command = {
         id: `${WorkspaceCommands.NEW_FILE.id}.toolbar`,

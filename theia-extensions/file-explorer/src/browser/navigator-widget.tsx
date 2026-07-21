@@ -280,11 +280,16 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         >
           <div className="navigator-filter-fields">
             <label className="navigator-filter-row">
-              <span className="navigator-filter-label">File name</span>
+              <span className="navigator-filter-label">
+                {nls.localize('rockit/fileExplorer/fileName', 'File name')}
+              </span>
               <input
                 className="navigator-filter-input"
                 type="text"
-                placeholder="Search file name"
+                placeholder={nls.localize(
+                  'rockit/fileExplorer/searchFileName',
+                  'Search file name',
+                )}
                 ref={this.fileNameInputRef}
                 value={this.filters.fileNameFilter}
                 onChange={(event) => this.onFileNameFilterChange(event)}
@@ -295,17 +300,34 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
             </label>
 
             <label className="navigator-filter-row">
-              <span className="navigator-filter-label">RO-Crate descriptions</span>
+              <span className="navigator-filter-label">
+                {nls.localize(
+                  'rockit/fileExplorer/descriptions',
+                  'RO-Crate descriptions',
+                )}
+              </span>
               <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
                 <Select
                   className="navigator-rocrate-select"
                   value={this.filters.roCrateFilter}
                   options={[
-                    { value: 'all', label: 'All files' },
-                    { value: 'with-description', label: 'With RO-Crate description' },
+                    {
+                      value: 'all',
+                      label: nls.localize('rockit/fileExplorer/allFiles', 'All files'),
+                    },
+                    {
+                      value: 'with-description',
+                      label: nls.localize(
+                        'rockit/fileExplorer/withDescription',
+                        'With RO-Crate description',
+                      ),
+                    },
                     {
                       value: 'without-description',
-                      label: 'Missing RO-Crate description',
+                      label: nls.localize(
+                        'rockit/fileExplorer/missingDescription',
+                        'Missing RO-Crate description',
+                      ),
                     },
                   ]}
                   classNames={{ popup: { root: 'navigator-filter-dropdown' } }}
@@ -330,7 +352,7 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
                 this.stopFilterKeyEvents(event)
               }
             >
-              Clear filters
+              {nls.localize('rockit/fileExplorer/clearFilters', 'Clear filters')}
             </Button>
           </div>
         </div>
@@ -359,8 +381,14 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
         <button
           className="navigator-data-source-remove"
           type="button"
-          title="Remove data source"
-          aria-label="Remove data source"
+          title={nls.localize(
+            'rockit/fileExplorer/removeDataSource',
+            'Remove data source',
+          )}
+          aria-label={nls.localize(
+            'rockit/fileExplorer/removeDataSource',
+            'Remove data source',
+          )}
           onClick={(event) => {
             event.preventDefault()
             event.stopPropagation()

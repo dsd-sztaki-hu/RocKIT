@@ -287,14 +287,18 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
                 return;
             }
 
-            const itemLabel = mismatchCount === 1
-                ? '1 RO-Crate description'
-                : `${mismatchCount} RO-Crate descriptions`;
             const apply = await new ConfirmDialog({
-                title: 'Apply ignore list changes to RO-Crate?',
-                msg: `Found ${itemLabel} that conflict with ignore rules. Apply ignore rules to RO-Crate now?`,
-                ok: 'Apply Changes',
-                cancel: 'Keep Current',
+                title: nls.localize(
+                    'rockit/fileExplorer/applyIgnoreChangesTitle',
+                    'Apply ignore list changes to RO-Crate?',
+                ),
+                msg: nls.localize(
+                    'rockit/fileExplorer/ignoreConflicts',
+                    'Found {0} RO-Crate descriptions that conflict with ignore rules. Apply ignore rules to RO-Crate now?',
+                    mismatchCount,
+                ),
+                ok: nls.localize('rockit/fileExplorer/applyChanges', 'Apply Changes'),
+                cancel: nls.localize('rockit/fileExplorer/keepCurrent', 'Keep Current'),
             }).open();
 
             if (apply) {
@@ -303,9 +307,11 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
                 });
                 if (result.removedDescriptionCount > 0) {
                     this.messageService.info(
-                        result.removedDescriptionCount === 1
-                            ? 'Applied ignore rules and removed 1 RO-Crate description.'
-                            : `Applied ignore rules and removed ${result.removedDescriptionCount} RO-Crate descriptions.`,
+                        nls.localize(
+                            'rockit/fileExplorer/appliedIgnoreRules',
+                            'Applied ignore rules and removed {0} RO-Crate descriptions.',
+                            result.removedDescriptionCount,
+                        ),
                     );
                 }
             }
@@ -607,7 +613,10 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         const silent = Boolean(options?.silent);
         if (!selectedResources.length) {
             if (!silent) {
-                this.messageService.info('No eligible file or folder selected.');
+                this.messageService.info(nls.localize(
+                    'rockit/fileExplorer/noEligibleSelection',
+                    'No eligible file or folder selected.',
+                ));
             }
             return undefined;
         }
@@ -618,7 +627,10 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         );
         if (!includeableResources.length) {
             if (!silent) {
-                this.messageService.info('Selected files/folders are not currently omitted.');
+                this.messageService.info(nls.localize(
+                    'rockit/fileExplorer/notOmitted',
+                    'Selected files/folders are not currently omitted.',
+                ));
             }
             return undefined;
         }
@@ -629,11 +641,17 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         }
 
         if (!result.updatedIgnoredRules) {
-            this.messageService.info('Selected files/folders are not currently omitted.');
+            this.messageService.info(nls.localize(
+                'rockit/fileExplorer/notOmitted',
+                'Selected files/folders are not currently omitted.',
+            ));
             return result;
         }
 
-        this.messageService.info('Removed omit rules in memory. Save to persist changes to .rockit/ignored.txt.');
+        this.messageService.info(nls.localize(
+            'rockit/fileExplorer/includeMarked',
+            'Removed omit rules in memory. Save to persist changes to .rockit/ignored.txt.',
+        ));
         return result;
     }
 
@@ -644,7 +662,10 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         const silent = Boolean(options?.silent);
         if (!selectedResources.length) {
             if (!silent) {
-                this.messageService.info('No eligible file or folder selected.');
+                this.messageService.info(nls.localize(
+                    'rockit/fileExplorer/noEligibleSelection',
+                    'No eligible file or folder selected.',
+                ));
             }
             return undefined;
         }
@@ -655,24 +676,35 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         }
 
         if (result.pairedDescriptionCount === 0) {
-            this.messageService.info('Marked selected files/folders as omitted in memory. Save to persist changes to .rockit/ignored.txt.');
+            this.messageService.info(nls.localize(
+                'rockit/fileExplorer/omitMarked',
+                'Marked selected files/folders as omitted in memory. Save to persist changes to .rockit/ignored.txt.',
+            ));
             return result;
         }
 
         if (!result.metadataLoaded) {
-            this.messageService.info('Marked selected files/folders as omitted in memory. Save to persist changes to .rockit/ignored.txt.');
+            this.messageService.info(nls.localize(
+                'rockit/fileExplorer/omitMarked',
+                'Marked selected files/folders as omitted in memory. Save to persist changes to .rockit/ignored.txt.',
+            ));
             return result;
         }
 
         if (result.removedDescriptionCount === 0) {
-            this.messageService.info('Marked selected files/folders as omitted in memory. RO-Crate descriptions were already up to date.');
+            this.messageService.info(nls.localize(
+                'rockit/fileExplorer/descriptionsUpToDate',
+                'Marked selected files/folders as omitted in memory. RO-Crate descriptions were already up to date.',
+            ));
             return result;
         }
 
         this.messageService.info(
-            result.removedDescriptionCount === 1
-                ? 'Omitted 1 file/folder and removed its RO-Crate description.'
-                : `Omitted ${result.removedDescriptionCount} files/folders and removed their RO-Crate descriptions.`,
+            nls.localize(
+                'rockit/fileExplorer/omittedAndRemoved',
+                'Omitted {0} files/folders and removed their RO-Crate descriptions.',
+                result.removedDescriptionCount,
+            ),
         );
         return result;
     }
