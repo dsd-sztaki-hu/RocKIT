@@ -26,6 +26,52 @@ ARP metadata / ARP RO-Crate
 RO-Crate is the canonical internal model. This avoids maintaining a separate
 direct mapping for every pair of repositories.
 
+In one sentence: the crosswalk JSON is a declarative specification describing
+how metadata moves between ARP metadata, canonical RO-Crate, Dataverse, and
+Zenodo, including transformations, validation, and intentionally unmapped
+fields.
+
+### Structure tree
+
+```text
+ro-crate-repository-crosswalk.json
+|
+|-- crosswalkFormat
+|   Document name, version, date, and review status
+|
+|-- canonicalModel
+|   How RO-Crate entities, IDs, types, and missing values are interpreted
+|
+|-- provenance
+|   Sources and versions of the ARP, Dataverse, and Zenodo schemas
+|
+|-- documentModel
+|   Mapping statuses such as mapped, needsReview, and unmapped
+|
+|-- transformationLibrary
+|   Reusable operations: trim, normalizeDate, resolveReferences,
+|   mapVocabulary, buildCompound, validateUrl, etc.
+|
+|-- repositories
+|   |-- arp
+|   |   ARP metadata blocks and fields
+|   |-- dataverse
+|   |   Metadata blocks, compound fields, and vocabularies
+|   `-- zenodo
+|       Deposition metadata fields and API requirements
+|
+|-- crosswalks
+|   |-- arpRoCrateToCanonical
+|   |-- canonicalToDataverse
+|   `-- canonicalToZenodo
+|
+|-- validationAndReporting
+|   Processing order and expected diagnostics
+|
+`-- coverage
+    Counts of mapped, unmapped, and review-needed fields
+```
+
 ## 1. Top-level structure
 
 The JSON has these main sections:
