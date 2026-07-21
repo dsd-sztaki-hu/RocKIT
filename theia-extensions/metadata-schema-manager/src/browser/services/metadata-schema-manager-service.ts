@@ -335,13 +335,19 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     const schema = this.pendingSchemas.get(id);
     if (!schema || schema.status !== 'failed') return;
     if (!schema.downloadUrl) {
-        schema.statusMessage = 'Cannot retry: No URL provided.';
+        schema.statusMessage = nls.localize(
+          'rockit/schemaManager/cannotRetryWithoutUrl',
+          'Cannot retry: No URL provided.',
+        );
         this.onDidChangeSchemasEmitter.fire();
         return;
     }
 
     schema.status = 'downloading';
-    schema.statusMessage = 'Retrying connection...';
+    schema.statusMessage = nls.localize(
+      'rockit/schemaManager/retryingConnection',
+      'Retrying connection...',
+    );
     
     const controller = new AbortController();
     this.abortControllers.set(id, controller);
@@ -385,7 +391,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         this.onDidChangeSchemasEmitter.fire();
       } else {
         schema.status = 'failed';
-        schema.statusMessage = error.message || 'Unknown error';
+        schema.statusMessage = error.message || nls.localize(
+          'rockit/validation/unknownError',
+          'Unknown error',
+        );
         this.abortControllers.delete(id);
         this.onDidChangeSchemasEmitter.fire();
       }
@@ -401,7 +410,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     let domainBase = provider?.domainBase || provider?.baseUrl;
 
     if (!provider) {
-      throw new Error('No Remote Provider context available for download.');
+      throw new Error(nls.localize(
+        'rockit/schemaManager/noRemoteProvider',
+        'No Remote Provider context available for download.',
+      ));
     } else {
        domainBase = domainBase!.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
     }
@@ -415,7 +427,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     const url = `https://resource.${domainBase}/templates/${encodeURIComponent(templateId)}`;
 
     const isDuplicate = Array.from(this.pendingSchemas.values()).some(s => s.downloadUrl === url && s.status !== 'failed');
-    if (isDuplicate) throw new Error('Download already in progress.');
+    if (isDuplicate) throw new Error(nls.localize(
+      'rockit/schemaManager/downloadInProgress',
+      'Download already in progress.',
+    ));
 
     const id = this.generateUniqueId();
     const controller = new AbortController();
@@ -489,7 +504,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         throw new Error('Aborted');
       } else {
         pendingSchema.status = 'failed';
-        pendingSchema.statusMessage = error.message || 'Unknown error';
+        pendingSchema.statusMessage = error.message || nls.localize(
+          'rockit/validation/unknownError',
+          'Unknown error',
+        );
         this.abortControllers.delete(id);
         this.onDidChangeSchemasEmitter.fire();
         throw error;
@@ -524,12 +542,25 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
-        throw new Error(`Unauthorized access to ${url}. Please configure a Remote Provider.`);
+        throw new Error(nls.localize(
+          'rockit/schemaManager/unauthorizedAccess',
+          'Unauthorized access to {0}. Please configure a Remote Provider.',
+          url,
+        ));
       }
       if (response.status === 404) {
-        throw new Error(`Resource not found at ${url}.`);
+        throw new Error(nls.localize(
+          'rockit/schemaManager/resourceNotFound',
+          'Resource not found at {0}.',
+          url,
+        ));
       }
-      throw new Error(`Fetch failed: ${response.status} ${response.statusText}`);
+      throw new Error(nls.localize(
+        'rockit/schemaManager/fetchFailed',
+        'Fetch failed: {0} {1}',
+        response.status,
+        response.statusText,
+      ));
     }
 
     const content = await response.text();
@@ -839,7 +870,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
   public async importFromUrl(url: string, progress: TaskProgress): Promise<string> {
     const isDuplicate = Array.from(this.pendingSchemas.values()).some(s => s.downloadUrl === url && s.status !== 'failed');
-    if (isDuplicate) throw new Error('Download already in progress.');
+    if (isDuplicate) throw new Error(nls.localize(
+      'rockit/schemaManager/downloadInProgress',
+      'Download already in progress.',
+    ));
 
     const id = this.generateUniqueId();
     const controller = new AbortController();
@@ -857,21 +891,39 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       downloadUrl: url,
       createdAt: null, updatedAt: null, downloadedAt: new Date().toISOString(),
       status: 'downloading',
-      statusMessage: 'Resolving access...'
+      statusMessage: nls.localize(
+        'rockit/schemaManager/resolvingAccess',
+        'Resolving access...',
+      )
     };
     
     this.pendingSchemas.set(id, pendingSchema);
     this.onDidChangeSchemasEmitter.fire();
     
     try {
-      progress.report({ message: 'Resolving access...', work: { done: 10, total: 100 } });
+      progress.report({
+        message: nls.localize(
+          'rockit/schemaManager/resolvingAccess',
+          'Resolving access...',
+        ),
+        work: { done: 10, total: 100 },
+      });
       const provider = await this.determineProviderForUrl(url);
       const apiKey = this.providerApiKey(provider);
       const proxyUrl = this.providerProxyUrl(provider);
       
-      pendingSchema.statusMessage = 'Downloading schema...';
+      pendingSchema.statusMessage = nls.localize(
+        'rockit/schemaManager/downloadingSchema',
+        'Downloading schema...',
+      );
       this.onDidChangeSchemasEmitter.fire();
-      progress.report({ message: 'Downloading...', work: { done: 30, total: 100 } });
+      progress.report({
+        message: nls.localize(
+          'rockit/schemaManager/downloadingEllipsis',
+          'Downloading...',
+        ),
+        work: { done: 30, total: 100 },
+      });
 
       const { content, finalUrl } = await this.resolveJsonProfileUrl(
         url,
@@ -881,9 +933,15 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       );
 
       pendingSchema.status = 'processing';
-      pendingSchema.statusMessage = 'Converting to RO-Crate...';
+      pendingSchema.statusMessage = nls.localize(
+        'rockit/schemaManager/converting',
+        'Converting to RO-Crate...',
+      );
       this.onDidChangeSchemasEmitter.fire();
-      progress.report({ message: 'Processing...', work: { done: 60, total: 100 } });
+      progress.report({
+        message: nls.localize('rockit/schemaManager/processing', 'Processing...'),
+        work: { done: 60, total: 100 },
+      });
       
       const schemaName = await this.processAndSaveSchema(content, 'remote', undefined, {
         downloadUrl: finalUrl,
@@ -905,7 +963,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         throw new Error('Aborted');
       } else {
         pendingSchema.status = 'failed';
-        pendingSchema.statusMessage = error.message || 'Unknown error';
+        pendingSchema.statusMessage = error.message || nls.localize(
+          'rockit/validation/unknownError',
+          'Unknown error',
+        );
         this.abortControllers.delete(id);
         this.onDidChangeSchemasEmitter.fire();
         throw error;
@@ -962,7 +1023,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                 downloadUrl: conformsToUrl,
                 createdAt: null, updatedAt: null, downloadedAt: new Date().toISOString(),
                 status: 'downloading',
-                statusMessage: 'Auto-resolving dependency...'
+                statusMessage: nls.localize(
+                  'rockit/schemaManager/autoResolvingDependency',
+                  'Auto-resolving dependency...',
+                )
               };
               this.pendingSchemas.set(id, pendingSchema);
               this.onDidChangeSchemasEmitter.fire();
@@ -971,7 +1035,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                 const { content, finalUrl } = await this.resolveConformanceUrl(conformsToUrl, undefined, controller.signal);
                 
                 pendingSchema.status = 'processing';
-                pendingSchema.statusMessage = 'Converting to RO-Crate...';
+                pendingSchema.statusMessage = nls.localize(
+                  'rockit/schemaManager/converting',
+                  'Converting to RO-Crate...',
+                );
                 this.onDidChangeSchemasEmitter.fire();
 
                 await this.processAndSaveSchema(content, 'remote', undefined, {
@@ -987,7 +1054,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                   this.abortControllers.delete(id);
                 } else {
                   pendingSchema.status = 'failed';
-                  pendingSchema.statusMessage = e.message || 'Unknown error';
+                  pendingSchema.statusMessage = e.message || nls.localize(
+                    'rockit/validation/unknownError',
+                    'Unknown error',
+                  );
                   this.abortControllers.delete(id);
                   console.error(`Failed to resolve schema ${conformsToUrl}`, e); 
                 }
@@ -995,7 +1065,15 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                 this.onDidChangeSchemasEmitter.fire();
               }
             }, (completed) => {
-              progress.report({ message: `Processed (${completed}/${total})...`, work: { done: completed, total } });
+              progress.report({
+                message: nls.localize(
+                  'rockit/schemaManager/processedCount',
+                  'Processed ({0}/{1})...',
+                  completed,
+                  total,
+                ),
+                work: { done: completed, total },
+              });
             });
 
           } finally { progress.cancel(); }
@@ -1056,7 +1134,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
           conformsTo,
           status: 'failed',
           profileName: failedProfile.name,
-          message: failedProfile.statusMessage || 'Referenced profile could not be downloaded.'
+          message: failedProfile.statusMessage || nls.localize(
+            'rockit/schemaManager/referencedProfileDownloadFailed',
+            'Referenced profile could not be downloaded.',
+          )
         });
         continue;
       }
@@ -1066,7 +1147,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         issues.push({
           conformsTo,
           status: 'missing',
-          message: 'Referenced profile is not available locally.'
+          message: nls.localize(
+            'rockit/schemaManager/referencedProfileUnavailable',
+            'Referenced profile is not available locally.',
+          )
         });
         continue;
       }
@@ -1095,7 +1179,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     let success = 0;
     let fail = 0;
     const total = fileUris.length;
-    progress.report({ message: 'Reading Files...', work: { done: 0, total } });
+    progress.report({
+      message: nls.localize('rockit/schemaManager/readingFiles', 'Reading Files...'),
+      work: { done: 0, total },
+    });
     
     for (let i = 0; i < total; i++) {
       const fileUri = fileUris[i];
@@ -1120,7 +1207,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   public async getConvertedProfileContent(sourceRelativePath: string): Promise<any> {
     try {
       const root = await this.getRockitRootUri();
-      if (!root) throw new Error('Root directory configuration missing');
+      if (!root) throw new Error(nls.localize(
+        'rockit/schemaManager/rootConfigurationMissing',
+        'Root directory configuration missing',
+      ));
 
       let convertedRelativePath = sourceRelativePath.replace(
         'metadata-schemas/cedar/',
@@ -1149,7 +1239,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
       const roCrateUri = root.resolve(convertedRelativePath);
       
-      if (!await this.fileService.exists(roCrateUri)) throw new Error('Converted profile file not found.');
+      if (!await this.fileService.exists(roCrateUri)) throw new Error(nls.localize(
+        'rockit/schemaManager/convertedProfileNotFound',
+        'Converted profile file not found.',
+      ));
       const content = await this.fileService.read(roCrateUri);
       return JSON.parse(content.value);
     } catch (error) {
@@ -1274,7 +1367,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     try { 
       parsedRaw = JSON.parse(rawContent); 
     } catch (e) { 
-      throw new Error('Invalid JSON format'); 
+      throw new Error(nls.localize(
+        'rockit/schemaManager/invalidJson',
+        'Invalid JSON format',
+      ));
     }
 
     const schemaName = parsedRaw[SCHEMA_FIELD_NAME];
@@ -1286,7 +1382,11 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     const downloadedAt = new Date().toISOString();
     
     if (!schemaName) {
-      throw new Error(`Missing required field: ${SCHEMA_FIELD_NAME}`);
+      throw new Error(nls.localize(
+        'rockit/schemaManager/missingRequiredField',
+        'Missing required field: {0}',
+        SCHEMA_FIELD_NAME,
+      ));
     }
 
     let conformsTo = metadata?.conformsTo || '';
@@ -1305,11 +1405,18 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       convertedEnglish = this.convertCedarTemplate(rawContent, 'en');
       convertedHungarian = this.convertCedarTemplate(rawContent, 'hu');
     } catch (convErr) { 
-      throw new Error(`Conversion logic failed: ${convErr}`); 
+      throw new Error(nls.localize(
+        'rockit/schemaManager/conversionFailed',
+        'Conversion logic failed: {0}',
+        String(convErr),
+      ));
     }
 
     const root = await this.getRockitRootUri();
-    if (!root) throw new Error('Root directory configuration missing');
+    if (!root) throw new Error(nls.localize(
+      'rockit/schemaManager/rootConfigurationMissing',
+      'Root directory configuration missing',
+    ));
 
     const relativeCedarPath = `metadata-schemas/cedar/${fileName}`;
     const relativeRoCratePath = `metadata-schemas/ro-crate/${fileName}`;

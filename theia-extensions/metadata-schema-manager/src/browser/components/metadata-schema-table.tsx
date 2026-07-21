@@ -177,7 +177,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
             )
         },
         {
-            title: 'Ref (@id)',
+            title: nls.localize('rockit/schemaManager/referenceId', 'Ref (@id)'),
             dataIndex: ['aux', 'reference'],
             width: 240,
             ellipsis: true,
