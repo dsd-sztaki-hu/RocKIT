@@ -3,6 +3,33 @@
     "common": {
       "cancel": "Mégse"
     },
+    "saveRoCrate": {
+      "command": "RO-Crate mentése",
+      "saving": "RO-Crate mentése…",
+      "savingMetadata": "RO-Crate-metaadatok mentése…",
+      "savingPreview": "RO-Crate-előnézet mentése…",
+      "savedAll": "Az RO-Crate, a HTML-előnézet és a mellőzési szabályok mentve.",
+      "savedCrate": "Az RO-Crate és a HTML-előnézeti fájl mentve.",
+      "savedIgnored": "A mellőzési szabályok mentve.",
+      "failed": "A mentés sikertelen: {0}"
+    },
+    "roCratePreview": {
+      "title": "RO-Crate előnézete",
+      "source": "RO-Crate forrása:",
+      "openDocumentation": "Az RO-Crate-előnézet dokumentációjának megnyitása",
+      "copyToClipboard": "A nyers JSON vágólapra másolása",
+      "copied": "Másolva",
+      "copyJson": "JSON másolása",
+      "error": "Hiba",
+      "empty": "Az RO-Crate objektum üres, vagy nem tölthető be.",
+      "readFailed": "Az RO-Crate nem olvasható az AppState-ből: {0}",
+      "close": "Bezárás",
+      "downloadMetadata": "Metaadatok letöltése JSON-LD-formátumban",
+      "backToHome": "← Vissza a kezdőlapra",
+      "referencingItems": "Erre az elemre hivatkozó elemek",
+      "entitySummary": "Ez az RO-Crate {0} entitást tartalmaz.",
+      "limitedPreview": "A teljes HTML-előnézet nem készült el, mert az RO-Crate túl nagy. Lásd: {0}."
+    },
     "roCrateEditor": {
       "loadingEntity": "Entitás betöltése…",
       "openNew": "Új RO-Crate-szerkesztő megnyitása",
