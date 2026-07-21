@@ -636,6 +636,31 @@
       "setupOperationInstruction": "Válasszon tulajdonságot és operátort, majd adjon meg egy értéket."
     },
     "appState": {
+      "preference": {
+        "externalChangeDescription": "Meghatározza, hogyan reagáljon a RocKIT a ro-crate-metadata.json külső módosításaira: rákérdezéssel, automatikus újratöltéssel vagy kikapcsolva."
+      },
+      "panel": {
+        "show": "AppState panel megjelenítése",
+        "viewCategory": "Nézet",
+        "title": "AppState panel",
+        "globalState": "Globális alkalmazásállapot",
+        "reset": "Állapot visszaállítása alapértékekre",
+        "collapseAll": "Összes összecsukása",
+        "refreshHistory": "Előzmények frissítése",
+        "clearHistory": "Előzmények törlése",
+        "historyTitle": "RO-Crate-előzmények (ideiglenes hibakeresés)",
+        "undo": "visszavonás",
+        "redo": "újra végrehajtás",
+        "openTransactions": "nyitott tranzakciók",
+        "patchBytes": "rfc6902 javításméret bájtban (közelítő, előre és vissza)",
+        "undoForward": "visszavonás előre",
+        "redoForward": "újra végrehajtás előre",
+        "empty": "üres"
+      },
+      "history": {
+        "editCrate": "RO-Crate szerkesztése",
+        "editApproval": "RO-Crate-jóváhagyás szerkesztése"
+      },
       "idConversion": {
         "title": "RO-Crate-metaadatok átalakítása",
         "convert": "Átalakítás munkaterület-relatív azonosítókra",

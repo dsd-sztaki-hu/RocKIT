@@ -11,14 +11,15 @@ import type {
   MenuContribution,
   MenuModelRegistry,
 } from '@theia/core/lib/common'
+import { nls } from '@theia/core/lib/common/nls'
 import { inject, injectable } from 'inversify'
 import { AppStatePanelWidget } from './app-state-panel-widget'
 import { AppStateService } from './state/app-state-service'
 
 export const OpenAppStatePanelCommand: Command = {
   id: 'app-state-extension:open-app-state-panel',
-  label: 'Show AppState Panel',
-  category: 'View',
+  label: nls.localize('rockit/appState/panel/show', 'Show AppState Panel'),
+  category: nls.localize('rockit/appState/panel/viewCategory', 'View'),
 }
 
 @injectable()
