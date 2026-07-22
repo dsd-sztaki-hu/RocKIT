@@ -1,4 +1,5 @@
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
+import { nls } from '@theia/core/lib/common/nls'
 import type { AppState } from 'app-state/lib/browser/state/app-state'
 import {
   AppStateProvider,
@@ -14,20 +15,43 @@ function SampleView() {
   const theme = useAppState((s: AppState) => s.theme)
   const notifCount = useAppState((s: AppState) => s.notifications.length)
   const settings = useAppState((s: AppState) => s.settings)
+  const localizedTheme =
+    theme === 'light'
+      ? nls.localize('rockit/appState/sample/light', 'light')
+      : theme === 'dark'
+        ? nls.localize('rockit/appState/sample/dark', 'dark')
+        : theme
 
   return (
     <div style={{ padding: '1rem' }}>
-      <h2>Sample React Widget with Global AppState</h2>
-      <p>Dirty: {dirty ? 'yes' : 'no'}</p>
-      <p>Theme: {theme}</p>
-      <p>Notifications: {notifCount}</p>
+      <h2>
+        {nls.localize(
+          'rockit/appState/sample/heading',
+          'Sample React Widget with Global AppState',
+        )}
+      </h2>
       <p>
-        Settings: autoSave={settings.autoSave ? 'on' : 'off'}, fontSize=
+        {nls.localize('rockit/appState/sample/dirty', 'Dirty')}: {dirty
+          ? nls.localize('rockit/common/yes', 'yes')
+          : nls.localize('rockit/common/no', 'no')}
+      </p>
+      <p>
+        {nls.localize('rockit/appState/sample/theme', 'Theme')}: {localizedTheme}
+      </p>
+      <p>
+        {nls.localize('rockit/appState/sample/notifications', 'Notifications')}:{' '}
+        {notifCount}
+      </p>
+      <p>
+        {nls.localize('rockit/appState/sample/settings', 'Settings')}: autoSave=
+        {settings.autoSave
+          ? nls.localize('rockit/common/on', 'on')
+          : nls.localize('rockit/common/off', 'off')}, fontSize=
         {settings.fontSize}
       </p>
 
       <button type="button" onClick={() => (service.dirty = !dirty)}>
-        Toggle dirty
+        {nls.localize('rockit/appState/sample/toggleDirty', 'Toggle dirty')}
       </button>
       <button
         type="button"
@@ -38,13 +62,23 @@ function SampleView() {
         }
         style={{ marginLeft: '0.5rem' }}
       >
-        Toggle theme
+        {nls.localize('rockit/appState/sample/toggleTheme', 'Toggle theme')}
       </button>
       <button
-        onClick={() => service.addNotification('Hello from SampleView')}
+        onClick={() =>
+          service.addNotification(
+            nls.localize(
+              'rockit/appState/sample/notificationMessage',
+              'Hello from SampleView',
+            ),
+          )
+        }
         style={{ marginLeft: '0.5rem' }}
       >
-        Add notification
+        {nls.localize(
+          'rockit/appState/sample/addNotification',
+          'Add notification',
+        )}
       </button>
       <button
         onClick={() =>
@@ -54,7 +88,10 @@ function SampleView() {
         }
         style={{ marginLeft: '0.5rem' }}
       >
-        Toggle autoSave
+        {nls.localize(
+          'rockit/appState/sample/toggleAutoSave',
+          'Toggle autoSave',
+        )}
       </button>
       <button
         onClick={() =>
@@ -64,7 +101,7 @@ function SampleView() {
         }
         style={{ marginLeft: '0.5rem' }}
       >
-        Font +1
+        {nls.localize('rockit/appState/sample/increaseFont', 'Font +1')}
       </button>
     </div>
   )
@@ -73,7 +110,10 @@ function SampleView() {
 @injectable()
 export class SampleReactWidget extends ReactWidget {
   static readonly ID = 'theia-app-state-sample:sample-react-widget'
-  static readonly LABEL = 'AppState Sample'
+  static readonly LABEL = nls.localize(
+    'rockit/appState/sample/title',
+    'AppState Sample',
+  )
 
   @inject(AppStateService)
   protected readonly appStateService: AppStateService

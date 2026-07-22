@@ -1,7 +1,11 @@
 {
   "rockit": {
     "common": {
-      "cancel": "Mégse"
+      "cancel": "Mégse",
+      "yes": "igen",
+      "no": "nem",
+      "on": "be",
+      "off": "ki"
     },
     "saveRoCrate": {
       "command": "RO-Crate mentése",
@@ -887,6 +891,23 @@
         "undoForward": "visszavonás előre",
         "redoForward": "újra végrehajtás előre",
         "empty": "üres"
+      },
+      "sample": {
+        "open": "AppState-minta",
+        "title": "AppState-minta",
+        "heading": "React-mintawidget globális AppState-tel",
+        "dirty": "Módosítva",
+        "theme": "Téma",
+        "notifications": "Értesítések",
+        "settings": "Beállítások",
+        "light": "világos",
+        "dark": "sötét",
+        "toggleDirty": "Módosítottság átváltása",
+        "toggleTheme": "Téma átváltása",
+        "notificationMessage": "Üdvözlet a mintanézetből",
+        "addNotification": "Értesítés hozzáadása",
+        "toggleAutoSave": "Automatikus mentés átváltása",
+        "increaseFont": "Betűméret +1"
       },
       "history": {
         "editCrate": "RO-Crate szerkesztése",

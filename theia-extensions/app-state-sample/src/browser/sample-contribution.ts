@@ -6,12 +6,16 @@ import type {
   MenuContribution,
   MenuModelRegistry,
 } from '@theia/core/lib/common'
+import { nls } from '@theia/core/lib/common/nls'
 import { inject, injectable } from 'inversify'
 import { SampleReactWidget } from './sample-react-widget'
 
 export const OpenSampleWidgetCommand: Command = {
   id: 'theia-app-state-sample:open-sample-widget',
-  label: 'Open AppState Sample Widget',
+  label: nls.localize(
+    'rockit/appState/sample/open',
+    'Open AppState Sample Widget',
+  ),
 }
 
 @injectable()
