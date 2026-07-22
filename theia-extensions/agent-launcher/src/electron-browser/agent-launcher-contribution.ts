@@ -376,36 +376,81 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     this.terminalService.open(terminal, { mode: 'activate' })
     await terminal.start()
     await this.waitForTerminalOpen(terminal, 1000)
-    this.setAgentTerminalStatus(terminal, agentId, 'Preparing...')
+    this.setAgentTerminalStatus(
+      terminal,
+      agentId,
+      nls.localize('rockit/agentLauncher/preparing', 'Preparing...'),
+    )
 
     const executable = sharedAvailableAgents.get(agentId)
     if (!executable) {
-      this.setAgentTerminalStatus(terminal, agentId, 'Executable not found')
+      this.setAgentTerminalStatus(
+        terminal,
+        agentId,
+        nls.localize('rockit/agentLauncher/executableNotFound', 'Executable not found'),
+      )
       return
     }
 
-    this.setAgentTerminalStatus(terminal, agentId, 'Checking MCP...')
+    this.setAgentTerminalStatus(
+      terminal,
+      agentId,
+      nls.localize('rockit/agentLauncher/checkingMcp', 'Checking MCP...'),
+    )
     const mcpReady = await this.ensureAgentMcpConfigured(agentId, directoryUri)
     if (!mcpReady) {
-      this.setAgentTerminalStatus(terminal, agentId, 'MCP setup cancelled/failed')
+      this.setAgentTerminalStatus(
+        terminal,
+        agentId,
+        nls.localize(
+          'rockit/agentLauncher/mcpSetupFailed',
+          'MCP setup cancelled/failed',
+        ),
+      )
       return
     }
 
     if (this.shouldCopyAgentInstructions()) {
-      this.setAgentTerminalStatus(terminal, agentId, 'Updating instructions...')
+      this.setAgentTerminalStatus(
+        terminal,
+        agentId,
+        nls.localize(
+          'rockit/agentLauncher/updatingInstructions',
+          'Updating instructions...',
+        ),
+      )
       await this.agentInstructionService.ensureAgentFiles(directoryUri, agentId)
     } else {
-      this.setAgentTerminalStatus(terminal, agentId, 'Using MCP workflow docs...')
+      this.setAgentTerminalStatus(
+        terminal,
+        agentId,
+        nls.localize(
+          'rockit/agentLauncher/usingWorkflowDocs',
+          'Using MCP workflow docs...',
+        ),
+      )
     }
 
-    this.setAgentTerminalStatus(terminal, agentId, `Starting ${executable}...`)
+    this.setAgentTerminalStatus(
+      terminal,
+      agentId,
+      nls.localize('rockit/agentLauncher/startingAgent', 'Starting {0}...', executable),
+    )
     const launchArgs = this.buildAgentLaunchArgs(agentId, executable)
     try {
       await terminal.executeCommand({ cwd, args: launchArgs })
-      this.setAgentTerminalStatus(terminal, agentId, 'Running')
+      this.setAgentTerminalStatus(
+        terminal,
+        agentId,
+        nls.localize('rockit/agentLauncher/running', 'Running'),
+      )
     } catch {
       terminal.sendText(`${this.buildAgentFallbackCommand(agentId, executable)}\n`)
-      this.setAgentTerminalStatus(terminal, agentId, 'Running')
+      this.setAgentTerminalStatus(
+        terminal,
+        agentId,
+        nls.localize('rockit/agentLauncher/running', 'Running'),
+      )
     }
   }
 
@@ -499,7 +544,11 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       launchConfig = await this.resolveRocrateMcpLaunchConfig()
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
-      await new ConfirmDialog({ title: 'RocKIT MCP Error', msg }).open()
+      await new ConfirmDialog({
+        title: nls.localize('rockit/agentLauncher/mcpErrorTitle', 'RocKIT MCP Error'),
+        msg,
+        ok: nls.localize('rockit/agentLauncher/close', 'Close'),
+      }).open()
       return false
     }
     if (agentId === 'claude') {
@@ -510,8 +559,19 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
     const snippet = this.buildRocrateMcpSnippet(spec, launchConfig)
     const accepted = await new ConfirmDialog({
-      title: 'RocKIT MCP Not Configured',
-      msg: `RocKIT MCP has not yet been configured for ${agentId}.\n\nConfig file: ${spec.configPath}\n\nAdd this configuration now?\n\n${snippet}`,
+      title: nls.localize(
+        'rockit/agentLauncher/mcpNotConfiguredTitle',
+        'RocKIT MCP Not Configured',
+      ),
+      msg: nls.localize(
+        'rockit/agentLauncher/mcpNotConfiguredMessage',
+        'RocKIT MCP has not yet been configured for {0}.\n\nConfig file: {1}\n\nAdd this configuration now?\n\n{2}',
+        this.formatAgentName(agentId),
+        spec.configPath,
+        snippet,
+      ),
+      ok: nls.localize('rockit/agentLauncher/addConfiguration', 'Add Configuration'),
+      cancel: nls.localize('rockit/common/cancel', 'Cancel'),
     }).open()
 
     if (!accepted) return false
@@ -661,17 +721,30 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     for (const candidate of unique) {
       if (await this.fileService.exists(FileUri.create(candidate))) return candidate
     }
-    throw new Error(`Server not found. Tried: ${unique.join(' | ')}`)
+    throw new Error(nls.localize(
+      'rockit/agentLauncher/serverNotFound',
+      'Server not found. Tried: {0}',
+      unique.join(' | '),
+    ))
   }
 
   protected async resolveRocrateMcpLaunchConfig(): Promise<RocrateMcpLaunchConfig> {
-    const runtime = await this.runMcpResolutionStep('runtime', () =>
+    const runtime = await this.runMcpResolutionStep(nls.localize(
+      'rockit/agentLauncher/runtime',
+      'runtime',
+    ), () =>
       this.resolveRocrateMcpRuntime(),
     )
-    const serverPath = await this.runMcpResolutionStep('server path', () =>
+    const serverPath = await this.runMcpResolutionStep(nls.localize(
+      'rockit/agentLauncher/serverPath',
+      'server path',
+    ), () =>
       this.resolveRocrateServerPath(),
     )
-    const socketPath = await this.runMcpResolutionStep('socket path', () =>
+    const socketPath = await this.runMcpResolutionStep(nls.localize(
+      'rockit/agentLauncher/socketPath',
+      'socket path',
+    ), () =>
       this.resolveRocrateMcpSocketPath(),
     )
     return {
@@ -695,7 +768,12 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       console.error(`[agent-launcher] MCP ${label} resolution failed`, error)
       const detail =
         error instanceof Error ? error.stack ?? error.message : String(error)
-      throw new Error(`MCP ${label} resolution failed:\n${detail}`)
+      throw new Error(nls.localize(
+        'rockit/agentLauncher/resolutionFailed',
+        'MCP {0} resolution failed:\n{1}',
+        label,
+        detail,
+      ))
     }
   }
 
@@ -742,7 +820,10 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       return { command: execPath, env }
     }
 
-    throw new Error('Could not resolve a Node runtime for the RO-Crate MCP server.')
+    throw new Error(nls.localize(
+      'rockit/agentLauncher/nodeRuntimeNotFound',
+      'Could not resolve a Node runtime for the RO-Crate MCP server.',
+    ))
   }
 
   protected isPackagedElectronRuntime(
@@ -828,19 +909,31 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       (await this.findExecutableAbsolutePath(['claude'])) ?? 'claude'
     const payload = this.buildClaudeAddMcpPayload(launchConfig)
     const accepted = await new ConfirmDialog({
-      title: 'RocKIT MCP Not Configured',
+      title: nls.localize(
+        'rockit/agentLauncher/mcpNotConfiguredTitle',
+        'RocKIT MCP Not Configured',
+      ),
       msg: [
-        'RocKIT MCP has not yet been configured for claude.',
+        nls.localize(
+          'rockit/agentLauncher/mcpNotConfiguredFor',
+          'RocKIT MCP has not yet been configured for {0}.',
+          'Claude',
+        ),
         '',
-        'RocKIT will run:',
+        nls.localize('rockit/agentLauncher/rockitWillRun', 'RocKIT will run:'),
         'claude mcp add-json --scope user rocrate <payload>',
         '',
         `claude: ${claudeExecutable}`,
         `node: ${launchConfig.command}`,
         `server: ${launchConfig.args.join(' ')}`,
         '',
-        'Add this configuration now?',
+        nls.localize(
+          'rockit/agentLauncher/addConfigurationQuestion',
+          'Add this configuration now?',
+        ),
       ].join('\n'),
+      ok: nls.localize('rockit/agentLauncher/addConfiguration', 'Add Configuration'),
+      cancel: nls.localize('rockit/common/cancel', 'Cancel'),
     }).open()
     if (!accepted) {
       return false
