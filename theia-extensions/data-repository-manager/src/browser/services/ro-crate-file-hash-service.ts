@@ -85,7 +85,7 @@ export class RoCrateFileHashService {
     protected getWorkspaceRoot(): URI {
         const rootUri = this.workspaceService.tryGetRoots()?.[0]?.resource;
         if (!rootUri) {
-            throw new Error('No workspace is open.');
+            throw new Error(nls.localize('rockit/dataRepository/noWorkspace', 'No workspace is open.'));
         }
         return rootUri;
     }
