@@ -13,6 +13,7 @@ import { ApplicationShell, CommonCommands, WidgetManager } from '@theia/core/lib
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables'
 import { FileUri } from '@theia/core/lib/common/file-uri'
+import { nls } from '@theia/core/lib/common/nls'
 import { isWindows } from '@theia/core/lib/common/os'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -33,7 +34,6 @@ import { NativeAgentChatWidget } from './native-agent-chat-widget'
 
 type AgentSpec = {
   id: string
-  menuLabel: string
   executables: string[]
   markerPaths?: string[]
 }
@@ -64,38 +64,32 @@ type AgentInstructionPort = {
 const AGENT_SPECS: AgentSpec[] = [
   {
     id: 'codex',
-    menuLabel: 'Edit with Codex',
     executables: ['codex'],
     markerPaths: ['.codex'],
   },
   {
     id: 'claude',
-    menuLabel: 'Edit with Claude',
     executables: ['claude'],
     markerPaths: ['.claude'],
   },
   {
     id: 'opencode',
-    menuLabel: 'Edit with Opencode',
     executables: ['opencode'],
     markerPaths: ['.opencode'],
   },
   {
     id: 'kilo',
-    menuLabel: 'Edit with Kilo',
     executables: ['kilo'],
     markerPaths: ['.kilo'],
   },
-  { id: 'roo', menuLabel: 'Edit with Roo', executables: ['roo'], markerPaths: ['.roo'] },
+  { id: 'roo', executables: ['roo'], markerPaths: ['.roo'] },
   {
     id: 'gemini',
-    menuLabel: 'Edit with Gemini',
     executables: ['gemini', 'gemini-cli'],
     markerPaths: ['.gemini'],
   },
   {
     id: 'qwen',
-    menuLabel: 'Edit with Qwen',
     executables: ['qwen-code', 'qwen'],
     markerPaths: ['.qwen', '.gemini'],
   },
@@ -213,11 +207,11 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   registerCommands(commands: CommandRegistry): void {
     for (const spec of AGENT_SPECS) {
-      const command: Command = Command.toDefaultLocalizedCommand({
+      const command: Command = {
         id: agentCommandId(spec.id),
-        category: CommonCommands.FILE_CATEGORY,
-        label: spec.menuLabel,
-      })
+        category: nls.localizeByDefault(CommonCommands.FILE_CATEGORY),
+        label: this.editWithAgentLabel(spec.id),
+      }
       commands.registerCommand(
         command,
         {
@@ -232,11 +226,11 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         },
       )
 
-      const terminalCommand: Command = Command.toDefaultLocalizedCommand({
+      const terminalCommand: Command = {
         id: agentTerminalCommandId(spec.id),
-        category: CommonCommands.FILE_CATEGORY,
-        label: 'Open in Terminal',
-      })
+        category: nls.localizeByDefault(CommonCommands.FILE_CATEGORY),
+        label: nls.localize('rockit/agentLauncher/openInTerminal', 'Open in Terminal'),
+      }
       commands.registerCommand(
         terminalCommand,
         {
@@ -253,11 +247,11 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
       if (supportsNativeChat(spec.id)) {
         const nativeAgentId = spec.id
-        const chatCommand: Command = Command.toDefaultLocalizedCommand({
+        const chatCommand: Command = {
           id: agentChatCommandId(nativeAgentId),
-          category: CommonCommands.FILE_CATEGORY,
-          label: 'Chat in RocKIT',
-        })
+          category: nls.localizeByDefault(CommonCommands.FILE_CATEGORY),
+          label: nls.localize('rockit/agentLauncher/chatInRockit', 'Chat in RocKIT'),
+        }
         commands.registerCommand(
           chatCommand,
           {
@@ -276,9 +270,11 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   }
 
   registerMenus(menus: MenuModelRegistry): void {
-    menus.registerSubmenu(EDIT_WITH_AI_MENU_PATH, 'Edit with AI tool', {
-      sortString: 'a10',
-    })
+    menus.registerSubmenu(
+      EDIT_WITH_AI_MENU_PATH,
+      nls.localize('rockit/agentLauncher/editWithAi', 'Edit with AI tool'),
+      { sortString: 'a10' },
+    )
 
     for (const [index, spec] of AGENT_SPECS.entries()) {
       const orderPrefix = String(index).padStart(2, '0')
@@ -287,26 +283,45 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
           commandId: agentChatCommandId(spec.id),
           label:
             spec.id === 'codex'
-              ? 'Chat in RocKIT'
-              : `Chat in RocKIT with ${this.formatAgentName(spec.id)}`,
+              ? nls.localize('rockit/agentLauncher/chatInRockit', 'Chat in RocKIT')
+              : nls.localize(
+                  'rockit/agentLauncher/chatInRockitWith',
+                  'Chat in RocKIT with {0}',
+                  this.formatAgentName(spec.id),
+                ),
           order: `${orderPrefix}.a`,
         })
         menus.registerMenuAction(EDIT_WITH_AI_MENU_PATH, {
           commandId: agentTerminalCommandId(spec.id),
           label:
             spec.id === 'codex'
-              ? 'Open in Terminal'
-              : `Open ${this.formatAgentName(spec.id)} in Terminal`,
+              ? nls.localize(
+                  'rockit/agentLauncher/openInTerminal',
+                  'Open in Terminal',
+                )
+              : nls.localize(
+                  'rockit/agentLauncher/openAgentInTerminal',
+                  'Open {0} in Terminal',
+                  this.formatAgentName(spec.id),
+                ),
           order: `${orderPrefix}.b`,
         })
         continue
       }
       menus.registerMenuAction(EDIT_WITH_AI_MENU_PATH, {
         commandId: agentCommandId(spec.id),
-        label: spec.menuLabel,
+        label: this.editWithAgentLabel(spec.id),
         order: `${orderPrefix}.a`,
       })
     }
+  }
+
+  protected editWithAgentLabel(agentId: string): string {
+    return nls.localize(
+      'rockit/agentLauncher/editWithAgent',
+      'Edit with {0}',
+      this.formatAgentName(agentId),
+    )
   }
 
   protected canOpenAgent(agentId: string): boolean {
