@@ -93,6 +93,83 @@ type NativeChatHistoryPick = QuickPickItem & (
     }
 )
 
+function localizeNativeAgentServiceMessage(message: string): string {
+  const normalized = message.trim()
+  const exact: Record<string, string> = {
+    'Cannot send to a closed Claude session.': nls.localize(
+      'rockit/agentChat/closedClaudeSession',
+      'Cannot send to a closed Claude session.',
+    ),
+    'Codex executable not found in PATH.': nls.localize(
+      'rockit/agentChat/codexExecutableNotFound',
+      'Codex executable not found in PATH.',
+    ),
+    'Codex app-server did not return a thread id.': nls.localize(
+      'rockit/agentChat/codexThreadIdMissing',
+      'Codex app-server did not return a thread id.',
+    ),
+    'Claude is still working on the previous message.': nls.localize(
+      'rockit/agentChat/claudeStillWorking',
+      'Claude is still working on the previous message.',
+    ),
+    'The native agent is still working on the previous message.': nls.localize(
+      'rockit/agentChat/agentStillWorking',
+      'The native agent is still working on the previous message.',
+    ),
+    'Stopped.': nls.localize('rockit/agentChat/stopped', 'Stopped.'),
+    'Codex runtime error': nls.localize(
+      'rockit/agentChat/codexRuntimeError',
+      'Codex runtime error',
+    ),
+    'Claude turn failed.': nls.localize(
+      'rockit/agentChat/claudeTurnFailed',
+      'Claude turn failed.',
+    ),
+    'JSON-RPC process disposed': nls.localize(
+      'rockit/agentChat/jsonRpcDisposed',
+      'JSON-RPC process was disposed.',
+    ),
+  }
+  if (exact[normalized]) {
+    return exact[normalized]
+  }
+
+  const unknownSession = normalized.match(/^Unknown native agent session: (.+)$/)
+  if (unknownSession) {
+    return nls.localize(
+      'rockit/agentChat/unknownSession',
+      'Unknown native agent session: {0}',
+      unknownSession[1],
+    )
+  }
+
+  const codexExit = normalized.match(
+    /^Codex app-server exited \(code=(.+), signal=(.+)\)\.$/,
+  )
+  if (codexExit) {
+    return nls.localize(
+      'rockit/agentChat/codexAppServerExited',
+      'Codex app-server exited (code={0}, signal={1}).',
+      codexExit[1],
+      codexExit[2],
+    )
+  }
+
+  const jsonRpcExit = normalized.match(
+    /^JSON-RPC process exited \(code=(.+), signal=(.+)\)$/,
+  )
+  if (jsonRpcExit) {
+    return nls.localize(
+      'rockit/agentChat/jsonRpcExited',
+      'JSON-RPC process exited (code={0}, signal={1}).',
+      jsonRpcExit[1],
+      jsonRpcExit[2],
+    )
+  }
+
+  return message
+}
+
 class NativeAgentChatView extends React.Component<
   NativeAgentChatViewProps,
   NativeAgentChatViewState,
@@ -609,7 +686,7 @@ class NativeAgentChatView extends React.Component<
       return nls.localize(
         'rockit/agentChat/errorWithMessage',
         'Error: {0}',
-        activity.text,
+        localizeNativeAgentServiceMessage(activity.text),
       )
     }
     const raw = activity.text.trim()
@@ -774,6 +851,9 @@ class NativeAgentChatView extends React.Component<
     let text = message.text.replace(/\r\n/g, '\n').trim()
     if (message.role === 'activity') {
       return this.formatActivityTitle(message)
+    }
+    if (message.role === 'error' || text === 'Stopped.') {
+      text = localizeNativeAgentServiceMessage(text)
     }
     if (message.role === 'assistant') {
       text = this.protectMarkdownTables(
@@ -2052,6 +2132,10 @@ export class NativeAgentChatWidget extends ReactWidget {
   }
 
   protected readonly handleError = (error: unknown): void => {
-    this.messageService.error(error instanceof Error ? error.message : String(error))
+    this.messageService.error(
+      localizeNativeAgentServiceMessage(
+        error instanceof Error ? error.message : String(error),
+      ),
+    )
   }
 }

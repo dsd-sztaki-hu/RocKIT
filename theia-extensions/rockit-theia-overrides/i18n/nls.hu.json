@@ -186,7 +186,19 @@
       "useDataverseVersion": "Dataverse-verzió használata",
       "keepLocalVersion": "Helyi verzió megtartása",
       "noWorkspaceForReplacement": "Az RO-Crate-metaadatok nem cserélhetők le, mert nincs megnyitva munkaterület.",
-      "dataverseVersionApplied": "A helyi ro-crate-metadata.json fájl lecserélve a Dataverse által frissített metaadatokra."
+      "dataverseVersionApplied": "A helyi ro-crate-metadata.json fájl lecserélve a Dataverse által frissített metaadatokra.",
+      "closedClaudeSession": "Nem küldhető üzenet lezárt Claude-munkamenetbe.",
+      "codexExecutableNotFound": "A Codex futtatható program nem található a PATH változóban.",
+      "codexThreadIdMissing": "A Codex app-server nem adott vissza szálazonosítót.",
+      "claudeStillWorking": "A Claude még dolgozik az előző üzeneten.",
+      "agentStillWorking": "A natív asszisztens még dolgozik az előző üzeneten.",
+      "stopped": "Leállítva.",
+      "codexRuntimeError": "Codex futtatási hiba",
+      "claudeTurnFailed": "A Claude-forduló sikertelen.",
+      "jsonRpcDisposed": "A JSON-RPC folyamat leállításra került.",
+      "unknownSession": "Ismeretlen natív asszisztensi munkamenet: {0}",
+      "codexAppServerExited": "A Codex app-server leállt (kód={0}, jel={1}).",
+      "jsonRpcExited": "A JSON-RPC folyamat leállt (kód={0}, jel={1})."
     },
     "agentLauncher": {
       "editWithAi": "Szerkesztés AI-eszközzel",
