@@ -28,7 +28,8 @@ import {
     Widget,
     NavigatableWidget,
     SHELL_TABBAR_CONTEXT_MENU,
-    OpenWithService
+    OpenWithService,
+    ViewContainer
 } from '@theia/core/lib/browser';
 import { FileDownloadCommands } from '@theia/filesystem/lib/browser/download/file-download-command-contribution';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
@@ -355,6 +356,22 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
 
     async initializeLayout(app: FrontendApplication): Promise<void> {
         await this.openView();
+    }
+
+    async onDidInitializeLayout(_app: FrontendApplication): Promise<void> {
+        const label = nls.localize('rockit/fileExplorer/workspace', 'Workspace');
+        const widget = await this.widget;
+        widget.title.label = label;
+        widget.title.caption = label;
+
+        const container = await this.widgetManager.getOrCreateWidget(EXPLORER_VIEW_CONTAINER_ID);
+        if (container instanceof ViewContainer) {
+            container.setTitleOptions({
+                ...EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS,
+                label,
+                caption: label,
+            });
+        }
     }
 
     override registerCommands(registry: CommandRegistry): void {
@@ -1280,7 +1297,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         });
         registry.registerMenuAction(NavigatorContextMenu.MODIFICATION, {
             commandId: FileNavigatorCommands.COLLAPSE_ALL.id,
-            label: nls.localizeByDefault('Collapse All'),
+            label: nls.localize('rockit/fileExplorer/collapseAll', 'Collapse All'),
             order: 'z2'
         });
 
@@ -1334,7 +1351,10 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         toolbarRegistry.registerItem({
             id: FileNavigatorCommands.TOGGLE_SEARCH.id,
             command: FileNavigatorCommands.TOGGLE_SEARCH.id,
-            tooltip: FileNavigatorCommands.TOGGLE_SEARCH.label,
+            tooltip: nls.localize(
+                'rockit/fileExplorer/searchExplorer',
+                'Search Explorer',
+            ),
             priority: 0,
         });
         toolbarRegistry.registerItem({
@@ -1352,14 +1372,14 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         toolbarRegistry.registerItem({
             id: FileNavigatorCommands.COLLAPSE_ALL.id,
             command: FileNavigatorCommands.COLLAPSE_ALL.id,
-            tooltip: nls.localizeByDefault('Collapse All'),
+            tooltip: nls.localize('rockit/fileExplorer/collapseAll', 'Collapse All'),
             priority: 1,
             onDidChange,
         });
         toolbarRegistry.registerItem({
             id: FileNavigatorCommands.EXPAND_ALL.id,
             command: FileNavigatorCommands.EXPAND_ALL.id,
-            tooltip: nls.localizeByDefault('Expand All'),
+            tooltip: nls.localize('rockit/fileExplorer/expandAll', 'Expand All'),
             priority: 1,
             onDidChange,
         });

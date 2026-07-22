@@ -59,7 +59,9 @@ import {
 import { RoCrateIgnoredFilesService } from './ro-crate-ignored-files-service'
 
 export const FILE_NAVIGATOR_ID = 'files'
-export const LABEL = nls.localizeByDefault('Workspace')
+export const LABEL = nls.localize('rockit/fileExplorer/workspace', 'Workspace')
+const getWorkspaceLabel = (): string =>
+  nls.localize('rockit/fileExplorer/workspace', 'Workspace')
 export const CLASS = 'theia-Files'
 
 @injectable()
@@ -118,6 +120,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   @postConstruct()
   protected override init(): void {
     super.init()
+    this.title.label = getWorkspaceLabel()
+    this.title.caption = getWorkspaceLabel()
     this.searchVisible = this.appStateService.fileExplorerFiltersVisible
 
     const dataset = {
@@ -242,8 +246,8 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
 
   protected override doUpdateRows(): void {
     super.doUpdateRows()
-    this.title.label = LABEL
-    this.title.caption = LABEL
+    this.title.label = getWorkspaceLabel()
+    this.title.caption = getWorkspaceLabel()
   }
 
   override getContainerTreeNode(): TreeNode | undefined {

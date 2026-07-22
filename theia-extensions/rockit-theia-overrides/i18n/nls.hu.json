@@ -7,6 +7,21 @@
       "on": "be",
       "off": "ki"
     },
+    "manageMenu": {
+      "commandPalette": "Parancspaletta…",
+      "manage": "Kezelés",
+      "settings": "Beállítások",
+      "themes": "Témák",
+      "colorTheme": "Színtéma",
+      "fileIconTheme": "Fájlikontéma",
+      "lightTheme": "Világos (Theia)",
+      "darkTheme": "Sötét (Theia)",
+      "highContrastTheme": "Nagy kontrasztú (Theia)",
+      "highContrastLightTheme": "Világos, nagy kontrasztú (Theia)",
+      "theiaFileIcons": "Fájlikonok (Theia)",
+      "noIconTheme": "Nincs",
+      "disableFileIcons": "Fájlikonok kikapcsolása"
+    },
     "saveRoCrate": {
       "command": "RO-Crate mentése",
       "saving": "RO-Crate mentése…",
@@ -60,6 +75,14 @@
       "cleanFailed": "A tisztított exportálás létrehozása sikertelen: {0}"
     },
     "fileExplorer": {
+      "workspace": "Munkaterület",
+      "roCrateContainer": "RO-Crate-tároló",
+      "dataSources": "Adatforrások",
+      "untitled": "névtelen",
+      "workspaceName": "{0} (munkaterület)",
+      "searchExplorer": "Keresés a fájlkezelőben",
+      "collapseAll": "Összes összecsukása",
+      "expandAll": "Összes kibontása",
       "openDocumentation": "A munkaterület dokumentációjának megnyitása",
       "includeDescription": "Felvétel az RO-Crate leírásába",
       "omitDescription": "Mellőzés az RO-Crate leírásából",
@@ -1076,6 +1099,30 @@
     }
   },
   "vscode": {
+    "labelService": {
+      "temporaryWorkspace": "Munkaterület"
+    },
+    "workspace.contribution": {
+      "restrictedModeBannerManage": "Kezelés"
+    },
+    "themeExtensionPoints": {
+      "themes": "Témák"
+    },
+    "themes.contribution": {
+      "selectTheme.label": "Színtéma",
+      "selectIconTheme.label": "Fájlikontéma",
+      "themes.category.light": "világos témák",
+      "themes.category.dark": "sötét témák",
+      "themes.category.hc": "nagy kontrasztú témák",
+      "noIconThemeDesc": "Fájlikonok kikapcsolása"
+    },
+    "extensionsActions": {
+      "select file icon theme": "Fájlikontéma kiválasztása",
+      "select color theme": "Színtéma kiválasztása"
+    },
+    "themeConfiguration": {
+      "noIconThemeLabel": "Nincs"
+    },
     "extensionEditor": {
       "details": "Részletek",
       "Version": "Verzió"

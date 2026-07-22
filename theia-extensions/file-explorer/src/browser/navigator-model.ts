@@ -25,6 +25,7 @@ import { ProgressService } from '@theia/core/lib/common/progress-service';
 import { Deferred } from '@theia/core/lib/common/promise-util';
 import { Disposable } from '@theia/core/lib/common/disposable';
 import { DataSourceService } from 'data-sources/lib/browser/data-source-service';
+import { nls } from '@theia/core/lib/common/nls';
 
 @injectable()
 export class FileNavigatorModel extends FileTreeModel {
@@ -146,15 +147,26 @@ export class FileNavigatorModel extends FileTreeModel {
         }
 
         if (!workspaceNode) {
-            workspaceNode = WorkspaceNode.createRoot('Data Sources');
+            workspaceNode = WorkspaceNode.createRoot(nls.localize(
+                'rockit/fileExplorer/dataSources',
+                'Data Sources',
+            ));
         }
 
         const useGrouping = dataSourceUris.length > 0;
         const workspaceHeader = useGrouping
-            ? NavigatorHeaderNode.create('workspace', 'RO-Crate Container', workspaceNode)
+            ? NavigatorHeaderNode.create(
+                'workspace',
+                nls.localize('rockit/fileExplorer/roCrateContainer', 'RO-Crate Container'),
+                workspaceNode,
+            )
             : undefined;
         const dataSourceHeader = useGrouping
-            ? NavigatorHeaderNode.create('data-source', 'Data Sources', workspaceNode)
+            ? NavigatorHeaderNode.create(
+                'data-source',
+                nls.localize('rockit/fileExplorer/dataSources', 'Data Sources'),
+                workspaceNode,
+            )
             : undefined;
 
         const workspaceNodes: TreeNode[] = [];
@@ -210,8 +222,8 @@ export class FileNavigatorModel extends FileTreeModel {
         const workspace = this.workspaceService.workspace;
         let name = workspace
             ? workspace.resource.path.name
-            : 'untitled';
-        name += ' (Workspace)';
+            : nls.localize('rockit/fileExplorer/untitled', 'untitled');
+        name = nls.localize('rockit/fileExplorer/workspaceName', '{0} (Workspace)', name);
         return WorkspaceNode.createRoot(name);
     }
 

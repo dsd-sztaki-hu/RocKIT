@@ -27,7 +27,7 @@ import { nls } from '@theia/core/lib/common/nls';
 
 export const EXPLORER_VIEW_CONTAINER_ID = 'explorer-view-container';
 export const EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS: ViewContainerTitleOptions = {
-    label: nls.localizeByDefault('Workspace'),
+    label: nls.localize('rockit/fileExplorer/workspace', 'Workspace'),
     iconClass: codicon('files'),
     closeable: true
 };
@@ -56,7 +56,11 @@ export class NavigatorWidgetFactory implements WidgetFactory {
             id: EXPLORER_VIEW_CONTAINER_ID,
             progressLocationId: 'explorer'
         });
-        viewContainer.setTitleOptions(EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS);
+        viewContainer.setTitleOptions({
+            ...EXPLORER_VIEW_CONTAINER_TITLE_OPTIONS,
+            label: nls.localize('rockit/fileExplorer/workspace', 'Workspace'),
+            caption: nls.localize('rockit/fileExplorer/workspace', 'Workspace'),
+        });
         const navigatorWidget = await this.widgetManager.getOrCreateWidget(FILE_NAVIGATOR_ID);
         viewContainer.addWidget(navigatorWidget, this.fileNavigatorWidgetOptions);
         return viewContainer;
