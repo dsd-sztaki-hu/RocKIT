@@ -17,6 +17,12 @@ export class RockitLocalizationContribution
   implements LocalizationContribution
 {
   async registerLocalizations(registry: LocalizationRegistry): Promise<void> {
+    // The Settings editor and several workbench widgets reuse VS Code NLS keys.
+    // Load the compatible upstream catalog first, then apply RockIT's wording.
+    registry.registerLocalizationFromRequire(
+      'hu',
+      require('../../i18n/vscode.hu.json'),
+    )
     registry.registerLocalizationFromRequire({
       languageId: 'hu',
       languageName: 'Hungarian',

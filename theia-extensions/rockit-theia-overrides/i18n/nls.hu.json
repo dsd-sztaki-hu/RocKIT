@@ -1,5 +1,42 @@
 {
   "rockit": {
+    "settings": {
+      "identifier": {
+        "files": "Fájlok",
+        "editor": "Szerkesztő",
+        "autoSave": "Automatikus mentés",
+        "fontSize": "Betűméret",
+        "fontFamily": "Betűkészlet",
+        "tabSize": "Tabulátorméret",
+        "renderWhitespace": "Térközkarakterek megjelenítése",
+        "cursorStyle": "Kurzor stílusa",
+        "multiCursorModifier": "Többkurzoros módosítóbillentyű",
+        "insertSpaces": "Szóközök beszúrása",
+        "wordWrap": "Sortörés",
+        "exclude": "Kizárás",
+        "associations": "Fájltársítások",
+        "autoClosingQuotes": "Idézőjelek automatikus lezárása",
+        "autoIndent": "Automatikus behúzás",
+        "autoSurround": "Kijelölés automatikus körülvétele"
+      },
+      "value": {
+        "off": "Ki",
+        "afterDelay": "Késleltetés után",
+        "onFocusChange": "Fókuszváltáskor",
+        "onWindowChange": "Ablakváltáskor",
+        "default": "alapértelmezett",
+        "always": "Mindig",
+        "languageDefined": "Nyelvfüggő",
+        "beforeWhitespace": "Térköz előtt",
+        "never": "Soha",
+        "none": "Nincs",
+        "keep": "Megtartás",
+        "brackets": "Zárójelek",
+        "advanced": "Haladó",
+        "full": "Teljes",
+        "quotes": "Idézőjelek"
+      }
+    },
     "common": {
       "cancel": "Mégse",
       "yes": "igen",
@@ -1099,6 +1136,96 @@
     }
   },
   "vscode": {
+    "userDataSync": {
+      "settings": "Beállítások",
+      "extensions": "Kiegészítők",
+      "sync category": "Szinkronizálás"
+    },
+    "settingsEditor2": {
+      "SearchSettings.AriaLabel": "Beállítások keresése"
+    },
+    "keybindingsEditorModel": {
+      "user": "Felhasználó"
+    },
+    "preferencesModels": {
+      "commonlyUsed": "Gyakran használt"
+    },
+    "viewsService": {
+      "editor": "Szövegszerkesztő"
+    },
+    "settingsLayout": {
+      "workbench": "Munkaterület",
+      "features": "Funkciók",
+      "security": "Biztonság",
+      "cursor": "Kurzor",
+      "find": "Keresés",
+      "font": "Betűtípus",
+      "formatting": "Formázás",
+      "diffEditor": "Differenciaszerkesztő",
+      "multiDiffEditor": "Többfájlos differenciaszerkesztő",
+      "minimap": "Kódtérkép",
+      "suggestions": "Javaslatok",
+      "files": "Fájlok",
+      "appearance": "Megjelenés",
+      "breadcrumbs": "Navigációs sáv",
+      "editorManagement": "Szerkesztőablak-kezelés",
+      "settings": "Beállításszerkesztő",
+      "newWindow": "Új ablak",
+      "fileExplorer": "Fájlkezelő",
+      "problems": "Problémák",
+      "comments": "Megjegyzések",
+      "timeline": "Idővonal",
+      "mergeEditor": "Egyesítésszerkesztő",
+      "chat": "Csevegés",
+      "experimental": "Kísérleti",
+      "other": "Egyéb"
+    },
+    "editorOptions": {
+      "autoIndent": "Meghatározza, hogy a szerkesztő gépeléskor, beillesztéskor, illetve sorok áthelyezésekor vagy behúzásakor automatikusan módosítsa-e a behúzást."
+    },
+    "logConstants": {
+      "window": "Ablak"
+    },
+    "remote.contribution": {
+      "remote.portsAttributes.labelDefault": "Alkalmazás"
+    },
+    "testTypes": {
+      "testing.runProfileBitset.debug": "Hibakeresés"
+    },
+    "configuration": {
+      "testConfigurationTitle": "Tesztelés"
+    },
+    "scmViewPaneContainer": {
+      "source control": "Verziókezelés"
+    },
+    "terminalStrings": {
+      "terminalCategory": "Terminál",
+      "task": "Feladat"
+    },
+    "viewQuickAccess": {
+      "channels": "Kimenet"
+    },
+    "extensionManagementServerService": {
+      "remote": "Távoli"
+    },
+    "timelinePane": {
+      "timeline": "Idővonal"
+    },
+    "newFile.contribution": {
+      "notebook": "Jegyzetfüzet"
+    },
+    "tunnelView": {
+      "remote.tunnel.protocolHttp": "HTTP"
+    },
+    "keyboardLayoutService": {
+      "keyboardConfigurationTitle": "Billentyűzet"
+    },
+    "update.contribution": {
+      "updateButton": "Frissítés"
+    },
+    "desktop.contribution": {
+      "telemetryConfigurationTitle": "Telemetria"
+    },
     "labelService": {
       "temporaryWorkspace": "Munkaterület"
     },

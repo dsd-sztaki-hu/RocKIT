@@ -2,6 +2,8 @@ import { FrontendApplicationContribution, WidgetFactory } from '@theia/core/lib/
 import { ShellLayoutTransformer } from '@theia/core/lib/browser/shell/shell-layout-restorer'
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common'
 import { ContainerModule } from '@theia/core/shared/inversify'
+import { PreferenceTreeLabelProvider } from '@theia/preferences/lib/browser/util/preference-tree-label-provider'
+import { PreferenceNodeRendererContribution } from '@theia/preferences/lib/browser/views/components/preference-node-renderer-creator'
 import { bindRockitSplashPreferences } from '../common/rockit-splash-preferences'
 import { RoCrateDefaultLayoutContribution } from './application-default-layout-contribution'
 import { ApplicationEditMenuOverrides } from './application-edit-menu-overrides'
@@ -15,11 +17,22 @@ import { EmptyWorkspaceWidget } from './empty-workspace-widget'
 import { FileEditorLanguageContribution } from './file-editor-language-contribution'
 import { HelpIconsToggleContribution } from './help-icons-toggle-contribution'
 import { RockitSplashContribution } from './rockit-splash-contribution'
+import { RockitPreferenceTreeLabelProvider } from './rockit-preference-tree-label-provider'
+import {
+  RockitPreferenceSelectInputRenderer,
+  RockitPreferenceSelectInputRendererContribution,
+} from './rockit-preference-select-input'
 import '../../src/browser/style/empty-workspace.css'
 import '../../src/browser/style/help-icons.css'
 import '../../src/browser/style/panel-backgrounds.css'
 
-export default new ContainerModule((bind) => {
+export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
+  bind(RockitPreferenceTreeLabelProvider).toSelf().inSingletonScope()
+  rebind(PreferenceTreeLabelProvider).toService(RockitPreferenceTreeLabelProvider)
+  bind(RockitPreferenceSelectInputRenderer).toSelf()
+  bind(PreferenceNodeRendererContribution)
+    .to(RockitPreferenceSelectInputRendererContribution)
+    .inSingletonScope()
   bind(EmptyWorkspaceWidget).toSelf()
   bind(WidgetFactory)
     .toDynamicValue((ctx) => ({
