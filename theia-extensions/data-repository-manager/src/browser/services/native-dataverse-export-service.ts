@@ -288,11 +288,19 @@ export class NativeDataverseExportService {
         });
         const responsePayload = await this.readResponsePayload(response);
         if (!response.ok || responsePayload.status === 'ERROR') {
-            throw new Error(`Dataverse dataset creation failed (${response.status}): ${this.payloadSummary(responsePayload)}`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/nativeDatasetCreationRequestFailed',
+                'Dataverse dataset creation failed ({0}): {1}',
+                response.status,
+                this.payloadSummary(responsePayload)
+            ));
         }
         const persistentId = responsePayload.data?.persistentId;
         if (!persistentId) {
-            throw new Error('Dataverse created the dataset but did not return a persistentId. File upload cannot continue.');
+            throw new Error(nls.localize(
+                'rockit/dataRepository/datasetCreatedWithoutPersistentId',
+                'Dataverse created the dataset but did not return a persistentId. File upload cannot continue.'
+            ));
         }
         await this.addDatasetSemanticMetadata(
             baseUrl,
@@ -319,7 +327,10 @@ export class NativeDataverseExportService {
         const uploadedFiles = [...uploadedDataFiles, uploadedMetadata];
         const metadataFileId = this.extractDataFileId(uploadedMetadata.response);
         if (!metadataFileId) {
-            throw new Error('Dataverse uploaded ro-crate-metadata.json but did not return its database ID.');
+            throw new Error(nls.localize(
+                'rockit/dataRepository/metadataUploadMissingId',
+                'Dataverse uploaded ro-crate-metadata.json but did not return its database ID.'
+            ));
         }
         entityIdMapping['ro-crate-metadata.json'] = metadataFileId;
         const mappingFileName = await this.createUniqueMappingFileName(rootUri);
@@ -387,7 +398,10 @@ export class NativeDataverseExportService {
         const metadataFileId = exportTarget.mapping['ro-crate-metadata.json']
             ?? draftFiles.find(file => file.label === 'ro-crate-metadata.json')?.id;
         if (!metadataFileId) {
-            throw new Error('The existing Dataverse export does not contain a mapped ro-crate-metadata.json file.');
+            throw new Error(nls.localize(
+                'rockit/dataRepository/existingExportMissingMetadataMapping',
+                'The existing Dataverse export does not contain a mapped ro-crate-metadata.json file.'
+            ));
         }
         exportTarget.mapping['ro-crate-metadata.json'] = metadataFileId;
         const remoteMetadataCrate = await this.downloadRemoteMetadataFile(baseUrl, repository.apiKey, metadataFileId);
@@ -446,7 +460,11 @@ export class NativeDataverseExportService {
             const result = await this.uploadFile(baseUrl, repository.apiKey, exportTarget.persistentId, uploadFile);
             const remoteId = this.extractDataFileId(result.response);
             if (!remoteId) {
-                throw new Error(`Dataverse uploaded '${localId}' but did not return its database ID.`);
+                throw new Error(nls.localize(
+                    'rockit/dataRepository/fileUploadMissingDatabaseId',
+                    "Dataverse uploaded '{0}' but did not return its database ID.",
+                    localId
+                ));
             }
             exportTarget.mapping[localId] = remoteId;
             completedSteps += 1;
@@ -572,20 +590,27 @@ export class NativeDataverseExportService {
         const roots = this.workspaceService.tryGetRoots();
         const rootUri = roots?.[0]?.resource;
         if (!rootUri) {
-            throw new Error('No workspace is open.');
+            throw new Error(nls.localize('rockit/dataRepository/noWorkspace', 'No workspace is open.'));
         }
         return rootUri;
     }
 
     protected async readRoCrate(metadataUri: URI): Promise<RoCrate> {
         if (!(await this.fileService.exists(metadataUri))) {
-            throw new Error('ro-crate-metadata.json was not found in the workspace root.');
+            throw new Error(nls.localize(
+                'rockit/dataRepository/metadataFileNotFound',
+                'ro-crate-metadata.json was not found in the workspace root.'
+            ));
         }
         const content = await this.fileService.readFile(metadataUri);
         try {
             return JSON.parse(content.value.toString()) as RoCrate;
         } catch (error) {
-            throw new Error(`Failed to parse ro-crate-metadata.json: ${error instanceof Error ? error.message : String(error)}`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/parseMetadataFailed',
+                'Failed to parse ro-crate-metadata.json: {0}',
+                error instanceof Error ? error.message : String(error)
+            ));
         }
     }
 
@@ -601,14 +626,18 @@ export class NativeDataverseExportService {
         const subjects = this.uniqueStrings(datasetMetadata.subjects.map(value => value.trim()));
         const missing: string[] = [];
 
-        if (!title) missing.push('Title');
-        if (!authors.length) missing.push('Author Name');
-        if (!contactEmails.length) missing.push('Point of Contact Email');
-        if (!descriptions.length) missing.push('Description Text');
-        if (!subjects.length) missing.push('Subject');
+        if (!title) missing.push(nls.localize('rockit/dataRepository/metadataTitle', 'Title'));
+        if (!authors.length) missing.push(nls.localize('rockit/dataRepository/authorName', 'Author Name'));
+        if (!contactEmails.length) missing.push(nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email'));
+        if (!descriptions.length) missing.push(nls.localize('rockit/dataRepository/descriptionText', 'Description Text'));
+        if (!subjects.length) missing.push(nls.localize('rockit/dataRepository/subject', 'Subject'));
 
         if (missing.length) {
-            throw new Error(`Cannot create Dataverse dataset. Missing required metadata: ${missing.join(', ')}.`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/missingRequiredMetadata',
+                'Cannot create Dataverse dataset. Missing required metadata: {0}.',
+                missing.join(', ')
+            ));
         }
 
         const fields: DataverseMetadataField[] = [
@@ -800,7 +829,12 @@ export class NativeDataverseExportService {
         });
         const responsePayload = await this.readResponsePayload(response);
         if (!response.ok || responsePayload.status === 'ERROR') {
-            throw new Error(`Dataverse semantic metadata update failed (${response.status}): ${this.payloadSummary(responsePayload)}`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/semanticMetadataUpdateFailed',
+                'Dataverse semantic metadata update failed ({0}): {1}',
+                response.status,
+                this.payloadSummary(responsePayload)
+            ));
         }
     }
 
@@ -833,7 +867,12 @@ export class NativeDataverseExportService {
         });
         const responsePayload = await this.readResponsePayload(response);
         if (!response.ok || responsePayload.status === 'ERROR') {
-            throw new Error(`Dataverse native metadata update failed (${response.status}): ${this.payloadSummary(responsePayload)}`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/nativeMetadataUpdateFailed',
+                'Dataverse native metadata update failed ({0}): {1}',
+                response.status,
+                this.payloadSummary(responsePayload)
+            ));
         }
     }
 
@@ -1309,7 +1348,13 @@ export class NativeDataverseExportService {
         });
         const payload = await this.readResponsePayload(response);
         if (!response.ok || payload.status === 'ERROR') {
-            throw new Error(`Dataverse file upload failed for '${file.entryPath}' (${response.status}): ${this.payloadSummary(payload)}`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/dataverseFileUploadFailed',
+                "Dataverse file upload failed for '{0}' ({1}): {2}",
+                file.entryPath,
+                response.status,
+                this.payloadSummary(payload)
+            ));
         }
         return {
             entryPath: file.entryPath,
@@ -1344,7 +1389,13 @@ export class NativeDataverseExportService {
         });
         const payload = await this.readResponsePayload(response);
         if (!response.ok || payload.status === 'ERROR') {
-            throw new Error(`Dataverse file replacement failed for '${file.entryPath}' (${response.status}): ${this.payloadSummary(payload)}`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/dataverseFileReplacementFailed',
+                "Dataverse file replacement failed for '{0}' ({1}): {2}",
+                file.entryPath,
+                response.status,
+                this.payloadSummary(payload)
+            ));
         }
         return {
             entryPath: file.entryPath,
@@ -1370,7 +1421,13 @@ export class NativeDataverseExportService {
         });
         const payload = await this.readResponsePayload(response);
         if (!response.ok || payload.status === 'ERROR') {
-            throw new Error(`Dataverse file deletion failed for file ${fileId} (${response.status}): ${this.payloadSummary(payload)}`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/dataverseFileDeletionFailed',
+                'Dataverse file deletion failed for file {0} ({1}): {2}',
+                fileId,
+                response.status,
+                this.payloadSummary(payload)
+            ));
         }
     }
 
@@ -1387,16 +1444,28 @@ export class NativeDataverseExportService {
         const response = await fetch(requestUrl, { headers });
         const text = await response.text();
         if (!response.ok) {
-            throw new Error(`Failed to download remote ro-crate-metadata.json (${response.status}): ${text.slice(0, 500)}`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/remoteMetadataDownloadFailed',
+                'Failed to download remote ro-crate-metadata.json ({0}): {1}',
+                response.status,
+                text.slice(0, 500)
+            ));
         }
         try {
             const parsed = JSON.parse(text) as RoCrate;
             if (!Array.isArray(parsed['@graph'])) {
-                throw new Error('Downloaded JSON does not contain an @graph.');
+                throw new Error(nls.localize(
+                    'rockit/dataRepository/downloadedJsonMissingGraph',
+                    'Downloaded JSON does not contain an @graph.'
+                ));
             }
             return parsed;
         } catch (error) {
-            throw new Error(`Remote ro-crate-metadata.json is invalid: ${error instanceof Error ? error.message : String(error)}`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/remoteMetadataInvalid',
+                'Remote ro-crate-metadata.json is invalid: {0}',
+                error instanceof Error ? error.message : String(error)
+            ));
         }
     }
 
@@ -1409,7 +1478,11 @@ export class NativeDataverseExportService {
             ?? this.localCratePathFromEntityId(entityId);
         const uploadFile = entryPath ? uploadFilesByPath.get(entryPath) : undefined;
         if (!uploadFile) {
-            throw new Error(`Cannot resolve local upload content for File entity '${entityId}'.`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/uploadContentUnavailable',
+                "Cannot resolve local upload content for File entity '{0}'.",
+                entityId
+            ));
         }
         return uploadFile;
     }
@@ -1700,7 +1773,10 @@ export class NativeDataverseExportService {
     protected requireEntityId(entity: RoCrateEntity): string {
         const id = this.readStrings(entity['@id'])[0];
         if (!id) {
-            throw new Error('Dataverse dataset created, but an entity mapping file could not be created. An RO-Crate entity has no @id.');
+            throw new Error(nls.localize(
+                'rockit/dataRepository/entityMappingMissingId',
+                'Dataverse dataset created, but an entity mapping file could not be created. An RO-Crate entity has no @id.'
+            ));
         }
         return id;
     }
@@ -1807,7 +1883,12 @@ export class NativeDataverseExportService {
         const response = await fetch(requestUrl, { headers });
         const payload = await this.readResponsePayload(response);
         if (!response.ok || payload.status === 'ERROR') {
-            throw new Error(`Failed to retrieve Dataverse draft files (${response.status}): ${this.payloadSummary(payload)}`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/draftFilesFetchFailed',
+                'Failed to retrieve Dataverse draft files ({0}): {1}',
+                response.status,
+                this.payloadSummary(payload)
+            ));
         }
         return this.extractDraftFileRecords(payload);
     }
@@ -1826,11 +1907,19 @@ export class NativeDataverseExportService {
         const response = await fetch(requestUrl, { headers });
         const payload = await this.readResponsePayload(response);
         if (!response.ok || payload.status === 'ERROR') {
-            throw new Error(`Failed to retrieve Dataverse dataset metadata (${response.status}): ${this.payloadSummary(payload)}`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/datasetMetadataFetchFailed',
+                'Failed to retrieve Dataverse dataset metadata ({0}): {1}',
+                response.status,
+                this.payloadSummary(payload)
+            ));
         }
         const data = payload.data;
         if (!data || typeof data !== 'object' || Array.isArray(data)) {
-            throw new Error('Dataverse dataset metadata response did not contain a data object.');
+            throw new Error(nls.localize(
+                'rockit/dataRepository/datasetMetadataMissingData',
+                'Dataverse dataset metadata response did not contain a data object.'
+            ));
         }
         return data;
     }
@@ -2235,7 +2324,10 @@ export class NativeDataverseExportService {
     protected normalizeBaseUrl(baseUrl: string): string {
         const normalized = baseUrl.trim().replace(/\/+$/, '');
         if (!normalized) {
-            throw new Error('Repository base URL is empty.');
+            throw new Error(nls.localize(
+                'rockit/dataRepository/emptyRepositoryBaseUrl',
+                'Repository base URL is empty.'
+            ));
         }
         return normalized.endsWith('/api/v1') ? normalized.slice(0, -'/api/v1'.length) : normalized;
     }
