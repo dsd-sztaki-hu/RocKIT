@@ -747,12 +747,17 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     ), () =>
       this.resolveRocrateMcpSocketPath(),
     )
+    const selectedLocale =
+      nls.localization?.languageId ?? nls.locale ?? nls.defaultLocale ?? 'en'
     return {
       command: runtime.command,
       args: [serverPath, '--connect', socketPath],
       env: {
         ...runtime.env,
         ROCRATE_MCP_DEFAULT_MODE: 'local',
+        ROCRATE_DASHBOARD_LOCALE: selectedLocale.toLowerCase().startsWith('hu')
+          ? 'hu'
+          : 'en',
       },
       socketPath,
     }
