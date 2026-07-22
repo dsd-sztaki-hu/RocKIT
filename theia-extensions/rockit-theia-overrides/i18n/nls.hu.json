@@ -490,6 +490,7 @@
       "configureConnectionDescription": "Adja meg a távoli metaadat-repozitórium kapcsolati adatait.",
       "error": "Hiba",
       "displayName": "Megjelenítendő név",
+      "displayNamePlaceholder": "pl. ARP Production",
       "baseUrl": "Alap-URL",
       "type": "Típus",
       "access": "Hozzáférés",

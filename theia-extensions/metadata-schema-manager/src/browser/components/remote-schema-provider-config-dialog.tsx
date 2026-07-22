@@ -239,7 +239,10 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
                                 value={this.titleValue}
                                 onChange={(e) => { this.titleValue = e.target.value; this.render(); }}
                                 disabled={this.isTesting}
-                                placeholder="e.g. ARP Production"
+                                placeholder={nls.localize(
+                                    'rockit/schemaManager/displayNamePlaceholder',
+                                    'e.g. ARP Production',
+                                )}
                                 autoFocus
                             />
                         </div>
