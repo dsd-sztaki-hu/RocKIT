@@ -266,7 +266,11 @@ export class NativeDataverseExportService {
         reportProgress?.({
             completedSteps: 0,
             totalSteps,
-            message: `Creating Dataverse dataset in ${collection.name}...`
+            message: nls.localize(
+                'rockit/dataRepository/creatingDatasetInCollection',
+                'Creating Dataverse dataset in {0}...',
+                collection.name
+            )
         });
         const requestUrl = `${baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/datasets`;
         const headers: Record<string, string> = {
@@ -423,11 +427,21 @@ export class NativeDataverseExportService {
         reportProgress?.({
             completedSteps,
             totalSteps,
-            message: `Checking complete: ${newFileIds.length} file(s) to upload, ${changedFileIds.length} file(s) to replace, and ${removedRemoteFileIds.length} file(s) to remove.`
+            message: nls.localize(
+                'rockit/dataRepository/checkingComplete',
+                'Checking complete: {0} file(s) to upload, {1} file(s) to replace, and {2} file(s) to remove.',
+                newFileIds.length,
+                changedFileIds.length,
+                removedRemoteFileIds.length
+            )
         });
 
         for (const localId of newFileIds) {
-            reportProgress?.({ completedSteps, totalSteps, message: `Uploading ${localId}...` });
+            reportProgress?.({
+                completedSteps,
+                totalSteps,
+                message: nls.localize('rockit/dataRepository/uploadingFile', 'Uploading {0}...', localId)
+            });
             const uploadFile = this.requireUploadFile(localId, uploadCollection, uploadFilesByPath);
             const result = await this.uploadFile(baseUrl, repository.apiKey, exportTarget.persistentId, uploadFile);
             const remoteId = this.extractDataFileId(result.response);
@@ -439,7 +453,11 @@ export class NativeDataverseExportService {
         }
 
         for (const localId of changedFileIds) {
-            reportProgress?.({ completedSteps, totalSteps, message: `Replacing ${localId}...` });
+            reportProgress?.({
+                completedSteps,
+                totalSteps,
+                message: nls.localize('rockit/dataRepository/replacingFile', 'Replacing {0}...', localId)
+            });
             const previousRemoteId = exportTarget.mapping[localId];
             const uploadFile = this.requireUploadFile(localId, uploadCollection, uploadFilesByPath);
             const result = await this.replaceFile(baseUrl, repository.apiKey, previousRemoteId, uploadFile);
@@ -448,7 +466,11 @@ export class NativeDataverseExportService {
         }
 
         for (const remoteId of removedRemoteFileIds) {
-            reportProgress?.({ completedSteps, totalSteps, message: `Removing ${remoteId}...` });
+            reportProgress?.({
+                completedSteps,
+                totalSteps,
+                message: nls.localize('rockit/dataRepository/removingFile', 'Removing {0}...', remoteId)
+            });
             await this.deleteFile(baseUrl, repository.apiKey, remoteId);
             this.removeMappedRemoteFileId(exportTarget.mapping, remoteId);
             completedSteps += 1;
@@ -1199,13 +1221,13 @@ export class NativeDataverseExportService {
             reportProgress?.({
                 completedSteps: completedOffset + index,
                 totalSteps,
-                message: `Uploading ${file.entryPath}...`
+                message: nls.localize('rockit/dataRepository/uploadingFile', 'Uploading {0}...', file.entryPath)
             });
             results.push(await this.uploadFile(baseUrl, apiKey, persistentId, file));
             reportProgress?.({
                 completedSteps: completedOffset + index + 1,
                 totalSteps,
-                message: `Uploaded ${file.entryPath}.`
+                message: nls.localize('rockit/dataRepository/uploadedFile', 'Uploaded {0}.', file.entryPath)
             });
         }
         return results;

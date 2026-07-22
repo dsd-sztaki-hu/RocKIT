@@ -276,7 +276,13 @@ export class ArpRoCrateExportService {
     reportProgress?.({
       completedSteps,
       totalSteps,
-      message: `Checking complete: ${diff.newFiles.length} file(s) to upload, ${changedFilesToReplace.length} file(s) to replace, and ${diff.removedFiles.length} file(s) to remove.`,
+      message: nls.localize(
+        'rockit/dataRepository/checkingComplete',
+        'Checking complete: {0} file(s) to upload, {1} file(s) to replace, and {2} file(s) to remove.',
+        diff.newFiles.length,
+        changedFilesToReplace.length,
+        diff.removedFiles.length,
+      ),
     })
     const localEntitiesById = new Map(
       this.readGraphEntities(uploadCrate).map((entity) => [
@@ -297,7 +303,11 @@ export class ArpRoCrateExportService {
       reportProgress?.({
         completedSteps,
         totalSteps,
-        message: `Uploading ${file.localId}...`,
+        message: nls.localize(
+          'rockit/dataRepository/uploadingFile',
+          'Uploading {0}...',
+          file.localId,
+        ),
       })
       const localFile = localEntitiesById.get(file.localId)
       if (!localFile) {
@@ -324,14 +334,22 @@ export class ArpRoCrateExportService {
       reportProgress?.({
         completedSteps,
         totalSteps,
-        message: `Uploaded ${file.localId}.`,
+        message: nls.localize(
+          'rockit/dataRepository/uploadedFile',
+          'Uploaded {0}.',
+          file.localId,
+        ),
       })
     }
     for (const file of changedFilesToReplace) {
       reportProgress?.({
         completedSteps,
         totalSteps,
-        message: `Replacing ${file.localId}...`,
+        message: nls.localize(
+          'rockit/dataRepository/replacingFile',
+          'Replacing {0}...',
+          file.localId,
+        ),
       })
       const localFile = localEntitiesById.get(file.localId)
       const remoteFile = remoteEntitiesById.get(file.remoteId)
@@ -361,14 +379,22 @@ export class ArpRoCrateExportService {
       reportProgress?.({
         completedSteps,
         totalSteps,
-        message: `Replaced ${file.localId}.`,
+        message: nls.localize(
+          'rockit/dataRepository/replacedFile',
+          'Replaced {0}.',
+          file.localId,
+        ),
       })
     }
     for (const file of diff.removedFiles) {
       reportProgress?.({
         completedSteps,
         totalSteps,
-        message: `Removing ${file.remoteId}...`,
+        message: nls.localize(
+          'rockit/dataRepository/removingFile',
+          'Removing {0}...',
+          file.remoteId,
+        ),
       })
       const remoteFile = remoteEntitiesById.get(file.remoteId)
       if (!remoteFile) {
@@ -387,7 +413,11 @@ export class ArpRoCrateExportService {
       reportProgress?.({
         completedSteps,
         totalSteps,
-        message: `Removed ${file.remoteId}.`,
+        message: nls.localize(
+          'rockit/dataRepository/removedFile',
+          'Removed {0}.',
+          file.remoteId,
+        ),
       })
     }
     reportProgress?.({
