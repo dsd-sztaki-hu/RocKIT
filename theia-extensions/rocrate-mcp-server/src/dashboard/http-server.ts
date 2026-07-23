@@ -40,12 +40,21 @@ import {
   type CedarProvider,
 } from 'metadata-profile-core'
 
-// Get the directory of this module for static file serving
-// In CommonJS compiled output, the static files are in lib/dashboard/static
-// We use __dirname which is available at runtime in the compiled CommonJS
 declare const __dirname: string
 
-const STATIC_DIR = __dirname
+function resolveStaticRoot(): string {
+  const candidates = [
+    __dirname,
+    path.join(__dirname, 'dashboard'),
+  ]
+  return (
+    candidates.find((candidate) =>
+      fs.existsSync(path.join(candidate, 'static', 'index.html')),
+    ) ?? __dirname
+  )
+}
+
+const STATIC_DIR = resolveStaticRoot()
 const DEFAULT_DATAVERSE_BASE_URL = 'http://localhost:8080'
 type AccessMode = 'local' | 'remote'
 
