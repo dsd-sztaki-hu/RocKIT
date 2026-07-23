@@ -691,50 +691,118 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       processEnv.ROCKIT_ROCRATE_MCP_NODE_PATH ??
       (await this.envVariablesServer.getValue('ROCKIT_ROCRATE_MCP_NODE_PATH'))?.value
 
+    const runtime = this.getElectronRuntimePaths()
+    // The renderer's process.execPath can be unavailable under context isolation;
+    // the backend always reports the live Electron binary via getExecPath().
+    const execPath = runtime.execPath ?? (await this.envVariablesServer.getExecPath())
+
+    // NOTE: this marker confirms whether the runtime-resolution code that uses
+    // the app.asar-based packaged check is actually present in this build.
+    console.info('[agent-launcher] MCP runtime resolution START (code=v2/app.asar)', {
+      platform: processValue?.platform,
+      arch: processValue?.arch,
+      electronVersion: processValue?.versions?.electron,
+      chromeVersion: processValue?.versions?.chrome,
+      nodeVersion: processValue?.versions?.node,
+      resourcesPath: runtime.resourcesPath,
+      rendererExecPath: runtime.execPath,
+      resolvedExecPath: execPath,
+      nodeOverride,
+      hasWindowLocation: typeof window !== 'undefined',
+      windowLocationPathname: typeof window === 'undefined' ? undefined : window.location.pathname,
+    })
+
     if (nodeOverride) {
+      console.info('[agent-launcher] MCP runtime resolution => override-node', { command: nodeOverride })
       return { command: nodeOverride, env: {} }
     }
 
-    const runtime = this.getElectronRuntimePaths()
-    const locationPath =
-      typeof window === 'undefined' ? undefined : window.location.pathname
-    if (this.isPackagedElectronRuntime(runtime, locationPath)) {
+    let packaged = false
+    if (execPath) {
+      // process.resourcesPath is not always exposed to the renderer, so the
+      // app.asar existence check is optional; the execPath heuristic below still
+      // distinguishes packaged from dev when resourcesPath is unavailable.
+      packaged = await this.isPackagedElectronRuntime(runtime.resourcesPath, execPath)
+    }
+    console.info('[agent-launcher] MCP runtime resolution packaged check', {
+      resourcesPathPresent: !!runtime.resourcesPath,
+      execPathPresent: !!execPath,
+      packaged,
+    })
+
+    // Packaged build: launch the bundled Electron executable as a plain Node
+    // runtime (ELECTRON_RUN_AS_NODE=1), independent of the user's Node install.
+    if (packaged && execPath) {
+      console.info('[agent-launcher] MCP runtime resolution => packaged-electron-as-node', { command: execPath })
       return {
-        command: runtime.execPath,
+        command: execPath,
         env: { ELECTRON_RUN_AS_NODE: '1' },
       }
     }
 
+    // Development build: prefer the Node the user has installed on their system.
     const nodeCommand = await this.findExecutableAbsolutePath(['node'])
     if (nodeCommand) {
+      console.info('[agent-launcher] MCP runtime resolution => user-node', { command: nodeCommand })
       return { command: nodeCommand, env: {} }
     }
 
-    const backendExecPath = await this.envVariablesServer.getExecPath()
-    if (backendExecPath) {
-      return {
-        command: backendExecPath,
-        env: { ELECTRON_RUN_AS_NODE: '1' },
-      }
-    }
-
-    const execPath = runtime.execPath
+    // Last-resort fallback when no user Node is on PATH: run the Electron binary
+    // as Node so the server can still start.
     if (execPath) {
       const env: Record<string, string> = {}
       if (processValue?.versions?.electron) {
         env.ELECTRON_RUN_AS_NODE = '1'
       }
+      console.info('[agent-launcher] MCP runtime resolution => fallback-electron-as-node', { command: execPath })
       return { command: execPath, env }
     }
 
+    console.error('[agent-launcher] MCP runtime resolution => FAILED to resolve a Node runtime')
     throw new Error('Could not resolve a Node runtime for the RO-Crate MCP server.')
   }
 
-  protected isPackagedElectronRuntime(
-    runtime: { resourcesPath?: string; execPath?: string },
-    locationPath: string | undefined,
-  ): runtime is { resourcesPath: string; execPath: string } {
-    return !!runtime.resourcesPath && !!runtime.execPath && !!locationPath?.includes('app.asar')
+  /**
+   * Detects a packaged (production) Electron build. Mirrors Electron's own
+   * `app.isPackaged` check: a packaged app ships an `app.asar` archive inside
+   * its Resources directory, whereas the development Electron binary (run from
+   * `node_modules/electron`) only ships `default_app.asar`. This is reliable on
+   * Windows, macOS and Linux alike because it depends neither on the frontend
+   * URL nor on the user having Node installed.
+   */
+  protected async isPackagedElectronRuntime(
+    resourcesPath: string | undefined,
+    execPath: string,
+  ): Promise<boolean> {
+    let asarPath: string | undefined
+    let asarExists = false
+    let asarError: string | undefined
+    if (resourcesPath) {
+      asarPath = joinPlatformPath(resourcesPath, 'app.asar')
+      try {
+        asarExists = await this.fileService.exists(FileUri.create(asarPath))
+      } catch (error) {
+        asarError = error instanceof Error ? error.message : String(error)
+      }
+    }
+
+    const heuristic = !(
+      /[\\/]node_modules[\\/]/i.test(execPath) ||
+      /[\\/]electron[\\/]dist[\\/]/i.test(execPath) ||
+      /[\\/]default_app\.asar(?:[\\/]|$)/i.test(execPath)
+    )
+    const result = asarExists || heuristic
+
+    console.info('[agent-launcher] isPackagedElectronRuntime', {
+      resourcesPath,
+      asarPath,
+      asarExists,
+      asarError,
+      execPath,
+      heuristic,
+      result,
+    })
+    return result
   }
 
   protected async resolveRocrateMcpSocketPath(): Promise<string> {
