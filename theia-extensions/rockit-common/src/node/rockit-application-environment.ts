@@ -48,6 +48,11 @@ export function initializeRockitApplicationEnvironment(): string {
   setDefault('ARP_W3ID_PROD', 'https://w3id.org/arp/schema/')
   setDefault('ARP_W3ID_DEV', 'https://w3id.org/arp/dev/schema/')
 
+  setDefault('ROCKIT_ROCRATE_MCP_NODE_PATH', process.execPath)
+  if (process.versions.electron) {
+    setDefault('ROCKIT_ROCRATE_MCP_ELECTRON_RUN_AS_NODE', '1')
+  }
+
   fs.mkdirSync(rootPath, { recursive: true })
   console.info(`[RockitEnvironment] Runtime storage root: ${rootPath}`)
   return rootPath
