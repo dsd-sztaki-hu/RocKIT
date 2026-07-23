@@ -1,0 +1,50 @@
+.export-delete-confirm {
+    display: grid; grid-template-columns: 42px 1fr; gap: 0 14px;
+    padding: 22px; color: var(--theia-foreground);
+}
+.export-delete-confirm__icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; border-radius: 50%;
+    background: var(--theia-list-hoverBackground); color: var(--theia-textLink-foreground);
+}
+.export-delete-confirm__icon--danger {
+    background: var(--theia-inputValidation-errorBackground); color: var(--theia-errorForeground);
+}
+.export-delete-confirm__content h3 { margin: 0 0 5px; font-size: 15px; }
+.export-delete-confirm__dataset {
+    overflow: hidden; color: var(--theia-descriptionForeground); font-size: 12px;
+    text-overflow: ellipsis; white-space: nowrap;
+}
+.export-delete-confirm__content p {
+    margin: 14px 0 0; color: var(--theia-descriptionForeground); line-height: 1.45;
+}
+.export-delete-confirm__warning {
+    display: flex; gap: 9px; align-items: flex-start; margin-top: 14px; padding: 10px;
+    border-left: 3px solid var(--theia-inputValidation-warningBorder);
+    background: var(--theia-inputValidation-warningBackground);
+    color: var(--theia-inputValidation-warningForeground); line-height: 1.4;
+}
+.export-delete-confirm__warning svg { flex: 0 0 auto; font-size: 18px; }
+.export-delete-confirm__danger-button {
+    background: var(--theia-inputValidation-errorBorder, #c42b1c) !important;
+    color: var(--theia-button-foreground) !important;
+    border: 1px solid var(--theia-inputValidation-errorBorder, #c42b1c) !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+.export-delete-confirm__danger-button:focus,
+.export-delete-confirm__danger-button:focus-visible {
+    border-color: var(--theia-inputValidation-errorBorder, #c42b1c) !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+.export-delete-confirm__cancel-button {
+    border: 1px solid var(--theia-button-secondaryForeground) !important;
+    background: var(--theia-button-secondaryBackground) !important;
+    color: var(--theia-button-secondaryForeground) !important;
+}
+.export-delete-confirm__cancel-button:hover,
+.export-delete-confirm__cancel-button:focus-visible {
+    border-color: var(--theia-focusBorder) !important;
+    background: var(--theia-button-secondaryHoverBackground) !important;
+}

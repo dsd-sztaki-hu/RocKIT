@@ -10,6 +10,12 @@ import {
     RoCrateExportFileSource
 } from 'rockit-common/lib/common/ro-crate-export-file-references';
 import { DataRepositoryConfig, DataRepositoryExportTarget, DataverseCollection } from '../types';
+import {
+    appendExportLogEvent,
+    ExportLogEntry,
+    normalizeExportLogEntries,
+    serializeExportLogEntries
+} from './export-log';
 
 type RoCrateEntity = Record<string, unknown>;
 type RoCrate = Record<string, unknown>;
@@ -91,15 +97,6 @@ export interface NativeDataverseFileUploadResult {
 interface NativeDataverseUploadFile {
     entryPath: string;
     content: Uint8Array;
-}
-
-interface ExportLogEntry {
-    target: string;
-    repository: string;
-    mappingFile: string;
-    syncType: 'create' | 'update';
-    syncedAt: string;
-    collectionId?: string;
 }
 
 interface NativeDataverseExportTarget {
@@ -1909,8 +1906,11 @@ export class NativeDataverseExportService {
         }
         const logUri = rockitUri.resolve(EXPORT_LOG_FILE_NAME);
         const entries = await this.readExportLogEntries(logUri);
-        entries.push(entry);
-        await this.fileService.writeFile(logUri, BinaryBuffer.fromString(`${JSON.stringify(entries, null, 2)}\n`));
+        const nextEntries = appendExportLogEvent(entries, entry);
+        await this.fileService.writeFile(
+            logUri,
+            BinaryBuffer.fromString(`${JSON.stringify(serializeExportLogEntries(nextEntries), null, 2)}\n`)
+        );
     }
 
     protected async readExportLogEntries(logUri: URI): Promise<ExportLogEntry[]> {
@@ -1919,7 +1919,7 @@ export class NativeDataverseExportService {
         }
         try {
             const parsed = JSON.parse((await this.fileService.readFile(logUri)).value.toString());
-            return Array.isArray(parsed) ? parsed.filter((entry): entry is ExportLogEntry => !!entry && typeof entry === 'object' && !Array.isArray(entry)) : [];
+            return normalizeExportLogEntries(parsed);
         } catch (error) {
             console.warn('Failed to parse .rockit/export-log.json; starting a new export log.', error);
             return [];

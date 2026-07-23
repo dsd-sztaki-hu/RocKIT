@@ -9,6 +9,12 @@ import {
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import { inject, injectable } from 'inversify'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from '../types'
+import {
+  appendExportLogEvent,
+  ExportLogEntry,
+  normalizeExportLogEntries,
+  serializeExportLogEntries,
+} from './export-log'
 
 type RoCrateEntity = Record<string, unknown>
 type RoCrate = Record<string, unknown>
@@ -60,15 +66,6 @@ export interface ZenodoExportProgress {
 }
 
 export type ZenodoExportProgressReporter = (progress: ZenodoExportProgress) => void
-
-interface ExportLogEntry {
-  target: string
-  repository: string
-  mappingFile: string
-  syncType: 'create' | 'update'
-  syncedAt: string
-  datasetName?: string
-}
 
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
 
@@ -754,10 +751,10 @@ export class ZenodoExportService {
     }
     const logUri = rockitUri.resolve(EXPORT_LOG_FILE_NAME)
     const entries = await this.readExportLogEntries(logUri)
-    entries.push(entry)
+    const nextEntries = appendExportLogEvent(entries, entry)
     await this.fileService.writeFile(
       logUri,
-      BinaryBuffer.fromString(`${JSON.stringify(entries, null, 2)}\n`),
+      BinaryBuffer.fromString(`${JSON.stringify(serializeExportLogEntries(nextEntries), null, 2)}\n`),
     )
   }
 
@@ -767,12 +764,7 @@ export class ZenodoExportService {
     }
     try {
       const parsed = JSON.parse((await this.fileService.readFile(logUri)).value.toString())
-      return Array.isArray(parsed)
-        ? parsed.filter(
-            (entry): entry is ExportLogEntry =>
-              !!entry && typeof entry === 'object' && !Array.isArray(entry),
-          )
-        : []
+      return normalizeExportLogEntries(parsed)
     } catch (error) {
       console.warn('Failed to parse .rockit/export-log.json; starting a new export log.', error)
       return []

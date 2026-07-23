@@ -12,6 +12,10 @@ import {
 } from 'rockit-common/lib/browser'
 import { DataRepositoryConfigDialog } from './components/data-repository-config-dialog'
 import { DataRepositoryDeleteDialog } from './components/data-repository-delete-dialog'
+import {
+  DataRepositoryExportDeleteDialog,
+  ExportDeleteAction,
+} from './components/data-repository-export-delete-dialog'
 import { DataRepositorySelectorDialog } from './components/data-repository-selector-dialog'
 import { DataRepositoryTable } from './components/data-repository-table'
 import { DataRepositoryToolbar } from './components/data-repository-toolbar'
@@ -25,6 +29,7 @@ import {
 } from './services/arp-ro-crate-export-service'
 import { ArpRoCrateImportService } from './services/arp-ro-crate-import-service'
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
+import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service'
 import { DataverseCapabilityService } from './services/dataverse-capability-service'
 import { DataverseCollectionService } from './services/dataverse-collection-service'
 import { DataverseService } from './services/dataverse-service'
@@ -59,6 +64,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     @inject(MessageService) protected readonly messageService: MessageService,
     @inject(DataRepositoryStoreService)
     protected readonly storeService: DataRepositoryStoreService,
+    @inject(DataRepositoryExportDeleteService)
+    protected readonly exportDeleteService: DataRepositoryExportDeleteService,
     @inject(DataverseService) protected readonly dataverseService: DataverseService,
     @inject(DataverseCollectionService)
     protected readonly collectionService: DataverseCollectionService,
@@ -238,6 +245,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             void this.openRecentArpValidationResponse()
           }
         : undefined,
+      async (repository, target, action) =>
+        this.handleDeleteExportTarget(repository, target, action),
     )
     const repositorySelection = await selector.open()
 
@@ -594,6 +603,55 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
     }
     return merged
+  }
+
+  protected async handleDeleteExportTarget(
+    repository: DataRepositoryConfig,
+    target: DataRepositoryExportTarget,
+    action: ExportDeleteAction,
+  ): Promise<boolean> {
+    const capabilities = await this.capabilityService.detectRepositoryCapabilities(
+      repository.baseUrl,
+    )
+    const dialog = new DataRepositoryExportDeleteDialog(
+      target,
+      action,
+      capabilities.kind,
+    )
+    if (!(await dialog.open())) {
+      return false
+    }
+
+    const deleteRemote = action === 'delete'
+    const progress = await this.messageService.showProgress({
+      text: deleteRemote
+        ? `Deleting the remote dataset from ${repository.title}...`
+        : 'Removing the local export link...',
+    })
+    try {
+      await this.exportDeleteService.deleteExport(
+        repository,
+        capabilities,
+        target,
+        deleteRemote,
+      )
+      this.messageService.info(
+        deleteRemote
+          ? 'The remote dataset and local export link were deleted.'
+          : `The export was unlinked. The dataset remains in ${repository.title}.`,
+        { timeout: 8000 },
+      )
+      return true
+    } catch (error) {
+      console.error('Export deletion failed:', error)
+      this.messageService.error(
+        `Export deletion failed: ${error instanceof Error ? error.message : String(error)}`,
+        { timeout: 12000 },
+      )
+      return false
+    } finally {
+      progress.cancel()
+    }
   }
 
   protected getMissingArpDatasetCreationMetadata(): string[] {

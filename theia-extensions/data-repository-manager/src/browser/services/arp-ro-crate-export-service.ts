@@ -11,6 +11,12 @@ import {
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import { inject, injectable } from 'inversify'
 import { DataRepositoryConfig, DataRepositoryExportTarget, DataverseCollection } from '../types'
+import {
+  appendExportLogEvent,
+  ExportLogEntry,
+  normalizeExportLogEntries,
+  serializeExportLogEntries,
+} from './export-log'
 
 type RoCrateEntity = Record<string, any>
 type RoCrate = Record<string, any>
@@ -50,15 +56,6 @@ interface LocalizedExternalFileReferences {
 interface ArpUpdateUploadFile {
   entryPath: string
   content: Uint8Array
-}
-
-interface ExportLogEntry {
-  target: string
-  repository: string
-  mappingFile: string
-  syncType: 'create' | 'update'
-  syncedAt: string
-  datasetName?: string
 }
 
 interface ArpExportTarget {
@@ -1710,21 +1707,10 @@ export class ArpRoCrateExportService {
     }
     const historyUri = rockitUri.resolve(EXPORT_LOG_FILE_NAME)
     const entries = await this.readExportLogEntries(historyUri)
-    const entryPid = this.normalizePid(entry.target)
-    const existingIndex = entries.findIndex(
-      (existing) =>
-        existing.repository === entry.repository &&
-        this.normalizePid(existing.target) === entryPid,
-    )
-    const nextEntries = [...entries]
-    if (existingIndex >= 0) {
-      nextEntries[existingIndex] = entry
-    } else {
-      nextEntries.push(entry)
-    }
+    const nextEntries = appendExportLogEvent(entries, entry)
     await this.fileService.writeFile(
       historyUri,
-      BinaryBuffer.fromString(`${JSON.stringify(nextEntries, null, 2)}\n`),
+      BinaryBuffer.fromString(`${JSON.stringify(serializeExportLogEntries(nextEntries), null, 2)}\n`),
     )
   }
 
@@ -1736,12 +1722,7 @@ export class ArpRoCrateExportService {
       const parsed = JSON.parse(
         (await this.fileService.readFile(historyUri)).value.toString(),
       )
-      return Array.isArray(parsed)
-        ? parsed.filter(
-            (entry): entry is ExportLogEntry =>
-              !!entry && typeof entry === 'object' && !Array.isArray(entry),
-          )
-        : []
+      return normalizeExportLogEntries(parsed)
     } catch (error) {
       console.warn(
         'Failed to parse .rockit/export-log.json; starting a new export log.',

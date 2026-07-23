@@ -61,7 +61,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding-right: 5px;
+    padding: 0 5px 100px 0;
 }
 
 .data-repo-selector__repo-group {
@@ -204,8 +204,8 @@
     border-radius: 4px;
 }
 
-.data-repo-selector__export-item:has(.data-repo-selector__export-update:hover),
-.data-repo-selector__export-item:has(.data-repo-selector__export-update:focus-visible) {
+.data-repo-selector__export-item:has(.data-repo-selector__export-action:hover),
+.data-repo-selector__export-item:has(.data-repo-selector__export-action:focus-visible) {
     border-color: var(--theia-focusBorder);
     background-color: var(--theia-list-hoverBackground);
 }
@@ -269,31 +269,74 @@
     white-space: nowrap;
 }
 
-.data-repo-selector__export-update {
+.data-repo-selector__export-actions {
     align-self: stretch;
+    display: flex;
+    align-items: stretch;
+    margin-left: auto;
+}
+
+.data-repo-selector__export-action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 42px;
-    min-width: 42px;
-    margin-left: auto;
+    width: 36px;
+    min-width: 36px;
     border: none;
     background: transparent;
     color: var(--theia-icon-foreground);
     cursor: pointer;
     opacity: 0.5;
     padding: 0;
+    outline: none !important;
+    box-shadow: none !important;
 }
 
-.data-repo-selector__export-update:hover,
-.data-repo-selector__export-update:focus-visible {
-    opacity: 0.85;
-    outline: none;
+.data-repo-selector__export-action:hover,
+.data-repo-selector__export-action:focus-visible {
+    opacity: 1;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.data-repo-selector__export-action--delete:hover,
+.data-repo-selector__export-action--delete:focus-visible {
+    color: var(--theia-errorForeground);
 }
 
 .data-repo-selector__export-update-icon {
     font-size: 20px !important;
 }
+
+.data-repo-selector__delete-control { position: relative; display: flex; }
+.data-repo-selector__delete-menu {
+    position: absolute; z-index: 10; top: calc(100% - 3px); right: 2px; width: 205px;
+    padding: 5px; border: 1px solid var(--theia-menu-border, var(--theia-panel-border));
+    border-radius: 5px; background: var(--theia-menu-background);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+.data-repo-selector__delete-menu button {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 9px;
+    border: 0; border-radius: 3px; background: transparent;
+    color: var(--theia-menu-foreground); text-align: left; cursor: pointer;
+}
+.data-repo-selector__delete-menu button:hover,
+.data-repo-selector__delete-menu button:focus-visible {
+    background: var(--theia-menu-selectionBackground);
+    color: var(--theia-menu-selectionForeground); outline: none;
+}
+.data-repo-selector__delete-menu button:hover *,
+.data-repo-selector__delete-menu button:focus-visible * {
+    color: var(--theia-menu-selectionForeground) !important;
+}
+.data-repo-selector__delete-menu svg { flex: 0 0 auto; font-size: 18px; }
+.data-repo-selector__delete-menu span { display: flex; flex-direction: column; gap: 1px; }
+.data-repo-selector__delete-menu small {
+    color: var(--theia-descriptionForeground); font-size: 11px;
+}
+.data-repo-selector__delete-menu-danger strong,
+.data-repo-selector__delete-menu-danger > svg { color: var(--theia-errorForeground); }
 
 .data-repo-selector__validation-error-button {
     color: var(--theia-inputValidation-errorForeground, var(--theia-errorForeground));
@@ -306,4 +349,16 @@
     color: var(--theia-inputValidation-errorForeground, var(--theia-errorForeground));
     background-color: var(--theia-inputValidation-errorBackground, var(--theia-button-secondaryHoverBackground));
     border-color: var(--theia-errorForeground);
+}
+
+.data-repo-selector__cancel-button {
+    border: 1px solid var(--theia-button-secondaryForeground) !important;
+    background: var(--theia-button-secondaryBackground) !important;
+    color: var(--theia-button-secondaryForeground) !important;
+}
+
+.data-repo-selector__cancel-button:hover,
+.data-repo-selector__cancel-button:focus-visible {
+    border-color: var(--theia-focusBorder) !important;
+    background: var(--theia-button-secondaryHoverBackground) !important;
 }
