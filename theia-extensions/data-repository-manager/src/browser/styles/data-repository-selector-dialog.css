@@ -269,7 +269,18 @@
     white-space: nowrap;
 }
 
-.data-repo-selector__export-actions {
+.data-repo-selector__export-status {
+    display: inline-block;
+    margin-top: 3px;
+    font-size: 0.78em;
+    font-weight: 600;
+}
+
+.data-repo-selector__export-status--published {
+    color: var(--theia-testing-iconPassed, #2ea043);
+}
+
+.data-repo-selector__export-update {
     align-self: stretch;
     display: flex;
     align-items: stretch;

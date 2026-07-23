@@ -1143,7 +1143,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                     this.lastSelectedNodeKey = undefined
                     this.update()
                 }}
-                tabIndex={0}
+                tabIndex={-1}
                 onKeyDown={(event) => this.handleKeyDown(event)}
                 onDragOver={(event) => this.handleDragOver(event)}
                 onDragLeave={(event) => this.handleDragLeave(event)}

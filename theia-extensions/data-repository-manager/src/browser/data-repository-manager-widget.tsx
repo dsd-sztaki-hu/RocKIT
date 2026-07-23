@@ -33,6 +33,7 @@ import { DataRepositoryStoreService } from './services/data-repository-store-ser
 import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service'
 import { DataverseCapabilityService } from './services/dataverse-capability-service'
 import { DataverseCollectionService } from './services/dataverse-collection-service'
+import { DataverseMetadataBlockCacheService } from './services/dataverse-metadata-block-cache-service'
 import { DataverseService } from './services/dataverse-service'
 import {
   NativeDataverseDatasetMetadata,
@@ -81,6 +82,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly nativeImportService: NativeDataverseImportService,
     @inject(DataverseCapabilityService)
     protected readonly capabilityService: DataverseCapabilityService,
+    @inject(DataverseMetadataBlockCacheService)
+    protected readonly metadataBlockCacheService: DataverseMetadataBlockCacheService,
     @inject(RoCrateFileHashService)
     protected readonly fileHashService: RoCrateFileHashService,
     @inject(LoadMaskService)
@@ -150,6 +153,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       )
       return
     }
+    await this.loadDataverseMetadataBlocks(selectedRepo)
 
     const importDialog = new ArpRoCrateImportDialog(
       capabilities.supportsArpRoCrateZipUpload
@@ -263,12 +267,15 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     if (capabilities.supportsZenodoApi) {
       const progress = await this.messageService.showProgress({
-        text: `Uploading RO-Crate files to ${selectedRepo.title}...`,
+        text: selectedExportTarget
+          ? `Updating the Zenodo deposition in ${selectedRepo.title}...`
+          : `Uploading RO-Crate files to ${selectedRepo.title}...`,
       })
       try {
-        const exportResult =
-          await this.zenodoExportService.createDraftAndUploadRoCrate(
+        if (selectedExportTarget) {
+          const updateResult = await this.zenodoExportService.updateDeposition(
             selectedRepo,
+            selectedExportTarget,
             (update) =>
               progress.report({
                 message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
@@ -278,12 +285,31 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                 },
               }),
           )
+          this.messageService.info(
+            `Zenodo update completed for ${updateResult.target}. Uploaded ${updateResult.addedFileCount} new file(s), replaced ${updateResult.replacedFileCount}, removed ${updateResult.removedFileCount}, and kept ${updateResult.unchangedFileCount} unchanged.${updateResult.createdNewVersion ? ' A new-version draft was used.' : ''}`,
+            { timeout: 12000 },
+          )
+          console.log('Zenodo deposition updated:', updateResult)
+          return
+        }
+
+        const exportResult = await this.zenodoExportService.createDraftAndUploadRoCrate(
+          selectedRepo,
+          (update) =>
+            progress.report({
+              message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+              work: {
+                done: update.completedSteps,
+                total: update.totalSteps,
+              },
+            }),
+        )
         this.messageService.info(
           `Zenodo draft deposition created: ${exportResult.target}. Uploaded ${exportResult.uploadedFiles.length} file(s).`,
           { timeout: 10000 },
         )
         this.messageService.info(
-          'Zenodo metadata defaults were applied: upload type dataset, access right open, and license cc-zero. These can be changed in Zenodo.',
+          'RO-Crate metadata was converted to an in-memory Zenodo JSON payload and uploaded to the draft.',
           { timeout: 12000 },
         )
         console.log('RO-Crate files exported to Zenodo:', exportResult)
@@ -306,6 +332,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       )
       return
     }
+    await this.loadDataverseMetadataBlocks(selectedRepo)
 
     if (capabilities.supportsArpRoCrateZipUpload && selectedExportTarget) {
       const progress = await this.messageService.showProgress({
@@ -564,6 +591,27 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       error.payload,
     )
     await dialog.open()
+  }
+
+  protected async loadDataverseMetadataBlocks(
+    repository: DataRepositoryConfig,
+  ): Promise<void> {
+    const progress = await this.messageService.showProgress({
+      text: `Loading Dataverse metadata schemas from ${repository.title}...`,
+    })
+    try {
+      const saved =
+        await this.metadataBlockCacheService.loadTargetMetadataBlocks(repository)
+      console.log('Dataverse metadata blocks loaded:', saved)
+    } catch (error) {
+      console.warn('Failed to load Dataverse metadata blocks:', error)
+      this.messageService.warn(
+        `Dataverse metadata schemas could not be loaded: ${error instanceof Error ? error.message : String(error)}`,
+        { timeout: 10000 },
+      )
+    } finally {
+      progress.cancel()
+    }
   }
 
   protected handleAddRepository = async () => {
