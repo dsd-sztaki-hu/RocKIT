@@ -377,11 +377,6 @@ export class ArpRoCrateExportService {
       message: 'Synchronizing RO-Crate metadata...',
     })
     const metadataUpdateCrate = this.rewriteCrateEntityIds(uploadCrate, uploadMapping)
-    await this.fileService.writeFile(
-      rootUri.resolve('arp-rocrate-metadata-update-debug.json'),
-      BinaryBuffer.fromString(`${JSON.stringify(metadataUpdateCrate, null, 2)}\n`),
-    )
-    // Temporarily disabled while testing native Dataverse file removal.
     await this.updateRemoteRoCrate(
       baseUrl,
       repository.apiKey,

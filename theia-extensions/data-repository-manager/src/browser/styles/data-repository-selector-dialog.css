@@ -280,10 +280,12 @@
     color: var(--theia-testing-iconPassed, #2ea043);
 }
 
-.data-repo-selector__export-update {
+.data-repo-selector__export-actions {
     align-self: stretch;
     display: flex;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
     margin-left: auto;
 }
 
