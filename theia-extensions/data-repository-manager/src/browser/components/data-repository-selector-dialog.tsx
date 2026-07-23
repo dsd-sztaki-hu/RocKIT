@@ -32,6 +32,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
     private reactRoot: Root | undefined;
     private result: DataRepositorySelection | undefined;
     private openDeleteMenuKey: string | undefined;
+    private deleteMenuOpensUpward = false;
 
     constructor(
         private repositories: DataRepositoryConfig[],
@@ -100,6 +101,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         action: ExportDeleteAction
     ): Promise<void> {
         this.openDeleteMenuKey = undefined;
+        this.deleteMenuOpensUpward = false;
         this.render();
         if (await this.onDeleteExportTarget?.(repo, target, action)) {
             this.exportTargetsByRepositoryId[repo.id] =
@@ -121,6 +123,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                 onClick={() => {
                     if (this.openDeleteMenuKey) {
                         this.openDeleteMenuKey = undefined;
+                        this.deleteMenuOpensUpward = false;
                         this.render();
                     }
                 }}
@@ -226,8 +229,25 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                                 aria-expanded={this.openDeleteMenuKey === menuKey}
                                                 onClick={event => {
                                                     event.stopPropagation();
-                                                    this.openDeleteMenuKey =
-                                                        this.openDeleteMenuKey === menuKey ? undefined : menuKey;
+                                                    if (this.openDeleteMenuKey === menuKey) {
+                                                        this.openDeleteMenuKey = undefined;
+                                                        this.deleteMenuOpensUpward = false;
+                                                    } else {
+                                                        const buttonRect = event.currentTarget.getBoundingClientRect();
+                                                        const scrollViewport = event.currentTarget.closest(
+                                                            '.data-repo-selector__body'
+                                                        )?.getBoundingClientRect();
+                                                        const menuHeight = 112;
+                                                        const spaceBelow = scrollViewport
+                                                            ? scrollViewport.bottom - buttonRect.bottom
+                                                            : window.innerHeight - buttonRect.bottom;
+                                                        const spaceAbove = scrollViewport
+                                                            ? buttonRect.top - scrollViewport.top
+                                                            : buttonRect.top;
+                                                        this.deleteMenuOpensUpward =
+                                                            spaceBelow < menuHeight && spaceAbove > spaceBelow;
+                                                        this.openDeleteMenuKey = menuKey;
+                                                    }
                                                     this.render();
                                                 }}
                                             >
@@ -235,7 +255,11 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                             </button>
                                             {this.openDeleteMenuKey === menuKey && (
                                                 <div
-                                                    className="data-repo-selector__delete-menu"
+                                                    className={`data-repo-selector__delete-menu${
+                                                        this.deleteMenuOpensUpward
+                                                            ? ' data-repo-selector__delete-menu--upward'
+                                                            : ''
+                                                    }`}
                                                     role="menu"
                                                     onClick={event => event.stopPropagation()}
                                                 >
