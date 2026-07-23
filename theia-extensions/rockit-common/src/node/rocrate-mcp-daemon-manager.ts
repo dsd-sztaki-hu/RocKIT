@@ -24,6 +24,9 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
   async onStart(): Promise<void> {
     this.publishFrontendRuntimeEnv()
     if (!this.isAutoStartEnabled()) {
+      console.info(
+        '[rockit] RO-Crate MCP daemon auto-start disabled; MCP clients will start it from their configured launch command',
+      )
       return
     }
     await this.ensureStarted()
@@ -103,7 +106,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
   }
 
   protected isAutoStartEnabled(): boolean {
-    return process.env.ROCKIT_ROCRATE_MCP_AUTO_START !== 'false'
+    return process.env.ROCKIT_ROCRATE_MCP_AUTO_START === 'true'
   }
 
   protected publishFrontendRuntimeEnv(): void {

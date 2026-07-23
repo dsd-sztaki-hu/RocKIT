@@ -144,6 +144,13 @@ function basenamePlatformPath(value: string): string {
   return value.split(/[\\/]/).pop() ?? value
 }
 
+function isElectronRuntimePath(value: string | undefined): boolean {
+  return !!value && (
+    /(?:^|[\\/])electron(?:\.exe)?$/i.test(value) ||
+    /[\\/]electron[\\/]dist[\\/]electron(?:\.exe)?$/i.test(value)
+  )
+}
+
 function toTomlBasicString(value: string): string {
   return `"${value
     .replace(/\\/g, '\\\\')
@@ -690,6 +697,9 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const nodeOverride =
       processEnv.ROCKIT_ROCRATE_MCP_NODE_PATH ??
       (await this.envVariablesServer.getValue('ROCKIT_ROCRATE_MCP_NODE_PATH'))?.value
+    const electronRunAsNodeOverride =
+      processEnv.ROCKIT_ROCRATE_MCP_ELECTRON_RUN_AS_NODE ??
+      (await this.envVariablesServer.getValue('ROCKIT_ROCRATE_MCP_ELECTRON_RUN_AS_NODE'))?.value
 
     const runtime = this.getElectronRuntimePaths()
     // The renderer's process.execPath can be unavailable under context isolation;
@@ -713,8 +723,18 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     })
 
     if (nodeOverride) {
-      console.info('[agent-launcher] MCP runtime resolution => override-node', { command: nodeOverride })
-      return { command: nodeOverride, env: {} }
+      const env: Record<string, string> = {}
+      if (
+        electronRunAsNodeOverride === '1' ||
+        isElectronRuntimePath(nodeOverride)
+      ) {
+        env.ELECTRON_RUN_AS_NODE = '1'
+      }
+      console.info('[agent-launcher] MCP runtime resolution => override-node', {
+        command: nodeOverride,
+        electronRunAsNode: env.ELECTRON_RUN_AS_NODE === '1',
+      })
+      return { command: nodeOverride, env }
     }
 
     let packaged = false
