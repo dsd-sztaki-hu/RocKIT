@@ -1136,6 +1136,14 @@
     }
   },
   "vscode": {
+    "markers.contribution": {
+      "noProblems": "Nincs probléma"
+    },
+    "messages": {
+      "markers.panel.multiple.errors.label": "{0} hiba",
+      "markers.panel.multiple.warnings.label": "{0} figyelmeztetés",
+      "markers.panel.multiple.infos.label": "{0} információ"
+    },
     "userDataSync": {
       "settings": "Beállítások",
       "extensions": "Kiegészítők",
@@ -1212,7 +1220,87 @@
       "timeline": "Idővonal"
     },
     "newFile.contribution": {
-      "notebook": "Jegyzetfüzet"
+      "notebook": "Jegyzetfüzet",
+      "welcome.newFile": "Új fájl…",
+      "newFilePlaceholder": "Válasszon fájltípust, vagy adjon meg egy fájlnevet…"
+    },
+    "explorerView": {
+      "createNewFolder": "Új mappa…"
+    },
+    "abstractFileDialogService": {
+      "saveAll": "Összes mentése"
+    },
+    "fileActions.contribution": {
+      "miAutoSave": "Automatikus mentés",
+      "miNewFile": "Új szöveges fájl",
+      "explorerOpenWith": "Megnyitás ezzel…"
+    },
+    "browserHostService": {
+      "open": "Megnyitás"
+    },
+    "scm.contribution": {
+      "open in integrated terminal": "Megnyitás integrált terminálban"
+    },
+    "windowActions": {
+      "closeWindow": "Ablak bezárása",
+      "about": "Névjegy",
+      "miToggleFullScreen": "Teljes képernyő",
+      "zoomReset": "Nagyítás visszaállítása"
+    },
+    "window": {
+      "zoomIn": "Nagyítás",
+      "zoomOut": "Kicsinyítés"
+    },
+    "developerActions": {
+      "toggleDevTools": "Fejlesztői eszközök be-/kikapcsolása"
+    },
+    "quickAccess.contribution": {
+      "miOpenView": "Nézet megnyitása…",
+      "miGotoLine": "Ugrás sorhoz/oszlophoz…"
+    },
+    "editor.contribution": {
+      "miEditorLayout": "Szerkesztő elrendezése",
+      "miLastEditLocation": "Ugrás a legutóbbi szerkesztés helyére",
+      "miSwitchGroup": "Csoportváltás",
+      "pin": "Rögzítés",
+      "unpin": "Rögzítés feloldása",
+      "miFocusFirstGroup": "1. csoport",
+      "miFocusSecondGroup": "2. csoport",
+      "miFocusThirdGroup": "3. csoport",
+      "miFocusFourthGroup": "4. csoport",
+      "miFocusFifthGroup": "5. csoport",
+      "miNextGroup": "Következő csoport",
+      "miPreviousGroup": "Előző csoport"
+    },
+    "gotoSymbolQuickAccess": {
+      "gotoSymbol": "Ugrás szimbólumhoz a szerkesztőben…"
+    },
+    "chatInlineAnchorWidget": {
+      "goToImplementations.label": "Ugrás a megvalósításokhoz",
+      "goToReferences.label": "Ugrás a hivatkozásokhoz"
+    },
+    "gotoError": {
+      "miGotoNextProblem": "Következő probléma",
+      "miGotoPreviousProblem": "Előző probléma"
+    },
+    "menubarControl": {
+      "mSelection": "Kijelölés",
+      "mGoto": "Ugrás"
+    },
+    "dialogHandler": {
+      "copy": "Másolás"
+    },
+    "smartSelect": {
+      "smartSelect.expand": "Kijelölés kibővítése",
+      "smartSelect.shrink": "Kijelölés szűkítése"
+    },
+    "linesOperations": {
+      "duplicateSelection": "Kijelölés megkettőzése"
+    },
+    "multicursor": {
+      "miAddSelectionToNextFindMatch": "Következő előfordulás hozzáadása",
+      "miAddSelectionToPreviousFindMatch": "Előző előfordulás hozzáadása",
+      "miSelectHighlights": "Összes előfordulás kijelölése"
     },
     "tunnelView": {
       "remote.tunnel.protocolHttp": "HTTP"
