@@ -18,6 +18,11 @@
 .export-delete-confirm__content p {
     margin: 14px 0 0; color: var(--theia-descriptionForeground); line-height: 1.45;
 }
+.export-delete-confirm__error-message {
+    color: var(--theia-errorForeground) !important;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
 .export-delete-confirm__warning {
     display: flex; gap: 9px; align-items: flex-start; margin-top: 14px; padding: 10px;
     border-left: 3px solid var(--theia-inputValidation-warningBorder);

@@ -14,6 +14,7 @@ import { DataRepositoryConfigDialog } from './components/data-repository-config-
 import { DataRepositoryDeleteDialog } from './components/data-repository-delete-dialog'
 import {
   DataRepositoryExportDeleteDialog,
+  DataRepositoryExportDeleteErrorDialog,
   ExportDeleteAction,
 } from './components/data-repository-export-delete-dialog'
 import { DataRepositorySelectorDialog } from './components/data-repository-selector-dialog'
@@ -39,6 +40,7 @@ import {
 } from './services/native-dataverse-export-service'
 import { NativeDataverseImportService } from './services/native-dataverse-import-service'
 import { RoCrateFileHashService } from './services/ro-crate-file-hash-service'
+import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
 import { ZenodoExportService } from './services/zenodo-export-service'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
@@ -81,6 +83,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly capabilityService: DataverseCapabilityService,
     @inject(RoCrateFileHashService)
     protected readonly fileHashService: RoCrateFileHashService,
+    @inject(LoadMaskService)
+    protected readonly loadMaskService: LoadMaskService,
     @inject(ZenodoExportService)
     protected readonly zenodoExportService: ZenodoExportService,
     @inject(AppStateService)
@@ -623,35 +627,46 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     }
 
     const deleteRemote = action === 'delete'
-    const progress = await this.messageService.showProgress({
-      text: deleteRemote
+    const loadMask = this.loadMaskService.show({
+      message: deleteRemote
         ? `Deleting the remote dataset from ${repository.title}...`
         : 'Removing the local export link...',
+      delay: 0,
     })
     try {
+      await this.waitForLoadMaskPaint()
       await this.exportDeleteService.deleteExport(
         repository,
         capabilities,
         target,
         deleteRemote,
       )
-      this.messageService.info(
-        deleteRemote
-          ? 'The remote dataset and local export link were deleted.'
-          : `The export was unlinked. The dataset remains in ${repository.title}.`,
-        { timeout: 8000 },
-      )
       return true
     } catch (error) {
       console.error('Export deletion failed:', error)
-      this.messageService.error(
-        `Export deletion failed: ${error instanceof Error ? error.message : String(error)}`,
-        { timeout: 12000 },
+      loadMask.dispose()
+      const errorDialog = new DataRepositoryExportDeleteErrorDialog(
+        error instanceof Error ? error.message : String(error),
       )
+      await errorDialog.open()
       return false
     } finally {
-      progress.cancel()
+      loadMask.dispose()
     }
+  }
+
+  protected async waitForLoadMaskPaint(): Promise<void> {
+    await new Promise<void>((resolve) => {
+      let settled = false
+      const finish = () => {
+        if (!settled) {
+          settled = true
+          resolve()
+        }
+      }
+      setTimeout(finish, 50)
+      requestAnimationFrame(() => requestAnimationFrame(finish))
+    })
   }
 
   protected getMissingArpDatasetCreationMetadata(): string[] {

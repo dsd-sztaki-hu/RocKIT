@@ -2,6 +2,7 @@ import { AbstractDialog, Message } from '@theia/core/lib/browser';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { DataRepositoryExportTarget, DataRepositoryKind } from '../types';
@@ -68,6 +69,52 @@ export class DataRepositoryExportDeleteDialog extends AbstractDialog<boolean> {
                             </span>
                         </div>
                     )}
+                </div>
+            </div>
+        );
+    }
+
+    protected onAfterAttach(msg: Message): void {
+        super.onAfterAttach(msg);
+        this.render();
+    }
+
+    protected onBeforeDetach(msg: Message): void {
+        this.reactRoot?.unmount();
+        this.reactRoot = undefined;
+        super.onBeforeDetach(msg);
+    }
+}
+
+export class DataRepositoryExportDeleteErrorDialog extends AbstractDialog<void> {
+    private reactRoot: Root | undefined;
+
+    constructor(private readonly errorMessage: string) {
+        super({ title: 'Export deletion failed' });
+        this.contentNode.style.width = '440px';
+        this.contentNode.style.maxWidth = '90vw';
+        this.contentNode.style.padding = '0';
+        const closeButton = this.appendCloseButton('Close');
+        closeButton.classList.add('export-delete-confirm__cancel-button');
+    }
+
+    get value(): void {
+        return undefined;
+    }
+
+    protected render(): void {
+        if (!this.reactRoot) {
+            this.reactRoot = createRoot(this.contentNode);
+        }
+        this.reactRoot.render(
+            <div className="export-delete-confirm">
+                <div className="export-delete-confirm__icon export-delete-confirm__icon--danger">
+                    <ErrorOutlineIcon />
+                </div>
+                <div className="export-delete-confirm__content">
+                    <h3>The export could not be deleted</h3>
+                    <p className="export-delete-confirm__error-message">{this.errorMessage}</p>
+                    <p>The operation stopped at the failing step. Review the error and try again.</p>
                 </div>
             </div>
         );
