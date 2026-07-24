@@ -423,18 +423,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
     }
 
-    if (capabilities.supportsArpRoCrateZipUpload) {
-      const missingMetadata = this.getMissingArpDatasetCreationMetadata()
-      if (missingMetadata.length) {
-        const documentationUrl = await this.getRepositoryExportDocumentationUrl()
-        this.messageService.error(
-          `ARP export requires required citation metadata before creating a Dataverse dataset: ${missingMetadata.join(', ')}. Fill these fields in the root Dataset citation metadata, then export again. [Learn more in the documentation](${documentationUrl}).`,
-          { timeout: 15000 },
-        )
-        return
-      }
-    }
-
     const dialog = new DataverseCollectionBrowserDialog(
       selectedRepo,
       this.collectionService,
@@ -443,6 +431,39 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     if (result) {
       if (capabilities.supportsArpRoCrateZipUpload) {
+        let metadataDefaults: NativeDataverseDatasetMetadata
+        let metadataLanguageOptions: Array<{ value: string; label: string }>
+        try {
+          metadataDefaults =
+            await this.nativeExportService.getDatasetCreationMetadataDefaults()
+          metadataLanguageOptions =
+            await this.arpExportService.getAllowedMetadataLanguages(
+              selectedRepo,
+              result.collection,
+            )
+        } catch (error) {
+          console.error('Failed to prepare ARP dataset metadata dialog:', error)
+          this.messageService.error(
+            `ARP export preparation failed: ${error instanceof Error ? error.message : String(error)}`,
+            { timeout: 10000 },
+          )
+          return
+        }
+        const metadataDialog = new NativeDataverseDatasetMetadataDialog(
+          metadataDefaults,
+          {
+            title: 'Required ARP Dataset Metadata',
+            metadataLanguageOptions,
+            defaultMetadataLanguage:
+              metadataDefaults.metadataLanguage ??
+              metadataLanguageOptions.find((option) => option.value === 'en')?.value ??
+              metadataLanguageOptions[0]?.value,
+          },
+        )
+        const datasetMetadata = await metadataDialog.open()
+        if (!datasetMetadata) {
+          return
+        }
         const progress = await this.messageService.showProgress({
           text: `Exporting RO-Crate to ${result.collection.name}...`,
         })
@@ -450,6 +471,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           const exportResult = await this.arpExportService.exportToArp(
             selectedRepo,
             result.collection,
+            datasetMetadata,
             (update) =>
               progress.report({
                 message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,

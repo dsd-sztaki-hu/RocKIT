@@ -9,6 +9,7 @@ import {
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import { inject, injectable } from 'inversify'
 import { DataRepositoryConfig, DataRepositoryExportTarget, DataverseCollection } from '../types'
+import type { NativeDataverseDatasetMetadata } from './native-dataverse-export-service'
 import {
   appendExportLogEvent,
   ExportLogEntry,
@@ -121,6 +122,7 @@ export class ArpRoCrateExportService {
   public async exportToArp(
     repository: DataRepositoryConfig,
     collection: DataverseCollection,
+    datasetMetadata: NativeDataverseDatasetMetadata,
     reportProgress?: ArpRoCrateExportProgressReporter,
   ): Promise<ArpRoCrateExportResult> {
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
@@ -156,7 +158,7 @@ export class ArpRoCrateExportService {
       baseUrl,
       repository.apiKey,
       collection.alias || collection.id,
-      uploadCrate,
+      datasetMetadata,
     )
     const pid = this.extractPayloadPid(creation.payload)
     if (!pid) {
@@ -232,6 +234,34 @@ export class ArpRoCrateExportService {
       ingestedCrate: restoredCrate,
       mappingFileName,
       unmappedEntityIds,
+    }
+  }
+
+  public async getAllowedMetadataLanguages(
+    repository: DataRepositoryConfig,
+    collection: DataverseCollection,
+  ): Promise<Array<{ value: string; label: string }>> {
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const collectionId = collection.alias || collection.id
+    const requestUrl = `${baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/allowedMetadataLanguages`
+    const headers: Record<string, string> = { accept: 'application/json' }
+    if (repository.apiKey) {
+      headers['x-dataverse-key'] = repository.apiKey
+    }
+    try {
+      const response = await this.fetchWithTimeout(requestUrl, { headers })
+      const payload = await this.readResponsePayload(response)
+      if (!response.ok || this.payloadHasErrorStatus(payload)) {
+        console.warn(
+          `Failed to retrieve allowed Dataverse metadata languages (${response.status}) at ${response.url || requestUrl}: ${this.payloadSummary(payload)}`,
+        )
+        return this.defaultMetadataLanguageOptions()
+      }
+      const options = this.extractMetadataLanguageOptions(payload)
+      return options.length ? options : this.defaultMetadataLanguageOptions()
+    } catch (error) {
+      console.warn('Failed to retrieve allowed Dataverse metadata languages:', error)
+      return this.defaultMetadataLanguageOptions()
     }
   }
 
@@ -583,7 +613,7 @@ export class ArpRoCrateExportService {
     baseUrl: string,
     apiKey: string | undefined,
     collectionId: string,
-    crate: RoCrate,
+    datasetMetadata: NativeDataverseDatasetMetadata,
   ): Promise<{ requestUrl: string; payload: unknown }> {
     const requestUrl = `${baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/datasets`
     const headers: Record<string, string> = {
@@ -596,7 +626,7 @@ export class ArpRoCrateExportService {
     const response = await this.fetchWithTimeout(requestUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify(this.buildDatasetCreationPayload(crate)),
+      body: JSON.stringify(this.buildDatasetCreationPayload(datasetMetadata)),
     })
     const payload = await this.readResponsePayload(response)
     if (!response.ok || this.payloadHasErrorStatus(payload)) {
@@ -607,23 +637,30 @@ export class ArpRoCrateExportService {
     return { requestUrl: response.url || requestUrl, payload }
   }
 
-  protected buildDatasetCreationPayload(crate: RoCrate): Record<string, unknown> {
-    const graph = this.readGraphEntities(crate)
-    const root = graph.find((entity) => entity['@id'] === './')
-    if (!root) {
-      throw new Error('Cannot create Dataverse dataset because the root Dataset is missing.')
-    }
-    const title = this.firstMeaningfulString(root.title, root.name)
-    const authorNames = this.uniqueStrings(this.extractAuthors(root, graph))
-    const contactEmails = this.uniqueStrings(this.extractContactEmails(root, graph))
-    const descriptions = this.uniqueStrings(this.extractDescriptions(root, graph))
-    const subjects = this.uniqueStrings(this.readStrings(root.subject))
+  protected buildDatasetCreationPayload(
+    datasetMetadata: NativeDataverseDatasetMetadata,
+  ): Record<string, unknown> {
+    const title = datasetMetadata.title.trim()
+    const authorNames = this.uniqueStrings(
+      datasetMetadata.authorNames.map((value) => value.trim()),
+    )
+    const contactEmails = this.uniqueStrings(
+      datasetMetadata.contactEmails.map((value) => value.trim()),
+    )
+    const descriptions = this.uniqueStrings(
+      datasetMetadata.descriptions.map((value) => value.trim()),
+    )
+    const subjects = this.uniqueStrings(
+      datasetMetadata.subjects.map((value) => value.trim()),
+    )
+    const metadataLanguage = datasetMetadata.metadataLanguage?.trim()
     const missing: string[] = []
     if (!title) missing.push('Title')
     if (!authorNames.length) missing.push('Author Name')
     if (!contactEmails.length) missing.push('Point of Contact Email')
     if (!descriptions.length) missing.push('Description Text')
     if (!subjects.length) missing.push('Subject')
+    if (!metadataLanguage) missing.push('Dataset Metadata Language')
     if (missing.length) {
       throw new Error(
         `Cannot create Dataverse dataset. Missing required metadata: ${missing.join(', ')}.`,
@@ -631,7 +668,7 @@ export class ArpRoCrateExportService {
     }
 
     return {
-      metadataLanguage: 'en',
+      metadataLanguage,
       datasetVersion: {
         metadataBlocks: {
           citation: {
@@ -695,6 +732,60 @@ export class ArpRoCrateExportService {
       multiple: true,
       value: values,
     }
+  }
+
+  protected extractMetadataLanguageOptions(
+    payload: unknown,
+  ): Array<{ value: string; label: string }> {
+    const data =
+      payload && typeof payload === 'object' && !Array.isArray(payload)
+        ? (payload as Record<string, unknown>).data
+        : undefined
+    const rawItems = Array.isArray(data) ? data : []
+    const options = rawItems.flatMap((item) => {
+      if (typeof item === 'string') {
+        return [{ value: item, label: this.metadataLanguageLabel(item) }]
+      }
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return []
+      }
+      const record = item as Record<string, unknown>
+      const value = this.readStrings(
+        record.locale ?? record.value ?? record.langCode ?? record.code,
+      )[0]
+      if (!value) {
+        return []
+      }
+      const label = this.readStrings(record.title ?? record.displayName ?? record.label)[0]
+      return [{ value, label: label ?? this.metadataLanguageLabel(value) }]
+    })
+    const seen = new Set<string>()
+    return options.filter((option) => {
+      const key = option.value.toLowerCase()
+      if (seen.has(key)) {
+        return false
+      }
+      seen.add(key)
+      return true
+    })
+  }
+
+  protected defaultMetadataLanguageOptions(): Array<{ value: string; label: string }> {
+    return [
+      { value: 'en', label: 'English' },
+      { value: 'hu', label: 'Magyar' },
+    ]
+  }
+
+  protected metadataLanguageLabel(value: string): string {
+    const normalized = value.toLowerCase()
+    if (normalized === 'en') {
+      return 'English'
+    }
+    if (normalized === 'hu') {
+      return 'Magyar'
+    }
+    return value
   }
 
   protected async localizeExternalLocalFileReferences(
