@@ -444,19 +444,27 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     if (result) {
       if (capabilities.supportsArpRoCrateZipUpload) {
         const progress = await this.messageService.showProgress({
-          text: `Exporting RO-Crate ZIP to ${result.collection.name}...`,
+          text: `Exporting RO-Crate to ${result.collection.name}...`,
         })
         try {
           const exportResult = await this.arpExportService.exportToArp(
             selectedRepo,
             result.collection,
+            (update) =>
+              progress.report({
+                message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+                work: {
+                  done: update.completedSteps,
+                  total: update.totalSteps,
+                },
+              }),
           )
           const target =
             exportResult.target ||
             exportResult.dataverseUrl ||
             exportResult.pid ||
             exportResult.requestUrl
-          this.messageService.info(`RO-Crate ZIP export completed: ${target}`, {
+          this.messageService.info(`RO-Crate export completed: ${target}`, {
             timeout: 8000,
           })
           if (exportResult.unmappedEntityIds.length) {
@@ -471,16 +479,16 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               { timeout: 10000 },
             )
           }
-          console.log('RO-Crate ZIP exported to ARP:', exportResult)
+          console.log('RO-Crate exported to ARP:', exportResult)
         } catch (error) {
-          console.error('RO-Crate ZIP export failed:', error)
+          console.error('RO-Crate export failed:', error)
           if (error instanceof ArpRoCrateValidationError) {
             progress.cancel()
             await this.showArpValidationFailure(error)
             return
           }
           this.messageService.error(
-            `RO-Crate ZIP export failed: ${error instanceof Error ? error.message : String(error)}`,
+            `RO-Crate export failed: ${error instanceof Error ? error.message : String(error)}`,
             { timeout: 10000 },
           )
         } finally {
