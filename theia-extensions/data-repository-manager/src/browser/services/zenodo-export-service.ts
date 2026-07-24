@@ -1,5 +1,6 @@
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
 import { FileUri } from '@theia/core/lib/common/file-uri'
+import { nls } from '@theia/core/lib/common/nls'
 import { URI } from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
@@ -104,7 +105,7 @@ export class ZenodoExportService {
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const token = repository.apiKey?.trim()
     if (!token) {
-      throw new Error('Zenodo API token is missing.')
+      throw new Error(nls.localize('rockit/dataRepository/zenodoTokenMissing', 'Zenodo API token is missing.'))
     }
 
     const rootUri = this.getWorkspaceRoot()
@@ -127,7 +128,7 @@ export class ZenodoExportService {
     reportProgress?.({
       completedSteps,
       totalSteps,
-      message: 'Creating Zenodo draft deposition...',
+      message: nls.localize('rockit/dataRepository/creatingZenodoDraft', 'Creating Zenodo draft deposition...'),
     })
     const createResponse = await this.fetchWithTimeout(createUrl.toString(), {
       method: 'POST',
@@ -140,15 +141,22 @@ export class ZenodoExportService {
     })
     const createPayload = await this.readResponsePayload(createResponse)
     if (!createResponse.ok) {
-      throw new Error(
-        `Zenodo deposition creation failed (${createResponse.status}) at ${createResponse.url || createUrl.toString()}: ${this.payloadSummary(createPayload)}`,
-      )
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoCreationFailed',
+        'Zenodo deposition creation failed ({0}) at {1}: {2}',
+        createResponse.status,
+        createResponse.url || createUrl.toString(),
+        this.payloadSummary(createPayload),
+      ))
     }
 
     const depositionId = this.extractDepositionId(createPayload)
     const bucketUrl = this.extractBucketUrl(createPayload)
     if (!depositionId || !bucketUrl) {
-      throw new Error('Zenodo created a deposition, but the response did not include an id and bucket link.')
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoCreationMissingIds',
+        'Zenodo created a deposition, but the response did not include an id and bucket link.',
+      ))
     }
     completedSteps += 1
 
@@ -157,7 +165,7 @@ export class ZenodoExportService {
       reportProgress?.({
         completedSteps,
         totalSteps,
-        message: `Uploading ${file.filename}...`,
+        message: nls.localize('rockit/dataRepository/uploadingFile', 'Uploading {0}...', file.filename),
       })
       const uploadUrl = `${bucketUrl.replace(/\/+$/, '')}/${encodeURIComponent(file.filename)}`
       const uploadResponse = await this.fetchWithTimeout(uploadUrl, {
@@ -171,9 +179,14 @@ export class ZenodoExportService {
       })
       const uploadPayload = await this.readResponsePayload(uploadResponse)
       if (!uploadResponse.ok) {
-        throw new Error(
-          `Zenodo file upload failed for '${file.filename}' (${uploadResponse.status}) at ${uploadResponse.url || uploadUrl}: ${this.payloadSummary(uploadPayload)}`,
-        )
+        throw new Error(nls.localize(
+          'rockit/dataRepository/zenodoFileUploadFailed',
+          "Zenodo file upload failed for '{0}' ({1}) at {2}: {3}",
+          file.filename,
+          uploadResponse.status,
+          uploadResponse.url || uploadUrl,
+          this.payloadSummary(uploadPayload),
+        ))
       }
       uploadedFiles.push({
         filename: file.filename,
@@ -188,7 +201,10 @@ export class ZenodoExportService {
     reportProgress?.({
       completedSteps,
       totalSteps,
-      message: 'Uploading Zenodo deposition metadata...',
+      message: nls.localize(
+        'rockit/dataRepository/uploadingZenodoMetadata',
+        'Uploading Zenodo deposition metadata...',
+      ),
     })
     const metadataUrl =
       this.extractSelfUrl(createPayload) ??
@@ -207,16 +223,23 @@ export class ZenodoExportService {
     })
     const metadataPayload = await this.readResponsePayload(metadataResponse)
     if (!metadataResponse.ok) {
-      throw new Error(
-        `Zenodo metadata upload failed (${metadataResponse.status}) at ${metadataResponse.url || metadataUrl}: ${this.payloadSummary(metadataPayload)}`,
-      )
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoMetadataUploadFailed',
+        'Zenodo metadata upload failed ({0}) at {1}: {2}',
+        metadataResponse.status,
+        metadataResponse.url || metadataUrl,
+        this.payloadSummary(metadataPayload),
+      ))
     }
     completedSteps += 1
 
     reportProgress?.({
       completedSteps,
       totalSteps,
-      message: 'Writing local export mapping...',
+      message: nls.localize(
+        'rockit/dataRepository/writingLocalExportMapping',
+        'Writing local export mapping...',
+      ),
     })
     const uploadMapping = this.buildEntityIdMapping(uploadCrate, uploadedFiles)
     const metadataMapping = this.toMetadataEntityIdMapping(
@@ -243,7 +266,7 @@ export class ZenodoExportService {
     reportProgress?.({
       completedSteps: totalSteps,
       totalSteps,
-      message: 'Zenodo export complete.',
+      message: nls.localize('rockit/dataRepository/zenodoExportComplete', 'Zenodo export complete.'),
     })
 
     return {
@@ -267,10 +290,13 @@ export class ZenodoExportService {
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const token = repository.apiKey?.trim()
     if (!token) {
-      throw new Error('Zenodo API token is missing.')
+      throw new Error(nls.localize('rockit/dataRepository/zenodoTokenMissing', 'Zenodo API token is missing.'))
     }
     if (!exportTarget?.pid) {
-      throw new Error('No existing Zenodo deposition was selected for update.')
+      throw new Error(nls.localize(
+        'rockit/dataRepository/noExistingZenodoSelected',
+        'No existing Zenodo deposition was selected for update.',
+      ))
     }
 
     const rootUri = this.getWorkspaceRoot()
@@ -287,7 +313,11 @@ export class ZenodoExportService {
       localizedExternalFiles.entries,
     )
 
-    reportProgress?.({ completedSteps: 0, totalSteps: 1, message: 'Loading Zenodo deposition...' })
+    reportProgress?.({
+      completedSteps: 0,
+      totalSteps: 1,
+      message: nls.localize('rockit/dataRepository/loadingZenodoDeposition', 'Loading Zenodo deposition...'),
+    })
     const existingUrl = new URL(
       `/api/deposit/depositions/${encodeURIComponent(exportTarget.pid)}`,
       `${baseUrl}/`,
@@ -295,7 +325,7 @@ export class ZenodoExportService {
     const existingPayload = await this.requestJson(
       existingUrl,
       { method: 'GET', headers: this.authorizationHeaders(token) },
-      'Zenodo deposition lookup failed',
+      nls.localize('rockit/dataRepository/zenodoLookupFailed', 'Zenodo deposition lookup failed'),
     )
     const { payload: draftPayload, createdNewVersion } = await this.resolveWritableDraft(
       existingPayload,
@@ -304,7 +334,10 @@ export class ZenodoExportService {
     const depositionId = this.extractDepositionId(draftPayload)
     const bucketUrl = this.extractBucketUrl(draftPayload)
     if (!depositionId || !bucketUrl) {
-      throw new Error('Zenodo did not return a writable draft id and bucket link.')
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoWritableDraftMissing',
+        'Zenodo did not return a writable draft id and bucket link.',
+      ))
     }
 
     const remoteFiles = await this.listDepositionFiles(baseUrl, token, depositionId)
@@ -331,7 +364,13 @@ export class ZenodoExportService {
     reportProgress?.({
       completedSteps,
       totalSteps,
-      message: `Checking complete: ${added.length} file(s) to upload, ${replaced.length} to replace, and ${removed.length} to remove.`,
+      message: nls.localize(
+        'rockit/dataRepository/checkingComplete',
+        'Checking complete: {0} file(s) to upload, {1} to replace, and {2} to remove.',
+        added.length,
+        replaced.length,
+        removed.length,
+      ),
     })
 
     const synchronizedFiles: ZenodoExportResult['uploadedFiles'] = unchanged.map(
@@ -345,24 +384,40 @@ export class ZenodoExportService {
     )
 
     for (const file of removed) {
-      reportProgress?.({ completedSteps, totalSteps, message: `Removing ${file.filename}...` })
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: nls.localize('rockit/dataRepository/removingFile', 'Removing {0}...', file.filename),
+      })
       await this.deleteDepositionFile(baseUrl, token, depositionId, file)
       completedSteps += 1
     }
     for (const { local, remote } of replaced) {
-      reportProgress?.({ completedSteps, totalSteps, message: `Replacing ${local.filename}...` })
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: nls.localize('rockit/dataRepository/replacingFile', 'Replacing {0}...', local.filename),
+      })
       await this.deleteDepositionFile(baseUrl, token, depositionId, remote)
       completedSteps += 1
       synchronizedFiles.push(await this.uploadFile(bucketUrl, token, local))
       completedSteps += 1
     }
     for (const local of added) {
-      reportProgress?.({ completedSteps, totalSteps, message: `Uploading ${local.filename}...` })
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: nls.localize('rockit/dataRepository/uploadingFile', 'Uploading {0}...', local.filename),
+      })
       synchronizedFiles.push(await this.uploadFile(bucketUrl, token, local))
       completedSteps += 1
     }
 
-    reportProgress?.({ completedSteps, totalSteps, message: 'Updating Zenodo metadata...' })
+    reportProgress?.({
+      completedSteps,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/updatingZenodoMetadata', 'Updating Zenodo metadata...'),
+    })
     const metadataUrl =
       this.extractSelfUrl(draftPayload) ??
       new URL(`/api/deposit/depositions/${encodeURIComponent(depositionId)}`, `${baseUrl}/`).toString()
@@ -373,11 +428,18 @@ export class ZenodoExportService {
         headers: this.jsonAuthorizationHeaders(token),
         body: JSON.stringify({ metadata: depositionMetadata }),
       },
-      'Zenodo metadata update failed',
+      nls.localize('rockit/dataRepository/zenodoMetadataUpdateFailed', 'Zenodo metadata update failed'),
     )
     completedSteps += 1
 
-    reportProgress?.({ completedSteps, totalSteps, message: 'Writing local export mapping...' })
+    reportProgress?.({
+      completedSteps,
+      totalSteps,
+      message: nls.localize(
+        'rockit/dataRepository/writingLocalExportMapping',
+        'Writing local export mapping...',
+      ),
+    })
     const uploadMapping = this.buildEntityIdMapping(uploadCrate, synchronizedFiles)
     const metadataMapping = this.toMetadataEntityIdMapping(
       crate,
@@ -398,7 +460,11 @@ export class ZenodoExportService {
     const unmappedEntityIds = Object.entries(metadataMapping)
       .filter(([, remoteId]) => !remoteId)
       .map(([metadataId]) => metadataId)
-    reportProgress?.({ completedSteps: totalSteps, totalSteps, message: 'Zenodo update complete.' })
+    reportProgress?.({
+      completedSteps: totalSteps,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/zenodoUpdateComplete', 'Zenodo update complete.'),
+    })
 
     return {
       depositionId,
@@ -460,22 +526,27 @@ export class ZenodoExportService {
     const roots = this.workspaceService.tryGetRoots()
     const root = roots?.[0]?.resource
     if (!root) {
-      throw new Error('No workspace is open.')
+      throw new Error(nls.localize('rockit/dataRepository/noWorkspace', 'No workspace is open.'))
     }
     return root
   }
 
   protected async readRoCrate(metadataUri: URI): Promise<RoCrate> {
     if (!(await this.fileService.exists(metadataUri))) {
-      throw new Error('ro-crate-metadata.json was not found in the workspace root.')
+      throw new Error(nls.localize(
+        'rockit/dataRepository/metadataFileNotFound',
+        'ro-crate-metadata.json was not found in the workspace root.',
+      ))
     }
     const content = await this.fileService.readFile(metadataUri)
     try {
       return JSON.parse(content.value.toString()) as RoCrate
     } catch (error) {
-      throw new Error(
-        `Failed to parse ro-crate-metadata.json: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      throw new Error(nls.localize(
+        'rockit/dataRepository/parseMetadataFailed',
+        'Failed to parse ro-crate-metadata.json: {0}',
+        error instanceof Error ? error.message : String(error),
+      ))
     }
   }
 
@@ -500,14 +571,26 @@ export class ZenodoExportService {
       }
       const uri = rootUri.resolve(relativePath)
       if (!this.isInsideRoot(rootUri, uri)) {
-        throw new Error(`Refusing to include path outside crate root: ${relativePath}`)
+        throw new Error(nls.localize(
+          'rockit/dataRepository/pathOutsideCrate',
+          'Refusing to include path outside crate root: {0}',
+          relativePath,
+        ))
       }
       if (!(await this.fileService.exists(uri))) {
-        throw new Error(`Referenced file not found for Zenodo upload: ${relativePath}`)
+        throw new Error(nls.localize(
+          'rockit/dataRepository/zenodoReferencedFileMissing',
+          'Referenced file not found for Zenodo upload: {0}',
+          relativePath,
+        ))
       }
       const stat = await this.fileService.resolve(uri)
       if (stat.isDirectory) {
-        throw new Error(`RO-Crate File entity points to a directory: ${relativePath}`)
+        throw new Error(nls.localize(
+          'rockit/dataRepository/fileEntityDirectory',
+          'RO-Crate File entity points to a directory: {0}',
+          relativePath,
+        ))
       }
       fileEntries.set(relativePath, uri)
     }
@@ -554,9 +637,10 @@ export class ZenodoExportService {
       : []
 
     if (!creators.length) {
-      throw new Error(
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoCreatorRequired',
         'Zenodo export requires at least one creator. Add an author name to the RO-Crate root Dataset before exporting.',
-      )
+      ))
     }
 
     return {
@@ -706,7 +790,7 @@ export class ZenodoExportService {
   protected normalizeBaseUrl(baseUrl: string): string {
     const normalized = baseUrl.trim().replace(/\/+$/, '').replace(/\/api$/, '')
     if (!normalized) {
-      throw new Error('Repository base URL is empty.')
+      throw new Error(nls.localize('rockit/dataRepository/emptyRepositoryBaseUrl', 'Repository base URL is empty.'))
     }
     return normalized
   }
@@ -1002,9 +1086,10 @@ export class ZenodoExportService {
     if (!this.isSubmittedDeposition(deposition)) {
       return { payload: deposition, createdNewVersion: false }
     }
-    throw new Error(
-      'This Zenodo deposition is published and can no longer be updated from AROMA.',
-    )
+    throw new Error(nls.localize(
+      'rockit/dataRepository/publishedZenodoCannotUpdate',
+      'This Zenodo deposition is published and can no longer be updated from RocKIT.',
+    ))
   }
 
   protected async populateRemoteState(
@@ -1024,7 +1109,10 @@ export class ZenodoExportService {
       const payload = await this.requestJson(
         url,
         { method: 'GET', headers: this.authorizationHeaders(token) },
-        'Zenodo deposition status lookup failed',
+        nls.localize(
+          'rockit/dataRepository/zenodoStatusLookupFailed',
+          'Zenodo deposition status lookup failed',
+        ),
       )
       target.remoteState = this.isSubmittedDeposition(payload) ? 'published' : 'draft'
     } catch (error) {
@@ -1034,7 +1122,10 @@ export class ZenodoExportService {
 
   protected isSubmittedDeposition(payload: unknown): boolean {
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-      throw new Error('Zenodo returned an invalid deposition response.')
+      throw new Error(nls.localize(
+        'rockit/dataRepository/invalidZenodoDepositionResponse',
+        'Zenodo returned an invalid deposition response.',
+      ))
     }
     const record = payload as Record<string, unknown>
     return record.submitted === true || record.state === 'done'
@@ -1052,19 +1143,28 @@ export class ZenodoExportService {
     const payload = await this.requestJson(
       url,
       { method: 'GET', headers: this.authorizationHeaders(token) },
-      'Zenodo file listing failed',
+      nls.localize('rockit/dataRepository/zenodoFileListingFailed', 'Zenodo file listing failed'),
     )
     if (!Array.isArray(payload)) {
-      throw new Error('Zenodo returned an invalid deposition file list.')
+      throw new Error(nls.localize(
+        'rockit/dataRepository/invalidZenodoFileList',
+        'Zenodo returned an invalid deposition file list.',
+      ))
     }
     return payload.map((entry) => {
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-        throw new Error('Zenodo returned an invalid deposition file entry.')
+        throw new Error(nls.localize(
+          'rockit/dataRepository/invalidZenodoFileEntry',
+          'Zenodo returned an invalid deposition file entry.',
+        ))
       }
       const record = entry as Record<string, unknown>
       const filename = this.firstString(record.filename, record.name, record.key)
       if (!filename) {
-        throw new Error('Zenodo returned a deposition file without a filename.')
+        throw new Error(nls.localize(
+          'rockit/dataRepository/zenodoFileMissingFilename',
+          'Zenodo returned a deposition file without a filename.',
+        ))
       }
       return {
         id: this.firstString(record.id),
@@ -1094,7 +1194,11 @@ export class ZenodoExportService {
     file: ZenodoRemoteFile,
   ): Promise<void> {
     if (!file.id) {
-      throw new Error(`Zenodo file '${file.filename}' does not have an id and cannot be removed.`)
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoFileMissingId',
+        "Zenodo file '{0}' does not have an id and cannot be removed.",
+        file.filename,
+      ))
     }
     const url = new URL(
       `/api/deposit/depositions/${encodeURIComponent(depositionId)}/files/${encodeURIComponent(file.id)}`,
@@ -1106,9 +1210,14 @@ export class ZenodoExportService {
     })
     const payload = await this.readResponsePayload(response)
     if (!response.ok) {
-      throw new Error(
-        `Zenodo file deletion failed for '${file.filename}' (${response.status}) at ${response.url || url}: ${this.payloadSummary(payload)}`,
-      )
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoFileDeletionFailed',
+        "Zenodo file deletion failed for '{0}' ({1}) at {2}: {3}",
+        file.filename,
+        response.status,
+        response.url || url,
+        this.payloadSummary(payload),
+      ))
     }
   }
 
@@ -1128,9 +1237,14 @@ export class ZenodoExportService {
     })
     const payload = await this.readResponsePayload(response)
     if (!response.ok) {
-      throw new Error(
-        `Zenodo file upload failed for '${file.filename}' (${response.status}) at ${response.url || uploadUrl}: ${this.payloadSummary(payload)}`,
-      )
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoFileUploadFailed',
+        "Zenodo file upload failed for '{0}' ({1}) at {2}: {3}",
+        file.filename,
+        response.status,
+        response.url || uploadUrl,
+        this.payloadSummary(payload),
+      ))
     }
     return {
       filename: file.filename,
@@ -1181,7 +1295,11 @@ export class ZenodoExportService {
   protected requireLink(links: Record<string, unknown> | undefined, name: string): string {
     const value = this.readLink(links, name)
     if (!value) {
-      throw new Error(`Zenodo response did not include the '${name}' link.`)
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoResponseMissingLink',
+        "Zenodo response did not include the '{0}' link.",
+        name,
+      ))
     }
     return value
   }

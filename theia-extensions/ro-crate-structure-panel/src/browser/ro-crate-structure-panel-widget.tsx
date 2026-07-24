@@ -239,14 +239,27 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         const confirmed = await new ConfirmDialog({
             title:
                 occurrences.length > 1
-                    ? 'Remove items from datasets?'
-                    : 'Remove item from dataset?',
+                    ? nls.localize(
+                        'rockit/structurePanel/removeItemsFromDatasets',
+                        'Remove items from datasets?',
+                    )
+                    : nls.localize(
+                        'rockit/structurePanel/removeItemFromDataset',
+                        'Remove item from dataset?',
+                    ),
             msg:
                 occurrences.length > 1
-                    ? `Are you sure you want to remove the ${occurrences.length} selected relationships?`
-                    : 'Are you sure you want to remove the selected relationship?',
-            ok: 'Remove',
-            cancel: 'Cancel',
+                    ? nls.localize(
+                        'rockit/structurePanel/removeRelationshipsQuestion',
+                        'Are you sure you want to remove the {0} selected relationships?',
+                        occurrences.length,
+                    )
+                    : nls.localize(
+                        'rockit/structurePanel/removeRelationshipQuestion',
+                        'Are you sure you want to remove the selected relationship?',
+                    ),
+            ok: nls.localize('rockit/structurePanel/remove', 'Remove'),
+            cancel: nls.localize('rockit/common/cancel', 'Cancel'),
         }).open()
         if (confirmed !== true) {
             return
@@ -285,8 +298,14 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         this.roCrateHistoryService.applyRoCrateChange(updatedCrate, {
             label:
                 occurrences.length > 1
-                    ? 'Remove dataset relationships'
-                    : 'Remove dataset relationship',
+                    ? nls.localize(
+                        'rockit/structurePanel/removeDatasetRelationshipsHistory',
+                        'Remove dataset relationships',
+                    )
+                    : nls.localize(
+                        'rockit/structurePanel/removeDatasetRelationshipHistory',
+                        'Remove dataset relationship',
+                    ),
         })
         this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
 

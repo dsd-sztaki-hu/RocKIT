@@ -37,7 +37,7 @@ export const RoCrateStructurePanelEditCommand: Command = {
 
 export const RoCrateStructurePanelDeleteEntityCommand: Command = {
   id: 'ro-crate-structure-panel:delete-entity',
-  label: 'Delete Entity',
+  label: nls.localize('rockit/structurePanel/deleteEntity', 'Delete Entity'),
 }
 
 export const RoCrateStructurePanelDocumentationCommand: Command = {
@@ -135,7 +135,10 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
     })
     menus.registerMenuAction(RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU, {
       commandId: RoCrateStructurePanelDeleteEntityCommand.id,
-      label: 'Delete Entity (Shift+Delete)',
+      label: nls.localize(
+        'rockit/structurePanel/deleteEntityShift',
+        'Delete Entity (Shift+Delete)',
+      ),
     })
   }
 

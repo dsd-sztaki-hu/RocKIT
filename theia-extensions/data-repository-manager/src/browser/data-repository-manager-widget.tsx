@@ -303,8 +303,16 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     if (capabilities.supportsZenodoApi) {
       const progress = await this.messageService.showProgress({
         text: selectedExportTarget
-          ? `Updating the Zenodo deposition in ${selectedRepo.title}...`
-          : `Uploading RO-Crate files to ${selectedRepo.title}...`,
+          ? nls.localize(
+              'rockit/dataRepository/updatingZenodoIn',
+              'Updating the Zenodo deposition in {0}...',
+              selectedRepo.title,
+            )
+          : nls.localize(
+              'rockit/dataRepository/uploadingRoCrateTo',
+              'Uploading RO-Crate files to {0}...',
+              selectedRepo.title,
+            ),
       })
       try {
         if (selectedExportTarget) {
@@ -321,7 +329,21 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               }),
           )
           this.messageService.info(
-            `Zenodo update completed for ${updateResult.target}. Uploaded ${updateResult.addedFileCount} new file(s), replaced ${updateResult.replacedFileCount}, removed ${updateResult.removedFileCount}, and kept ${updateResult.unchangedFileCount} unchanged.${updateResult.createdNewVersion ? ' A new-version draft was used.' : ''}`,
+            nls.localize(
+              'rockit/dataRepository/zenodoUpdateCompleted',
+              'Zenodo update completed for {0}. Uploaded {1} new file(s), replaced {2}, removed {3}, and kept {4} unchanged.{5}',
+              updateResult.target,
+              updateResult.addedFileCount,
+              updateResult.replacedFileCount,
+              updateResult.removedFileCount,
+              updateResult.unchangedFileCount,
+              updateResult.createdNewVersion
+                ? nls.localize(
+                    'rockit/dataRepository/zenodoNewVersionDraftUsed',
+                    ' A new-version draft was used.',
+                  )
+                : '',
+            ),
             { timeout: 12000 },
           )
           console.log('Zenodo deposition updated:', updateResult)
@@ -340,18 +362,30 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             }),
         )
         this.messageService.info(
-          `Zenodo draft deposition created: ${exportResult.target}. Uploaded ${exportResult.uploadedFiles.length} file(s).`,
+          nls.localize(
+            'rockit/dataRepository/zenodoDraftCreated',
+            'Zenodo draft deposition created: {0}. Uploaded {1} file(s).',
+            exportResult.target,
+            exportResult.uploadedFiles.length,
+          ),
           { timeout: 10000 },
         )
         this.messageService.info(
-          'RO-Crate metadata was converted to an in-memory Zenodo JSON payload and uploaded to the draft.',
+          nls.localize(
+            'rockit/dataRepository/zenodoMetadataPayloadUploaded',
+            'RO-Crate metadata was converted to an in-memory Zenodo JSON payload and uploaded to the draft.',
+          ),
           { timeout: 12000 },
         )
         console.log('RO-Crate files exported to Zenodo:', exportResult)
       } catch (error) {
         console.error('Zenodo RO-Crate export failed:', error)
         this.messageService.error(
-          `Zenodo export failed: ${error instanceof Error ? error.message : String(error)}`,
+          nls.localize(
+            'rockit/dataRepository/zenodoExportFailed',
+            'Zenodo export failed: {0}',
+            error instanceof Error ? error.message : String(error),
+          ),
           { timeout: 10000 },
         )
       } finally {
@@ -656,7 +690,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     repository: DataRepositoryConfig,
   ): Promise<void> {
     const progress = await this.messageService.showProgress({
-      text: `Loading Dataverse metadata schemas from ${repository.title}...`,
+      text: nls.localize(
+        'rockit/dataRepository/loadingDataverseMetadataSchemas',
+        'Loading Dataverse metadata schemas from {0}...',
+        repository.title,
+      ),
     })
     try {
       const saved =
@@ -665,7 +703,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     } catch (error) {
       console.warn('Failed to load Dataverse metadata blocks:', error)
       this.messageService.warn(
-        `Dataverse metadata schemas could not be loaded: ${error instanceof Error ? error.message : String(error)}`,
+        nls.localize(
+          'rockit/dataRepository/dataverseMetadataSchemasLoadFailed',
+          'Dataverse metadata schemas could not be loaded: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
         { timeout: 10000 },
       )
     } finally {
@@ -736,8 +778,15 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const deleteRemote = action === 'delete'
     const loadMask = this.loadMaskService.show({
       message: deleteRemote
-        ? `Deleting the remote dataset from ${repository.title}...`
-        : 'Removing the local export link...',
+        ? nls.localize(
+            'rockit/dataRepository/deletingRemoteDatasetFrom',
+            'Deleting the remote dataset from {0}...',
+            repository.title,
+          )
+        : nls.localize(
+            'rockit/dataRepository/removingLocalExportLink',
+            'Removing the local export link...',
+          ),
       delay: 0,
     })
     try {
