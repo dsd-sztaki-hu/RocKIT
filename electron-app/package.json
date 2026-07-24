@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "electron-app",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "homepage": "https://repo.researchdata.hu/rockit/",
   "author": {
     "name": "HUN-REN SZTAKI, DSD",
@@ -53,9 +53,10 @@
     "electron": "37.2.1"
   },
   "scripts": {
-    "bundle": "yarn run rebuild && theia build --mode development && yarn run copy:node-pty-agent",
+    "bundle": "yarn run stage:rocrate-mcp-standalone && yarn run rebuild && theia build --mode development && yarn run copy:node-pty-agent",
     "copy:node-pty-agent": "node ../scripts/copy-node-pty-agent.js",
     "fetch:darwin-native": "node ../scripts/fetch-darwin-native.js",
+    "stage:rocrate-mcp-standalone": "yarn workspace rocrate-mcp-server build:standalone",
     "dist:mac:arm64": "yarn run fetch:darwin-native arm64 && electron-builder --mac dmg --arm64",
     "dist:mac:x64": "yarn run fetch:darwin-native x64 && electron-builder --mac dmg --x64",
     "dist:mac": "yarn run dist:mac:x64 && yarn run dist:mac:arm64",
@@ -83,6 +84,12 @@
   "build": {
     "appId": "hu.sztaki.dsd.rockit",
     "productName": "RocKIT - RO-Crate Kit",
+    "extraResources": [
+      {
+        "from": "../theia-extensions/rocrate-mcp-server/dist/npm",
+        "to": "rocrate-mcp-server"
+      }
+    ],
     "asarUnpack": [
       "node_modules/rocrate-mcp-server/**",
       "node_modules/rockit-common/**",

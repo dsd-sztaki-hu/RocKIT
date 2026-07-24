@@ -13,6 +13,11 @@ import {
 } from 'rockit-common/lib/browser'
 import { DataRepositoryConfigDialog } from './components/data-repository-config-dialog'
 import { DataRepositoryDeleteDialog } from './components/data-repository-delete-dialog'
+import {
+  DataRepositoryExportDeleteDialog,
+  DataRepositoryExportDeleteErrorDialog,
+  ExportDeleteAction,
+} from './components/data-repository-export-delete-dialog'
 import { DataRepositorySelectorDialog } from './components/data-repository-selector-dialog'
 import { DataRepositoryTable } from './components/data-repository-table'
 import { DataRepositoryToolbar } from './components/data-repository-toolbar'
@@ -26,8 +31,10 @@ import {
 } from './services/arp-ro-crate-export-service'
 import { ArpRoCrateImportService } from './services/arp-ro-crate-import-service'
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
+import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service'
 import { DataverseCapabilityService } from './services/dataverse-capability-service'
 import { DataverseCollectionService } from './services/dataverse-collection-service'
+import { DataverseMetadataBlockCacheService } from './services/dataverse-metadata-block-cache-service'
 import { DataverseService } from './services/dataverse-service'
 import {
   NativeDataverseDatasetMetadata,
@@ -35,6 +42,8 @@ import {
 } from './services/native-dataverse-export-service'
 import { NativeDataverseImportService } from './services/native-dataverse-import-service'
 import { RoCrateFileHashService } from './services/ro-crate-file-hash-service'
+import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
+import { ZenodoExportService } from './services/zenodo-export-service'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
 
@@ -62,6 +71,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     @inject(MessageService) protected readonly messageService: MessageService,
     @inject(DataRepositoryStoreService)
     protected readonly storeService: DataRepositoryStoreService,
+    @inject(DataRepositoryExportDeleteService)
+    protected readonly exportDeleteService: DataRepositoryExportDeleteService,
     @inject(DataverseService) protected readonly dataverseService: DataverseService,
     @inject(DataverseCollectionService)
     protected readonly collectionService: DataverseCollectionService,
@@ -75,8 +86,14 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly nativeImportService: NativeDataverseImportService,
     @inject(DataverseCapabilityService)
     protected readonly capabilityService: DataverseCapabilityService,
+    @inject(DataverseMetadataBlockCacheService)
+    protected readonly metadataBlockCacheService: DataverseMetadataBlockCacheService,
     @inject(RoCrateFileHashService)
     protected readonly fileHashService: RoCrateFileHashService,
+    @inject(LoadMaskService)
+    protected readonly loadMaskService: LoadMaskService,
+    @inject(ZenodoExportService)
+    protected readonly zenodoExportService: ZenodoExportService,
     @inject(AppStateService)
     protected readonly appStateService: AppStateService,
     @inject(ApplicationServer)
@@ -144,6 +161,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       )
       return
     }
+    await this.loadDataverseMetadataBlocks(selectedRepo)
 
     const importDialog = new ArpRoCrateImportDialog(
       capabilities.supportsArpRoCrateZipUpload
@@ -255,6 +273,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const exportTargetsByRepositoryId = this.mergeExportTargets(
       await this.arpExportService.listExportTargets(repositories),
       await this.nativeExportService.listExportTargets(repositories),
+      await this.zenodoExportService.listExportTargets(repositories),
     )
 
     // Show repository selector first, matching the UX requested.
@@ -269,6 +288,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             void this.openRecentArpValidationResponse()
           }
         : undefined,
+      async (repository, target, action) =>
+        this.handleDeleteExportTarget(repository, target, action),
     )
     const repositorySelection = await selector.open()
 
@@ -278,6 +299,66 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const selectedRepo = repositorySelection.repository
     const capabilities = repositorySelection.capabilities
     const selectedExportTarget = repositorySelection.exportTarget
+
+    if (capabilities.supportsZenodoApi) {
+      const progress = await this.messageService.showProgress({
+        text: selectedExportTarget
+          ? `Updating the Zenodo deposition in ${selectedRepo.title}...`
+          : `Uploading RO-Crate files to ${selectedRepo.title}...`,
+      })
+      try {
+        if (selectedExportTarget) {
+          const updateResult = await this.zenodoExportService.updateDeposition(
+            selectedRepo,
+            selectedExportTarget,
+            (update) =>
+              progress.report({
+                message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+                work: {
+                  done: update.completedSteps,
+                  total: update.totalSteps,
+                },
+              }),
+          )
+          this.messageService.info(
+            `Zenodo update completed for ${updateResult.target}. Uploaded ${updateResult.addedFileCount} new file(s), replaced ${updateResult.replacedFileCount}, removed ${updateResult.removedFileCount}, and kept ${updateResult.unchangedFileCount} unchanged.${updateResult.createdNewVersion ? ' A new-version draft was used.' : ''}`,
+            { timeout: 12000 },
+          )
+          console.log('Zenodo deposition updated:', updateResult)
+          return
+        }
+
+        const exportResult = await this.zenodoExportService.createDraftAndUploadRoCrate(
+          selectedRepo,
+          (update) =>
+            progress.report({
+              message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+              work: {
+                done: update.completedSteps,
+                total: update.totalSteps,
+              },
+            }),
+        )
+        this.messageService.info(
+          `Zenodo draft deposition created: ${exportResult.target}. Uploaded ${exportResult.uploadedFiles.length} file(s).`,
+          { timeout: 10000 },
+        )
+        this.messageService.info(
+          'RO-Crate metadata was converted to an in-memory Zenodo JSON payload and uploaded to the draft.',
+          { timeout: 12000 },
+        )
+        console.log('RO-Crate files exported to Zenodo:', exportResult)
+      } catch (error) {
+        console.error('Zenodo RO-Crate export failed:', error)
+        this.messageService.error(
+          `Zenodo export failed: ${error instanceof Error ? error.message : String(error)}`,
+          { timeout: 10000 },
+        )
+      } finally {
+        progress.cancel()
+      }
+      return
+    }
 
     if (!capabilities.supportsNativeDataverseApi) {
       this.messageService.error(
@@ -290,6 +371,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       )
       return
     }
+    await this.loadDataverseMetadataBlocks(selectedRepo)
 
     if (capabilities.supportsArpRoCrateZipUpload && selectedExportTarget) {
       const progress = await this.messageService.showProgress({
@@ -570,6 +652,27 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     await dialog.open()
   }
 
+  protected async loadDataverseMetadataBlocks(
+    repository: DataRepositoryConfig,
+  ): Promise<void> {
+    const progress = await this.messageService.showProgress({
+      text: `Loading Dataverse metadata schemas from ${repository.title}...`,
+    })
+    try {
+      const saved =
+        await this.metadataBlockCacheService.loadTargetMetadataBlocks(repository)
+      console.log('Dataverse metadata blocks loaded:', saved)
+    } catch (error) {
+      console.warn('Failed to load Dataverse metadata blocks:', error)
+      this.messageService.warn(
+        `Dataverse metadata schemas could not be loaded: ${error instanceof Error ? error.message : String(error)}`,
+        { timeout: 10000 },
+      )
+    } finally {
+      progress.cancel()
+    }
+  }
+
   protected handleAddRepository = async () => {
     const dialog = new DataRepositoryConfigDialog(this.dataverseService)
     const result = await dialog.open()
@@ -611,6 +714,66 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
     }
     return merged
+  }
+
+  protected async handleDeleteExportTarget(
+    repository: DataRepositoryConfig,
+    target: DataRepositoryExportTarget,
+    action: ExportDeleteAction,
+  ): Promise<boolean> {
+    const capabilities = await this.capabilityService.detectRepositoryCapabilities(
+      repository.baseUrl,
+    )
+    const dialog = new DataRepositoryExportDeleteDialog(
+      target,
+      action,
+      capabilities.kind,
+    )
+    if (!(await dialog.open())) {
+      return false
+    }
+
+    const deleteRemote = action === 'delete'
+    const loadMask = this.loadMaskService.show({
+      message: deleteRemote
+        ? `Deleting the remote dataset from ${repository.title}...`
+        : 'Removing the local export link...',
+      delay: 0,
+    })
+    try {
+      await this.waitForLoadMaskPaint()
+      await this.exportDeleteService.deleteExport(
+        repository,
+        capabilities,
+        target,
+        deleteRemote,
+      )
+      return true
+    } catch (error) {
+      console.error('Export deletion failed:', error)
+      loadMask.dispose()
+      const errorDialog = new DataRepositoryExportDeleteErrorDialog(
+        error instanceof Error ? error.message : String(error),
+      )
+      await errorDialog.open()
+      return false
+    } finally {
+      loadMask.dispose()
+    }
+  }
+
+  protected async waitForLoadMaskPaint(): Promise<void> {
+    await new Promise<void>((resolve) => {
+      let settled = false
+      const finish = () => {
+        if (!settled) {
+          settled = true
+          resolve()
+        }
+      }
+      setTimeout(finish, 50)
+      requestAnimationFrame(() => requestAnimationFrame(finish))
+    })
   }
 
   protected getMissingArpDatasetCreationMetadata(): string[] {
