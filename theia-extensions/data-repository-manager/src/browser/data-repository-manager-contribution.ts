@@ -25,7 +25,7 @@ export namespace DataRepositoryManagerCommands {
 
     export const LINK_LOCAL_TO_REMOTE: Command = {
         id: 'data-repository-manager:link-local-to-remote',
-        label: 'Link Local Dataset To Remote Repository'
+        label: nls.localize('rockit/dataRepository/linkLocalRemote', 'Link Local Dataset To Remote Repository')
     };
 
     export const OPEN_DOCUMENTATION: Command = {
@@ -114,7 +114,7 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
 
         menus.registerMenuAction(CommonMenus.FILE, {
             commandId: DataRepositoryManagerCommands.LINK_LOCAL_TO_REMOTE.id,
-            label: 'Link Local Dataset To Remote Repository',
+            label: DataRepositoryManagerCommands.LINK_LOCAL_TO_REMOTE.label,
             order: 'a12'
         });
 
