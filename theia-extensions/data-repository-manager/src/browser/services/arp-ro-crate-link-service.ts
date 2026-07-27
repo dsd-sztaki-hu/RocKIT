@@ -26,6 +26,13 @@ export interface ArpRoCrateLinkResult {
   datasetName?: string
 }
 
+export interface ArpRoCrateLinkPreview {
+  pid: string
+  localDatasetTitle?: string
+  remoteDatasetTitle?: string
+  titleMismatch: boolean
+}
+
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
 
 @injectable()
@@ -76,6 +83,30 @@ export class ArpRoCrateLinkService {
       mappedEntityCount: Object.keys(mapping).length - unmappedEntityIds.length,
       unmappedEntityIds,
       datasetName: this.getRootDatasetName(localCrate) ?? this.getRootDatasetName(remoteCrate),
+    }
+  }
+
+  public async previewLocalDatasetLink(
+    repository: DataRepositoryConfig,
+    datasetUrl: string,
+  ): Promise<ArpRoCrateLinkPreview> {
+    const pid = this.extractDatasetPid(datasetUrl)
+    if (!pid) {
+      throw new Error('Could not extract a dataset handle or persistent ID from the dataset URL.')
+    }
+
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const rootUri = this.getWorkspaceRoot()
+    const localCrate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
+    const remoteCrate = await this.fetchRemoteRoCrate(baseUrl, repository.apiKey, pid)
+    const localDatasetTitle = this.getRootDatasetName(localCrate)
+    const remoteDatasetTitle = this.getRootDatasetName(remoteCrate)
+
+    return {
+      pid,
+      localDatasetTitle,
+      remoteDatasetTitle,
+      titleMismatch: this.normalizeTitle(localDatasetTitle) !== this.normalizeTitle(remoteDatasetTitle),
     }
   }
 
@@ -418,6 +449,10 @@ export class ArpRoCrateLinkService {
       this.readOptionalEntityString(root, 'title') ??
       this.readOptionalEntityString(root, 'name')
     )
+  }
+
+  protected normalizeTitle(value: string | undefined): string {
+    return (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
   }
 
   protected readGraphEntities(crate: RoCrate): RoCrateEntity[] {
