@@ -232,6 +232,8 @@ export interface DashboardConfig {
   host: string
   /** Port to bind the dashboard server to */
   port: number
+  /** UI locale inherited from RocKIT when the MCP server was launched */
+  locale: 'en' | 'hu'
   /** Optional bearer token for authentication */
   authToken?: string
   /** Retention window in hours */

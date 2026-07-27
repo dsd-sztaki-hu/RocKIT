@@ -1,4 +1,5 @@
 import URI from '@theia/core/lib/common/uri'
+import { nls } from '@theia/core/lib/common'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
@@ -53,7 +54,7 @@ export class RoCratePersistenceService {
     const graph = Array.isArray(crate['@graph']) ? crate['@graph'] : []
     const isLarge = graph.length > FULL_PREVIEW_ENTITY_LIMIT
     const loadMask = this.loadMaskService.show({
-      message: 'Saving RO-Crate...',
+      message: nls.localize('rockit/saveRoCrate/saving', 'Saving RO-Crate...'),
       delay: isLarge ? 0 : undefined,
     })
     this.appStateService.beginRoCrateSave()
@@ -66,12 +67,20 @@ export class RoCratePersistenceService {
       const metadataUri = rootUri.resolve('ro-crate-metadata.json')
       await writeJsonObjectFile(this.fileService, metadataUri, crate, (worked, total) => {
         loadMask.update({
-          message: 'Saving RO-Crate metadata...',
+          message: nls.localize(
+            'rockit/saveRoCrate/savingMetadata',
+            'Saving RO-Crate metadata...',
+          ),
           progress: { worked, total },
         })
       })
 
-      loadMask.update({ message: 'Saving RO-Crate preview...' })
+      loadMask.update({
+        message: nls.localize(
+          'rockit/saveRoCrate/savingPreview',
+          'Saving RO-Crate preview...',
+        ),
+      })
       const previewUri = rootUri.resolve('ro-crate-preview.html')
       const preview = isLarge
         ? this.createLimitedPreview(graph.length)
@@ -88,10 +97,23 @@ export class RoCratePersistenceService {
   }
 
   protected createLimitedPreview(entityCount: number): string {
+    const locale = nls.isSelectedLocale('hu') ? 'hu' : 'en'
+    const title = nls.localize('rockit/roCratePreview/title', 'RO-Crate Preview')
+    const entityCountText = entityCount.toLocaleString(locale)
+    const entitySummary = nls.localize(
+      'rockit/roCratePreview/entitySummary',
+      'This crate contains {0} entities.',
+      entityCountText,
+    )
+    const limitedPreview = nls.localize(
+      'rockit/roCratePreview/limitedPreview',
+      'The full HTML preview was not generated because the crate is too large. See {0}.',
+      '<a href="ro-crate-metadata.json">ro-crate-metadata.json</a>',
+    )
     return `<!doctype html>
-<html><head><meta charset="utf-8"><title>RO-Crate Preview</title></head>
-<body><h1>RO-Crate Preview</h1><p>This crate contains ${entityCount.toLocaleString()} entities.</p>
-<p>The full HTML preview was not generated because the crate is too large. See <a href="ro-crate-metadata.json">ro-crate-metadata.json</a>.</p></body></html>\n`
+<html lang="${locale}"><head><meta charset="utf-8"><title>${title}</title></head>
+<body><h1>${title}</h1><p>${entitySummary}</p>
+<p>${limitedPreview}</p></body></html>\n`
   }
 
   protected async waitForLoadMaskPaint(): Promise<void> {

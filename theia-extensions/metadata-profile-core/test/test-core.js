@@ -39,6 +39,30 @@ async function main() {
   assert.equal(imported.profile.name, 'Citation Metadata')
   assert.ok(fs.existsSync(imported.sourcePath), 'source CEDAR file should be written')
   assert.ok(fs.existsSync(imported.convertedPath), 'converted profile should be written')
+  const hungarianConvertedPath = path.join(
+    root,
+    imported.profile.files.convertedPaths.hu,
+  )
+  assert.ok(
+    fs.existsSync(hungarianConvertedPath),
+    'Hungarian converted profile should be written',
+  )
+  const englishProfile = JSON.parse(fs.readFileSync(imported.convertedPath, 'utf8'))
+  const hungarianProfile = JSON.parse(fs.readFileSync(hungarianConvertedPath, 'utf8'))
+  const structuralSignature = (profile) =>
+    Object.fromEntries(
+      Object.entries(profile.classes).map(([className, definition]) => [
+        className,
+        (definition.inputs || []).map((input) => ({
+          name: input.name,
+          type: input.type,
+          multiple: input.multiple,
+        })),
+      ]),
+    )
+  assert.deepEqual(structuralSignature(hungarianProfile), structuralSignature(englishProfile))
+  assert.equal(englishProfile.localisation.Dataset, 'Dataset')
+  assert.equal(hungarianProfile.localisation.Dataset, 'Adatcsomag')
 
   const listing = core.listLocalProfiles(root)
   assert.equal(listing.profiles.length, 1)
@@ -113,6 +137,7 @@ async function main() {
     rootPath: root,
   })
   assert.equal(deleted.removed.id, imported.profile.id)
+  assert.equal(fs.existsSync(hungarianConvertedPath), false)
   assert.equal(core.listLocalProfiles(root).profiles.length, 0)
 
   console.log('metadata-profile-core tests passed')

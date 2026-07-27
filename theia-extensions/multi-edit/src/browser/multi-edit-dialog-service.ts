@@ -1,4 +1,5 @@
 import { inject, injectable, optional } from '@theia/core/shared/inversify'
+import { nls } from '@theia/core/lib/common/nls'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import {
@@ -26,7 +27,7 @@ export class MultiEditDialogService {
     async open(entityIds: string[]): Promise<void> {
         const isLargeSelection = entityIds.length >= 1_000
         const loadMask = this.loadMaskService.show({
-            message: 'Preparing multi-edit...',
+            message: nls.localize('rockit/multiEdit/preparing', 'Preparing multi-edit...'),
             delay: isLargeSelection ? 0 : undefined,
         })
 

@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 import { Button, Input, Table, ConfigProvider, theme } from 'antd';
+import enUS from 'antd/es/locale/en_US';
+import huHU from 'antd/es/locale/hu_HU';
 import type { InputRef, TableColumnsType } from 'antd';
 import type { FilterDropdownProps, Key } from 'antd/es/table/interface';
 import SearchIcon from '@mui/icons-material/Search';
@@ -13,6 +15,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import ReplayIcon from '@mui/icons-material/Replay';
 import { IconButton, Tooltip } from '@mui/material';
+import { nls } from '@theia/core/lib/common/nls';
+import { isHungarianLocale } from 'rockit-common/lib/browser';
 
 import type { SchemaInfo, SchemaTableProps } from '../types';
 import '../styles/metadata-schema-table.css';
@@ -45,7 +49,11 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
             >
                 <Input
                     ref={searchInput}
-                    placeholder={`Search ${Array.isArray(dataIndex) ? dataIndex.join('.') : dataIndex}`}
+                    placeholder={nls.localize(
+                        'rockit/schemaManager/searchField',
+                        'Search {0}',
+                        Array.isArray(dataIndex) ? dataIndex.join('.') : dataIndex,
+                    )}
                     value={selectedKeys[0]}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
                         setSelectedKeys(e.target.value ? [e.target.value] : [])
@@ -60,14 +68,14 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                         size="small" 
                         className="schema-table__filter-btn"
                     >
-                        Search
+                        {nls.localize('rockit/schemaManager/search', 'Search')}
                     </Button>
                     <Button 
                         onClick={() => clearFilters && handleReset(clearFilters)} 
                         size="small" 
                         className="schema-table__filter-btn"
                     >
-                        Reset
+                        {nls.localize('rockit/schemaManager/resetFilter', 'Reset')}
                     </Button>
                 </div>
             </div>
@@ -88,7 +96,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
 
     const columns: TableColumnsType<SchemaInfo> = [
         {
-            title: 'Name',
+            title: nls.localize('rockit/schemaManager/name', 'Name'),
             dataIndex: 'name',
             width: 220,
             ellipsis: true,
@@ -101,7 +109,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
             ...getColumnSearchProps('name'),
         },
         {
-            title: 'Status',
+            title: nls.localize('rockit/schemaManager/status', 'Status'),
             dataIndex: 'status',
             width: 130,
             sorter: (a, b) => {
@@ -112,19 +120,23 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                 const status = text || 'ok';
                 if (status === 'downloading' || status === 'processing') {
                     return (
-                        <Tooltip title={record.statusMessage || 'Processing...'} placement="right">
+                        <Tooltip title={record.statusMessage || nls.localize('rockit/schemaManager/processing', 'Processing...')} placement="right">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--theia-focusBorder)' }}>
                                 <CircularProgress size={14} color="inherit" />
-                                <span style={{ fontSize: '12px' }}>{status === 'downloading' ? 'Downloading' : 'Processing'}</span>
+                                <span style={{ fontSize: '12px' }}>
+                                    {status === 'downloading'
+                                        ? nls.localize('rockit/schemaManager/downloading', 'Downloading')
+                                        : nls.localize('rockit/schemaManager/processingLabel', 'Processing')}
+                                </span>
                             </div>
                         </Tooltip>
                     );
                 } else if (status === 'failed') {
                     return (
-                        <Tooltip title={record.statusMessage || 'Failed'} placement="right">
+                        <Tooltip title={record.statusMessage || nls.localize('rockit/schemaManager/failed', 'Failed')} placement="right">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--theia-errorForeground)' }}>
                                 <ErrorOutlineIcon style={{ fontSize: '16px' }} />
-                                <span style={{ fontSize: '12px' }}>Failed</span>
+                                <span style={{ fontSize: '12px' }}>{nls.localize('rockit/schemaManager/failed', 'Failed')}</span>
                             </div>
                         </Tooltip>
                     );
@@ -132,35 +144,40 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                     return (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4caf50' }}>
                             <CheckCircleIcon style={{ fontSize: '16px' }} />
-                            <span style={{ fontSize: '12px' }}>Ready</span>
+                            <span style={{ fontSize: '12px' }}>{nls.localize('rockit/schemaManager/ready', 'Ready')}</span>
                         </div>
                     );
                 }
             }
         },
         {
-            title: 'Version',
+            title: nls.localize('rockit/schemaManager/version', 'Version'),
             dataIndex: 'version',
             width: 90,
             sorter: (a, b) => a.version.localeCompare(b.version),
         },
         {
-            title: 'Source',
+            title: nls.localize('rockit/schemaManager/source', 'Source'),
             dataIndex: 'source',
             width: 100,
-            filters: [{ text: 'Local', value: 'local' }, { text: 'Remote', value: 'remote' }],
+            filters: [
+                { text: nls.localize('rockit/schemaManager/local', 'Local'), value: 'local' },
+                { text: nls.localize('rockit/schemaManager/remote', 'Remote'), value: 'remote' },
+            ],
             onFilter: (value, record) => record.source === value,
             filterIcon: (filtered: boolean) => (
                 <FilterListIcon className={`schema-table__header-icon ${filtered ? 'schema-table__header-icon--active' : ''}`} />
             ),
             render: (text: string) => (
                 <span className={`schema-table__badge ${text === 'remote' ? 'schema-table__badge--remote' : 'schema-table__badge--local'}`}>
-                    {text}
+                    {text === 'remote'
+                        ? nls.localize('rockit/schemaManager/remote', 'Remote')
+                        : nls.localize('rockit/schemaManager/local', 'Local')}
                 </span>
             )
         },
         {
-            title: 'Ref (@id)',
+            title: nls.localize('rockit/schemaManager/referenceId', 'Ref (@id)'),
             dataIndex: ['aux', 'reference'],
             width: 240,
             ellipsis: true,
@@ -168,7 +185,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
             render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" className="schema-table__link" onClick={e => e.stopPropagation()}>{text}</a> : ''
         },
         {
-            title: 'Conforms To',
+            title: nls.localize('rockit/schemaManager/conformsTo', 'Conforms To'),
             dataIndex: 'conformsTo',
             width: 240,
             ellipsis: true,
@@ -179,7 +196,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
 
     if (onDelete || onRetry) {
         columns.push({
-            title: 'Action',
+            title: nls.localize('rockit/schemaManager/action', 'Action'),
             key: 'action',
             width: 90,
             align: 'center',
@@ -194,7 +211,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                 return (
                     <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                         {record.status === 'failed' && onRetry && (
-                            <Tooltip title="Retry" classes={{ tooltip: 'schema-table__tooltip' }} placement="top">
+                            <Tooltip title={nls.localize('rockit/schemaManager/retry', 'Retry')} classes={{ tooltip: 'schema-table__tooltip' }} placement="top">
                                 <IconButton 
                                     size="small" 
                                     onClick={(e) => {
@@ -215,7 +232,9 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                                     onDelete([record.id]);
                                 }}
                                 className="schema-table__action-btn schema-table__delete-btn"
-                                aria-label={isTransient ? 'Abort or remove schema task' : 'Delete schema'}
+                                aria-label={isTransient
+                                    ? nls.localize('rockit/schemaManager/abortTask', 'Abort or remove schema task')
+                                    : nls.localize('rockit/schemaManager/deleteSchema', 'Delete schema')}
                             >
                                 <DeleteOutlineIcon className="schema-table__delete-icon" />
                             </IconButton>
@@ -231,15 +250,21 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
     const emptyState = (
         <div className="schema-table__empty-state">
             <AccountTreeIcon className="schema-table__empty-icon" />
-            <div className="schema-table__empty-title">No Metadata Schemas</div>
+            <div className="schema-table__empty-title">
+                {nls.localize('rockit/schemaManager/noSchemas', 'No Metadata Schemas')}
+            </div>
             <div className="schema-table__empty-desc">
-                Click <strong>Import File</strong>, <strong>Import URL</strong>, or <strong>Browse Remote</strong> to add schemas.
+                {nls.localize(
+                    'rockit/schemaManager/noSchemasDescription',
+                    'Use Import File, Import URL, or Browse Remote to add schemas.',
+                )}
             </div>
         </div>
     );
 
     return (
         <ConfigProvider
+            locale={isHungarianLocale() ? huHU : enUS}
             getPopupContainer={() => tableWrapperRef.current || document.body}
             theme={{
                 algorithm: theme.darkAlgorithm,

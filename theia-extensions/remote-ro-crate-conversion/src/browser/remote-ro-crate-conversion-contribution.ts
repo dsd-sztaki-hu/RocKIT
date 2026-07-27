@@ -7,6 +7,7 @@ import {
   MenuContribution,
   MenuModelRegistry,
   MessageService,
+  nls,
 } from '@theia/core/lib/common'
 import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
@@ -18,7 +19,10 @@ import { writeUtf8TextFile } from 'rockit-common/lib/browser'
 
 export const RemoteRoCrateConversionCommand: Command = {
   id: 'RemoteRoCrateConversion.command',
-  label: 'ROC Remote to Locale Conversion',
+  label: nls.localize(
+    'rockit/remoteConversion/title',
+    'Convert Remote RO-Crate IDs to Local IDs',
+  ),
 }
 
 type EntityKind = 'File' | 'Dataset' | 'Other'
@@ -71,7 +75,10 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
     const root = roots?.[0]
     if (!root) {
       this.messageService.error(
-        'No workspace folder is open. Open a RO-Crate folder first.',
+        nls.localize(
+          'rockit/remoteConversion/noWorkspace',
+          'No workspace folder is open. Open a RO-Crate folder first.',
+        ),
       )
       return
     }
@@ -80,7 +87,11 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
     const exists = await this.fileService.exists(metadataUri)
     if (!exists) {
       this.messageService.error(
-        `Could not find ro-crate-metadata.json in workspace root: ${root.resource.toString()}`,
+        nls.localize(
+          'rockit/remoteConversion/metadataNotFound',
+          'Could not find ro-crate-metadata.json in workspace root: {0}',
+          root.resource.toString(),
+        ),
       )
       return
     }
@@ -91,21 +102,31 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
       json = JSON.parse(stat.value.toString())
     } catch (e) {
       this.messageService.error(
-        `Failed to read/parse ro-crate-metadata.json: ${String(e)}`,
+        nls.localize(
+          'rockit/remoteConversion/readFailed',
+          'Failed to read/parse ro-crate-metadata.json: {0}',
+          String(e),
+        ),
       )
       return
     }
 
     const graph = Array.isArray(json?.['@graph']) ? json['@graph'] : []
     if (!Array.isArray(graph) || graph.length === 0) {
-      this.messageService.error('ro-crate-metadata.json has no @graph array to convert.')
+      this.messageService.error(nls.localize(
+        'rockit/remoteConversion/noGraph',
+        'ro-crate-metadata.json has no @graph array to convert.',
+      ))
       return
     }
 
     const arpPid = this.getRootArpPid(json)
     if (!arpPid) {
       this.messageService.info(
-        'ID localization is only supported for ARP Data Repository RO-Crates.',
+        nls.localize(
+          'rockit/remoteConversion/arpOnly',
+          'ID localization is only supported for ARP Data Repository RO-Crates.',
+        ),
       )
       return
     }
@@ -172,7 +193,11 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
 
       if (nextIds.has(newId) || conflictingEntry) {
         this.messageService.error(
-          `ID localization cannot continue because the generated local path '${newId}' would not be unique.`,
+          nls.localize(
+            'rockit/remoteConversion/nonUniquePath',
+            "ID localization cannot continue because the generated local path '{0}' would not be unique.",
+            newId,
+          ),
         )
         return
       }
@@ -183,7 +208,15 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
 
     if (idMap.size === 0) {
       this.messageService.info(
-        `No entities were eligible for conversion. (Skipped root dataset: ${skippedRootDataset}, missing @id: ${skippedNoId}, non-convertible type: ${skippedNonConvertibleType}, non-local id: ${skippedNonLocalEntity}, missing name/path metadata: ${skippedMissingName})`,
+        nls.localize(
+          'rockit/remoteConversion/nothingEligible',
+          'No entities were eligible for conversion. (Skipped root dataset: {0}, missing @id: {1}, non-convertible type: {2}, non-local ID: {3}, missing name/path metadata: {4})',
+          skippedRootDataset,
+          skippedNoId,
+          skippedNonConvertibleType,
+          skippedNonLocalEntity,
+          skippedMissingName,
+        ),
       )
       return
     }
@@ -228,13 +261,26 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
       const pretty = JSON.stringify(json, null, 2) + '\n'
       await writeUtf8TextFile(this.fileService, metadataUri, pretty)
       this.roCrateHistoryService.applyRoCrateChange(json, {
-        label: 'Convert remote RO-Crate IDs to local IDs',
+        label: nls.localize(
+          'rockit/remoteConversion/historyLabel',
+          'Convert remote RO-Crate IDs to local IDs',
+        ),
       })
       await this.messageService.info(
-        `Converted ${changedEntities} entities and updated references. Stored ${Object.keys(entityIdMapping).length} ARP file mapping(s) in .rockit/${mappingFileName}.`,
+        nls.localize(
+          'rockit/remoteConversion/completed',
+          'Converted {0} entities and updated references. Stored {1} ARP file mapping(s) in .rockit/{2}.',
+          changedEntities,
+          Object.keys(entityIdMapping).length,
+          mappingFileName,
+        ),
       )
     } catch (e) {
-      this.messageService.error(`Failed to write ro-crate-metadata.json: ${String(e)}`)
+      this.messageService.error(nls.localize(
+        'rockit/remoteConversion/writeFailed',
+        'Failed to write ro-crate-metadata.json: {0}',
+        String(e),
+      ))
     }
   }
 

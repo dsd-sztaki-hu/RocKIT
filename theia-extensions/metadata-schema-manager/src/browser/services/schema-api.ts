@@ -5,6 +5,7 @@ import axios from "axios";
 import { to } from "await-to-js";
 import * as jsonpath from "jsonpath";
 import log from 'loglevel';
+import { nls } from '@theia/core/lib/common/nls';
 
 
 export class SchemaApi {
@@ -40,7 +41,10 @@ export class SchemaApi {
       actualUrl = this.proxyUrl + encodeURIComponent(url);
     }
     if (!axios || !axios.get) {
-        throw new Error("Axios library not initialized correctly.");
+        throw new Error(nls.localize(
+          'rockit/schemaManager/axiosNotInitialized',
+          'Axios library was not initialized correctly.',
+        ));
     }
     return axios.get(actualUrl, axiosConfig)
   }
@@ -108,7 +112,10 @@ export class SchemaApi {
       
       if (!id || id.length == 0) {
         console.warn("Could not find public folder ID in response", res.data);
-        throw Error("Public folder's ID missing at '/resources/0/@id'");
+        throw Error(nls.localize(
+          'rockit/schemaManager/publicFolderIdMissing',
+          "Public folder's ID is missing at '/resources/0/@id'.",
+        ));
       }
       this.publicFolderId = id[0]
     }
@@ -123,7 +130,10 @@ export class SchemaApi {
 
   async listUserFolder(userId?: string) {
     const actualUserId = userId ?? this.userId
-    if (!actualUserId) throw Error("No user ID specified")
+    if (!actualUserId) throw Error(nls.localize(
+      'rockit/schemaManager/userIdMissing',
+      'No user ID was specified.',
+    ))
     
     const url = this.baseUrl("user") + `/users/${actualUserId}`
     const [userErr, userRes] = await to(this.doGet(url, { headers: this.authHeaders() }))

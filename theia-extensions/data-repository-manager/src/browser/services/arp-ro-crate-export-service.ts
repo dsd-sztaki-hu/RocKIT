@@ -1,4 +1,5 @@
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
+import { nls } from '@theia/core/lib/common/nls'
 import { FileUri } from '@theia/core/lib/common/file-uri'
 import { URI } from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -145,14 +146,21 @@ export class ArpRoCrateExportService {
     reportProgress?.({
       completedSteps: 0,
       totalSteps,
-      message: 'Validating RO-Crate metadata...',
+      message: nls.localize(
+        'rockit/dataRepository/validatingRoCrateMetadata',
+        'Validating RO-Crate metadata...',
+      ),
     })
     await this.validateRoCrate(uploadCrate, baseUrl, repository.apiKey)
 
     reportProgress?.({
       completedSteps: 1,
       totalSteps,
-      message: `Creating Dataverse dataset in ${collection.name}...`,
+      message: nls.localize(
+        'rockit/dataRepository/creatingDatasetInCollection',
+        'Creating Dataverse dataset in {0}...',
+        collection.name,
+      ),
     })
     const creation = await this.createDataverseDataset(
       baseUrl,
@@ -163,7 +171,10 @@ export class ArpRoCrateExportService {
     const pid = this.extractPayloadPid(creation.payload)
     if (!pid) {
       throw new Error(
-        'Dataverse created the dataset but did not return the Dataset PID needed to preserve the uploaded RO-Crate relationships.',
+        nls.localize(
+          'rockit/dataRepository/arpDatasetCreationMissingPid',
+          'Dataverse created the dataset but did not return the Dataset PID needed to preserve the uploaded RO-Crate relationships.',
+        ),
       )
     }
 
@@ -172,7 +183,11 @@ export class ArpRoCrateExportService {
       reportProgress?.({
         completedSteps: index + 2,
         totalSteps,
-        message: `Uploading ${file.entryPath}...`,
+        message: nls.localize(
+          'rockit/dataRepository/uploadingFile',
+          'Uploading {0}...',
+          file.entryPath,
+        ),
       })
       const uploadedDataFileId = await this.uploadDataverseFile(
         baseUrl,
@@ -196,10 +211,18 @@ export class ArpRoCrateExportService {
     reportProgress?.({
       completedSteps: uploadFiles.length + 2,
       totalSteps,
-      message: 'Synchronizing RO-Crate metadata...',
+      message: nls.localize(
+        'rockit/dataRepository/synchronizingMetadata',
+        'Synchronizing RO-Crate metadata...',
+      ),
     })
     const metadataUpdateCrate = this.rewriteCrateEntityIds(uploadCrate, uploadIdMapping)
-    await this.updateRemoteRoCrate(baseUrl, repository.apiKey, pid, metadataUpdateCrate)
+    await this.updateRemoteRoCrate(
+      baseUrl,
+      repository.apiKey,
+      pid,
+      metadataUpdateCrate,
+    )
     const metadataIdMapping = this.toMetadataEntityIdMapping(
       crate,
       uploadIdMapping,
@@ -273,7 +296,7 @@ export class ArpRoCrateExportService {
     reportProgress?.({
       completedSteps: 0,
       totalSteps: 1,
-      message: 'Checking for changes...',
+      message: nls.localize('rockit/dataRepository/checkingChanges', 'Checking for changes...'),
     })
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const rootUri = this.getWorkspaceRoot()
@@ -291,7 +314,10 @@ export class ArpRoCrateExportService {
     }
     if (!exportTarget.exportLogEntry?.mappingFile || !exportTarget.mapping) {
       throw new Error(
-        'This workspace has an ARP PID, but no existing export-log mapping file could be loaded for this repository. Update will not create a second mapping file.',
+        nls.localize(
+          'rockit/dataRepository/arpMissingExportMapping',
+          'This workspace has an ARP PID, but no existing export-log mapping file could be loaded for this repository. Update will not create a second mapping file.',
+        ),
       )
     }
 
@@ -324,7 +350,13 @@ export class ArpRoCrateExportService {
     reportProgress?.({
       completedSteps,
       totalSteps,
-      message: `Checking complete: ${diff.newFiles.length} file(s) to upload, ${changedFilesToReplace.length} file(s) to replace, and ${diff.removedFiles.length} file(s) to remove.`,
+      message: nls.localize(
+        'rockit/dataRepository/checkingComplete',
+        'Checking complete: {0} file(s) to upload, {1} file(s) to replace, and {2} file(s) to remove.',
+        diff.newFiles.length,
+        changedFilesToReplace.length,
+        diff.removedFiles.length,
+      ),
     })
     const localEntitiesById = new Map(
       this.readGraphEntities(uploadCrate).map((entity) => [
@@ -345,12 +377,20 @@ export class ArpRoCrateExportService {
       reportProgress?.({
         completedSteps,
         totalSteps,
-        message: `Uploading ${file.localId}...`,
+        message: nls.localize(
+          'rockit/dataRepository/uploadingFile',
+          'Uploading {0}...',
+          file.localId,
+        ),
       })
       const localFile = localEntitiesById.get(file.localId)
       if (!localFile) {
         throw new Error(
-          `Cannot upload new file '${file.localId}' because it was not found in the local upload crate.`,
+          nls.localize(
+            'rockit/dataRepository/newFileMissingLocal',
+            "Cannot upload new file '{0}' because it was not found in the local upload crate.",
+            file.localId,
+          ),
         )
       }
       const uploadedDataFileId = await this.uploadDataverseFile(
@@ -369,18 +409,35 @@ export class ArpRoCrateExportService {
       uploadMapping[file.localId] = uploadedFileId
       metadataMapping[uploadIdToMetadataId[file.localId] ?? file.localId] = uploadedFileId
       completedSteps += 1
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: nls.localize(
+          'rockit/dataRepository/uploadedFile',
+          'Uploaded {0}.',
+          file.localId,
+        ),
+      })
     }
     for (const file of changedFilesToReplace) {
       reportProgress?.({
         completedSteps,
         totalSteps,
-        message: `Replacing ${file.localId}...`,
+        message: nls.localize(
+          'rockit/dataRepository/replacingFile',
+          'Replacing {0}...',
+          file.localId,
+        ),
       })
       const localFile = localEntitiesById.get(file.localId)
       const remoteFile = remoteEntitiesById.get(file.remoteId)
       if (!localFile || !remoteFile) {
         throw new Error(
-          `Cannot replace changed file '${file.localId}' because its local or remote entity could not be resolved.`,
+          nls.localize(
+            'rockit/dataRepository/changedFileUnresolved',
+            "Cannot replace changed file '{0}' because its local or remote entity could not be resolved.",
+            file.localId,
+          ),
         )
       }
       const replacementDataFileId = await this.replaceDataverseFile(
@@ -401,17 +458,34 @@ export class ArpRoCrateExportService {
       metadataMapping[uploadIdToMetadataId[file.localId] ?? file.localId] =
         replacementFileId
       completedSteps += 1
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: nls.localize(
+          'rockit/dataRepository/replacedFile',
+          'Replaced {0}.',
+          file.localId,
+        ),
+      })
     }
     for (const file of diff.removedFiles) {
       reportProgress?.({
         completedSteps,
         totalSteps,
-        message: `Removing ${file.remoteId}...`,
+        message: nls.localize(
+          'rockit/dataRepository/removingFile',
+          'Removing {0}...',
+          file.remoteId,
+        ),
       })
       const remoteFile = remoteEntitiesById.get(file.remoteId)
       if (!remoteFile) {
         throw new Error(
-          `Cannot remove file '${file.remoteId}' because it was not found in the remote crate.`,
+          nls.localize(
+            'rockit/dataRepository/remoteFileMissing',
+            "Cannot remove file '{0}' because it was not found in the remote crate.",
+            file.remoteId,
+          ),
         )
       }
       await this.deleteDataverseFile(
@@ -422,11 +496,20 @@ export class ArpRoCrateExportService {
       this.removeMappingEntriesByRemoteId(uploadMapping, file.remoteId)
       this.removeMappingEntriesByRemoteId(metadataMapping, file.remoteId)
       completedSteps += 1
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: nls.localize(
+          'rockit/dataRepository/removedFile',
+          'Removed {0}.',
+          file.remoteId,
+        ),
+      })
     }
     reportProgress?.({
       completedSteps,
       totalSteps,
-      message: 'Synchronizing RO-Crate metadata...',
+      message: nls.localize('rockit/dataRepository/synchronizingMetadata', 'Synchronizing RO-Crate metadata...'),
     })
     const metadataUpdateCrate = this.rewriteCrateEntityIds(uploadCrate, uploadMapping)
     await this.updateRemoteRoCrate(
@@ -459,7 +542,7 @@ export class ArpRoCrateExportService {
     reportProgress?.({
       completedSteps: totalSteps,
       totalSteps,
-      message: 'Synchronization complete.',
+      message: nls.localize('rockit/dataRepository/synchronizationComplete', 'Synchronization complete.'),
     })
 
     return {
@@ -515,21 +598,28 @@ export class ArpRoCrateExportService {
     const roots = this.workspaceService.tryGetRoots()
     const root = roots?.[0]?.resource
     if (!root) {
-      throw new Error('No workspace is open.')
+      throw new Error(nls.localize('rockit/dataRepository/noWorkspace', 'No workspace is open.'))
     }
     return root
   }
 
   protected async readRoCrate(metadataUri: URI): Promise<RoCrate> {
     if (!(await this.fileService.exists(metadataUri))) {
-      throw new Error('ro-crate-metadata.json was not found in the workspace root.')
+      throw new Error(nls.localize(
+        'rockit/dataRepository/metadataFileNotFound',
+        'ro-crate-metadata.json was not found in the workspace root.',
+      ))
     }
     const content = await this.fileService.readFile(metadataUri)
     try {
       return JSON.parse(content.value.toString()) as RoCrate
     } catch (error) {
       throw new Error(
-        `Failed to parse ro-crate-metadata.json: ${error instanceof Error ? error.message : String(error)}`,
+        nls.localize(
+          'rockit/dataRepository/parseMetadataFailed',
+          'Failed to parse ro-crate-metadata.json: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
       )
     }
   }
@@ -631,7 +721,13 @@ export class ArpRoCrateExportService {
     const payload = await this.readResponsePayload(response)
     if (!response.ok || this.payloadHasErrorStatus(payload)) {
       throw new Error(
-        `Dataverse dataset creation failed (${response.status}) at ${response.url || requestUrl}: ${this.payloadSummary(payload)}`,
+        nls.localize(
+          'rockit/dataRepository/nativeDatasetCreationRequestFailed',
+          'Dataverse dataset creation failed ({0}) at {1}: {2}',
+          response.status,
+          response.url || requestUrl,
+          this.payloadSummary(payload),
+        ),
       )
     }
     return { requestUrl: response.url || requestUrl, payload }
@@ -655,15 +751,40 @@ export class ArpRoCrateExportService {
     )
     const metadataLanguage = datasetMetadata.metadataLanguage?.trim()
     const missing: string[] = []
-    if (!title) missing.push('Title')
-    if (!authorNames.length) missing.push('Author Name')
-    if (!contactEmails.length) missing.push('Point of Contact Email')
-    if (!descriptions.length) missing.push('Description Text')
-    if (!subjects.length) missing.push('Subject')
-    if (!metadataLanguage) missing.push('Dataset Metadata Language')
+    if (!title) {
+      missing.push(nls.localize('rockit/dataRepository/metadataTitle', 'Title'))
+    }
+    if (!authorNames.length) {
+      missing.push(nls.localize('rockit/dataRepository/authorName', 'Author Name'))
+    }
+    if (!contactEmails.length) {
+      missing.push(
+        nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email'),
+      )
+    }
+    if (!descriptions.length) {
+      missing.push(
+        nls.localize('rockit/dataRepository/descriptionText', 'Description Text'),
+      )
+    }
+    if (!subjects.length) {
+      missing.push(nls.localize('rockit/dataRepository/subject', 'Subject'))
+    }
+    if (!metadataLanguage) {
+      missing.push(
+        nls.localize(
+          'rockit/dataRepository/metadataLanguage',
+          'Dataset Metadata Language',
+        ),
+      )
+    }
     if (missing.length) {
       throw new Error(
-        `Cannot create Dataverse dataset. Missing required metadata: ${missing.join(', ')}.`,
+        nls.localize(
+          'rockit/dataRepository/missingRequiredMetadata',
+          'Cannot create Dataverse dataset. Missing required metadata: {0}.',
+          missing.join(', '),
+        ),
       )
     }
 
@@ -757,7 +878,7 @@ export class ArpRoCrateExportService {
         return []
       }
       const label = this.readStrings(record.title ?? record.displayName ?? record.label)[0]
-      return [{ value, label: label ?? this.metadataLanguageLabel(value) }]
+      return [{ value, label: this.metadataLanguageLabel(value, label) }]
     })
     const seen = new Set<string>()
     return options.filter((option) => {
@@ -772,20 +893,26 @@ export class ArpRoCrateExportService {
 
   protected defaultMetadataLanguageOptions(): Array<{ value: string; label: string }> {
     return [
-      { value: 'en', label: 'English' },
-      { value: 'hu', label: 'Magyar' },
+      {
+        value: 'en',
+        label: nls.localize('rockit/dataRepository/languageEnglish', 'English'),
+      },
+      {
+        value: 'hu',
+        label: nls.localize('rockit/dataRepository/languageHungarian', 'Hungarian'),
+      },
     ]
   }
 
-  protected metadataLanguageLabel(value: string): string {
+  protected metadataLanguageLabel(value: string, fallbackLabel?: string): string {
     const normalized = value.toLowerCase()
     if (normalized === 'en') {
-      return 'English'
+      return nls.localize('rockit/dataRepository/languageEnglish', 'English')
     }
     if (normalized === 'hu') {
-      return 'Magyar'
+      return nls.localize('rockit/dataRepository/languageHungarian', 'Hungarian')
     }
-    return value
+    return fallbackLabel ?? value
   }
 
   protected async localizeExternalLocalFileReferences(
@@ -993,12 +1120,21 @@ export class ArpRoCrateExportService {
     const payload = await this.readResponsePayload(response)
     if (!response.ok) {
       throw new Error(
-        `Failed to retrieve remote RO-Crate (${response.status}) at ${response.url || requestUrl}: ${this.payloadSummary(payload)}`,
+        nls.localize(
+          'rockit/dataRepository/remoteCrateFetchFailed',
+          'Failed to retrieve remote RO-Crate ({0}) at {1}: {2}',
+          response.status,
+          response.url || requestUrl,
+          this.payloadSummary(payload),
+        ),
       )
     }
     const crate = this.extractDataverseCrate(payload)
     if (!crate) {
-      throw new Error('The ARP RO-Crate response did not contain a valid @graph.')
+      throw new Error(nls.localize(
+        'rockit/dataRepository/arpResponseMissingGraph',
+        'The ARP RO-Crate response did not contain a valid @graph.',
+      ))
     }
     return crate
   }
@@ -1025,7 +1161,13 @@ export class ArpRoCrateExportService {
     const payload = await this.readResponsePayload(response)
     if (!response.ok || this.payloadHasErrorStatus(payload)) {
       throw new Error(
-        `ARP RO-Crate metadata update failed (${response.status}) at ${response.url || requestUrl}: ${this.payloadSummary(payload)}`,
+        nls.localize(
+          'rockit/dataRepository/arpMetadataUpdateFailed',
+          'ARP RO-Crate metadata update failed ({0}) at {1}: {2}',
+          response.status,
+          response.url || requestUrl,
+          this.payloadSummary(payload),
+        ),
       )
     }
   }
@@ -1054,7 +1196,10 @@ export class ArpRoCrateExportService {
     const arpPid = ingestedRoot?.['@arpPid']
     if (!restoredRoot || typeof arpPid !== 'string' || !arpPid.trim()) {
       throw new Error(
-        'ARP upload completed, but the returned RO-Crate did not contain the root @arpPid needed for metadata restoration.',
+        nls.localize(
+          'rockit/dataRepository/arpPidMissing',
+          'ARP upload completed, but the returned RO-Crate did not contain the root @arpPid needed for metadata restoration.',
+        ),
       )
     }
     restoredRoot['@arpPid'] = arpPid
@@ -1072,7 +1217,10 @@ export class ArpRoCrateExportService {
     )
     if (!restoredRoot) {
       throw new Error(
-        'ARP export completed, but the local upload crate did not contain the root Dataset needed for metadata restoration.',
+        nls.localize(
+          'rockit/dataRepository/arpCreatedRootMissing',
+          'ARP export completed, but the local upload crate did not contain the root Dataset needed for metadata restoration.',
+        ),
       )
     }
     restoredRoot['@arpPid'] = pid
@@ -1127,20 +1275,36 @@ export class ArpRoCrateExportService {
     const entryPath = this.dataverseFilePathFromEntity(entity)
     if (!entryPath) {
       throw new Error(
-        `Cannot determine upload path for File entity '${this.requireEntityId(entity)}'.`,
+        nls.localize(
+          'rockit/dataRepository/fileUploadPathUnknown',
+          "Cannot determine upload path for File entity '{0}'.",
+          this.requireEntityId(entity),
+        ),
       )
     }
     const externalUri = externalFileEntries.get(entryPath)
     const uri = externalUri ?? rootUri.resolve(entryPath)
     if (!externalUri && !this.isInsideRoot(rootUri, uri)) {
-      throw new Error(`Refusing to upload path outside crate root: ${entryPath}`)
+      throw new Error(nls.localize(
+        'rockit/dataRepository/uploadPathOutsideCrate',
+        'Refusing to upload path outside crate root: {0}',
+        entryPath,
+      ))
     }
     if (!(await this.fileService.exists(uri))) {
-      throw new Error(`Referenced file not found for upload: ${entryPath}`)
+      throw new Error(nls.localize(
+        'rockit/dataRepository/uploadFileMissing',
+        'Referenced file not found for upload: {0}',
+        entryPath,
+      ))
     }
     const stat = await this.fileService.resolve(uri)
     if (stat.isDirectory) {
-      throw new Error(`Cannot upload '${entryPath}' because it is a directory.`)
+      throw new Error(nls.localize(
+        'rockit/dataRepository/cannotUploadDirectory',
+        "Cannot upload '{0}' because it is a directory.",
+        entryPath,
+      ))
     }
     return {
       entityId: this.requireEntityId(entity),
@@ -1172,13 +1336,24 @@ export class ArpRoCrateExportService {
     const payload = await this.readResponsePayload(response)
     if (!response.ok || this.payloadHasErrorStatus(payload)) {
       throw new Error(
-        `Dataverse file upload failed for '${file.entryPath}' (${response.status}) at ${response.url || requestUrl}: ${this.payloadSummary(payload)}`,
+        nls.localize(
+          'rockit/dataRepository/dataverseFileUploadAtFailed',
+          "Dataverse file upload failed for '{0}' ({1}) at {2}: {3}",
+          file.entryPath,
+          response.status,
+          response.url || requestUrl,
+          this.payloadSummary(payload),
+        ),
       )
     }
     const fileId = this.extractDataverseUploadFileId(payload)
     if (!fileId) {
       throw new Error(
-        `Dataverse file upload completed for '${file.entryPath}', but the response did not contain a dataFile.id.`,
+        nls.localize(
+          'rockit/dataRepository/dataverseUploadMissingFileId',
+          "Dataverse file upload completed for '{0}', but the response did not contain a dataFile.id.",
+          file.entryPath,
+        ),
       )
     }
     return fileId
@@ -1246,13 +1421,24 @@ export class ArpRoCrateExportService {
     const payload = await this.readResponsePayload(response)
     if (!response.ok || this.payloadHasErrorStatus(payload)) {
       throw new Error(
-        `Dataverse file replacement failed for '${file.entryPath}' (${response.status}) at ${response.url || requestUrl}: ${this.payloadSummary(payload)}`,
+        nls.localize(
+          'rockit/dataRepository/dataverseFileReplacementAtFailed',
+          "Dataverse file replacement failed for '{0}' ({1}) at {2}: {3}",
+          file.entryPath,
+          response.status,
+          response.url || requestUrl,
+          this.payloadSummary(payload),
+        ),
       )
     }
     const replacementFileId = this.extractDataverseUploadFileId(payload)
     if (!replacementFileId) {
       throw new Error(
-        `Dataverse file replacement completed for '${file.entryPath}', but the response did not contain a dataFile.id.`,
+        nls.localize(
+          'rockit/dataRepository/dataverseReplacementMissingFileId',
+          "Dataverse file replacement completed for '{0}', but the response did not contain a dataFile.id.",
+          file.entryPath,
+        ),
       )
     }
     return replacementFileId
@@ -1318,7 +1504,14 @@ export class ArpRoCrateExportService {
     const payload = await this.readResponsePayload(response)
     if (!response.ok || this.payloadHasErrorStatus(payload)) {
       throw new Error(
-        `Dataverse file deletion failed for file ${fileId} (${response.status}) at ${response.url || requestUrl}: ${this.payloadSummary(payload)}`,
+        nls.localize(
+          'rockit/dataRepository/dataverseFileDeletionAtFailed',
+          'Dataverse file deletion failed for file {0} ({1}) at {2}: {3}',
+          fileId,
+          response.status,
+          response.url || requestUrl,
+          this.payloadSummary(payload),
+        ),
       )
     }
   }
@@ -1336,9 +1529,11 @@ export class ArpRoCrateExportService {
         return Number(value)
       }
     }
-    throw new Error(
-      `Cannot determine Dataverse file ID for remote File entity '${this.requireEntityId(entity)}'.`,
-    )
+    throw new Error(nls.localize(
+      'rockit/dataRepository/dataverseFileIdUnknown',
+      "Cannot determine Dataverse file ID for remote File entity '{0}'.",
+      this.requireEntityId(entity),
+    ))
   }
 
   protected diffRoCrates(
@@ -2089,7 +2284,10 @@ export class ArpRoCrateExportService {
     const id = this.readOptionalEntityString(entity, '@id')
     if (!id) {
       throw new Error(
-        'ARP upload completed, but an entity mapping file could not be created. An RO-Crate entity has no @id.',
+        nls.localize(
+          'rockit/dataRepository/arpEntityMappingMissingId',
+          'ARP upload completed, but an entity mapping file could not be created. An RO-Crate entity has no @id.',
+        ),
       )
     }
     return id
@@ -2157,7 +2355,13 @@ export class ArpRoCrateExportService {
     if (!response.ok || messages.length > 0) {
       const issuesPreview = messages.slice(0, 10).join(' | ')
       throw new Error(
-        `Upload blocked by ARP validation (${response.status}) at ${response.url || validateUrl.toString()}${issuesPreview ? `: ${issuesPreview}` : ''}`,
+        nls.localize(
+          'rockit/dataRepository/arpValidationBlocked',
+          'Upload blocked by ARP validation ({0}) at {1}{2}',
+          response.status,
+          response.url || validateUrl.toString(),
+          issuesPreview ? `: ${issuesPreview}` : '',
+        ),
       )
     }
   }
@@ -2558,7 +2762,10 @@ export class ArpRoCrateExportService {
   protected normalizeBaseUrl(baseUrl: string): string {
     const normalized = baseUrl.trim().replace(/\/+$/, '')
     if (!normalized) {
-      throw new Error('Repository base URL is empty.')
+      throw new Error(nls.localize(
+        'rockit/dataRepository/emptyRepositoryBaseUrl',
+        'Repository base URL is empty.',
+      ))
     }
     return normalized
   }

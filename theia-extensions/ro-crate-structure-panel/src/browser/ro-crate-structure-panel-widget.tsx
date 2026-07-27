@@ -6,7 +6,7 @@ import {
     WidgetManager,
 } from '@theia/core/lib/browser'
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
-import { MessageService } from '@theia/core/lib/common'
+import { MessageService, nls } from '@theia/core/lib/common'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import URI from '@theia/core/lib/common/uri'
@@ -119,7 +119,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             `${RoCrateStructurePanelWidget.ID}:${Math.random().toString(36).substring(2)}`
 
         this.id = this.instanceId
-        this.title.label = `RO-Crate Structure panel (${this.instanceId})`
+        this.title.label = nls.localize(
+            'rockit/structurePanel/instanceTitle',
+            'RO-Crate Structure Panel ({0})',
+            this.instanceId,
+        )
 
         this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
             (_) => {
@@ -235,14 +239,27 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         const confirmed = await new ConfirmDialog({
             title:
                 occurrences.length > 1
-                    ? 'Remove items from datasets?'
-                    : 'Remove item from dataset?',
+                    ? nls.localize(
+                        'rockit/structurePanel/removeItemsFromDatasets',
+                        'Remove items from datasets?',
+                    )
+                    : nls.localize(
+                        'rockit/structurePanel/removeItemFromDataset',
+                        'Remove item from dataset?',
+                    ),
             msg:
                 occurrences.length > 1
-                    ? `Are you sure you want to remove the ${occurrences.length} selected relationships?`
-                    : 'Are you sure you want to remove the selected relationship?',
-            ok: 'Remove',
-            cancel: 'Cancel',
+                    ? nls.localize(
+                        'rockit/structurePanel/removeRelationshipsQuestion',
+                        'Are you sure you want to remove the {0} selected relationships?',
+                        occurrences.length,
+                    )
+                    : nls.localize(
+                        'rockit/structurePanel/removeRelationshipQuestion',
+                        'Are you sure you want to remove the selected relationship?',
+                    ),
+            ok: nls.localize('rockit/structurePanel/remove', 'Remove'),
+            cancel: nls.localize('rockit/common/cancel', 'Cancel'),
         }).open()
         if (confirmed !== true) {
             return
@@ -281,8 +298,14 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         this.roCrateHistoryService.applyRoCrateChange(updatedCrate, {
             label:
                 occurrences.length > 1
-                    ? 'Remove dataset relationships'
-                    : 'Remove dataset relationship',
+                    ? nls.localize(
+                        'rockit/structurePanel/removeDatasetRelationshipsHistory',
+                        'Remove dataset relationships',
+                    )
+                    : nls.localize(
+                        'rockit/structurePanel/removeDatasetRelationshipHistory',
+                        'Remove dataset relationship',
+                    ),
         })
         this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
 
@@ -1163,7 +1186,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 >
                     <span className="ro-crate-structure-validation-icon fa fa-exclamation-triangle" />
                     <span className="ro-crate-structure-validation-text">
-            {validationIssueCount} validation error(s)
+            {nls.localize(
+                'rockit/structurePanel/validationErrorCount',
+                '{0} validation error(s)',
+                validationIssueCount,
+            )}
           </span>
                 </button>
 
@@ -1240,8 +1267,14 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                           <span
                               className="ro-crate-structure-invalid-icon fa fa-exclamation-triangle"
                               role="img"
-                              aria-label="Invalid entity"
-                              title="Invalid entity"
+                              aria-label={nls.localize(
+                                  'rockit/structurePanel/invalidEntity',
+                                  'Invalid entity',
+                              )}
+                              title={nls.localize(
+                                  'rockit/structurePanel/invalidEntity',
+                                  'Invalid entity',
+                              )}
                           />
                       )}
                       {displayName}
@@ -1350,15 +1383,30 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
         const droppedDirectories = await this.findDroppedDirectories(uniqueDroppedFiles)
         if (droppedDirectories.length) {
-            const folderLabel =
-                droppedDirectories.length === 1
-                    ? `the folder "${this.getDroppedFileName(droppedDirectories[0])}"`
-                    : `${droppedDirectories.length} selected folders`
             const includeContents = await new ConfirmDialog({
-                title: 'Include folder contents?',
-                msg: `Do you want to add all files and subfolders inside ${folderLabel} recursively?`,
-                ok: 'Include Contents',
-                cancel: 'Folder Only',
+                title: nls.localize(
+                    'rockit/structurePanel/includeFolderContentsTitle',
+                    'Include folder contents?',
+                ),
+                msg: droppedDirectories.length === 1
+                    ? nls.localize(
+                        'rockit/structurePanel/includeOneFolderContents',
+                        'Do you want to recursively add all files and subfolders inside the folder "{0}"?',
+                        this.getDroppedFileName(droppedDirectories[0]),
+                    )
+                    : nls.localize(
+                        'rockit/structurePanel/includeMultipleFolderContents',
+                        'Do you want to recursively add all files and subfolders inside the {0} selected folders?',
+                        droppedDirectories.length,
+                    ),
+                ok: nls.localize(
+                    'rockit/structurePanel/includeContents',
+                    'Include Contents',
+                ),
+                cancel: nls.localize(
+                    'rockit/structurePanel/folderOnly',
+                    'Folder Only',
+                ),
             }).open()
 
             if (includeContents) {
@@ -1389,7 +1437,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         )
 
         this.roCrateHistoryService.applyRoCrateChange(updatedCrate, {
-            label: 'Add dropped files to RO-Crate',
+            label: nls.localize(
+                'rockit/structurePanel/addDroppedFiles',
+                'Add dropped files to RO-Crate',
+            ),
         })
         this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
         this.update()
@@ -1487,8 +1538,14 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
         this.roCrateHistoryService.applyRoCrateChange(result.crate, {
             label: copyMode
-                ? 'Copy entities via drag-and-drop'
-                : 'Move entities via drag-and-drop',
+                ? nls.localize(
+                    'rockit/structurePanel/copyEntitiesHistory',
+                    'Copy entities via drag-and-drop',
+                )
+                : nls.localize(
+                    'rockit/structurePanel/moveEntitiesHistory',
+                    'Move entities via drag-and-drop',
+                ),
         })
         this.appStateService.dirty = this.appStateService.isRoCrateDirty(result.crate)
         this.invalidateTreeCache()
@@ -1568,7 +1625,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             return {
                 changed: false,
                 crate,
-                message: 'No movable File or Dataset entities were dropped.',
+                message: nls.localize(
+                    'rockit/structurePanel/noMovableEntities',
+                    'No movable File or Dataset entities were dropped.',
+                ),
             }
         }
 
@@ -1577,7 +1637,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             return {
                 changed: false,
                 crate,
-                message: 'Drop target must be a Dataset entity.',
+                message: nls.localize(
+                    'rockit/structurePanel/dropTargetDataset',
+                    'Drop target must be a Dataset entity.',
+                ),
             }
         }
 
@@ -1585,7 +1648,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             return {
                 changed: false,
                 crate,
-                message: 'Cannot drop an entity onto itself.',
+                message: nls.localize(
+                    'rockit/structurePanel/cannotDropOntoItself',
+                    'Cannot drop an entity onto itself.',
+                ),
             }
         }
 
@@ -1634,8 +1700,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 return {
                     changed: false,
                     crate,
-                    message:
+                    message: nls.localize(
+                        'rockit/structurePanel/moveWouldSplitGraph',
                         'Move cancelled: the destination is only reachable through one of the dragged entities, so moving it there would split the RO-Crate graph.',
+                    ),
                 }
             }
         }
@@ -1687,7 +1755,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         })
 
         const changed = JSON.stringify(graph) !== JSON.stringify(updatedGraph)
-        const action = copyMode ? 'Copied' : 'Moved'
+        // const action = copyMode ? 'Copied' : 'Moved'
         const count = copyMode
             ? entityIdsToLink.length
             : hasOccurrenceSources
@@ -1700,7 +1768,17 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             changed,
             crate: { ...crate, '@graph': updatedGraph },
             message: changed
-                ? `${action} ${count} ${count === 1 ? 'entity' : 'entities'}.`
+                ? copyMode
+                    ? nls.localize(
+                        'rockit/structurePanel/copiedEntities',
+                        'Copied {0} entity/entities.',
+                        count,
+                    )
+                    : nls.localize(
+                        'rockit/structurePanel/movedEntities',
+                        'Moved {0} entity/entities.',
+                        count,
+                    )
                 : '',
         }
     }

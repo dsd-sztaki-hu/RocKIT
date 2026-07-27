@@ -9,6 +9,7 @@ import {
   MenuContribution,
   MenuModelRegistry,
   MessageService,
+  nls,
   URI,
 } from '@theia/core/lib/common'
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
@@ -35,7 +36,7 @@ import {
 
 export const ExportRoCrateCommand: Command = {
   id: 'ExportRoCrate.command',
-  label: 'Export RO-Crate',
+  label: nls.localize('rockit/exportRoCrate/title', 'Export RO-Crate'),
 }
 
 interface IgnoreRule {
@@ -151,15 +152,23 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
   protected async handleNormalExport(options: ExportRoCrateOptions): Promise<void> {
     const roots = this.workspaceService.tryGetRoots()
     if (!roots.length) {
-      this.messageService.warn('No workspace is open.', { timeout: 3000 })
+      this.messageService.warn(
+        nls.localize('rockit/exportRoCrate/noWorkspace', 'No workspace is open.'),
+        { timeout: 3000 },
+      )
       return
     }
     const rootName = roots[0]?.resource?.path?.base || 'workspace'
 
     const target = await this.fileDialogService.showSaveDialog({
-      title: 'Save Normal export',
-      filters: { 'Zip Archive': ['zip'] },
-      saveLabel: 'Save',
+      title: nls.localize(
+        'rockit/exportRoCrate/saveNormalTitle',
+        'Save Normal export',
+      ),
+      filters: {
+        [nls.localize('rockit/exportRoCrate/zipArchive', 'Zip Archive')]: ['zip'],
+      },
+      saveLabel: nls.localize('rockit/exportRoCrate/save', 'Save'),
       inputValue: `${rootName}.zip`,
     })
     if (!target) {
@@ -185,14 +194,24 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     try {
       const data = await zip.generateAsync({ type: 'uint8array' })
       await this.fileService.writeFile(target, BinaryBuffer.wrap(data))
-      this.messageService.info(`Normal export saved to ${target.path.base}`, {
-        timeout: 3000,
-      })
+      this.messageService.info(
+        nls.localize(
+          'rockit/exportRoCrate/normalSaved',
+          'Normal export saved to {0}',
+          target.path.base,
+        ),
+        { timeout: 3000 },
+      )
     } catch (error) {
       console.error(error)
-      this.messageService.error(`Failed to create normal export: ${error}`, {
-        timeout: 3000,
-      })
+      this.messageService.error(
+        nls.localize(
+          'rockit/exportRoCrate/normalFailed',
+          'Failed to create normal export: {0}',
+          String(error),
+        ),
+        { timeout: 3000 },
+      )
     }
   }
 
@@ -665,9 +684,13 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
   protected async handleCleanExport(options: ExportRoCrateOptions): Promise<void> {
     const rootUri = this.getWorkspaceRoot()
     if (!rootUri) {
-      this.messageService.warn('No workspace root available for Clean export.', {
-        timeout: 3000,
-      })
+      this.messageService.warn(
+        nls.localize(
+          'rockit/exportRoCrate/noWorkspaceRoot',
+          'No workspace root available for Clean export.',
+        ),
+        { timeout: 3000 },
+      )
       return
     }
     const rootName = rootUri.path.base || 'workspace'
@@ -675,7 +698,10 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     const metadataUri = rootUri.resolve('ro-crate-metadata.json')
     if (!(await this.fileService.exists(metadataUri))) {
       this.messageService.warn(
-        'RO-Crate metadata not found; cannot perform Clean export.',
+        nls.localize(
+          'rockit/exportRoCrate/metadataNotFound',
+          'RO-Crate metadata not found; cannot perform Clean export.',
+        ),
         { timeout: 3000 },
       )
       return
@@ -684,14 +710,25 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     const metadataContent = await this.fileService.readFile(metadataUri)
     const crate = this.parseCrate(metadataContent.value)
     if (!crate) {
-      this.messageService.error('Failed to parse RO-Crate metadata.', { timeout: 3000 })
+      this.messageService.error(
+        nls.localize(
+          'rockit/exportRoCrate/parseFailed',
+          'Failed to parse RO-Crate metadata.',
+        ),
+        { timeout: 3000 },
+      )
       return
     }
 
     const target = await this.fileDialogService.showSaveDialog({
-      title: 'Save Clean RO-Crate export',
-      filters: { 'Zip Archive': ['zip'] },
-      saveLabel: 'Save',
+      title: nls.localize(
+        'rockit/exportRoCrate/saveCleanTitle',
+        'Save Clean RO-Crate export',
+      ),
+      filters: {
+        [nls.localize('rockit/exportRoCrate/zipArchive', 'Zip Archive')]: ['zip'],
+      },
+      saveLabel: nls.localize('rockit/exportRoCrate/save', 'Save'),
       inputValue: `${rootName}-clean.zip`,
     })
     if (!target) {
@@ -712,14 +749,24 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     try {
       const data = await zip.generateAsync({ type: 'uint8array' })
       await this.fileService.writeFile(target, BinaryBuffer.wrap(data))
-      this.messageService.info(`Clean export saved to ${target.path.base}`, {
-        timeout: 3000,
-      })
+      this.messageService.info(
+        nls.localize(
+          'rockit/exportRoCrate/cleanSaved',
+          'Clean export saved to {0}',
+          target.path.base,
+        ),
+        { timeout: 3000 },
+      )
     } catch (error) {
       console.error(error)
-      this.messageService.error(`Failed to create clean export: ${error}`, {
-        timeout: 3000,
-      })
+      this.messageService.error(
+        nls.localize(
+          'rockit/exportRoCrate/cleanFailed',
+          'Failed to create clean export: {0}',
+          String(error),
+        ),
+        { timeout: 3000 },
+      )
     }
   }
 

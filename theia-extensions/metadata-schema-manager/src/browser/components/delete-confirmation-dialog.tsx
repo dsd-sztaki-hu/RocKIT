@@ -4,6 +4,7 @@ import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
+import { nls } from '@theia/core/lib/common/nls';
 
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import '../styles/delete-confirmation-dialog.css';
@@ -15,7 +16,7 @@ export class DeleteConfirmationDialog extends AbstractDialog<boolean> {
 
     constructor(private readonly count: number) {
         super({
-            title: 'Confirm Deletion'
+            title: nls.localize('rockit/schemaManager/confirmDeletion', 'Confirm Deletion')
         });
 
         this.contentNode.style.width = '400px';
@@ -81,10 +82,13 @@ const DeleteContent: React.FC<DeleteContentProps> = ({ count, onConfirm, onCance
                 
                 <div className="delete-confirmation__text-container">
                     <h3 className="delete-confirmation__title">
-                        Delete {count} schema(s)?
+                        {nls.localize('rockit/schemaManager/deleteSchemasQuestion', 'Delete {0} schema(s)?', count)}
                     </h3>
                     <p className="delete-confirmation__message">
-                        Are you sure you want to delete the selected schemas? This action cannot be undone.
+                        {nls.localize(
+                            'rockit/schemaManager/deleteSchemasWarning',
+                            'Are you sure you want to delete the selected schemas? This action cannot be undone.',
+                        )}
                     </p>
                 </div>
             </div>
@@ -95,13 +99,13 @@ const DeleteContent: React.FC<DeleteContentProps> = ({ count, onConfirm, onCance
                     className="theia-button secondary delete-confirmation__btn-cancel"
                     onClick={onCancel}
                 >
-                    Cancel
+                    {nls.localize('rockit/common/cancel', 'Cancel')}
                 </button>
                 <button 
                     className="theia-button delete-confirmation__btn-delete"
                     onClick={onConfirm}
                 >
-                    Delete
+                    {nls.localize('rockit/schemaManager/delete', 'Delete')}
                 </button>
             </div>
         </div>

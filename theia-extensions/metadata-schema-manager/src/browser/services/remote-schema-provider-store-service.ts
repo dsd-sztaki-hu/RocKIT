@@ -4,6 +4,7 @@ import { injectable, inject } from 'inversify';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { URI } from '@theia/core/lib/common/uri';
+import { nls } from '@theia/core/lib/common/nls';
 
 import { createDefaultArpProductionProvider, RemoteSchemaProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
@@ -30,7 +31,10 @@ export class RemoteSchemaProviderStoreService {
             undefined;
 
         if (!rootPathEnv?.value || !configFileNameEnv?.value || !keytarServiceEnv?.value) {
-            throw new Error('Critical Environment Variables missing. Check app-setup.js configuration.');
+            throw new Error(nls.localize(
+                'rockit/schemaManager/configEnvironmentMissing',
+                'Critical environment variables are missing. Check the app-setup.js configuration.'
+            ));
         }
 
         return {

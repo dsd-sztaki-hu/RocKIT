@@ -1,0 +1,118 @@
+{
+    "classes": {
+        "Dataset": {
+            "inputs": [
+                {
+                    "id": "https://schema.org/description",
+                    "name": "description",
+                    "label": "Leírás",
+                    "help": "Az elem leírása.",
+                    "multiple": true,
+                    "type": [
+                        "TextArea"
+                    ]
+                },
+                {
+                    "id": "https://schema.org/hasPart",
+                    "name": "hasPart",
+                    "label": "Részei",
+                    "help": "Az adatcsomag részét képező elemek",
+                    "multiple": "true",
+                    "type": [
+                        "Dataset",
+                        "File"
+                    ]
+                },
+                {
+                    "id": "https://schema.org/license",
+                    "name": "license",
+                    "label": "Licenc",
+                    "help": "A tartalomra vonatkozó licencdokumentum, általában URL-lel megadva",
+                    "readonly": "true",
+                    "type": "URL"
+                },
+                {
+                    "id": "https://schema.org/datePublished",
+                    "name": "datePublished",
+                    "label": "Közzététel dátuma",
+                    "help": "A közzététel dátuma.",
+                    "readonly": "true",
+                    "type": "Date"
+                }
+            ]
+        },
+        "File": {
+            "label": "Fájl",
+            "definition": "override",
+            "subClassOf": [],
+            "inputs": [
+                {
+                    "id": "https://schema.org/contentSize",
+                    "name": "contentSize",
+                    "label": "Tartalom mérete",
+                    "help": "A fájl mérete bájtban",
+                    "type": [
+                        "Text"
+                    ],
+                    "required": true,
+                    "multiple": false
+                },
+                {
+                    "id": "https://schema.org/encodingFormat",
+                    "name": "encodingFormat",
+                    "label": "Kódolási formátum",
+                    "help": "A fájl MIME-típusa",
+                    "type": [
+                        "Text"
+                    ],
+                    "required": false,
+                    "multiple": false
+                },
+                {
+                    "id": "https://schema.org/description",
+                    "name": "description",
+                    "label": "Leírás",
+                    "help": "A fájl tartalmának leírása",
+                    "type": [
+                        "Text"
+                    ],
+                    "required": false,
+                    "multiple": false
+                },
+                {
+                    "id": "https://dataverse.org/schema/file/hash",
+                    "name": "hash",
+                    "label": "Ellenőrző összeg",
+                    "help": "A fájl ellenőrző összege",
+                    "type": [
+                        "Text"
+                    ],
+                    "required": false,
+                    "multiple": false,
+                    "readonly": true
+                },
+                {
+                    "id": "https://dataverse.org/schema/file/arpPid",
+                    "name": "@arpPid",
+                    "label": "ARP PID",
+                    "help": "A fájl ARP-specifikus tartós azonosítója",
+                    "type": [
+                        "Text"
+                    ],
+                    "required": false,
+                    "multiple": false,
+                    "readonly": true
+                }
+            ]
+        }
+    },
+    "enabledClasses": [
+        "Dataset",
+        "File"
+    ],
+    "localisation": {
+        "language": "hu",
+        "Dataset": "Adatcsomag",
+        "File": "Fájl"
+    }
+}

@@ -1,5 +1,6 @@
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import * as React from 'react'
+import { nls } from '@theia/core/lib/common/nls'
 import {
   ArpRoCrateValidationEntityError,
   ArpRoCrateValidationIssue,
@@ -12,8 +13,8 @@ export class ArpRoCrateValidationErrorsDialog extends ReactDialog<string> {
     private readonly requestUrl: string,
     private readonly payload: unknown,
   ) {
-    super({ title: 'Server RO-Crate Validation Failed', maxWidth: 860 })
-    this.appendCloseButton('Close')
+    super({ title: nls.localize('rockit/dataRepository/serverValidationTitle', 'Server RO-Crate Validation Failed'), maxWidth: 860 })
+    this.appendCloseButton(nls.localize('rockit/dataRepository/close', 'Close'))
   }
 
   protected render(): React.ReactNode {
@@ -26,19 +27,17 @@ export class ArpRoCrateValidationErrorsDialog extends ReactDialog<string> {
       <div className="arp-validation-dialog">
         <div className="arp-validation-dialog__summary">
           <div>
-            The backend RO-Crate validation endpoint rejected the upload.
+            {nls.localize('rockit/dataRepository/backendRejectedUpload', 'The backend RO-Crate validation endpoint rejected the upload.')}
           </div>
           <div className="arp-validation-dialog__meta">
-            {this.errors.length} invalid entit{this.errors.length === 1 ? 'y' : 'ies'},
-            {' '}
-            {issueCount} issue{issueCount === 1 ? '' : 's'}
+            {nls.localize('rockit/dataRepository/validationSummary', '{0} invalid entity/entities, {1} issue(s)', this.errors.length, issueCount)}
           </div>
           <div className="arp-validation-dialog__endpoint">{this.requestUrl}</div>
         </div>
 
         {this.errors.length === 0 ? (
           <div className="arp-validation-dialog__empty">
-            The backend did not return detailed validation errors.
+            {nls.localize('rockit/dataRepository/noDetailedErrors', 'The backend did not return detailed validation errors.')}
           </div>
         ) : (
           <div className="arp-validation-dialog__list">
@@ -61,7 +60,7 @@ export class ArpRoCrateValidationErrorsDialog extends ReactDialog<string> {
         )}
 
         <details className="arp-validation-dialog__raw">
-          <summary>Raw API response</summary>
+          <summary>{nls.localize('rockit/dataRepository/rawApiResponse', 'Raw API response')}</summary>
           <pre>{this.formatPayload(this.payload)}</pre>
         </details>
       </div>

@@ -5,6 +5,7 @@ import {
   MenuContribution,
   MenuModelRegistry,
   MessageService,
+  nls,
 } from '@theia/core/lib/common'
 import { CommonMenus } from '@theia/core/lib/browser'
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog'
@@ -13,7 +14,7 @@ import { DataSourceService } from './data-source-service'
 
 export const AddDataSourceCommand: Command = {
   id: 'data-sources.add',
-  label: 'Add new data source',
+  label: nls.localize('rockit/fileExplorer/addDataSource', 'Add new data source'),
 }
 
 @injectable()
@@ -26,7 +27,10 @@ export class DataSourcesContribution implements CommandContribution, MenuContrib
     registry.registerCommand(AddDataSourceCommand, {
       execute: async () => {
         const uri = await this.fileDialogService.showOpenDialog({
-          title: 'Select a folder to add as a data source',
+          title: nls.localize(
+            'rockit/fileExplorer/selectDataSource',
+            'Select a folder to add as a data source',
+          ),
           canSelectFolders: true,
           canSelectFiles: false,
           canSelectMany: false,
@@ -37,7 +41,13 @@ export class DataSourcesContribution implements CommandContribution, MenuContrib
         }
 
         await this.dataSourceService.add(uri)
-        this.messageService.info(`Added data source: ${uri.path.toString()}`)
+        this.messageService.info(
+          nls.localize(
+            'rockit/fileExplorer/dataSourceAdded',
+            'Added data source: {0}',
+            uri.path.toString(),
+          ),
+        )
       },
     })
   }

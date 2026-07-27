@@ -6,15 +6,19 @@ import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/li
 import { ApplicationServer } from '@theia/core/lib/common/application-protocol';
 import { openRockitDocumentationPage, ROCKIT_DOCUMENTATION_PAGES } from 'rockit-common/lib/browser';
 import { METADATA_SCHEMA_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
+import { nls } from '@theia/core/lib/common/nls';
 
 export namespace MetadataSchemaManagerCommands {
     export const OPEN: Command = {
         id: 'metadata-schema-manager:open',
-        label: 'Open Metadata Schema Manager'
+        label: nls.localize('rockit/schemaManager/open', 'Open Metadata Schema Manager')
     };
     export const OPEN_DOCUMENTATION: Command = {
         id: 'metadata-schema-manager:open-documentation',
-        label: 'Open Metadata Schema Manager Documentation',
+        label: nls.localize(
+            'rockit/schemaManager/openDocumentation',
+            'Open Metadata Schema Manager Documentation',
+        ),
         iconClass: codicon('info')
     };
 }
@@ -64,7 +68,7 @@ export class MetadataSchemaManagerContribution implements CommandContribution, M
     registerMenus(menus: MenuModelRegistry): void {
         menus.registerMenuAction(CommonMenus.VIEW, {
             commandId: MetadataSchemaManagerCommands.OPEN.id,
-            label: 'Metadata Schema Manager',
+            label: nls.localize('rockit/schemaManager/title', 'Metadata Schema Manager'),
             order: 'z50'
         });
     }

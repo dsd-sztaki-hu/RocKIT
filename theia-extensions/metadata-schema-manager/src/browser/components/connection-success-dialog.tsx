@@ -6,6 +6,7 @@ import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import { nls } from '@theia/core/lib/common/nls';
 
 import { File } from './icons';
 import '../styles/connection-success-dialog.css';
@@ -19,7 +20,7 @@ export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
         private schemaNames: string[]
     ) {
         super({
-            title: 'Connection Successful'
+            title: nls.localize('rockit/schemaManager/connectionSuccessful', 'Connection Successful')
         });
         
         this.contentNode.style.width = '500px';
@@ -57,10 +58,14 @@ export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
                         </div>
                         <div>
                             <div className="connection-success__title">
-                                Connection Established
+                                {nls.localize('rockit/schemaManager/connectionEstablished', 'Connection Established')}
                             </div>
                             <div className="connection-success__message">
-                                Successfully authenticated with <strong>{this.providerName}</strong>.
+                                {nls.localize(
+                                    'rockit/schemaManager/authenticatedWith',
+                                    'Successfully authenticated with {0}.',
+                                    this.providerName,
+                                )}
                             </div>
                         </div>
                     </div>
@@ -68,7 +73,11 @@ export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
                     {/* List Label */}
                     <div className="connection-success__list-label">
                         <FolderOpenIcon style={{ fontSize: '16px', color: 'var(--theia-textLink-foreground)' }} />
-                        <span>Available Templates ({this.schemaNames.length})</span>
+                        <span>{nls.localize(
+                            'rockit/schemaManager/availableTemplates',
+                            'Available Templates ({0})',
+                            this.schemaNames.length,
+                        )}</span>
                     </div>
 
                     {/* List Container */}
@@ -86,7 +95,10 @@ export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
                             ))
                         ) : (
                             <div className="connection-success__empty">
-                                No templates found in the root folder.
+                                {nls.localize(
+                                    'rockit/schemaManager/noRootTemplates',
+                                    'No templates found in the root folder.',
+                                )}
                             </div>
                         )}
                     </div>
@@ -98,13 +110,13 @@ export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
                         className="theia-button secondary connection-success__btn-cancel"
                         onClick={() => this.handleCancel()}
                     >
-                        Cancel
+                        {nls.localize('rockit/common/cancel', 'Cancel')}
                     </button>
                     <button 
                         className="theia-button main connection-success__btn-save"
                         onClick={() => this.handleSave()}
                     >
-                        Save
+                        {nls.localize('rockit/schemaManager/save', 'Save')}
                     </button>
                 </div>
             </div>

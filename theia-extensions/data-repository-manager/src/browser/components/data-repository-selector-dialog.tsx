@@ -19,6 +19,7 @@ import { DataRepositoryStoreService } from '../services/data-repository-store-se
 import { DataverseService } from '../services/dataverse-service';
 import { DataverseCapabilityService } from '../services/dataverse-capability-service';
 import '../styles/data-repository-selector-dialog.css';
+import { nls } from '@theia/core/lib/common/nls';
 import { ExportDeleteAction } from './data-repository-export-delete-dialog';
 
 export type DeleteExportTargetHandler = (
@@ -44,7 +45,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         private readonly onDeleteExportTarget?: DeleteExportTargetHandler
     ) {
         super({
-            title: 'Select Data Repository'
+            title: nls.localize('rockit/dataRepository/selectRepository', 'Select Data Repository')
         });
 
         this.contentNode.style.width = '720px';
@@ -54,11 +55,11 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         this.contentNode.style.padding = '0';
 
         if (this.onShowRecentValidationResponse) {
-            const validationButton = this.appendButton('Last Validation Error', false);
+            const validationButton = this.appendButton(nls.localize('rockit/dataRepository/lastValidationError', 'Last Validation Error'), false);
             validationButton.classList.add('data-repo-selector__validation-error-button');
             validationButton.addEventListener('click', () => this.onShowRecentValidationResponse?.());
         }
-        const addButton = this.appendButton('Add Repository', true);
+        const addButton = this.appendButton(nls.localize('rockit/dataRepository/addRepository', 'Add Repository'), true);
         addButton.addEventListener('click', () => void this.handleAddRepository());
         const cancelButton = this.appendCloseButton();
         cancelButton.classList.add('data-repo-selector__cancel-button');
@@ -134,9 +135,9 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                             <DnsIcon className="data-repo-selector__header-icon" />
                         </div>
                         <div>
-                            <div className="data-repo-selector__title">Choose Repository</div>
+                            <div className="data-repo-selector__title">{nls.localize('rockit/dataRepository/chooseRepository', 'Choose Repository')}</div>
                             <div className="data-repo-selector__description">
-                                Select a remote repository for import or export.
+                                {nls.localize('rockit/dataRepository/chooseRepositoryDescription', 'Select a remote repository to browse collections.')}
                             </div>
                         </div>
                     </div>
@@ -146,9 +147,9 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                             <div className="data-repo-selector__state-msg">
                                 <div className="data-repo-selector__empty-box">
                                     <StorageIcon className="data-repo-selector__empty-icon" />
-                                    <div className="data-repo-selector__empty-title">No Repositories Found</div>
+                                    <div className="data-repo-selector__empty-title">{nls.localize('rockit/dataRepository/noRepositoriesFound', 'No Repositories Found')}</div>
                                     <p className="data-repo-selector__empty-desc">
-                                        You haven't configured any data repositories yet.
+                                        {nls.localize('rockit/dataRepository/noRepositoriesConfigured', 'No data repositories have been configured yet.')}
                                     </p>
                                 </div>
                             </div>
@@ -208,14 +209,18 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                         {this.formatTargetLinkLabel(target)}
                                     </a>
                                     <div className="data-repo-selector__export-meta">
-                                        Last updated {this.formatDate(target.syncedAt)}
+                                        {nls.localize('rockit/dataRepository/lastUpdated', 'Last updated {0}', this.formatDate(target.syncedAt))}
                                     </div>
                                 </div>
                                 <div className="data-repo-selector__export-actions">
                                     <button
                                         className="data-repo-selector__export-action"
-                                        title="Upload updates"
-                                        aria-label={`Upload updates to ${target.datasetName || target.pid}`}
+                                        title={nls.localize('rockit/dataRepository/uploadUpdates', 'Upload updates')}
+                                        aria-label={nls.localize(
+                                            'rockit/dataRepository/uploadUpdatesTo',
+                                            'Upload updates to {0}',
+                                            target.datasetName || target.pid
+                                        )}
                                         onClick={() => void this.handleSelect(repo, target)}
                                     >
                                         <FileUploadOutlinedIcon className="data-repo-selector__export-update-icon" />
@@ -224,8 +229,12 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                         <div className="data-repo-selector__delete-control">
                                             <button
                                                 className="data-repo-selector__export-action data-repo-selector__export-action--delete"
-                                                title="Delete options"
-                                                aria-label={`Delete options for ${target.datasetName || target.pid}`}
+                                                title={nls.localize('rockit/dataRepository/deleteOptions', 'Delete options')}
+                                                aria-label={nls.localize(
+                                                    'rockit/dataRepository/deleteOptionsFor',
+                                                    'Delete options for {0}',
+                                                    target.datasetName || target.pid
+                                                )}
                                                 aria-expanded={this.openDeleteMenuKey === menuKey}
                                                 onClick={event => {
                                                     event.stopPropagation();
@@ -268,7 +277,10 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                                         onClick={() => void this.handleDeleteExport(repo, target, 'unlink')}
                                                     >
                                                         <LinkOffIcon />
-                                                        <span><strong>Unlink</strong><small>Keep remote dataset</small></span>
+                                                        <span>
+                                                            <strong>{nls.localize('rockit/dataRepository/unlink', 'Unlink')}</strong>
+                                                            <small>{nls.localize('rockit/dataRepository/keepRemoteDataset', 'Keep remote dataset')}</small>
+                                                        </span>
                                                     </button>
                                                     <button
                                                         className="data-repo-selector__delete-menu-danger"
@@ -276,7 +288,10 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                                         onClick={() => void this.handleDeleteExport(repo, target, 'delete')}
                                                     >
                                                         <DeleteOutlineIcon />
-                                                        <span><strong>Delete</strong><small>Remove from repository</small></span>
+                                                        <span>
+                                                            <strong>{nls.localize('rockit/dataRepository/delete', 'Delete')}</strong>
+                                                            <small>{nls.localize('rockit/dataRepository/removeFromRepository', 'Remove from repository')}</small>
+                                                        </span>
                                                     </button>
                                                 </div>
                                             )}
@@ -296,7 +311,8 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         if (Number.isNaN(date.getTime())) {
             return value;
         }
-        return date.toLocaleString();
+        const languageId = nls.localization?.languageId ?? nls.locale ?? nls.defaultLocale;
+        return date.toLocaleString(languageId.toLowerCase().startsWith('hu') ? 'hu-HU' : 'en-US');
     }
 
     protected formatTargetLinkLabel(target: DataRepositoryExportTarget): string {

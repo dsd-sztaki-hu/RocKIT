@@ -111,14 +111,17 @@ export class ResourcePropertyViewTreeWidget
   protected async fillPropertiesTree(fileStatObject?: FileStat): Promise<void> {
     if (fileStatObject) {
       this.propertiesTree.clear()
-      const infoNode = this.createCategoryNode('info', nls.localizeByDefault('File Info'))
+      const infoNode = this.createCategoryNode(
+        'info',
+        nls.localize('rockit/filePreview/fileInfo', 'File Info'),
+      )
       this.propertiesTree.set('info', infoNode)
 
       // Add file properties to Info node
       infoNode.children.push(
         this.createResultLineNode(
           'isDirectory',
-          nls.localize('theia/property-view/directory', 'Directory'),
+          nls.localize('rockit/filePreview/directory', 'Directory'),
           fileStatObject.isDirectory,
           infoNode,
         ),
@@ -126,7 +129,7 @@ export class ResourcePropertyViewTreeWidget
       infoNode.children.push(
         this.createResultLineNode(
           'isFile',
-          nls.localizeByDefault('File'),
+          nls.localize('rockit/filePreview/file', 'File'),
           fileStatObject.isFile,
           infoNode,
         ),
@@ -134,7 +137,7 @@ export class ResourcePropertyViewTreeWidget
       infoNode.children.push(
         this.createResultLineNode(
           'isSymbolicLink',
-          nls.localize('theia/property-view/symbolicLink', 'Symbolic link'),
+          nls.localize('rockit/filePreview/symbolicLink', 'Symbolic link'),
           fileStatObject.isSymbolicLink,
           infoNode,
         ),
@@ -142,7 +145,7 @@ export class ResourcePropertyViewTreeWidget
       infoNode.children.push(
         this.createResultLineNode(
           'location',
-          nls.localize('theia/property-view/location', 'Location'),
+          nls.localize('rockit/filePreview/location', 'Location'),
           this.getLocationString(fileStatObject),
           infoNode,
         ),
@@ -150,7 +153,7 @@ export class ResourcePropertyViewTreeWidget
       infoNode.children.push(
         this.createResultLineNode(
           'name',
-          nls.localizeByDefault('Name'),
+          nls.localize('rockit/filePreview/name', 'Name'),
           this.getFileName(fileStatObject),
           infoNode,
         ),
@@ -158,7 +161,7 @@ export class ResourcePropertyViewTreeWidget
       infoNode.children.push(
         this.createResultLineNode(
           'path',
-          nls.localizeByDefault('Path'),
+          nls.localize('rockit/filePreview/path', 'Path'),
           this.getFilePath(fileStatObject),
           infoNode,
         ),
@@ -166,7 +169,7 @@ export class ResourcePropertyViewTreeWidget
       infoNode.children.push(
         this.createResultLineNode(
           'lastModification',
-          nls.localize('theia/property-view/lastModified', 'Last modified'),
+          nls.localize('rockit/filePreview/lastModified', 'Last modified'),
           this.getLastModificationString(fileStatObject),
           infoNode,
         ),
@@ -174,7 +177,7 @@ export class ResourcePropertyViewTreeWidget
       infoNode.children.push(
         this.createResultLineNode(
           'created',
-          nls.localize('theia/property-view/created', 'Created'),
+          nls.localize('rockit/filePreview/created', 'Created'),
           this.getCreationTimeString(fileStatObject),
           infoNode,
         ),
@@ -182,7 +185,7 @@ export class ResourcePropertyViewTreeWidget
       infoNode.children.push(
         this.createResultLineNode(
           'size',
-          nls.localizeByDefault('Size'),
+          nls.localize('rockit/filePreview/size', 'Size'),
           this.getSizeString(fileStatObject),
           infoNode,
         ),
@@ -212,7 +215,7 @@ export class ResourcePropertyViewTreeWidget
       // Create content category node
       const contentNode = this.createCategoryNode(
         'content',
-        nls.localizeByDefault('File Preview'),
+        nls.localize('rockit/filePreview/title', 'File Preview'),
       )
 
       // Check if it's an image file
@@ -245,13 +248,16 @@ export class ResourcePropertyViewTreeWidget
       console.error('Error reading file content:', error)
       const contentNode = this.createCategoryNode(
         'content',
-        nls.localizeByDefault('Content'),
+        nls.localize('rockit/filePreview/content', 'Content'),
       )
       contentNode.children.push(
         this.createResultLineNode(
           'error',
           '',
-          nls.localizeByDefault('Could not read file content'),
+          nls.localize(
+            'rockit/filePreview/readFailed',
+            'Could not read file content',
+          ),
           contentNode,
         ),
       )
@@ -304,15 +310,31 @@ export class ResourcePropertyViewTreeWidget
   }
 
   protected getLastModificationString(fileStat: FileStat): string {
-    return fileStat.mtime ? new Date(fileStat.mtime).toLocaleString() : ''
+    return fileStat.mtime
+      ? new Date(fileStat.mtime).toLocaleString(this.getDisplayLocale())
+      : ''
   }
 
   protected getCreationTimeString(fileStat: FileStat): string {
-    return fileStat.ctime ? new Date(fileStat.ctime).toLocaleString() : ''
+    return fileStat.ctime
+      ? new Date(fileStat.ctime).toLocaleString(this.getDisplayLocale())
+      : ''
   }
 
   protected getSizeString(fileStat: FileStat): string {
-    return fileStat.size ? nls.localizeByDefault('{0}B', fileStat.size.toString()) : ''
+    return fileStat.size !== undefined
+      ? nls.localize(
+          'rockit/filePreview/bytes',
+          '{0} B',
+          fileStat.size.toLocaleString(this.getDisplayLocale()),
+        )
+      : ''
+  }
+
+  protected getDisplayLocale(): string {
+    const languageId =
+      nls.localization?.languageId ?? nls.locale ?? nls.defaultLocale
+    return languageId.toLowerCase().startsWith('hu') ? 'hu-HU' : 'en-US'
   }
 
   /*
@@ -344,7 +366,14 @@ export class ResourcePropertyViewTreeWidget
       id: `${parent.id}::${id}`,
       parent,
       name: name,
-      property: property !== undefined ? String(property) : '',
+      property:
+        typeof property === 'boolean'
+          ? property
+            ? nls.localize('rockit/filePreview/yes', 'Yes')
+            : nls.localize('rockit/filePreview/no', 'No')
+          : property !== undefined
+            ? String(property)
+            : '',
       selected: false,
     }
   }
@@ -409,7 +438,10 @@ export class ResourcePropertyViewTreeWidget
       const imageUrl = node.property.substring(7) // Remove 'IMAGE::' prefix
       return (
         <div className="resource-content-image-container">
-          <img src={imageUrl} alt="Image Preview" />
+          <img
+            src={imageUrl}
+            alt={nls.localize('rockit/filePreview/imagePreview', 'Image preview')}
+          />
         </div>
       )
     } else if (node.property.startsWith('TEXT::')) {

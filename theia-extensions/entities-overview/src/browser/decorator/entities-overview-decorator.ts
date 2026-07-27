@@ -2,6 +2,7 @@ import { Emitter, MaybePromise } from '@theia/core';
 import { DepthFirstTreeIterator, Tree, TreeDecorator } from '@theia/core/lib/browser';
 import { WidgetDecoration } from '@theia/core/lib/browser/widget-decoration';
 import { Event } from '@theia/core/lib/common';
+import { nls } from '@theia/core/lib/common/nls';
 import { injectable } from '@theia/core/shared/inversify';
 import { ExampleTreeLeaf } from '../entities-overview-model';
 
@@ -42,7 +43,7 @@ export class EntitiesOverviewDecorator implements TreeDecorator {
                 const isValid = treeNode.data.valid;
                 if (!isValid) {
                     result.set(treeNode.id, <WidgetDecoration.Data>{
-                        tooltip: 'Invalid entity',
+                        tooltip: nls.localize('rockit/entitiesOverview/invalidEntity', 'Invalid entity'),
                         // We can also add a caption suffix, this would be displayed after the name of the node.
                         /*captionSuffixes: [{
                             data: ' - invalid',
