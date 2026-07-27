@@ -314,7 +314,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               ),
               msg: nls.localize(
                 'rockit/dataRepository/titleMismatchMessage',
-                'The remote dataset title is different from the local RO-Crate title.\n\nLocal title: {0}\nRemote title: {1}\n\nLinking the wrong dataset can cause future exports to update the wrong remote dataset. Continue?',
+                'The remote dataset title is different from the local RO-Crate title.\n\nLocal RO-Crate title: {0}\nRemote dataset title: {1}\n\nLinking the wrong dataset can cause future exports to update the wrong remote dataset. Continue?',
                 preview.localDatasetTitle ||
                   nls.localize('rockit/dataRepository/missingValue', '(missing)'),
                 preview.remoteDatasetTitle ||
