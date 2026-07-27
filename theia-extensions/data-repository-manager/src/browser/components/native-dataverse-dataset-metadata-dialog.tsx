@@ -50,9 +50,25 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
   private contactEmailsValue: string
   private descriptionsValue: string
   private subjectValue: string
+  private metadataLanguageValue: string
+  private metadataLanguageOptions: Array<{ value: string; label: string }>
 
-  constructor(defaults: NativeDataverseDatasetMetadata) {
-    super({ title: nls.localize('rockit/dataRepository/requiredMetadata', 'Required Dataverse Dataset Metadata') })
+  constructor(
+    defaults: NativeDataverseDatasetMetadata,
+    options: {
+      title?: string
+      metadataLanguageOptions?: Array<{ value: string; label: string }>
+      defaultMetadataLanguage?: string
+    } = {},
+  ) {
+    super({
+      title:
+        options.title ??
+        nls.localize(
+          'rockit/dataRepository/requiredMetadata',
+          'Required Dataverse Dataset Metadata',
+        ),
+    })
 
     this.titleValue = defaults.title
     this.authorNamesValue = defaults.authorNames.join('\n')
@@ -60,6 +76,12 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
     this.descriptionsValue = defaults.descriptions.join('\n')
     this.subjectValue =
       defaults.subjects.find((subject) => DATAVERSE_SUBJECTS.includes(subject)) ?? ''
+    this.metadataLanguageOptions = options.metadataLanguageOptions ?? []
+    this.metadataLanguageValue =
+      options.defaultMetadataLanguage ??
+      defaults.metadataLanguage ??
+      this.metadataLanguageOptions[0]?.value ??
+      ''
 
     this.contentNode.style.width = '620px'
     this.contentNode.style.maxWidth = '90vw'
@@ -78,6 +100,9 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
           contactEmails: this.lines(this.contactEmailsValue),
           descriptions: this.lines(this.descriptionsValue),
           subjects: [this.subjectValue],
+          ...(this.metadataLanguageOptions.length
+            ? { metadataLanguage: this.metadataLanguageValue }
+            : {}),
         }
       : undefined
   }
@@ -88,7 +113,8 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
       this.lines(this.authorNamesValue).length > 0 &&
       this.lines(this.contactEmailsValue).length > 0 &&
       this.lines(this.descriptionsValue).length > 0 &&
-      !!this.subjectValue
+      !!this.subjectValue &&
+      (!this.metadataLanguageOptions.length || !!this.metadataLanguageValue)
     )
   }
 
@@ -143,6 +169,31 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
               }}
             />
           </label>
+          {this.metadataLanguageOptions.length ? (
+            <label className="native-dv-metadata__field">
+              <span className="native-dv-metadata__label">
+                {nls.localize(
+                  'rockit/dataRepository/metadataLanguage',
+                  'Dataset Metadata Language',
+                )}{' '}
+                <span className="native-dv-metadata__required">*</span>
+              </span>
+              <Select
+                className="native-dv-metadata__select"
+                value={this.metadataLanguageValue || undefined}
+                placeholder={nls.localize(
+                  'rockit/dataRepository/selectLanguage',
+                  'Select a language',
+                )}
+                options={this.metadataLanguageOptions}
+                popupClassName="native-dv-metadata__select-dropdown"
+                onChange={(value) => {
+                  this.metadataLanguageValue = value
+                  this.refresh()
+                }}
+              />
+            </label>
+          ) : undefined}
         </div>
       </div>,
     )

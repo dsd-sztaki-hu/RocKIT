@@ -526,13 +526,66 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     if (result) {
       if (capabilities.supportsArpRoCrateZipUpload) {
+        let metadataDefaults: NativeDataverseDatasetMetadata
+        let metadataLanguageOptions: Array<{ value: string; label: string }>
+        try {
+          metadataDefaults =
+            await this.nativeExportService.getDatasetCreationMetadataDefaults()
+          metadataLanguageOptions =
+            await this.arpExportService.getAllowedMetadataLanguages(
+              selectedRepo,
+              result.collection,
+            )
+        } catch (error) {
+          console.error('Failed to prepare ARP dataset metadata dialog:', error)
+          this.messageService.error(
+            nls.localize(
+              'rockit/dataRepository/arpExportPreparationFailed',
+              'ARP export preparation failed: {0}',
+              error instanceof Error ? error.message : String(error),
+            ),
+            { timeout: 10000 },
+          )
+          return
+        }
+        const metadataDialog = new NativeDataverseDatasetMetadataDialog(
+          metadataDefaults,
+          {
+            title: nls.localize(
+              'rockit/dataRepository/requiredArpMetadata',
+              'Required ARP Dataset Metadata',
+            ),
+            metadataLanguageOptions,
+            defaultMetadataLanguage:
+              metadataDefaults.metadataLanguage ??
+              metadataLanguageOptions.find((option) => option.value === 'en')?.value ??
+              metadataLanguageOptions[0]?.value,
+          },
+        )
+        const datasetMetadata = await metadataDialog.open()
+        if (!datasetMetadata) {
+          return
+        }
         const progress = await this.messageService.showProgress({
-          text: nls.localize('rockit/dataRepository/exportingZip', 'Exporting RO-Crate ZIP to {0}...', result.collection.name),
+          text: nls.localize(
+            'rockit/dataRepository/exportingArp',
+            'Exporting RO-Crate to {0}...',
+            result.collection.name,
+          ),
         })
         try {
           const exportResult = await this.arpExportService.exportToArp(
             selectedRepo,
             result.collection,
+            datasetMetadata,
+            (update) =>
+              progress.report({
+                message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+                work: {
+                  done: update.completedSteps,
+                  total: update.totalSteps,
+                },
+              }),
           )
           const target =
             exportResult.target ||
@@ -554,9 +607,9 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               { timeout: 10000 },
             )
           }
-          console.log('RO-Crate ZIP exported to ARP:', exportResult)
+          console.log('RO-Crate exported to ARP:', exportResult)
         } catch (error) {
-          console.error('RO-Crate ZIP export failed:', error)
+          console.error('RO-Crate export failed:', error)
           if (error instanceof ArpRoCrateValidationError) {
             progress.cancel()
             await this.showArpValidationFailure(error)

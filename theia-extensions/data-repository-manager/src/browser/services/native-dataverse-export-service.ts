@@ -91,6 +91,7 @@ export interface NativeDataverseDatasetMetadata {
   contactEmails: string[]
   descriptions: string[]
   subjects: string[]
+  metadataLanguage?: string
 }
 
 export interface NativeDataverseFileUploadResult {

@@ -922,7 +922,17 @@
       "zenodoMetadataPayloadUploaded": "Az RO-Crate-metaadatok memóriában tárolt Zenodo JSON-adattá lettek alakítva, majd feltöltésre kerültek a piszkozatba.",
       "zenodoExportFailed": "A Zenodo-exportálás sikertelen: {0}",
       "loadingDataverseMetadataSchemas": "Dataverse-metaadatsémák betöltése innen: {0}…",
-      "dataverseMetadataSchemasLoadFailed": "A Dataverse-metaadatsémák nem tölthetők be: {0}"
+      "dataverseMetadataSchemasLoadFailed": "A Dataverse-metaadatsémák nem tölthetők be: {0}",
+      "metadataLanguage": "Az adatcsomag metaadatainak nyelve",
+      "selectLanguage": "Válasszon nyelvet",
+      "arpExportPreparationFailed": "Az ARP-exportálás előkészítése sikertelen: {0}",
+      "requiredArpMetadata": "Kötelező ARP-adatcsomagmetaadatok",
+      "exportingArp": "RO-Crate exportálása ide: {0}…",
+      "validatingRoCrateMetadata": "RO-Crate-metaadatok validálása…",
+      "arpDatasetCreationMissingPid": "A Dataverse létrehozta az adatcsomagot, de nem adott vissza az RO-Crate kapcsolatainak megőrzéséhez szükséges adatcsomag-PID-t.",
+      "languageEnglish": "Angol",
+      "languageHungarian": "Magyar",
+      "arpCreatedRootMissing": "Az ARP-exportálás befejeződött, de a helyi feltöltési RO-Crate nem tartalmazza a metaadatok visszaállításához szükséges gyökér-adatcsomagot."
     },
     "entitiesOverview": {
       "title": "Entitások",
