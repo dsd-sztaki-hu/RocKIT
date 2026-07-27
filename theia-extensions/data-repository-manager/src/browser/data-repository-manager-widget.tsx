@@ -29,6 +29,7 @@ import {
   ArpRoCrateValidationError,
 } from './services/arp-ro-crate-export-service'
 import { ArpRoCrateImportService } from './services/arp-ro-crate-import-service'
+import { ArpRoCrateLinkService } from './services/arp-ro-crate-link-service'
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
 import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service'
 import { DataverseCapabilityService } from './services/dataverse-capability-service'
@@ -78,6 +79,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly arpExportService: ArpRoCrateExportService,
     @inject(ArpRoCrateImportService)
     protected readonly arpImportService: ArpRoCrateImportService,
+    @inject(ArpRoCrateLinkService)
+    protected readonly arpLinkService: ArpRoCrateLinkService,
     @inject(NativeDataverseImportService)
     protected readonly nativeImportService: NativeDataverseImportService,
     @inject(DataverseCapabilityService)
@@ -201,6 +204,92 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       console.error('Remote dataset import failed:', error)
       this.messageService.error(
         `Dataset import failed: ${error instanceof Error ? error.message : String(error)}`,
+        { timeout: 10000 },
+      )
+    } finally {
+      progress.cancel()
+    }
+  }
+
+  public async handleLinkLocalToRemote(): Promise<void> {
+    const repositories = await this.storeService.loadRepositories()
+    this.repositories = repositories
+    this.update()
+
+    const linkDialog = new ArpRoCrateImportDialog({
+      title: 'Link Local Dataset To Remote',
+      description:
+        'Enter the dataset PID or URL where this local RO-Crate already exists in a remote repository.',
+      fieldLabel: 'Dataset PID or URL',
+      placeholder: 'https://repo.example.org/dataset.xhtml?persistentId=hdl:...',
+    })
+    const linkInput = await linkDialog.open()
+    if (!linkInput) {
+      return
+    }
+
+    let selectedRepo = this.inferRepositoryFromDatasetUrl(repositories, linkInput.datasetUrl)
+    if (!selectedRepo) {
+      const selector = new DataRepositorySelectorDialog(
+        repositories,
+        this.storeService,
+        this.dataverseService,
+        this.capabilityService,
+      )
+      const repositorySelection = await selector.open()
+      if (!repositorySelection) {
+        return
+      }
+      selectedRepo = repositorySelection.repository
+      if (!repositorySelection.capabilities.supportsArpRoCrateZipUpload) {
+        this.messageService.warn(
+          `Linking a local RO-Crate to an existing remote dataset is currently implemented for ARP Dataverse repositories. '${selectedRepo.title}' does not expose the ARP RO-Crate API.`,
+          { timeout: 10000 },
+        )
+        return
+      }
+    } else {
+      const capabilities = await this.capabilityService.detectRepositoryCapabilities(
+        selectedRepo.baseUrl,
+      )
+      if (!capabilities.supportsArpRoCrateZipUpload) {
+        this.messageService.warn(
+          `Linking a local RO-Crate to an existing remote dataset is currently implemented for ARP Dataverse repositories. '${selectedRepo.title}' does not expose the ARP RO-Crate API.`,
+          { timeout: 10000 },
+        )
+        return
+      }
+    }
+
+    const progress = await this.messageService.showProgress({
+      text: `Linking local dataset to ${selectedRepo.title}...`,
+    })
+    try {
+      const result = await this.arpLinkService.linkLocalDatasetToRemote(
+        selectedRepo,
+        linkInput.datasetUrl,
+      )
+      this.messageService.info(
+        `Linked local dataset to ${result.target}. Wrote ${result.mappedEntityCount} entity mapping(s) to .rockit/${result.mappingFileName}.`,
+        { timeout: 10000 },
+      )
+      if (result.unmappedEntityIds.length) {
+        const previewLimit = 15
+        const idPreview = result.unmappedEntityIds
+          .slice(0, previewLimit)
+          .map((id) => `- ${id.length > 80 ? `${id.slice(0, 77)}...` : id}`)
+          .join('\n')
+        const remainingCount = result.unmappedEntityIds.length - previewLimit
+        this.messageService.warn(
+          `Remote link created, but ${result.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/${result.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
+          { timeout: 10000 },
+        )
+      }
+      console.log('Local dataset linked to remote ARP dataset:', result)
+    } catch (error) {
+      console.error('Remote dataset link failed:', error)
+      this.messageService.error(
+        `Dataset link failed: ${error instanceof Error ? error.message : String(error)}`,
         { timeout: 10000 },
       )
     } finally {
@@ -685,6 +774,28 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
     }
     return merged
+  }
+
+  protected inferRepositoryFromDatasetUrl(
+    repositories: DataRepositoryConfig[],
+    datasetUrl: string,
+  ): DataRepositoryConfig | undefined {
+    let inputHost: string | undefined
+    try {
+      inputHost = new URL(datasetUrl.trim()).hostname.toLowerCase()
+    } catch {
+      return undefined
+    }
+    if (!inputHost || inputHost === 'hdl.handle.net' || inputHost === 'doi.org') {
+      return undefined
+    }
+    return repositories.find((repository) => {
+      try {
+        return new URL(repository.baseUrl.trim()).hostname.toLowerCase() === inputHost
+      } catch {
+        return false
+      }
+    })
   }
 
   protected async handleDeleteExportTarget(

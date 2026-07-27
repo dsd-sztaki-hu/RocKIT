@@ -13,6 +13,7 @@ export interface ArpRoCrateImportDialogOptions {
   title?: string
   description?: string
   placeholder?: string
+  fieldLabel?: string
 }
 
 export class ArpRoCrateImportDialog extends AbstractDialog<ArpRoCrateImportInput | undefined> {
@@ -50,7 +51,9 @@ export class ArpRoCrateImportDialog extends AbstractDialog<ArpRoCrateImportInput
             'Enter the full handle or dataset URL for the ARP dataset to import.'}
         </div>
         <label className="arp-import-dialog__field">
-          <span className="arp-import-dialog__label">Dataset URL</span>
+          <span className="arp-import-dialog__label">
+            {this.options.fieldLabel ?? 'Dataset URL'}
+          </span>
           <Input
             className="arp-import-dialog__input"
             value={this.datasetUrl}

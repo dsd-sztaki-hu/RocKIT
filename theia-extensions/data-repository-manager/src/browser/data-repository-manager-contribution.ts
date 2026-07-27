@@ -22,6 +22,11 @@ export namespace DataRepositoryManagerCommands {
         label: 'Import From Remote Repository'
     };
 
+    export const LINK_LOCAL_TO_REMOTE: Command = {
+        id: 'data-repository-manager:link-local-to-remote',
+        label: 'Link Local Dataset To Remote Repository'
+    };
+
     export const OPEN_DOCUMENTATION: Command = {
         id: 'data-repository-manager:open-documentation',
         label: 'Open Data Repository Manager Documentation',
@@ -73,6 +78,15 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
             }
         });
 
+        commands.registerCommand(DataRepositoryManagerCommands.LINK_LOCAL_TO_REMOTE, {
+            execute: async () => {
+                const widget = await this.widgetManager.getOrCreateWidget<DataRepositoryManagerWidget>(DATA_REPOSITORY_MANAGER_WIDGET_ID);
+                if (widget) {
+                    widget.handleLinkLocalToRemote();
+                }
+            }
+        });
+
         commands.registerCommand(DataRepositoryManagerCommands.OPEN_DOCUMENTATION, {
             execute: () => openRockitDocumentationPage(
                 this.applicationServer,
@@ -98,9 +112,15 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
         });
 
         menus.registerMenuAction(CommonMenus.FILE, {
+            commandId: DataRepositoryManagerCommands.LINK_LOCAL_TO_REMOTE.id,
+            label: 'Link Local Dataset To Remote Repository',
+            order: 'a12'
+        });
+
+        menus.registerMenuAction(CommonMenus.FILE, {
             commandId: DataRepositoryManagerCommands.EXPORT_TO_REMOTE.id,
             label: 'Export To Remote Repository',
-            order: 'a12'
+            order: 'a13'
         });
     }
 
