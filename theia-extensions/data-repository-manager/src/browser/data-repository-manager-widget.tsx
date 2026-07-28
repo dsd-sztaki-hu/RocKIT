@@ -188,7 +188,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       return
     }
 
-    const progress = await this.messageService.showProgress({
+    const progress = await this.loadMaskService.showProgress({
       text: nls.localize(
         'rockit/dataRepository/importingFrom',
         'Importing dataset from {0}...',
@@ -290,7 +290,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     }
 
     try {
-      const previewProgress = await this.messageService.showProgress({
+      const previewProgress = await this.loadMaskService.showProgress({
         text: nls.localize(
           'rockit/dataRepository/checkingRemoteDataset',
           'Checking remote dataset in {0}...',
@@ -331,7 +331,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         return
       }
 
-      const progress = await this.messageService.showProgress({
+      const progress = await this.loadMaskService.showProgress({
         text: nls.localize(
           'rockit/dataRepository/linkingLocalDataset',
           'Linking local dataset to {0}...',
@@ -453,7 +453,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const selectedExportTarget = repositorySelection.exportTarget
 
     if (capabilities.supportsZenodoApi) {
-      const progress = await this.messageService.showProgress({
+      const progress = await this.loadMaskService.showProgress({
         text: selectedExportTarget
           ? nls.localize(
               'rockit/dataRepository/updatingZenodoIn',
@@ -473,7 +473,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             selectedExportTarget,
             (update) =>
               progress.report({
-                message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+                message: update.message,
                 work: {
                   done: update.completedSteps,
                   total: update.totalSteps,
@@ -506,7 +506,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           selectedRepo,
           (update) =>
             progress.report({
-              message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+              message: update.message,
               work: {
                 done: update.completedSteps,
                 total: update.totalSteps,
@@ -560,7 +560,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     await this.loadDataverseMetadataBlocks(selectedRepo)
 
     if (capabilities.supportsArpRoCrateZipUpload && selectedExportTarget) {
-      const progress = await this.messageService.showProgress({
+      const progress = await this.loadMaskService.showProgress({
         text: nls.localize(
           'rockit/dataRepository/updatingUploaded',
           'Updating the uploaded RO-Crate in {0}',
@@ -573,7 +573,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           selectedExportTarget,
           (update) =>
             progress.report({
-              message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+              message: update.message,
               work: {
                 done: update.completedSteps,
                 total: update.totalSteps,
@@ -629,7 +629,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     }
 
     if (!capabilities.supportsArpRoCrateZipUpload) {
-      const progress = await this.messageService.showProgress({
+      const progress = await this.loadMaskService.showProgress({
         text: nls.localize(
           'rockit/dataRepository/updatingUploaded',
           'Updating the uploaded RO-Crate in {0}',
@@ -642,7 +642,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           selectedExportTarget,
           (update) =>
             progress.report({
-              message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+              message: update.message,
               work: {
                 done: update.completedSteps,
                 total: update.totalSteps,
@@ -745,7 +745,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         if (!datasetMetadata) {
           return
         }
-        const progress = await this.messageService.showProgress({
+        const progress = await this.loadMaskService.showProgress({
           text: nls.localize(
             'rockit/dataRepository/exportingArp',
             'Exporting RO-Crate to {0}...',
@@ -759,7 +759,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             datasetMetadata,
             (update) =>
               progress.report({
-                message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+                message: update.message,
                 work: {
                   done: update.completedSteps,
                   total: update.totalSteps,
@@ -836,7 +836,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       if (!datasetMetadata) {
         return
       }
-      const progress = await this.messageService.showProgress({
+      const progress = await this.loadMaskService.showProgress({
         text: nls.localize(
           'rockit/dataRepository/creatingDataset',
           'Creating Dataverse dataset in {0}...',
@@ -850,7 +850,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           datasetMetadata,
           (update) =>
             progress.report({
-              message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+              message: update.message,
               work: {
                 done: update.completedSteps,
                 total: update.totalSteps,
@@ -944,7 +944,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   protected async loadDataverseMetadataBlocks(
     repository: DataRepositoryConfig,
   ): Promise<void> {
-    const progress = await this.messageService.showProgress({
+    const progress = await this.loadMaskService.showProgress({
       text: nls.localize(
         'rockit/dataRepository/loadingDataverseMetadataSchemas',
         'Loading Dataverse metadata schemas from {0}...',

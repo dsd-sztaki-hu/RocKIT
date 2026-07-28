@@ -24,6 +24,19 @@ export interface LoadMaskHandle extends Disposable {
   update(update: LoadMaskUpdate): void
 }
 
+export interface LoadMaskProgressMessage {
+  message?: string
+  work?: {
+    done: number
+    total: number
+  }
+}
+
+export interface LoadMaskProgressHandle {
+  report(progress: LoadMaskProgressMessage): void
+  cancel(): void
+}
+
 export interface LoadMaskState {
   visible: boolean
   activeCount: number
@@ -122,6 +135,31 @@ export class LoadMaskService {
         }
         this.fireDidChange()
       },
+    }
+  }
+
+  /**
+   * Loadmask-backed counterpart of MessageService.showProgress.
+   *
+   * Keeping the same report/cancel shape makes long-running operations easy to
+   * move away from notification progress without losing determinate updates.
+   */
+  async showProgress(options: { text: string }): Promise<LoadMaskProgressHandle> {
+    const handle = this.show({
+      message: options.text,
+      progress: { worked: 0, total: 100 },
+      delay: 0,
+    })
+    return {
+      report: ({ message, work }) => {
+        handle.update({
+          ...(message !== undefined ? { message } : {}),
+          ...(work
+            ? { progress: { worked: work.done, total: work.total } }
+            : {}),
+        })
+      },
+      cancel: () => handle.dispose(),
     }
   }
 

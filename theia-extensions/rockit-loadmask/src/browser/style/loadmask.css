@@ -19,12 +19,12 @@
   border: 1px solid var(--theia-editorWidget-border);
   border-radius: 6px;
   box-shadow: 0 8px 28px rgb(0 0 0 / 35%);
+  box-sizing: border-box;
   color: var(--theia-foreground);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: min(440px, calc(100vw - 48px));
-  min-width: 280px;
+  width: min(420px, calc(100vw - 48px));
   padding: 24px 28px;
 }
 
@@ -39,16 +39,27 @@
 }
 
 .rockit-loadmask-message {
+  align-items: center;
+  display: flex;
   font-size: var(--theia-ui-font-size1);
   font-weight: 500;
+  justify-content: center;
+  line-height: 1.4;
+  min-height: 2.8em;
   overflow-wrap: anywhere;
   text-align: center;
+  width: 100%;
 }
 
 .rockit-loadmask-count,
 .rockit-loadmask-progress-label {
   color: var(--theia-descriptionForeground);
   font-size: var(--theia-ui-font-size0);
+}
+
+.rockit-loadmask-progress-label {
+  min-width: 3ch;
+  text-align: right;
 }
 
 .rockit-loadmask-progress-group {
