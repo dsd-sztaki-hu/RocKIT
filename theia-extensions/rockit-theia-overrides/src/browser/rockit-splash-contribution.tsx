@@ -17,6 +17,7 @@ import {
   MenuModelRegistry,
   PreferenceScope,
   PreferenceService,
+  nls,
 } from '@theia/core/lib/common'
 import URI from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
@@ -26,7 +27,6 @@ import { ROCKIT_SPLASH_SHOW_AT_STARTUP } from '../common/rockit-splash-preferenc
 
 import '../../src/browser/style/rockit-splash.css'
 
-const APP_NAME = 'RocKIT'
 const APP_FULL_NAME = 'RocKIT - RO-Crate Kit'
 const DEFAULT_APP_INFO: ApplicationInfo = {
   name: APP_FULL_NAME,
@@ -38,7 +38,7 @@ const SUPPORT_EMAIL = 'rockit-support@example.org'
 
 export const ABOUT_ROCKIT_COMMAND: Command = {
   id: 'rockit.about',
-  label: `About ${APP_NAME}`,
+  label: nls.localize('rockit/about/command', 'About RocKIT'),
 }
 
 interface RockitSplashDialogProps {
@@ -68,33 +68,40 @@ function RockitSplashContent({
         <div className="rockit-splash-logo" role="img" aria-label={APP_FULL_NAME} />
         <div>
           <div className="rockit-splash-title">{APP_FULL_NAME}</div>
-          <div className="rockit-splash-version">Version {version}</div>
+          <div className="rockit-splash-version">
+            {nls.localize('rockit/about/version', 'Version {0}', version)}
+          </div>
         </div>
       </div>
 
       <div className="rockit-splash-section">
-        <h3>RO-Crate Resources</h3>
+        <h3>{nls.localize('rockit/about/resources', 'RO-Crate Resources')}</h3>
         <p>
-          Access the version-matched RO-Crate reference material and application
-          help for this {APP_NAME} build.
+          {nls.localize(
+            'rockit/about/resourcesDescription',
+            'Access the version-matched RO-Crate reference material and application help for this RocKIT build.',
+          )}
         </p>
         <div className="rockit-splash-links">
           <a
             href={RO_CRATE_DOCUMENTATION_URL}
             onClick={(event) => openLink(event, RO_CRATE_DOCUMENTATION_URL)}
           >
-            RO-Crate information
+            {nls.localize('rockit/about/roCrateInformation', 'RO-Crate information')}
           </a>
           <a href={userGuideUrl} onClick={(event) => openLink(event, userGuideUrl)}>
-            {APP_NAME} Documentation
+            {nls.localize('rockit/about/documentation', 'RocKIT Documentation')}
           </a>
         </div>
       </div>
 
       <div className="rockit-splash-section rockit-splash-developers">
-        <h3>Developed By</h3>
+        <h3>{nls.localize('rockit/about/developedBy', 'Developed By')}</h3>
         <p>
-          {APP_FULL_NAME} is developed by{' '}
+          {nls.localize(
+            'rockit/about/developedByText',
+            'RocKIT - RO-Crate Kit is developed by',
+          )}{' '}
           <a
             href={DSD_URL}
             onClick={(event) => openLink(event, DSD_URL)}
@@ -104,7 +111,7 @@ function RockitSplashContent({
           .
         </p>
         <p>
-          For support, contact{' '}
+          {nls.localize('rockit/about/support', 'For support, contact')}{' '}
           <a href={`mailto:${SUPPORT_EMAIL}`}>
             {SUPPORT_EMAIL}
           </a>
@@ -118,7 +125,12 @@ function RockitSplashContent({
           checked={!showAtStartup}
           onChange={(event) => onShowAtStartupChanged(!event.currentTarget.checked)}
         />
-        <span>Do not show this window again</span>
+        <span>
+          {nls.localize(
+            'rockit/about/doNotShowAgain',
+            'Do not show this window again',
+          )}
+        </span>
       </label>
     </div>
   )
@@ -130,9 +142,9 @@ class RockitSplashDialog extends ReactDialog<boolean> {
   constructor(
     protected readonly splashProps: RockitSplashDialogProps,
   ) {
-    super({ title: `About ${APP_NAME}` })
+    super({ title: nls.localize('rockit/about/command', 'About RocKIT') })
     this.showAtStartup = splashProps.showAtStartup
-    this.appendCloseButton('Close')
+    this.appendCloseButton(nls.localize('rockit/about/close', 'Close'))
   }
 
   protected render(): React.ReactNode {

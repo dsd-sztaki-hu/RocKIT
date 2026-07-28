@@ -1,4 +1,5 @@
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
+import { nls } from '@theia/core/lib/common/nls'
 import * as React from '@theia/core/shared/react'
 import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import dayjs = require('dayjs')
@@ -19,10 +20,10 @@ import {
 const BASE_OPERATOR_OPTIONS: { value: AdvancedRuleOperator; label: string }[] = [
   { value: 'equal', label: '==' },
   { value: 'not_equal', label: '!=' },
-  { value: 'contains', label: 'Contains' },
-  { value: 'not_contains', label: 'Not contains' },
-  { value: 'is_null', label: 'Is null' },
-  { value: 'is_not_null', label: 'Is not null' },
+  { value: 'contains', label: nls.localize('rockit/entitiesOverview/contains', 'Contains') },
+  { value: 'not_contains', label: nls.localize('rockit/entitiesOverview/notContains', 'Not contains') },
+  { value: 'is_null', label: nls.localize('rockit/entitiesOverview/isNull', 'Is null') },
+  { value: 'is_not_null', label: nls.localize('rockit/entitiesOverview/isNotNull', 'Is not null') },
 ]
 
 const DATE_OPERATOR_OPTIONS: { value: AdvancedRuleOperator; label: string }[] = [
@@ -32,21 +33,21 @@ const DATE_OPERATOR_OPTIONS: { value: AdvancedRuleOperator; label: string }[] = 
   { value: 'lte', label: '<=' },
   { value: 'gt', label: '>' },
   { value: 'gte', label: '>=' },
-  { value: 'between', label: 'Between' },
-  { value: 'not_between', label: 'Not between' },
-  { value: 'is_null', label: 'Is null' },
-  { value: 'is_not_null', label: 'Is not null' },
+  { value: 'between', label: nls.localize('rockit/entitiesOverview/between', 'Between') },
+  { value: 'not_between', label: nls.localize('rockit/entitiesOverview/notBetween', 'Not between') },
+  { value: 'is_null', label: nls.localize('rockit/entitiesOverview/isNull', 'Is null') },
+  { value: 'is_not_null', label: nls.localize('rockit/entitiesOverview/isNotNull', 'Is not null') },
 ]
 
 const OBJECT_OPERATOR_OPTIONS: { value: AdvancedRuleOperator; label: string }[] = [
   ...BASE_OPERATOR_OPTIONS,
-  { value: 'fields', label: 'Fields' },
+  { value: 'fields', label: nls.localize('rockit/entitiesOverview/fields', 'Fields') },
 ]
 const VALUE_KIND_LABELS: Record<AdvancedFieldValueKind, string> = {
-  entity: 'PropertyValue',
-  text: 'Text',
+  entity: nls.localize('rockit/entitiesOverview/propertyValue', 'PropertyValue'),
+  text: nls.localize('rockit/entitiesOverview/text', 'Text'),
   url: 'URL',
-  date: 'Date',
+  date: nls.localize('rockit/entitiesOverview/date', 'Date'),
 }
 
 const OPERATORS_WITHOUT_VALUE = new Set<AdvancedRuleOperator>(['is_null', 'is_not_null'])
@@ -75,7 +76,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     protected readonly entityTypeOptions: string[] = [],
     crate?: Record<string, unknown>,
   ) {
-    super({ title: 'Advanced filters' })
+    super({ title: nls.localize('rockit/entitiesOverview/advancedFilters', 'Advanced filters') })
     this.fieldsByKey = new Map(
       this.catalog.fields.map((field) => [field.key, field] as const),
     )
@@ -89,8 +90,8 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
       }
     }
     this.draft = this.initializeState(initialState)
-    this.appendCloseButton('Close')
-    this.appendAcceptButton('Apply')
+    this.appendCloseButton(nls.localize('rockit/entitiesOverview/close', 'Close'))
+    this.appendAcceptButton(nls.localize('rockit/entitiesOverview/apply', 'Apply'))
   }
 
   get value(): AdvancedFilterState {
@@ -133,18 +134,18 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     return (
       <div className="entities-overview-advanced-modal-body">
         <div className="entities-overview-edit-modal-section">
-          <span className="entities-overview-edit-modal-label">Entity type</span>
+          <span className="entities-overview-edit-modal-label">{nls.localize('rockit/entitiesOverview/entityType', 'Entity type')}</span>
           <Select
             value={this.draft.selectedEntityType}
             options={[
-              { value: ALL_ENTITY_TYPES_OPTION, label: 'All' },
+              { value: ALL_ENTITY_TYPES_OPTION, label: nls.localize('rockit/entitiesOverview/all', 'All') },
               ...this.entityTypeOptions.map((typeLabel) => ({
                 value: typeLabel,
                 label: typeLabel,
               })),
             ]}
             onChange={(value) => this.onEntityTypeSelectionChange(String(value))}
-            placeholder="All"
+            placeholder={nls.localize('rockit/entitiesOverview/all', 'All')}
             getPopupContainer={() => document.body}
             classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
             styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
@@ -152,7 +153,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           />
         </div>
         <div className="entities-overview-edit-modal-section">
-          <span className="entities-overview-edit-modal-label">Select schemas</span>
+          <span className="entities-overview-edit-modal-label">{nls.localize('rockit/entitiesOverview/selectSchemas', 'Select schemas')}</span>
           <Select
             mode="multiple"
             value={this.draft.selectedSchemaIds}
@@ -161,7 +162,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
               label: schema.label,
             }))}
             onChange={(values) => this.onSchemaSelectionChange(values as string[])}
-            placeholder="Select schemas"
+            placeholder={nls.localize('rockit/entitiesOverview/selectSchemas', 'Select schemas')}
             getPopupContainer={() => document.body}
             classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
             styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
@@ -170,7 +171,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           />
           <div className="entities-overview-edit-modal-schema-org-toggle">
             <span className="entities-overview-edit-modal-label">
-              Enable properties from other ontologies
+              {nls.localize('rockit/entitiesOverview/enableOtherOntologies', 'Enable properties from other ontologies')}
             </span>
             <Switch
               checked={this.draft.schemaOrgEnabled}
@@ -185,8 +186,8 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
             showIcon
             message={
               this.draft.schemaOrgEnabled
-                ? 'No properties are available for the selected schemas or other ontologies.'
-                : 'No properties are available for the selected schemas.'
+                ? nls.localize('rockit/entitiesOverview/noPropertiesWithOntologies', 'No properties are available for the selected schemas or other ontologies.')
+                : nls.localize('rockit/entitiesOverview/noProperties', 'No properties are available for the selected schemas.')
             }
           />
         ) : (
@@ -215,36 +216,36 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
               type={group.not ? 'primary' : 'default'}
               onClick={() => this.setGroupNot(group.id, !group.not)}
             >
-              Not
+              {nls.localize('rockit/entitiesOverview/not', 'Not')}
             </Button>
             <Button
               type={group.combinator === 'and' ? 'primary' : 'default'}
               onClick={() => this.setGroupCombinator(group.id, 'and')}
               disabled={!canChooseConjunction}
             >
-              And
+              {nls.localize('rockit/entitiesOverview/and', 'And')}
             </Button>
             <Button
               type={group.combinator === 'or' ? 'primary' : 'default'}
               onClick={() => this.setGroupCombinator(group.id, 'or')}
               disabled={!canChooseConjunction}
             >
-              Or
+              {nls.localize('rockit/entitiesOverview/or', 'Or')}
             </Button>
           </Button.Group>
           <div className="entities-overview-advanced-group-actions">
             <Button size="small" onClick={() => this.addRule(group.id)}>
-              + Add rule
+              {nls.localize('rockit/entitiesOverview/addRule', '+ Add rule')}
             </Button>
             <Button size="small" onClick={() => this.addGroup(group.id)}>
-              + Add group
+              {nls.localize('rockit/entitiesOverview/addGroup', '+ Add group')}
             </Button>
             {!isRoot && (
               <button
                 type="button"
                 className="entities-overview-edit-modal-remove entities-overview-advanced-group-remove"
-                title="Remove group"
-                aria-label="Remove group"
+                title={nls.localize('rockit/entitiesOverview/removeGroup', 'Remove group')}
+                aria-label={nls.localize('rockit/entitiesOverview/removeGroup', 'Remove group')}
                 onClick={() => this.removeNode(group.id)}
               >
                 <span className="codicon codicon-trash" aria-hidden="true" />
@@ -282,7 +283,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     ) {
       fieldOptions.unshift({
         value: selectedField.key,
-        label: `${selectedField.label} - ${selectedField.schemaLabel} (hidden by schema selection)`,
+        label: nls.localize('rockit/entitiesOverview/hiddenBySchemaSelection', '{0} - {1} (hidden by schema selection)', selectedField.label, selectedField.schemaLabel),
         title: selectedField.help ?? selectedField.label,
       })
     }
@@ -296,7 +297,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
         <Select
           value={rule.fieldKey}
           onChange={(value) => this.setRuleField(rule.id, String(value))}
-          placeholder="Select field"
+          placeholder={nls.localize('rockit/entitiesOverview/selectField', 'Select field')}
           getPopupContainer={() => document.body}
           classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
           styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
@@ -320,7 +321,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
             this.renderFieldsOperatorEditor(rule, selectedField)
           ) : OPERATORS_WITHOUT_VALUE.has(rule.operator) ? (
             <span className="entities-overview-edit-modal-no-value">
-              No value required
+              {nls.localize('rockit/entitiesOverview/noValueRequired', 'No value required')}
             </span>
           ) : (
             this.renderRuleValueEditor(rule, selectedField)
@@ -330,8 +331,8 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           <button
             type="button"
             className="entities-overview-edit-modal-remove entities-overview-advanced-rule-remove"
-            title="Remove rule"
-            aria-label="Remove rule"
+            title={nls.localize('rockit/entitiesOverview/removeRule', 'Remove rule')}
+            aria-label={nls.localize('rockit/entitiesOverview/removeRule', 'Remove rule')}
             onClick={() => this.removeNode(rule.id)}
           >
             <span className="codicon codicon-trash" aria-hidden="true" />
@@ -547,7 +548,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     field: AdvancedFilterCatalog['fields'][number] | undefined,
   ): React.ReactNode {
     if (!field) {
-      return <Input disabled placeholder="Select field first" />
+      return <Input disabled placeholder={nls.localize('rockit/entitiesOverview/selectFieldFirst', 'Select field first')} />
     }
 
     const valueKind = this.getEffectiveRuleValueKind(rule, field)
@@ -567,7 +568,9 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
             this.setRuleValue(rule.id, event.target.value)
           }
-          placeholder={valueKind === 'url' ? 'Enter URL' : 'Enter string'}
+          placeholder={valueKind === 'url'
+            ? nls.localize('rockit/entitiesOverview/enterUrl', 'Enter URL')
+            : nls.localize('rockit/entitiesOverview/enterString', 'Enter string')}
           type={valueKind === 'url' ? 'url' : 'text'}
         />
       )
@@ -619,16 +622,16 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
         placeholder={
           options.length > 0
             ? isMultiSelect
-              ? 'Select one or more existing objects'
-              : 'Search existing objects'
-            : 'No existing object values found'
+              ? nls.localize('rockit/entitiesOverview/selectExistingObjects', 'Select one or more existing objects')
+              : nls.localize('rockit/entitiesOverview/searchExistingObjects', 'Search existing objects')
+            : nls.localize('rockit/entitiesOverview/noExistingObjects', 'No existing object values found')
         }
         getPopupContainer={() => document.body}
         classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
         styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
         options={options}
         notFoundContent={
-          <span className="entities-overview-entity-no-data">No matches</span>
+          <span className="entities-overview-entity-no-data">{nls.localize('rockit/entitiesOverview/noMatches', 'No matches')}</span>
         }
       />
     )
@@ -773,7 +776,10 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
             )
           }}
           format="YYYY-MM-DD"
-          placeholder={['Enter date from...', 'Enter date to']}
+          placeholder={[
+            nls.localize('rockit/entitiesOverview/enterDateFrom', 'Enter date from...'),
+            nls.localize('rockit/entitiesOverview/enterDateTo', 'Enter date to'),
+          ]}
           style={{ width: '100%' }}
           allowClear
           getPopupContainer={() => document.body}
@@ -795,7 +801,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           )
         }
         format="YYYY-MM-DD"
-        placeholder="Enter date"
+        placeholder={nls.localize('rockit/entitiesOverview/enterDate', 'Enter date')}
         style={{ width: '100%' }}
         allowClear
         getPopupContainer={() => document.body}
@@ -907,7 +913,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
                 type={fieldsRoot.not ? 'primary' : 'default'}
                 onClick={() => this.setFieldsGroupNot(rule.id, fieldsRoot.id, !fieldsRoot.not)}
               >
-                Not
+                {nls.localize('rockit/entitiesOverview/not', 'Not')}
               </Button>
               <Button
                 type={fieldsRoot.combinator === 'and' ? 'primary' : 'default'}
@@ -916,7 +922,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
                 }
                 disabled={!canChooseConjunction}
               >
-                And
+                {nls.localize('rockit/entitiesOverview/and', 'And')}
               </Button>
               <Button
                 type={fieldsRoot.combinator === 'or' ? 'primary' : 'default'}
@@ -925,13 +931,13 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
                 }
                 disabled={!canChooseConjunction}
               >
-                Or
+                {nls.localize('rockit/entitiesOverview/or', 'Or')}
               </Button>
             </Button.Group>
             <Select
               value={rule.fieldKey}
               onChange={(value) => this.setRuleField(rule.id, String(value))}
-              placeholder="Select property"
+              placeholder={nls.localize('rockit/entitiesOverview/selectProperty', 'Select property')}
               getPopupContainer={() => document.body}
               classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
               styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
@@ -943,17 +949,17 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           </div>
           <div className="entities-overview-advanced-group-actions">
             <Button size="small" onClick={() => this.addSubRule(rule.id, fieldsRoot.id)}>
-              + Add rule
+              {nls.localize('rockit/entitiesOverview/addRule', '+ Add rule')}
             </Button>
             <Button size="small" onClick={() => this.addSubGroup(rule.id, fieldsRoot.id)}>
-              + Add group
+              {nls.localize('rockit/entitiesOverview/addGroup', '+ Add group')}
             </Button>
             {!isRoot && (
               <button
                 type="button"
                 className="entities-overview-edit-modal-remove entities-overview-advanced-group-remove"
-                title="Remove group"
-                aria-label="Remove group"
+                title={nls.localize('rockit/entitiesOverview/removeGroup', 'Remove group')}
+                aria-label={nls.localize('rockit/entitiesOverview/removeGroup', 'Remove group')}
                 onClick={() => this.removeNode(group.id)}
               >
                 <span className="codicon codicon-trash" aria-hidden="true" />
@@ -991,7 +997,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     if (!fieldsRoot || field.objectSubfields.length === 0) {
       return (
         <span className="entities-overview-edit-modal-no-value">
-          No subfields available
+          {nls.localize('rockit/entitiesOverview/noSubfields', 'No subfields available')}
         </span>
       )
     }
@@ -1023,28 +1029,28 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
                 type={group.not ? 'primary' : 'default'}
                 onClick={() => this.setFieldsGroupNot(parentRuleId, group.id, !group.not)}
               >
-                Not
+                {nls.localize('rockit/entitiesOverview/not', 'Not')}
               </Button>
               <Button
                 type={group.combinator === 'and' ? 'primary' : 'default'}
                 onClick={() => this.setFieldsGroupCombinator(parentRuleId, group.id, 'and')}
                 disabled={!canChooseConjunction}
               >
-                And
+                {nls.localize('rockit/entitiesOverview/and', 'And')}
               </Button>
               <Button
                 type={group.combinator === 'or' ? 'primary' : 'default'}
                 onClick={() => this.setFieldsGroupCombinator(parentRuleId, group.id, 'or')}
                 disabled={!canChooseConjunction}
               >
-                Or
+                {nls.localize('rockit/entitiesOverview/or', 'Or')}
               </Button>
             </Button.Group>
             {isRoot && rootPropertyOptions && (
               <Select
                 value={rootPropertyValue}
                 onChange={(value) => this.setRuleField(parentRuleId, String(value))}
-                placeholder="Select property"
+                placeholder={nls.localize('rockit/entitiesOverview/selectProperty', 'Select property')}
                 getPopupContainer={() => document.body}
                 classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
                 styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
@@ -1057,17 +1063,17 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           </div>
           <div className="entities-overview-advanced-group-actions">
             <Button size="small" onClick={() => this.addSubRule(parentRuleId, group.id)}>
-              + Add rule
+              {nls.localize('rockit/entitiesOverview/addRule', '+ Add rule')}
             </Button>
             <Button size="small" onClick={() => this.addSubGroup(parentRuleId, group.id)}>
-              + Add group
+              {nls.localize('rockit/entitiesOverview/addGroup', '+ Add group')}
             </Button>
             {!isRoot && (
               <button
                 type="button"
                 className="entities-overview-edit-modal-remove entities-overview-advanced-group-remove"
-                title="Remove group"
-                aria-label="Remove group"
+                title={nls.localize('rockit/entitiesOverview/removeGroup', 'Remove group')}
+                aria-label={nls.localize('rockit/entitiesOverview/removeGroup', 'Remove group')}
                 onClick={() => this.removeSubNode(parentRuleId, group.id)}
               >
                 <span className="codicon codicon-trash" aria-hidden="true" />
@@ -1121,7 +1127,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           onChange={(value) =>
             this.setSubRuleField(parentRuleId, rule.id, String(value))
           }
-          placeholder="Select field"
+          placeholder={nls.localize('rockit/entitiesOverview/selectField', 'Select field')}
           getPopupContainer={() => document.body}
           classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
           styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
@@ -1143,7 +1149,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
         <div className="entities-overview-edit-modal-value entities-overview-advanced-rule-value">
           {OPERATORS_WITHOUT_VALUE.has(rule.operator) ? (
             <span className="entities-overview-edit-modal-no-value">
-              No value required
+              {nls.localize('rockit/entitiesOverview/noValueRequired', 'No value required')}
             </span>
           ) : selectedField && this.getFieldValueKinds(selectedField).includes('date') ? (
             this.renderDateValueEditor(rule.value, rule.operator, (value) =>
@@ -1155,7 +1161,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
               onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
                 this.setSubRuleValue(parentRuleId, rule.id, event.target.value)
               }
-              placeholder="Enter string"
+              placeholder={nls.localize('rockit/entitiesOverview/enterString', 'Enter string')}
             />
           )}
         </div>
@@ -1163,8 +1169,8 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           <button
             type="button"
             className="entities-overview-edit-modal-remove entities-overview-advanced-rule-remove"
-            title="Remove rule"
-            aria-label="Remove rule"
+            title={nls.localize('rockit/entitiesOverview/removeRule', 'Remove rule')}
+            aria-label={nls.localize('rockit/entitiesOverview/removeRule', 'Remove rule')}
             onClick={() => this.removeSubNode(parentRuleId, rule.id)}
           >
             <span className="codicon codicon-trash" aria-hidden="true" />
@@ -1450,7 +1456,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     if (idValue) {
       const referencedEntity = this.graphById.get(idValue)
       if (referencedEntity) {
-        const rawType = this.getEntityTypeNames(referencedEntity)[0] ?? 'Entity'
+        const rawType = this.getEntityTypeNames(referencedEntity)[0] ?? nls.localize('rockit/entitiesOverview/entity', 'Entity')
         const typeLabel = this.formatTypeLabel(rawType)
         const displayName = this.getEntityDisplayName(referencedEntity)
         const searchIndex = `${displayName} ${idValue} ${typeLabel}`.toLowerCase()
@@ -1472,7 +1478,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     return {
       label: (
         <span className="entities-overview-entity-option">
-          <span className="entities-overview-entity-option-type">Object</span>
+          <span className="entities-overview-entity-option-type">{nls.localize('rockit/entitiesOverview/object', 'Object')}</span>
           <span className="entities-overview-entity-option-name">{display}</span>
         </span>
       ),
@@ -1490,7 +1496,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
   protected formatTypeLabel(typeName: string): string {
     const tail = this.toTypeTail(typeName)
     if (!tail) {
-      return 'Entity'
+      return nls.localize('rockit/entitiesOverview/entity', 'Entity')
     }
     return tail.charAt(0).toUpperCase() + tail.slice(1)
   }

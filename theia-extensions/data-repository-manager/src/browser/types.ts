@@ -54,12 +54,13 @@ export interface DataRepositorySelection {
     exportTarget?: DataRepositoryExportTarget;
 }
 
-export type DataRepositoryKind = 'arp-dataverse' | 'dataverse' | 'unknown';
+export type DataRepositoryKind = 'arp-dataverse' | 'dataverse' | 'zenodo' | 'unknown';
 
 export interface DataRepositoryCapabilities {
     kind: DataRepositoryKind;
     supportsArpRoCrateZipUpload: boolean;
     supportsNativeDataverseApi: boolean;
+    supportsZenodoApi: boolean;
 }
 
 export interface DataRepositoryExportTarget {
@@ -70,4 +71,5 @@ export interface DataRepositoryExportTarget {
     syncedAt: string;
     syncType: 'create' | 'update';
     datasetName?: string;
+    remoteState?: 'draft' | 'published';
 }

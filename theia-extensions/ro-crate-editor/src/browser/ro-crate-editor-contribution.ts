@@ -11,6 +11,7 @@ import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/li
 import { ApplicationServer } from '@theia/core/lib/common/application-protocol'
 import { Command, CommandRegistry, CommandService } from '@theia/core/lib/common/command'
 import { MessageService } from '@theia/core/lib/common/message-service'
+import { nls } from '@theia/core/lib/common/nls'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
@@ -25,17 +26,20 @@ import { RoCrateEditorWidget } from './ro-crate-editor-widget'
 
 export const OpenRoCrateEditorCommand: Command = {
   id: 'rocrate.openEditor',
-  label: 'Open New RO-Crate Editor',
+  label: nls.localize('rockit/roCrateEditor/openNew', 'Open New RO-Crate Editor'),
 }
 
 export const InitializeRoCrateCommand: Command = {
   id: 'rocrate.initialize',
-  label: 'Initialize RO-Crate',
+  label: nls.localize('rockit/roCrateEditor/initialize', 'Initialize RO-Crate'),
 }
 
 export const RoCrateEditorDocumentationCommand: Command = {
   id: 'rocrate.openEditorDocumentation',
-  label: 'Open RO-Crate Editor Documentation',
+  label: nls.localize(
+    'rockit/roCrateEditor/openDocumentation',
+    'Open RO-Crate Editor Documentation',
+  ),
   iconClass: codicon('info'),
 }
 
@@ -59,7 +63,7 @@ export class RoCrateEditorContribution extends AbstractViewContribution<RoCrateE
   ) {
     super({
       widgetId: RoCrateEditorWidget.ID,
-      widgetName: 'RO-Crate Editor',
+      widgetName: nls.localize('rockit/roCrateEditor/title', 'RO-Crate Editor'),
       defaultWidgetOptions: { area: 'main' },
     })
   }

@@ -1,5 +1,6 @@
 import { Message } from '@lumino/messaging'
 import { AbstractDialog, DialogMode } from '@theia/core/lib/browser/dialogs'
+import { nls } from '@theia/core/lib/common'
 
 export enum ExportRoCrateMode {
   Normal = 'normal',
@@ -18,14 +19,21 @@ export interface ExportRoCrateDialogOptions {
 
 const MODE_DETAILS: Record<ExportRoCrateMode, { label: string; description: string }> = {
   [ExportRoCrateMode.Normal]: {
-    label: 'Normal Export',
-    description:
+    label: nls.localize('rockit/exportRoCrate/normal', 'Normal Export'),
+    description: nls.localize(
+      'rockit/exportRoCrate/normalDescription',
       'Exports the entire workspace as a ZIP, including all files and folders.',
+    ),
   },
   [ExportRoCrateMode.Clean]: {
-    label: 'Clean RO-Crate Export',
-    description:
+    label: nls.localize(
+      'rockit/exportRoCrate/clean',
+      'Clean RO-Crate Export',
+    ),
+    description: nls.localize(
+      'rockit/exportRoCrate/cleanDescription',
       'Exports only the RO-Crate structure, including files explicitly listed in ro-crate-metadata.json.',
+    ),
   },
 }
 
@@ -43,10 +51,12 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
   protected saveInProgress = false
 
   constructor(protected readonly options: ExportRoCrateDialogOptions) {
-    super({ title: 'Export RO-Crate' })
+    super({
+      title: nls.localize('rockit/exportRoCrate/title', 'Export RO-Crate'),
+    })
 
-    this.appendCloseButton()
-    this.appendAcceptButton('Export')
+    this.appendCloseButton(nls.localize('rockit/common/cancel', 'Cancel'))
+    this.appendAcceptButton(nls.localize('rockit/exportRoCrate/export', 'Export'))
 
     const container = document.createElement('div')
     container.classList.add('export-ro-crate-dialog')
@@ -57,8 +67,10 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
     this.unsavedChangesNode.classList.add('export-unsaved-changes')
     this.unsavedChangesNode.style.display = 'none'
 
-    this.unsavedChangesTextNode.textContent =
-      'RO-Crate metadata has unsaved changes. Save before exporting.'
+    this.unsavedChangesTextNode.textContent = nls.localize(
+      'rockit/exportRoCrate/unsavedChanges',
+      'RO-Crate metadata has unsaved changes. Save before exporting.',
+    )
     this.unsavedChangesTextNode.classList.add('export-unsaved-changes-message')
 
     this.saveChangesButton.type = 'button'
@@ -67,7 +79,10 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
       'secondary',
       'export-unsaved-changes-save',
     )
-    this.saveChangesButton.textContent = 'Save'
+    this.saveChangesButton.textContent = nls.localize(
+      'rockit/exportRoCrate/save',
+      'Save',
+    )
     this.saveChangesButton.addEventListener('click', () => {
       void this.saveAndRefresh()
     })
@@ -137,8 +152,10 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
     this.includeReferencedLocalFiles.checked = false
 
     const includeText = document.createElement('span')
-    includeText.textContent =
-      'Include referenced local files that are outside the RO-Crate folder'
+    includeText.textContent = nls.localize(
+      'rockit/exportRoCrate/includeExternalFiles',
+      'Include referenced local files that are outside the RO-Crate folder',
+    )
 
     includeSection.appendChild(this.includeReferencedLocalFiles)
     includeSection.appendChild(includeText)
@@ -160,17 +177,27 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
     this.saveInProgress = true
     this.saveError = undefined
     this.saveChangesButton.disabled = true
-    this.saveChangesButton.textContent = 'Saving...'
+    this.saveChangesButton.textContent = nls.localize(
+      'rockit/exportRoCrate/saving',
+      'Saving...',
+    )
 
     try {
       await this.options.saveChanges()
     } catch (error) {
       console.error('Failed to save RO-Crate before export', error)
-      this.saveError = `Save failed: ${error}`
+      this.saveError = nls.localize(
+        'rockit/exportRoCrate/saveFailed',
+        'Save failed: {0}',
+        String(error),
+      )
     } finally {
       this.saveInProgress = false
       this.saveChangesButton.disabled = false
-      this.saveChangesButton.textContent = 'Save'
+      this.saveChangesButton.textContent = nls.localize(
+        'rockit/exportRoCrate/save',
+        'Save',
+      )
       await this.refreshUnsavedChangesState()
     }
   }
@@ -180,7 +207,10 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
     this.unsavedChangesNode.style.display = hasUnsavedChanges ? 'flex' : 'none'
     this.unsavedChangesTextNode.textContent =
       this.saveError ??
-      'RO-Crate metadata has unsaved changes. Save before exporting.'
+      nls.localize(
+        'rockit/exportRoCrate/unsavedChanges',
+        'RO-Crate metadata has unsaved changes. Save before exporting.',
+      )
 
     if (this.acceptButton) {
       this.acceptButton.disabled = hasUnsavedChanges
@@ -193,7 +223,10 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
     _mode: DialogMode,
   ): Promise<string> {
     if (await this.options.hasUnsavedChanges()) {
-      return 'Save RO-Crate metadata before exporting.'
+      return nls.localize(
+        'rockit/exportRoCrate/saveBeforeExport',
+        'Save RO-Crate metadata before exporting.',
+      )
     }
     return ''
   }

@@ -5,6 +5,7 @@ import { createRoot, Root } from 'react-dom/client';
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import { nls } from '@theia/core/lib/common/nls';
 
 import '../styles/missing-schemas-dialog.css';
 
@@ -14,7 +15,7 @@ export class MissingSchemasDialog extends AbstractDialog<void> {
 
     constructor(private readonly count: number) {
         super({
-            title: 'Missing Metadata Schemas'
+            title: nls.localize('rockit/schemaManager/missingSchemas', 'Missing Metadata Schemas')
         });
 
         this.contentNode.style.width = '450px';
@@ -72,12 +73,14 @@ const InfoContent: React.FC<InfoContentProps> = ({ count, onConfirm }) => {
                 
                 <div className="missing-schemas__text-container">
                     <h3 className="missing-schemas__title">
-                        Missing Metadata Schemas
+                        {nls.localize('rockit/schemaManager/missingSchemas', 'Missing Metadata Schemas')}
                     </h3>
                     <p className="missing-schemas__message">
-                        The RO-Crate references <strong>{count}</strong> missing schema{count !== 1 ? 's' : ''}.
-                        <br/>
-                        Downloading now...
+                        {nls.localize(
+                            'rockit/schemaManager/missingSchemasMessage',
+                            'The RO-Crate references {0} missing schema(s). Downloading now...',
+                            count,
+                        )}
                     </p>
                 </div>
             </div>

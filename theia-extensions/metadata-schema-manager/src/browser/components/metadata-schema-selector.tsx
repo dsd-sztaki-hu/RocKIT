@@ -9,6 +9,7 @@ import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { CommandRegistry } from '@theia/core/lib/common/command';
+import { nls } from '@theia/core/lib/common/nls';
 import CancelIcon from '@mui/icons-material/Cancel'; 
 import { IconButton, Tooltip } from '@mui/material';
 
@@ -71,7 +72,10 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
             }
         } catch (err) {
             console.error("Failed to open selector dialog:", err);
-            this.messageService.error('Failed to open schema selector dialog.', { timeout: MSG_TIMEOUT });
+            this.messageService.error(
+                nls.localize('rockit/schemaManager/openSelectorFailed', 'Failed to open schema selector dialog.'),
+                { timeout: MSG_TIMEOUT },
+            );
         } finally {
             this.isDialogVisible = false;
             this.appStateService.updateState({ 
@@ -86,7 +90,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
         const graph = crate && Array.isArray(crate['@graph']) ? crate['@graph'] as any[] : [];
         const isLargeCrate = graph.length >= 1_000;
         const loadMask = this.loadMaskService.show({
-            message: 'Associating metadata schema...',
+            message: nls.localize('rockit/schemaManager/associatingSchema', 'Associating metadata schema...'),
             delay: isLargeCrate ? 0 : undefined,
         });
         try {
@@ -135,27 +139,35 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
                     }
 
                     loadMask.update({
-                        message: 'Finalizing schema association...',
+                        message: nls.localize('rockit/schemaManager/finalizingAssociation', 'Finalizing schema association...'),
                         progress: { worked: graph.length, total: graph.length },
                     });
                     await new Promise<void>(resolve => setTimeout(resolve, 0));
                     
                     this.roCrateHistoryService.applyRoCrateChange(
                         { ...crate, '@graph': updatedGraph } as any,
-                        { label: 'Associate schema with entity' }
+                        { label: nls.localize('rockit/schemaManager/associateHistory', 'Associate schema with entity') }
                     );
                 }
             }
 
             const schemaNames = schemas.map(schema => schema.name).join(', ');
             const message = schemas.length === 1
-                ? `Associated schema: ${schemaNames}`
-                : `Associated ${schemas.length} schemas: ${schemaNames}`;
+                ? nls.localize('rockit/schemaManager/associatedSchema', 'Associated schema: {0}', schemaNames)
+                : nls.localize(
+                    'rockit/schemaManager/associatedSchemas',
+                    'Associated {0} schemas: {1}',
+                    schemas.length,
+                    schemaNames,
+                );
             this.messageService.info(message, { timeout: MSG_TIMEOUT });
 
         } catch (e) {
             console.error(e);
-            this.messageService.error('Failed to associate schema.', { timeout: MSG_TIMEOUT });
+            this.messageService.error(
+                nls.localize('rockit/schemaManager/associateFailed', 'Failed to associate schema.'),
+                { timeout: MSG_TIMEOUT },
+            );
         } finally {
             loadMask.dispose();
         }
@@ -186,7 +198,7 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo[] | 
         protected readonly msgService: MessageService
     ) {
         super({
-            title: 'Select Metadata Schema'
+            title: nls.localize('rockit/schemaManager/selectSchema', 'Select Metadata Schema')
         });
         
         this.contentNode.style.width = '1000px';
@@ -347,35 +359,39 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
     const handleDeleteTransient = async (ids: string[]) => {
         try {
             const count = await service.deleteSchemas(ids);
-            if (count > 0) msg.info(`Aborted/Removed ${count} task(s).`, { timeout: MSG_TIMEOUT });
+            if (count > 0) msg.info(nls.localize(
+                'rockit/schemaManager/removedTasks',
+                'Aborted/removed {0} task(s).',
+                count,
+            ), { timeout: MSG_TIMEOUT });
         } catch (e) {
-            msg.error('Failed to remove task.', { timeout: MSG_TIMEOUT });
+            msg.error(nls.localize('rockit/schemaManager/removeTaskFailed', 'Failed to remove task.'), { timeout: MSG_TIMEOUT });
         }
     };
 
     const handleImportFile = async () => {
         const uris = await fileDialog.showOpenDialog({ 
-            title: 'Import', filters: { 'JSON': ['json'] }, canSelectFiles: true, canSelectMany: true 
+            title: nls.localize('rockit/schemaManager/import', 'Import'), filters: { 'JSON': ['json'] }, canSelectFiles: true, canSelectMany: true
         });
         if (!uris) return;
         const fileUris = Array.isArray(uris) ? uris : [uris];
 
-        msg.showProgress({ text: 'Importing...' }).then(async p => {
+        msg.showProgress({ text: nls.localize('rockit/schemaManager/importing', 'Importing...') }).then(async p => {
             try {
                 const res = await service.importFiles(fileUris, p);
-                if (res.success > 0) msg.info(`Successfully imported ${res.success} schema(s).`, { timeout: MSG_TIMEOUT });
-                if (res.fail > 0) msg.warn(`Failed to import ${res.fail} schema(s).`, { timeout: MSG_TIMEOUT });
+                if (res.success > 0) msg.info(nls.localize('rockit/schemaManager/importedCount', 'Successfully imported {0} schema(s).', res.success), { timeout: MSG_TIMEOUT });
+                if (res.fail > 0) msg.warn(nls.localize('rockit/schemaManager/importFailedCount', 'Failed to import {0} schema(s).', res.fail), { timeout: MSG_TIMEOUT });
             } catch (e) {
-                msg.error('Unexpected error during import.', { timeout: MSG_TIMEOUT });
+                msg.error(nls.localize('rockit/schemaManager/unexpectedImportError', 'Unexpected error during import.'), { timeout: MSG_TIMEOUT });
             } finally { p.cancel(); }
         });
     };
 
     const handleImportUrl = async (url: string) => {
-        msg.showProgress({ text: 'Downloading...' }).then(async p => {
+        msg.showProgress({ text: nls.localize('rockit/schemaManager/downloadingEllipsis', 'Downloading...') }).then(async p => {
             try {
                 const name = await service.importFromUrl(url, p);
-                msg.info(`Successfully imported: ${name}`, { timeout: MSG_TIMEOUT });
+                msg.info(nls.localize('rockit/schemaManager/importedName', 'Successfully imported: {0}', name), { timeout: MSG_TIMEOUT });
             } catch (e: any) {
                 if (e.message !== 'Aborted') {
                     msg.error(`Error: ${e instanceof Error ? e.message : e}`, { timeout: MSG_TIMEOUT });
@@ -433,7 +449,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                 <div className="schema-selector__info">
                     {selectedSchemas.length ? (
                         <>
-                            <Tooltip title="Deselect" placement="top" classes={{ tooltip: 'schema-table__tooltip' }}>
+                            <Tooltip title={nls.localize('rockit/schemaManager/deselect', 'Deselect')} placement="top" classes={{ tooltip: 'schema-table__tooltip' }}>
                                 <IconButton 
                                     size="small" 
                                     onClick={() => setSelectedSchemas([])} 
@@ -444,13 +460,16 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                             </Tooltip>
                             <span className="schema-selector__selected-text">
                                 {selectedSchemas.length === 1
-                                    ? `Selected: ${selectedSchemas[0].name}`
-                                    : `Selected: ${selectedSchemas.length} schemas`}
+                                    ? nls.localize('rockit/schemaManager/selectedName', 'Selected: {0}', selectedSchemas[0].name)
+                                    : nls.localize('rockit/schemaManager/selectedCount', 'Selected: {0} schemas', selectedSchemas.length)}
                             </span>
                         </>
                     ) : (
                         <span className="schema-selector__placeholder">
-                            Select one or more valid schemas, or double-click a valid row to associate it.
+                            {nls.localize(
+                                'rockit/schemaManager/selectSchemaHint',
+                                'Select one or more valid schemas, or double-click a valid row to associate it.',
+                            )}
                         </span>
                     )}
                 </div>
@@ -461,14 +480,14 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
                         className="theia-button secondary schema-selector__btn-cancel"
                         onClick={onCancel}
                     >
-                        Cancel
+                        {nls.localize('rockit/common/cancel', 'Cancel')}
                     </button>
                     <button 
                         className="theia-button main schema-selector__btn-associate"
                         onClick={() => selectedSchemas.length && onAccept(selectedSchemas)}
                         disabled={!selectedSchemas.length}
                     >
-                        Associate
+                        {nls.localize('rockit/schemaManager/associate', 'Associate')}
                     </button>
                 </div>
             </div>

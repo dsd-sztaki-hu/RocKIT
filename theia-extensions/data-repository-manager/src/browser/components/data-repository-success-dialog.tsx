@@ -3,6 +3,7 @@ import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
+import { nls } from '@theia/core/lib/common/nls';
 
 import '../styles/data-repository-success-dialog.css';
 
@@ -15,7 +16,7 @@ export class DataRepositorySuccessDialog extends AbstractDialog<boolean> {
         private readonly expirationDate?: string
     ) {
         super({
-            title: 'Connection Successful'
+            title: nls.localize('rockit/dataRepository/connectionSuccessful', 'Connection Successful')
         });
         
         this.contentNode.style.width = '450px';
@@ -55,10 +56,10 @@ export class DataRepositorySuccessDialog extends AbstractDialog<boolean> {
                         </div>
                         <div>
                             <div className="data-repo-success__title">
-                                Connection Established
+                                {nls.localize('rockit/dataRepository/connectionEstablished', 'Connection Established')}
                             </div>
                             <div className="data-repo-success__message">
-                                Successfully authenticated with <strong>{this.repositoryName}</strong>.
+                                {nls.localize('rockit/dataRepository/authenticatedWith', 'Successfully authenticated with {0}.', this.repositoryName)}
                             </div>
                         </div>
                     </div>
@@ -70,7 +71,7 @@ export class DataRepositorySuccessDialog extends AbstractDialog<boolean> {
                                 <EventAvailableIcon className="data-repo-success__info-icon" />
                             </div>
                             <div className="data-repo-success__info-text">
-                                <span>API Token Expiration:</span>
+                                <span>{nls.localize('rockit/dataRepository/tokenExpiration', 'API Token Expiration')}:</span>
                                 <strong>{this.expirationDate}</strong>
                             </div>
                         </div>
@@ -83,13 +84,13 @@ export class DataRepositorySuccessDialog extends AbstractDialog<boolean> {
                         className="theia-button secondary data-repo-success__btn-cancel"
                         onClick={() => this.handleCancel()}
                     >
-                        Cancel
+                        {nls.localize('rockit/common/cancel', 'Cancel')}
                     </button>
                     <button 
                         className="theia-button main data-repo-success__btn-save"
                         onClick={() => this.handleSave()}
                     >
-                        Confirm & Save
+                        {nls.localize('rockit/dataRepository/confirmSave', 'Confirm & Save')}
                     </button>
                 </div>
             </div>

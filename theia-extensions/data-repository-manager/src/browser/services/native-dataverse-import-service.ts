@@ -1,4 +1,5 @@
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
+import { nls } from '@theia/core/lib/common/nls'
 import URI from '@theia/core/lib/common/uri'
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -30,12 +31,12 @@ export class NativeDataverseImportService {
   ): Promise<NativeDataverseImportResult | undefined> {
     const persistentId = this.extractPersistentId(datasetUrl)
     if (!persistentId) {
-      throw new Error('Could not extract a dataset persistent ID from the dataset URL.')
+      throw new Error(nls.localize('rockit/dataRepository/extractPersistentIdFailed', 'Could not extract a dataset persistent ID from the dataset URL.'))
     }
 
     const importParentDirectory = await this.fileDialogService.showOpenDialog({
-      title: 'Select Import Folder',
-      openLabel: 'Import Here',
+      title: nls.localize('rockit/dataRepository/selectImportFolder', 'Select Import Folder'),
+      openLabel: nls.localize('rockit/dataRepository/importHere', 'Import Here'),
       canSelectFiles: false,
       canSelectFolders: true,
       canSelectMany: false,
@@ -88,7 +89,12 @@ export class NativeDataverseImportService {
     if (!response.ok) {
       const message = await this.readErrorResponseMessage(response)
       throw new Error(
-        `Dataverse dataset ZIP download failed (${response.status}): ${message}`,
+        nls.localize(
+          'rockit/dataRepository/dataverseZipDownloadFailed',
+          'Dataverse dataset ZIP download failed ({0}): {1}',
+          response.status,
+          message,
+        ),
       )
     }
 
@@ -123,7 +129,10 @@ export class NativeDataverseImportService {
   protected async readErrorResponseMessage(response: Response): Promise<string> {
     const text = await response.text().catch(() => '')
     if (!text.trim()) {
-      return response.statusText || 'No response body.'
+      return response.statusText || nls.localize(
+        'rockit/dataRepository/noResponseBody',
+        'No response body.',
+      )
     }
     try {
       return this.payloadSummary(JSON.parse(text))
@@ -227,7 +236,11 @@ export class NativeDataverseImportService {
       .reduce((uri, segment) => uri.resolve(segment), root)
 
     if (!root.isEqualOrParent(target)) {
-      throw new Error(`Refusing to extract ZIP entry outside target folder: ${relativePath}`)
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zipEntryOutsideTarget',
+        'Refusing to extract ZIP entry outside target folder: {0}',
+        relativePath,
+      ))
     }
     return target
   }
@@ -242,7 +255,11 @@ export class NativeDataverseImportService {
       normalized.includes('/../') ||
       /^[a-zA-Z]:\//.test(normalized)
     ) {
-      throw new Error(`Refusing to extract unsafe ZIP entry: ${value}`)
+      throw new Error(nls.localize(
+        'rockit/dataRepository/unsafeZipEntry',
+        'Refusing to extract unsafe ZIP entry: {0}',
+        value,
+      ))
     }
     return normalized
   }
@@ -277,7 +294,10 @@ export class NativeDataverseImportService {
   protected normalizeBaseUrl(baseUrl: string): string {
     const normalized = baseUrl.trim().replace(/\/+$/, '')
     if (!normalized) {
-      throw new Error('Repository base URL is empty.')
+      throw new Error(nls.localize(
+        'rockit/dataRepository/emptyRepositoryBaseUrl',
+        'Repository base URL is empty.',
+      ))
     }
     return normalized.endsWith('/api/v1') ? normalized.slice(0, -'/api/v1'.length) : normalized
   }

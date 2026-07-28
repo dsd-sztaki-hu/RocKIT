@@ -6,6 +6,7 @@ import {
   MenuContribution,
   MenuModelRegistry,
   MessageService,
+  nls,
 } from '@theia/core/lib/common'
 import URI from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
@@ -26,7 +27,7 @@ const RO_CRATE_EDITOR_ID = 'rocrate-editor-widget'
 
 export const SaveRoCrateCommand: Command = {
   id: 'ro-crate.save',
-  label: 'Save RO-Crate',
+  label: nls.localize('rockit/saveRoCrate/command', 'Save RO-Crate'),
 }
 
 @injectable()
@@ -126,19 +127,27 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
 
       if (crateData && Array.isArray(ignoredEntries)) {
         await this.messageService.info(
-          'RO-Crate, HTML preview, and ignored rules saved!',
+          nls.localize(
+            'rockit/saveRoCrate/savedAll',
+            'RO-Crate, HTML preview, and ignored rules saved!',
+          ),
           {
             timeout: 3000,
           },
         )
       } else if (crateData) {
-        await this.messageService.info('RO-Crate and HTML preview file saved!', {
-          timeout: 3000,
-        })
+        await this.messageService.info(
+          nls.localize(
+            'rockit/saveRoCrate/savedCrate',
+            'RO-Crate and HTML preview file saved!',
+          ),
+          { timeout: 3000 },
+        )
       } else if (Array.isArray(ignoredEntries)) {
-        await this.messageService.info('Ignored rules saved!', {
-          timeout: 3000,
-        })
+        await this.messageService.info(
+          nls.localize('rockit/saveRoCrate/savedIgnored', 'Ignored rules saved!'),
+          { timeout: 3000 },
+        )
       }
 
       if (crateData) {
@@ -146,7 +155,9 @@ export class SaveRoCrateContribution implements CommandContribution, MenuContrib
         this.appStateService.dirty = false
       }
     } catch (error) {
-      await this.messageService.error(`Save failed: ${error}`)
+      await this.messageService.error(
+        nls.localize('rockit/saveRoCrate/failed', 'Save failed: {0}', String(error)),
+      )
     }
   }
 

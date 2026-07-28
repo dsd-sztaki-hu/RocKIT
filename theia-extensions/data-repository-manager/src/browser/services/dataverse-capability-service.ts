@@ -10,20 +10,31 @@ export class DataverseCapabilityService {
             return {
                 kind: 'arp-dataverse',
                 supportsArpRoCrateZipUpload: true,
-                supportsNativeDataverseApi: true
+                supportsNativeDataverseApi: true,
+                supportsZenodoApi: false
             };
         }
         if (await this.supportsNativeDataverseApi(baseUrl)) {
             return {
                 kind: 'dataverse',
                 supportsArpRoCrateZipUpload: false,
-                supportsNativeDataverseApi: true
+                supportsNativeDataverseApi: true,
+                supportsZenodoApi: false
+            };
+        }
+        if (await this.supportsZenodoApi(baseUrl)) {
+            return {
+                kind: 'zenodo',
+                supportsArpRoCrateZipUpload: false,
+                supportsNativeDataverseApi: false,
+                supportsZenodoApi: true
             };
         }
         return {
             kind: 'unknown',
             supportsArpRoCrateZipUpload: false,
-            supportsNativeDataverseApi: false
+            supportsNativeDataverseApi: false,
+            supportsZenodoApi: false
         };
     }
 
@@ -76,6 +87,32 @@ export class DataverseCapabilityService {
                 && payload.data.alias === 'root';
         } catch (error) {
             console.warn('Failed to detect native Dataverse API capability:', error);
+            return false;
+        }
+    }
+
+    protected async supportsZenodoApi(baseUrl: string): Promise<boolean> {
+        const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '').replace(/\/api$/, '');
+        if (!normalizedBaseUrl) {
+            return false;
+        }
+
+        try {
+            const host = new URL(normalizedBaseUrl).hostname.toLowerCase();
+            if (host === 'zenodo.org' || host === 'sandbox.zenodo.org') {
+                return true;
+            }
+        } catch {
+            return false;
+        }
+
+        try {
+            const response = await fetch(`${normalizedBaseUrl}/api/deposit/depositions`, {
+                headers: { accept: 'application/json' }
+            });
+            return response.status === 401 || response.status === 403;
+        } catch (error) {
+            console.warn('Failed to detect Zenodo API capability:', error);
             return false;
         }
     }

@@ -9,6 +9,7 @@ import {
 } from '@theia/core/lib/browser'
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar'
 import { ApplicationServer } from '@theia/core/lib/common/application-protocol'
+import { nls } from '@theia/core/lib/common/nls'
 import {
   openRockitDocumentationPage,
   ROCKIT_DOCUMENTATION_PAGES,
@@ -23,17 +24,28 @@ import {
 
 export const DatasetPanelCommand: Command = {
   id: 'dataset-panel:command',
-  label: 'Open New RO-Crate Structure Panel',
+  label: nls.localize(
+    'rockit/structurePanel/openNew',
+    'Open New RO-Crate Structure Panel',
+  ),
 }
 
 export const RoCrateStructurePanelEditCommand: Command = {
   id: 'ro-crate-structure-panel:edit',
-  label: 'Edit',
+  label: nls.localize('rockit/structurePanel/edit', 'Edit'),
+}
+
+export const RoCrateStructurePanelDeleteEntityCommand: Command = {
+  id: 'ro-crate-structure-panel:delete-entity',
+  label: nls.localize('rockit/structurePanel/deleteEntity', 'Delete Entity'),
 }
 
 export const RoCrateStructurePanelDocumentationCommand: Command = {
   id: 'ro-crate-structure-panel:open-documentation',
-  label: 'Open RO-Crate Structure Panel Documentation',
+  label: nls.localize(
+    'rockit/structurePanel/openDocumentation',
+    'Open RO-Crate Structure Panel Documentation',
+  ),
   iconClass: codicon('info'),
 }
 
@@ -47,7 +59,10 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
   ) {
     super({
       widgetId: RoCrateStructurePanelWidget.ID,
-      widgetName: 'RO-Crate Structure Panel',
+      widgetName: nls.localize(
+        'rockit/structurePanel/title',
+        'RO-Crate Structure Panel',
+      ),
       defaultWidgetOptions: { area: 'main' },
     })
   }
@@ -78,6 +93,19 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
       isVisible: () => Boolean(this.getActiveStructureWidget()),
     })
 
+    registry.registerCommand(RoCrateStructurePanelDeleteEntityCommand, {
+      execute: async () => {
+        const widget = this.getActiveStructureWidget()
+        if (widget) {
+          await widget.deleteEntitiesFromContextMenu()
+        }
+      },
+      isEnabled: () => Boolean(
+        this.getActiveStructureWidget()?.canDeleteEntitiesFromContextMenu(),
+      ),
+      isVisible: () => Boolean(this.getActiveStructureWidget()),
+    })
+
     registry.registerCommand(RoCrateStructurePanelDocumentationCommand, {
       execute: () =>
         openRockitDocumentationPage(
@@ -104,6 +132,13 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
     menus.registerMenuAction(RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU, {
       commandId: RoCrateDeleteSelectedEntitiesCommand.id,
       label: RoCrateDeleteSelectedEntitiesCommand.label,
+    })
+    menus.registerMenuAction(RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU, {
+      commandId: RoCrateStructurePanelDeleteEntityCommand.id,
+      label: nls.localize(
+        'rockit/structurePanel/deleteEntityShift',
+        'Delete Entity (Shift+Delete)',
+      ),
     })
   }
 

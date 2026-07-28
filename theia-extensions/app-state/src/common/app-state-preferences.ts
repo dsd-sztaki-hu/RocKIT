@@ -27,7 +27,8 @@ export const AppStateConfigSchema: PreferenceSchema = {
       type: 'string',
       enum: ['prompt', 'auto', 'off'],
       default: 'prompt',
-      description: nls.localizeByDefault(
+      description: nls.localize(
+        'rockit/appState/preference/externalChangeDescription',
         'Controls how RocKIT reacts to external ro-crate-metadata.json changes: prompt, auto-reload, or off.',
       ),
     },

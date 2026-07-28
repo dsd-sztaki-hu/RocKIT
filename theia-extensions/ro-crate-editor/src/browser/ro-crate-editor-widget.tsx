@@ -3,6 +3,7 @@ import type { SaveOptions } from '@theia/core/lib/browser/saveable'
 import { SaveReason, setDirty } from '@theia/core/lib/browser/saveable'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { CommandService, MessageService } from '@theia/core/lib/common'
+import { nls } from '@theia/core/lib/common/nls'
 import { Emitter } from '@theia/core/lib/common/event'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -251,7 +252,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     const loadMask = this.loadMaskService.show({
-      message: 'Validating RO-Crate…',
+      message: nls.localize('rockit/roCrateEditor/validating', 'Validating RO-Crate…'),
     })
     try {
       const fullErrors: ValidationError[] | undefined =
@@ -360,7 +361,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     const loadMask = this.loadMaskService.show({
-      message: 'Validating RO-Crate…',
+      message: nls.localize('rockit/roCrateEditor/validating', 'Validating RO-Crate…'),
     })
     try {
       let validationErrors: ValidationError[] | undefined
@@ -558,7 +559,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       this.lastSeenNonMissingProfileCount = nextNonMissingCount
 
       if (isAddingProfile) {
-        this.messageService.info('Adding profile…', { timeout: 10000 })
+        this.messageService.info(
+          nls.localize('rockit/roCrateEditor/addingProfile', 'Adding profile…'),
+          { timeout: 10000 },
+        )
       }
 
             if (this.isRefreshingProfile) {
@@ -586,11 +590,20 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     validationScope,
                 )
                 if (isAddingProfile) {
-                    this.messageService.info('Profile added.', { timeout: 5000 })
+                    this.messageService.info(
+                      nls.localize('rockit/roCrateEditor/profileAdded', 'Profile added.'),
+                      { timeout: 5000 },
+                    )
                 }
             } catch (error) {
                 if (isAddingProfile) {
-                    this.messageService.error('Failed to add profile.', { timeout: 7000 })
+                    this.messageService.error(
+                      nls.localize(
+                        'rockit/roCrateEditor/addProfileFailed',
+                        'Failed to add profile.',
+                      ),
+                      { timeout: 7000 },
+                    )
                 }
                 throw error
             }
@@ -663,7 +676,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     await this.validateCurrentCrate()
   }
 
-  protected handleSaveCrate = async (saveData: any, label = 'Edit RO-Crate') => {
+  protected handleSaveCrate = async (
+    saveData: any,
+    label = nls.localize('rockit/roCrateEditor/editHistory', 'Edit RO-Crate'),
+  ) => {
     let crate = saveData && (saveData as any).crate ? (saveData as any).crate : saveData
     const missingNames = findMissingRoCrateEntityNames(crate)
     if (missingNames.length > 0) {
@@ -804,13 +820,25 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     protected getRoCrateApprovalHistoryLabel(decision: unknown): string {
         switch (decision) {
             case 'accept':
-                return 'Accept AI suggestion'
+                return nls.localize(
+                    'rockit/roCrateEditor/acceptAiHistory',
+                    'Accept AI suggestion',
+                )
             case 'reject':
-                return 'Reject AI suggestion'
+                return nls.localize(
+                    'rockit/roCrateEditor/rejectAiHistory',
+                    'Reject AI suggestion',
+                )
             case 'manual-edit':
-                return 'Edit AI suggestion'
+                return nls.localize(
+                    'rockit/roCrateEditor/editAiHistory',
+                    'Edit AI suggestion',
+                )
             default:
-                return 'Edit RO-Crate approval'
+                return nls.localize(
+                    'rockit/roCrateEditor/editApprovalHistory',
+                    'Edit RO-Crate approval',
+                )
         }
     }
 
@@ -945,7 +973,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     const loadMask = this.loadMaskService.show({
-      message: 'Removing schema…',
+      message: nls.localize('rockit/roCrateEditor/removingSchema', 'Removing schema…'),
       delay: 0,
     })
 
@@ -1010,13 +1038,25 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         profile,
         targetUrl,
       )
-      await this.handleSaveCrate(updatedCrate, 'Remove profile')
+      await this.handleSaveCrate(
+        updatedCrate,
+        nls.localize('rockit/roCrateEditor/removeProfileHistory', 'Remove profile'),
+      )
       this.update()
       await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'none')
 
-      this.messageService.info('Profile removed.', { timeout: 5000 })
+      this.messageService.info(
+        nls.localize('rockit/roCrateEditor/profileRemoved', 'Profile removed.'),
+        { timeout: 5000 },
+      )
     } catch (error) {
-      this.messageService.error('Failed to remove profile.', { timeout: 7000 })
+      this.messageService.error(
+        nls.localize(
+          'rockit/roCrateEditor/removeProfileFailed',
+          'Failed to remove profile.',
+        ),
+        { timeout: 7000 },
+      )
       throw error
     } finally {
       loadMask.dispose()
@@ -1051,7 +1091,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                                 lineHeight: 1.4,
                             }}
                         >
-                            No RO-Crate metadata found
+                            {nls.localize(
+                              'rockit/roCrateEditor/noMetadataTitle',
+                              'No RO-Crate metadata found',
+                            )}
                         </div>
                         <div
                             style={{
@@ -1060,7 +1103,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                                 marginTop: 8,
                             }}
                         >
-                            ro-crate-metadata.json is missing from this workspace.
+                            {nls.localize(
+                              'rockit/roCrateEditor/noMetadataDescription',
+                              'ro-crate-metadata.json is missing from this workspace.',
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1330,11 +1376,11 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       (entry) => entry && typeof entry === 'object' && String(entry['@id']) === entityId,
     )
     if (!entity) {
-      return 'Unknown'
+      return nls.localize('rockit/roCrateEditor/unknown', 'Unknown')
     }
     const typeLabels = this.getEntityTypeLabels(entity, this.localCompleteProfile)
     if (!typeLabels.length) {
-      return 'Unknown'
+      return nls.localize('rockit/roCrateEditor/unknown', 'Unknown')
     }
     return typeLabels[0]
   }
@@ -1345,7 +1391,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   ): string[] {
     const rawTypes = entity?.['@type']
     if (!rawTypes) {
-      return ['Unknown']
+      return [nls.localize('rockit/roCrateEditor/unknown', 'Unknown')]
     }
     const typeList = Array.isArray(rawTypes) ? rawTypes : [rawTypes]
     const filtered = this.stripCreativeWork(typeList.map((type) => String(type).trim()))
@@ -1370,7 +1416,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected formatTypeLabel(rawType: string): string {
     const trimmed = rawType.trim()
     if (!trimmed) {
-      return 'Unknown'
+      return nls.localize('rockit/roCrateEditor/unknown', 'Unknown')
     }
     const tail = trimmed.includes('/') ? trimmed.split('/').pop() || trimmed : trimmed
     return tail.charAt(0).toUpperCase() + tail.slice(1)
@@ -1444,11 +1490,17 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       typeof destinationEntityId === 'string' ? destinationEntityId.trim() : ''
 
     if (!sourceEntityId || !targetEntityId) {
-      throw new Error('Missing source or destination entity id for drop operation.')
+      throw new Error(nls.localize(
+        'rockit/roCrateEditor/dropMissingEntityId',
+        'Missing source or destination entity id for drop operation.',
+      ))
     }
 
     if (sourceEntityId === targetEntityId) {
-      throw new Error('Cannot link an entity to itself via hasPart.')
+      throw new Error(nls.localize(
+        'rockit/roCrateEditor/dropSelfLink',
+        'Cannot link an entity to itself via hasPart.',
+      ))
     }
 
     const crate = this.appStateService.roCrate ?? this.localCrate
@@ -1457,7 +1509,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       : []
 
     if (!crate || graph.length === 0) {
-      throw new Error('RO-Crate is not available.')
+      throw new Error(nls.localize(
+        'rockit/roCrateEditor/crateUnavailable',
+        'RO-Crate is not available.',
+      ))
     }
 
     const sourceEntity = graph.find((entry) => String(entry?.['@id']) === sourceEntityId)
@@ -1468,7 +1523,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         found: Boolean(sourceEntity),
         sourceTypes: sourceEntity ? this.getEntityTypeNames(sourceEntity) : [],
       })
-      throw new Error('Only File and Dataset entities can be dropped.')
+      throw new Error(nls.localize(
+        'rockit/roCrateEditor/dropUnsupportedType',
+        'Only File and Dataset entities can be dropped.',
+      ))
     }
 
     const targetIndex = graph.findIndex(
@@ -1476,7 +1534,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     )
 
     if (targetIndex < 0) {
-      throw new Error('Destination entity was not found in the current RO-Crate.')
+      throw new Error(nls.localize(
+        'rockit/roCrateEditor/dropDestinationMissing',
+        'Destination entity was not found in the current RO-Crate.',
+      ))
     }
 
     const targetEntity = graph[targetIndex]
@@ -1486,13 +1547,19 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         targetEntityId,
         targetTypes: targetEntity ? this.getEntityTypeNames(targetEntity) : [],
       })
-      throw new Error('Drop target must be a Dataset entity.')
+      throw new Error(nls.localize(
+        'rockit/roCrateEditor/dropTargetDataset',
+        'Drop target must be a Dataset entity.',
+      ))
     }
 
     const existingHasPart = this.normalizeReferenceArray(targetEntity.hasPart)
 
     if (existingHasPart.some((entry) => entry['@id'] === sourceEntityId)) {
-      this.messageService.info('Entity is already linked in hasPart.', {
+      this.messageService.info(nls.localize(
+        'rockit/roCrateEditor/alreadyLinked',
+        'Entity is already linked in hasPart.',
+      ), {
         timeout: 4000,
       })
       return
@@ -1516,7 +1583,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         crate: updatedCrate,
         entityId: targetEntityId,
       },
-      'Add hasPart via drag-and-drop',
+      nls.localize(
+        'rockit/roCrateEditor/dropHistory',
+        'Add hasPart via drag-and-drop',
+      ),
     )
 
     const droppedName =
@@ -1524,7 +1594,11 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         ? payload.entityName.trim()
         : sourceEntityId
 
-    this.messageService.info(`Added "${droppedName}" to hasPart.`, {
+    this.messageService.info(nls.localize(
+      'rockit/roCrateEditor/addedToHasPart',
+      'Added "{0}" to hasPart.',
+      droppedName,
+    ), {
       timeout: 5000,
     })
   }
@@ -1782,7 +1856,13 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     conformsToField.push({ '@id': trimmedConformsToUrl })
     entity.conformsTo = conformsToField
 
-    void this.handleSaveCrate(crate, 'Update profile association')
+    void this.handleSaveCrate(
+      crate,
+      nls.localize(
+        'rockit/roCrateEditor/updateProfileAssociationHistory',
+        'Update profile association',
+      ),
+    )
   }
 
   protected async removeSchemaMetadata(

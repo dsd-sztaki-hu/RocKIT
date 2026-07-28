@@ -5,7 +5,8 @@ import {
     Widget,
     WidgetManager,
 } from '@theia/core/lib/browser'
-import { MessageService } from '@theia/core/lib/common'
+import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
+import { MessageService, nls } from '@theia/core/lib/common'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import URI from '@theia/core/lib/common/uri'
@@ -42,10 +43,26 @@ interface CrateNode {
 type StructureEntityDragPayload = {
     entityId?: string
     entityIds?: string[]
+    occurrences?: Array<{
+        entityId: string
+        parentEntityId?: string
+    }>
     entityName?: string
     entityNames?: string[]
     entityTypes?: string[][]
     source?: string
+}
+
+type DroppedFile = {
+    relPath: string
+    sourceUri?: URI
+    parentKey?: string
+}
+
+type SelectedTreeOccurrence = {
+    nodeKey: React.Key
+    entityId: string
+    parentEntityId?: string
 }
 
 export const RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU: MenuPath = [
@@ -59,7 +76,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected cachedCrateRef: Record<string, any> | undefined
     protected cachedRoot: CrateNode | undefined
     protected cachedTreeData: TreeDataNode[] | undefined
-    protected cachedNodeKeyByEntityId = new Map<string, React.Key>()
 
     @inject(AppStateService)
     protected readonly appStateService: AppStateService
@@ -103,7 +119,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             `${RoCrateStructurePanelWidget.ID}:${Math.random().toString(36).substring(2)}`
 
         this.id = this.instanceId
-        this.title.label = `RO-Crate Structure panel (${this.instanceId})`
+        this.title.label = nls.localize(
+            'rockit/structurePanel/instanceTitle',
+            'RO-Crate Structure Panel ({0})',
+            this.instanceId,
+        )
 
         this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
             (_) => {
@@ -167,7 +187,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected validationIssueCount = 0
     protected selectedEntityIds = new Set<string>()
     protected selectedKeys: React.Key[] = []
-    protected lastSelectedEntityId: string | undefined
+    protected lastSelectedNodeKey: React.Key | undefined
     protected readonly editorFocusOrder: string[] = []
     protected readonly openingEntities = new Set<string>()
 
@@ -185,7 +205,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         this.cachedCrateRef = undefined
         this.cachedRoot = undefined
         this.cachedTreeData = undefined
-        this.cachedNodeKeyByEntityId.clear()
     }
 
     public async openEditFromContextMenu(): Promise<void> {
@@ -194,31 +213,113 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
 
     public canDeleteFromContextMenu(): boolean {
-        return this.getDeletableSelectedEntityIds().length > 0
+        return this.getDeletableSelectedOccurrences().length > 0
     }
 
     public async deleteFromContextMenu(): Promise<void> {
         await this.deleteSelectedEntities()
     }
 
-    protected async deleteSelectedEntities(): Promise<void> {
-        const result = await this.roCrateEntityDeleteService.deleteSelectedEntities({
-            selectedEntityIds: this.selectedEntityIds,
-            rootEntityId: './',
-            appStateService: this.appStateService,
-            roCrateHistoryService: this.roCrateHistoryService,
-            shell: this.shell,
-        })
+    public canDeleteEntitiesFromContextMenu(): boolean {
+        return this.getDeletableSelectedEntityIds().length > 0
+    }
 
-        if (!result.changed) {
+    public async deleteEntitiesFromContextMenu(): Promise<void> {
+        await this.deleteSelectedEntitiesPermanently()
+    }
+
+    protected async deleteSelectedEntities(): Promise<void> {
+        const crate = this.appStateService.roCrate
+        const graph = Array.isArray(crate?.['@graph']) ? crate['@graph'] : undefined
+        const occurrences = this.getDeletableSelectedOccurrences()
+        if (!crate || !graph || occurrences.length === 0) {
             return
         }
 
+        const confirmed = await new ConfirmDialog({
+            title:
+                occurrences.length > 1
+                    ? nls.localize(
+                        'rockit/structurePanel/removeItemsFromDatasets',
+                        'Remove items from datasets?',
+                    )
+                    : nls.localize(
+                        'rockit/structurePanel/removeItemFromDataset',
+                        'Remove item from dataset?',
+                    ),
+            msg:
+                occurrences.length > 1
+                    ? nls.localize(
+                        'rockit/structurePanel/removeRelationshipsQuestion',
+                        'Are you sure you want to remove the {0} selected relationships?',
+                        occurrences.length,
+                    )
+                    : nls.localize(
+                        'rockit/structurePanel/removeRelationshipQuestion',
+                        'Are you sure you want to remove the selected relationship?',
+                    ),
+            ok: nls.localize('rockit/structurePanel/remove', 'Remove'),
+            cancel: nls.localize('rockit/common/cancel', 'Cancel'),
+        }).open()
+        if (confirmed !== true) {
+            return
+        }
+
+        const childrenByParent = new Map<string, Set<string>>()
+        for (const occurrence of occurrences) {
+            if (!occurrence.parentEntityId) {
+                continue
+            }
+            const childIds = childrenByParent.get(occurrence.parentEntityId) ?? new Set<string>()
+            childIds.add(occurrence.entityId)
+            childrenByParent.set(occurrence.parentEntityId, childIds)
+        }
+
+        let changed = false
+        const updatedGraph = graph.map((entity: Record<string, any>) => {
+            const entityId = typeof entity?.['@id'] === 'string' ? entity['@id'] : ''
+            const childIds = childrenByParent.get(entityId)
+            if (!childIds) {
+                return entity
+            }
+            const originalHasPart = this.normalizeHasPart(entity.hasPart)
+            const hasPart = originalHasPart.filter((part) => !childIds.has(part['@id']))
+            if (hasPart.length === originalHasPart.length) {
+                return entity
+            }
+            changed = true
+            return { ...entity, hasPart }
+        })
+        if (!changed) {
+            return
+        }
+
+        const updatedCrate = { ...crate, '@graph': updatedGraph }
+        this.roCrateHistoryService.applyRoCrateChange(updatedCrate, {
+            label:
+                occurrences.length > 1
+                    ? nls.localize(
+                        'rockit/structurePanel/removeDatasetRelationshipsHistory',
+                        'Remove dataset relationships',
+                    )
+                    : nls.localize(
+                        'rockit/structurePanel/removeDatasetRelationshipHistory',
+                        'Remove dataset relationship',
+                    ),
+        })
+        this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
+
         this.selectedEntityIds.clear()
         this.selectedKeys = []
-        this.lastSelectedEntityId = undefined
+        this.lastSelectedNodeKey = undefined
         this.invalidateTreeCache()
         this.update()
+    }
+
+    protected getDeletableSelectedOccurrences(): SelectedTreeOccurrence[] {
+        return this.getSelectedOccurrences().filter(
+            (occurrence) => occurrence.entityId !== './' && occurrence.parentEntityId,
+        )
     }
 
     protected getDeletableSelectedEntityIds(): string[] {
@@ -230,6 +331,25 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         )
     }
 
+    protected async deleteSelectedEntitiesPermanently(): Promise<void> {
+        const result = await this.roCrateEntityDeleteService.deleteSelectedEntities({
+            selectedEntityIds: this.selectedEntityIds,
+            rootEntityId: './',
+            appStateService: this.appStateService,
+            roCrateHistoryService: this.roCrateHistoryService,
+            shell: this.shell,
+        })
+        if (!result.changed) {
+            return
+        }
+
+        this.selectedEntityIds.clear()
+        this.selectedKeys = []
+        this.lastSelectedNodeKey = undefined
+        this.invalidateTreeCache()
+        this.update()
+    }
+
     protected handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
         if (event.defaultPrevented || event.key !== 'Delete') {
             return
@@ -237,7 +357,16 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         if (this.shouldIgnoreDeleteKeyEvent(event.target as HTMLElement | null)) {
             return
         }
-        if (this.getDeletableSelectedEntityIds().length === 0) {
+        if (event.shiftKey) {
+            if (this.getDeletableSelectedEntityIds().length === 0) {
+                return
+            }
+            event.preventDefault()
+            event.stopPropagation()
+            void this.deleteSelectedEntitiesPermanently()
+            return
+        }
+        if (this.getDeletableSelectedOccurrences().length === 0) {
             return
         }
 
@@ -403,13 +532,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected crateNodeToTreeData(
         node: CrateNode,
         parentKey?: string,
+        parentEntityId?: string,
         seen?: Set<string>,
     ): TreeDataNode {
         const idStr = String(node.id).replace(/`/g, '').trim()
         const key = parentKey ? `${parentKey}::${idStr}` : idStr
-        if (!this.cachedNodeKeyByEntityId.has(node.id)) {
-            this.cachedNodeKeyByEntityId.set(node.id, key)
-        }
         const visited = seen ?? new Set<string>()
 
         if (visited.has(idStr)) {
@@ -418,10 +545,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 title: '',
                 displayName: node.name || node.id,
                 entityId: node.id,
+                parentEntityId,
                 entityType: node.type,
                 entityEncodingFormat: node.encodingFormat,
             } as TreeDataNode & {
                 entityId: string
+                parentEntityId?: string
                 entityType: string
                 entityEncodingFormat?: string
             }
@@ -430,21 +559,26 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         const nextSeen = new Set(visited)
         nextSeen.add(idStr)
         const children =
-            node.children?.map((c) => this.crateNodeToTreeData(c, key, nextSeen)) || []
+            node.children?.map((c) => this.crateNodeToTreeData(c, key, node.id, nextSeen)) || []
 
         return {
             key,
             title: '',
             displayName: node.name || node.id,
             entityId: node.id,
+            parentEntityId,
             entityType: node.type,
             entityEncodingFormat: node.encodingFormat,
             children,
-        } as TreeDataNode & { entityId: string; entityType: string; entityEncodingFormat?: string }
+        } as TreeDataNode & {
+            entityId: string
+            parentEntityId?: string
+            entityType: string
+            entityEncodingFormat?: string
+        }
     }
 
     protected buildTreeDataFromRoot(root: CrateNode | undefined): TreeDataNode[] {
-        this.cachedNodeKeyByEntityId = new Map<string, React.Key>()
         return root ? [this.crateNodeToTreeData(root)] : []
     }
 
@@ -464,9 +598,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         const nodeKey = info.node?.key as React.Key | undefined
 
         if (event?.shiftKey) {
-            this.selectRange(entityId, nodeKey)
+            this.selectRange(nodeKey)
         } else if (event?.ctrlKey || event?.metaKey) {
-            this.toggleSelection(entityId, nodeKey)
+            this.toggleSelection(nodeKey)
         } else {
             this.selectSingle(entityId, nodeKey)
         }
@@ -492,52 +626,59 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
     protected selectSingle(entityId: string, nodeKey?: React.Key): void {
         this.selectedEntityIds = new Set([entityId])
-        this.selectedKeys = nodeKey !== undefined ? [nodeKey] : []
-        if (nodeKey === undefined) {
-            this.syncSelectedKeysFromEntityIds()
-        }
-        this.lastSelectedEntityId = entityId
+        this.selectedKeys = nodeKey === undefined ? [] : [nodeKey]
+        this.lastSelectedNodeKey = nodeKey
         this.update()
     }
 
-    protected toggleSelection(entityId: string, _nodeKey?: React.Key): void {
-        if (this.selectedEntityIds.has(entityId)) {
-            this.selectedEntityIds.delete(entityId)
-            if (this.lastSelectedEntityId === entityId) {
-                this.lastSelectedEntityId = Array.from(this.selectedEntityIds.values()).slice(-1)[0]
+    protected toggleSelection(nodeKey?: React.Key): void {
+        if (nodeKey === undefined) {
+            return
+        }
+        const selectedKey = String(nodeKey)
+        const existingIndex = this.selectedKeys.findIndex((key) => String(key) === selectedKey)
+        if (existingIndex >= 0) {
+            this.selectedKeys = this.selectedKeys.filter((_, index) => index !== existingIndex)
+            if (
+                this.lastSelectedNodeKey !== undefined &&
+                String(this.lastSelectedNodeKey) === selectedKey
+            ) {
+                this.lastSelectedNodeKey = this.selectedKeys[this.selectedKeys.length - 1]
             }
         } else {
-            this.selectedEntityIds.add(entityId)
-            this.lastSelectedEntityId = entityId
+            this.selectedKeys = [...this.selectedKeys, nodeKey]
+            this.lastSelectedNodeKey = nodeKey
         }
 
-        this.syncSelectedKeysFromEntityIds()
+        this.syncSelectedEntityIdsFromKeys()
         this.update()
     }
 
-    protected selectRange(entityId: string, _nodeKey?: React.Key): void {
+    protected selectRange(nodeKey?: React.Key): void {
         const visibleRows = this.getVisibleEntityRows()
-        const clickedIndex = visibleRows.findIndex((row) => row.entityId === entityId)
+        const clickedIndex = visibleRows.findIndex(
+            (row) => nodeKey !== undefined && String(row.nodeKey) === String(nodeKey),
+        )
         if (clickedIndex < 0) {
-            if (!this.selectedEntityIds.has(entityId)) {
-                this.selectedEntityIds.add(entityId)
+            if (nodeKey !== undefined) {
+                this.selectedKeys = [...this.selectedKeys, nodeKey]
             }
-            this.syncSelectedKeysFromEntityIds()
-            this.lastSelectedEntityId = entityId
+            this.syncSelectedEntityIdsFromKeys()
+            this.lastSelectedNodeKey = nodeKey
             this.update()
             return
         }
 
-        const anchorId = this.lastSelectedEntityId
-        const anchorIndex = anchorId
-            ? visibleRows.findIndex((row) => row.entityId === anchorId)
+        const anchorKey = this.lastSelectedNodeKey
+        const anchorIndex = anchorKey !== undefined
+            ? visibleRows.findIndex((row) => String(row.nodeKey) === String(anchorKey))
             : -1
-        if (!anchorId || anchorIndex < 0) {
-            if (!this.selectedEntityIds.has(entityId)) {
-                this.selectedEntityIds.add(entityId)
+        if (anchorIndex < 0) {
+            if (nodeKey !== undefined) {
+                this.selectedKeys = [...this.selectedKeys, nodeKey]
             }
-            this.syncSelectedKeysFromEntityIds()
-            this.lastSelectedEntityId = entityId
+            this.syncSelectedEntityIdsFromKeys()
+            this.lastSelectedNodeKey = nodeKey
             this.update()
             return
         }
@@ -545,48 +686,38 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         const start = Math.min(anchorIndex, clickedIndex)
         const end = Math.max(anchorIndex, clickedIndex)
         const range = visibleRows.slice(start, end + 1)
+        const selectedKeySet = new Set(this.selectedKeys.map((key) => String(key)))
+        const selectedKeys = [...this.selectedKeys]
         for (const row of range) {
-            this.selectedEntityIds.add(row.entityId)
+            if (!selectedKeySet.has(String(row.nodeKey))) {
+                selectedKeys.push(row.nodeKey)
+            }
         }
-        this.syncSelectedKeysFromEntityIds()
-        this.lastSelectedEntityId = entityId
+        this.selectedKeys = selectedKeys
+        this.syncSelectedEntityIdsFromKeys()
+        this.lastSelectedNodeKey = nodeKey
         this.update()
     }
 
-    protected syncSelectedKeysFromEntityIds(): void {
-        if (this.selectedEntityIds.size === 0) {
-            this.selectedKeys = []
-            return
-        }
-
-        const indexedSelectedKeys: React.Key[] = []
-        let missingKey = false
-        for (const entityId of this.selectedEntityIds) {
-            const key = this.getNodeKeyForEntity(entityId)
-            if (key === undefined) {
-                missingKey = true
-                break
-            }
-            indexedSelectedKeys.push(key)
-        }
-
-        if (!missingKey) {
-            this.selectedKeys = indexedSelectedKeys
-            return
-        }
-
-        const selectedKeys: React.Key[] = []
+    protected getSelectedOccurrences(): SelectedTreeOccurrence[] {
+        const selectedKeySet = new Set(this.selectedKeys.map((key) => String(key)))
+        const occurrences: SelectedTreeOccurrence[] = []
         const visit = (node: TreeDataNode): void => {
             const typedNode = node as TreeDataNode & {
                 entityId?: string
+                parentEntityId?: string
                 children?: TreeDataNode[]
             }
             if (
                 typedNode.entityId &&
                 node.key !== undefined &&
-                this.selectedEntityIds.has(typedNode.entityId)
+                selectedKeySet.has(String(node.key))
             ) {
-                selectedKeys.push(node.key)
+                occurrences.push({
+                    nodeKey: node.key,
+                    entityId: typedNode.entityId,
+                    parentEntityId: typedNode.parentEntityId,
+                })
             }
             for (const child of typedNode.children ?? []) {
                 visit(child)
@@ -595,14 +726,52 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         for (const rootNode of this.getCurrentTreeData()) {
             visit(rootNode)
         }
-        this.selectedKeys = selectedKeys
+        return occurrences
+    }
+
+    protected getOccurrenceByNodeKey(nodeKey: React.Key): SelectedTreeOccurrence | undefined {
+        const targetKey = String(nodeKey)
+        let occurrence: SelectedTreeOccurrence | undefined
+        const visit = (node: TreeDataNode): void => {
+            if (occurrence) {
+                return
+            }
+            const typedNode = node as TreeDataNode & {
+                entityId?: string
+                parentEntityId?: string
+                children?: TreeDataNode[]
+            }
+            if (
+                typedNode.entityId &&
+                node.key !== undefined &&
+                String(node.key) === targetKey
+            ) {
+                occurrence = {
+                    nodeKey: node.key,
+                    entityId: typedNode.entityId,
+                    parentEntityId: typedNode.parentEntityId,
+                }
+                return
+            }
+            for (const child of typedNode.children ?? []) {
+                visit(child)
+            }
+        }
+        for (const rootNode of this.getCurrentTreeData()) {
+            visit(rootNode)
+        }
+        return occurrence
+    }
+
+    protected syncSelectedEntityIdsFromKeys(): void {
+        this.selectedEntityIds = new Set(
+            this.getSelectedOccurrences().map((occurrence) => occurrence.entityId),
+        )
     }
 
     protected getVisibleEntityRows(): Array<{ entityId: string; nodeKey: React.Key }> {
         const treeData = this.getCurrentTreeData()
         const rows: Array<{ entityId: string; nodeKey: React.Key }> = []
-        const seen = new Set<string>()
-
         const expanded = new Set(this.expandedKeys.map((key) => String(key)))
         const visit = (node: TreeDataNode): void => {
             const typedNode = node as TreeDataNode & {
@@ -612,8 +781,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             const entityId = typedNode.entityId
             const nodeKey = node.key
 
-            if (entityId && nodeKey !== undefined && !seen.has(entityId)) {
-                seen.add(entityId)
+            if (entityId && nodeKey !== undefined) {
                 rows.push({ entityId, nodeKey })
             }
 
@@ -633,16 +801,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         }
 
         return rows
-    }
-
-    protected getNodeKeyForEntity(entityId: string): React.Key | undefined {
-        const indexedKey = this.cachedNodeKeyByEntityId.get(entityId)
-        if (indexedKey !== undefined) {
-            return indexedKey
-        }
-
-        const row = this.getVisibleEntityRows().find((value) => value.entityId === entityId)
-        return row?.nodeKey
     }
 
     protected getCurrentTreeData(): TreeDataNode[] {
@@ -1005,10 +1163,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                     }
                     this.selectedEntityIds.clear()
                     this.selectedKeys = []
-                    this.lastSelectedEntityId = undefined
+                    this.lastSelectedNodeKey = undefined
                     this.update()
                 }}
-                tabIndex={0}
+                tabIndex={-1}
                 onKeyDown={(event) => this.handleKeyDown(event)}
                 onDragOver={(event) => this.handleDragOver(event)}
                 onDragLeave={(event) => this.handleDragLeave(event)}
@@ -1028,7 +1186,11 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 >
                     <span className="ro-crate-structure-validation-icon fa fa-exclamation-triangle" />
                     <span className="ro-crate-structure-validation-text">
-            {validationIssueCount} validation error(s)
+            {nls.localize(
+                'rockit/structurePanel/validationErrorCount',
+                '{0} validation error(s)',
+                validationIssueCount,
+            )}
           </span>
                 </button>
 
@@ -1087,7 +1249,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                               event.preventDefault()
                               return
                           }
-                          this.handleEntityDragStart(entityId, event)
+                          this.handleEntityDragStart(entityId, item.key, event)
                       }}
                       onDragEnd={(event) => {
                           event.stopPropagation()
@@ -1105,8 +1267,14 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                           <span
                               className="ro-crate-structure-invalid-icon fa fa-exclamation-triangle"
                               role="img"
-                              aria-label="Invalid entity"
-                              title="Invalid entity"
+                              aria-label={nls.localize(
+                                  'rockit/structurePanel/invalidEntity',
+                                  'Invalid entity',
+                              )}
+                              title={nls.localize(
+                                  'rockit/structurePanel/invalidEntity',
+                                  'Invalid entity',
+                              )}
                           />
                       )}
                       {displayName}
@@ -1132,8 +1300,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         }
         event.preventDefault()
         event.stopPropagation()
-        event.dataTransfer.dropEffect = this.extractEntityDragPayload(event.dataTransfer)
-            ? event.altKey
+        const entityPayload = this.extractEntityDragPayload(event.dataTransfer)
+        event.dataTransfer.dropEffect = entityPayload
+            ? event.altKey || entityPayload.source === 'entities-overview'
                 ? 'copy'
                 : 'move'
             : 'link'
@@ -1190,7 +1359,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             return
         }
 
-        const droppedFiles: { relPath: string; sourceUri?: URI }[] = []
+        const droppedFiles: DroppedFile[] = []
         for (const uriString of uris) {
             try {
                 const uri = this.parseDroppedUri(uriString)
@@ -1207,9 +1376,45 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             }
         }
 
-        const uniqueDroppedFiles = this.dedupeDroppedFilesByPath(droppedFiles)
+        let uniqueDroppedFiles = this.dedupeDroppedFilesByPath(droppedFiles)
         if (!uniqueDroppedFiles.length) {
             return
+        }
+
+        const droppedDirectories = await this.findDroppedDirectories(uniqueDroppedFiles)
+        if (droppedDirectories.length) {
+            const includeContents = await new ConfirmDialog({
+                title: nls.localize(
+                    'rockit/structurePanel/includeFolderContentsTitle',
+                    'Include folder contents?',
+                ),
+                msg: droppedDirectories.length === 1
+                    ? nls.localize(
+                        'rockit/structurePanel/includeOneFolderContents',
+                        'Do you want to recursively add all files and subfolders inside the folder "{0}"?',
+                        this.getDroppedFileName(droppedDirectories[0]),
+                    )
+                    : nls.localize(
+                        'rockit/structurePanel/includeMultipleFolderContents',
+                        'Do you want to recursively add all files and subfolders inside the {0} selected folders?',
+                        droppedDirectories.length,
+                    ),
+                ok: nls.localize(
+                    'rockit/structurePanel/includeContents',
+                    'Include Contents',
+                ),
+                cancel: nls.localize(
+                    'rockit/structurePanel/folderOnly',
+                    'Folder Only',
+                ),
+            }).open()
+
+            if (includeContents) {
+                uniqueDroppedFiles = await this.expandDroppedDirectories(
+                    uniqueDroppedFiles,
+                    droppedDirectories,
+                )
+            }
         }
 
         const crate = this.appStateService.roCrate
@@ -1232,7 +1437,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         )
 
         this.roCrateHistoryService.applyRoCrateChange(updatedCrate, {
-            label: 'Add dropped files to RO-Crate',
+            label: nls.localize(
+                'rockit/structurePanel/addDroppedFiles',
+                'Add dropped files to RO-Crate',
+            ),
         })
         this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
         this.update()
@@ -1240,14 +1448,31 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
     protected handleEntityDragStart(
         entityId: string,
+        nodeKey: React.Key,
         event: React.DragEvent<HTMLElement>,
     ): void {
         event.stopPropagation()
 
-        const entityIds =
-            this.selectedEntityIds.has(entityId) && this.selectedEntityIds.size > 0
-                ? Array.from(this.selectedEntityIds).filter((id) => id !== './')
-                : [entityId]
+        const isDraggedOccurrenceSelected = this.selectedKeys.some(
+            (selectedKey) => String(selectedKey) === String(nodeKey),
+        )
+        const selectedOccurrences = isDraggedOccurrenceSelected
+            ? this.getSelectedOccurrences()
+            : [this.getOccurrenceByNodeKey(nodeKey)].filter(
+                  (occurrence): occurrence is SelectedTreeOccurrence => Boolean(occurrence),
+              )
+        const occurrences = selectedOccurrences
+            .filter((occurrence) => occurrence.entityId !== './')
+            .map((occurrence) => ({
+                entityId: occurrence.entityId,
+                parentEntityId: occurrence.parentEntityId,
+            }))
+        const entityIds = Array.from(
+            new Set(occurrences.map((occurrence) => occurrence.entityId)),
+        )
+        if (!entityIds.length && entityId !== './') {
+            entityIds.push(entityId)
+        }
         if (!entityIds.length) {
             event.preventDefault()
             return
@@ -1268,6 +1493,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
         const payload: StructureEntityDragPayload = {
             entityIds,
+            occurrences,
             entityNames,
             entityTypes,
             source: 'ro-crate-structure-panel',
@@ -1295,7 +1521,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             this.appStateService.selectedEntityId ??
             './'
         const datasetTargetEntityId = this.resolveDatasetTargetEntityId(crate, targetEntityId)
-        const copyMode = event.altKey
+        const copyMode = event.altKey || payload.source === 'entities-overview'
         const result = this.applyDroppedEntitiesToCrate(
             crate,
             datasetTargetEntityId,
@@ -1312,8 +1538,14 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
         this.roCrateHistoryService.applyRoCrateChange(result.crate, {
             label: copyMode
-                ? 'Copy entities via drag-and-drop'
-                : 'Move entities via drag-and-drop',
+                ? nls.localize(
+                    'rockit/structurePanel/copyEntitiesHistory',
+                    'Copy entities via drag-and-drop',
+                )
+                : nls.localize(
+                    'rockit/structurePanel/moveEntitiesHistory',
+                    'Move entities via drag-and-drop',
+                ),
         })
         this.appStateService.dirty = this.appStateService.isRoCrateDirty(result.crate)
         this.invalidateTreeCache()
@@ -1359,7 +1591,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             ? payload.entityIds
             : typeof payload.entityId === 'string'
               ? [payload.entityId]
-              : []
+              : Array.isArray(payload.occurrences)
+                ? payload.occurrences.map((occurrence) => occurrence?.entityId)
+                : []
         return Array.from(
             new Set(
                 rawIds
@@ -1391,7 +1625,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             return {
                 changed: false,
                 crate,
-                message: 'No movable File or Dataset entities were dropped.',
+                message: nls.localize(
+                    'rockit/structurePanel/noMovableEntities',
+                    'No movable File or Dataset entities were dropped.',
+                ),
             }
         }
 
@@ -1400,7 +1637,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             return {
                 changed: false,
                 crate,
-                message: 'Drop target must be a Dataset entity.',
+                message: nls.localize(
+                    'rockit/structurePanel/dropTargetDataset',
+                    'Drop target must be a Dataset entity.',
+                ),
             }
         }
 
@@ -1408,7 +1648,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             return {
                 changed: false,
                 crate,
-                message: 'Cannot drop an entity onto itself.',
+                message: nls.localize(
+                    'rockit/structurePanel/cannotDropOntoItself',
+                    'Cannot drop an entity onto itself.',
+                ),
             }
         }
 
@@ -1416,8 +1659,32 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             this.normalizeHasPart(targetEntity.hasPart).map((part) => part['@id']),
         )
         const entityIdsToLink = movableIds.filter((id) => !existingTargetHasPartIds.has(id))
+        const movableIdSet = new Set(movableIds)
+        const draggedOccurrences = (payload.occurrences ?? []).filter(
+            (occurrence) =>
+                occurrence &&
+                movableIdSet.has(occurrence.entityId) &&
+                typeof occurrence.parentEntityId === 'string',
+        )
+        const hasOccurrenceSources =
+            payload.source === 'ro-crate-structure-panel' && draggedOccurrences.length > 0
+        const removalsByParent = new Map<string, Set<string>>()
+        if (!copyMode && hasOccurrenceSources) {
+            for (const occurrence of draggedOccurrences) {
+                const parentEntityId = occurrence.parentEntityId as string
+                if (parentEntityId === targetDatasetId) {
+                    continue
+                }
+                const childIds = removalsByParent.get(parentEntityId) ?? new Set<string>()
+                childIds.add(occurrence.entityId)
+                removalsByParent.set(parentEntityId, childIds)
+            }
+        }
 
-        if (!entityIdsToLink.length) {
+        if (
+            !entityIdsToLink.length &&
+            (copyMode || !hasOccurrenceSources || removalsByParent.size === 0)
+        ) {
             return {
                 changed: false,
                 crate,
@@ -1433,8 +1700,10 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                 return {
                     changed: false,
                     crate,
-                    message:
+                    message: nls.localize(
+                        'rockit/structurePanel/moveWouldSplitGraph',
                         'Move cancelled: the destination is only reachable through one of the dragged entities, so moving it there would split the RO-Crate graph.',
+                    ),
                 }
             }
         }
@@ -1455,7 +1724,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             const originalHasPart = this.normalizeHasPart(entity.hasPart)
             let hasPart = [...originalHasPart]
             if (!copyMode && isDataset) {
-                hasPart = hasPart.filter((part) => !targetIds.has(part['@id']))
+                const idsToRemove = hasOccurrenceSources
+                    ? removalsByParent.get(entityId)
+                    : targetIds
+                if (idsToRemove) {
+                    hasPart = hasPart.filter((part) => !idsToRemove.has(part['@id']))
+                }
             }
             if (isTarget) {
                 const existingIds = new Set(hasPart.map((part) => part['@id']))
@@ -1481,13 +1755,30 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         })
 
         const changed = JSON.stringify(graph) !== JSON.stringify(updatedGraph)
-        const action = copyMode ? 'Copied' : 'Moved'
-        const count = entityIdsToLink.length
+        // const action = copyMode ? 'Copied' : 'Moved'
+        const count = copyMode
+            ? entityIdsToLink.length
+            : hasOccurrenceSources
+              ? Array.from(removalsByParent.values()).reduce(
+                    (total, childIds) => total + childIds.size,
+                    0,
+                )
+              : entityIdsToLink.length
         return {
             changed,
             crate: { ...crate, '@graph': updatedGraph },
             message: changed
-                ? `${action} ${count} ${count === 1 ? 'entity' : 'entities'}.`
+                ? copyMode
+                    ? nls.localize(
+                        'rockit/structurePanel/copiedEntities',
+                        'Copied {0} entity/entities.',
+                        count,
+                    )
+                    : nls.localize(
+                        'rockit/structurePanel/movedEntities',
+                        'Moved {0} entity/entities.',
+                        count,
+                    )
                 : '',
         }
     }
@@ -1620,21 +1911,120 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     }
 
     protected dedupeDroppedFilesByPath(
-        droppedFiles: { relPath: string; sourceUri?: URI }[],
-    ): { relPath: string; sourceUri?: URI }[] {
+        droppedFiles: DroppedFile[],
+    ): DroppedFile[] {
         const seen = new Set<string>()
-        const unique: { relPath: string; sourceUri?: URI }[] = []
+        const unique: DroppedFile[] = []
 
         for (const file of droppedFiles) {
-            const normalized = this.normalizeWorkspaceRelativePath(file.relPath).toLowerCase()
-            if (!normalized || seen.has(normalized)) {
+            const key = this.getDroppedFileKey(file)
+            if (!key || seen.has(key)) {
                 continue
             }
-            seen.add(normalized)
+            seen.add(key)
             unique.push(file)
         }
 
         return unique
+    }
+
+    protected getDroppedFileKey(file: DroppedFile): string {
+        return (
+            file.sourceUri?.toString().toLowerCase() ??
+            this.normalizeWorkspaceRelativePath(file.relPath).toLowerCase()
+        )
+    }
+
+    protected getDroppedFileName(file: DroppedFile): string {
+        return (
+            file.sourceUri?.path?.base ||
+            file.sourceUri?.path?.name ||
+            this.normalizeWorkspaceRelativePath(file.relPath).split('/').pop() ||
+            file.relPath
+        )
+    }
+
+    protected async findDroppedDirectories(droppedFiles: DroppedFile[]): Promise<DroppedFile[]> {
+        const resolved = await Promise.all(
+            droppedFiles.map(async (file) => ({
+                file,
+                info: await this.resolveDroppedEntryInfo(file.relPath, file.sourceUri),
+            })),
+        )
+        return resolved.filter(({ info }) => info.isDirectory).map(({ file }) => file)
+    }
+
+    protected async expandDroppedDirectories(
+        droppedFiles: DroppedFile[],
+        droppedDirectories: DroppedFile[],
+    ): Promise<DroppedFile[]> {
+        const expanded = [...droppedFiles]
+        const entryByKey = new Map(expanded.map((file) => [this.getDroppedFileKey(file), file]))
+        const queue = [...droppedDirectories]
+        const visitedDirectories = new Set<string>()
+
+        while (queue.length) {
+            const directory = queue.shift()
+            if (!directory) {
+                continue
+            }
+            const directoryKey = this.getDroppedFileKey(directory)
+            if (!directoryKey || visitedDirectories.has(directoryKey)) {
+                continue
+            }
+            visitedDirectories.add(directoryKey)
+
+            const directoryUri =
+                directory.sourceUri ?? this.resolveWorkspaceRelativeUri(directory.relPath)
+            if (!directoryUri) {
+                continue
+            }
+
+            try {
+                const stat = await this.fileService.resolve(directoryUri)
+                if (!stat.isDirectory || stat.isSymbolicLink) {
+                    continue
+                }
+                for (const child of stat.children ?? []) {
+                    const relPath = await this.workspaceService.getWorkspaceRelativePath(
+                        child.resource,
+                    )
+                    const childFile: DroppedFile = {
+                        relPath,
+                        sourceUri: child.resource,
+                        parentKey: directoryKey,
+                    }
+                    const childKey = this.getDroppedFileKey(childFile)
+                    const existing = entryByKey.get(childKey)
+                    if (existing) {
+                        existing.parentKey = directoryKey
+                    } else {
+                        expanded.push(childFile)
+                        entryByKey.set(childKey, childFile)
+                    }
+                    if (child.isDirectory && !child.isSymbolicLink) {
+                        queue.push(existing ?? childFile)
+                    }
+                }
+            } catch (error) {
+                console.warn('Failed to read dropped folder contents', directory.relPath, error)
+            }
+        }
+
+        const ordered: DroppedFile[] = []
+        const pending = [...expanded]
+        const addedKeys = new Set<string>()
+        while (pending.length) {
+            const readyIndex = pending.findIndex(
+                (file) => !file.parentKey || addedKeys.has(file.parentKey),
+            )
+            const nextIndex = readyIndex >= 0 ? readyIndex : 0
+            const [next] = pending.splice(nextIndex, 1)
+            ordered.push(next)
+            addedKeys.add(this.getDroppedFileKey(next))
+        }
+
+        return ordered
     }
 
     protected resolveDropTargetEntityId(event: React.DragEvent): string | undefined {
@@ -1757,7 +2147,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected async applyDroppedFilesToCrate(
         crate: Record<string, any>,
         targetEntityId: string,
-        droppedFiles: { relPath: string; sourceUri?: URI }[],
+        droppedFiles: DroppedFile[],
     ): Promise<Record<string, any>> {
         const graph = Array.isArray(crate['@graph']) ? [...crate['@graph']] : []
         const indexById = new Map<string, number>()
@@ -1768,17 +2158,14 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             }
         }
 
-        const targetIndex = indexById.get(targetEntityId) ?? indexById.get('./') ?? undefined
-        if (targetIndex === undefined) {
+        if (!indexById.has(targetEntityId) && !indexById.has('./')) {
             console.warn('No target entity found for drop', targetEntityId)
             return crate
         }
 
-        const targetEntity = { ...graph[targetIndex] }
-        const existingHasPart = this.normalizeHasPart(targetEntity.hasPart)
-        const existingHasPartIds = new Set(existingHasPart.map((part) => part['@id']))
+        const entityIdByDroppedFileKey = new Map<string, string>()
 
-        for (const { relPath, sourceUri } of droppedFiles) {
+        for (const { relPath, sourceUri, parentKey } of droppedFiles) {
             if (!relPath) {
                 continue
             }
@@ -1827,12 +2214,32 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                         if (!nextTypes.includes('Dataset')) {
                             nextTypes.push('Dataset')
                         }
-                        existingEntity['@type'] = nextTypes
-                        graph[existingIndex] = { ...existingEntity }
+                        graph[existingIndex] = {
+                            ...existingEntity,
+                            '@type': nextTypes,
+                        }
                     }
                 }
             }
 
+            entityIdByDroppedFileKey.set(this.getDroppedFileKey({ relPath, sourceUri }), id)
+
+            const requestedParentId = parentKey
+                ? entityIdByDroppedFileKey.get(parentKey)
+                : targetEntityId
+            const targetIndex = requestedParentId
+                ? indexById.get(requestedParentId)
+                : undefined
+            const effectiveTargetIndex =
+                targetIndex ?? (parentKey ? undefined : indexById.get('./'))
+            if (effectiveTargetIndex === undefined) {
+                console.warn('No parent Dataset entity found for dropped entry', relPath)
+                continue
+            }
+
+            const targetEntity = { ...graph[effectiveTargetIndex] }
+            const existingHasPart = this.normalizeHasPart(targetEntity.hasPart)
+            const existingHasPartIds = new Set(existingHasPart.map((part) => part['@id']))
             const hasExistingPart =
                 existingHasPartIds.has(id) ||
                 (isDirectory &&
@@ -1841,14 +2248,12 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
                     ))
             if (!hasExistingPart) {
                 existingHasPart.push({ '@id': id })
-                existingHasPartIds.add(id)
             }
+            if (existingHasPart.length) {
+                targetEntity.hasPart = existingHasPart
+            }
+            graph[effectiveTargetIndex] = targetEntity
         }
-
-        if (existingHasPart.length) {
-            targetEntity.hasPart = existingHasPart
-        }
-        graph[targetIndex] = targetEntity
 
         return { ...crate, '@graph': graph }
     }

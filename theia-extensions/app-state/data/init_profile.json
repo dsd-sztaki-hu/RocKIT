@@ -3,6 +3,16 @@
         "Dataset": {
             "inputs": [
                 {
+                    "id": "https://schema.org/description",
+                    "name": "description",
+                    "label": "Description",
+                    "help": "A description of the item.",
+                    "multiple": true,
+                    "type": [
+                        "TextArea"
+                    ]
+                },
+                {
                     "id": "https://schema.org/hasPart",
                     "name": "hasPart",
                     "label": "Has Part",

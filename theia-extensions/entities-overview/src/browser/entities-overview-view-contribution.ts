@@ -2,6 +2,7 @@ import { Command, CommandRegistry, MenuModelRegistry } from '@theia/core'
 import { AbstractViewContribution, codicon, OpenerService } from '@theia/core/lib/browser'
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar'
 import { ApplicationServer } from '@theia/core/lib/common/application-protocol'
+import { nls } from '@theia/core/lib/common/nls'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import {
   openRockitDocumentationPage,
@@ -36,13 +37,13 @@ export const ExpandAllEntitiesOverviewNodes: Command = {
 
 export const OpenEntitiesOverviewDocumentation: Command = {
   id: 'entities-overview:open-documentation',
-  label: 'Open Entities Documentation',
+  label: nls.localize('rockit/entitiesOverview/openDocumentation', 'Open Entities Documentation'),
   iconClass: codicon('info'),
 }
 
 export const EntitiesOverviewContextEditCommand: Command = {
   id: 'entities-overview:context-edit',
-  label: 'Edit',
+  label: nls.localize('rockit/entitiesOverview/edit', 'Edit'),
 }
 
 /** Definition of a command to add a new child (to demonstrate context menus) */
@@ -168,7 +169,7 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
     toolbarRegistry.registerItem({
       id: ToggleEntitiesOverviewFilters.id,
       command: ToggleEntitiesOverviewFilters.id,
-      tooltip: 'Show/Hide Filters',
+      tooltip: nls.localize('rockit/entitiesOverview/toggleFilters', 'Show/Hide Filters'),
       priority: 0,
     })
 
@@ -182,7 +183,7 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
     toolbarRegistry.registerItem({
       id: CollapseAllEntitiesOverviewNodes.id,
       command: CollapseAllEntitiesOverviewNodes.id,
-      tooltip: 'Collapse All',
+      tooltip: nls.localize('rockit/entitiesOverview/collapseAll', 'Collapse All'),
       priority: 1,
       onDidChange,
     })
@@ -190,7 +191,7 @@ export class EntitiesOverviewViewContribution extends AbstractViewContribution<E
     toolbarRegistry.registerItem({
       id: ExpandAllEntitiesOverviewNodes.id,
       command: ExpandAllEntitiesOverviewNodes.id,
-      tooltip: 'Expand All',
+      tooltip: nls.localize('rockit/entitiesOverview/expandAll', 'Expand All'),
       priority: 1,
       onDidChange,
     })

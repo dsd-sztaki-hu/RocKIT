@@ -5,11 +5,13 @@
   ],
   "version": "0.0.0",
   "files": [
+    "i18n",
     "lib",
     "src"
   ],
   "dependencies": {
     "@theia/core": "1.65.2",
+    "@theia/preferences": "1.65.2",
     "save-ro-crate": "0.0.0",
     "entities-overview": "0.0.0",
     "ro-crate-editor": "0.0.0",
@@ -27,6 +29,7 @@
   },
   "theiaExtensions": [
     {
+      "backend": "lib/node/rockit-localization-backend-module",
       "frontend": "lib/browser/rockit-theia-overrides-frontend-module",
       "electronMain": "lib/electron-main/renderer-failure-module"
     }

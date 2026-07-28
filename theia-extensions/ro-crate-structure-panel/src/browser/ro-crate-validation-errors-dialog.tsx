@@ -1,5 +1,10 @@
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
+import { nls } from '@theia/core/lib/common/nls'
 import * as React from 'react'
+import {
+  localizeRoCrateEntityType,
+  localizeValidationErrorMessage,
+} from 'rockit-common/lib/browser'
 
 type ValidationError = {
   entityId?: string
@@ -7,6 +12,7 @@ type ValidationError = {
   fieldName?: string
   fieldLabel?: string
   error?: string
+  error_hu?: string
 }
 
 const DIALOG_ERROR_ROW_HEIGHT = 50
@@ -19,6 +25,7 @@ const getErrorKey = (error: ValidationError, index: number): string => [
   error.fieldName ?? '',
   error.fieldLabel ?? '',
   error.error ?? '',
+  error.error_hu ?? '',
   index,
 ].join(':')
 
@@ -78,10 +85,21 @@ const ValidationErrorDialogList = ({
       >
         {visibleErrors.map((error, visibleIndex) => {
           const index = startIndex + visibleIndex
-          const entityType = error.entityType ?? 'Unknown'
-          const entityId = error.entityId ?? 'Unknown'
-          const field = error.fieldLabel ?? error.fieldName ?? 'Unknown field'
-          const message = error.error ?? 'Unknown error'
+          const entityType = error.entityType
+            ? localizeRoCrateEntityType(error.entityType)
+            : nls.localize('rockit/structurePanel/unknown', 'Unknown')
+          const entityId = error.entityId ?? nls.localize(
+            'rockit/structurePanel/unknown',
+            'Unknown',
+          )
+          const field = error.fieldLabel ?? error.fieldName ?? nls.localize(
+            'rockit/structurePanel/unknownField',
+            'Unknown field',
+          )
+          const message = localizeValidationErrorMessage(error) ?? nls.localize(
+            'rockit/structurePanel/unknownError',
+            'Unknown error',
+          )
           const canOpen = Boolean(error.entityId)
           return (
             <button
@@ -119,8 +137,13 @@ export class RoCrateValidationErrorsDialog extends ReactDialog<string> {
     private readonly onSelectEntity: (entityId: string) => void,
     private readonly onOpenSchemaValidator: () => void,
   ) {
-    super({ title: 'Errors in RO-Crate' })
-    this.appendCloseButton('Close')
+    super({
+      title: nls.localize(
+        'rockit/structurePanel/errorsTitle',
+        'Errors in RO-Crate',
+      ),
+    })
+    this.appendCloseButton(nls.localize('rockit/structurePanel/close', 'Close'))
   }
 
   protected render(): React.ReactNode {
@@ -128,8 +151,10 @@ export class RoCrateValidationErrorsDialog extends ReactDialog<string> {
       <div className="ro-crate-validation-dialog-body">
         <div className="ro-crate-validation-dialog-info">
           <div className="ro-crate-validation-dialog-info-text">
-            Open the docked version of the validation error list for easier review in case
-            of higher amount of errors for more details.
+            {nls.localize(
+              'rockit/structurePanel/errorsDescription',
+              'Open the docked validation error list for easier review and more details.',
+            )}
           </div>
           <button
             className="ro-crate-validation-dialog-info-button"
@@ -139,11 +164,19 @@ export class RoCrateValidationErrorsDialog extends ReactDialog<string> {
               this.close()
             }}
           >
-            Open Schema Validator
+            {nls.localize(
+              'rockit/structurePanel/openSchemaValidator',
+              'Open Schema Validator',
+            )}
           </button>
         </div>
         {this.errors.length === 0 ? (
-          <p className="ro-crate-validation-dialog-empty">No validation errors.</p>
+          <p className="ro-crate-validation-dialog-empty">
+            {nls.localize(
+              'rockit/structurePanel/noValidationErrors',
+              'No validation errors.',
+            )}
+          </p>
         ) : (
           <ValidationErrorDialogList
             errors={this.errors}

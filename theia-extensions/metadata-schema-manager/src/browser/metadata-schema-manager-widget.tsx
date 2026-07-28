@@ -6,6 +6,7 @@ import type { Message, StatefulWidget } from '@theia/core/lib/browser'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables'
 import { MessageService } from '@theia/core/lib/common/message-service'
+import { nls } from '@theia/core/lib/common/nls'
 import { URI } from '@theia/core/lib/common/uri'
 import { FileDialogService } from '@theia/filesystem/lib/browser/file-dialog'
 import type { Key } from 'antd/es/table/interface'
@@ -26,7 +27,10 @@ import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider
 import './styles/index.css'
 
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager'
-export const METADATA_SCHEMA_MANAGER_LABEL = 'Metadata Schema Manager'
+export const METADATA_SCHEMA_MANAGER_LABEL = nls.localize(
+    'rockit/schemaManager/title',
+    'Metadata Schema Manager',
+)
 
 const MSG_TIMEOUT = 5000
 
@@ -74,7 +78,11 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             );
         } catch (err) {
             this.messageService.error(
-                `Error loading schemas: ${err instanceof Error ? err.message : String(err)}`,
+                nls.localize(
+                    'rockit/schemaManager/loadFailed',
+                    'Error loading schemas: {0}',
+                    err instanceof Error ? err.message : String(err),
+                ),
                 { timeout: MSG_TIMEOUT },
             )
         } finally {
@@ -107,12 +115,25 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         try {
             const deletedCount = await this.schemaManagerService.deleteSchemas(ids)
             if (deletedCount > 0) {
-                const message = hasPersistedItems ? `Deleted ${deletedCount} schema(s).` : `Aborted ${deletedCount} task(s).`;
+                const message = hasPersistedItems
+                    ? nls.localize(
+                        'rockit/schemaManager/deletedCount',
+                        'Deleted {0} schema(s).',
+                        deletedCount,
+                    )
+                    : nls.localize(
+                        'rockit/schemaManager/abortedCount',
+                        'Aborted {0} task(s).',
+                        deletedCount,
+                    );
                 this.messageService.info(message, { timeout: MSG_TIMEOUT })
             }
         } catch (err) {
             console.error('Failed to delete schemas:', err)
-            this.messageService.error('Failed to delete schemas.', { timeout: MSG_TIMEOUT })
+            this.messageService.error(
+                nls.localize('rockit/schemaManager/deleteFailed', 'Failed to delete schemas.'),
+                { timeout: MSG_TIMEOUT },
+            )
         } finally {
             this.isLoading = false
             this.update()
@@ -121,7 +142,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected async importSchemaFromFile(): Promise<void> {
         const fileUriOrUris = await this.fileDialogService.showOpenDialog({
-            title: 'Import Schema',
+            title: nls.localize('rockit/schemaManager/importSchema', 'Import Schema'),
             filters: { JSON: ['json'] },
             canSelectFiles: true,
             canSelectMany: true,
@@ -132,25 +153,39 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
         this.messageService
             .showProgress({
-                text: 'Importing Schemas...',
+                text: nls.localize('rockit/schemaManager/importingSchemas', 'Importing Schemas...'),
             })
             .then(async (progress) => {
                 try {
                     const results = await this.schemaManagerService.importFiles(fileUris, progress)
 
                     if (results.success > 0) {
-                        this.messageService.info(`Successfully imported ${results.success} schema(s).`, {
+                        this.messageService.info(nls.localize(
+                            'rockit/schemaManager/importedCount',
+                            'Successfully imported {0} schema(s).',
+                            results.success,
+                        ), {
                             timeout: MSG_TIMEOUT,
                         })
                     }
                     if (results.fail > 0) {
-                        this.messageService.warn(`Failed to import ${results.fail} schema(s).`, {
+                        this.messageService.warn(nls.localize(
+                            'rockit/schemaManager/importFailedCount',
+                            'Failed to import {0} schema(s).',
+                            results.fail,
+                        ), {
                             timeout: MSG_TIMEOUT,
                         })
                     }
                 } catch (err) {
                     console.error(err)
-                    this.messageService.error('Unexpected error during import.', { timeout: MSG_TIMEOUT })
+                    this.messageService.error(
+                        nls.localize(
+                            'rockit/schemaManager/unexpectedImportError',
+                            'Unexpected error during import.',
+                        ),
+                        { timeout: MSG_TIMEOUT },
+                    )
                 } finally {
                     progress.cancel()
                 }
@@ -168,16 +203,24 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     protected async handleImportUrl(url: string): Promise<void> {
         this.messageService
             .showProgress({
-                text: 'Importing from URL...',
+                text: nls.localize('rockit/schemaManager/importingFromUrl', 'Importing from URL...'),
             })
             .then(async (progress) => {
                 try {
                     const schemaName = await this.schemaManagerService.importFromUrl(url, progress)
-                    this.messageService.info(`Successfully imported: ${schemaName}`, { timeout: MSG_TIMEOUT })
+                    this.messageService.info(nls.localize(
+                        'rockit/schemaManager/importedName',
+                        'Successfully imported: {0}',
+                        schemaName,
+                    ), { timeout: MSG_TIMEOUT })
                 } catch (error: any) {
                     if (error.message !== 'Aborted') {
                         this.messageService.error(
-                            `Import Failed: ${error instanceof Error ? error.message : String(error)}`,
+                            nls.localize(
+                                'rockit/schemaManager/importFailed',
+                                'Import failed: {0}',
+                                error instanceof Error ? error.message : String(error),
+                            ),
                             { timeout: MSG_TIMEOUT },
                         )
                     }

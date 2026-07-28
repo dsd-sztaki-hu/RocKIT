@@ -7,10 +7,19 @@ import * as React from '@theia/core/shared/react'
 export class RoCrateIdConversionDialog extends ReactDialog<boolean> {
   constructor() {
     super({
-      title: nls.localizeByDefault('Convert RO-Crate metadata'),
+      title: nls.localize(
+        'rockit/appState/idConversion/title',
+        'Convert RO-Crate metadata',
+      ),
     })
-    this.appendAcceptButton(nls.localizeByDefault('Convert to workspace-relative IDs'))
-    this.appendCloseButton(nls.localizeByDefault('Keep existing metadata'))
+    this.appendAcceptButton(nls.localize(
+      'rockit/appState/idConversion/convert',
+      'Convert to workspace-relative IDs',
+    ))
+    this.appendCloseButton(nls.localize(
+      'rockit/appState/idConversion/keep',
+      'Keep existing metadata',
+    ))
   }
 
   public get value(): boolean {
@@ -21,20 +30,31 @@ export class RoCrateIdConversionDialog extends ReactDialog<boolean> {
     return (
       <div>
         <p>
-          The RO-Crate metadata uses entity identifiers like <code>name</code> instead of{' '}
-          <code>file://./…</code> paths.
+          {nls.localize(
+            'rockit/appState/idConversion/identifierExplanation',
+            'The RO-Crate metadata uses entity identifiers like {0} instead of {1} paths.',
+            'name',
+            'file://./…',
+          )}
         </p>
         <p>
-          Converting the metadata will rewrite the entities so their <code>@id</code>{' '}
-          values match the current workspace layout.
+          {nls.localize(
+            'rockit/appState/idConversion/rewriteExplanation',
+            'Converting the metadata will rewrite the entities so their {0} values match the current workspace layout.',
+            '@id',
+          )}
         </p>
         <p>
-          ARP file identifiers will be stored in the workspace export mapping so future
-          updates can target the original remote dataset.
+          {nls.localize(
+            'rockit/appState/idConversion/mappingExplanation',
+            'ARP file identifiers will be stored in the workspace export mapping so future updates can target the original remote dataset.',
+          )}
         </p>
         <p>
-          This keeps the file explorer and other tools synchronized. Would you like to
-          convert now?
+          {nls.localize(
+            'rockit/appState/idConversion/question',
+            'This keeps the file explorer and other tools synchronized. Would you like to convert now?',
+          )}
         </p>
       </div>
     )
