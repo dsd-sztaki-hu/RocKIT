@@ -370,7 +370,7 @@
       "title": "Üdvözli a RocKIT RO-Crate-szerkesztő",
       "emptyPrefix": "A munkaterület üres. Új RO-Crate megnyitásához vagy létrehozásához tekintse meg a gyors kezdési",
       "documentation": "dokumentációt",
-      "importRemote": "Importálás távoli repozitóriumból"
+      "importRemote": "Importálás repozitóriumból"
     },
     "about": {
       "command": "A RocKIT névjegye",
@@ -650,9 +650,9 @@
     "dataRepository": {
       "title": "Adatrepozitórium-kezelő",
       "openDocumentation": "Az Adatrepozitórium-kezelő dokumentációjának megnyitása",
-      "importRemote": "Importálás távoli repozitóriumból",
-      "exportRemote": "Exportálás távoli repozitóriumba",
-      "linkLocalRemote": "Távoli adatcsomaghoz kapcsolás",
+      "importRemote": "Importálás repozitóriumból",
+      "exportRemote": "Exportálás repozitóriumba",
+      "linkLocalRemote": "Repozitált adatcsomaghoz kapcsolás",
       "import": "Importálás",
       "export": "Exportálás",
       "addRepository": "Repozitórium hozzáadása",
