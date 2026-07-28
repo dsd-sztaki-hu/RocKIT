@@ -51,12 +51,12 @@ type UnsavedCloseState = {
 
 const ResetApplicationCommand: Command = {
   id: 'rockit.application.reset',
-  label: nls.localize('rockit/file/resetApplication', 'Reset the application'),
+  label: nls.localize('rockit/file/resetApplication', 'Reset the Application'),
 }
 
 const RevertToSavedRoCrateCommand: Command = {
   id: 'rockit.ro-crate.revert-to-saved',
-  label: nls.localize('rockit/file/revertToSaved', 'Revert to saved RO-Crate'),
+  label: nls.localize('rockit/file/revertToSaved', 'Revert to Saved RO-Crate'),
 }
 
 @injectable()
