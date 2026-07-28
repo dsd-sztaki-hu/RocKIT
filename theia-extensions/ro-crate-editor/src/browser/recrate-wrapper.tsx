@@ -30,6 +30,7 @@ export const DescriboCrateBuilderWrapper = ({
                                                 onSaveCrate,
                                                 onSaveRoCrateApproval,
                                                 onNavigation,
+                                                onWarning,
                                                 onOpenSchemaManager,
                                                 onRemoveProfile,
                                                 onDropEntityToHasPart,
@@ -47,6 +48,7 @@ export const DescriboCrateBuilderWrapper = ({
     onSaveCrate: (data: any) => void
     onSaveRoCrateApproval: (data: any) => void
     onNavigation: (entity: any) => void
+    onWarning: (warnings: any) => void
     onOpenSchemaManager: (requested: boolean) => void
     onRemoveProfile: (tabData: any) => void
     onDropEntityToHasPart: (payload: SingleEntityDropPayload, destinationEntityId: string) => Promise<void>
@@ -302,7 +304,7 @@ export const DescriboCrateBuilderWrapper = ({
                 onSaveCrate={onSaveCrate}
                 onSaveRoCrateApproval={onSaveRoCrateApproval}
                 onNavigation={handleNavigationWrapper}
-                onWarning={(w: any) => console.log('warning', w)}
+                onWarning={onWarning}
                 onError={(e: any) => console.log('error', e)}
                 enableReverseLinkBrowser={true}
                 enableBrowseEntities={false}

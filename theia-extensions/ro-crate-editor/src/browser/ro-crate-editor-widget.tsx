@@ -6,7 +6,7 @@ import { CommandService, MessageService } from '@theia/core/lib/common'
 import { Emitter } from '@theia/core/lib/common/event'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
-import { WorkspaceService } from '@theia/workspace/lib/browser'
+import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import {
   MetadataSchemaManager,
   SchemaValidator,
@@ -21,8 +21,13 @@ import { Message } from '@lumino/messaging'
 import type { Disposable } from '@theia/core'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
+import { RoCrateMissingNamesDialog } from 'app-state/lib/browser/state/ro-crate-missing-names-dialog'
 import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
 import { RoCratePersistenceService } from 'save-ro-crate/lib/browser/ro-crate-persistence-service'
+import {
+  findMissingRoCrateEntityNames,
+  repairMissingRoCrateEntityNames,
+} from 'rockit-common/lib/common/ro-crate-entity-name'
 import {
   RO_CRATE_APPROVAL_FILE,
   RO_CRATE_APPROVAL_FILE_NAME,
@@ -659,7 +664,21 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   }
 
   protected handleSaveCrate = async (saveData: any, label = 'Edit RO-Crate') => {
-    const crate = saveData && (saveData as any).crate ? (saveData as any).crate : saveData
+    let crate = saveData && (saveData as any).crate ? (saveData as any).crate : saveData
+    const missingNames = findMissingRoCrateEntityNames(crate)
+    if (missingNames.length > 0) {
+      // When saving with Enter, let the originating key event finish before
+      // attaching the dialog. Otherwise that same Enter can immediately
+      // activate the dialog's default action.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      const shouldGenerate = await new RoCrateMissingNamesDialog(missingNames).open()
+      if (shouldGenerate !== true) {
+        await this.commandService.executeCommand(WorkspaceCommands.CLOSE.id)
+        return
+      }
+      crate = repairMissingRoCrateEntityNames(crate, missingNames)
+    }
+
     const savedEntityId =
       typeof (saveData as any)?.entityId === 'string'
         ? (saveData as any).entityId.trim()
@@ -756,6 +775,30 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         })
         await this.writeRoCrateApprovalFile(approval)
         this.update()
+    }
+
+    protected handleRecrateWarning = (warningData: any): void => {
+        const warnings = warningData?.warnings ?? warningData
+        if (!warnings || typeof warnings !== 'object') {
+            return
+        }
+
+        const messages = Object.values(warnings)
+            .filter((warning): warning is { messages: unknown[] } =>
+                Boolean(
+                    warning &&
+                    typeof warning === 'object' &&
+                    Array.isArray((warning as { messages?: unknown }).messages),
+                ),
+            )
+            .flatMap((warning) => warning.messages)
+            .filter((message): message is string =>
+                typeof message === 'string' && message.trim().length > 0,
+            )
+
+        for (const message of [...new Set(messages)]) {
+            this.messageService.warn(message, { timeout: 10000 })
+        }
     }
 
     protected getRoCrateApprovalHistoryLabel(decision: unknown): string {
@@ -1043,6 +1086,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                         onSaveCrate={this.handleSaveCrate}
                         onSaveRoCrateApproval={this.handleSaveRoCrateApproval}
                         onNavigation={this.handleNavigation}
+                        onWarning={this.handleRecrateWarning}
                         onOpenSchemaManager={this.handleOpenSchemaManager}
                         onRemoveProfile={this.handleRemoveProfile}
                         onDropEntityToHasPart={this.handleDropEntityToHasPart}
