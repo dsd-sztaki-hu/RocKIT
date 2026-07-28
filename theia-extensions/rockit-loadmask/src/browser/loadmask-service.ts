@@ -147,7 +147,6 @@ export class LoadMaskService {
   async showProgress(options: { text: string }): Promise<LoadMaskProgressHandle> {
     const handle = this.show({
       message: options.text,
-      progress: { worked: 0, total: 100 },
       delay: 0,
     })
     return {

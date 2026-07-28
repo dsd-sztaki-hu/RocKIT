@@ -80,7 +80,6 @@
 .rockit-loadmask-progress-value {
   background: var(--theia-progressBar-background);
   height: 100%;
-  transition: width 120ms linear;
 }
 
 .rockit-loadmask-cancel {
@@ -96,9 +95,5 @@
 @media (prefers-reduced-motion: reduce) {
   .rockit-loadmask-spinner {
     animation-duration: 1.8s;
-  }
-
-  .rockit-loadmask-progress-value {
-    transition: none;
   }
 }
