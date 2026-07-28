@@ -31,7 +31,7 @@
   "devDependencies": {
     "@theia/cli": "1.65.2",
     "react-grab": "^0.0.53",
-    "@arpproject/recrate": "0.1.48"
+    "@arpproject/recrate": "0.1.49"
   },
   "scripts": {
     "bundle": "yarn run rebuild && theia build --mode development",
