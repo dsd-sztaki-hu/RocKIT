@@ -23,6 +23,7 @@ export type MetadataProfileSource = 'local' | 'remote'
 export type MetadataProfileFiles = {
   sourcePath: string
   convertedPath: string
+  convertedPaths?: Partial<Record<'en' | 'hu', string>>
 }
 
 export type MetadataProfileInfo = {
@@ -119,7 +120,7 @@ export type ResolveMissingResult = {
 }
 
 type ConverterModule = {
-  CedarTemplateToDescriboProfileConverter: new () => {
+  CedarTemplateToDescriboProfileConverter: new (language?: 'en' | 'hu') => {
     processCedarTemplate: (cedarTemplate: string) => string
   }
 }
@@ -258,12 +259,22 @@ export async function importCedarTemplateContent(args: {
   const fileName = `${safeName || 'cedar_schema'}_v${schemaVersion}_${source}_${hash}.json`
   const sourcePath = `metadata-schemas/cedar/${fileName}`
   const convertedPath = `metadata-schemas/ro-crate/${fileName}`
+  const hungarianConvertedPath = `metadata-schemas/ro-crate/hu/${fileName}`
   const absoluteSourcePath = path.join(storage.rootPath, sourcePath)
   const absoluteConvertedPath = path.join(storage.rootPath, convertedPath)
+  const absoluteHungarianConvertedPath = path.join(
+    storage.rootPath,
+    hungarianConvertedPath,
+  )
 
-  const convertedContent = await convertCedarTemplate(args.rawContent)
+  const [convertedContent, hungarianConvertedContent] = await Promise.all([
+    convertCedarTemplate(args.rawContent, 'en'),
+    convertCedarTemplate(args.rawContent, 'hu'),
+  ])
   fs.writeFileSync(absoluteSourcePath, args.rawContent, 'utf8')
   fs.writeFileSync(absoluteConvertedPath, convertedContent, 'utf8')
+  fs.mkdirSync(path.dirname(absoluteHungarianConvertedPath), { recursive: true })
+  fs.writeFileSync(absoluteHungarianConvertedPath, hungarianConvertedContent, 'utf8')
 
   const profile: MetadataProfileInfo = {
     id: createId(),
@@ -271,7 +282,14 @@ export async function importCedarTemplateContent(args: {
     version: schemaVersion,
     source,
     type: 'cedar',
-    files: { sourcePath, convertedPath },
+    files: {
+      sourcePath,
+      convertedPath,
+      convertedPaths: {
+        en: convertedPath,
+        hu: hungarianConvertedPath,
+      },
+    },
     aux: {
       templateUuid: extractUuid(schemaId) ?? schemaId,
       reference: schemaId,
@@ -460,7 +478,12 @@ export async function deleteMetadataProfile(args: {
     return { storage, removed: null }
   }
   index.profiles = index.profiles.filter((profile) => profile.id !== args.id)
-  for (const relativePath of [removed.files?.sourcePath, removed.files?.convertedPath]) {
+  const pathsToDelete = new Set([
+    removed.files?.sourcePath,
+    removed.files?.convertedPath,
+    ...Object.values(removed.files?.convertedPaths ?? {}),
+  ])
+  for (const relativePath of pathsToDelete) {
     if (!relativePath) {
       continue
     }
@@ -623,12 +646,15 @@ function hasLocalProfileForConformsTo(conformsTo: string, rootPath?: string): bo
   )
 }
 
-async function convertCedarTemplate(rawContent: string): Promise<string> {
+async function convertCedarTemplate(
+  rawContent: string,
+  language: 'en' | 'hu' = 'en',
+): Promise<string> {
   const importEsm = new Function('specifier', 'return import(specifier)') as (
     specifier: string,
   ) => Promise<ConverterModule>
   const mod = await importEsm('cedar-template-converter')
-  const converter = new mod.CedarTemplateToDescriboProfileConverter()
+  const converter = new mod.CedarTemplateToDescriboProfileConverter(language)
   return converter.processCedarTemplate(rawContent)
 }
 

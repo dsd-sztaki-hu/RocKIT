@@ -36,7 +36,7 @@ import { PropertyViewService } from './property-view-service'
 @injectable()
 export class PropertyViewWidget extends BaseWidget {
   static readonly ID = 'property-view'
-  static readonly LABEL = nls.localize('theia/property-view/properties', 'File Preview')
+  static readonly LABEL = nls.localize('rockit/filePreview/title', 'File Preview')
 
   protected contentWidget: PropertyViewContentWidget
 

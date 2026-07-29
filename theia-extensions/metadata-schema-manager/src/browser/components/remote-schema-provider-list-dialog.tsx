@@ -11,6 +11,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SettingsInputComponentIcon from '@mui/icons-material/SettingsInputComponent';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import { nls } from '@theia/core/lib/common/nls';
 
 import { RemoteSchemaProviderConfigDialog } from './remote-schema-provider-config-dialog';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
@@ -27,7 +28,7 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
         protected readonly providerStore: RemoteSchemaProviderStoreService
     ) {
         super({
-            title: 'Manage Remote Providers'
+            title: nls.localize('rockit/schemaManager/manageRemoteProviders', 'Manage Remote Providers')
         });
         
         this.contentNode.style.width = '600px';
@@ -85,8 +86,11 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
 
     protected async handleDelete(id: string) {
         const dialog = new ConfirmDialog(
-            'Confirm Deletion',
-            'Are you sure you want to delete this remote schema provider configuration?'
+            nls.localize('rockit/schemaManager/confirmDeletion', 'Confirm Deletion'),
+            nls.localize(
+                'rockit/schemaManager/deleteProviderWarning',
+                'Are you sure you want to delete this remote schema provider configuration?',
+            )
         );
         
         const confirmed = await dialog.open();
@@ -116,9 +120,14 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
                                 <SettingsInputComponentIcon />
                             </div>
                             <div>
-                                <div className="remote-provider-list__title">Configured Providers</div>
+                                <div className="remote-provider-list__title">
+                                    {nls.localize('rockit/schemaManager/configuredProviders', 'Configured Providers')}
+                                </div>
                                 <div className="remote-provider-list__description">
-                                    Manage connections to remote schema repositories.
+                                    {nls.localize(
+                                        'rockit/schemaManager/manageConnectionsDescription',
+                                        'Manage connections to remote schema repositories.',
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -127,7 +136,7 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
                             className="theia-button remote-provider-list__add-button" 
                             onClick={() => this.handleAdd()}
                         >
-                            <AddIcon style={{ fontSize: '18px' }} /> Add Provider
+                            <AddIcon style={{ fontSize: '18px' }} /> {nls.localize('rockit/schemaManager/addProvider', 'Add Provider')}
                         </button>
                     </div>
 
@@ -135,12 +144,12 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
                     <div className="remote-provider-list__container">
                         {this.isLoading ? (
                             <div className="remote-provider-list__loading">
-                                <i className="codicon codicon-loading codicon-modifier-spin" /> Loading...
+                                <i className="codicon codicon-loading codicon-modifier-spin" /> {nls.localize('rockit/schemaManager/loading', 'Loading...')}
                             </div>
                         ) : this.providers.length === 0 ? (
                             <div className="remote-provider-list__empty-state">
                                 <StorageIcon style={{ fontSize: '48px', color: 'var(--theia-descriptionForeground)', opacity: 0.5 }} />
-                                <div>No remote providers configured.</div>
+                                <div>{nls.localize('rockit/schemaManager/noProvidersConfigured', 'No remote providers configured.')}</div>
                             </div>
                         ) : (
                             this.providers.map((provider) => (
@@ -159,7 +168,7 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
                                     </div>
                                     
                                     <div className="remote-provider-list__item-actions">
-                                        <Tooltip title="Edit Configuration" PopperProps={{ style: { zIndex: 99999 } }}>
+                                        <Tooltip title={nls.localize('rockit/schemaManager/editConfiguration', 'Edit Configuration')} PopperProps={{ style: { zIndex: 99999 } }}>
                                             <IconButton 
                                                 size="small"
                                                 onClick={() => this.handleEdit(provider)}
@@ -169,7 +178,7 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
                                             </IconButton>
                                         </Tooltip>
                                         
-                                        <Tooltip title="Delete Provider" PopperProps={{ style: { zIndex: 99999 } }}>
+                                        <Tooltip title={nls.localize('rockit/schemaManager/deleteProvider', 'Delete Provider')} PopperProps={{ style: { zIndex: 99999 } }}>
                                             <IconButton 
                                                 size="small"
                                                 onClick={() => this.handleDelete(provider.id)}
@@ -191,7 +200,7 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
                         className="theia-button secondary remote-provider-list__close-button"
                         onClick={() => this.close()}
                     >
-                        Close
+                        {nls.localize('rockit/schemaManager/close', 'Close')}
                     </button>
                 </div>
             </div>
@@ -220,8 +229,8 @@ class ConfirmDialog extends AbstractDialog<boolean> {
         super({ title: titleStr });
         this.contentNode.style.padding = '0';
         this.contentNode.style.width = '400px';
-        this.appendCloseButton('Cancel');
-        const deleteBtn = this.appendAcceptButton('Delete');
+        this.appendCloseButton(nls.localize('rockit/common/cancel', 'Cancel'));
+        const deleteBtn = this.appendAcceptButton(nls.localize('rockit/schemaManager/delete', 'Delete'));
         
         deleteBtn.style.backgroundColor = 'var(--theia-errorForeground)';
         deleteBtn.style.color = 'var(--theia-editor-background)'; 

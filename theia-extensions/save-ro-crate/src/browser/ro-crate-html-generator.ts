@@ -1,4 +1,5 @@
 import { injectable } from '@theia/core/shared/inversify'
+import { nls } from '@theia/core/lib/common'
 import { RoCrateHtmlGenerator } from 'rockit-common/lib/browser'
 
 type Entity = Record<string, any>
@@ -11,14 +12,26 @@ export class RoCrateHtmlGeneratorImpl implements RoCrateHtmlGenerator {
     const inboundRefs = this.buildInboundReferenceIndex(entities, entityById)
 
     const mainEntity = entityById.get('./') ?? entityById.get('ro-crate-metadata.json')
-    const title = this.escapeHtml(String(mainEntity?.name ?? 'RO-Crate Preview'))
+    const localizedPreviewTitle = nls.localize(
+      'rockit/roCratePreview/title',
+      'RO-Crate Preview',
+    )
+    const previewTitle = this.escapeHtml(localizedPreviewTitle)
+    const title = this.escapeHtml(String(mainEntity?.name ?? localizedPreviewTitle))
+    const locale = nls.isSelectedLocale('hu') ? 'hu' : 'en'
+    const downloadMetadata = this.escapeHtml(
+      nls.localize(
+        'rockit/roCratePreview/downloadMetadata',
+        'Download metadata in JSON-LD format',
+      ),
+    )
 
     return `
 <!DOCTYPE html>
-<html>
+<html lang="${locale}">
 <head>
     <meta charset="utf-8">
-    <title>RO-Crate Preview</title>
+    <title>${previewTitle}</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; margin: 0; color: #24292f; line-height: 1.5; }
         .header { background: #f6f8fa; padding: 40px 20px; border-bottom: 1px solid #d0d7de; }
@@ -43,7 +56,7 @@ export class RoCrateHtmlGeneratorImpl implements RoCrateHtmlGenerator {
     <div class="header">
         <div class="container">
             <h1>${title}</h1>
-            <a href="ro-crate-metadata.json" class="id-link">Download metadata in JSON-LD format</a>
+            <a href="ro-crate-metadata.json" class="id-link">${downloadMetadata}</a>
         </div>
     </div>
 
@@ -152,7 +165,9 @@ export class RoCrateHtmlGeneratorImpl implements RoCrateHtmlGenerator {
 
     return `
         <div class="entity-section" id="${safeId}">
-            <div class="breadcrumb" onclick="window.location.hash='#./'">&lt;- Back to Home</div>
+            <div class="breadcrumb" onclick="window.location.hash='#./'">${this.escapeHtml(
+              nls.localize('rockit/roCratePreview/backToHome', '<- Back to Home'),
+            )}</div>
             <h2>${title}</h2>
             <table>
                 <tr>
@@ -258,7 +273,12 @@ export class RoCrateHtmlGeneratorImpl implements RoCrateHtmlGenerator {
 
     return `
         <div class="reference-section">
-            <div class="reference-header">Items that reference this one</div>
+            <div class="reference-header">${this.escapeHtml(
+              nls.localize(
+                'rockit/roCratePreview/referencingItems',
+                'Items that reference this one',
+              ),
+            )}</div>
             <table>
                 ${rows.join('')}
             </table>

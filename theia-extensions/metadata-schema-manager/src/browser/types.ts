@@ -5,11 +5,13 @@ import type { Key } from 'antd/es/table/interface';
 export interface SchemaFiles {
   sourcePath: string;
   convertedPath: string;
+  convertedPaths?: Partial<Record<'en' | 'hu', string>>;
 }
 
 export interface SchemaAux {
   templateUuid?: string;
   reference: string;
+  conversionLanguage?: 'en' | 'hu';
 }
 
 export interface SchemaInfo {

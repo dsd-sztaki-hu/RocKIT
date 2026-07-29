@@ -2,6 +2,7 @@ import { codicon, OpenerService } from '@theia/core/lib/browser'
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { ApplicationServer } from '@theia/core/lib/common/application-protocol'
 import { CommandService } from '@theia/core/lib/common/command'
+import { nls } from '@theia/core/lib/common'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { WorkspaceCommands } from '@theia/workspace/lib/browser'
 import * as React from 'react'
@@ -16,7 +17,7 @@ const IMPORT_FROM_REMOTE_COMMAND_ID = 'data-repository-manager:import-from-remot
 @injectable()
 export class EmptyWorkspaceWidget extends ReactWidget {
   static readonly ID = 'rockit-empty-workspace'
-  static readonly LABEL = 'Welcome'
+  static readonly LABEL = nls.localize('rockit/welcome/label', 'Welcome')
 
   @inject(CommandService)
   protected readonly commandService: CommandService
@@ -68,11 +69,19 @@ export class EmptyWorkspaceWidget extends ReactWidget {
     return (
       <main className="rockit-empty-workspace" aria-labelledby="rockit-welcome-heading">
         <div className="rockit-empty-workspace-content">
-          <h1 id="rockit-welcome-heading">Welcome to the RocKIT RO-Crate Editor</h1>
+          <h1 id="rockit-welcome-heading">
+            {nls.localize(
+              'rockit/welcome/title',
+              'Welcome to the RocKIT RO-Crate Editor',
+            )}
+          </h1>
           <p>
-            Your workspace is empty. To open or create a new RO-Crate, see our quickstart{' '}
+            {nls.localize(
+              'rockit/welcome/emptyPrefix',
+              'Your workspace is empty. To open or create a new RO-Crate, see our quickstart',
+            )}{' '}
             <a href={this.quickstartUrl} onClick={(event) => this.openQuickstart(event)}>
-              documentation
+              {nls.localize('rockit/welcome/documentation', 'documentation')}
             </a>
             .
           </p>
@@ -84,7 +93,7 @@ export class EmptyWorkspaceWidget extends ReactWidget {
                 onClick={() => this.executeCommand(WorkspaceCommands.OPEN_FOLDER.id)}
               >
                 <span className={codicon('folder-opened')} aria-hidden="true" />
-                <span>Open Folder as RO-Crate</span>
+                <span>{nls.localize('rockit/file/openFolder', 'Open Folder as RO-Crate')}</span>
               </button>
             </li>
             <li>
@@ -95,7 +104,7 @@ export class EmptyWorkspaceWidget extends ReactWidget {
                 }
               >
                 <span className={codicon('history')} aria-hidden="true" />
-                <span>Open Recent RO-Crate</span>
+                <span>{nls.localize('rockit/file/openRecent', 'Open Recent RO-Crate')}</span>
               </button>
             </li>
             <li>
@@ -104,7 +113,12 @@ export class EmptyWorkspaceWidget extends ReactWidget {
                 onClick={() => this.executeCommand(IMPORT_FROM_REMOTE_COMMAND_ID)}
               >
                 <span className={codicon('cloud-download')} aria-hidden="true" />
-                <span>Import from Remote Repository</span>
+                <span>
+                  {nls.localize(
+                    'rockit/welcome/importRemote',
+                    'Import from Remote Repository',
+                  )}
+                </span>
               </button>
             </li>
           </ul>

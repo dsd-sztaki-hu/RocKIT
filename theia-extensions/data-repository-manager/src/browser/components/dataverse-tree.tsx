@@ -11,6 +11,7 @@ import { LinearProgress, CircularProgress, IconButton, Tooltip, TextField, Input
 import { DataverseCollectionService } from '../services/dataverse-collection-service';
 import { DataverseCollection } from '../types';
 import { DataverseIcon } from './icons';
+import { nls } from '@theia/core/lib/common/nls';
 import '../styles/dataverse-collection-browser-dialog.css';
 
 type TreeNode = {
@@ -91,7 +92,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
             .catch(err => {
                 if (ignore) return;
                 console.error("DataverseTree Error:", err);
-                setErrorMsg(`Failed to load collections: ${err.message || "Unknown error"}`);
+                setErrorMsg(nls.localize('rockit/dataRepository/loadCollectionsFailed', 'Failed to load collections: {0}', err.message || nls.localize('rockit/validation/unknownError', 'Unknown error')));
                 setIsLoading(false);
             });
 
@@ -122,7 +123,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
             })));
         } catch (err: any) {
             console.error("DataverseTree child load error:", err);
-            setErrorMsg(`Failed to load child collections for ${node.name}: ${err.message || "Unknown error"}`);
+            setErrorMsg(nls.localize('rockit/dataRepository/loadChildCollectionsFailed', 'Failed to load child collections for {0}: {1}', node.name, err.message || nls.localize('rockit/validation/unknownError', 'Unknown error')));
         } finally {
             setLoadingNodeIds(prev => {
                 const next = new Set(prev);
@@ -187,7 +188,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
             .catch(err => {
                 if (ignore) return;
                 console.error('DataverseTree search error:', err);
-                setSearchErrorMsg(`Failed to search collections: ${err.message || 'Unknown error'}`);
+                setSearchErrorMsg(nls.localize('rockit/dataRepository/searchCollectionsFailed', 'Failed to search collections: {0}', err.message || nls.localize('rockit/validation/unknownError', 'Unknown error')));
                 setSearchResults([]);
             })
             .finally(() => {
@@ -257,7 +258,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                                                 style={{ color: 'var(--theia-focusBorder)' }}
                                             />
                                             <span style={{ color: 'var(--theia-descriptionForeground)' }}>
-                                                Loading collections...
+                                                {nls.localize('rockit/dataRepository/loadingCollections', 'Loading collections...')}
                                             </span>
                                         </div>
                                     )
@@ -279,7 +280,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                         <TextField
                             className="dataverse-tree__search-box"
                             variant="standard"
-                            placeholder="Search collections..."
+                            placeholder={nls.localize('rockit/dataRepository/searchCollections', 'Search collections...')}
                             value={rawSearchInput}
                             onChange={(e) => setRawSearchInput(e.target.value)}
                             autoFocus
@@ -296,7 +297,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                             }}
                         />
                     ) : (
-                        <Tooltip title="Search Collections" slotProps={{ popper: { sx: { zIndex: 2147483647 } } }}>
+                        <Tooltip title={nls.localize('rockit/dataRepository/searchCollectionsTooltip', 'Search Collections')} slotProps={{ popper: { sx: { zIndex: 2147483647 } } }}>
                             <IconButton size="small" onClick={() => setIsSearchExpanded(true)} style={{ color: 'var(--theia-icon-foreground)' }}>
                                 <SearchIcon fontSize="small" />
                             </IconButton>
@@ -310,13 +311,13 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                 {isLoading && treeData.length === 0 && (
                     <div className="dataverse-tree__loading">
                         <LinearProgress style={{ width: '100%', marginBottom: 10 }} />
-                        <span>Loading collections...</span>
+                        <span>{nls.localize('rockit/dataRepository/loadingCollections', 'Loading collections...')}</span>
                     </div>
                 )}
                 {errorMsg && <div className="dataverse-tree__error">{errorMsg}</div>}
                 {searchErrorMsg && <div className="dataverse-tree__error">{searchErrorMsg}</div>}
                 {!isLoading && treeData.length === 0 && !errorMsg && (
-                    <div className="dataverse-tree__empty">No collections found.</div>
+                    <div className="dataverse-tree__empty">{nls.localize('rockit/dataRepository/noCollections', 'No collections found.')}</div>
                 )}
                 {(isFiltering || isSearchLoading) && (
                     <div className="dataverse-tree__filtering">
@@ -324,7 +325,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                     </div>
                 )}
                 {searchQuery && !isSearchLoading && !searchErrorMsg && searchResults.length === 0 && (
-                    <div className="dataverse-tree__empty">No matching collections found.</div>
+                    <div className="dataverse-tree__empty">{nls.localize('rockit/dataRepository/noMatchingCollections', 'No matching collections found.')}</div>
                 )}
                 {visibleNodes.length > 0 && (
                     <TreeView

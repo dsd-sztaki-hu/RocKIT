@@ -15,6 +15,7 @@ import {
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { FOCUS_CLASS, SELECTED_CLASS } from '@theia/core/lib/browser/widgets'
 import { Disposable } from '@theia/core/lib/common'
+import { nls } from '@theia/core/lib/common/nls'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { Button, Select } from 'antd'
@@ -74,7 +75,7 @@ type EntityOverviewDragPayload = {
 @injectable()
 export class EntitiesOverviewWidget extends TreeWidget {
     static readonly ID = 'theia-examples:treeview-example-view'
-    static readonly LABEL = 'Entities'
+    static readonly LABEL = nls.localize('rockit/entitiesOverview/title', 'Entities')
     static readonly STATE_VERSION = 2
     static readonly MAX_PERSISTED_STATE_BYTES = 16 * 1024
     static readonly MAX_FILTER_TEXT_LENGTH = 1024
@@ -254,7 +255,9 @@ export class EntitiesOverviewWidget extends TreeWidget {
         if (showInvalidIcon) {
             const className =
                 `${attrs.className ?? ''} entities-overview-invalid-caption`.trim()
-            const containerTitle = isLeafInvalid ? 'Invalid entity' : 'Contains invalid entity'
+            const containerTitle = isLeafInvalid
+                ? nls.localize('rockit/entitiesOverview/invalidEntity', 'Invalid entity')
+                : nls.localize('rockit/entitiesOverview/containsInvalidEntity', 'Contains invalid entity')
 
             return (
                 <div {...attrs} className={className} title={containerTitle}>
@@ -465,13 +468,13 @@ export class EntitiesOverviewWidget extends TreeWidget {
                                         type={this.filterMode === 'simple' ? 'primary' : 'default'}
                                         onClick={() => this.setFilterMode('simple')}
                                     >
-                                        Simple
+                                        {nls.localize('rockit/entitiesOverview/simple', 'Simple')}
                                     </Button>
                                     <Button
                                         type={this.filterMode === 'advanced' ? 'primary' : 'default'}
                                         onClick={() => this.setFilterMode('advanced')}
                                     >
-                                        Advanced
+                                        {nls.localize('rockit/entitiesOverview/advanced', 'Advanced')}
                                     </Button>
                                 </Button.Group>
                             </div>
@@ -484,11 +487,11 @@ export class EntitiesOverviewWidget extends TreeWidget {
                             aria-hidden={isAdvanced}
                         >
                             <label className="entities-overview-filter-row">
-                                <span className="entities-overview-filter-label">Entity name</span>
+                                <span className="entities-overview-filter-label">{nls.localize('rockit/entitiesOverview/entityName', 'Entity name')}</span>
                                 <input
                                     className="entities-overview-filter-input"
                                     type="text"
-                                    placeholder="Search entity name"
+                                    placeholder={nls.localize('rockit/entitiesOverview/searchEntityName', 'Search entity name')}
                                     ref={this.entityNameInputRef}
                                     value={activeFilters.entityNameFilter}
                                     onChange={(event) => this.onEntityNameFilterChange(event)}
@@ -497,15 +500,15 @@ export class EntitiesOverviewWidget extends TreeWidget {
                             </label>
 
                             <label className="entities-overview-filter-row">
-                                <span className="entities-overview-filter-label">Validity</span>
+                                <span className="entities-overview-filter-label">{nls.localize('rockit/entitiesOverview/validity', 'Validity')}</span>
                                 <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
                                     <Select
                                         className="entities-overview-validity-select"
                                         value={activeFilters.validityFilter}
                                         options={[
-                                            { value: 'all', label: 'All entities' },
-                                            { value: 'valid', label: 'Only valid' },
-                                            { value: 'invalid', label: 'Only invalid' },
+                                            { value: 'all', label: nls.localize('rockit/entitiesOverview/allEntities', 'All entities') },
+                                            { value: 'valid', label: nls.localize('rockit/entitiesOverview/onlyValid', 'Only valid') },
+                                            { value: 'invalid', label: nls.localize('rockit/entitiesOverview/onlyInvalid', 'Only invalid') },
                                         ]}
                                         classNames={{ popup: { root: 'entities-overview-filter-dropdown' } }}
                                         onChange={(value) =>
@@ -517,12 +520,12 @@ export class EntitiesOverviewWidget extends TreeWidget {
                             </label>
 
                             <div className="entities-overview-filter-row">
-                                <span className="entities-overview-filter-label">Entity type</span>
+                                <span className="entities-overview-filter-label">{nls.localize('rockit/entitiesOverview/entityType', 'Entity type')}</span>
                                 <div onKeyDownCapture={(event) => this.stopFilterKeyEvents(event)}>
                                     <Select
                                         className="entities-overview-type-select"
                                         mode="multiple"
-                                        placeholder="All types"
+                                        placeholder={nls.localize('rockit/entitiesOverview/allTypes', 'All types')}
                                         value={selectedTypes}
                                         options={availableTypes.map((type) => ({ value: type, label: type }))}
                                         classNames={{ popup: { root: 'entities-overview-filter-dropdown' } }}
@@ -554,8 +557,8 @@ export class EntitiesOverviewWidget extends TreeWidget {
                                     }
                                 >
                                     {this.advancedRuleCount > 0
-                                        ? `Advanced filters (${this.advancedRuleCount})`
-                                        : 'Advanced filters'}
+                                        ? nls.localize('rockit/entitiesOverview/advancedFiltersCount', 'Advanced filters ({0})', this.advancedRuleCount)
+                                        : nls.localize('rockit/entitiesOverview/advancedFilters', 'Advanced filters')}
                                 </Button>
                             </div>
 
@@ -569,7 +572,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
                                     this.stopFilterKeyEvents(event)
                                 }
                             >
-                                Clear filters
+                                {nls.localize('rockit/entitiesOverview/clearFilters', 'Clear filters')}
                             </Button>
                         </div>
                     </div>
@@ -586,7 +589,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
                                 this.stopFilterKeyEvents(event)
                             }
                         >
-                            Edit
+                            {nls.localize('rockit/entitiesOverview/edit', 'Edit')}
                         </Button>
                     </div>
 
@@ -1212,7 +1215,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
     protected async openAdvancedDialog(): Promise<void> {
         const loadMask = this.loadMaskService.show({
-            message: 'Preparing advanced filters…',
+            message: nls.localize('rockit/entitiesOverview/preparingAdvancedFilters', 'Preparing advanced filters…'),
             delay: 0,
         })
         let prepared:
@@ -1264,7 +1267,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
     protected async openMultiEditDialog(): Promise<void> {
         const loadMask = this.loadMaskService.show({
-            message: 'Collecting entities for multi-edit…',
+            message: nls.localize('rockit/entitiesOverview/collectingForMultiEdit', 'Collecting entities for multi-edit…'),
         })
         try {
             const selectedEntityIds = this.model.getSelectedEntityIds()
@@ -1342,7 +1345,7 @@ export class EntitiesOverviewWidget extends TreeWidget {
 
     protected async applyAdvancedFilters(): Promise<void> {
         const loadMask = this.loadMaskService.show({
-            message: 'Filtering entities…',
+            message: nls.localize('rockit/entitiesOverview/filteringEntities', 'Filtering entities…'),
             delay: 0,
         })
         try {

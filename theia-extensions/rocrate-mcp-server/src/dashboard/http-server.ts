@@ -538,6 +538,7 @@ class DashboardApiHandlers {
    */
   getConfig(req: http.IncomingMessage, res: http.ServerResponse): void {
     sendJson(res, {
+      locale: this.config.locale,
       detailedToolCallLogging: this.config.detailedToolCallLogging,
       keepDataverseUploadZips: this.config.keepDataverseUploadZips,
       retentionHours: this.config.retentionHours,
@@ -1393,10 +1394,12 @@ export class DashboardHttpServer {
  * Parses dashboard configuration from environment variables
  */
 export function parseDashboardConfig(): DashboardConfig {
+  const requestedLocale = (process.env.ROCRATE_DASHBOARD_LOCALE || 'en').toLowerCase()
   return {
     enabled: process.env.ROCRATE_DASHBOARD_ENABLED !== 'false',
     host: process.env.ROCRATE_DASHBOARD_HOST || '127.0.0.1',
     port: parseInt(process.env.ROCRATE_DASHBOARD_PORT || '9393', 10),
+    locale: requestedLocale.startsWith('hu') ? 'hu' : 'en',
     authToken: process.env.ROCRATE_DASHBOARD_AUTH_TOKEN,
     retentionHours: parseInt(
       process.env.ROCRATE_DASHBOARD_RETENTION_HOURS || '24',

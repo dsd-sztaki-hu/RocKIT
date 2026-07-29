@@ -8,6 +8,7 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { IconButton } from '@mui/material';
+import { nls } from '@theia/core/lib/common/nls';
 
 import { DataRepositoryConfig } from '../types';
 import { DataRepositorySuccessDialog } from './data-repository-success-dialog';
@@ -34,7 +35,9 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         private readonly repoToEdit?: DataRepositoryConfig
     ) {
         super({
-            title: repoToEdit ? 'Edit Repository' : 'Add Repository'
+            title: repoToEdit
+                ? nls.localize('rockit/dataRepository/editRepository', 'Edit Repository')
+                : nls.localize('rockit/dataRepository/addRepository', 'Add Repository')
         });
         
         this.contentNode.style.width = '500px';
@@ -62,15 +65,15 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         const cleanApiKey = this.apiKeyValue.trim();
 
         if (!cleanTitle) {
-            this.errorMsg = "Name (Display) is required.";
+            this.errorMsg = nls.localize('rockit/dataRepository/displayNameRequired', 'Name (Display) is required.');
             this.render(); return;
         }
         if (!cleanBaseUrl) {
-            this.errorMsg = "Base URL is required.";
+            this.errorMsg = nls.localize('rockit/dataRepository/baseUrlRequired', 'Base URL is required.');
             this.render(); return;
         }
         if (!cleanApiKey) {
-            this.errorMsg = "API Token is required.";
+            this.errorMsg = nls.localize('rockit/dataRepository/tokenRequired', 'API Token is required.');
             this.render(); return;
         }
 
@@ -81,7 +84,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             }
             cleanBaseUrl = cleanBaseUrl.replace(/\/+$/, '');
         } catch (e) {
-            this.errorMsg = "Please enter a valid HTTP or HTTPS Base URL.";
+            this.errorMsg = nls.localize('rockit/dataRepository/validBaseUrlRequired', 'Please enter a valid HTTP or HTTPS Base URL.');
             this.render(); return;
         }
 
@@ -114,9 +117,9 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         } catch (error: any) {
             console.error("Connection Test Failed:", error);
             if (error.message === 'Failed to fetch' || (error.message && error.message.includes('NetworkError'))) {
-                this.errorMsg = "Could not reach the server. Please check the Base URL and your network connection.";
+                this.errorMsg = nls.localize('rockit/dataRepository/serverUnreachable', 'Could not reach the server. Please check the Base URL and your network connection.');
             } else {
-                this.errorMsg = error.message || "An unknown error occurred during connection testing.";
+                this.errorMsg = error.message || nls.localize('rockit/dataRepository/connectionUnknownError', 'An unknown error occurred during connection testing.');
             }
             this.isTesting = false;
             this.render();
@@ -143,10 +146,12 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                         </div>
                         <div>
                             <div className="data-repo-config__title">
-                                {this.repoToEdit ? 'Edit Connection' : 'New Connection'}
+                                {this.repoToEdit
+                                    ? nls.localize('rockit/dataRepository/editConnection', 'Edit Connection')
+                                    : nls.localize('rockit/dataRepository/newConnection', 'New Connection')}
                             </div>
                             <div className="data-repo-config__description">
-                                Configure connection details for a remote data repository.
+                                {nls.localize('rockit/dataRepository/configureConnection', 'Configure connection details for a remote data repository.')}
                             </div>
                         </div>
                     </div>
@@ -154,27 +159,27 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                     {this.errorMsg && (
                         <div className="data-repo-config__error">
                             <ErrorOutlineIcon fontSize="small" />
-                            <span><strong>Error:</strong> {this.errorMsg}</span>
+                            <span><strong>{nls.localize('rockit/dataRepository/error', 'Error')}:</strong> {this.errorMsg}</span>
                         </div>
                     )}
 
                     <div className="data-repo-config__form">
                         
                         <div>
-                            <label className="data-repo-config__label">Name (Display)</label>
+                            <label className="data-repo-config__label">{nls.localize('rockit/dataRepository/displayName', 'Name (Display)')}</label>
                             <input 
                                 className="theia-input data-repo-config__input" 
                                 value={this.titleValue}
                                 onChange={(e) => { this.titleValue = e.target.value; this.render(); }}
                                 disabled={this.isTesting}
-                                placeholder="e.g. ARP Research Data Repository"
+                                placeholder={nls.localize('rockit/dataRepository/displayNamePlaceholder', 'e.g. ARP Research Data Repository')}
                                 autoFocus
                             />
                         </div>
 
                         <div>
                             <label className="data-repo-config__label">
-                                <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> Base URL
+                                <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/dataRepository/baseUrl', 'Base URL')}
                             </label>
                             <input 
                                 className="theia-input data-repo-config__input" 
@@ -187,7 +192,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
 
                         <div>
                             <label className="data-repo-config__label">
-                                <VpnKeyIcon style={{ fontSize: '16px', opacity: 0.7 }}/> API Token
+                                <VpnKeyIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/dataRepository/apiToken', 'API Token')}
                             </label>
                             <div className="data-repo-config__api-key-wrapper">
                                 <div className="data-repo-config__input-icon-wrapper">
@@ -197,7 +202,9 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                         value={this.isEditingKey ? this.apiKeyValue : '••••••••••••••••'}
                                         onChange={(e) => { this.apiKeyValue = e.target.value; this.render(); }}
                                         disabled={!this.isEditingKey || this.isTesting}
-                                        placeholder={this.isEditingKey ? "Paste API Token here" : "Stored securely"}
+                                        placeholder={this.isEditingKey
+                                            ? nls.localize('rockit/dataRepository/pasteToken', 'Paste API Token here')
+                                            : nls.localize('rockit/dataRepository/storedSecurely', 'Stored securely')}
                                     />
                                     {this.isEditingKey && (
                                         <div className="data-repo-config__visibility-toggle">
@@ -206,7 +213,9 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                                 onClick={() => { this.showKey = !this.showKey; this.render(); }}
                                                 disabled={this.isTesting}
                                                 style={{ color: 'var(--theia-foreground)', opacity: 0.7 }}
-                                                title={this.showKey ? "Hide API Token" : "Show API Token"}
+                                                title={this.showKey
+                                                    ? nls.localize('rockit/dataRepository/hideToken', 'Hide API Token')
+                                                    : nls.localize('rockit/dataRepository/showToken', 'Show API Token')}
                                             >
                                                 {this.showKey ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                                             </IconButton>
@@ -223,7 +232,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                             this.render(); 
                                         }}
                                     >
-                                        Change
+                                        {nls.localize('rockit/dataRepository/change', 'Change')}
                                     </button>
                                 )}
                             </div>
@@ -237,7 +246,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                         onClick={() => this.handleCancel()}
                         disabled={this.isTesting}
                     >
-                        Cancel
+                        {nls.localize('rockit/common/cancel', 'Cancel')}
                     </button>
                     <button 
                         className="theia-button main data-repo-config__btn-save"
@@ -245,7 +254,9 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                         disabled={this.isTesting}
                     >
                         {this.isTesting && <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} />}
-                        {this.isTesting ? 'Verifying...' : 'Save'}
+                        {this.isTesting
+                            ? nls.localize('rockit/dataRepository/verifying', 'Verifying...')
+                            : nls.localize('rockit/dataRepository/save', 'Save')}
                     </button>
                 </div>
             </div>

@@ -2,22 +2,37 @@ import { FrontendApplicationContribution, WidgetFactory } from '@theia/core/lib/
 import { ShellLayoutTransformer } from '@theia/core/lib/browser/shell/shell-layout-restorer'
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common'
 import { ContainerModule } from '@theia/core/shared/inversify'
+import { PreferenceTreeLabelProvider } from '@theia/preferences/lib/browser/util/preference-tree-label-provider'
+import { PreferenceNodeRendererContribution } from '@theia/preferences/lib/browser/views/components/preference-node-renderer-creator'
 import { bindRockitSplashPreferences } from '../common/rockit-splash-preferences'
 import { RoCrateDefaultLayoutContribution } from './application-default-layout-contribution'
 import { ApplicationEditMenuOverrides } from './application-edit-menu-overrides'
 import { ApplicationFileMenuOverrides } from './application-file-menu-overrides'
+import { ApplicationManageMenuOverrides } from './application-manage-menu-overrides'
 import { ApplicationRoCrateMenuContribution } from './application-ro-crate-menu-contribution'
 import { ApplicationViewMenuOverrides } from './application-view-menu-overrides'
 import { ConnectionNotificationContribution } from './connection-notification-contribution'
+import { DisplayLanguageMenuContribution } from './display-language-menu-contribution'
 import { EmptyWorkspaceWidget } from './empty-workspace-widget'
 import { FileEditorLanguageContribution } from './file-editor-language-contribution'
 import { HelpIconsToggleContribution } from './help-icons-toggle-contribution'
 import { RockitSplashContribution } from './rockit-splash-contribution'
+import { RockitPreferenceTreeLabelProvider } from './rockit-preference-tree-label-provider'
+import {
+  RockitPreferenceSelectInputRenderer,
+  RockitPreferenceSelectInputRendererContribution,
+} from './rockit-preference-select-input'
 import '../../src/browser/style/empty-workspace.css'
 import '../../src/browser/style/help-icons.css'
 import '../../src/browser/style/panel-backgrounds.css'
 
-export default new ContainerModule((bind) => {
+export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
+  bind(RockitPreferenceTreeLabelProvider).toSelf().inSingletonScope()
+  rebind(PreferenceTreeLabelProvider).toService(RockitPreferenceTreeLabelProvider)
+  bind(RockitPreferenceSelectInputRenderer).toSelf()
+  bind(PreferenceNodeRendererContribution)
+    .to(RockitPreferenceSelectInputRendererContribution)
+    .inSingletonScope()
   bind(EmptyWorkspaceWidget).toSelf()
   bind(WidgetFactory)
     .toDynamicValue((ctx) => ({
@@ -38,6 +53,9 @@ export default new ContainerModule((bind) => {
   bind(FrontendApplicationContribution).toService(ApplicationFileMenuOverrides)
   bind(CommandContribution).toService(ApplicationFileMenuOverrides)
   bind(MenuContribution).toService(ApplicationFileMenuOverrides)
+  bind(ApplicationManageMenuOverrides).toSelf().inSingletonScope()
+  bind(FrontendApplicationContribution).toService(ApplicationManageMenuOverrides)
+  bind(MenuContribution).toService(ApplicationManageMenuOverrides)
   bind(ApplicationRoCrateMenuContribution).toSelf().inSingletonScope()
   bind(MenuContribution).toService(ApplicationRoCrateMenuContribution)
   bind(RockitSplashContribution).toSelf().inSingletonScope()
@@ -49,6 +67,8 @@ export default new ContainerModule((bind) => {
   bind(ShellLayoutTransformer).toService(ApplicationViewMenuOverrides)
   bind(ConnectionNotificationContribution).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(ConnectionNotificationContribution)
+  bind(DisplayLanguageMenuContribution).toSelf().inSingletonScope()
+  bind(MenuContribution).toService(DisplayLanguageMenuContribution)
   bind(RoCrateDefaultLayoutContribution).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(RoCrateDefaultLayoutContribution)
   bind(FileEditorLanguageContribution).toSelf().inSingletonScope()

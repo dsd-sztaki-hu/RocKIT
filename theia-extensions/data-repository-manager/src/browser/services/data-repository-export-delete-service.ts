@@ -1,4 +1,5 @@
 import { BinaryBuffer } from '@theia/core/lib/common/buffer';
+import { nls } from '@theia/core/lib/common/nls';
 import { URI } from '@theia/core/lib/common/uri';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
@@ -50,22 +51,29 @@ export class DataRepositoryExportDeleteService {
                 headers['x-dataverse-key'] = repository.apiKey;
             }
         } else {
-            throw new Error(`Remote deletion is not supported for '${repository.title}'.`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/remoteDeletionUnsupported',
+                "Remote deletion is not supported for '{0}'.",
+                repository.title
+            ));
         }
 
         const response = await fetch(url, { method: 'DELETE', headers });
         const payload = await this.readPayload(response);
         if (!response.ok || this.isError(payload)) {
-            throw new Error(
-                `The remote repository rejected the deletion (${response.status}): ${this.payloadSummary(payload)}`
-            );
+            throw new Error(nls.localize(
+                'rockit/dataRepository/remoteRejectedDeletion',
+                'The remote repository rejected the deletion ({0}): {1}',
+                response.status,
+                this.payloadSummary(payload)
+            ));
         }
     }
 
     protected async unlink(target: DataRepositoryExportTarget): Promise<void> {
         const root = this.workspaceService.tryGetRoots()?.[0]?.resource;
         if (!root) {
-            throw new Error('No workspace is open.');
+            throw new Error(nls.localize('rockit/dataRepository/noWorkspace', 'No workspace is open.'));
         }
         const rockit = root.resolve('.rockit');
         const logUri = rockit.resolve('export-log.json');
@@ -92,7 +100,11 @@ export class DataRepositoryExportDeleteService {
             const parsed = JSON.parse((await this.fileService.readFile(uri)).value.toString());
             return normalizeExportLogEntries(parsed);
         } catch (error) {
-            throw new Error(`Could not read .rockit/export-log.json: ${error instanceof Error ? error.message : String(error)}`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/readExportLogFailed',
+                'Could not read .rockit/export-log.json: {0}',
+                error instanceof Error ? error.message : String(error)
+            ));
         }
     }
 

@@ -1,5 +1,6 @@
 import { AbstractDialog } from '@theia/core/lib/browser';
 import { Message } from '@lumino/messaging';
+import { nls } from '@theia/core/lib/common/nls';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 
@@ -18,7 +19,7 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
         private readonly collectionService: DataverseCollectionService
     ) {
         super({
-            title: `Browse ${repository.title}`
+            title: nls.localize('rockit/dataRepository/browseRepository', 'Browse {0}', repository.title)
         });
 
         this.contentNode.style.width = '600px';
@@ -26,7 +27,7 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
         this.contentNode.style.padding = '0';
 
         this.appendCloseButton();
-        this.appendAcceptButton('Select');
+        this.appendAcceptButton(nls.localize('rockit/dataRepository/select', 'Select'));
     }
 
     get value(): DataverseCollectionSelection | undefined {

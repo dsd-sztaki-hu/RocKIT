@@ -1,6 +1,7 @@
 import { FrontendApplicationContribution } from '@theia/core/lib/browser';
 import { StatusBar, StatusBarAlignment } from '@theia/core/lib/browser/status-bar/status-bar';
 import { DisposableCollection } from '@theia/core/lib/common/disposable';
+import { nls } from '@theia/core/lib/common/nls';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { inject, injectable } from 'inversify';
 
@@ -60,7 +61,11 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
       }
 
       await this.statusBar.setElement(PROFILE_HEALTH_STATUS_BAR_ID, {
-        text: `$(error) RO-Crate profile issue: ${this.describeIssueCounts(health)}`,
+        text: `$(error) ${nls.localize(
+          'rockit/schemaManager/profileIssue',
+          'RO-Crate profile issue: {0}',
+          this.describeIssueCounts(health),
+        )}`,
         alignment: StatusBarAlignment.LEFT,
         priority: 1000,
         className: 'metadata-profile-health-status',
@@ -69,7 +74,11 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
         tooltip: this.createTooltip(health),
         command: MetadataSchemaManagerCommands.OPEN.id,
         accessibilityInformation: {
-          label: `RO-Crate profile issue: ${this.describeIssueCounts(health)}. Click to open Metadata Schema Manager.`,
+          label: nls.localize(
+            'rockit/schemaManager/profileIssueAccessible',
+            'RO-Crate profile issue: {0}. Click to open Metadata Schema Manager.',
+            this.describeIssueCounts(health),
+          ),
           role: 'button'
         }
       });
@@ -80,16 +89,26 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
 
       const message = error instanceof Error ? error.message : String(error);
       await this.statusBar.setElement(PROFILE_HEALTH_STATUS_BAR_ID, {
-        text: '$(error) RO-Crate profile status unavailable',
+        text: `$(error) ${nls.localize(
+          'rockit/schemaManager/profileUnavailable',
+          'RO-Crate profile status unavailable',
+        )}`,
         alignment: StatusBarAlignment.LEFT,
         priority: 1000,
         className: 'metadata-profile-health-status',
         color: 'var(--theia-statusBarItem-errorForeground)',
         backgroundColor: 'var(--theia-statusBarItem-errorBackground)',
-        tooltip: `Unable to check referenced metadata profiles.\n\n${message}`,
+        tooltip: nls.localize(
+          'rockit/schemaManager/profileCheckFailed',
+          'Unable to check referenced metadata profiles.\n\n{0}',
+          message,
+        ),
         command: MetadataSchemaManagerCommands.OPEN.id,
         accessibilityInformation: {
-          label: 'RO-Crate profile status unavailable. Click to open Metadata Schema Manager.',
+          label: nls.localize(
+            'rockit/schemaManager/profileUnavailableAccessible',
+            'RO-Crate profile status unavailable. Click to open Metadata Schema Manager.',
+          ),
           role: 'button'
         }
       });
@@ -102,10 +121,10 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
     const parts: string[] = [];
 
     if (failedCount > 0) {
-      parts.push(`${failedCount} failed`);
+      parts.push(nls.localize('rockit/schemaManager/failedCount', '{0} failed', failedCount));
     }
     if (missingCount > 0) {
-      parts.push(`${missingCount} missing`);
+      parts.push(nls.localize('rockit/schemaManager/missingCount', '{0} missing', missingCount));
     }
 
     return parts.join(', ');
@@ -117,21 +136,34 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
       .map(issue => this.describeIssue(issue))
       .join('\n');
     const remaining = health.issues.length > 5
-      ? `\n...and ${health.issues.length - 5} more.`
+      ? `\n${nls.localize(
+          'rockit/schemaManager/andMore',
+          '...and {0} more.',
+          health.issues.length - 5,
+        )}`
       : '';
 
     return [
-      'Editing may be incomplete because referenced metadata profiles are unavailable.',
+      nls.localize(
+        'rockit/schemaManager/editingMayBeIncomplete',
+        'Editing may be incomplete because referenced metadata profiles are unavailable.',
+      ),
       '',
       details + remaining,
       '',
-      'Click to open Metadata Schema Manager.'
+      nls.localize(
+        'rockit/schemaManager/clickToOpen',
+        'Click to open Metadata Schema Manager.',
+      )
     ].join('\n');
   }
 
   protected describeIssue(issue: ProfileHealthIssue): string {
     const label = issue.profileName || issue.conformsTo;
     const message = issue.message ? `: ${issue.message}` : '';
-    return `${issue.status.toUpperCase()} ${label}${message}`;
+    const status = issue.status === 'failed'
+      ? nls.localize('rockit/schemaManager/failedUpper', 'FAILED')
+      : nls.localize('rockit/schemaManager/missingUpper', 'MISSING');
+    return `${status} ${label}${message}`;
   }
 }

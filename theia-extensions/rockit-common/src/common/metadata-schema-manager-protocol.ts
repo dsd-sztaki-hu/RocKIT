@@ -7,11 +7,14 @@ export const MetadataSchemaManager = Symbol('MetadataSchemaManager')
 export interface SchemaFiles {
     sourcePath: string;
     convertedPath: string;
+    convertedPaths?: Partial<Record<'en' | 'hu', string>>;
 }
 
 export interface SchemaAux {
     templateUuid?: string;
     reference: string;
+    /** @deprecated Converted profiles are now stored once per language. */
+    conversionLanguage?: 'en' | 'hu';
 }
 
 export interface SchemaInfo {

@@ -1,9 +1,10 @@
-import { BinaryBuffer } from '@theia/core/lib/common/buffer'
-import { FileUri } from '@theia/core/lib/common/file-uri'
-import { URI } from '@theia/core/lib/common/uri'
-import { FileService } from '@theia/filesystem/lib/browser/file-service'
-import { WorkspaceService } from '@theia/workspace/lib/browser'
-import { inject, injectable } from 'inversify'
+import { URI } from '@theia/core/lib/common/uri';
+import { FileUri } from '@theia/core/lib/common/file-uri';
+import { BinaryBuffer } from '@theia/core/lib/common/buffer';
+import { nls } from '@theia/core/lib/common/nls';
+import { FileService } from '@theia/filesystem/lib/browser/file-service';
+import { WorkspaceService } from '@theia/workspace/lib/browser';
+import { inject, injectable } from 'inversify';
 import {
   collectRoCrateExportFileReferences,
   localizeExternalRoCrateFileReferences,
@@ -90,6 +91,7 @@ export interface NativeDataverseDatasetMetadata {
   contactEmails: string[]
   descriptions: string[]
   subjects: string[]
+  metadataLanguage?: string
 }
 
 export interface NativeDataverseFileUploadResult {
@@ -292,7 +294,11 @@ export class NativeDataverseExportService {
     reportProgress?.({
       completedSteps: 0,
       totalSteps,
-      message: `Creating Dataverse dataset in ${collection.name}...`,
+      message: nls.localize(
+                'rockit/dataRepository/creatingDatasetInCollection',
+                'Creating Dataverse dataset in {0}...',
+                collection.name
+            ),
     })
     const requestUrl = `${baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/datasets`
     const headers: Record<string, string> = {
@@ -303,92 +309,77 @@ export class NativeDataverseExportService {
       headers['x-dataverse-key'] = repository.apiKey
     }
 
-    const response = await fetch(requestUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    })
-    const responsePayload = await this.readResponsePayload(response)
-    if (!response.ok || responsePayload.status === 'ERROR') {
-      throw new Error(
-        `Dataverse dataset creation failed (${response.status}): ${this.payloadSummary(responsePayload)}`,
-      )
-    }
-    const persistentId = responsePayload.data?.persistentId
-    if (!persistentId) {
-      throw new Error(
-        'Dataverse created the dataset but did not return a persistentId. File upload cannot continue.',
-      )
-    }
-    await this.addDatasetSemanticMetadata(
-      baseUrl,
-      repository.apiKey,
-      persistentId,
-      crate,
-      true,
-      enabledMetadataBlocks,
-    )
-    reportProgress?.({
-      completedSteps: 1,
-      totalSteps,
-      message: 'Dataverse dataset created and metadata synchronized.',
-    })
-    const uploadedDataFiles = await this.uploadRoCrateFiles(
-      baseUrl,
-      repository.apiKey,
-      persistentId,
-      uploadFiles,
-      reportProgress,
-      1,
-      totalSteps,
-    )
-    const entityIdMapping = this.buildEntityIdMapping(
-      crate,
-      uploadedDataFiles,
-      uploadCollection.uploadEntryPathByEntityId,
-    )
-    const metadataUpload = this.buildRewrittenMetadataUploadFile(
-      uploadCollection.metadataCrate,
-      uploadedDataFiles,
-    )
-    reportProgress?.({
-      completedSteps: uploadFiles.length + 1,
-      totalSteps,
-      message: 'Uploading rewritten ro-crate-metadata.json...',
-    })
-    const uploadedMetadata = await this.uploadFile(
-      baseUrl,
-      repository.apiKey,
-      persistentId,
-      metadataUpload,
-    )
-    const uploadedFiles = [...uploadedDataFiles, uploadedMetadata]
-    const metadataFileId = this.extractDataFileId(uploadedMetadata.response)
-    if (!metadataFileId) {
-      throw new Error(
-        'Dataverse uploaded ro-crate-metadata.json but did not return its database ID.',
-      )
-    }
-    entityIdMapping['ro-crate-metadata.json'] = metadataFileId
-    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
-    await this.saveEntityIdMapping(rootUri, mappingFileName, entityIdMapping)
-    reportProgress?.({
-      completedSteps: totalSteps,
-      totalSteps,
-      message: 'Dataverse export complete.',
-    })
-    const target = this.buildPidTarget(persistentId) || persistentId
-    await this.appendExportLog(rootUri, {
-      target,
-      repository: baseUrl,
-      mappingFile: mappingFileName,
-      syncType: 'create',
-      syncedAt: new Date().toISOString(),
-      collectionId,
-    })
-    const unmappedEntityIds = Object.entries(entityIdMapping)
-      .filter(([, remoteId]) => !remoteId)
-      .map(([entityId]) => entityId)
+        const response = await fetch(requestUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload)
+        });
+        const responsePayload = await this.readResponsePayload(response);
+        if (!response.ok || responsePayload.status === 'ERROR') {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/nativeDatasetCreationRequestFailed',
+                'Dataverse dataset creation failed ({0}): {1}',
+                response.status,
+                this.payloadSummary(responsePayload)
+            ));
+        }
+        const persistentId = responsePayload.data?.persistentId;
+        if (!persistentId) {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/datasetCreatedWithoutPersistentId',
+                'Dataverse created the dataset but did not return a persistentId. File upload cannot continue.'
+            ));
+        }
+        await this.addDatasetSemanticMetadata(
+            baseUrl,
+            repository.apiKey,
+            persistentId,
+            crate,
+            true,
+            enabledMetadataBlocks
+        );
+        reportProgress?.({
+            completedSteps: 1,
+            totalSteps,
+            message: nls.localize('rockit/dataRepository/datasetMetadataSynchronized', 'Dataverse dataset created and metadata synchronized.')
+        });
+        const uploadedDataFiles = await this.uploadRoCrateFiles(baseUrl, repository.apiKey, persistentId, uploadFiles, reportProgress, 1, totalSteps);
+        const entityIdMapping = this.buildEntityIdMapping(crate, uploadedDataFiles, uploadCollection.uploadEntryPathByEntityId);
+        const metadataUpload = this.buildRewrittenMetadataUploadFile(uploadCollection.metadataCrate, uploadedDataFiles);
+        reportProgress?.({
+            completedSteps: uploadFiles.length + 1,
+            totalSteps,
+            message: nls.localize('rockit/dataRepository/uploadingRewrittenMetadata', 'Uploading rewritten ro-crate-metadata.json...')
+        });
+        const uploadedMetadata = await this.uploadFile(baseUrl, repository.apiKey, persistentId, metadataUpload);
+        const uploadedFiles = [...uploadedDataFiles, uploadedMetadata];
+        const metadataFileId = this.extractDataFileId(uploadedMetadata.response);
+        if (!metadataFileId) {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/metadataUploadMissingId',
+                'Dataverse uploaded ro-crate-metadata.json but did not return its database ID.'
+            ));
+        }
+        entityIdMapping['ro-crate-metadata.json'] = metadataFileId;
+        const mappingFileName = await this.createUniqueMappingFileName(rootUri);
+        await this.saveEntityIdMapping(rootUri, mappingFileName, entityIdMapping);
+        reportProgress?.({
+            completedSteps: totalSteps,
+            totalSteps,
+            message: nls.localize('rockit/dataRepository/uploadedRewrittenMetadata', 'Uploaded rewritten ro-crate-metadata.json.')
+        });
+        const target = this.buildPidTarget(persistentId) || persistentId;
+        await this.appendExportLog(rootUri, {
+            target,
+            repository: baseUrl,
+            mappingFile: mappingFileName,
+            syncType: 'create',
+            syncedAt: new Date().toISOString(),
+            collectionId
+        });
+        const unmappedEntityIds = Object.entries(entityIdMapping)
+            .filter(([, remoteId]) => !remoteId)
+            .map(([entityId]) => entityId);
 
     return {
       datasetId: responsePayload.data?.id,
@@ -419,192 +410,180 @@ export class NativeDataverseExportService {
       return undefined
     }
 
-    reportProgress?.({
-      completedSteps: 0,
-      totalSteps: 1,
-      message: 'Checking for changes...',
-    })
+        reportProgress?.({
+            completedSteps: 0,
+            totalSteps: 1,
+            message: nls.localize('rockit/dataRepository/checkingChanges', 'Checking for changes...')
+        });
 
-    const uploadCollection = await this.collectRoCrateUploadFiles(crate, rootUri)
-    const draftFiles = await this.fetchDraftFileRecords(
-      baseUrl,
-      repository.apiKey,
-      exportTarget.persistentId,
-    )
-    this.normalizeMappingToDatabaseIds(exportTarget.mapping, draftFiles)
-    this.normalizeLocalizedMappingKeys(
-      exportTarget.mapping,
-      uploadCollection.originalToUploadIds,
-    )
-    const metadataFileId =
-      exportTarget.mapping['ro-crate-metadata.json'] ??
-      draftFiles.find((file) => file.label === 'ro-crate-metadata.json')?.id
-    if (!metadataFileId) {
-      throw new Error(
-        'The existing Dataverse export does not contain a mapped ro-crate-metadata.json file.',
-      )
-    }
-    exportTarget.mapping['ro-crate-metadata.json'] = metadataFileId
-    const remoteMetadataCrate = await this.downloadRemoteMetadataFile(
-      baseUrl,
-      repository.apiKey,
-      metadataFileId,
-    )
-    const localReachableIds = this.collectReachableEntityIds(crate)
-    const localFilesById = new Map(
-      this.readGraph(crate)
-        .filter((entity) => this.entityTypes(entity).includes('File'))
-        .filter((entity) => localReachableIds.has(this.requireEntityId(entity)))
-        .map((entity) => [this.requireEntityId(entity), entity]),
-    )
-    const remoteEntitiesById = new Map(
-      this.readGraph(remoteMetadataCrate).map((entity) => [
-        this.requireEntityId(entity),
-        entity,
-      ]),
-    )
-    const uploadFilesByPath = new Map(
-      uploadCollection.files.map((file) => [file.entryPath, file]),
-    )
-    const newFileIds: string[] = []
-    const changedFileIds: string[] = []
-    const matchedRemoteFileIds = new Set<string>()
-    for (const [localId, localEntity] of localFilesById) {
-      const remoteId = exportTarget.mapping[localId]
-      const remoteEntity = remoteId ? remoteEntitiesById.get(remoteId) : undefined
-      if (!remoteId || !remoteEntity) {
-        newFileIds.push(localId)
-        continue
-      }
-      matchedRemoteFileIds.add(remoteId)
-      if (
-        (this.fileEntityHash(localEntity) ?? '') !==
-        (this.fileEntityHash(remoteEntity) ?? '')
-      ) {
-        changedFileIds.push(localId)
-      }
-    }
-    const removedRemoteFileIds = this.readGraph(remoteMetadataCrate)
-      .filter((entity) => this.entityTypes(entity).includes('File'))
-      .map((entity) => this.requireEntityId(entity))
-      .filter((remoteId) => remoteId !== 'ro-crate-metadata.json')
-      .filter((remoteId) => !matchedRemoteFileIds.has(remoteId))
-    const totalSteps =
-      newFileIds.length + changedFileIds.length + removedRemoteFileIds.length + 2
-    let completedSteps = 1
-    reportProgress?.({
-      completedSteps,
-      totalSteps,
-      message: `Checking complete: ${newFileIds.length} file(s) to upload, ${changedFileIds.length} file(s) to replace, and ${removedRemoteFileIds.length} file(s) to remove.`,
-    })
+        const uploadCollection = await this.collectRoCrateUploadFiles(crate, rootUri);
+        const draftFiles = await this.fetchDraftFileRecords(
+            baseUrl,
+            repository.apiKey,
+            exportTarget.persistentId
+        );
+        this.normalizeMappingToDatabaseIds(exportTarget.mapping, draftFiles);
+        this.normalizeLocalizedMappingKeys(
+            exportTarget.mapping,
+            uploadCollection.originalToUploadIds
+        );
+        const metadataFileId = exportTarget.mapping['ro-crate-metadata.json']
+            ?? draftFiles.find(file => file.label === 'ro-crate-metadata.json')?.id;
+        if (!metadataFileId) {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/existingExportMissingMetadataMapping',
+                'The existing Dataverse export does not contain a mapped ro-crate-metadata.json file.'
+            ));
+        }
+        exportTarget.mapping['ro-crate-metadata.json'] = metadataFileId;
+        const remoteMetadataCrate = await this.downloadRemoteMetadataFile(baseUrl, repository.apiKey, metadataFileId);
+        const localReachableIds = this.collectReachableEntityIds(crate);
+        const localFilesById = new Map(
+            this.readGraph(crate)
+                .filter(entity => this.entityTypes(entity).includes('File'))
+                .filter(entity => localReachableIds.has(this.requireEntityId(entity)))
+                .map(entity => [this.requireEntityId(entity), entity])
+        );
+        const remoteEntitiesById = new Map(
+            this.readGraph(remoteMetadataCrate).map(entity => [this.requireEntityId(entity), entity])
+        );
+        const uploadFilesByPath = new Map(uploadCollection.files.map(file => [file.entryPath, file]));
+        const newFileIds: string[] = [];
+        const changedFileIds: string[] = [];
+        const matchedRemoteFileIds = new Set<string>();
+        for (const [localId, localEntity] of localFilesById) {
+            const remoteId = exportTarget.mapping[localId];
+            const remoteEntity = remoteId ? remoteEntitiesById.get(remoteId) : undefined;
+            if (!remoteId || !remoteEntity) {
+                newFileIds.push(localId);
+                continue;
+            }
+            matchedRemoteFileIds.add(remoteId);
+            if ((this.fileEntityHash(localEntity) ?? '') !== (this.fileEntityHash(remoteEntity) ?? '')) {
+                changedFileIds.push(localId);
+            }
+        }
+        const removedRemoteFileIds = this.readGraph(remoteMetadataCrate)
+            .filter(entity => this.entityTypes(entity).includes('File'))
+            .map(entity => this.requireEntityId(entity))
+            .filter(remoteId => remoteId !== 'ro-crate-metadata.json')
+            .filter(remoteId => !matchedRemoteFileIds.has(remoteId));
+        const totalSteps = newFileIds.length + changedFileIds.length + removedRemoteFileIds.length + 2;
+        let completedSteps = 1;
+        reportProgress?.({
+            completedSteps,
+            totalSteps,
+            message: nls.localize(
+                'rockit/dataRepository/checkingComplete',
+                'Checking complete: {0} file(s) to upload, {1} file(s) to replace, and {2} file(s) to remove.',
+                newFileIds.length,
+                changedFileIds.length,
+                removedRemoteFileIds.length
+            )
+        });
 
-    for (const localId of newFileIds) {
-      reportProgress?.({ completedSteps, totalSteps, message: `Uploading ${localId}...` })
-      const uploadFile = this.requireUploadFile(
-        localId,
-        uploadCollection,
-        uploadFilesByPath,
-      )
-      const result = await this.uploadFile(
-        baseUrl,
-        repository.apiKey,
-        exportTarget.persistentId,
-        uploadFile,
-      )
-      const remoteId = this.extractDataFileId(result.response)
-      if (!remoteId) {
-        throw new Error(
-          `Dataverse uploaded '${localId}' but did not return its database ID.`,
-        )
-      }
-      exportTarget.mapping[localId] = remoteId
-      completedSteps += 1
-    }
+        for (const localId of newFileIds) {
+            reportProgress?.({
+                completedSteps,
+                totalSteps,
+                message: nls.localize('rockit/dataRepository/uploadingFile', 'Uploading {0}...', localId)
+            });
+            const uploadFile = this.requireUploadFile(localId, uploadCollection, uploadFilesByPath);
+            const result = await this.uploadFile(baseUrl, repository.apiKey, exportTarget.persistentId, uploadFile);
+            const remoteId = this.extractDataFileId(result.response);
+            if (!remoteId) {
+                throw new Error(nls.localize(
+                    'rockit/dataRepository/fileUploadMissingDatabaseId',
+                    "Dataverse uploaded '{0}' but did not return its database ID.",
+                    localId
+                ));
+            }
+            exportTarget.mapping[localId] = remoteId;
+            completedSteps += 1;
+        }
 
-    for (const localId of changedFileIds) {
-      reportProgress?.({ completedSteps, totalSteps, message: `Replacing ${localId}...` })
-      const previousRemoteId = exportTarget.mapping[localId]
-      const uploadFile = this.requireUploadFile(
-        localId,
-        uploadCollection,
-        uploadFilesByPath,
-      )
-      const result = await this.replaceFile(
-        baseUrl,
-        repository.apiKey,
-        previousRemoteId,
-        uploadFile,
-      )
-      exportTarget.mapping[localId] =
-        this.extractDataFileId(result.response) ?? previousRemoteId
-      completedSteps += 1
-    }
+        for (const localId of changedFileIds) {
+            reportProgress?.({
+                completedSteps,
+                totalSteps,
+                message: nls.localize('rockit/dataRepository/replacingFile', 'Replacing {0}...', localId)
+            });
+            const previousRemoteId = exportTarget.mapping[localId];
+            const uploadFile = this.requireUploadFile(localId, uploadCollection, uploadFilesByPath);
+            const result = await this.replaceFile(baseUrl, repository.apiKey, previousRemoteId, uploadFile);
+            exportTarget.mapping[localId] = this.extractDataFileId(result.response) ?? previousRemoteId;
+            completedSteps += 1;
+        }
 
-    for (const remoteId of removedRemoteFileIds) {
-      reportProgress?.({ completedSteps, totalSteps, message: `Removing ${remoteId}...` })
-      await this.deleteFile(baseUrl, repository.apiKey, remoteId)
-      this.removeMappedRemoteFileId(exportTarget.mapping, remoteId)
-      completedSteps += 1
-    }
+        for (const remoteId of removedRemoteFileIds) {
+            reportProgress?.({
+                completedSteps,
+                totalSteps,
+                message: nls.localize('rockit/dataRepository/removingFile', 'Removing {0}...', remoteId)
+            });
+            await this.deleteFile(baseUrl, repository.apiKey, remoteId);
+            this.removeMappedRemoteFileId(exportTarget.mapping, remoteId);
+            completedSteps += 1;
+        }
 
-    reportProgress?.({
-      completedSteps,
-      totalSteps,
-      message: 'Synchronizing ro-crate-metadata.json...',
-    })
-    const rewrittenMetadata = this.buildMappedMetadataUploadFile(
-      uploadCollection.metadataCrate,
-      exportTarget.mapping,
-      uploadCollection.originalToUploadIds,
-    )
-    const metadataReplacement = await this.replaceFile(
-      baseUrl,
-      repository.apiKey,
-      metadataFileId,
-      rewrittenMetadata,
-    )
-    exportTarget.mapping['ro-crate-metadata.json'] =
-      this.extractDataFileId(metadataReplacement.response) ?? metadataFileId
-    await this.saveEntityIdMapping(
-      rootUri,
-      exportTarget.exportLogEntry.mappingFile,
-      exportTarget.mapping,
-    )
-    await this.appendExportLog(rootUri, {
-      target: this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
-      repository: baseUrl,
-      mappingFile: exportTarget.exportLogEntry.mappingFile,
-      syncType: 'update',
-      syncedAt: new Date().toISOString(),
-      collectionId: exportTarget.exportLogEntry.collectionId,
-    })
-    const enabledMetadataBlocks = exportTarget.exportLogEntry.collectionId
-      ? await this.fetchCollectionMetadataBlockAliases(
-          baseUrl,
-          repository.apiKey,
-          exportTarget.exportLogEntry.collectionId,
-        )
-      : undefined
-    await this.updateDatasetNativeMetadata(
-      baseUrl,
-      repository.apiKey,
-      exportTarget.persistentId,
-      crate,
-      enabledMetadataBlocks,
-    )
-    await this.addDatasetSemanticMetadata(
-      baseUrl,
-      repository.apiKey,
-      exportTarget.persistentId,
-      crate,
-      true,
-      enabledMetadataBlocks,
-    )
-    reportProgress?.({
-      completedSteps: totalSteps,
-      totalSteps,
-      message: 'Synchronization complete, including dataset metadata.',
-    })
+        reportProgress?.({
+            completedSteps,
+            totalSteps,
+            message: nls.localize('rockit/dataRepository/synchronizingMetadataFile', 'Synchronizing ro-crate-metadata.json...')
+        });
+        const rewrittenMetadata = this.buildMappedMetadataUploadFile(
+            uploadCollection.metadataCrate,
+            exportTarget.mapping,
+            uploadCollection.originalToUploadIds
+        );
+        const metadataReplacement = await this.replaceFile(
+            baseUrl,
+            repository.apiKey,
+            metadataFileId,
+            rewrittenMetadata
+        );
+        exportTarget.mapping['ro-crate-metadata.json'] =
+            this.extractDataFileId(metadataReplacement.response) ?? metadataFileId;
+        await this.saveEntityIdMapping(
+            rootUri,
+            exportTarget.exportLogEntry.mappingFile,
+            exportTarget.mapping
+        );
+        await this.appendExportLog(rootUri, {
+            target: this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
+            repository: baseUrl,
+            mappingFile: exportTarget.exportLogEntry.mappingFile,
+            syncType: 'update',
+            syncedAt: new Date().toISOString(),
+            collectionId: exportTarget.exportLogEntry.collectionId
+        });
+        const enabledMetadataBlocks = exportTarget.exportLogEntry.collectionId
+            ? await this.fetchCollectionMetadataBlockAliases(
+                baseUrl,
+                repository.apiKey,
+                exportTarget.exportLogEntry.collectionId
+            )
+            : undefined;
+        await this.updateDatasetNativeMetadata(
+            baseUrl,
+            repository.apiKey,
+            exportTarget.persistentId,
+            crate,
+            enabledMetadataBlocks
+        );
+        await this.addDatasetSemanticMetadata(
+            baseUrl,
+            repository.apiKey,
+            exportTarget.persistentId,
+            crate,
+            true,
+            enabledMetadataBlocks
+        );
+        reportProgress?.({
+            completedSteps: totalSteps,
+            totalSteps,
+            message: nls.localize('rockit/dataRepository/synchronizationCompleteWithMetadata', 'Synchronization complete, including dataset metadata.')
+        });
 
     return {
       persistentId: exportTarget.persistentId,
@@ -639,60 +618,59 @@ export class NativeDataverseExportService {
     }
   }
 
-  protected getWorkspaceRoot(): URI {
-    const roots = this.workspaceService.tryGetRoots()
-    const rootUri = roots?.[0]?.resource
-    if (!rootUri) {
-      throw new Error('No workspace is open.')
+    protected getWorkspaceRoot(): URI {
+        const roots = this.workspaceService.tryGetRoots();
+        const rootUri = roots?.[0]?.resource;
+        if (!rootUri) {
+            throw new Error(nls.localize('rockit/dataRepository/noWorkspace', 'No workspace is open.'));
+        }
+        return rootUri;
     }
-    return rootUri
-  }
 
-  protected async readRoCrate(metadataUri: URI): Promise<RoCrate> {
-    if (!(await this.fileService.exists(metadataUri))) {
-      throw new Error('ro-crate-metadata.json was not found in the workspace root.')
+    protected async readRoCrate(metadataUri: URI): Promise<RoCrate> {
+        if (!(await this.fileService.exists(metadataUri))) {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/metadataFileNotFound',
+                'ro-crate-metadata.json was not found in the workspace root.'
+            ));
+        }
+        const content = await this.fileService.readFile(metadataUri);
+        try {
+            return JSON.parse(content.value.toString()) as RoCrate;
+        } catch (error) {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/parseMetadataFailed',
+                'Failed to parse ro-crate-metadata.json: {0}',
+                error instanceof Error ? error.message : String(error)
+            ));
+        }
     }
-    const content = await this.fileService.readFile(metadataUri)
-    try {
-      return JSON.parse(content.value.toString()) as RoCrate
-    } catch (error) {
-      throw new Error(
-        `Failed to parse ro-crate-metadata.json: ${error instanceof Error ? error.message : String(error)}`,
-      )
-    }
-  }
 
-  protected async buildDatasetCreationPayload(
-    datasetMetadata: NativeDataverseDatasetMetadata,
-    crate?: RoCrate,
-    enabledMetadataBlocks?: Set<string>,
-  ): Promise<Record<string, unknown>> {
-    const title = datasetMetadata.title.trim()
-    const authors = this.uniqueStrings(
-      datasetMetadata.authorNames.map((value) => value.trim()),
-    )
-    const contactEmails = this.uniqueStrings(
-      datasetMetadata.contactEmails.map((value) => value.trim()),
-    )
-    const descriptions = this.uniqueStrings(
-      datasetMetadata.descriptions.map((value) => value.trim()),
-    )
-    const subjects = this.uniqueStrings(
-      datasetMetadata.subjects.map((value) => value.trim()),
-    )
-    const missing: string[] = []
+    protected async buildDatasetCreationPayload(
+        datasetMetadata: NativeDataverseDatasetMetadata,
+        crate?: RoCrate,
+        enabledMetadataBlocks?: Set<string>
+    ): Promise<Record<string, unknown>> {
+        const title = datasetMetadata.title.trim();
+        const authors = this.uniqueStrings(datasetMetadata.authorNames.map(value => value.trim()));
+        const contactEmails = this.uniqueStrings(datasetMetadata.contactEmails.map(value => value.trim()));
+        const descriptions = this.uniqueStrings(datasetMetadata.descriptions.map(value => value.trim()));
+        const subjects = this.uniqueStrings(datasetMetadata.subjects.map(value => value.trim()));
+        const missing: string[] = [];
 
-    if (!title) missing.push('Title')
-    if (!authors.length) missing.push('Author Name')
-    if (!contactEmails.length) missing.push('Point of Contact Email')
-    if (!descriptions.length) missing.push('Description Text')
-    if (!subjects.length) missing.push('Subject')
+        if (!title) missing.push(nls.localize('rockit/dataRepository/metadataTitle', 'Title'));
+        if (!authors.length) missing.push(nls.localize('rockit/dataRepository/authorName', 'Author Name'));
+        if (!contactEmails.length) missing.push(nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email'));
+        if (!descriptions.length) missing.push(nls.localize('rockit/dataRepository/descriptionText', 'Description Text'));
+        if (!subjects.length) missing.push(nls.localize('rockit/dataRepository/subject', 'Subject'));
 
-    if (missing.length) {
-      throw new Error(
-        `Cannot create Dataverse dataset. Missing required metadata: ${missing.join(', ')}.`,
-      )
-    }
+        if (missing.length) {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/missingRequiredMetadata',
+                'Cannot create Dataverse dataset. Missing required metadata: {0}.',
+                missing.join(', ')
+            ));
+        }
 
     const fields: DataverseMetadataField[] = [
       this.primitiveField('title', false, title),
@@ -941,18 +919,21 @@ export class NativeDataverseExportService {
       headers['x-dataverse-key'] = apiKey
     }
 
-    const response = await fetch(requestUrl.toString(), {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify(payload),
-    })
-    const responsePayload = await this.readResponsePayload(response)
-    if (!response.ok || responsePayload.status === 'ERROR') {
-      throw new Error(
-        `Dataverse semantic metadata update failed (${response.status}): ${this.payloadSummary(responsePayload)}`,
-      )
+        const response = await fetch(requestUrl.toString(), {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(payload)
+        });
+        const responsePayload = await this.readResponsePayload(response);
+        if (!response.ok || responsePayload.status === 'ERROR') {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/semanticMetadataUpdateFailed',
+                'Dataverse semantic metadata update failed ({0}): {1}',
+                response.status,
+                this.payloadSummary(responsePayload)
+            ));
+        }
     }
-  }
 
   protected async updateDatasetNativeMetadata(
     baseUrl: string,
@@ -984,55 +965,31 @@ export class NativeDataverseExportService {
       headers['x-dataverse-key'] = apiKey
     }
 
-    let nextPayload = payload
-    const adjustedFields = new Set<string>()
-    for (let attempt = 0; attempt < 10; attempt++) {
-      const response = await fetch(requestUrl, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(nextPayload),
-      })
-      const responsePayload = await this.readResponsePayload(response)
-      if (response.ok && responsePayload.status !== 'ERROR') {
-        return
-      }
-
-      const incorrectMultipleField = this.extractIncorrectMultipleField(responsePayload)
-      if (!incorrectMultipleField || adjustedFields.has(incorrectMultipleField)) {
-        throw new Error(
-          `Dataverse native metadata update failed (${response.status}): ${this.payloadSummary(responsePayload)}`,
-        )
-      }
-
-      nextPayload = JSON.parse(JSON.stringify(nextPayload)) as Record<string, unknown>
-      if (!this.adjustFieldMultiplicity(nextPayload, incorrectMultipleField)) {
-        throw new Error(
-          `Dataverse native metadata update failed (${response.status}): ${this.payloadSummary(responsePayload)}`,
-        )
-      }
-      adjustedFields.add(incorrectMultipleField)
-      console.warn(
-        `Retrying Dataverse native metadata update after adjusting multiple flag for field ${incorrectMultipleField}.`,
-      )
+        const response = await fetch(requestUrl, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(payload)
+        });
+        const responsePayload = await this.readResponsePayload(response);
+        if (!response.ok || responsePayload.status === 'ERROR') {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/nativeMetadataUpdateFailed',
+                'Dataverse native metadata update failed ({0}): {1}',
+                response.status,
+                this.payloadSummary(responsePayload)
+            ));
+        }
     }
-    throw new Error(
-      'Dataverse native metadata update failed after retrying field multiplicity adjustments.',
-    )
-  }
 
-  protected async buildDatasetNativeMetadataUpdatePayload(
-    currentData: Record<string, unknown>,
-    crate: RoCrate,
-    enabledMetadataBlocks?: Set<string>,
-  ): Promise<Record<string, unknown> | undefined> {
-    const metadataBlocks = currentData.metadataBlocks
-    if (
-      !metadataBlocks ||
-      typeof metadataBlocks !== 'object' ||
-      Array.isArray(metadataBlocks)
-    ) {
-      return undefined
-    }
+    protected async buildDatasetNativeMetadataUpdatePayload(
+        currentData: Record<string, unknown>,
+        crate: RoCrate,
+        enabledMetadataBlocks?: Set<string>
+    ): Promise<Record<string, unknown> | undefined> {
+        const metadataBlocks = currentData.metadataBlocks;
+        if (!metadataBlocks || typeof metadataBlocks !== 'object' || Array.isArray(metadataBlocks)) {
+            return undefined;
+        }
 
     const updatePayload = { ...currentData }
     delete updatePayload.files
@@ -1551,26 +1508,31 @@ export class NativeDataverseExportService {
       .filter((description) => !!description['citation:dsDescriptionValue'])
   }
 
-  protected async uploadRoCrateFiles(
-    baseUrl: string,
-    apiKey: string | undefined,
-    persistentId: string,
-    uploadFiles: NativeDataverseUploadFile[],
-    reportProgress?: NativeDataverseExportProgressReporter,
-    completedOffset = 1,
-    totalSteps = uploadFiles.length + completedOffset,
-  ): Promise<NativeDataverseFileUploadResult[]> {
-    const results: NativeDataverseFileUploadResult[] = []
-    for (const [index, file] of uploadFiles.entries()) {
-      reportProgress?.({
-        completedSteps: completedOffset + index,
-        totalSteps,
-        message: `Uploading ${file.entryPath}...`,
-      })
-      results.push(await this.uploadFile(baseUrl, apiKey, persistentId, file))
+    protected async uploadRoCrateFiles(
+        baseUrl: string,
+        apiKey: string | undefined,
+        persistentId: string,
+        uploadFiles: NativeDataverseUploadFile[],
+        reportProgress?: NativeDataverseExportProgressReporter,
+        completedOffset = 1,
+        totalSteps = uploadFiles.length + completedOffset
+    ): Promise<NativeDataverseFileUploadResult[]> {
+        const results: NativeDataverseFileUploadResult[] = [];
+        for (const [index, file] of uploadFiles.entries()) {
+            reportProgress?.({
+                completedSteps: completedOffset + index,
+                totalSteps,
+                message: nls.localize('rockit/dataRepository/uploadingFile', 'Uploading {0}...', file.entryPath)
+            });
+            results.push(await this.uploadFile(baseUrl, apiKey, persistentId, file));
+            reportProgress?.({
+                completedSteps: completedOffset + index + 1,
+                totalSteps,
+                message: nls.localize('rockit/dataRepository/uploadedFile', 'Uploaded {0}.', file.entryPath)
+            });
+        }
+        return results;
     }
-    return results
-  }
 
   protected async collectRoCrateUploadFiles(
     crate: RoCrate,
@@ -1653,24 +1615,28 @@ export class NativeDataverseExportService {
       headers['x-dataverse-key'] = apiKey
     }
 
-    const response = await fetch(requestUrl, {
-      method: 'POST',
-      headers,
-      body: form,
-    })
-    const payload = await this.readResponsePayload(response)
-    if (!response.ok || payload.status === 'ERROR') {
-      throw new Error(
-        `Dataverse file upload failed for '${file.entryPath}' (${response.status}): ${this.payloadSummary(payload)}`,
-      )
+        const response = await fetch(requestUrl, {
+            method: 'POST',
+            headers,
+            body: form
+        });
+        const payload = await this.readResponsePayload(response);
+        if (!response.ok || payload.status === 'ERROR') {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/dataverseFileUploadFailed',
+                "Dataverse file upload failed for '{0}' ({1}): {2}",
+                file.entryPath,
+                response.status,
+                this.payloadSummary(payload)
+            ));
+        }
+        return {
+            entryPath: file.entryPath,
+            directoryLabel: dir || undefined,
+            fileName: base,
+            response: payload
+        };
     }
-    return {
-      entryPath: file.entryPath,
-      directoryLabel: dir || undefined,
-      fileName: base,
-      response: payload,
-    }
-  }
 
   protected async replaceFile(
     baseUrl: string,
@@ -1701,7 +1667,13 @@ export class NativeDataverseExportService {
     const payload = await this.readResponsePayload(response)
     if (!response.ok || payload.status === 'ERROR') {
       throw new Error(
-        `Dataverse file replacement failed for '${file.entryPath}' (${response.status}): ${this.payloadSummary(payload)}`,
+        nls.localize(
+                'rockit/dataRepository/dataverseFileReplacementFailed',
+                "Dataverse file replacement failed for '{0}' ({1}): {2}",
+                file.entryPath,
+                response.status,
+                this.payloadSummary(payload)
+            ),
       )
     }
     return {
@@ -1712,74 +1684,87 @@ export class NativeDataverseExportService {
     }
   }
 
-  protected async deleteFile(
-    baseUrl: string,
-    apiKey: string | undefined,
-    fileId: string,
-  ): Promise<void> {
-    const requestUrl = `${baseUrl}/api/files/${encodeURIComponent(fileId)}`
-    const headers: Record<string, string> = { accept: 'application/json' }
-    if (apiKey) {
-      headers['x-dataverse-key'] = apiKey
+    protected async deleteFile(
+        baseUrl: string,
+        apiKey: string | undefined,
+        fileId: string
+    ): Promise<void> {
+        const requestUrl = `${baseUrl}/api/files/${encodeURIComponent(fileId)}`;
+        const headers: Record<string, string> = { accept: 'application/json' };
+        if (apiKey) {
+            headers['x-dataverse-key'] = apiKey;
+        }
+        const response = await fetch(requestUrl, {
+            method: 'DELETE',
+            headers
+        });
+        const payload = await this.readResponsePayload(response);
+        if (!response.ok || payload.status === 'ERROR') {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/dataverseFileDeletionFailed',
+                'Dataverse file deletion failed for file {0} ({1}): {2}',
+                fileId,
+                response.status,
+                this.payloadSummary(payload)
+            ));
+        }
     }
-    const response = await fetch(requestUrl, {
-      method: 'DELETE',
-      headers,
-    })
-    const payload = await this.readResponsePayload(response)
-    if (!response.ok || payload.status === 'ERROR') {
-      throw new Error(
-        `Dataverse file deletion failed for file ${fileId} (${response.status}): ${this.payloadSummary(payload)}`,
-      )
-    }
-  }
 
-  protected async downloadRemoteMetadataFile(
-    baseUrl: string,
-    apiKey: string | undefined,
-    fileId: string,
-  ): Promise<RoCrate> {
-    const requestUrl = `${baseUrl}/api/access/datafile/${encodeURIComponent(fileId)}`
-    const headers: Record<string, string> = { accept: 'application/json' }
-    if (apiKey) {
-      headers['x-dataverse-key'] = apiKey
+    protected async downloadRemoteMetadataFile(
+        baseUrl: string,
+        apiKey: string | undefined,
+        fileId: string
+    ): Promise<RoCrate> {
+        const requestUrl = `${baseUrl}/api/access/datafile/${encodeURIComponent(fileId)}`;
+        const headers: Record<string, string> = { accept: 'application/json' };
+        if (apiKey) {
+            headers['x-dataverse-key'] = apiKey;
+        }
+        const response = await fetch(requestUrl, { headers });
+        const text = await response.text();
+        if (!response.ok) {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/remoteMetadataDownloadFailed',
+                'Failed to download remote ro-crate-metadata.json ({0}): {1}',
+                response.status,
+                text.slice(0, 500)
+            ));
+        }
+        try {
+            const parsed = JSON.parse(text) as RoCrate;
+            if (!Array.isArray(parsed['@graph'])) {
+                throw new Error(nls.localize(
+                    'rockit/dataRepository/downloadedJsonMissingGraph',
+                    'Downloaded JSON does not contain an @graph.'
+                ));
+            }
+            return parsed;
+        } catch (error) {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/remoteMetadataInvalid',
+                'Remote ro-crate-metadata.json is invalid: {0}',
+                error instanceof Error ? error.message : String(error)
+            ));
+        }
     }
-    const response = await fetch(requestUrl, { headers })
-    const text = await response.text()
-    if (!response.ok) {
-      throw new Error(
-        `Failed to download remote ro-crate-metadata.json (${response.status}): ${text.slice(0, 500)}`,
-      )
-    }
-    try {
-      const parsed = JSON.parse(text) as RoCrate
-      if (!Array.isArray(parsed['@graph'])) {
-        throw new Error('Downloaded JSON does not contain an @graph.')
-      }
-      return parsed
-    } catch (error) {
-      throw new Error(
-        `Remote ro-crate-metadata.json is invalid: ${error instanceof Error ? error.message : String(error)}`,
-      )
-    }
-  }
 
-  protected requireUploadFile(
-    entityId: string,
-    uploadCollection: NativeDataverseUploadCollection,
-    uploadFilesByPath: Map<string, NativeDataverseUploadFile>,
-  ): NativeDataverseUploadFile {
-    const entryPath =
-      uploadCollection.uploadEntryPathByEntityId.get(entityId) ??
-      this.localCratePathFromEntityId(entityId)
-    const uploadFile = entryPath ? uploadFilesByPath.get(entryPath) : undefined
-    if (!uploadFile) {
-      throw new Error(
-        `Cannot resolve local upload content for File entity '${entityId}'.`,
-      )
+    protected requireUploadFile(
+        entityId: string,
+        uploadCollection: NativeDataverseUploadCollection,
+        uploadFilesByPath: Map<string, NativeDataverseUploadFile>
+    ): NativeDataverseUploadFile {
+        const entryPath = uploadCollection.uploadEntryPathByEntityId.get(entityId)
+            ?? this.localCratePathFromEntityId(entityId);
+        const uploadFile = entryPath ? uploadFilesByPath.get(entryPath) : undefined;
+        if (!uploadFile) {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/uploadContentUnavailable',
+                "Cannot resolve local upload content for File entity '{0}'.",
+                entityId
+            ));
+        }
+        return uploadFile;
     }
-    return uploadFile
-  }
 
   protected buildRewrittenMetadataUploadFile(
     metadataCrate: RoCrate,
@@ -2141,15 +2126,16 @@ export class NativeDataverseExportService {
     }
   }
 
-  protected requireEntityId(entity: RoCrateEntity): string {
-    const id = this.readStrings(entity['@id'])[0]
-    if (!id) {
-      throw new Error(
-        'Dataverse dataset created, but an entity mapping file could not be created. An RO-Crate entity has no @id.',
-      )
+    protected requireEntityId(entity: RoCrateEntity): string {
+        const id = this.readStrings(entity['@id'])[0];
+        if (!id) {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/entityMappingMissingId',
+                'Dataverse dataset created, but an entity mapping file could not be created. An RO-Crate entity has no @id.'
+            ));
+        }
+        return id;
     }
-    return id
-  }
 
   protected readOptionalString(value: unknown): string | undefined {
     if (typeof value === 'string') {
@@ -2253,52 +2239,59 @@ export class NativeDataverseExportService {
     }
   }
 
-  protected async fetchDraftFileRecords(
-    baseUrl: string,
-    apiKey: string | undefined,
-    persistentId: string,
-  ): Promise<NativeDataverseDraftFileRecord[]> {
-    const requestUrl = `${baseUrl}/api/datasets/:persistentId/versions/:draft?persistentId=${encodeURIComponent(persistentId)}`
-    const headers: Record<string, string> = { accept: 'application/json' }
-    if (apiKey) {
-      headers['x-dataverse-key'] = apiKey
+    protected async fetchDraftFileRecords(
+        baseUrl: string,
+        apiKey: string | undefined,
+        persistentId: string
+    ): Promise<NativeDataverseDraftFileRecord[]> {
+        const requestUrl = `${baseUrl}/api/datasets/:persistentId/versions/:draft?persistentId=${encodeURIComponent(persistentId)}`;
+        const headers: Record<string, string> = { accept: 'application/json' };
+        if (apiKey) {
+            headers['x-dataverse-key'] = apiKey;
+        }
+        const response = await fetch(requestUrl, { headers });
+        const payload = await this.readResponsePayload(response);
+        if (!response.ok || payload.status === 'ERROR') {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/draftFilesFetchFailed',
+                'Failed to retrieve Dataverse draft files ({0}): {1}',
+                response.status,
+                this.payloadSummary(payload)
+            ));
+        }
+        return this.extractDraftFileRecords(payload);
     }
-    const response = await fetch(requestUrl, { headers })
-    const payload = await this.readResponsePayload(response)
-    if (!response.ok || payload.status === 'ERROR') {
-      throw new Error(
-        `Failed to retrieve Dataverse draft files (${response.status}): ${this.payloadSummary(payload)}`,
-      )
-    }
-    return this.extractDraftFileRecords(payload)
-  }
 
-  protected async fetchDatasetVersionData(
-    baseUrl: string,
-    apiKey: string | undefined,
-    persistentId: string,
-    version: ':draft' | ':latest',
-  ): Promise<Record<string, unknown>> {
-    const requestUrl = `${baseUrl}/api/datasets/:persistentId/versions/${version}?persistentId=${encodeURIComponent(persistentId)}`
-    const headers: Record<string, string> = { accept: 'application/json' }
-    if (apiKey) {
-      headers['x-dataverse-key'] = apiKey
+    protected async fetchDatasetVersionData(
+        baseUrl: string,
+        apiKey: string | undefined,
+        persistentId: string,
+        version: ':draft' | ':latest'
+    ): Promise<Record<string, unknown>> {
+        const requestUrl = `${baseUrl}/api/datasets/:persistentId/versions/${version}?persistentId=${encodeURIComponent(persistentId)}`;
+        const headers: Record<string, string> = { accept: 'application/json' };
+        if (apiKey) {
+            headers['x-dataverse-key'] = apiKey;
+        }
+        const response = await fetch(requestUrl, { headers });
+        const payload = await this.readResponsePayload(response);
+        if (!response.ok || payload.status === 'ERROR') {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/datasetMetadataFetchFailed',
+                'Failed to retrieve Dataverse dataset metadata ({0}): {1}',
+                response.status,
+                this.payloadSummary(payload)
+            ));
+        }
+        const data = payload.data;
+        if (!data || typeof data !== 'object' || Array.isArray(data)) {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/datasetMetadataMissingData',
+                'Dataverse dataset metadata response did not contain a data object.'
+            ));
+        }
+        return data;
     }
-    const response = await fetch(requestUrl, { headers })
-    const payload = await this.readResponsePayload(response)
-    if (!response.ok || payload.status === 'ERROR') {
-      throw new Error(
-        `Failed to retrieve Dataverse dataset metadata (${response.status}): ${this.payloadSummary(payload)}`,
-      )
-    }
-    const data = payload.data
-    if (!data || typeof data !== 'object' || Array.isArray(data)) {
-      throw new Error(
-        'Dataverse dataset metadata response did not contain a data object.',
-      )
-    }
-    return data
-  }
 
   protected extractDraftFileRecords(value: unknown): NativeDataverseDraftFileRecord[] {
     if (Array.isArray(value)) {
@@ -2766,15 +2759,16 @@ export class NativeDataverseExportService {
     )
   }
 
-  protected normalizeBaseUrl(baseUrl: string): string {
-    const normalized = baseUrl.trim().replace(/\/+$/, '')
-    if (!normalized) {
-      throw new Error('Repository base URL is empty.')
+    protected normalizeBaseUrl(baseUrl: string): string {
+        const normalized = baseUrl.trim().replace(/\/+$/, '');
+        if (!normalized) {
+            throw new Error(nls.localize(
+                'rockit/dataRepository/emptyRepositoryBaseUrl',
+                'Repository base URL is empty.'
+            ));
+        }
+        return normalized.endsWith('/api/v1') ? normalized.slice(0, -'/api/v1'.length) : normalized;
     }
-    return normalized.endsWith('/api/v1')
-      ? normalized.slice(0, -'/api/v1'.length)
-      : normalized
-  }
 
   protected async readResponsePayload(
     response: Response,

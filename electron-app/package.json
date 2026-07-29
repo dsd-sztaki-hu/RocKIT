@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "electron-app",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "homepage": "https://repo.researchdata.hu/rockit/",
   "author": {
     "name": "HUN-REN SZTAKI, DSD",
@@ -47,7 +47,7 @@
     "multi-edit": "0.0.0"
   },
   "devDependencies": {
-    "@arpproject/recrate": "0.1.47",
+    "@arpproject/recrate": "0.1.49",
     "@theia/cli": "1.65.2",
     "allotment": "^1.20.5",
     "electron": "37.2.1"

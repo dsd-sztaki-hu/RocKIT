@@ -2,6 +2,7 @@ import { AbstractDialog, Message } from '@theia/core/lib/browser'
 import { Input } from 'antd'
 import * as React from 'react'
 import { createRoot, Root } from 'react-dom/client'
+import { nls } from '@theia/core/lib/common/nls'
 
 import '../styles/arp-ro-crate-import-dialog.css'
 
@@ -13,6 +14,7 @@ export interface ArpRoCrateImportDialogOptions {
   title?: string
   description?: string
   placeholder?: string
+  fieldLabel?: string
 }
 
 export class ArpRoCrateImportDialog extends AbstractDialog<ArpRoCrateImportInput | undefined> {
@@ -20,14 +22,14 @@ export class ArpRoCrateImportDialog extends AbstractDialog<ArpRoCrateImportInput
   private datasetUrl = ''
 
   constructor(protected readonly options: ArpRoCrateImportDialogOptions = {}) {
-    super({ title: options.title ?? 'Import ARP RO-Crate' })
+    super({ title: options.title ?? nls.localize('rockit/dataRepository/importArp', 'Import ARP RO-Crate') })
 
     this.contentNode.style.width = '560px'
     this.contentNode.style.maxWidth = '90vw'
     this.contentNode.style.padding = '0'
 
     this.appendCloseButton()
-    this.appendAcceptButton('Continue')
+    this.appendAcceptButton(nls.localize('rockit/dataRepository/continue', 'Continue'))
   }
 
   get value(): ArpRoCrateImportInput | undefined {
@@ -47,10 +49,10 @@ export class ArpRoCrateImportDialog extends AbstractDialog<ArpRoCrateImportInput
       <div className="arp-import-dialog">
         <div className="arp-import-dialog__description">
           {this.options.description ??
-            'Enter the full handle or dataset URL for the ARP dataset to import.'}
+            nls.localize('rockit/dataRepository/importArpDescription', 'Enter the full handle or dataset URL for the ARP dataset to import.')}
         </div>
         <label className="arp-import-dialog__field">
-          <span className="arp-import-dialog__label">Dataset URL</span>
+          <span className="arp-import-dialog__label">{nls.localize('rockit/dataRepository/datasetUrl', 'Dataset URL')}</span>
           <Input
             className="arp-import-dialog__input"
             value={this.datasetUrl}

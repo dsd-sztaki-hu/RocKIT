@@ -2,6 +2,7 @@
 // This is a legacy code, please do not modify these, its important to keep these files as it is currently.
 
 import * as React from 'react';
+import { nls } from '@theia/core/lib/common/nls';
 import { useEffect, useState, useMemo } from 'react';
 import { TreeView } from '@mui/x-tree-view/TreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
@@ -158,7 +159,11 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
         .catch(err => {
             if (ignore) return;
             console.error("CedarTree Error:", err);
-            setErrorMsg(`Failed to load data: ${err.message || "Unknown error"}`);
+            setErrorMsg(nls.localize(
+              'rockit/schemaManager/loadDataFailed',
+              'Failed to load data: {0}',
+              err.message || nls.localize('rockit/validation/unknownError', 'Unknown error'),
+            ));
             setIsLoading(false);
         });
 
@@ -426,7 +431,9 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                     <TextField
                         className="cedar-tree__search-box"
                         variant="standard"
-                        placeholder={isSearching ? "Searching..." : "Search..."}
+                        placeholder={isSearching
+                          ? nls.localize('rockit/schemaManager/searching', 'Searching...')
+                          : nls.localize('rockit/schemaManager/searchEllipsis', 'Search...')}
                         value={rawSearchInput}
                         onChange={(e) => setRawSearchInput(e.target.value)}
                         autoFocus
@@ -452,7 +459,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                         }}
                     />
                 ) : (
-                    <Tooltip title="Search Folders & Templates" PopperProps={{ style: { zIndex: 99999 } }}>
+                    <Tooltip title={nls.localize('rockit/schemaManager/searchFoldersTemplates', 'Search Folders & Templates')} PopperProps={{ style: { zIndex: 99999 } }}>
                         <IconButton size="small" onClick={() => setIsSearchExpanded(true)}>
                             <SearchIcon fontSize="small" style={{ color: 'var(--theia-icon-foreground)' }} />
                         </IconButton>
@@ -464,11 +471,11 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
               {isBulkExpanding && (
                   <div className="cedar-tree__loading-indicator">
                       <CircularProgress size={14} style={{ color: 'var(--theia-focusBorder)' }} />
-                      <span className="cedar-tree__loading-text">Expanding...</span>
+                      <span className="cedar-tree__loading-text">{nls.localize('rockit/schemaManager/expanding', 'Expanding...')}</span>
                   </div>
               )}
 
-              <Tooltip title="Expand All (Recursive)" PopperProps={{ style: { zIndex: 99999 } }}>
+              <Tooltip title={nls.localize('rockit/schemaManager/expandAll', 'Expand All (Recursive)')} PopperProps={{ style: { zIndex: 99999 } }}>
                   <span>
                     <IconButton 
                         size="small" 
@@ -481,7 +488,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                   </span>
               </Tooltip>
               
-              <Tooltip title="Collapse All" PopperProps={{ style: { zIndex: 99999 } }}>
+              <Tooltip title={nls.localize('rockit/schemaManager/collapseAll', 'Collapse All')} PopperProps={{ style: { zIndex: 99999 } }}>
                   <IconButton size="small" onClick={handleCollapseAll} disabled={isBulkExpanding || isSearching}>
                       <UnfoldLessIcon fontSize="small" style={{ color: 'var(--theia-icon-foreground)' }} />
                   </IconButton>
@@ -494,7 +501,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
           {isLoading && treeData.length === 0 && (
             <div className="cedar-tree__init-loading">
                 <LinearProgress style={{ flexGrow: 1, marginRight: 10, color: 'var(--theia-focusBorder)' }} />
-                <span className="cedar-tree__init-text">Loading repository...</span>
+                <span className="cedar-tree__init-text">{nls.localize('rockit/schemaManager/loadingRepository', 'Loading repository...')}</span>
             </div>
           )}
 
@@ -522,7 +529,9 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
           
           {!isLoading && !errorMsg && displayedNodes.length === 0 && (
               <div className="cedar-tree__empty">
-                  {searchQuery ? 'No results found.' : 'No templates found.'}
+                  {searchQuery
+                    ? nls.localize('rockit/schemaManager/noResults', 'No results found.')
+                    : nls.localize('rockit/schemaManager/noTemplates', 'No templates found.')}
               </div>
           )}
       </div>

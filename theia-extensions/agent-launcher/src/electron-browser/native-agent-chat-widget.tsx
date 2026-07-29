@@ -8,6 +8,7 @@ import { ClipboardService } from '@theia/core/lib/browser/clipboard-service'
 import { QuickInputButton, QuickInputService, QuickPickItem } from '@theia/core/lib/browser/quick-input'
 import { FileUri } from '@theia/core/lib/common/file-uri'
 import { MessageService } from '@theia/core/lib/common/message-service'
+import { nls } from '@theia/core/lib/common/nls'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
@@ -92,6 +93,83 @@ type NativeChatHistoryPick = QuickPickItem & (
     }
 )
 
+function localizeNativeAgentServiceMessage(message: string): string {
+  const normalized = message.trim()
+  const exact: Record<string, string> = {
+    'Cannot send to a closed Claude session.': nls.localize(
+      'rockit/agentChat/closedClaudeSession',
+      'Cannot send to a closed Claude session.',
+    ),
+    'Codex executable not found in PATH.': nls.localize(
+      'rockit/agentChat/codexExecutableNotFound',
+      'Codex executable not found in PATH.',
+    ),
+    'Codex app-server did not return a thread id.': nls.localize(
+      'rockit/agentChat/codexThreadIdMissing',
+      'Codex app-server did not return a thread id.',
+    ),
+    'Claude is still working on the previous message.': nls.localize(
+      'rockit/agentChat/claudeStillWorking',
+      'Claude is still working on the previous message.',
+    ),
+    'The native agent is still working on the previous message.': nls.localize(
+      'rockit/agentChat/agentStillWorking',
+      'The native agent is still working on the previous message.',
+    ),
+    'Stopped.': nls.localize('rockit/agentChat/stopped', 'Stopped.'),
+    'Codex runtime error': nls.localize(
+      'rockit/agentChat/codexRuntimeError',
+      'Codex runtime error',
+    ),
+    'Claude turn failed.': nls.localize(
+      'rockit/agentChat/claudeTurnFailed',
+      'Claude turn failed.',
+    ),
+    'JSON-RPC process disposed': nls.localize(
+      'rockit/agentChat/jsonRpcDisposed',
+      'JSON-RPC process was disposed.',
+    ),
+  }
+  if (exact[normalized]) {
+    return exact[normalized]
+  }
+
+  const unknownSession = normalized.match(/^Unknown native agent session: (.+)$/)
+  if (unknownSession) {
+    return nls.localize(
+      'rockit/agentChat/unknownSession',
+      'Unknown native agent session: {0}',
+      unknownSession[1],
+    )
+  }
+
+  const codexExit = normalized.match(
+    /^Codex app-server exited \(code=(.+), signal=(.+)\)\.$/,
+  )
+  if (codexExit) {
+    return nls.localize(
+      'rockit/agentChat/codexAppServerExited',
+      'Codex app-server exited (code={0}, signal={1}).',
+      codexExit[1],
+      codexExit[2],
+    )
+  }
+
+  const jsonRpcExit = normalized.match(
+    /^JSON-RPC process exited \(code=(.+), signal=(.+)\)$/,
+  )
+  if (jsonRpcExit) {
+    return nls.localize(
+      'rockit/agentChat/jsonRpcExited',
+      'JSON-RPC process exited (code={0}, signal={1}).',
+      jsonRpcExit[1],
+      jsonRpcExit[2],
+    )
+  }
+
+  return message
+}
+
 class NativeAgentChatView extends React.Component<
   NativeAgentChatViewProps,
   NativeAgentChatViewState,
@@ -162,7 +240,11 @@ class NativeAgentChatView extends React.Component<
             <div className="native-agent-chat-title-group">
               <div className="native-agent-chat-title">{workspaceLabel}</div>
               <div className="native-agent-chat-cwd">
-                {providerLabel} session
+                {nls.localize(
+                  'rockit/agentChat/providerSession',
+                  '{0} session',
+                  providerLabel,
+                )}
               </div>
             </div>
           </div>
@@ -170,22 +252,28 @@ class NativeAgentChatView extends React.Component<
             <button
               type="button"
               className="native-agent-copy-chat"
-              title="Show previous chats"
+              title={nls.localize(
+                'rockit/agentChat/showPreviousChats',
+                'Show previous chats',
+              )}
               onClick={this.handleShowHistory}
             >
-              History
+              {nls.localize('rockit/agentChat/history', 'History')}
             </button>
             <button
               type="button"
               className="native-agent-copy-chat"
-              title="Copy full chat transcript"
+              title={nls.localize(
+                'rockit/agentChat/copyTranscript',
+                'Copy full chat transcript',
+              )}
               disabled={!session?.messages.length}
               onClick={this.handleCopyChat}
             >
-              Copy
+              {nls.localize('rockit/agentChat/copy', 'Copy')}
             </button>
             <div className={`native-agent-chat-status status-${session?.status ?? 'starting'}`}>
-              {session?.status ?? 'starting'}
+              {this.localizeSessionStatus(session?.status ?? 'starting')}
             </div>
           </div>
         </div>
@@ -199,14 +287,20 @@ class NativeAgentChatView extends React.Component<
             timeline.map((item) => this.renderTimelineItem(item))
           ) : (
             <div className="native-agent-chat-empty">
-              Ask the agent to curate, validate, or explain this RO-Crate.
+              {nls.localize(
+                'rockit/agentChat/emptyPrompt',
+                'Ask the agent to curate, validate, or explain this RO-Crate.',
+              )}
             </div>
           )}
         </div>
         <form className="native-agent-chat-composer" onSubmit={this.handleSubmit}>
           <textarea
             value={draft}
-            placeholder="Ask about this RO-Crate..."
+            placeholder={nls.localize(
+              'rockit/agentChat/promptPlaceholder',
+              'Ask about this RO-Crate...',
+            )}
             onChange={this.handleDraftChange}
             onKeyDown={this.handleKeyDown}
             disabled={sending}
@@ -217,18 +311,48 @@ class NativeAgentChatView extends React.Component<
               disabled={!session || session.status !== 'running'}
               onClick={this.handleCancel}
             >
-              Stop
+              {nls.localize('rockit/agentChat/stop', 'Stop')}
             </button>
             <button
               type="submit"
               disabled={!draft.trim() || sending || session?.status === 'running'}
             >
-              Send
+              {nls.localize('rockit/agentChat/send', 'Send')}
             </button>
           </div>
         </form>
       </div>
     )
+  }
+
+  protected localizeSessionStatus(status: string): string {
+    const labels: Record<string, string> = {
+      starting: nls.localize('rockit/agentChat/statusStarting', 'starting'),
+      ready: nls.localize('rockit/agentChat/statusReady', 'ready'),
+      running: nls.localize('rockit/agentChat/statusRunning', 'running'),
+      error: nls.localize('rockit/agentChat/statusError', 'error'),
+      closed: nls.localize('rockit/agentChat/statusClosed', 'closed'),
+    }
+    return labels[status] ?? status
+  }
+
+  protected localizeMessageRole(role: string): string {
+    const labels: Record<string, string> = {
+      user: nls.localize('rockit/agentChat/roleUser', 'user'),
+      assistant: nls.localize('rockit/agentChat/roleAssistant', 'assistant'),
+      activity: nls.localize('rockit/agentChat/roleActivity', 'activity'),
+      error: nls.localize('rockit/agentChat/roleError', 'error'),
+    }
+    return labels[role] ?? role
+  }
+
+  protected localizeActivityStatus(status: NativeAgentActivityStatus): string {
+    const labels: Record<NativeAgentActivityStatus, string> = {
+      running: nls.localize('rockit/agentChat/activityRunning', 'running'),
+      done: nls.localize('rockit/agentChat/activityDone', 'done'),
+      fail: nls.localize('rockit/agentChat/activityFailed', 'failed'),
+    }
+    return labels[status]
   }
 
   protected buildTimeline(messages: NativeAgentMessage[]): NativeAgentTimelineItem[] {
@@ -275,7 +399,9 @@ class NativeAgentChatView extends React.Component<
         key={item.id}
         className={`native-agent-message role-assistant${streaming ? ' is-streaming' : ''}`}
       >
-        <div className="native-agent-message-role">assistant</div>
+        <div className="native-agent-message-role">
+          {this.localizeMessageRole('assistant')}
+        </div>
         {item.assistants.length
           ? item.assistants.map((message) => (
               <div key={message.id} className="native-agent-assistant-part">
@@ -294,7 +420,9 @@ class NativeAgentChatView extends React.Component<
         key={message.id}
         className={`native-agent-message role-${message.role}${message.streaming ? ' is-streaming' : ''}`}
       >
-        <div className="native-agent-message-role">{message.role}</div>
+        <div className="native-agent-message-role">
+          {this.localizeMessageRole(message.role)}
+        </div>
         {this.renderMessageBody(message)}
       </div>
     )
@@ -317,7 +445,7 @@ class NativeAgentChatView extends React.Component<
   protected renderWorkingState(): React.ReactNode {
     return (
       <div className="native-agent-working">
-        <span>Working</span>
+        <span>{nls.localize('rockit/agentChat/working', 'Working')}</span>
         <span className="native-agent-dots" aria-hidden="true">
           <span />
           <span />
@@ -350,14 +478,16 @@ class NativeAgentChatView extends React.Component<
       >
         <summary>
           <span className="native-agent-activity-summary-main">
-            <span>Agent activity</span>
+            <span>{nls.localize('rockit/agentChat/activity', 'Agent activity')}</span>
             <span className="native-agent-activity-latest">
               {latest.label}
             </span>
           </span>
           <span className="native-agent-activity-count">
             {displayActivities.length}
-            {errors ? `, ${errors} error${errors === 1 ? '' : 's'}` : ''}
+            {errors
+              ? nls.localize('rockit/agentChat/errorCount', ', {0} errors', errors)
+              : ''}
           </span>
         </summary>
         <div className="native-agent-activity-list">
@@ -370,7 +500,7 @@ class NativeAgentChatView extends React.Component<
                 <span>{activity.label}</span>
                 {activity.status ? (
                   <span className={`native-agent-activity-status status-${activity.status}`}>
-                    {activity.status}
+                    {this.localizeActivityStatus(activity.status)}
                   </span>
                 ) : undefined}
               </div>
@@ -451,7 +581,7 @@ class NativeAgentChatView extends React.Component<
       ...activity,
       details: [
         {
-          title: 'Tool',
+          title: nls.localize('rockit/agentChat/tool', 'Tool'),
           text: JSON.stringify({ label, toolName: rawToolName }, null, 2),
           language: 'json',
         },
@@ -553,12 +683,58 @@ class NativeAgentChatView extends React.Component<
       return ''
     }
     if (activity.role === 'error') {
-      return `Error: ${activity.text}`
+      return nls.localize(
+        'rockit/agentChat/errorWithMessage',
+        'Error: {0}',
+        localizeNativeAgentServiceMessage(activity.text),
+      )
     }
     const raw = activity.text.trim()
     const toolMatch = raw.match(/^Tool:\s*(.+)$/)
     if (toolMatch) {
       return this.formatToolName(toolMatch[1])
+    }
+    const commandMatch = raw.match(/^Command:\s*(.+)$/)
+    if (commandMatch) {
+      return nls.localize(
+        'rockit/agentChat/commandWithName',
+        'Command: {0}',
+        commandMatch[1],
+      )
+    }
+    const known: Record<string, string> = {
+      'Codex runtime output': nls.localize(
+        'rockit/agentChat/codexRuntimeOutput',
+        'Codex runtime output',
+      ),
+      'Claude runtime output': nls.localize(
+        'rockit/agentChat/claudeRuntimeOutput',
+        'Claude runtime output',
+      ),
+      'Codex run stopped': nls.localize(
+        'rockit/agentChat/codexRunStopped',
+        'Codex run stopped',
+      ),
+      'Command output': nls.localize(
+        'rockit/agentChat/commandOutput',
+        'Command output',
+      ),
+      'Tool result': nls.localize('rockit/agentChat/toolResult', 'Tool result'),
+      'Tool result failed': nls.localize(
+        'rockit/agentChat/toolResultFailed',
+        'Tool result failed',
+      ),
+      'Claude session initialized': nls.localize(
+        'rockit/agentChat/claudeSessionInitialized',
+        'Claude session initialized',
+      ),
+      'Claude run summary': nls.localize(
+        'rockit/agentChat/claudeRunSummary',
+        'Claude run summary',
+      ),
+    }
+    if (known[raw]) {
+      return known[raw]
     }
     return raw
   }
@@ -571,19 +747,41 @@ class NativeAgentChatView extends React.Component<
       .replace(/^rocrate__/, '')
       .replace(/^rocrate_/, '')
     const known: Record<string, string> = {
-      apply_changes: 'Apply RO-Crate changes',
-      get_rocrate_context: 'Read RO-Crate context',
-      download_url: 'Download source URL',
-      read_crate: 'Read RO-Crate',
-      search: 'Search web evidence',
-      validate_crate: 'Validate RO-Crate',
-      write_crate_atomic: 'Write RO-Crate',
-      suggest_context_terms: 'Suggest context terms',
-      suggest_properties: 'Suggest properties',
-      suggest_types: 'Suggest types',
-      upload_rocrate_to_dataverse: 'Upload RO-Crate to Dataverse',
-      adopt_pending_dataverse_rocrate: 'Use Dataverse-updated RO-Crate',
-      update_profile_conforms_to: 'Update RO-Crate profile',
+      apply_changes: nls.localize('rockit/agentChat/toolApplyChanges', 'Apply RO-Crate changes'),
+      get_rocrate_context: nls.localize('rockit/agentChat/toolReadContext', 'Read RO-Crate context'),
+      download_url: nls.localize('rockit/agentChat/toolDownloadUrl', 'Download source URL'),
+      read_crate: nls.localize('rockit/agentChat/toolReadCrate', 'Read RO-Crate'),
+      search: nls.localize('rockit/agentChat/toolSearch', 'Search web evidence'),
+      validate_crate: nls.localize('rockit/agentChat/toolValidate', 'Validate RO-Crate'),
+      write_crate_atomic: nls.localize('rockit/agentChat/toolWrite', 'Write RO-Crate'),
+      suggest_context_terms: nls.localize('rockit/agentChat/toolSuggestContext', 'Suggest context terms'),
+      suggest_properties: nls.localize('rockit/agentChat/toolSuggestProperties', 'Suggest properties'),
+      suggest_types: nls.localize('rockit/agentChat/toolSuggestTypes', 'Suggest types'),
+      upload_rocrate_to_dataverse: nls.localize('rockit/agentChat/toolUploadDataverse', 'Upload RO-Crate to Dataverse'),
+      adopt_pending_dataverse_rocrate: nls.localize('rockit/agentChat/toolUseDataverse', 'Use Dataverse-updated RO-Crate'),
+      update_profile_conforms_to: nls.localize('rockit/agentChat/toolUpdateProfile', 'Update RO-Crate profile'),
+      set_agent_session_context: nls.localize('rockit/agentChat/toolSetSessionContext', 'Set Agent Session Context'),
+      read_agent_workflow_doc: nls.localize('rockit/agentChat/toolReadWorkflowDoc', 'Read Agent Workflow Doc'),
+      open_aroma_for_local_file: nls.localize('rockit/agentChat/toolOpenLocalFile', 'Open Local File in AROMA'),
+      list_well_known_schemas: nls.localize('rockit/agentChat/toolListKnownSchemas', 'List Well-Known Schemas'),
+      list_remote_schema_tree: nls.localize('rockit/agentChat/toolListRemoteSchemas', 'List Remote Schema Tree'),
+      import_well_known_schema: nls.localize('rockit/agentChat/toolImportKnownSchema', 'Import Well-Known Schema'),
+      list_metadata_profiles: nls.localize('rockit/agentChat/toolListProfiles', 'List Metadata Profiles'),
+      import_metadata_profile: nls.localize('rockit/agentChat/toolImportProfile', 'Import Metadata Profile'),
+      delete_metadata_profile: nls.localize('rockit/agentChat/toolDeleteProfile', 'Delete Metadata Profile'),
+      download_rocrate_from_dataverse: nls.localize('rockit/agentChat/toolDownloadDataverse', 'Download RO-Crate from Dataverse'),
+      create_default_rocrate: nls.localize('rockit/agentChat/toolCreateDefaultCrate', 'Create Default RO-Crate'),
+      list_schema_registry: nls.localize('rockit/agentChat/toolListSchemaRegistry', 'List Schema Registry'),
+      register_schema: nls.localize('rockit/agentChat/toolRegisterSchema', 'Register Schema'),
+      list_types: nls.localize('rockit/agentChat/toolListTypes', 'List Types'),
+      get_type_details: nls.localize('rockit/agentChat/toolGetTypeDetails', 'Get Type Details'),
+      list_properties_for_type: nls.localize('rockit/agentChat/toolListProperties', 'List Properties for Type'),
+      get_property_details: nls.localize('rockit/agentChat/toolGetPropertyDetails', 'Get Property Details'),
+      resolve_profile_schema: nls.localize('rockit/agentChat/toolResolveProfileSchema', 'Resolve Profile Schema'),
+      prepare_remote_profile_payload: nls.localize('rockit/agentChat/toolPrepareProfilePayload', 'Prepare Remote Profile Payload'),
+      create_profile_context: nls.localize('rockit/agentChat/toolCreateProfileContext', 'Create Profile Context'),
+      get_profile_context_info: nls.localize('rockit/agentChat/toolGetProfileContext', 'Get Profile Context Info'),
+      delete_profile_context: nls.localize('rockit/agentChat/toolDeleteProfileContext', 'Delete Profile Context'),
     }
     if (known[normalized]) {
       return known[normalized]
@@ -614,7 +812,7 @@ class NativeAgentChatView extends React.Component<
       <div className="native-agent-details">
         {message.details.map((detail, index) => (
           <details key={`${message.id}:detail:${index}`}>
-            <summary>{detail.title}</summary>
+            <summary>{this.localizeDetailTitle(detail.title)}</summary>
             <pre className={detail.language ? `language-${detail.language}` : undefined}>
               {detail.text}
             </pre>
@@ -624,8 +822,39 @@ class NativeAgentChatView extends React.Component<
     )
   }
 
+  protected localizeDetailTitle(title: string): string {
+    const known: Record<string, string> = {
+      tool: nls.localize('rockit/agentChat/tool', 'Tool'),
+      'tool output': nls.localize('rockit/agentChat/toolOutput', 'Tool output'),
+      'tool call': nls.localize('rockit/agentChat/toolCall', 'Tool call'),
+      'tool input': nls.localize('rockit/agentChat/toolInput', 'Tool input'),
+      'command details': nls.localize(
+        'rockit/agentChat/commandDetails',
+        'Command details',
+      ),
+      'cancel details': nls.localize(
+        'rockit/agentChat/cancelDetails',
+        'Cancel details',
+      ),
+      output: nls.localize('rockit/agentChat/output', 'Output'),
+      stderr: nls.localize('rockit/agentChat/stderr', 'stderr'),
+      'session details': nls.localize(
+        'rockit/agentChat/sessionDetails',
+        'Session details',
+      ),
+      'run details': nls.localize('rockit/agentChat/runDetails', 'Run details'),
+    }
+    return known[title.trim().toLowerCase()] ?? title
+  }
+
   protected formatMessageText(message: NativeAgentMessage): string {
     let text = message.text.replace(/\r\n/g, '\n').trim()
+    if (message.role === 'activity') {
+      return this.formatActivityTitle(message)
+    }
+    if (message.role === 'error' || text === 'Stopped.') {
+      text = localizeNativeAgentServiceMessage(text)
+    }
     if (message.role === 'assistant') {
       text = this.protectMarkdownTables(
         text.replace(/([^\n])(\s*)(\|[^\n]*\|\s*\n\|[-:\s|]+\|)/g, '$1\n\n$3'),
@@ -1091,7 +1320,7 @@ export class NativeAgentChatWidget extends ReactWidget {
   protected sessionRefreshUntil = 0
   protected readonly deleteChatSessionButton: QuickInputButton = {
     iconClass: 'codicon-trashcan',
-    tooltip: 'Delete chat',
+    tooltip: nls.localize('rockit/agentChat/deleteChat', 'Delete chat'),
     alwaysVisible: true,
   }
 
@@ -1101,8 +1330,8 @@ export class NativeAgentChatWidget extends ReactWidget {
     }
     this.initialized = true
     this.id = NativeAgentChatWidget.ID
-    this.title.label = 'AI Assistant'
-    this.title.caption = 'AI Assistant'
+    this.title.label = nls.localize('rockit/agentChat/assistantTitle', 'AI Assistant')
+    this.title.caption = nls.localize('rockit/agentChat/assistantTitle', 'AI Assistant')
     this.title.closable = true
     this.addClass('native-agent-chat')
     this.toDispose.push(
@@ -1185,7 +1414,11 @@ export class NativeAgentChatWidget extends ReactWidget {
   }
 
   protected updateTitle(): void {
-    const label = `${this.provider === 'codex' ? 'Codex' : 'Claude'} Chat`
+    const label = nls.localize(
+      'rockit/agentChat/providerChat',
+      '{0} Chat',
+      this.provider === 'codex' ? 'Codex' : 'Claude',
+    )
     this.title.label = label
     this.title.caption = `${label} - ${this.cwd}`
     this.title.iconClass = `native-agent-tab-icon provider-${this.provider}`
@@ -1262,8 +1495,14 @@ export class NativeAgentChatWidget extends ReactWidget {
       text: entry.text,
     }))
     const selected = await this.quickInputService.showQuickPick(picks, {
-      title: 'Search Prompt History',
-      placeholder: 'Search previous prompts',
+      title: nls.localize(
+        'rockit/agentChat/searchPromptHistory',
+        'Search Prompt History',
+      ),
+      placeholder: nls.localize(
+        'rockit/agentChat/searchPreviousPrompts',
+        'Search previous prompts',
+      ),
       matchOnDescription: true,
       matchOnDetail: true,
     })
@@ -1283,7 +1522,11 @@ export class NativeAgentChatWidget extends ReactWidget {
       kind: 'session',
       label: entry.title,
       description: `${entry.provider} · ${new Date(entry.updatedAt).toLocaleString()}`,
-      detail: entry.preview || `${entry.messageCount} messages`,
+      detail: entry.preview || nls.localize(
+        'rockit/agentChat/messageCount',
+        '{0} messages',
+        entry.messageCount,
+      ),
       buttons: [this.deleteChatSessionButton],
       session: entry,
     }))
@@ -1291,8 +1534,15 @@ export class NativeAgentChatWidget extends ReactWidget {
       ? [
           {
             kind: 'clear-all',
-            label: 'Clear all chat history',
-            description: `${sessions.length} saved chat${sessions.length === 1 ? '' : 's'}`,
+            label: nls.localize(
+              'rockit/agentChat/clearAllHistory',
+              'Clear all chat history',
+            ),
+            description: nls.localize(
+              'rockit/agentChat/savedChatCount',
+              '{0} saved chats',
+              sessions.length,
+            ),
             iconClasses: ['codicon', 'codicon-clear-all'],
             alwaysShow: true,
             sessions,
@@ -1301,8 +1551,11 @@ export class NativeAgentChatWidget extends ReactWidget {
         ]
       : sessionPicks
     const selected = await this.quickInputService.showQuickPick(picks, {
-      title: 'Chat History',
-      placeholder: 'Select a previous chat to reopen',
+      title: nls.localize('rockit/agentChat/chatHistory', 'Chat History'),
+      placeholder: nls.localize(
+        'rockit/agentChat/selectPreviousChat',
+        'Select a previous chat to reopen',
+      ),
       matchOnDescription: true,
       matchOnDetail: true,
       onDidTriggerItemButton: (context) => {
@@ -1342,10 +1595,14 @@ export class NativeAgentChatWidget extends ReactWidget {
       return
     }
     const accepted = await new ConfirmDialog({
-      title: 'Clear Chat History?',
-      msg: `Delete ${sessions.length} saved chat${sessions.length === 1 ? '' : 's'} for this workspace?`,
-      ok: 'Clear All',
-      cancel: 'Cancel',
+      title: nls.localize('rockit/agentChat/clearHistoryTitle', 'Clear Chat History?'),
+      msg: nls.localize(
+        'rockit/agentChat/clearHistoryQuestion',
+        'Delete {0} saved chats for this workspace?',
+        sessions.length,
+      ),
+      ok: nls.localize('rockit/agentChat/clearAll', 'Clear All'),
+      cancel: nls.localize('rockit/common/cancel', 'Cancel'),
     }).open()
     if (!accepted) {
       return
@@ -1393,7 +1650,9 @@ export class NativeAgentChatWidget extends ReactWidget {
       return
     }
     await this.clipboardService.writeText(transcript)
-    this.messageService.info('Chat transcript copied.')
+    this.messageService.info(
+      nls.localize('rockit/agentChat/transcriptCopied', 'Chat transcript copied.'),
+    )
   }
 
   protected serializeChatTranscript(): string {
@@ -1532,18 +1791,30 @@ export class NativeAgentChatWidget extends ReactWidget {
   protected async promptForDataverseCrateReplacement(
     candidate: DataverseUploadReplacementCandidate,
   ): Promise<void> {
-    const pidLine = candidate.pid ? `\n\nDataset PID: ${candidate.pid}` : ''
+    const pidLine = candidate.pid
+      ? `\n\n${nls.localize('rockit/agentChat/datasetPid', 'Dataset PID')}: ${candidate.pid}`
+      : ''
     const urlLine = candidate.dataverseUrl ? `\n${candidate.dataverseUrl}` : ''
     const accepted = await new ConfirmDialog({
-      title: 'Use Dataverse-updated RO-Crate?',
+      title: nls.localize(
+        'rockit/agentChat/useDataverseTitle',
+        'Use Dataverse-updated RO-Crate?',
+      ),
       msg:
-        'Dataverse returned an updated RO-Crate with assigned dataset and file IDs.' +
-        '\n\nReplace the local ro-crate-metadata.json with the Dataverse-updated version?' +
-        '\n\nThis enables future editing and syncing against the Dataverse dataset.' +
+        nls.localize(
+          'rockit/agentChat/useDataverseMessage',
+          'Dataverse returned an updated RO-Crate with assigned dataset and file IDs.\n\nReplace the local ro-crate-metadata.json with the Dataverse-updated version?\n\nThis enables future editing and syncing against the Dataverse dataset.',
+        ) +
         pidLine +
         urlLine,
-      ok: 'Use Dataverse Version',
-      cancel: 'Keep Local Version',
+      ok: nls.localize(
+        'rockit/agentChat/useDataverseVersion',
+        'Use Dataverse Version',
+      ),
+      cancel: nls.localize(
+        'rockit/agentChat/keepLocalVersion',
+        'Keep Local Version',
+      ),
     }).open()
     if (!accepted) {
       return
@@ -1558,7 +1829,10 @@ export class NativeAgentChatWidget extends ReactWidget {
       ? FileUri.create(candidate.cratePath)
       : this.workspaceService.tryGetRoots()?.[0]?.resource.resolve('ro-crate-metadata.json')
     if (!metadataUri) {
-      throw new Error('Cannot replace RO-Crate metadata because no workspace is open.')
+      throw new Error(nls.localize(
+        'rockit/agentChat/noWorkspaceForReplacement',
+        'Cannot replace RO-Crate metadata because no workspace is open.',
+      ))
     }
     const pendingContent = await this.fileService.read(FileUri.create(candidate.tempPath))
     const crate = JSON.parse(pendingContent.value)
@@ -1566,7 +1840,10 @@ export class NativeAgentChatWidget extends ReactWidget {
     this.appStateService.roCrate = crate
     this.appStateService.setRoCrateSnapshot(crate)
     this.appStateService.dirty = false
-    this.messageService.info('Local ro-crate-metadata.json replaced with Dataverse-updated metadata.')
+    this.messageService.info(nls.localize(
+      'rockit/agentChat/dataverseVersionApplied',
+      'Local ro-crate-metadata.json replaced with Dataverse-updated metadata.',
+    ))
     this.update()
   }
 
@@ -1855,6 +2132,10 @@ export class NativeAgentChatWidget extends ReactWidget {
   }
 
   protected readonly handleError = (error: unknown): void => {
-    this.messageService.error(error instanceof Error ? error.message : String(error))
+    this.messageService.error(
+      localizeNativeAgentServiceMessage(
+        error instanceof Error ? error.message : String(error),
+      ),
+    )
   }
 }

@@ -6,6 +6,271 @@
 // API base URL (same host)
 const API_BASE = window.location.origin;
 
+let dashboardLocale = 'en';
+
+const huTranslations = {
+  'RO-Crate MCP Dashboard': 'RO-Crate MCP-vezérlőpult',
+  'All time': 'Teljes időszak',
+  '15 minutes': '15 perc',
+  '1 hour': '1 óra',
+  '24 hours': '24 óra',
+  'Refresh': 'Frissítés',
+  'Metadata Profiles': 'Metadataprofilok',
+  'Settings': 'Beállítások',
+  'Total Calls': 'Összes hívás',
+  'Error Rate': 'Hibaarány',
+  'Active Sessions': 'Aktív munkamenetek',
+  'P95 Latency': 'P95 késleltetés',
+  'Avg Latency': 'Átlagos késleltetés',
+  'Uptime': 'Üzemidő',
+  'Tool Statistics': 'Eszközstatisztika',
+  'Tool': 'Eszköz',
+  'Calls': 'Hívások',
+  'Fail %': 'Hiba %',
+  'Last Call': 'Utolsó hívás',
+  'Loading...': 'Betöltés…',
+  'Recent Errors': 'Legutóbbi hibák',
+  'Test Tavily Search': 'Tavily-keresés tesztelése',
+  'Search Query': 'Keresőkifejezés',
+  'Enter a test query to verify Tavily search functionality': 'Adjon meg egy tesztkifejezést a Tavily-keresés ellenőrzéséhez',
+  'Max Results': 'Találatok maximális száma',
+  'Number of results to return (1-10)': 'A visszaadott találatok száma (1–10)',
+  'Search Depth': 'Keresési mélység',
+  'Basic or advanced search': 'Alap- vagy speciális keresés',
+  'Basic': 'Alap',
+  'Advanced': 'Speciális',
+  'Test Search': 'Keresés tesztelése',
+  'Clear Results': 'Találatok törlése',
+  'Sessions': 'Munkamenetek',
+  'Session ID': 'Munkamenet-azonosító',
+  'Started': 'Elindítva',
+  'Last Activity': 'Utolsó tevékenység',
+  'Mode': 'Mód',
+  'Requests': 'Kérések',
+  'Errors': 'Hibák',
+  'Status': 'Állapot',
+  'Actions': 'Műveletek',
+  'Dependency Usage': 'Függőségek használata',
+  'Dependency': 'Függőség',
+  'Success Rate': 'Sikerességi arány',
+  'Session Details': 'Munkamenet részletei',
+  'Tool Call Details': 'Eszközhívás részletei',
+  'Dashboard Settings': 'Vezérlőpult beállításai',
+  'Telemetry': 'Telemetria',
+  'Detailed Tool Call Logging': 'Részletes eszközhívás-naplózás',
+  'Store tool parameters and results (uses more memory)': 'Az eszközparaméterek és eredmények tárolása (több memóriát használ)',
+  'Data Retention': 'Adatmegőrzés',
+  'How long to keep telemetry data (hours)': 'A telemetriai adatok megőrzési ideje (óra)',
+  'hours': 'óra',
+  'Dataverse Upload Tool': 'Dataverse-feltöltő eszköz',
+  'Keep RO-Crate ZIPs': 'RO-Crate ZIP-fájlok megtartása',
+  'Keep generated ZIP files after successful Dataverse uploads': 'A létrehozott ZIP-fájlok megtartása sikeres Dataverse-feltöltés után',
+  'Save Changes': 'Módosítások mentése',
+  'Cancel': 'Mégse',
+  'Schema Registry': 'Sémaregiszter',
+  'Manage ontology schema sources used by MCP ontology suggestion tools.': 'Az MCP ontológiajavasló eszközei által használt ontológiaséma-források kezelése.',
+  'Name': 'Név',
+  'Schema URL': 'Séma URL-címe',
+  'Matches Prefixes': 'Illeszkedő előtagok',
+  'Specs': 'Specifikációk',
+  'New Schema': 'Új séma',
+  'Create or replace a registry entry by ID.': 'Regiszterbejegyzés létrehozása vagy cseréje azonosító alapján.',
+  'Add / Replace': 'Hozzáadás / csere',
+  'Reload': 'Újratöltés',
+  'CEDAR Schema Profiles': 'CEDAR-sémaprofilok',
+  'Browse remote CEDAR repositories and manage locally converted recrate profiles.': 'Távoli CEDAR-tárolók böngészése és a helyben átalakított ReCrate-profilok kezelése.',
+  'Browse Remote': 'Távoli sémák böngészése',
+  'Storage': 'Tárolási hely',
+  'Version': 'Verzió',
+  'Source': 'Forrás',
+  'Conforms To': 'Megfelel ennek',
+  'Ref (@id)': 'Hivatkozás (@id)',
+  'Import URL': 'Importálás URL-ről',
+  'Select Remote Provider': 'Távoli szolgáltató kiválasztása',
+  'Choose Repository': 'Tároló kiválasztása',
+  'Select a remote provider to browse schemas.': 'Válasszon távoli szolgáltatót a sémák böngészéséhez.',
+  'Manage Providers...': 'Szolgáltatók kezelése…',
+  'Manage Remote Providers': 'Távoli szolgáltatók kezelése',
+  'Configured Providers': 'Beállított szolgáltatók',
+  'Manage connections to remote schema repositories.': 'Távoli sématárolók kapcsolatainak kezelése.',
+  'Add Provider': 'Szolgáltató hozzáadása',
+  'Dataverse proxy (read-only)': 'Dataverse proxy (csak olvasható)',
+  'CEDAR API key': 'CEDAR API-kulcs',
+  'Save Provider': 'Szolgáltató mentése',
+  'Close': 'Bezárás',
+  'Search': 'Keresés',
+  'Expand All': 'Összes kibontása',
+  'Collapse All': 'Összes összecsukása',
+  'Locate in Tree': 'Megkeresés a fában',
+  'Deselect': 'Kijelölés megszüntetése',
+  'Select a template to import...': 'Válasszon importálandó sémát…',
+  'Add': 'Hozzáadás',
+  'Previous page': 'Előző oldal',
+  'Next page': 'Következő oldal',
+  'Rows per page': 'Sorok oldalanként',
+  '10 / page': '10 / oldal',
+  '25 / page': '25 / oldal',
+  '50 / page': '50 / oldal',
+  '100 / page': '100 / oldal',
+  'e.g., RO-Crate metadata specification': 'pl. RO-Crate metaadat-specifikáció',
+  'id (e.g. codemeta3)': 'azonosító (pl. codemeta3)',
+  'display name': 'megjelenítendő név',
+  'schema URL': 'séma URL-címe',
+  'matchesUrls (comma-separated)': 'matchesUrls (vesszővel elválasztva)',
+  'activeOnSpec (comma-separated, default: v1.1.3,v1.2.0)': 'activeOnSpec (vesszővel elválasztva, alapérték: v1.1.3,v1.2.0)',
+  'Provider id': 'Szolgáltató azonosítója',
+  'Display name': 'Megjelenítendő név',
+  'API key (stored in keytar when available)': 'API-kulcs (ha elérhető, a keytar tárolja)',
+  'Search folders and templates': 'Mappák és sablonok keresése',
+  'No tool calls in this time range': 'Ebben az időszakban nem volt eszközhívás',
+  'Never': 'Soha',
+  'Failed to load: {0}': 'Nem sikerült betölteni: {0}',
+  'No errors recorded': 'Nincsenek rögzített hibák',
+  'Failed to load errors: {0}': 'Nem sikerült betölteni a hibákat: {0}',
+  'No sessions recorded': 'Nincsenek rögzített munkamenetek',
+  'Active': 'Aktív',
+  'Inactive': 'Inaktív',
+  'View': 'Megtekintés',
+  'Failed to load sessions: {0}': 'Nem sikerült betölteni a munkameneteket: {0}',
+  'Session: {0}…': 'Munkamenet: {0}…',
+  'Session Info': 'Munkamenet adatai',
+  'Transport': 'Kapcsolat',
+  'Call Statistics': 'Hívási statisztika',
+  'Successful': 'Sikeres',
+  'Failed': 'Sikertelen',
+  'Timeout': 'Időtúllépés',
+  'Tool Calls': 'Eszközhívások',
+  'Duration': 'Időtartam',
+  'Time': 'Időpont',
+  'View Details': 'Részletek',
+  'No tool calls in this session': 'Ebben a munkamenetben nem volt eszközhívás',
+  'Failed to load session details: {0}': 'Nem sikerült betölteni a munkamenet részleteit: {0}',
+  'Call Info': 'Hívás adatai',
+  'In progress': 'Folyamatban',
+  'Finished': 'Befejezve',
+  'Artifacts': 'Melléktermékek',
+  'Artifact': 'Melléktermék',
+  'Parameters': 'Paraméterek',
+  'Parameters not available (enable ROCRATE_DASHBOARD_DETAILED_LOGGING=true to capture parameters)': 'A paraméterek nem érhetők el (a rögzítésükhöz engedélyezze a ROCRATE_DASHBOARD_DETAILED_LOGGING=true beállítást)',
+  'Result': 'Eredmény',
+  'Error': 'Hiba',
+  'Unknown': 'Ismeretlen',
+  'No message': 'Nincs üzenet',
+  'HTTP Communication': 'HTTP-kommunikáció',
+  'Timestamp': 'Időbélyeg',
+  'Request': 'Kérés',
+  'Response': 'Válasz',
+  'Request Headers': 'Kérés fejlécei',
+  'Request Body': 'Kérés törzse',
+  'Response Headers': 'Válasz fejlécei',
+  'Response Body': 'Válasz törzse',
+  'Metadata': 'Metaadatok',
+  'Args Size': 'Argumentumok mérete',
+  'Result Size': 'Eredmény mérete',
+  'Failed to load tool call details: {0}': 'Nem sikerült betölteni az eszközhívás részleteit: {0}',
+  'No headers logged': 'Nincsenek naplózott fejlécek',
+  'No body logged': 'Nincs naplózott törzs',
+  'Failed to load settings: {0}': 'Nem sikerült betölteni a beállításokat: {0}',
+  '(not set)': '(nincs beállítva)',
+  'Set from DATAVERSE_BASE_URL': 'A DATAVERSE_BASE_URL alapján beállítva',
+  'Using upload tool default': 'A feltöltőeszköz alapértékét használja',
+  'Set from DATAVERSE_API_KEY': 'A DATAVERSE_API_KEY alapján beállítva',
+  'DATAVERSE_API_KEY is not set': 'A DATAVERSE_API_KEY nincs beállítva',
+  'Retention hours must be between 1 and 168': 'A megőrzési időnek 1 és 168 óra között kell lennie',
+  'Settings saved successfully!': 'A beállítások mentése sikerült!',
+  'Failed to save settings: {0}': 'Nem sikerült menteni a beállításokat: {0}',
+  'No schemas registered': 'Nincsenek regisztrált sémák',
+  'Edit': 'Szerkesztés',
+  'Delete': 'Törlés',
+  'Failed to load schema registry: {0}': 'Nem sikerült betölteni a sémaregisztert: {0}',
+  'Failed to load metadata profiles: {0}': 'Nem sikerült betölteni a metadataprofilokat: {0}',
+  'No metadata profiles imported': 'Nincsenek importált metadataprofilok',
+  'Ready': 'Kész',
+  'No CEDAR providers are configured': 'Nincsenek beállított CEDAR-szolgáltatók',
+  'No CEDAR providers are configured.': 'Nincsenek beállított CEDAR-szolgáltatók.',
+  'Provider load failed': 'A szolgáltatók betöltése sikertelen',
+  'Failed to load CEDAR providers: {0}': 'Nem sikerült betölteni a CEDAR-szolgáltatókat: {0}',
+  'Dataverse proxy': 'Dataverse proxy',
+  'proxy': 'proxy',
+  'key configured': 'kulcs beállítva',
+  'key': 'kulcs',
+  'API key': 'API-kulcs',
+  'Browse {0}': '{0} böngészése',
+  'Remote': 'Távoli tár',
+  'Loading repository...': 'Tároló betöltése…',
+  'Loading providers...': 'Szolgáltatók betöltése…',
+  'Failed to load repository: {0}': 'Nem sikerült betölteni a tárolót: {0}',
+  'No results found.': 'Nincs találat.',
+  'No templates found.': 'Nem találhatók sablonok.',
+  'Imported': 'Importálva',
+  'Remote metadata profile imported.': 'A távoli metadataprofil importálása sikerült.',
+  'Failed to import remote profile: {0}': 'Nem sikerült importálni a távoli profilt: {0}',
+  'Provider id, title, base URL and domain base are required.': 'A szolgáltató azonosítója, neve, alap-URL-je és tartományalapja kötelező.',
+  'Provider saved.': 'A szolgáltató mentése sikerült.',
+  'Failed to save provider: {0}': 'Nem sikerült menteni a szolgáltatót: {0}',
+  "Delete remote provider '{0}'?": "Törli a(z) „{0}” távoli szolgáltatót?",
+  'Provider deleted.': 'A szolgáltató törlése sikerült.',
+  'Failed to delete provider: {0}': 'Nem sikerült törölni a szolgáltatót: {0}',
+  'Profile URL is required.': 'A profil URL-címe kötelező.',
+  'Metadata profile imported.': 'A metadataprofil importálása sikerült.',
+  'Failed to import profile: {0}': 'Nem sikerült importálni a profilt: {0}',
+  "Delete metadata profile '{0}' and its files?": "Törli a(z) „{0}” metadataprofilt és a fájljait?",
+  'Metadata profile deleted.': 'A metadataprofil törlése sikerült.',
+  'Failed to delete metadata profile: {0}': 'Nem sikerült törölni a metadataprofilt: {0}',
+  'id, displayName, schemaUrl and matchesUrls are required.': 'Az id, displayName, schemaUrl és matchesUrls mezők kötelezők.',
+  'Schema updated.': 'A séma frissítése sikerült.',
+  'Schema added.': 'A séma hozzáadása sikerült.',
+  'Failed to save schema: {0}': 'Nem sikerült menteni a sémát: {0}',
+  'Schema not found: {0}': 'A séma nem található: {0}',
+  'Failed to load schema for edit: {0}': 'Nem sikerült betölteni a sémát szerkesztésre: {0}',
+  "Delete schema '{0}'?": "Törli a(z) „{0}” sémát?",
+  'Schema deleted.': 'A séma törlése sikerült.',
+  'Failed to delete schema: {0}': 'Nem sikerült törölni a sémát: {0}',
+  'No dependency usage recorded': 'Nincs rögzített függőséghasználat',
+  'Please enter a search query': 'Adjon meg egy keresőkifejezést',
+  'Testing...': 'Tesztelés…',
+  'Running test search...': 'Tesztkeresés futtatása…',
+  'Search successful!': 'A keresés sikerült!',
+  'Query': 'Lekérdezés',
+  'Latency': 'Késleltetés',
+  'Answer': 'Válasz',
+  'Results': 'Találatok',
+  'Untitled': 'Névtelen',
+  'Score': 'Pontszám',
+  'Search failed': 'A keresés sikertelen',
+  'TAVILY_API_KEY environment variable is not set on the server.': 'A TAVILY_API_KEY környezeti változó nincs beállítva a szerveren.',
+  'Please set the environment variable and restart the server.': 'Állítsa be a környezeti változót, majd indítsa újra a szervert.',
+  'Unknown error': 'Ismeretlen hiba',
+  'Request failed: {0}': 'A kérés sikertelen: {0}',
+};
+
+function t(message, ...values) {
+  let result = dashboardLocale === 'hu' ? (huTranslations[message] || message) : message;
+  values.forEach((value, index) => {
+    result = result.replace(`{${index}}`, String(value));
+  });
+  return result;
+}
+
+function applyStaticTranslations() {
+  document.documentElement.lang = dashboardLocale;
+  document.title = t('RO-Crate MCP Dashboard');
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const trimmed = node.nodeValue.trim();
+    if (trimmed && huTranslations[trimmed]) {
+      node.nodeValue = node.nodeValue.replace(trimmed, t(trimmed));
+    }
+  }
+  document.querySelectorAll('[placeholder], [title], [aria-label]').forEach((element) => {
+    ['placeholder', 'title', 'aria-label'].forEach((attribute) => {
+      const value = element.getAttribute(attribute);
+      if (value && huTranslations[value]) element.setAttribute(attribute, t(value));
+    });
+  });
+}
+
 // State
 let currentMinutes = 15;
 let autoRefreshInterval = null;
@@ -239,6 +504,18 @@ function getStatusBadge(status) {
   return classes[status] || 'badge-neutral';
 }
 
+function translateStatus(status) {
+  const labels = {
+    active: 'Active',
+    inactive: 'Inactive',
+    success: 'Successful',
+    error: 'Error',
+    started: 'Started',
+    timeout: 'Timeout',
+  };
+  return t(labels[status] || status);
+}
+
 // Update overview cards
 async function updateOverview() {
   try {
@@ -288,6 +565,16 @@ function formatDuration(seconds) {
   return `${hours}h ${remainingMins}m`;
 }
 
+function localizeRelativeTime(value) {
+  if (dashboardLocale !== 'hu' || !value) return value;
+  if (value === 'Never') return t('Never');
+  const match = String(value).match(/^(\d+)([smhd]) ago$/);
+  if (!match) return value;
+  const amount = match[1];
+  const suffix = { s: 'másodperce', m: 'perce', h: 'órája', d: 'napja' }[match[2]];
+  return `${amount} ${suffix}`;
+}
+
 // Update tools table
 async function updateTools() {
   try {
@@ -295,7 +582,7 @@ async function updateTools() {
     const data = await fetchAPI(`/metrics/tools${params}`);
 
     if (data.tools.length === 0) {
-      elements.toolsTableBody.innerHTML = '<tr><td colspan="6" class="empty">No tool calls in this time range</td></tr>';
+      elements.toolsTableBody.innerHTML = `<tr><td colspan="6" class="empty">${t('No tool calls in this time range')}</td></tr>`;
       return;
     }
 
@@ -311,11 +598,11 @@ async function updateTools() {
         </td>
         <td>${tool.avgLatencyFormatted}</td>
         <td>${tool.p95LatencyFormatted}</td>
-        <td>${tool.lastCallFormatted || 'Never'}</td>
+        <td>${localizeRelativeTime(tool.lastCallFormatted || 'Never')}</td>
       </tr>
     `).join('');
   } catch (err) {
-    elements.toolsTableBody.innerHTML = `<tr><td colspan="6" class="text-danger">Failed to load: ${err.message}</td></tr>`;
+    elements.toolsTableBody.innerHTML = `<tr><td colspan="6" class="text-danger">${t('Failed to load: {0}', err.message)}</td></tr>`;
   }
 }
 
@@ -325,7 +612,7 @@ async function updateErrors() {
     const data = await fetchAPI('/errors/recent?limit=20');
 
     if (data.errors.length === 0) {
-      elements.errorsList.innerHTML = '<div class="text-muted" style="padding: 1rem; text-align: center;">No errors recorded</div>';
+      elements.errorsList.innerHTML = `<div class="text-muted" style="padding: 1rem; text-align: center;">${t('No errors recorded')}</div>`;
       return;
     }
 
@@ -333,14 +620,14 @@ async function updateErrors() {
       <div class="error-item">
         <div class="error-header">
           <span class="error-code">${escapeHtml(error.errorCode)}</span>
-          <span class="error-time">${error.timestampFormatted || error.timestamp}</span>
+          <span class="error-time">${localizeRelativeTime(error.timestampFormatted || error.timestamp)}</span>
         </div>
-        ${error.toolName ? `<div class="error-tool">Tool: <code>${escapeHtml(error.toolName)}</code></div>` : ''}
+        ${error.toolName ? `<div class="error-tool">${t('Tool')}: <code>${escapeHtml(error.toolName)}</code></div>` : ''}
         <div class="error-message">${escapeHtml(error.message)}</div>
       </div>
     `).join('');
   } catch (err) {
-    elements.errorsList.innerHTML = `<div class="text-danger">Failed to load errors: ${err.message}</div>`;
+    elements.errorsList.innerHTML = `<div class="text-danger">${t('Failed to load errors: {0}', err.message)}</div>`;
   }
 }
 
@@ -350,26 +637,26 @@ async function updateSessions() {
     const data = await fetchAPI('/sessions');
 
     if (data.sessions.length === 0) {
-      elements.sessionsTableBody.innerHTML = '<tr><td colspan="8" class="empty">No sessions recorded</td></tr>';
+      elements.sessionsTableBody.innerHTML = `<tr><td colspan="8" class="empty">${t('No sessions recorded')}</td></tr>`;
       return;
     }
 
     elements.sessionsTableBody.innerHTML = data.sessions.map(session => `
       <tr>
         <td>${formatSessionId(session.id)}</td>
-        <td>${session.startedAtFormatted || session.startedAt}</td>
-        <td>${session.lastActivityFormatted || session.lastActivityAt}</td>
+        <td>${localizeRelativeTime(session.startedAtFormatted || session.startedAt)}</td>
+        <td>${localizeRelativeTime(session.lastActivityFormatted || session.lastActivityAt)}</td>
         <td><span class="badge badge-neutral">${escapeHtml(session.transportMode)}</span></td>
         <td>${session.requestCount}</td>
         <td>${session.errorCount > 0 ? `<span class="text-danger">${session.errorCount}</span>` : '0'}</td>
-        <td><span class="badge ${session.active ? 'badge-success' : 'badge-neutral'}">${session.active ? 'Active' : 'Inactive'}</span></td>
+        <td><span class="badge ${session.active ? 'badge-success' : 'badge-neutral'}">${session.active ? t('Active') : t('Inactive')}</span></td>
         <td>
-          <button class="btn btn-sm" onclick="viewSession('${session.id}')">View</button>
+          <button class="btn btn-sm" onclick="viewSession('${session.id}')">${t('View')}</button>
         </td>
       </tr>
     `).join('');
   } catch (err) {
-    elements.sessionsTableBody.innerHTML = `<tr><td colspan="8" class="text-danger">Failed to load sessions: ${err.message}</td></tr>`;
+    elements.sessionsTableBody.innerHTML = `<tr><td colspan="8" class="text-danger">${t('Failed to load sessions: {0}', err.message)}</td></tr>`;
   }
 }
 
@@ -380,92 +667,92 @@ async function viewSession(sessionId) {
     const session = data.session;
     const stats = data.stats;
 
-    elements.sessionModalTitle.textContent = `Session: ${sessionId.slice(0, 8)}...`;
+    elements.sessionModalTitle.textContent = t('Session: {0}…', sessionId.slice(0, 8));
 
     elements.sessionModalBody.innerHTML = `
       <div class="session-detail-section">
-        <h3>Session Info</h3>
+        <h3>${t('Session Info')}</h3>
         <div class="session-stats">
           <div class="session-stat">
-            <div class="session-stat-label">Status</div>
+            <div class="session-stat-label">${t('Status')}</div>
             <div class="session-stat-value">
               <span class="badge ${session.active ? 'badge-success' : 'badge-neutral'}">
-                ${session.active ? 'Active' : 'Inactive'}
+                ${session.active ? t('Active') : t('Inactive')}
               </span>
             </div>
           </div>
           <div class="session-stat">
-            <div class="session-stat-label">Transport</div>
+            <div class="session-stat-label">${t('Transport')}</div>
             <div class="session-stat-value">${escapeHtml(session.transportMode)}</div>
           </div>
           <div class="session-stat">
-            <div class="session-stat-label">Requests</div>
+            <div class="session-stat-label">${t('Requests')}</div>
             <div class="session-stat-value">${session.requestCount}</div>
           </div>
           <div class="session-stat">
-            <div class="session-stat-label">Errors</div>
+            <div class="session-stat-label">${t('Errors')}</div>
             <div class="session-stat-value ${session.errorCount > 0 ? 'text-danger' : ''}">${session.errorCount}</div>
           </div>
         </div>
       </div>
 
       <div class="session-detail-section">
-        <h3>Call Statistics</h3>
+        <h3>${t('Call Statistics')}</h3>
         <div class="session-stats">
           <div class="session-stat">
-            <div class="session-stat-label">Total Calls</div>
+            <div class="session-stat-label">${t('Total Calls')}</div>
             <div class="session-stat-value">${stats.toolCallCount}</div>
           </div>
           <div class="session-stat">
-            <div class="session-stat-label">Successful</div>
+            <div class="session-stat-label">${t('Successful')}</div>
             <div class="session-stat-value text-success">${stats.successfulCalls}</div>
           </div>
           <div class="session-stat">
-            <div class="session-stat-label">Failed</div>
+            <div class="session-stat-label">${t('Failed')}</div>
             <div class="session-stat-value ${stats.failedCalls > 0 ? 'text-danger' : ''}">${stats.failedCalls}</div>
           </div>
         </div>
       </div>
 
       <div class="session-detail-section">
-        <h3>Tool Calls (${data.toolCalls.length})</h3>
+        <h3>${t('Tool Calls')} (${data.toolCalls.length})</h3>
         ${data.toolCalls.length > 0 ? `
           <table class="data-table">
             <thead>
               <tr>
-                <th>Tool</th>
-                <th>Status</th>
-                <th>Duration</th>
-                <th>Time</th>
-                <th>Actions</th>
+                <th>${t('Tool')}</th>
+                <th>${t('Status')}</th>
+                <th>${t('Duration')}</th>
+                <th>${t('Time')}</th>
+                <th>${t('Actions')}</th>
               </tr>
             </thead>
             <tbody>
               ${data.toolCalls.map(call => `
                 <tr>
                   <td><code>${escapeHtml(call.toolName)}</code></td>
-                  <td><span class="badge ${getStatusBadge(call.status)}">${call.status}</span></td>
+                  <td><span class="badge ${getStatusBadge(call.status)}">${translateStatus(call.status)}</span></td>
                   <td>${call.durationMs !== null ? formatLatency(call.durationMs) : '-'}</td>
                   <td style="font-size: 0.75rem; color: var(--color-text-muted);">${new Date(call.startedAt).toLocaleTimeString()}</td>
-                  <td><button class="btn btn-sm" onclick="viewToolCall('${call.id}')">View Details</button></td>
+                  <td><button class="btn btn-sm" onclick="viewToolCall('${call.id}')">${t('View Details')}</button></td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
-        ` : '<p class="text-muted">No tool calls in this session</p>'}
+        ` : `<p class="text-muted">${t('No tool calls in this session')}</p>`}
       </div>
 
       ${data.errors.length > 0 ? `
         <div class="session-detail-section">
-          <h3>Errors (${data.errors.length})</h3>
+          <h3>${t('Errors')} (${data.errors.length})</h3>
           <div class="errors-list">
             ${data.errors.map(error => `
               <div class="error-item">
                 <div class="error-header">
                   <span class="error-code">${escapeHtml(error.errorCode)}</span>
-                  <span class="error-time">${error.timestampFormatted || error.timestamp}</span>
+                  <span class="error-time">${localizeRelativeTime(error.timestampFormatted || error.timestamp)}</span>
                 </div>
-                ${error.toolName ? `<div class="error-tool">Tool: <code>${escapeHtml(error.toolName)}</code></div>` : ''}
+                ${error.toolName ? `<div class="error-tool">${t('Tool')}: <code>${escapeHtml(error.toolName)}</code></div>` : ''}
                 <div class="error-message">${escapeHtml(error.message)}</div>
               </div>
             `).join('')}
@@ -476,7 +763,7 @@ async function viewSession(sessionId) {
 
     elements.sessionModal.classList.remove('hidden');
   } catch (err) {
-    showError(`Failed to load session details: ${err.message}`);
+    showError(t('Failed to load session details: {0}', err.message));
   }
 }
 
@@ -493,26 +780,26 @@ async function viewToolCall(toolCallId) {
     // Basic info
     detailsHtml += `
       <div class="session-detail-section">
-        <h3>Call Info</h3>
+        <h3>${t('Call Info')}</h3>
         <div class="session-stats">
           <div class="session-stat">
-            <div class="session-stat-label">Status</div>
+            <div class="session-stat-label">${t('Status')}</div>
             <div class="session-stat-value">
-              <span class="badge ${getStatusBadge(toolCall.status)}">${toolCall.status}</span>
+              <span class="badge ${getStatusBadge(toolCall.status)}">${translateStatus(toolCall.status)}</span>
             </div>
           </div>
           <div class="session-stat">
-            <div class="session-stat-label">Duration</div>
-            <div class="session-stat-value">${toolCall.durationFormatted || 'In progress'}</div>
+            <div class="session-stat-label">${t('Duration')}</div>
+            <div class="session-stat-value">${toolCall.durationFormatted || t('In progress')}</div>
           </div>
           <div class="session-stat">
-            <div class="session-stat-label">Started</div>
-            <div class="session-stat-value">${toolCall.startedAtFormatted}</div>
+            <div class="session-stat-label">${t('Started')}</div>
+            <div class="session-stat-value">${localizeRelativeTime(toolCall.startedAtFormatted)}</div>
           </div>
           ${toolCall.finishedAtFormatted ? `
             <div class="session-stat">
-              <div class="session-stat-label">Finished</div>
-              <div class="session-stat-value">${toolCall.finishedAtFormatted}</div>
+              <div class="session-stat-label">${t('Finished')}</div>
+              <div class="session-stat-value">${localizeRelativeTime(toolCall.finishedAtFormatted)}</div>
             </div>
           ` : ''}
         </div>
@@ -523,10 +810,10 @@ async function viewToolCall(toolCallId) {
     if (Array.isArray(toolCall.artifacts) && toolCall.artifacts.length > 0) {
       detailsHtml += `
         <div class="session-detail-section">
-          <h3>Artifacts</h3>
+          <h3>${t('Artifacts')}</h3>
           ${toolCall.artifacts.map(artifact => `
             <div class="artifact-row">
-              <div class="artifact-label">${escapeHtml(artifact.label || 'Artifact')}</div>
+              <div class="artifact-label">${escapeHtml(artifact.label || t('Artifact'))}</div>
               <pre class="code-block artifact-path">${escapeHtml(artifact.path || '')}</pre>
             </div>
           `).join('')}
@@ -538,15 +825,15 @@ async function viewToolCall(toolCallId) {
     if (toolCall.params !== undefined && toolCall.params !== null) {
       detailsHtml += `
         <div class="session-detail-section">
-          <h3>Parameters</h3>
+          <h3>${t('Parameters')}</h3>
           <pre class="code-block">${escapeHtml(typeof toolCall.params === 'string' ? toolCall.params : JSON.stringify(toolCall.params, null, 2))}</pre>
         </div>
       `;
     } else {
       detailsHtml += `
         <div class="session-detail-section">
-          <h3>Parameters</h3>
-          <p class="text-muted">Parameters not available (enable ROCRATE_DASHBOARD_DETAILED_LOGGING=true to capture parameters)</p>
+          <h3>${t('Parameters')}</h3>
+          <p class="text-muted">${t('Parameters not available (enable ROCRATE_DASHBOARD_DETAILED_LOGGING=true to capture parameters)')}</p>
         </div>
       `;
     }
@@ -555,7 +842,7 @@ async function viewToolCall(toolCallId) {
     if (toolCall.status === 'success' && toolCall.result !== undefined && toolCall.result !== null) {
       detailsHtml += `
         <div class="session-detail-section">
-          <h3>Result</h3>
+          <h3>${t('Result')}</h3>
           <pre class="code-block">${escapeHtml(typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result, null, 2))}</pre>
         </div>
       `;
@@ -565,12 +852,12 @@ async function viewToolCall(toolCallId) {
     if (toolCall.status === 'error') {
       detailsHtml += `
         <div class="session-detail-section">
-          <h3>Error</h3>
+          <h3>${t('Error')}</h3>
           <div class="error-item">
             <div class="error-header">
-              <span class="error-code">${escapeHtml(toolCall.errorCode || 'Unknown')}</span>
+              <span class="error-code">${escapeHtml(toolCall.errorCode || t('Unknown'))}</span>
             </div>
-            <div class="error-message">${escapeHtml(toolCall.errorMessage || toolCall.errorMessageFull || 'No message')}</div>
+            <div class="error-message">${escapeHtml(toolCall.errorMessage || toolCall.errorMessageFull || t('No message'))}</div>
           </div>
         </div>
       `;
@@ -579,38 +866,38 @@ async function viewToolCall(toolCallId) {
     if (Array.isArray(toolCall.httpLogs) && toolCall.httpLogs.length > 0) {
       detailsHtml += `
         <div class="session-detail-section">
-          <h3>HTTP Communication</h3>
+          <h3>${t('HTTP Communication')}</h3>
           ${toolCall.httpLogs.map((log, index) => `
             <div class="session-detail-section">
               <h4>${escapeHtml(log.dependency || 'http')} #${index + 1}</h4>
               <div class="session-stats">
                 <div class="session-stat">
-                  <div class="session-stat-label">Timestamp</div>
+                  <div class="session-stat-label">${t('Timestamp')}</div>
                   <div class="session-stat-value">${escapeHtml(log.timestamp || '')}</div>
                 </div>
                 <div class="session-stat">
-                  <div class="session-stat-label">Request</div>
+                  <div class="session-stat-label">${t('Request')}</div>
                   <div class="session-stat-value">${escapeHtml((log.request?.method || 'GET') + ' ' + (log.request?.url || ''))}</div>
                 </div>
                 ${log.response ? `
                   <div class="session-stat">
-                    <div class="session-stat-label">Response</div>
+                    <div class="session-stat-label">${t('Response')}</div>
                     <div class="session-stat-value">${escapeHtml(String(log.response.status))}</div>
                   </div>
                 ` : ''}
               </div>
-              <h4>Request Headers</h4>
+              <h4>${t('Request Headers')}</h4>
               ${formatHttpHeaders(log.request?.headers)}
-              <h4>Request Body</h4>
+              <h4>${t('Request Body')}</h4>
               ${formatHttpBody(log.request?.body)}
               ${log.response ? `
-                <h4>Response Headers</h4>
+                <h4>${t('Response Headers')}</h4>
                 ${formatHttpHeaders(log.response.headers)}
-                <h4>Response Body</h4>
+                <h4>${t('Response Body')}</h4>
                 ${formatHttpBody(log.response.body)}
               ` : ''}
               ${log.error ? `
-                <h4>Error</h4>
+                <h4>${t('Error')}</h4>
                 <pre class="code-block">${escapeHtml(log.error)}</pre>
               ` : ''}
             </div>
@@ -622,15 +909,15 @@ async function viewToolCall(toolCallId) {
     // Sizes
     detailsHtml += `
       <div class="session-detail-section">
-        <h3>Metadata</h3>
+        <h3>${t('Metadata')}</h3>
         <div class="session-stats">
           <div class="session-stat">
-            <div class="session-stat-label">Args Size</div>
+            <div class="session-stat-label">${t('Args Size')}</div>
             <div class="session-stat-value">${formatBytes(toolCall.argsSizeBytes)}</div>
           </div>
           ${toolCall.resultSizeBytes !== undefined ? `
             <div class="session-stat">
-              <div class="session-stat-label">Result Size</div>
+              <div class="session-stat-label">${t('Result Size')}</div>
               <div class="session-stat-value">${formatBytes(toolCall.resultSizeBytes)}</div>
             </div>
           ` : ''}
@@ -641,7 +928,7 @@ async function viewToolCall(toolCallId) {
     elements.toolCallModalBody.innerHTML = detailsHtml;
     elements.toolCallModal.classList.remove('hidden');
   } catch (err) {
-    showError(`Failed to load tool call details: ${err.message}`);
+    showError(t('Failed to load tool call details: {0}', err.message));
   }
 }
 
@@ -656,14 +943,14 @@ function formatBytes(bytes) {
 
 function formatHttpHeaders(headers) {
   if (!headers || Object.keys(headers).length === 0) {
-    return '<p class="text-muted">No headers logged</p>';
+    return `<p class="text-muted">${t('No headers logged')}</p>`;
   }
   return `<pre class="code-block">${escapeHtml(JSON.stringify(headers, null, 2))}</pre>`;
 }
 
 function formatHttpBody(body) {
   if (body === undefined || body === null || body === '') {
-    return '<p class="text-muted">No body logged</p>';
+    return `<p class="text-muted">${t('No body logged')}</p>`;
   }
   return `<pre class="code-block">${escapeHtml(body)}</pre>`;
 }
@@ -677,20 +964,20 @@ async function loadSettings() {
     elements.retentionHoursInput.value = config.retentionHours;
     renderDataverseSettings(config.dataverse);
   } catch (err) {
-    showError(`Failed to load settings: ${err.message}`);
+    showError(t('Failed to load settings: {0}', err.message));
   }
 }
 
 function renderDataverseSettings(dataverse) {
   const config = dataverse || {};
-  const baseUrl = config.baseUrl || '(not set)';
-  const apiKey = config.apiKey || '(not set)';
+  const baseUrl = config.baseUrl || t('(not set)');
+  const apiKey = config.apiKey || t('(not set)');
   const baseUrlSource = config.baseUrlSource === 'env'
-    ? 'Set from DATAVERSE_BASE_URL'
-    : 'Using upload tool default';
+    ? t('Set from DATAVERSE_BASE_URL')
+    : t('Using upload tool default');
   const apiKeySource = config.apiKeySource === 'env'
-    ? 'Set from DATAVERSE_API_KEY'
-    : 'DATAVERSE_API_KEY is not set';
+    ? t('Set from DATAVERSE_API_KEY')
+    : t('DATAVERSE_API_KEY is not set');
 
   elements.dataverseBaseUrlValue.textContent = baseUrl;
   elements.dataverseBaseUrlSource.textContent = baseUrlSource;
@@ -706,7 +993,7 @@ async function saveSettings(e) {
   const retentionHours = parseInt(elements.retentionHoursInput.value, 10);
 
   if (isNaN(retentionHours) || retentionHours < 1 || retentionHours > 168) {
-    showSettingsMessage('Retention hours must be between 1 and 168', 'error');
+    showSettingsMessage(t('Retention hours must be between 1 and 168'), 'error');
     return;
   }
 
@@ -717,12 +1004,12 @@ async function saveSettings(e) {
       retentionHours: retentionHours,
     });
 
-    showSettingsMessage('Settings saved successfully!', 'success');
+    showSettingsMessage(t('Settings saved successfully!'), 'success');
 
     // Refresh the data to reflect any changes
     setTimeout(() => refreshAll(), 500);
   } catch (err) {
-    showSettingsMessage(`Failed to save settings: ${err.message}`, 'error');
+    showSettingsMessage(t('Failed to save settings: {0}', err.message), 'error');
   }
 }
 
@@ -768,7 +1055,7 @@ async function loadSchemaRegistry() {
     const data = await fetchAPI('/schema-registry?mode=local');
     const schemas = data.schemas || [];
     if (schemas.length === 0) {
-      elements.schemaRegistryTableBody.innerHTML = '<tr><td colspan="6" class="empty">No schemas registered</td></tr>';
+      elements.schemaRegistryTableBody.innerHTML = `<tr><td colspan="6" class="empty">${t('No schemas registered')}</td></tr>`;
       return;
     }
 
@@ -780,13 +1067,13 @@ async function loadSchemaRegistry() {
         <td>${escapeHtml((entry.matchesUrls || []).join(', '))}</td>
         <td>${escapeHtml((entry.activeOnSpec || []).join(', '))}</td>
         <td>
-          <button class="btn btn-sm" onclick='editSchema(${JSON.stringify(entry.id)})'>Edit</button>
-          <button class="btn btn-sm" onclick='deleteSchema(${JSON.stringify(entry.id)})'>Delete</button>
+          <button class="btn btn-sm" onclick='editSchema(${JSON.stringify(entry.id)})'>${t('Edit')}</button>
+          <button class="btn btn-sm" onclick='deleteSchema(${JSON.stringify(entry.id)})'>${t('Delete')}</button>
         </td>
       </tr>
     `).join('');
   } catch (err) {
-    elements.schemaRegistryTableBody.innerHTML = `<tr><td colspan="6" class="text-danger">Failed to load schema registry: ${escapeHtml(err.message)}</td></tr>`;
+    elements.schemaRegistryTableBody.innerHTML = `<tr><td colspan="6" class="text-danger">${t('Failed to load schema registry: {0}', escapeHtml(err.message))}</td></tr>`;
   }
 }
 
@@ -799,7 +1086,7 @@ async function loadMetadataProfiles() {
     metadataProfilesState.profiles = data.profiles || [];
     renderMetadataProfilesTable();
   } catch (err) {
-    elements.metadataProfilesTableBody.innerHTML = `<tr><td colspan="7" class="text-danger">Failed to load metadata profiles: ${escapeHtml(err.message)}</td></tr>`;
+    elements.metadataProfilesTableBody.innerHTML = `<tr><td colspan="7" class="text-danger">${t('Failed to load metadata profiles: {0}', escapeHtml(err.message))}</td></tr>`;
     updateMetadataProfilesPagination(0);
   }
 }
@@ -823,7 +1110,7 @@ function renderMetadataProfilesTable() {
   metadataProfilesState.page = Math.min(Math.max(1, metadataProfilesState.page), totalPages);
 
   if (profiles.length === 0) {
-    elements.metadataProfilesTableBody.innerHTML = '<tr><td colspan="7" class="empty">No metadata profiles imported</td></tr>';
+    elements.metadataProfilesTableBody.innerHTML = `<tr><td colspan="7" class="empty">${t('No metadata profiles imported')}</td></tr>`;
     updateMetadataProfilesPagination(0);
     return;
   }
@@ -835,14 +1122,14 @@ function renderMetadataProfilesTable() {
     const conformsTo = profile.conformsTo || '';
     return `
       <tr>
-        <td><span class="badge badge-success">Ready</span></td>
+        <td><span class="badge badge-success">${t('Ready')}</span></td>
         <td>${escapeHtml(profile.name)}</td>
         <td>${escapeHtml(profile.version || '')}</td>
         <td><span class="badge badge-neutral">${escapeHtml(profile.source || '')}</span></td>
         <td>${renderUrlCell(reference)}</td>
         <td>${renderUrlCell(conformsTo)}</td>
         <td>
-          <button class="btn btn-sm" onclick='deleteMetadataProfile(${JSON.stringify(profile.id)})'>Delete</button>
+          <button class="btn btn-sm" onclick='deleteMetadataProfile(${JSON.stringify(profile.id)})'>${t('Delete')}</button>
         </td>
       </tr>
     `;
@@ -866,12 +1153,12 @@ async function loadMetadataProfileProviders() {
     const providers = metadataProfileProviders;
     if (providers.length === 0) {
       if (elements.remoteProviderSelectList) {
-        elements.remoteProviderSelectList.innerHTML = '<div class="empty">No CEDAR providers are configured</div>';
+        elements.remoteProviderSelectList.innerHTML = `<div class="empty">${t('No CEDAR providers are configured')}</div>`;
       }
       if (elements.remoteProviderManageList) {
-        elements.remoteProviderManageList.innerHTML = '<div class="empty">No CEDAR providers are configured</div>';
+        elements.remoteProviderManageList.innerHTML = `<div class="empty">${t('No CEDAR providers are configured')}</div>`;
       }
-      showMetadataProfilesMessage('No CEDAR providers are configured.', 'error');
+      showMetadataProfilesMessage(t('No CEDAR providers are configured.'), 'error');
       return providers;
     }
     const proxyProvider = providers.find((provider) => provider.accessMode === 'dataverseProxy');
@@ -885,12 +1172,12 @@ async function loadMetadataProfileProviders() {
     return providers;
   } catch (err) {
     if (elements.remoteProviderSelectList) {
-      elements.remoteProviderSelectList.innerHTML = '<div class="text-danger">Provider load failed</div>';
+      elements.remoteProviderSelectList.innerHTML = `<div class="text-danger">${t('Provider load failed')}</div>`;
     }
     if (elements.remoteProviderManageList) {
-      elements.remoteProviderManageList.innerHTML = '<div class="text-danger">Provider load failed</div>';
+      elements.remoteProviderManageList.innerHTML = `<div class="text-danger">${t('Provider load failed')}</div>`;
     }
-    showMetadataProfilesMessage(`Failed to load CEDAR providers: ${err.message}`, 'error');
+    showMetadataProfilesMessage(t('Failed to load CEDAR providers: {0}', err.message), 'error');
     return [];
   }
 }
@@ -898,7 +1185,7 @@ async function loadMetadataProfileProviders() {
 function renderRemoteProviderSelectList() {
   if (!elements.remoteProviderSelectList) return;
   if (metadataProfileProviders.length === 0) {
-    elements.remoteProviderSelectList.innerHTML = '<div class="empty">No CEDAR providers are configured</div>';
+    elements.remoteProviderSelectList.innerHTML = `<div class="empty">${t('No CEDAR providers are configured')}</div>`;
     return;
   }
   elements.remoteProviderSelectList.innerHTML = metadataProfileProviders.map((provider) => `
@@ -916,7 +1203,7 @@ function renderRemoteProviderSelectList() {
 function renderRemoteProviderManageList() {
   if (!elements.remoteProviderManageList) return;
   if (metadataProfileProviders.length === 0) {
-    elements.remoteProviderManageList.innerHTML = '<div class="empty">No CEDAR providers are configured</div>';
+    elements.remoteProviderManageList.innerHTML = `<div class="empty">${t('No CEDAR providers are configured')}</div>`;
     return;
   }
   elements.remoteProviderManageList.innerHTML = metadataProfileProviders.map((provider) => `
@@ -927,8 +1214,8 @@ function renderRemoteProviderManageList() {
         <div class="provider-row-url">${escapeHtml(provider.displayUrl || provider.baseUrl || provider.domainBase || '')}</div>
       </div>
       <div class="provider-row-actions">
-        <button type="button" class="btn btn-sm" onclick='editRemoteProvider(${JSON.stringify(provider.id || '')})'>Edit</button>
-        <button type="button" class="btn btn-sm" onclick='deleteRemoteProvider(${JSON.stringify(provider.id || '')})'>Delete</button>
+        <button type="button" class="btn btn-sm" onclick='editRemoteProvider(${JSON.stringify(provider.id || '')})'>${t('Edit')}</button>
+        <button type="button" class="btn btn-sm" onclick='deleteRemoteProvider(${JSON.stringify(provider.id || '')})'>${t('Delete')}</button>
       </div>
     </div>
   `).join('');
@@ -950,12 +1237,12 @@ function hideRemoteProviderManageMessage() {
 function providerAccessBadge(provider, verbose = false) {
   const mode = provider.accessMode || (provider.apiKeyPresent ? 'apiKey' : 'dataverseProxy');
   if (mode === 'dataverseProxy') {
-    return ` <span class="badge badge-success">${verbose ? 'Dataverse proxy' : 'proxy'}</span>`;
+    return ` <span class="badge badge-success">${verbose ? t('Dataverse proxy') : t('proxy')}</span>`;
   }
   if (provider.apiKeyPresent) {
-    return ` <span class="badge badge-success">${verbose ? 'key configured' : 'key'}</span>`;
+    return ` <span class="badge badge-success">${verbose ? t('key configured') : t('key')}</span>`;
   }
-  return ` <span class="badge">${verbose ? 'API key' : 'key'}</span>`;
+  return ` <span class="badge">${verbose ? t('API key') : t('key')}</span>`;
 }
 
 async function openRemoteProviderSelect() {
@@ -996,17 +1283,17 @@ async function openCedarBrowser(providerId) {
     loading: new Set(),
     query: '',
   };
-  elements.cedarBrowserTitle.textContent = `Browse ${provider.title || provider.id || 'Remote'}`;
+  elements.cedarBrowserTitle.textContent = t('Browse {0}', provider.title || provider.id || t('Remote'));
   elements.cedarSearchInput.value = '';
   elements.cedarSearchInput.classList.add('hidden');
   elements.cedarBrowserModal.classList.remove('hidden');
   updateCedarSelection();
-  elements.cedarBrowserTree.innerHTML = '<div class="loading">Loading repository...</div>';
+  elements.cedarBrowserTree.innerHTML = `<div class="loading">${t('Loading repository...')}</div>`;
   try {
     cedarBrowserState.nodes = await fetchCedarFolder('');
     renderCedarTree();
   } catch (err) {
-    elements.cedarBrowserTree.innerHTML = `<div class="text-danger">Failed to load repository: ${escapeHtml(err.message)}</div>`;
+    elements.cedarBrowserTree.innerHTML = `<div class="text-danger">${t('Failed to load repository: {0}', escapeHtml(err.message))}</div>`;
   }
 }
 
@@ -1036,7 +1323,7 @@ function renderCedarTree() {
   const query = cedarBrowserState.query.trim().toLowerCase();
   const nodes = query ? filterCedarNodes(cedarBrowserState.nodes, query) : cedarBrowserState.nodes;
   if (nodes.length === 0) {
-    elements.cedarBrowserTree.innerHTML = `<div class="empty">${query ? 'No results found.' : 'No templates found.'}</div>`;
+    elements.cedarBrowserTree.innerHTML = `<div class="empty">${query ? t('No results found.') : t('No templates found.')}</div>`;
     return;
   }
   elements.cedarBrowserTree.innerHTML = `<ul class="cedar-tree-list">${renderCedarNodes(nodes)}</ul>`;
@@ -1049,14 +1336,14 @@ function renderCedarNodes(nodes) {
     const selected = cedarBrowserState.selectedTemplateId === node.id;
     const disabled = node.alreadyImported && !node.isFolder;
     const childrenHtml = node.isFolder && expanded
-      ? `<ul class="cedar-tree-children">${loading ? '<li class="cedar-tree-loading">Loading...</li>' : node.error ? `<li class="cedar-tree-error">${escapeHtml(node.error)}</li>` : renderCedarNodes(node.children)}</ul>`
+      ? `<ul class="cedar-tree-children">${loading ? `<li class="cedar-tree-loading">${t('Loading...')}</li>` : node.error ? `<li class="cedar-tree-error">${escapeHtml(node.error)}</li>` : renderCedarNodes(node.children)}</ul>`
       : '';
     return `
       <li class="cedar-tree-node" id="cedar-node-${escapeAttr(node.id)}">
         <div class="cedar-tree-row ${selected ? 'selected' : ''} ${disabled ? 'disabled' : ''}" onclick='handleCedarNodeClick(${JSON.stringify(node.id)})'>
           <button type="button" class="cedar-tree-toggle ${node.isFolder ? '' : 'placeholder'}" onclick='handleCedarToggle(event, ${JSON.stringify(node.id)})'>${node.isFolder ? (expanded ? '⌄' : '›') : ''}</button>
           <span class="cedar-tree-icon ${node.isFolder ? 'folder' : 'template'}"></span>
-          <span class="cedar-tree-name">${escapeHtml(node.name)}${node.alreadyImported ? ' <span class="badge badge-success">Imported</span>' : ''}</span>
+          <span class="cedar-tree-name">${escapeHtml(node.name)}${node.alreadyImported ? ` <span class="badge badge-success">${t('Imported')}</span>` : ''}</span>
         </div>
         ${childrenHtml}
       </li>
@@ -1132,7 +1419,7 @@ function updateCedarSelection() {
   elements.addCedarTemplateBtn.disabled = !hasSelection;
   elements.cedarBrowserSelectionText.textContent = hasSelection
     ? cedarBrowserState.selectedTemplateName
-    : 'Select a template to import...';
+    : t('Select a template to import...');
   elements.cedarBrowserSelectionText.classList.toggle('cedar-browser-placeholder', !hasSelection);
   elements.cedarLocateSelectedBtn.classList.toggle('hidden', !hasSelection);
   elements.cedarClearSelectionBtn.classList.toggle('hidden', !hasSelection);
@@ -1189,10 +1476,10 @@ async function addSelectedCedarTemplate() {
       providerId: cedarBrowserState.providerId,
     });
     closeCedarBrowser();
-    showMetadataProfilesMessage('Remote metadata profile imported.', 'success');
+    showMetadataProfilesMessage(t('Remote metadata profile imported.'), 'success');
     await loadMetadataProfiles();
   } catch (err) {
-    showMetadataProfilesMessage(`Failed to import remote profile: ${err.message}`, 'error');
+    showMetadataProfilesMessage(t('Failed to import remote profile: {0}', err.message), 'error');
     elements.addCedarTemplateBtn.disabled = false;
   }
 }
@@ -1276,7 +1563,7 @@ async function saveRemoteProvider(event) {
       : '',
   };
   if (!payload.id || !payload.title || !payload.baseUrl || !payload.domainBase) {
-    showRemoteProviderManageMessage('Provider id, title, base URL and domain base are required.', 'error');
+    showRemoteProviderManageMessage(t('Provider id, title, base URL and domain base are required.'), 'error');
     return;
   }
   if (payload.accessMode === 'dataverseProxy' && !payload.dataverseProxyBaseUrl) {
@@ -1295,15 +1582,15 @@ async function saveRemoteProvider(event) {
     if (data.warnings && data.warnings.length > 0) {
       showRemoteProviderManageMessage(data.warnings.join(' '), 'error');
     } else {
-      showRemoteProviderManageMessage('Provider saved.', 'success');
+      showRemoteProviderManageMessage(t('Provider saved.'), 'success');
     }
   } catch (err) {
-    showRemoteProviderManageMessage(`Failed to save provider: ${err.message}`, 'error');
+    showRemoteProviderManageMessage(t('Failed to save provider: {0}', err.message), 'error');
   }
 }
 
 async function deleteRemoteProvider(providerId) {
-  if (!window.confirm(`Delete remote provider '${providerId}'?`)) {
+  if (!window.confirm(t("Delete remote provider '{0}'?", providerId))) {
     return;
   }
   try {
@@ -1311,9 +1598,9 @@ async function deleteRemoteProvider(providerId) {
     metadataProfileProviders = data.providers || [];
     renderRemoteProviderManageList();
     renderRemoteProviderSelectList();
-    showRemoteProviderManageMessage('Provider deleted.', 'success');
+    showRemoteProviderManageMessage(t('Provider deleted.'), 'success');
   } catch (err) {
-    showRemoteProviderManageMessage(`Failed to delete provider: ${err.message}`, 'error');
+    showRemoteProviderManageMessage(t('Failed to delete provider: {0}', err.message), 'error');
   }
 }
 
@@ -1324,7 +1611,7 @@ function selectedMetadataProfileProviderId() {
 async function importMetadataProfileUrl() {
   const url = (elements.metadataProfileUrlInput.value || '').trim();
   if (!url) {
-    showMetadataProfilesMessage('Profile URL is required.', 'error');
+    showMetadataProfilesMessage(t('Profile URL is required.'), 'error');
     return;
   }
   try {
@@ -1333,10 +1620,10 @@ async function importMetadataProfileUrl() {
       providerId: selectedMetadataProfileProviderId(),
     });
     elements.metadataProfileUrlInput.value = '';
-    showMetadataProfilesMessage('Metadata profile imported.', 'success');
+    showMetadataProfilesMessage(t('Metadata profile imported.'), 'success');
     await loadMetadataProfiles();
   } catch (err) {
-    showMetadataProfilesMessage(`Failed to import profile: ${err.message}`, 'error');
+    showMetadataProfilesMessage(t('Failed to import profile: {0}', err.message), 'error');
   }
 }
 
@@ -1347,23 +1634,23 @@ async function importKnownMetadataProfile(templateIdOrUrl, conformsTo) {
       conformsTo,
       providerId: selectedMetadataProfileProviderId(),
     });
-    showMetadataProfilesMessage('Remote metadata profile imported.', 'success');
+    showMetadataProfilesMessage(t('Remote metadata profile imported.'), 'success');
     await loadMetadataProfiles();
   } catch (err) {
-    showMetadataProfilesMessage(`Failed to import remote profile: ${err.message}`, 'error');
+    showMetadataProfilesMessage(t('Failed to import remote profile: {0}', err.message), 'error');
   }
 }
 
 async function deleteMetadataProfile(id) {
-  if (!window.confirm(`Delete metadata profile '${id}' and its files?`)) {
+  if (!window.confirm(t("Delete metadata profile '{0}' and its files?", id))) {
     return;
   }
   try {
     await deleteAPI(`/metadata-profiles/${encodeURIComponent(id)}`);
-    showMetadataProfilesMessage('Metadata profile deleted.', 'success');
+    showMetadataProfilesMessage(t('Metadata profile deleted.'), 'success');
     await loadMetadataProfiles();
   } catch (err) {
-    showMetadataProfilesMessage(`Failed to delete metadata profile: ${err.message}`, 'error');
+    showMetadataProfilesMessage(t('Failed to delete metadata profile: {0}', err.message), 'error');
   }
 }
 
@@ -1375,7 +1662,7 @@ async function addOrReplaceSchema() {
   const activeOnSpec = splitCsv(elements.schemaSpecsInput.value);
 
   if (!id || !displayName || !schemaUrl || matchesUrls.length === 0) {
-    showSchemaRegistryMessage('id, displayName, schemaUrl and matchesUrls are required.', 'error');
+    showSchemaRegistryMessage(t('id, displayName, schemaUrl and matchesUrls are required.'), 'error');
     return;
   }
 
@@ -1395,14 +1682,14 @@ async function addOrReplaceSchema() {
     const exists = (existing.schemas || []).some((entry) => entry.id === id);
     if (exists) {
       await putAPI(`/schema-registry/${encodeURIComponent(id)}`, payload);
-      showSchemaRegistryMessage('Schema updated.', 'success');
+      showSchemaRegistryMessage(t('Schema updated.'), 'success');
     } else {
       await postAPI('/schema-registry', payload);
-      showSchemaRegistryMessage('Schema added.', 'success');
+      showSchemaRegistryMessage(t('Schema added.'), 'success');
     }
     await loadSchemaRegistry();
   } catch (err) {
-    showSchemaRegistryMessage(`Failed to save schema: ${err.message}`, 'error');
+    showSchemaRegistryMessage(t('Failed to save schema: {0}', err.message), 'error');
   }
 }
 
@@ -1411,7 +1698,7 @@ async function editSchema(id) {
     const data = await fetchAPI('/schema-registry?mode=local');
     const entry = (data.schemas || []).find((item) => item.id === id);
     if (!entry) {
-      showSchemaRegistryMessage(`Schema not found: ${id}`, 'error');
+      showSchemaRegistryMessage(t('Schema not found: {0}', id), 'error');
       return;
     }
     elements.schemaIdInput.value = entry.id || '';
@@ -1420,20 +1707,20 @@ async function editSchema(id) {
     elements.schemaMatchesInput.value = (entry.matchesUrls || []).join(', ');
     elements.schemaSpecsInput.value = (entry.activeOnSpec || []).join(', ');
   } catch (err) {
-    showSchemaRegistryMessage(`Failed to load schema for edit: ${err.message}`, 'error');
+    showSchemaRegistryMessage(t('Failed to load schema for edit: {0}', err.message), 'error');
   }
 }
 
 async function deleteSchema(id) {
-  if (!window.confirm(`Delete schema '${id}'?`)) {
+  if (!window.confirm(t("Delete schema '{0}'?", id))) {
     return;
   }
   try {
     await deleteAPI(`/schema-registry/${encodeURIComponent(id)}?mode=local`);
-    showSchemaRegistryMessage('Schema deleted.', 'success');
+    showSchemaRegistryMessage(t('Schema deleted.'), 'success');
     await loadSchemaRegistry();
   } catch (err) {
-    showSchemaRegistryMessage(`Failed to delete schema: ${err.message}`, 'error');
+    showSchemaRegistryMessage(t('Failed to delete schema: {0}', err.message), 'error');
   }
 }
 
@@ -1489,7 +1776,7 @@ async function updateDependencies() {
     const data = await fetchAPI('/dependencies');
 
     if (data.dependencies.length === 0) {
-      elements.dependenciesTableBody.innerHTML = '<tr><td colspan="5" class="empty">No dependency usage recorded</td></tr>';
+      elements.dependenciesTableBody.innerHTML = `<tr><td colspan="5" class="empty">${t('No dependency usage recorded')}</td></tr>`;
       return;
     }
 
@@ -1499,11 +1786,11 @@ async function updateDependencies() {
         <td>${dep.callCount.toLocaleString()}</td>
         <td>${dep.successRate}</td>
         <td>${dep.avgLatency}</td>
-        <td>${dep.lastCall}</td>
+        <td>${localizeRelativeTime(dep.lastCall)}</td>
       </tr>
     `).join('');
   } catch (err) {
-    elements.dependenciesTableBody.innerHTML = `<tr><td colspan="5" class="text-danger">Failed to load: ${err.message}</td></tr>`;
+    elements.dependenciesTableBody.innerHTML = `<tr><td colspan="5" class="text-danger">${t('Failed to load: {0}', err.message)}</td></tr>`;
   }
 }
 
@@ -1822,16 +2109,16 @@ async function testTavilySearch(e) {
   const searchDepth = elements.tavilySearchDepth.value;
 
   if (!query) {
-    showTavilyTestResult('Please enter a search query', 'error');
+    showTavilyTestResult(t('Please enter a search query'), 'error');
     return;
   }
 
   // Show loading state
   elements.tavilyTestBtn.disabled = true;
   const originalBtnContent = elements.tavilyTestBtn.innerHTML;
-  elements.tavilyTestBtn.innerHTML = '<span class="icon spinning">↻</span> Testing...';
+  elements.tavilyTestBtn.innerHTML = `<span class="icon spinning">↻</span> ${t('Testing...')}`;
 
-  showTavilyTestResult('Running test search...', 'info');
+  showTavilyTestResult(t('Running test search...'), 'info');
 
   try {
     const result = await postAPI('/test/tavily-search', {
@@ -1844,16 +2131,16 @@ async function testTavilySearch(e) {
       // Display successful results
       let resultHtml = `
         <div class="settings-message success" style="margin-top: 1rem;">
-          <strong>✓ Search successful!</strong><br>
-          Query: ${escapeHtml(result.query)}<br>
-          Latency: ${result.latencyMs}ms
+          <strong>✓ ${t('Search successful!')}</strong><br>
+          ${t('Query')}: ${escapeHtml(result.query)}<br>
+          ${t('Latency')}: ${result.latencyMs}ms
         </div>
       `;
 
       if (result.result && result.result.answer) {
         resultHtml += `
           <div style="margin-top: 1rem; padding: 1rem; background: var(--color-bg-tertiary); border-radius: var(--border-radius);">
-            <h4 style="margin-bottom: 0.5rem;">Answer:</h4>
+            <h4 style="margin-bottom: 0.5rem;">${t('Answer')}:</h4>
             <p style="color: var(--color-text); line-height: 1.5;">${escapeHtml(result.result.answer)}</p>
           </div>
         `;
@@ -1862,7 +2149,7 @@ async function testTavilySearch(e) {
       if (result.result && result.result.results && Array.isArray(result.result.results)) {
         resultHtml += `
           <div style="margin-top: 1rem;">
-            <h4 style="margin-bottom: 0.5rem;">Results (${result.result.results.length}):</h4>
+            <h4 style="margin-bottom: 0.5rem;">${t('Results')} (${result.result.results.length}):</h4>
             <div style="max-height: 300px; overflow-y: auto;">
         `;
 
@@ -1870,8 +2157,8 @@ async function testTavilySearch(e) {
           resultHtml += `
             <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: var(--color-bg-tertiary); border-radius: var(--border-radius);">
               <div style="display: flex; justify-content: space-between; align-items: start;">
-                <strong style="color: var(--color-primary);">${index + 1}. ${escapeHtml(item.title || 'Untitled')}</strong>
-                ${item.score ? `<span class="badge badge-neutral">Score: ${item.score.toFixed(2)}</span>` : ''}
+                <strong style="color: var(--color-primary);">${index + 1}. ${escapeHtml(item.title || t('Untitled'))}</strong>
+                ${item.score ? `<span class="badge badge-neutral">${t('Score')}: ${item.score.toFixed(2)}</span>` : ''}
               </div>
               ${item.url ? `<div style="margin-top: 0.25rem;"><a href="${escapeHtml(item.url)}" target="_blank" style="color: var(--color-info); font-size: 0.875rem;">${escapeHtml(item.url)}</a></div>` : ''}
               ${item.content ? `<div style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--color-text-secondary);">${escapeHtml(item.content.slice(0, 200))}${item.content.length > 200 ? '...' : ''}</div>` : ''}
@@ -1890,14 +2177,14 @@ async function testTavilySearch(e) {
       // Display error
       let errorHtml = `
         <div class="settings-message error" style="margin-top: 1rem;">
-          <strong>✗ Search failed</strong><br>
+          <strong>✗ ${t('Search failed')}</strong><br>
       `;
 
       if (!result.apiKeyPresent) {
-        errorHtml += `TAVILY_API_KEY environment variable is not set on the server.<br>`;
-        errorHtml += `Please set the environment variable and restart the server.`;
+        errorHtml += `${t('TAVILY_API_KEY environment variable is not set on the server.')}<br>`;
+        errorHtml += t('Please set the environment variable and restart the server.');
       } else {
-        errorHtml += `${escapeHtml(result.error || 'Unknown error')}`;
+        errorHtml += `${escapeHtml(result.error || t('Unknown error'))}`;
       }
 
       errorHtml += `</div>`;
@@ -1906,7 +2193,7 @@ async function testTavilySearch(e) {
 
     elements.tavilyTestResult.classList.remove('hidden');
   } catch (err) {
-    showTavilyTestResult(`Request failed: ${escapeHtml(err.message)}`, 'error');
+    showTavilyTestResult(t('Request failed: {0}', escapeHtml(err.message)), 'error');
   } finally {
     elements.tavilyTestBtn.disabled = false;
     elements.tavilyTestBtn.innerHTML = originalBtnContent;
@@ -1932,8 +2219,22 @@ function clearTavilyTestResult() {
   elements.tavilyTestResult.innerHTML = '';
 }
 
+async function initializeDashboard() {
+  const requestedLocale = new URLSearchParams(window.location.search).get('lang');
+  try {
+    const config = await fetchAPI('/config');
+    const locale = requestedLocale || config.locale || navigator.language || 'en';
+    dashboardLocale = locale.toLowerCase().startsWith('hu') ? 'hu' : 'en';
+  } catch {
+    const locale = requestedLocale || navigator.language || 'en';
+    dashboardLocale = locale.toLowerCase().startsWith('hu') ? 'hu' : 'en';
+  }
+  applyStaticTranslations();
+  await refreshAll();
+}
+
 // Initial load
-refreshAll();
+void initializeDashboard();
 
 // Auto-refresh every 30 seconds
 setInterval(refreshAll, 30000);

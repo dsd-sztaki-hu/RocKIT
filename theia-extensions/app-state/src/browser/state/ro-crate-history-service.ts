@@ -1,4 +1,5 @@
 import { inject, injectable } from 'inversify'
+import { nls } from '@theia/core/lib/common/nls'
 import {
   applyPatch as applyRfc6902Patch,
   createPatch as createRfc6902Patch,
@@ -214,7 +215,10 @@ export class RoCrateHistoryService {
     const operation = this.createPatchOperation(
       previousCrate,
       nextCrate,
-      options.label ?? 'Edit RO-Crate',
+      options.label ?? nls.localize(
+        'rockit/appState/history/editCrate',
+        'Edit RO-Crate',
+      ),
       'roCrate',
     )
 
@@ -248,7 +252,10 @@ export class RoCrateHistoryService {
     const operation = this.createPatchOperation(
       previousApproval,
       nextApproval,
-      options.label ?? 'Edit RO-Crate approval',
+      options.label ?? nls.localize(
+        'rockit/appState/history/editApproval',
+        'Edit RO-Crate approval',
+      ),
       'roCrateApproval',
     )
 

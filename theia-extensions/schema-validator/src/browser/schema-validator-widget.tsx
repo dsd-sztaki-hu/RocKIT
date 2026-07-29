@@ -3,11 +3,16 @@ import { injectable, postConstruct, inject } from '@theia/core/shared/inversify'
 import { AlertMessage } from '@theia/core/lib/browser/widgets/alert-message';
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget';
 import { MessageService } from '@theia/core';
+import { nls } from '@theia/core/lib/common/nls';
 import type { Disposable } from '@theia/core';
 import { Message } from '@theia/core/lib/browser';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { ApplicationShell, WidgetManager } from '@theia/core/lib/browser';
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget';
+import {
+    localizeRoCrateEntityType,
+    localizeValidationErrorMessage,
+} from 'rockit-common/lib/browser';
 
 type ValidationError = {
     entityId?: string
@@ -15,6 +20,7 @@ type ValidationError = {
     fieldName?: string
     fieldLabel?: string
     error?: string
+    error_hu?: string
 }
 
 const ERROR_ROW_HEIGHT = 94;
@@ -29,6 +35,7 @@ const getErrorKey = (error: ValidationError, index: number): string => [
     error.fieldName ?? '',
     error.fieldLabel ?? '',
     error.error ?? '',
+    error.error_hu ?? '',
     index,
 ].join(':');
 
@@ -92,10 +99,13 @@ const ValidationErrorList = ({
                 >
                     {visibleErrors.map((error, visibleIndex) => {
                         const index = startIndex + visibleIndex;
-                        const entityType = error.entityType || 'Unknown';
-                        const entityId = error.entityId || 'Unknown';
-                        const field = error.fieldLabel || error.fieldName || 'Unknown';
-                        const message = error.error || 'Unknown error';
+                        const entityType = error.entityType
+                            ? localizeRoCrateEntityType(error.entityType)
+                            : nls.localize('rockit/validation/unknown', 'Unknown');
+                        const entityId = error.entityId || nls.localize('rockit/validation/unknown', 'Unknown');
+                        const field = error.fieldLabel || error.fieldName || nls.localize('rockit/validation/unknownField', 'Unknown field');
+                        const message = localizeValidationErrorMessage(error)
+                            || nls.localize('rockit/validation/unknownError', 'Unknown error');
                         return (
                             <button
                                 key={getErrorKey(error, index)}
@@ -129,7 +139,7 @@ const ValidationErrorList = ({
 export class SchemaValidatorWidget extends ReactWidget {
 
     static readonly ID = 'validation-errors:widget';
-    static readonly LABEL = 'Validation Errors';
+    static readonly LABEL = nls.localize('rockit/validation/title', 'Validation Errors');
 
     @inject(MessageService)
     protected readonly messageService!: MessageService;
@@ -165,7 +175,13 @@ export class SchemaValidatorWidget extends ReactWidget {
     render(): React.ReactElement {
         const errors = this.appStateService.validationErrors ?? [];
         const hasErrors = errors.length > 0;
-        const header = hasErrors ? `Validation Errors (${formatCount(errors.length)})` : 'No validation errors';
+        const header = hasErrors
+            ? nls.localize(
+                'rockit/validation/errorCount',
+                'Validation Errors ({0})',
+                formatCount(errors.length),
+            )
+            : nls.localize('rockit/validation/noErrors', 'No validation errors');
         return (
             <div id="widget-container" className="schema-validator-widget">
                 <div className="schema-validator-toolbar">
@@ -182,7 +198,12 @@ export class SchemaValidatorWidget extends ReactWidget {
     }
 
     protected displayMessage(): void {
-        this.messageService.info('Congratulations: SchemaValidator Widget Successfully Created!');
+        this.messageService.info(
+            nls.localize(
+                'rockit/validation/widgetCreated',
+                'Validation Errors view created successfully.',
+            ),
+        );
     }
 
     protected onActivateRequest(msg: Message): void {

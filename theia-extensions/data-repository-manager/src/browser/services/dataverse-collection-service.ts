@@ -1,4 +1,5 @@
 import { injectable } from 'inversify';
+import { nls } from '@theia/core/lib/common/nls';
 import { ApiConfig, getCollection, getCollectionUserPermissions } from '@iqss/dataverse-client-javascript';
 import { DataverseApiAuthMechanism } from '@iqss/dataverse-client-javascript/dist/core/infra/repositories/ApiConfig';
 
@@ -41,7 +42,7 @@ export class DataverseCollectionService {
 
         const root = await this.getCollectionDetails({
             id: 'root',
-            name: 'Root',
+            name: nls.localize('rockit/dataRepository/rootCollection', 'Root'),
             alias: 'root',
             hasChildren: false
         });
@@ -82,7 +83,10 @@ export class DataverseCollectionService {
 
     private async getImmediateChildCollections(collectionAlias: string): Promise<DataverseCollectionTreeItem[]> {
         if (!this.apiBaseUrl) {
-            throw new Error('Dataverse client is not initialized.');
+            throw new Error(nls.localize(
+                'rockit/dataRepository/dataverseClientNotInitialized',
+                'Dataverse client is not initialized.'
+            ));
         }
 
         const response = await fetch(
@@ -92,7 +96,11 @@ export class DataverseCollectionService {
             }
         );
         if (!response.ok) {
-            throw new Error(`Dataverse returned HTTP ${response.status} while loading collections.`);
+            throw new Error(nls.localize(
+                'rockit/dataRepository/collectionsHttpError',
+                'Dataverse returned HTTP {0} while loading collections.',
+                response.status
+            ));
         }
 
         const payload = await response.json();
@@ -174,7 +182,12 @@ export class DataverseCollectionService {
             if (!response.ok) {
                 const responseText = await response.text();
                 throw new Error(
-                    `Dataverse returned HTTP ${response.status}${responseText ? `: ${responseText}` : '.'}`
+                    nls.localize(
+                        'rockit/dataRepository/dataverseHttpError',
+                        'Dataverse returned HTTP {0}{1}',
+                        response.status,
+                        responseText ? `: ${responseText}` : '.'
+                    )
                 );
             }
             const payload = await response.json();
@@ -187,7 +200,10 @@ export class DataverseCollectionService {
 
     private async searchCollections(searchText = '*', perPage = 100, maxPages = 20): Promise<DataverseCollectionTreeItem[]> {
         if (!this.apiBaseUrl) {
-            throw new Error('Dataverse client is not initialized.');
+            throw new Error(nls.localize(
+                'rockit/dataRepository/dataverseClientNotInitialized',
+                'Dataverse client is not initialized.'
+            ));
         }
 
         const items: any[] = [];
@@ -210,7 +226,12 @@ export class DataverseCollectionService {
             if (!response.ok) {
                 const responseText = await response.text();
                 throw new Error(
-                    `Dataverse returned HTTP ${response.status}${responseText ? `: ${responseText}` : '.'}`
+                    nls.localize(
+                        'rockit/dataRepository/dataverseHttpError',
+                        'Dataverse returned HTTP {0}{1}',
+                        response.status,
+                        responseText ? `: ${responseText}` : '.'
+                    )
                 );
             }
 

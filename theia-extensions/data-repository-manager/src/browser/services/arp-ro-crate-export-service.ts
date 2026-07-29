@@ -1,6 +1,5 @@
-import JSZip = require('jszip')
-
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
+import { nls } from '@theia/core/lib/common/nls'
 import { FileUri } from '@theia/core/lib/common/file-uri'
 import { URI } from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -11,6 +10,7 @@ import {
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import { inject, injectable } from 'inversify'
 import { DataRepositoryConfig, DataRepositoryExportTarget, DataverseCollection } from '../types'
+import type { NativeDataverseDatasetMetadata } from './native-dataverse-export-service'
 import {
   appendExportLogEvent,
   ExportLogEntry,
@@ -54,8 +54,16 @@ interface LocalizedExternalFileReferences {
 }
 
 interface ArpUpdateUploadFile {
+  entityId: string
   entryPath: string
   content: Uint8Array
+}
+
+interface ArpDataverseMetadataField {
+  typeName: string
+  typeClass: 'primitive' | 'compound' | 'controlledVocabulary'
+  multiple: boolean
+  value: unknown
 }
 
 interface ArpExportTarget {
@@ -92,6 +100,7 @@ export interface ArpRoCrateUpdateProgress {
 }
 
 export type ArpRoCrateUpdateProgressReporter = (update: ArpRoCrateUpdateProgress) => void
+export type ArpRoCrateExportProgressReporter = (update: ArpRoCrateUpdateProgress) => void
 
 const DATAVERSE_FILE_CONTEXT: Record<string, string> = {
   contentSize: 'https://schema.org/contentSize',
@@ -114,6 +123,8 @@ export class ArpRoCrateExportService {
   public async exportToArp(
     repository: DataRepositoryConfig,
     collection: DataverseCollection,
+    datasetMetadata: NativeDataverseDatasetMetadata,
+    reportProgress?: ArpRoCrateExportProgressReporter,
   ): Promise<ArpRoCrateExportResult> {
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const rootUri = this.getWorkspaceRoot()
@@ -126,51 +137,92 @@ export class ArpRoCrateExportService {
       uploadCrate,
       rootUri,
     )
-    await this.validateRoCrate(uploadCrate, baseUrl, repository.apiKey)
-
-    const zip = await this.buildDataverseUploadZip(
+    const uploadFiles = await this.collectUploadFiles(
       uploadCrate,
       rootUri,
       localizedExternalFiles.entries,
     )
-    const uploadUrl = new URL('/api/arp/uploadRoCrateZip', `${baseUrl}/`)
-    uploadUrl.searchParams.set('ownerId', collection.alias || collection.id)
-
-    const form = new FormData()
-    form.append('file', new Blob([zip], { type: 'application/zip' }), 'rocrate.zip')
-
-    const headers: Record<string, string> = { accept: 'application/json' }
-    if (repository.apiKey) {
-      headers['x-dataverse-key'] = repository.apiKey
-    }
-
-    const response = await this.fetchWithTimeout(uploadUrl.toString(), {
-      method: 'POST',
-      headers,
-      body: form,
+    const totalSteps = uploadFiles.length + 3
+    reportProgress?.({
+      completedSteps: 0,
+      totalSteps,
+      message: nls.localize(
+        'rockit/dataRepository/validatingRoCrateMetadata',
+        'Validating RO-Crate metadata...',
+      ),
     })
-    const payload = await this.readResponsePayload(response)
-    if (!response.ok) {
-      throw new Error(
-        `ARP upload failed (${response.status}) at ${response.url || uploadUrl.toString()}: ${this.payloadSummary(payload)}`,
-      )
-    }
+    await this.validateRoCrate(uploadCrate, baseUrl, repository.apiKey)
 
-    const ingestedCrate = this.extractDataverseCrate(payload)
-    const payloadPid = this.extractPayloadPid(payload)
-    const pid =
-      (ingestedCrate ? this.extractArpPid(ingestedCrate) : undefined) || payloadPid
-    if (!ingestedCrate) {
-      throw new Error(
-        'ARP upload completed, but the response did not contain the ingested RO-Crate needed to create an entity mapping file.',
-      )
-    }
+    reportProgress?.({
+      completedSteps: 1,
+      totalSteps,
+      message: nls.localize(
+        'rockit/dataRepository/creatingDatasetInCollection',
+        'Creating Dataverse dataset in {0}...',
+        collection.name,
+      ),
+    })
+    const creation = await this.createDataverseDataset(
+      baseUrl,
+      repository.apiKey,
+      collection.alias || collection.id,
+      datasetMetadata,
+    )
+    const pid = this.extractPayloadPid(creation.payload)
     if (!pid) {
       throw new Error(
-        'ARP upload completed, but the response did not contain the Dataset PID needed to preserve the uploaded RO-Crate relationships.',
+        nls.localize(
+          'rockit/dataRepository/arpDatasetCreationMissingPid',
+          'Dataverse created the dataset but did not return the Dataset PID needed to preserve the uploaded RO-Crate relationships.',
+        ),
       )
     }
-    const uploadIdMapping = this.buildEntityIdMapping(uploadCrate, ingestedCrate)
+
+    const uploadIdMapping = this.buildInitialUploadEntityIdMapping(uploadCrate)
+    for (const [index, file] of uploadFiles.entries()) {
+      reportProgress?.({
+        completedSteps: index + 2,
+        totalSteps,
+        message: nls.localize(
+          'rockit/dataRepository/uploadingFile',
+          'Uploading {0}...',
+          file.entryPath,
+        ),
+      })
+      const uploadedDataFileId = await this.uploadDataverseFile(
+        baseUrl,
+        repository.apiKey,
+        pid,
+        file,
+      )
+      const uploadedFileEntityId = this.buildArpFileEntityId(
+        uploadedDataFileId,
+        uploadIdMapping,
+        { '@graph': [] },
+        baseUrl,
+        pid,
+      )
+      uploadIdMapping[file.entityId] = uploadedFileEntityId
+      if (file.entryPath !== file.entityId) {
+        uploadIdMapping[file.entryPath] = uploadedFileEntityId
+      }
+    }
+
+    reportProgress?.({
+      completedSteps: uploadFiles.length + 2,
+      totalSteps,
+      message: nls.localize(
+        'rockit/dataRepository/synchronizingMetadata',
+        'Synchronizing RO-Crate metadata...',
+      ),
+    })
+    const metadataUpdateCrate = this.rewriteCrateEntityIds(uploadCrate, uploadIdMapping)
+    await this.updateRemoteRoCrate(
+      baseUrl,
+      repository.apiKey,
+      pid,
+      metadataUpdateCrate,
+    )
     const metadataIdMapping = this.toMetadataEntityIdMapping(
       crate,
       uploadIdMapping,
@@ -178,17 +230,12 @@ export class ArpRoCrateExportService {
     )
     const mappingFileName = await this.createUniqueMappingFileName(rootUri)
     await this.saveEntityIdMapping(rootUri, mappingFileName, metadataIdMapping)
-    const restoredCrate = this.buildRestoredUploadCrate(
-      uploadCrate,
-      ingestedCrate,
-      uploadIdMapping,
-    )
+    const restoredCrate = this.buildRestoredCreatedCrate(uploadCrate, uploadIdMapping, pid)
     const dataverseUrl = this.buildDataverseDatasetUrl(baseUrl, pid)
     const target =
       this.buildDatasetPidTarget(pid) ||
       dataverseUrl ||
-      response.url ||
-      uploadUrl.toString()
+      creation.requestUrl
     await this.appendExportLog(rootUri, {
       target,
       repository: baseUrl,
@@ -205,11 +252,39 @@ export class ArpRoCrateExportService {
       pid,
       target,
       dataverseUrl,
-      requestUrl: response.url || uploadUrl.toString(),
-      response: payload,
+      requestUrl: creation.requestUrl,
+      response: creation.payload,
       ingestedCrate: restoredCrate,
       mappingFileName,
       unmappedEntityIds,
+    }
+  }
+
+  public async getAllowedMetadataLanguages(
+    repository: DataRepositoryConfig,
+    collection: DataverseCollection,
+  ): Promise<Array<{ value: string; label: string }>> {
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const collectionId = collection.alias || collection.id
+    const requestUrl = `${baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/allowedMetadataLanguages`
+    const headers: Record<string, string> = { accept: 'application/json' }
+    if (repository.apiKey) {
+      headers['x-dataverse-key'] = repository.apiKey
+    }
+    try {
+      const response = await this.fetchWithTimeout(requestUrl, { headers })
+      const payload = await this.readResponsePayload(response)
+      if (!response.ok || this.payloadHasErrorStatus(payload)) {
+        console.warn(
+          `Failed to retrieve allowed Dataverse metadata languages (${response.status}) at ${response.url || requestUrl}: ${this.payloadSummary(payload)}`,
+        )
+        return this.defaultMetadataLanguageOptions()
+      }
+      const options = this.extractMetadataLanguageOptions(payload)
+      return options.length ? options : this.defaultMetadataLanguageOptions()
+    } catch (error) {
+      console.warn('Failed to retrieve allowed Dataverse metadata languages:', error)
+      return this.defaultMetadataLanguageOptions()
     }
   }
 
@@ -221,7 +296,7 @@ export class ArpRoCrateExportService {
     reportProgress?.({
       completedSteps: 0,
       totalSteps: 1,
-      message: 'Checking for changes...',
+      message: nls.localize('rockit/dataRepository/checkingChanges', 'Checking for changes...'),
     })
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const rootUri = this.getWorkspaceRoot()
@@ -239,7 +314,10 @@ export class ArpRoCrateExportService {
     }
     if (!exportTarget.exportLogEntry?.mappingFile || !exportTarget.mapping) {
       throw new Error(
-        'This workspace has an ARP PID, but no existing export-log mapping file could be loaded for this repository. Update will not create a second mapping file.',
+        nls.localize(
+          'rockit/dataRepository/arpMissingExportMapping',
+          'This workspace has an ARP PID, but no existing export-log mapping file could be loaded for this repository. Update will not create a second mapping file.',
+        ),
       )
     }
 
@@ -272,7 +350,13 @@ export class ArpRoCrateExportService {
     reportProgress?.({
       completedSteps,
       totalSteps,
-      message: `Checking complete: ${diff.newFiles.length} file(s) to upload, ${changedFilesToReplace.length} file(s) to replace, and ${diff.removedFiles.length} file(s) to remove.`,
+      message: nls.localize(
+        'rockit/dataRepository/checkingComplete',
+        'Checking complete: {0} file(s) to upload, {1} file(s) to replace, and {2} file(s) to remove.',
+        diff.newFiles.length,
+        changedFilesToReplace.length,
+        diff.removedFiles.length,
+      ),
     })
     const localEntitiesById = new Map(
       this.readGraphEntities(uploadCrate).map((entity) => [
@@ -293,12 +377,20 @@ export class ArpRoCrateExportService {
       reportProgress?.({
         completedSteps,
         totalSteps,
-        message: `Uploading ${file.localId}...`,
+        message: nls.localize(
+          'rockit/dataRepository/uploadingFile',
+          'Uploading {0}...',
+          file.localId,
+        ),
       })
       const localFile = localEntitiesById.get(file.localId)
       if (!localFile) {
         throw new Error(
-          `Cannot upload new file '${file.localId}' because it was not found in the local upload crate.`,
+          nls.localize(
+            'rockit/dataRepository/newFileMissingLocal',
+            "Cannot upload new file '{0}' because it was not found in the local upload crate.",
+            file.localId,
+          ),
         )
       }
       const uploadedDataFileId = await this.uploadDataverseFile(
@@ -317,18 +409,35 @@ export class ArpRoCrateExportService {
       uploadMapping[file.localId] = uploadedFileId
       metadataMapping[uploadIdToMetadataId[file.localId] ?? file.localId] = uploadedFileId
       completedSteps += 1
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: nls.localize(
+          'rockit/dataRepository/uploadedFile',
+          'Uploaded {0}.',
+          file.localId,
+        ),
+      })
     }
     for (const file of changedFilesToReplace) {
       reportProgress?.({
         completedSteps,
         totalSteps,
-        message: `Replacing ${file.localId}...`,
+        message: nls.localize(
+          'rockit/dataRepository/replacingFile',
+          'Replacing {0}...',
+          file.localId,
+        ),
       })
       const localFile = localEntitiesById.get(file.localId)
       const remoteFile = remoteEntitiesById.get(file.remoteId)
       if (!localFile || !remoteFile) {
         throw new Error(
-          `Cannot replace changed file '${file.localId}' because its local or remote entity could not be resolved.`,
+          nls.localize(
+            'rockit/dataRepository/changedFileUnresolved',
+            "Cannot replace changed file '{0}' because its local or remote entity could not be resolved.",
+            file.localId,
+          ),
         )
       }
       const replacementDataFileId = await this.replaceDataverseFile(
@@ -349,17 +458,34 @@ export class ArpRoCrateExportService {
       metadataMapping[uploadIdToMetadataId[file.localId] ?? file.localId] =
         replacementFileId
       completedSteps += 1
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: nls.localize(
+          'rockit/dataRepository/replacedFile',
+          'Replaced {0}.',
+          file.localId,
+        ),
+      })
     }
     for (const file of diff.removedFiles) {
       reportProgress?.({
         completedSteps,
         totalSteps,
-        message: `Removing ${file.remoteId}...`,
+        message: nls.localize(
+          'rockit/dataRepository/removingFile',
+          'Removing {0}...',
+          file.remoteId,
+        ),
       })
       const remoteFile = remoteEntitiesById.get(file.remoteId)
       if (!remoteFile) {
         throw new Error(
-          `Cannot remove file '${file.remoteId}' because it was not found in the remote crate.`,
+          nls.localize(
+            'rockit/dataRepository/remoteFileMissing',
+            "Cannot remove file '{0}' because it was not found in the remote crate.",
+            file.remoteId,
+          ),
         )
       }
       await this.deleteDataverseFile(
@@ -370,11 +496,20 @@ export class ArpRoCrateExportService {
       this.removeMappingEntriesByRemoteId(uploadMapping, file.remoteId)
       this.removeMappingEntriesByRemoteId(metadataMapping, file.remoteId)
       completedSteps += 1
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: nls.localize(
+          'rockit/dataRepository/removedFile',
+          'Removed {0}.',
+          file.remoteId,
+        ),
+      })
     }
     reportProgress?.({
       completedSteps,
       totalSteps,
-      message: 'Synchronizing RO-Crate metadata...',
+      message: nls.localize('rockit/dataRepository/synchronizingMetadata', 'Synchronizing RO-Crate metadata...'),
     })
     const metadataUpdateCrate = this.rewriteCrateEntityIds(uploadCrate, uploadMapping)
     await this.updateRemoteRoCrate(
@@ -407,7 +542,7 @@ export class ArpRoCrateExportService {
     reportProgress?.({
       completedSteps: totalSteps,
       totalSteps,
-      message: 'Synchronization complete.',
+      message: nls.localize('rockit/dataRepository/synchronizationComplete', 'Synchronization complete.'),
     })
 
     return {
@@ -463,21 +598,28 @@ export class ArpRoCrateExportService {
     const roots = this.workspaceService.tryGetRoots()
     const root = roots?.[0]?.resource
     if (!root) {
-      throw new Error('No workspace is open.')
+      throw new Error(nls.localize('rockit/dataRepository/noWorkspace', 'No workspace is open.'))
     }
     return root
   }
 
   protected async readRoCrate(metadataUri: URI): Promise<RoCrate> {
     if (!(await this.fileService.exists(metadataUri))) {
-      throw new Error('ro-crate-metadata.json was not found in the workspace root.')
+      throw new Error(nls.localize(
+        'rockit/dataRepository/metadataFileNotFound',
+        'ro-crate-metadata.json was not found in the workspace root.',
+      ))
     }
     const content = await this.fileService.readFile(metadataUri)
     try {
       return JSON.parse(content.value.toString()) as RoCrate
     } catch (error) {
       throw new Error(
-        `Failed to parse ro-crate-metadata.json: ${error instanceof Error ? error.message : String(error)}`,
+        nls.localize(
+          'rockit/dataRepository/parseMetadataFailed',
+          'Failed to parse ro-crate-metadata.json: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
       )
     }
   }
@@ -535,41 +677,242 @@ export class ArpRoCrateExportService {
     return uploadCrate
   }
 
-  protected async buildDataverseUploadZip(
+  protected async collectUploadFiles(
     crate: RoCrate,
     rootUri: URI,
-    externalFileEntries = new Map<string, URI>(),
-  ): Promise<Uint8Array> {
-    const zip = new JSZip()
-    zip.file('ro-crate-metadata.json', `${JSON.stringify(crate, null, 2)}\n`)
-
-    const fileEntries = new Map(externalFileEntries)
-    for (const relativePath of this.extractCrateFilePaths(crate)) {
-      if (relativePath === 'ro-crate-metadata.json' || fileEntries.has(relativePath)) {
+    externalFileEntries: Map<string, URI>,
+  ): Promise<ArpUpdateUploadFile[]> {
+    const entitiesByPath = new Map<string, RoCrateEntity>()
+    for (const entity of this.readGraphEntities(crate)) {
+      if (!this.entityTypes(entity).includes('File')) {
         continue
       }
-      const uri = rootUri.resolve(relativePath)
-      if (!this.isInsideRoot(rootUri, uri)) {
-        throw new Error(`Refusing to include path outside crate root: ${relativePath}`)
+      const entryPath = this.dataverseFilePathFromEntity(entity)
+      if (entryPath && entryPath !== 'ro-crate-metadata.json') {
+        entitiesByPath.set(entryPath, entity)
       }
-      if (!(await this.fileService.exists(uri))) {
-        throw new Error(`Referenced file not found for ZIP upload: ${relativePath}`)
-      }
-      const stat = await this.fileService.resolve(uri)
-      if (stat.isDirectory) {
-        throw new Error(`RO-Crate File entity points to a directory: ${relativePath}`)
-      }
-      fileEntries.set(relativePath, uri)
+    }
+    return Promise.all(
+      Array.from(entitiesByPath.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([, entity]) => this.readUploadFile(entity, rootUri, externalFileEntries)),
+    )
+  }
+
+  protected async createDataverseDataset(
+    baseUrl: string,
+    apiKey: string | undefined,
+    collectionId: string,
+    datasetMetadata: NativeDataverseDatasetMetadata,
+  ): Promise<{ requestUrl: string; payload: unknown }> {
+    const requestUrl = `${baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/datasets`
+    const headers: Record<string, string> = {
+      accept: 'application/json',
+      'content-type': 'application/json',
+    }
+    if (apiKey) {
+      headers['x-dataverse-key'] = apiKey
+    }
+    const response = await this.fetchWithTimeout(requestUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(this.buildDatasetCreationPayload(datasetMetadata)),
+    })
+    const payload = await this.readResponsePayload(response)
+    if (!response.ok || this.payloadHasErrorStatus(payload)) {
+      throw new Error(
+        nls.localize(
+          'rockit/dataRepository/nativeDatasetCreationRequestFailed',
+          'Dataverse dataset creation failed ({0}) at {1}: {2}',
+          response.status,
+          response.url || requestUrl,
+          this.payloadSummary(payload),
+        ),
+      )
+    }
+    return { requestUrl: response.url || requestUrl, payload }
+  }
+
+  protected buildDatasetCreationPayload(
+    datasetMetadata: NativeDataverseDatasetMetadata,
+  ): Record<string, unknown> {
+    const title = datasetMetadata.title.trim()
+    const authorNames = this.uniqueStrings(
+      datasetMetadata.authorNames.map((value) => value.trim()),
+    )
+    const contactEmails = this.uniqueStrings(
+      datasetMetadata.contactEmails.map((value) => value.trim()),
+    )
+    const descriptions = this.uniqueStrings(
+      datasetMetadata.descriptions.map((value) => value.trim()),
+    )
+    const subjects = this.uniqueStrings(
+      datasetMetadata.subjects.map((value) => value.trim()),
+    )
+    const metadataLanguage = datasetMetadata.metadataLanguage?.trim()
+    const missing: string[] = []
+    if (!title) {
+      missing.push(nls.localize('rockit/dataRepository/metadataTitle', 'Title'))
+    }
+    if (!authorNames.length) {
+      missing.push(nls.localize('rockit/dataRepository/authorName', 'Author Name'))
+    }
+    if (!contactEmails.length) {
+      missing.push(
+        nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email'),
+      )
+    }
+    if (!descriptions.length) {
+      missing.push(
+        nls.localize('rockit/dataRepository/descriptionText', 'Description Text'),
+      )
+    }
+    if (!subjects.length) {
+      missing.push(nls.localize('rockit/dataRepository/subject', 'Subject'))
+    }
+    if (!metadataLanguage) {
+      missing.push(
+        nls.localize(
+          'rockit/dataRepository/metadataLanguage',
+          'Dataset Metadata Language',
+        ),
+      )
+    }
+    if (missing.length) {
+      throw new Error(
+        nls.localize(
+          'rockit/dataRepository/missingRequiredMetadata',
+          'Cannot create Dataverse dataset. Missing required metadata: {0}.',
+          missing.join(', '),
+        ),
+      )
     }
 
-    for (const [name, uri] of Array.from(fileEntries.entries()).sort((a, b) =>
-      a[0].localeCompare(b[0]),
-    )) {
-      const content = await this.fileService.readFile(uri)
-      zip.file(name, content.value.buffer)
+    return {
+      metadataLanguage,
+      datasetVersion: {
+        metadataBlocks: {
+          citation: {
+            displayName: 'Citation Metadata',
+            fields: [
+              this.primitiveField('title', false, title),
+              this.compoundField(
+                'author',
+                authorNames.map((authorName) => ({
+                  authorName: this.primitiveField('authorName', false, authorName),
+                })),
+              ),
+              this.compoundField(
+                'datasetContact',
+                contactEmails.map((datasetContactEmail) => ({
+                  datasetContactEmail: this.primitiveField(
+                    'datasetContactEmail',
+                    false,
+                    datasetContactEmail,
+                  ),
+                })),
+              ),
+              this.compoundField(
+                'dsDescription',
+                descriptions.map((dsDescriptionValue) => ({
+                  dsDescriptionValue: this.primitiveField(
+                    'dsDescriptionValue',
+                    false,
+                    dsDescriptionValue,
+                  ),
+                })),
+              ),
+              {
+                typeName: 'subject',
+                typeClass: 'controlledVocabulary',
+                multiple: true,
+                value: subjects,
+              },
+            ],
+          },
+        },
+      },
     }
+  }
 
-    return zip.generateAsync({ type: 'uint8array', compression: 'STORE' })
+  protected primitiveField(
+    typeName: string,
+    multiple: boolean,
+    value: unknown,
+  ): ArpDataverseMetadataField {
+    return { typeName, typeClass: 'primitive', multiple, value }
+  }
+
+  protected compoundField(
+    typeName: string,
+    values: Array<Record<string, ArpDataverseMetadataField>>,
+  ): ArpDataverseMetadataField {
+    return {
+      typeName,
+      typeClass: 'compound',
+      multiple: true,
+      value: values,
+    }
+  }
+
+  protected extractMetadataLanguageOptions(
+    payload: unknown,
+  ): Array<{ value: string; label: string }> {
+    const data =
+      payload && typeof payload === 'object' && !Array.isArray(payload)
+        ? (payload as Record<string, unknown>).data
+        : undefined
+    const rawItems = Array.isArray(data) ? data : []
+    const options = rawItems.flatMap((item) => {
+      if (typeof item === 'string') {
+        return [{ value: item, label: this.metadataLanguageLabel(item) }]
+      }
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return []
+      }
+      const record = item as Record<string, unknown>
+      const value = this.readStrings(
+        record.locale ?? record.value ?? record.langCode ?? record.code,
+      )[0]
+      if (!value) {
+        return []
+      }
+      const label = this.readStrings(record.title ?? record.displayName ?? record.label)[0]
+      return [{ value, label: this.metadataLanguageLabel(value, label) }]
+    })
+    const seen = new Set<string>()
+    return options.filter((option) => {
+      const key = option.value.toLowerCase()
+      if (seen.has(key)) {
+        return false
+      }
+      seen.add(key)
+      return true
+    })
+  }
+
+  protected defaultMetadataLanguageOptions(): Array<{ value: string; label: string }> {
+    return [
+      {
+        value: 'en',
+        label: nls.localize('rockit/dataRepository/languageEnglish', 'English'),
+      },
+      {
+        value: 'hu',
+        label: nls.localize('rockit/dataRepository/languageHungarian', 'Hungarian'),
+      },
+    ]
+  }
+
+  protected metadataLanguageLabel(value: string, fallbackLabel?: string): string {
+    const normalized = value.toLowerCase()
+    if (normalized === 'en') {
+      return nls.localize('rockit/dataRepository/languageEnglish', 'English')
+    }
+    if (normalized === 'hu') {
+      return nls.localize('rockit/dataRepository/languageHungarian', 'Hungarian')
+    }
+    return fallbackLabel ?? value
   }
 
   protected async localizeExternalLocalFileReferences(
@@ -700,6 +1043,56 @@ export class ArpRoCrateExportService {
     )
   }
 
+  protected extractAuthors(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
+    const linkedAuthors = this.resolveEntities(root.author, graph)
+    return this.uniqueStrings([
+      ...linkedAuthors.flatMap((author) =>
+        this.readStrings(author.authorName ?? author.name),
+      ),
+      ...this.readStrings(root.author).filter((value) => !this.looksLikeEntityId(value)),
+    ])
+  }
+
+  protected extractContactEmails(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
+    const linkedContacts = this.resolveEntities(
+      root.datasetContact ?? root.contactPoint,
+      graph,
+    )
+    return this.uniqueStrings([
+      ...linkedContacts.flatMap((contact) =>
+        this.readStrings(contact.datasetContactEmail ?? contact.email),
+      ),
+      ...this.readStrings(root.datasetContactEmail),
+    ])
+  }
+
+  protected extractDescriptions(root: RoCrateEntity, graph: RoCrateEntity[]): string[] {
+    const linkedDescriptions = this.resolveEntities(root.dsDescription, graph)
+    return this.uniqueStrings([
+      ...linkedDescriptions.flatMap((description) =>
+        this.readStrings(
+          description.dsDescriptionValue ?? description.description ?? description.name,
+        ),
+      ),
+      ...this.readStrings(root.description),
+    ])
+  }
+
+  protected resolveEntities(value: unknown, graph: RoCrateEntity[]): RoCrateEntity[] {
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => this.resolveEntities(item, graph))
+    }
+    if (value && typeof value === 'object') {
+      const inlineEntity = value as RoCrateEntity
+      const id = this.readOptionalEntityString(inlineEntity, '@id')
+      const linkedEntity = id
+        ? graph.find((graphEntity) => graphEntity['@id'] === id)
+        : undefined
+      return linkedEntity ? [linkedEntity] : [inlineEntity]
+    }
+    return []
+  }
+
   protected async tryReadCurrentRootDatasetName(
     rootUri: URI,
   ): Promise<string | undefined> {
@@ -727,12 +1120,21 @@ export class ArpRoCrateExportService {
     const payload = await this.readResponsePayload(response)
     if (!response.ok) {
       throw new Error(
-        `Failed to retrieve remote RO-Crate (${response.status}) at ${response.url || requestUrl}: ${this.payloadSummary(payload)}`,
+        nls.localize(
+          'rockit/dataRepository/remoteCrateFetchFailed',
+          'Failed to retrieve remote RO-Crate ({0}) at {1}: {2}',
+          response.status,
+          response.url || requestUrl,
+          this.payloadSummary(payload),
+        ),
       )
     }
     const crate = this.extractDataverseCrate(payload)
     if (!crate) {
-      throw new Error('The ARP RO-Crate response did not contain a valid @graph.')
+      throw new Error(nls.localize(
+        'rockit/dataRepository/arpResponseMissingGraph',
+        'The ARP RO-Crate response did not contain a valid @graph.',
+      ))
     }
     return crate
   }
@@ -759,7 +1161,13 @@ export class ArpRoCrateExportService {
     const payload = await this.readResponsePayload(response)
     if (!response.ok || this.payloadHasErrorStatus(payload)) {
       throw new Error(
-        `ARP RO-Crate metadata update failed (${response.status}) at ${response.url || requestUrl}: ${this.payloadSummary(payload)}`,
+        nls.localize(
+          'rockit/dataRepository/arpMetadataUpdateFailed',
+          'ARP RO-Crate metadata update failed ({0}) at {1}: {2}',
+          response.status,
+          response.url || requestUrl,
+          this.payloadSummary(payload),
+        ),
       )
     }
   }
@@ -788,11 +1196,49 @@ export class ArpRoCrateExportService {
     const arpPid = ingestedRoot?.['@arpPid']
     if (!restoredRoot || typeof arpPid !== 'string' || !arpPid.trim()) {
       throw new Error(
-        'ARP upload completed, but the returned RO-Crate did not contain the root @arpPid needed for metadata restoration.',
+        nls.localize(
+          'rockit/dataRepository/arpPidMissing',
+          'ARP upload completed, but the returned RO-Crate did not contain the root @arpPid needed for metadata restoration.',
+        ),
       )
     }
     restoredRoot['@arpPid'] = arpPid
     return restored
+  }
+
+  protected buildRestoredCreatedCrate(
+    sourceCrate: RoCrate,
+    idMapping: RoCrateEntityIdMapping,
+    pid: string,
+  ): RoCrate {
+    const restored = this.rewriteCrateEntityIds(sourceCrate, idMapping)
+    const restoredRoot = this.readGraphEntities(restored).find(
+      (entity) => entity['@id'] === './',
+    )
+    if (!restoredRoot) {
+      throw new Error(
+        nls.localize(
+          'rockit/dataRepository/arpCreatedRootMissing',
+          'ARP export completed, but the local upload crate did not contain the root Dataset needed for metadata restoration.',
+        ),
+      )
+    }
+    restoredRoot['@arpPid'] = pid
+    return restored
+  }
+
+  protected buildInitialUploadEntityIdMapping(crate: RoCrate): RoCrateEntityIdMapping {
+    const mapping: RoCrateEntityIdMapping = { './': './' }
+    for (const entity of this.readGraphEntities(crate)) {
+      const id = this.requireEntityId(entity)
+      if (id === './') {
+        continue
+      }
+      if (this.entityTypes(entity).includes('Dataset')) {
+        mapping[id] = id
+      }
+    }
+    return mapping
   }
 
   protected rewriteEntityIdReferences(
@@ -829,22 +1275,39 @@ export class ArpRoCrateExportService {
     const entryPath = this.dataverseFilePathFromEntity(entity)
     if (!entryPath) {
       throw new Error(
-        `Cannot determine upload path for File entity '${this.requireEntityId(entity)}'.`,
+        nls.localize(
+          'rockit/dataRepository/fileUploadPathUnknown',
+          "Cannot determine upload path for File entity '{0}'.",
+          this.requireEntityId(entity),
+        ),
       )
     }
     const externalUri = externalFileEntries.get(entryPath)
     const uri = externalUri ?? rootUri.resolve(entryPath)
     if (!externalUri && !this.isInsideRoot(rootUri, uri)) {
-      throw new Error(`Refusing to upload path outside crate root: ${entryPath}`)
+      throw new Error(nls.localize(
+        'rockit/dataRepository/uploadPathOutsideCrate',
+        'Refusing to upload path outside crate root: {0}',
+        entryPath,
+      ))
     }
     if (!(await this.fileService.exists(uri))) {
-      throw new Error(`Referenced file not found for upload: ${entryPath}`)
+      throw new Error(nls.localize(
+        'rockit/dataRepository/uploadFileMissing',
+        'Referenced file not found for upload: {0}',
+        entryPath,
+      ))
     }
     const stat = await this.fileService.resolve(uri)
     if (stat.isDirectory) {
-      throw new Error(`Cannot upload '${entryPath}' because it is a directory.`)
+      throw new Error(nls.localize(
+        'rockit/dataRepository/cannotUploadDirectory',
+        "Cannot upload '{0}' because it is a directory.",
+        entryPath,
+      ))
     }
     return {
+      entityId: this.requireEntityId(entity),
       entryPath,
       content: (await this.fileService.readFile(uri)).value.buffer,
     }
@@ -873,13 +1336,24 @@ export class ArpRoCrateExportService {
     const payload = await this.readResponsePayload(response)
     if (!response.ok || this.payloadHasErrorStatus(payload)) {
       throw new Error(
-        `Dataverse file upload failed for '${file.entryPath}' (${response.status}) at ${response.url || requestUrl}: ${this.payloadSummary(payload)}`,
+        nls.localize(
+          'rockit/dataRepository/dataverseFileUploadAtFailed',
+          "Dataverse file upload failed for '{0}' ({1}) at {2}: {3}",
+          file.entryPath,
+          response.status,
+          response.url || requestUrl,
+          this.payloadSummary(payload),
+        ),
       )
     }
     const fileId = this.extractDataverseUploadFileId(payload)
     if (!fileId) {
       throw new Error(
-        `Dataverse file upload completed for '${file.entryPath}', but the response did not contain a dataFile.id.`,
+        nls.localize(
+          'rockit/dataRepository/dataverseUploadMissingFileId',
+          "Dataverse file upload completed for '{0}', but the response did not contain a dataFile.id.",
+          file.entryPath,
+        ),
       )
     }
     return fileId
@@ -947,13 +1421,24 @@ export class ArpRoCrateExportService {
     const payload = await this.readResponsePayload(response)
     if (!response.ok || this.payloadHasErrorStatus(payload)) {
       throw new Error(
-        `Dataverse file replacement failed for '${file.entryPath}' (${response.status}) at ${response.url || requestUrl}: ${this.payloadSummary(payload)}`,
+        nls.localize(
+          'rockit/dataRepository/dataverseFileReplacementAtFailed',
+          "Dataverse file replacement failed for '{0}' ({1}) at {2}: {3}",
+          file.entryPath,
+          response.status,
+          response.url || requestUrl,
+          this.payloadSummary(payload),
+        ),
       )
     }
     const replacementFileId = this.extractDataverseUploadFileId(payload)
     if (!replacementFileId) {
       throw new Error(
-        `Dataverse file replacement completed for '${file.entryPath}', but the response did not contain a dataFile.id.`,
+        nls.localize(
+          'rockit/dataRepository/dataverseReplacementMissingFileId',
+          "Dataverse file replacement completed for '{0}', but the response did not contain a dataFile.id.",
+          file.entryPath,
+        ),
       )
     }
     return replacementFileId
@@ -1019,7 +1504,14 @@ export class ArpRoCrateExportService {
     const payload = await this.readResponsePayload(response)
     if (!response.ok || this.payloadHasErrorStatus(payload)) {
       throw new Error(
-        `Dataverse file deletion failed for file ${fileId} (${response.status}) at ${response.url || requestUrl}: ${this.payloadSummary(payload)}`,
+        nls.localize(
+          'rockit/dataRepository/dataverseFileDeletionAtFailed',
+          'Dataverse file deletion failed for file {0} ({1}) at {2}: {3}',
+          fileId,
+          response.status,
+          response.url || requestUrl,
+          this.payloadSummary(payload),
+        ),
       )
     }
   }
@@ -1037,9 +1529,11 @@ export class ArpRoCrateExportService {
         return Number(value)
       }
     }
-    throw new Error(
-      `Cannot determine Dataverse file ID for remote File entity '${this.requireEntityId(entity)}'.`,
-    )
+    throw new Error(nls.localize(
+      'rockit/dataRepository/dataverseFileIdUnknown',
+      "Cannot determine Dataverse file ID for remote File entity '{0}'.",
+      this.requireEntityId(entity),
+    ))
   }
 
   protected diffRoCrates(
@@ -1790,7 +2284,10 @@ export class ArpRoCrateExportService {
     const id = this.readOptionalEntityString(entity, '@id')
     if (!id) {
       throw new Error(
-        'ARP upload completed, but an entity mapping file could not be created. An RO-Crate entity has no @id.',
+        nls.localize(
+          'rockit/dataRepository/arpEntityMappingMissingId',
+          'ARP upload completed, but an entity mapping file could not be created. An RO-Crate entity has no @id.',
+        ),
       )
     }
     return id
@@ -1858,7 +2355,13 @@ export class ArpRoCrateExportService {
     if (!response.ok || messages.length > 0) {
       const issuesPreview = messages.slice(0, 10).join(' | ')
       throw new Error(
-        `Upload blocked by ARP validation (${response.status}) at ${response.url || validateUrl.toString()}${issuesPreview ? `: ${issuesPreview}` : ''}`,
+        nls.localize(
+          'rockit/dataRepository/arpValidationBlocked',
+          'Upload blocked by ARP validation ({0}) at {1}{2}',
+          response.status,
+          response.url || validateUrl.toString(),
+          issuesPreview ? `: ${issuesPreview}` : '',
+        ),
       )
     }
   }
@@ -2259,7 +2762,10 @@ export class ArpRoCrateExportService {
   protected normalizeBaseUrl(baseUrl: string): string {
     const normalized = baseUrl.trim().replace(/\/+$/, '')
     if (!normalized) {
-      throw new Error('Repository base URL is empty.')
+      throw new Error(nls.localize(
+        'rockit/dataRepository/emptyRepositoryBaseUrl',
+        'Repository base URL is empty.',
+      ))
     }
     return normalized
   }
@@ -2299,6 +2805,34 @@ export class ArpRoCrateExportService {
   ): string | undefined {
     const value = entity[key]
     return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+  }
+
+  protected readStrings(value: unknown): string[] {
+    if (typeof value === 'string') {
+      return value.trim() ? [value.trim()] : []
+    }
+    if (Array.isArray(value)) {
+      return this.uniqueStrings(value.flatMap((item) => this.readStrings(item)))
+    }
+    return []
+  }
+
+  protected uniqueStrings(values: string[]): string[] {
+    return Array.from(new Set(values.filter((value) => value.trim() !== '')))
+  }
+
+  protected firstMeaningfulString(...values: unknown[]): string | undefined {
+    return values
+      .flatMap((value) => this.readStrings(value))
+      .find((value) => value !== './' && value !== '.')
+  }
+
+  protected looksLikeEntityId(value: string): boolean {
+    return (
+      value.startsWith('#') ||
+      value.startsWith('./') ||
+      /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)
+    )
   }
 
   protected parsePosixPath(value: string): { dir: string; base: string } {

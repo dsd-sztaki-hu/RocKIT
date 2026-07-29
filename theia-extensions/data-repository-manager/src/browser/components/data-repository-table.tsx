@@ -8,6 +8,7 @@ import StorageIcon from '@mui/icons-material/Storage';
 import SearchIcon from '@mui/icons-material/Search';
 import { IconButton, Tooltip } from '@mui/material';
 import { DataRepositoryConfig, DataRepositoryTableProps } from '../types';
+import { nls } from '@theia/core/lib/common/nls';
 
 import '../styles/data-repository-table.css';
 
@@ -34,7 +35,7 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
             >
                 <Input
                     ref={searchInput}
-                    placeholder={`Search ${dataIndex}`}
+                    placeholder={nls.localize('rockit/dataRepository/searchField', 'Search {0}', dataIndex)}
                     value={selectedKeys[0]}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => 
                         setSelectedKeys(e.target.value ? [e.target.value] : [])
@@ -48,7 +49,7 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
                         size="small" 
                         className="data-repo-table__filter-btn data-repo-table__filter-btn--reset"
                     >
-                        Reset
+                        {nls.localize('rockit/dataRepository/reset', 'Reset')}
                     </Button>
                     <Button 
                         type="primary" 
@@ -56,7 +57,7 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
                         size="small" 
                         className="data-repo-table__filter-btn data-repo-table__filter-btn--search"
                     >
-                        Search
+                        {nls.localize('rockit/dataRepository/search', 'Search')}
                     </Button>
                 </div>
             </div>
@@ -76,7 +77,7 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
 
     const columns: TableColumnsType<DataRepositoryConfig> = [
         {
-            title: 'Repository Name',
+            title: nls.localize('rockit/dataRepository/repositoryName', 'Repository Name'),
             dataIndex: 'title',
             key: 'title',
             sorter: (a, b) => a.title.localeCompare(b.title),
@@ -84,7 +85,7 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
             ellipsis: true,
         },
         {
-            title: 'Base URL',
+            title: nls.localize('rockit/dataRepository/baseUrl', 'Base URL'),
             dataIndex: 'baseUrl',
             key: 'baseUrl',
             sorter: (a, b) => a.baseUrl.localeCompare(b.baseUrl),
@@ -106,14 +107,14 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
 
     if (onDelete || onEdit) {
         columns.push({
-            title: 'Action',
+            title: nls.localize('rockit/dataRepository/action', 'Action'),
             key: 'action',
             width: 90, 
             align: 'center',
             render: (_, record) => (
                 <div className="data-repo-table__actions-container">
                     {onEdit && (
-                        <Tooltip title="Edit Repository" classes={{ tooltip: 'data-repo-table__tooltip' }}>
+                        <Tooltip title={nls.localize('rockit/dataRepository/editRepository', 'Edit Repository')} classes={{ tooltip: 'data-repo-table__tooltip' }}>
                             <IconButton 
                                 size="small" 
                                 onClick={(e) => {
@@ -127,7 +128,7 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
                         </Tooltip>
                     )}
                     {onDelete && (
-                        <Tooltip title="Delete Repository" classes={{ tooltip: 'data-repo-table__tooltip' }}>
+                        <Tooltip title={nls.localize('rockit/dataRepository/deleteRepository', 'Delete Repository')} classes={{ tooltip: 'data-repo-table__tooltip' }}>
                             <IconButton 
                                 size="small" 
                                 onClick={(e) => {
@@ -148,9 +149,9 @@ export const DataRepositoryTable: React.FC<DataRepositoryTableProps> = React.mem
     const customEmptyState = (
         <div className="data-repo-table__empty-state">
             <StorageIcon className="data-repo-table__empty-icon" />
-            <div className="data-repo-table__empty-title">No Data Repositories</div>
+            <div className="data-repo-table__empty-title">{nls.localize('rockit/dataRepository/noRepositories', 'No Data Repositories')}</div>
             <div className="data-repo-table__empty-desc">
-                Click <strong>Add Repository</strong> to connect to a remote server.
+                {nls.localize('rockit/dataRepository/noRepositoriesDescription', 'Use Add Repository to connect to a remote server.')}
             </div>
         </div>
     );

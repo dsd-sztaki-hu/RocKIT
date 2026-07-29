@@ -1,4 +1,5 @@
 import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
+import { nls } from '@theia/core/lib/common/nls'
 import { inject, injectable } from 'inversify'
 import {
   AppStateProvider,
@@ -98,7 +99,9 @@ function JsonNode({
         <div>
           {Array.isArray(value) ? (
             value.length === 0 ? (
-              <div style={{ paddingLeft: 14, opacity: 0.7 }}>[empty]</div>
+              <div style={{ paddingLeft: 14, opacity: 0.7 }}>
+                [{nls.localize('rockit/appState/panel/empty', 'empty')}]
+              </div>
             ) : (
               value.map((item, idx) => (
                 <JsonNode
@@ -160,7 +163,9 @@ function AppStatePanelView({ historyService }: { historyService: RoCrateHistoryS
 
   return (
     <div className="app-state-panel">
-      <h3 className="app-state-panel-title">Global AppState</h3>
+      <h3 className="app-state-panel-title">
+        {nls.localize('rockit/appState/panel/globalState', 'Global AppState')}
+      </h3>
 
       <div className="app-state-panel-actions">
         <button
@@ -168,7 +173,7 @@ function AppStatePanelView({ historyService }: { historyService: RoCrateHistoryS
           className="theia-button app-state-panel-button"
           onClick={() => service.reset()}
         >
-          Reset state to defaults
+          {nls.localize('rockit/appState/panel/reset', 'Reset state to defaults')}
         </button>
 
         <button
@@ -176,7 +181,7 @@ function AppStatePanelView({ historyService }: { historyService: RoCrateHistoryS
           className="theia-button app-state-panel-button"
           onClick={collapseAll}
         >
-          Collapse all
+          {nls.localize('rockit/appState/panel/collapseAll', 'Collapse all')}
         </button>
 
         <button
@@ -184,7 +189,7 @@ function AppStatePanelView({ historyService }: { historyService: RoCrateHistoryS
           className="theia-button app-state-panel-button"
           onClick={() => setHistoryRefreshTick((v) => v + 1)}
         >
-          Refresh history
+          {nls.localize('rockit/appState/panel/refreshHistory', 'Refresh history')}
         </button>
 
         <button
@@ -195,7 +200,7 @@ function AppStatePanelView({ historyService }: { historyService: RoCrateHistoryS
             setHistoryRefreshTick((v) => v + 1)
           }}
         >
-          Clear history
+          {nls.localize('rockit/appState/panel/clearHistory', 'Clear history')}
         </button>
       </div>
 
@@ -209,17 +214,27 @@ function AppStatePanelView({ historyService }: { historyService: RoCrateHistoryS
         />
 
         <h3 className="app-state-panel-title" style={{ marginTop: 16 }}>
-          RO-Crate History (Temporary Debug)
+          {nls.localize(
+            'rockit/appState/panel/historyTitle',
+            'RO-Crate History (Temporary Debug)',
+          )}
         </h3>
         <div style={{ marginBottom: 8 }}>
-          undo: <strong>{historySnapshot.undoCount}</strong> | redo:{' '}
-          <strong>{historySnapshot.redoCount}</strong> | open transactions:{' '}
+          {nls.localize('rockit/appState/panel/undo', 'undo')}: <strong>{historySnapshot.undoCount}</strong> |{' '}
+          {nls.localize('rockit/appState/panel/redo', 'redo')}:{' '}
+          <strong>{historySnapshot.redoCount}</strong> |{' '}
+          {nls.localize('rockit/appState/panel/openTransactions', 'open transactions')}:{' '}
           <strong>{historySnapshot.transactionDepth}</strong>
         </div>
         <div style={{ marginBottom: 8 }}>
-          rfc6902 patch bytes (approx, forward+backward):{' '}
-          <strong>{formatBytes(historySnapshot.totalPatchBytes)}</strong> | undo-forward:{' '}
-          <strong>{formatBytes(historySnapshot.undoPatchBytes)}</strong> | redo-forward:{' '}
+          {nls.localize(
+            'rockit/appState/panel/patchBytes',
+            'rfc6902 patch bytes (approx, forward+backward)',
+          )}:{' '}
+          <strong>{formatBytes(historySnapshot.totalPatchBytes)}</strong> |{' '}
+          {nls.localize('rockit/appState/panel/undoForward', 'undo-forward')}:{' '}
+          <strong>{formatBytes(historySnapshot.undoPatchBytes)}</strong> |{' '}
+          {nls.localize('rockit/appState/panel/redoForward', 'redo-forward')}:{' '}
           <strong>{formatBytes(historySnapshot.redoPatchBytes)}</strong>
         </div>
         <JsonNode
@@ -237,7 +252,7 @@ function AppStatePanelView({ historyService }: { historyService: RoCrateHistoryS
 @injectable()
 export class AppStatePanelWidget extends ReactWidget {
   static readonly ID = 'theia-app-state-extension:app-state-panel'
-  static readonly LABEL = 'AppState Panel'
+  static readonly LABEL = nls.localize('rockit/appState/panel/title', 'AppState Panel')
 
   @inject(AppStateService)
   protected readonly appStateService: AppStateService

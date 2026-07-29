@@ -1,7 +1,9 @@
 import { BaseWidget, Message, StatefulWidget } from '@theia/core/lib/browser'
+import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import { ApplicationServer } from '@theia/core/lib/common/application-protocol'
 import { DisposableCollection } from '@theia/core/lib/common/disposable'
 import { MessageService } from '@theia/core/lib/common/message-service'
+import { nls } from '@theia/core/lib/common/nls'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
@@ -10,6 +12,9 @@ import {
   buildDocumentationUrl,
   ROCKIT_DOCUMENTATION_PAGES,
 } from 'rockit-common/lib/browser'
+import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
+import { ArpRoCrateImportDialog } from './components/arp-ro-crate-import-dialog'
+import { ArpRoCrateValidationErrorsDialog } from './components/arp-ro-crate-validation-errors-dialog'
 import { DataRepositoryConfigDialog } from './components/data-repository-config-dialog'
 import { DataRepositoryDeleteDialog } from './components/data-repository-delete-dialog'
 import {
@@ -21,16 +26,15 @@ import { DataRepositorySelectorDialog } from './components/data-repository-selec
 import { DataRepositoryTable } from './components/data-repository-table'
 import { DataRepositoryToolbar } from './components/data-repository-toolbar'
 import { DataverseCollectionBrowserDialog } from './components/dataverse-collection-browser-dialog'
-import { ArpRoCrateImportDialog } from './components/arp-ro-crate-import-dialog'
-import { ArpRoCrateValidationErrorsDialog } from './components/arp-ro-crate-validation-errors-dialog'
 import { NativeDataverseDatasetMetadataDialog } from './components/native-dataverse-dataset-metadata-dialog'
 import {
   ArpRoCrateExportService,
   ArpRoCrateValidationError,
 } from './services/arp-ro-crate-export-service'
 import { ArpRoCrateImportService } from './services/arp-ro-crate-import-service'
-import { DataRepositoryStoreService } from './services/data-repository-store-service'
+import { ArpRoCrateLinkService } from './services/arp-ro-crate-link-service'
 import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service'
+import { DataRepositoryStoreService } from './services/data-repository-store-service'
 import { DataverseCapabilityService } from './services/dataverse-capability-service'
 import { DataverseCollectionService } from './services/dataverse-collection-service'
 import { DataverseMetadataBlockCacheService } from './services/dataverse-metadata-block-cache-service'
@@ -41,15 +45,18 @@ import {
 } from './services/native-dataverse-export-service'
 import { NativeDataverseImportService } from './services/native-dataverse-import-service'
 import { RoCrateFileHashService } from './services/ro-crate-file-hash-service'
-import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
 import { ZenodoExportService } from './services/zenodo-export-service'
+import type { DataRepositoryCapabilities } from './types'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
 
 type RoCrateEntity = Record<string, unknown>
 
 export const DATA_REPOSITORY_MANAGER_WIDGET_ID = 'data-repository-manager:widget'
-export const DATA_REPOSITORY_MANAGER_LABEL = 'Data Repository Manager'
+export const DATA_REPOSITORY_MANAGER_LABEL = nls.localize(
+  'rockit/dataRepository/title',
+  'Data Repository Manager',
+)
 
 @injectable()
 export class DataRepositoryManagerWidget extends BaseWidget implements StatefulWidget {
@@ -78,6 +85,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly arpExportService: ArpRoCrateExportService,
     @inject(ArpRoCrateImportService)
     protected readonly arpImportService: ArpRoCrateImportService,
+    @inject(ArpRoCrateLinkService)
+    protected readonly arpLinkService: ArpRoCrateLinkService,
     @inject(NativeDataverseImportService)
     protected readonly nativeImportService: NativeDataverseImportService,
     @inject(DataverseCapabilityService)
@@ -148,7 +157,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const capabilities = repositorySelection.capabilities
     if (!capabilities.supportsNativeDataverseApi) {
       this.messageService.warn(
-        `Import is currently only implemented for Dataverse-based repositories. '${selectedRepo.title}' does not expose a supported Dataverse API.`,
+        nls.localize(
+          'rockit/dataRepository/importUnsupported',
+          "Import is currently only implemented for Dataverse-based repositories. '{0}' does not expose a supported Dataverse API.",
+          selectedRepo.title,
+        ),
         { timeout: 10000 },
       )
       return
@@ -159,9 +172,14 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       capabilities.supportsArpRoCrateZipUpload
         ? undefined
         : {
-            title: 'Import Dataverse Dataset',
-            description:
+            title: nls.localize(
+              'rockit/dataRepository/importDataset',
+              'Import Dataverse Dataset',
+            ),
+            description: nls.localize(
+              'rockit/dataRepository/importDatasetDescription',
               'Enter the dataset persistent ID or dataset URL for the Dataverse dataset to import.',
+            ),
             placeholder: 'doi:10.70122/FK2/N2XGBJ',
           },
     )
@@ -171,7 +189,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     }
 
     const progress = await this.messageService.showProgress({
-      text: `Importing dataset from ${selectedRepo.title}...`,
+      text: nls.localize(
+        'rockit/dataRepository/importingFrom',
+        'Importing dataset from {0}...',
+        selectedRepo.title,
+      ),
     })
     try {
       const result = capabilities.supportsArpRoCrateZipUpload
@@ -188,23 +210,181 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
       if ('hasRoCrateMetadata' in result && !result.hasRoCrateMetadata) {
         this.messageService.info(
-          `Dataverse dataset imported to ${result.targetDirectory.path.fsPath()}. Extracted ${result.extractedFileCount} file(s). No ro-crate-metadata.json was included, so the workspace can create one after opening.`,
+          nls.localize(
+            'rockit/dataRepository/importedWithoutMetadata',
+            'Dataverse dataset imported to {0}. Extracted {1} file(s). No ro-crate-metadata.json was included, so the workspace can create one after opening.',
+            result.targetDirectory.path.fsPath(),
+            result.extractedFileCount,
+          ),
           { timeout: 10000 },
         )
       } else {
         this.messageService.info(
-          `Dataset imported to ${result.targetDirectory.path.fsPath()}. Extracted ${result.extractedFileCount} file(s).`,
+          nls.localize(
+            'rockit/dataRepository/importedDataset',
+            'Dataset imported to {0}. Extracted {1} file(s).',
+            result.targetDirectory.path.fsPath(),
+            result.extractedFileCount,
+          ),
           { timeout: 10000 },
         )
       }
     } catch (error) {
       console.error('Remote dataset import failed:', error)
       this.messageService.error(
-        `Dataset import failed: ${error instanceof Error ? error.message : String(error)}`,
+        nls.localize(
+          'rockit/dataRepository/importFailed',
+          'Dataset import failed: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
         { timeout: 10000 },
       )
     } finally {
       progress.cancel()
+    }
+  }
+
+  public async handleLinkLocalToRemote(): Promise<void> {
+    const repositories = await this.storeService.loadRepositories()
+    this.repositories = repositories
+    this.update()
+
+    const linkDialog = new ArpRoCrateImportDialog({
+      title: nls.localize(
+        'rockit/dataRepository/linkLocalTitle',
+        'Link Local Dataset To Remote',
+      ),
+      description: nls.localize(
+        'rockit/dataRepository/linkLocalDescription',
+        'Enter the dataset PID or URL where this local RO-Crate already exists in a remote repository.',
+      ),
+      placeholder: 'https://repo.researchdata.hu/dataset.xhtml?persistentId=hdl:...',
+    })
+    const linkInput = await linkDialog.open()
+    if (!linkInput) {
+      return
+    }
+
+    let selectedRepo = this.inferRepositoryFromDatasetUrl(
+      repositories,
+      linkInput.datasetUrl,
+    )
+    let selectedCapabilities: DataRepositoryCapabilities | undefined
+    if (!selectedRepo) {
+      const selector = new DataRepositorySelectorDialog(
+        repositories,
+        this.storeService,
+        this.dataverseService,
+        this.capabilityService,
+      )
+      const repositorySelection = await selector.open()
+      if (!repositorySelection) {
+        return
+      }
+      selectedRepo = repositorySelection.repository
+      selectedCapabilities = repositorySelection.capabilities
+    } else {
+      selectedCapabilities = await this.capabilityService.detectRepositoryCapabilities(
+        selectedRepo.baseUrl,
+      )
+    }
+
+    try {
+      const previewProgress = await this.messageService.showProgress({
+        text: nls.localize(
+          'rockit/dataRepository/checkingRemoteDataset',
+          'Checking remote dataset in {0}...',
+          selectedRepo.title,
+        ),
+      })
+      let shouldContinue = true
+      try {
+        const preview = await this.arpLinkService.previewLocalDatasetLink(
+          selectedRepo,
+          selectedCapabilities,
+          linkInput.datasetUrl,
+        )
+        previewProgress.cancel()
+        if (preview.titleMismatch) {
+          shouldContinue =
+            (await new ConfirmDialog({
+              title: nls.localize(
+                'rockit/dataRepository/titleMismatchTitle',
+                'Dataset Title Mismatch',
+              ),
+              msg: nls.localize(
+                'rockit/dataRepository/titleMismatchMessage',
+                'The remote dataset title is different from the local RO-Crate title.\n\nLocal RO-Crate title: {0}\nRemote dataset title: {1}\n\nLinking the wrong dataset can cause future exports to update the wrong remote dataset. Continue?',
+                preview.localDatasetTitle ||
+                  nls.localize('rockit/dataRepository/missingValue', '(missing)'),
+                preview.remoteDatasetTitle ||
+                  nls.localize('rockit/dataRepository/missingValue', '(missing)'),
+              ),
+              ok: nls.localize('rockit/dataRepository/continue', 'Link Anyway'),
+              cancel: nls.localize('rockit/common/cancel', 'Cancel'),
+            }).open()) ?? false
+        }
+      } finally {
+        previewProgress.cancel()
+      }
+      if (!shouldContinue) {
+        return
+      }
+
+      const progress = await this.messageService.showProgress({
+        text: nls.localize(
+          'rockit/dataRepository/linkingLocalDataset',
+          'Linking local dataset to {0}...',
+          selectedRepo.title,
+        ),
+      })
+      try {
+        const result = await this.arpLinkService.linkLocalDatasetToRemote(
+          selectedRepo,
+          selectedCapabilities,
+          linkInput.datasetUrl,
+        )
+        this.messageService.info(
+          nls.localize(
+            'rockit/dataRepository/linkedLocalDataset',
+            'Linked local dataset to {0}. Wrote {1} entity mapping(s) to .rockit/{2}.',
+            result.target,
+            result.mappedEntityCount,
+            result.mappingFileName,
+          ),
+          { timeout: 10000 },
+        )
+        if (result.unmappedEntityIds.length) {
+          const previewLimit = 15
+          const idPreview = result.unmappedEntityIds
+            .slice(0, previewLimit)
+            .map((id) => `- ${id.length > 80 ? `${id.slice(0, 77)}...` : id}`)
+            .join('\n')
+          const remainingCount = result.unmappedEntityIds.length - previewLimit
+          this.messageService.warn(
+            `${nls.localize(
+              'rockit/dataRepository/linkUnmappedIds',
+              'Remote link created, but {0} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/{1}.',
+              result.unmappedEntityIds.length,
+              result.mappingFileName,
+            )}\n${idPreview}${remainingCount > 0 ? `\n- ${nls.localize('rockit/dataRepository/andMore', '...and {0} more', remainingCount)}` : ''}`,
+            { timeout: 10000 },
+          )
+        }
+        console.log('Local dataset linked to remote ARP dataset:', result)
+      } finally {
+        progress.cancel()
+      }
+    } catch (error) {
+      console.error('Remote dataset link failed:', error)
+      this.messageService.error(
+        nls.localize(
+          'rockit/dataRepository/datasetLinkFailed',
+          'Dataset link failed: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
+        { timeout: 10000 },
+      )
     }
   }
 
@@ -215,7 +395,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   public async handleExportToRemote(): Promise<void> {
     if (this.hasUnsavedRoCrateChanges()) {
       this.messageService.warn(
-        'Remote export is not possible while the RO-Crate has unsaved changes. Save the RO-Crate first, then export again.',
+        nls.localize(
+          'rockit/dataRepository/unsavedExportBlocked',
+          'Remote export is not possible while the RO-Crate has unsaved changes. Save the RO-Crate first, then export again.',
+        ),
         { timeout: 10000 },
       )
       return
@@ -226,7 +409,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     } catch (error) {
       console.error('Failed to calculate file hashes before remote export:', error)
       this.messageService.error(
-        `Remote export preparation failed: ${error instanceof Error ? error.message : String(error)}`,
+        nls.localize(
+          'rockit/dataRepository/exportPreparationFailed',
+          'Remote export preparation failed: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
         { timeout: 10000 },
       )
       return
@@ -268,8 +455,16 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     if (capabilities.supportsZenodoApi) {
       const progress = await this.messageService.showProgress({
         text: selectedExportTarget
-          ? `Updating the Zenodo deposition in ${selectedRepo.title}...`
-          : `Uploading RO-Crate files to ${selectedRepo.title}...`,
+          ? nls.localize(
+              'rockit/dataRepository/updatingZenodoIn',
+              'Updating the Zenodo deposition in {0}...',
+              selectedRepo.title,
+            )
+          : nls.localize(
+              'rockit/dataRepository/uploadingRoCrateTo',
+              'Uploading RO-Crate files to {0}...',
+              selectedRepo.title,
+            ),
       })
       try {
         if (selectedExportTarget) {
@@ -286,7 +481,21 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               }),
           )
           this.messageService.info(
-            `Zenodo update completed for ${updateResult.target}. Uploaded ${updateResult.addedFileCount} new file(s), replaced ${updateResult.replacedFileCount}, removed ${updateResult.removedFileCount}, and kept ${updateResult.unchangedFileCount} unchanged.${updateResult.createdNewVersion ? ' A new-version draft was used.' : ''}`,
+            nls.localize(
+              'rockit/dataRepository/zenodoUpdateCompleted',
+              'Zenodo update completed for {0}. Uploaded {1} new file(s), replaced {2}, removed {3}, and kept {4} unchanged.{5}',
+              updateResult.target,
+              updateResult.addedFileCount,
+              updateResult.replacedFileCount,
+              updateResult.removedFileCount,
+              updateResult.unchangedFileCount,
+              updateResult.createdNewVersion
+                ? nls.localize(
+                    'rockit/dataRepository/zenodoNewVersionDraftUsed',
+                    ' A new-version draft was used.',
+                  )
+                : '',
+            ),
             { timeout: 12000 },
           )
           console.log('Zenodo deposition updated:', updateResult)
@@ -305,18 +514,30 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             }),
         )
         this.messageService.info(
-          `Zenodo draft deposition created: ${exportResult.target}. Uploaded ${exportResult.uploadedFiles.length} file(s).`,
+          nls.localize(
+            'rockit/dataRepository/zenodoDraftCreated',
+            'Zenodo draft deposition created: {0}. Uploaded {1} file(s).',
+            exportResult.target,
+            exportResult.uploadedFiles.length,
+          ),
           { timeout: 10000 },
         )
         this.messageService.info(
-          'RO-Crate metadata was converted to an in-memory Zenodo JSON payload and uploaded to the draft.',
+          nls.localize(
+            'rockit/dataRepository/zenodoMetadataPayloadUploaded',
+            'RO-Crate metadata was converted to an in-memory Zenodo JSON payload and uploaded to the draft.',
+          ),
           { timeout: 12000 },
         )
         console.log('RO-Crate files exported to Zenodo:', exportResult)
       } catch (error) {
         console.error('Zenodo RO-Crate export failed:', error)
         this.messageService.error(
-          `Zenodo export failed: ${error instanceof Error ? error.message : String(error)}`,
+          nls.localize(
+            'rockit/dataRepository/zenodoExportFailed',
+            'Zenodo export failed: {0}',
+            error instanceof Error ? error.message : String(error),
+          ),
           { timeout: 10000 },
         )
       } finally {
@@ -327,7 +548,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     if (!capabilities.supportsNativeDataverseApi) {
       this.messageService.error(
-        `Repository '${selectedRepo.title}' does not expose a supported Dataverse API.`,
+        nls.localize(
+          'rockit/dataRepository/unsupportedRepository',
+          "Repository '{0}' does not expose a supported Dataverse API.",
+          selectedRepo.title,
+        ),
         { timeout: 10000 },
       )
       return
@@ -336,11 +561,17 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     if (capabilities.supportsArpRoCrateZipUpload && selectedExportTarget) {
       const progress = await this.messageService.showProgress({
-        text: `Updating the uploaded RO-Crate in ${selectedRepo.title}`,
+        text: nls.localize(
+          'rockit/dataRepository/updatingUploaded',
+          'Updating the uploaded RO-Crate in {0}',
+          selectedRepo.title,
+        ),
       })
       try {
-        const updateResult =
-          await this.arpExportService.updateArp(selectedRepo, selectedExportTarget, (update) =>
+        const updateResult = await this.arpExportService.updateArp(
+          selectedRepo,
+          selectedExportTarget,
+          (update) =>
             progress.report({
               message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
               work: {
@@ -348,10 +579,17 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                 total: update.totalSteps,
               },
             }),
-          )
+        )
         if (updateResult) {
           this.messageService.info(
-            `ARP update completed for ${updateResult.target}. Uploaded ${updateResult.addedFileCount} new file(s), replaced ${updateResult.changedFileCount} changed file(s), and removed ${updateResult.removedFileCount} file(s).`,
+            nls.localize(
+              'rockit/dataRepository/arpUpdateCompleted',
+              'ARP update completed for {0}. Uploaded {1} new file(s), replaced {2} changed file(s), and removed {3} file(s).',
+              updateResult.target,
+              updateResult.addedFileCount,
+              updateResult.changedFileCount,
+              updateResult.removedFileCount,
+            ),
             { timeout: 10000 },
           )
           if (updateResult.unmappedEntityIds.length && updateResult.mappingFileName) {
@@ -362,7 +600,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               .join('\n')
             const remainingCount = updateResult.unmappedEntityIds.length - previewLimit
             this.messageService.warn(
-              `ARP update completed, but ${updateResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/${updateResult.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
+              `${nls.localize('rockit/dataRepository/updateUnmappedIds', 'ARP update completed, but {0} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/{1}.', updateResult.unmappedEntityIds.length, updateResult.mappingFileName)}\n${idPreview}${remainingCount > 0 ? `\n- ${nls.localize('rockit/dataRepository/andMore', '...and {0} more', remainingCount)}` : ''}`,
               { timeout: 10000 },
             )
           }
@@ -377,7 +615,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           return
         }
         this.messageService.error(
-          `ARP file update failed: ${error instanceof Error ? error.message : String(error)}`,
+          nls.localize(
+            'rockit/dataRepository/arpUpdateFailed',
+            'ARP file update failed: {0}',
+            error instanceof Error ? error.message : String(error),
+          ),
           { timeout: 10000 },
         )
         return
@@ -388,7 +630,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     if (!capabilities.supportsArpRoCrateZipUpload) {
       const progress = await this.messageService.showProgress({
-        text: `Updating the uploaded RO-Crate in ${selectedRepo.title}`,
+        text: nls.localize(
+          'rockit/dataRepository/updatingUploaded',
+          'Updating the uploaded RO-Crate in {0}',
+          selectedRepo.title,
+        ),
       })
       try {
         const updateResult = await this.nativeExportService.updateDataset(
@@ -405,7 +651,14 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         )
         if (updateResult) {
           this.messageService.info(
-            `Dataverse update completed for ${updateResult.target}. Uploaded ${updateResult.addedFileCount} new file(s), replaced ${updateResult.replacedFileCount} changed file(s), and removed ${updateResult.removedFileCount} file(s).`,
+            nls.localize(
+              'rockit/dataRepository/dataverseUpdateCompleted',
+              'Dataverse update completed for {0}. Uploaded {1} new file(s), replaced {2} changed file(s), and removed {3} file(s).',
+              updateResult.target,
+              updateResult.addedFileCount,
+              updateResult.replacedFileCount,
+              updateResult.removedFileCount,
+            ),
             { timeout: 10000 },
           )
           console.log('Native Dataverse update completed:', updateResult)
@@ -414,7 +667,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       } catch (error) {
         console.error('Native Dataverse update failed:', error)
         this.messageService.error(
-          `Dataverse update failed: ${error instanceof Error ? error.message : String(error)}`,
+          nls.localize(
+            'rockit/dataRepository/dataverseUpdateFailed',
+            'Dataverse update failed: {0}',
+            error instanceof Error ? error.message : String(error),
+          ),
           { timeout: 10000 },
         )
         return
@@ -428,7 +685,12 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       if (missingMetadata.length) {
         const documentationUrl = await this.getRepositoryExportDocumentationUrl()
         this.messageService.error(
-          `ARP export requires required citation metadata before creating a Dataverse dataset: ${missingMetadata.join(', ')}. Fill these fields in the root Dataset citation metadata, then export again. [Learn more in the documentation](${documentationUrl}).`,
+          nls.localize(
+            'rockit/dataRepository/missingCitationMetadata',
+            'ARP export requires citation metadata before creating a Dataverse dataset: {0}. Fill these fields in the root Dataset citation metadata, then export again. [Learn more in the documentation]({1}).',
+            missingMetadata.join(', '),
+            documentationUrl,
+          ),
           { timeout: 15000 },
         )
         return
@@ -443,22 +705,82 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     if (result) {
       if (capabilities.supportsArpRoCrateZipUpload) {
+        let metadataDefaults: NativeDataverseDatasetMetadata
+        let metadataLanguageOptions: Array<{ value: string; label: string }>
+        try {
+          metadataDefaults =
+            await this.nativeExportService.getDatasetCreationMetadataDefaults()
+          metadataLanguageOptions =
+            await this.arpExportService.getAllowedMetadataLanguages(
+              selectedRepo,
+              result.collection,
+            )
+        } catch (error) {
+          console.error('Failed to prepare ARP dataset metadata dialog:', error)
+          this.messageService.error(
+            nls.localize(
+              'rockit/dataRepository/arpExportPreparationFailed',
+              'ARP export preparation failed: {0}',
+              error instanceof Error ? error.message : String(error),
+            ),
+            { timeout: 10000 },
+          )
+          return
+        }
+        const metadataDialog = new NativeDataverseDatasetMetadataDialog(
+          metadataDefaults,
+          {
+            title: nls.localize(
+              'rockit/dataRepository/requiredArpMetadata',
+              'Required ARP Dataset Metadata',
+            ),
+            metadataLanguageOptions,
+            defaultMetadataLanguage:
+              metadataDefaults.metadataLanguage ??
+              metadataLanguageOptions.find((option) => option.value === 'en')?.value ??
+              metadataLanguageOptions[0]?.value,
+          },
+        )
+        const datasetMetadata = await metadataDialog.open()
+        if (!datasetMetadata) {
+          return
+        }
         const progress = await this.messageService.showProgress({
-          text: `Exporting RO-Crate ZIP to ${result.collection.name}...`,
+          text: nls.localize(
+            'rockit/dataRepository/exportingArp',
+            'Exporting RO-Crate to {0}...',
+            result.collection.name,
+          ),
         })
         try {
           const exportResult = await this.arpExportService.exportToArp(
             selectedRepo,
             result.collection,
+            datasetMetadata,
+            (update) =>
+              progress.report({
+                message: `${Math.round((update.completedSteps / update.totalSteps) * 100)}% - ${update.message}`,
+                work: {
+                  done: update.completedSteps,
+                  total: update.totalSteps,
+                },
+              }),
           )
           const target =
             exportResult.target ||
             exportResult.dataverseUrl ||
             exportResult.pid ||
             exportResult.requestUrl
-          this.messageService.info(`RO-Crate ZIP export completed: ${target}`, {
-            timeout: 8000,
-          })
+          this.messageService.info(
+            nls.localize(
+              'rockit/dataRepository/zipExportCompleted',
+              'RO-Crate ZIP export completed: {0}',
+              target,
+            ),
+            {
+              timeout: 8000,
+            },
+          )
           if (exportResult.unmappedEntityIds.length) {
             const previewLimit = 15
             const idPreview = exportResult.unmappedEntityIds
@@ -467,20 +789,24 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               .join('\n')
             const remainingCount = exportResult.unmappedEntityIds.length - previewLimit
             this.messageService.warn(
-              `RO-Crate export completed, but ${exportResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/${exportResult.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
+              `${nls.localize('rockit/dataRepository/exportUnmappedIds', 'RO-Crate export completed, but {0} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/{1}.', exportResult.unmappedEntityIds.length, exportResult.mappingFileName)}\n${idPreview}${remainingCount > 0 ? `\n- ${nls.localize('rockit/dataRepository/andMore', '...and {0} more', remainingCount)}` : ''}`,
               { timeout: 10000 },
             )
           }
-          console.log('RO-Crate ZIP exported to ARP:', exportResult)
+          console.log('RO-Crate exported to ARP:', exportResult)
         } catch (error) {
-          console.error('RO-Crate ZIP export failed:', error)
+          console.error('RO-Crate export failed:', error)
           if (error instanceof ArpRoCrateValidationError) {
             progress.cancel()
             await this.showArpValidationFailure(error)
             return
           }
           this.messageService.error(
-            `RO-Crate ZIP export failed: ${error instanceof Error ? error.message : String(error)}`,
+            nls.localize(
+              'rockit/dataRepository/zipExportFailed',
+              'RO-Crate ZIP export failed: {0}',
+              error instanceof Error ? error.message : String(error),
+            ),
             { timeout: 10000 },
           )
         } finally {
@@ -496,7 +822,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       } catch (error) {
         console.error('Failed to load Dataverse dataset metadata defaults:', error)
         this.messageService.error(
-          `Dataverse export preparation failed: ${error instanceof Error ? error.message : String(error)}`,
+          nls.localize(
+            'rockit/dataRepository/dataversePreparationFailed',
+            'Dataverse export preparation failed: {0}',
+            error instanceof Error ? error.message : String(error),
+          ),
           { timeout: 10000 },
         )
         return
@@ -507,7 +837,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         return
       }
       const progress = await this.messageService.showProgress({
-        text: `Creating Dataverse dataset in ${result.collection.name}...`,
+        text: nls.localize(
+          'rockit/dataRepository/creatingDataset',
+          'Creating Dataverse dataset in {0}...',
+          result.collection.name,
+        ),
       })
       try {
         const creationResult = await this.nativeExportService.createDataset(
@@ -528,7 +862,12 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           creationResult.datasetId ||
           creationResult.requestUrl
         this.messageService.info(
-          `Dataverse dataset created: ${creationResult.target || createdDataset}. Uploaded ${creationResult.uploadedFiles.length} files.`,
+          nls.localize(
+            'rockit/dataRepository/datasetCreated',
+            'Dataverse dataset created: {0}. Uploaded {1} files.',
+            creationResult.target || createdDataset,
+            creationResult.uploadedFiles.length,
+          ),
           { timeout: 8000 },
         )
         if (creationResult.unmappedEntityIds.length) {
@@ -539,7 +878,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             .join('\n')
           const remainingCount = creationResult.unmappedEntityIds.length - previewLimit
           this.messageService.warn(
-            `Dataverse dataset created, but ${creationResult.unmappedEntityIds.length} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/${creationResult.mappingFileName}.\n${idPreview}${remainingCount > 0 ? `\n- ...and ${remainingCount} more` : ''}`,
+            `${nls.localize('rockit/dataRepository/creationUnmappedIds', 'Dataverse dataset created, but {0} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/{1}.', creationResult.unmappedEntityIds.length, creationResult.mappingFileName)}\n${idPreview}${remainingCount > 0 ? `\n- ${nls.localize('rockit/dataRepository/andMore', '...and {0} more', remainingCount)}` : ''}`,
             { timeout: 10000 },
           )
         }
@@ -547,7 +886,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       } catch (error) {
         console.error('Native Dataverse dataset creation failed:', error)
         this.messageService.error(
-          `Dataverse dataset creation failed: ${error instanceof Error ? error.message : String(error)}`,
+          nls.localize(
+            'rockit/dataRepository/datasetCreationFailed',
+            'Dataverse dataset creation failed: {0}',
+            error instanceof Error ? error.message : String(error),
+          ),
           { timeout: 10000 },
         )
       } finally {
@@ -566,11 +909,16 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       0,
     )
     const action = await this.messageService.error(
-      `Server RO-Crate validation failed. The backend validation endpoint rejected the upload with ${issueCount} issue${issueCount === 1 ? '' : 's'} across ${error.validationErrors.length} entit${error.validationErrors.length === 1 ? 'y' : 'ies'}.`,
+      nls.localize(
+        'rockit/dataRepository/serverValidationFailed',
+        'Server RO-Crate validation failed. The backend rejected the upload with {0} issue(s) across {1} entity/entities.',
+        issueCount,
+        error.validationErrors.length,
+      ),
       { timeout: 0 },
-      'Show issues',
+      nls.localize('rockit/dataRepository/showIssues', 'Show issues'),
     )
-    if (action === 'Show issues') {
+    if (action === nls.localize('rockit/dataRepository/showIssues', 'Show issues')) {
       await this.openArpValidationResponse(error)
     }
   }
@@ -597,7 +945,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     repository: DataRepositoryConfig,
   ): Promise<void> {
     const progress = await this.messageService.showProgress({
-      text: `Loading Dataverse metadata schemas from ${repository.title}...`,
+      text: nls.localize(
+        'rockit/dataRepository/loadingDataverseMetadataSchemas',
+        'Loading Dataverse metadata schemas from {0}...',
+        repository.title,
+      ),
     })
     try {
       const saved =
@@ -606,7 +958,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     } catch (error) {
       console.warn('Failed to load Dataverse metadata blocks:', error)
       this.messageService.warn(
-        `Dataverse metadata schemas could not be loaded: ${error instanceof Error ? error.message : String(error)}`,
+        nls.localize(
+          'rockit/dataRepository/dataverseMetadataSchemasLoadFailed',
+          'Dataverse metadata schemas could not be loaded: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
         { timeout: 10000 },
       )
     } finally {
@@ -632,7 +988,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
   protected hasUnsavedRoCrateChanges(): boolean {
     const crate = this.appStateService.roCrate
-    return this.appStateService.dirty || (!!crate && this.appStateService.isRoCrateDirty(crate))
+    return (
+      this.appStateService.dirty ||
+      (!!crate && this.appStateService.isRoCrateDirty(crate))
+    )
   }
 
   protected mergeExportTargets(
@@ -650,11 +1009,34 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             latestByMappingFile.set(target.mappingFile, target)
           }
         }
-        merged[repositoryId] = Array.from(latestByMappingFile.values())
-          .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
+        merged[repositoryId] = Array.from(latestByMappingFile.values()).sort((a, b) =>
+          b.syncedAt.localeCompare(a.syncedAt),
+        )
       }
     }
     return merged
+  }
+
+  protected inferRepositoryFromDatasetUrl(
+    repositories: DataRepositoryConfig[],
+    datasetUrl: string,
+  ): DataRepositoryConfig | undefined {
+    let inputHost: string | undefined
+    try {
+      inputHost = new URL(datasetUrl.trim()).hostname.toLowerCase()
+    } catch {
+      return undefined
+    }
+    if (!inputHost || inputHost === 'hdl.handle.net' || inputHost === 'doi.org') {
+      return undefined
+    }
+    return repositories.find((repository) => {
+      try {
+        return new URL(repository.baseUrl.trim()).hostname.toLowerCase() === inputHost
+      } catch {
+        return false
+      }
+    })
   }
 
   protected async handleDeleteExportTarget(
@@ -665,11 +1047,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const capabilities = await this.capabilityService.detectRepositoryCapabilities(
       repository.baseUrl,
     )
-    const dialog = new DataRepositoryExportDeleteDialog(
-      target,
-      action,
-      capabilities.kind,
-    )
+    const dialog = new DataRepositoryExportDeleteDialog(target, action, capabilities.kind)
     if (!(await dialog.open())) {
       return false
     }
@@ -677,8 +1055,15 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const deleteRemote = action === 'delete'
     const loadMask = this.loadMaskService.show({
       message: deleteRemote
-        ? `Deleting the remote dataset from ${repository.title}...`
-        : 'Removing the local export link...',
+        ? nls.localize(
+            'rockit/dataRepository/deletingRemoteDatasetFrom',
+            'Deleting the remote dataset from {0}...',
+            repository.title,
+          )
+        : nls.localize(
+            'rockit/dataRepository/removingLocalExportLink',
+            'Removing the local export link...',
+          ),
       delay: 0,
     })
     try {
@@ -722,24 +1107,28 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const graph = this.readGraph(crate)
     const root = graph.find((entity) => entity['@id'] === './')
     if (!root) {
-      return ['Root Dataset']
+      return [nls.localize('rockit/dataRepository/rootDataset', 'Root Dataset')]
     }
 
     const missing: string[] = []
     if (!this.firstMeaningfulString(root.title, root.name)) {
-      missing.push('Title')
+      missing.push(nls.localize('rockit/dataRepository/metadataTitle', 'Title'))
     }
     if (!this.hasCompleteAuthors(root, graph)) {
-      missing.push('Author Name')
+      missing.push(nls.localize('rockit/dataRepository/authorName', 'Author Name'))
     }
     if (!this.hasCompleteContactEmails(root, graph)) {
-      missing.push('Point of Contact Email')
+      missing.push(
+        nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email'),
+      )
     }
     if (!this.hasCompleteDescriptions(root, graph)) {
-      missing.push('Description Text')
+      missing.push(
+        nls.localize('rockit/dataRepository/descriptionText', 'Description Text'),
+      )
     }
     if (!this.readStrings(root.subject).length) {
-      missing.push('Subject')
+      missing.push(nls.localize('rockit/dataRepository/subject', 'Subject'))
     }
     return missing
   }
@@ -766,11 +1155,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       ...authorReferences.entities,
       ...this.entitiesWithType(graph, 'author'),
     ])
-    if (
-      authorEntities.some(
-        (author) => !this.firstMeaningfulString(author.authorName),
-      )
-    ) {
+    if (authorEntities.some((author) => !this.firstMeaningfulString(author.authorName))) {
       return false
     }
     return (
@@ -813,7 +1198,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     )
   }
 
-  protected hasCompleteDescriptions(root: RoCrateEntity, graph: RoCrateEntity[]): boolean {
+  protected hasCompleteDescriptions(
+    root: RoCrateEntity,
+    graph: RoCrateEntity[],
+  ): boolean {
     const descriptionReferences = this.resolveEntityReferences(root.dsDescription, graph)
     const descriptionEntities = this.uniqueEntities([
       ...descriptionReferences.entities,
@@ -821,8 +1209,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     ])
     if (
       descriptionEntities.some(
-        (description) =>
-          !this.firstMeaningfulString(description.dsDescriptionValue),
+        (description) => !this.firstMeaningfulString(description.dsDescriptionValue),
       )
     ) {
       return false
@@ -944,7 +1331,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const count = this.selectedKeys.length
     if (count === 0) return
 
-    const dialog = new DataRepositoryDeleteDialog(`${count} selected repositories`)
+    const dialog = new DataRepositoryDeleteDialog(count)
     const confirmed = await dialog.open()
     if (confirmed) {
       await this.storeService.deleteRepositories(

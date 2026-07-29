@@ -1,4 +1,5 @@
 import schemaTypeDefinitions = require('./schema-type-definitions.json')
+import { nls } from '@theia/core/lib/common/nls'
 
 export type AdvancedFilterCombinator = 'and' | 'or'
 
@@ -64,7 +65,7 @@ export type AdvancedFilterNode = AdvancedFilterRuleNode | AdvancedFilterGroupNod
 export const ALL_ENTITY_TYPES_OPTION = '__all__'
 export const SCHEMA_ORG_SCHEMA_ID = '__schemaorg__'
 const SCHEMA_ORG_LABEL = 'schema.org'
-const OTHER_ONTOLOGIES_LABEL = 'Other ontologies'
+const OTHER_ONTOLOGIES_LABEL = nls.localize('rockit/entitiesOverview/otherOntologies', 'Other ontologies')
 
 interface SchemaTypeDefinitionInput {
   id?: string
@@ -1150,7 +1151,7 @@ function resolveSchemaMeta(
     const label =
       typeof about?.label === 'string' && about.label.trim().length > 0
         ? about.label.trim()
-        : 'About'
+        : nls.localize('rockit/entitiesOverview/about', 'About')
     const url =
       typeof about?.url === 'string' && about.url.trim().length > 0
         ? about.url.trim()

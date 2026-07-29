@@ -5,6 +5,7 @@ import { Message } from '@lumino/messaging';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import LinkIcon from '@mui/icons-material/Link';
+import { nls } from '@theia/core/lib/common/nls';
 
 import '../styles/metadata-schema-import-from-url-dialog.css';
 
@@ -16,7 +17,7 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
 
     constructor() {
         super({
-            title: 'Import Schema from URL'
+            title: nls.localize('rockit/schemaManager/importFromUrlTitle', 'Import Schema from URL')
         });
 
         this.contentNode.style.width = '500px';
@@ -53,10 +54,13 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
                         
                         <div className="metadata-schema-import-url__text-wrapper">
                             <div className="metadata-schema-import-url__title">
-                                Enter Metadata Schema URL
+                                {nls.localize('rockit/schemaManager/enterSchemaUrl', 'Enter Metadata Schema URL')}
                             </div>
                             <div className="metadata-schema-import-url__description">
-                                Paste the direct link to the JSON schema file. We'll handle the authentication if a provider matches.
+                                {nls.localize(
+                                    'rockit/schemaManager/schemaUrlDescription',
+                                    'Paste the direct link to the JSON schema file. Authentication will be handled when a provider matches.',
+                                )}
                             </div>
                         </div>
                     </div>
@@ -88,13 +92,13 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
                         className="theia-button secondary metadata-schema-import-url__button metadata-schema-import-url__button--secondary"
                         onClick={() => this.handleCancel()}
                     >
-                        Cancel
+                        {nls.localize('rockit/common/cancel', 'Cancel')}
                     </button>
                     <button 
                         className="theia-button main metadata-schema-import-url__button metadata-schema-import-url__button--main"
                         onClick={() => this.handleImport()}
                     >
-                        Import
+                        {nls.localize('rockit/schemaManager/import', 'Import')}
                     </button>
                 </div>
             </div>

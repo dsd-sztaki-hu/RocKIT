@@ -8,6 +8,7 @@ import SettingsInputComponentIcon from '@mui/icons-material/SettingsInputCompone
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { Tooltip, IconButton } from '@mui/material';
+import { nls } from '@theia/core/lib/common/nls';
 
 import '../styles/metadata-schema-toolbar.css';
 
@@ -53,18 +54,18 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
         <div className="schema-toolbar">
             {/* Group 1: Local Imports */}
             {renderActionButton(
-                "Import File", 
+                nls.localize('rockit/schemaManager/importFile', 'Import File'),
                 <NoteAddIcon className="schema-toolbar__icon-svg" />, 
                 onImportFile, 
-                "Import a schema from a local JSON file",
+                nls.localize('rockit/schemaManager/importFileTooltip', 'Import a schema from a local JSON file'),
                 true 
             )}
             
             {renderActionButton(
-                "Import URL", 
+                nls.localize('rockit/schemaManager/importUrl', 'Import URL'),
                 <LinkIcon className="schema-toolbar__icon-svg" />, 
                 onImportUrl, 
-                "Import a schema from a URL",
+                nls.localize('rockit/schemaManager/importUrlTooltip', 'Import a schema from a URL'),
                 true 
             )}
 
@@ -72,15 +73,15 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
 
             {/* Group 2: Remote / Cloud */}
             {onBrowse && renderActionButton(
-                "Browse Remote", 
+                nls.localize('rockit/schemaManager/browseRemote', 'Browse Remote'),
                 <CloudDownloadIcon className="schema-toolbar__icon-svg" />, 
                 onBrowse, 
-                "Browse remote schemas via API",
+                nls.localize('rockit/schemaManager/browseRemoteTooltip', 'Browse remote schemas via API'),
                 true 
             )}
 
             {onConfigureProviders && (
-                <Tooltip title="Configure Providers" PopperProps={{ style: { zIndex: 99999 } }}>
+                <Tooltip title={nls.localize('rockit/schemaManager/configureProviders', 'Configure Providers')} PopperProps={{ style: { zIndex: 99999 } }}>
                     <IconButton 
                         size="small" 
                         onClick={onConfigureProviders}
@@ -94,7 +95,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
             <div className="schema-toolbar__spacer" /> 
 
             {/* Group 3: Global Actions */}
-            <Tooltip title="Refresh List" PopperProps={{ style: { zIndex: 99999 } }}>
+            <Tooltip title={nls.localize('rockit/schemaManager/refreshList', 'Refresh List')} PopperProps={{ style: { zIndex: 99999 } }}>
                 <IconButton 
                     size="small"
                     onClick={onRefresh}
@@ -110,12 +111,14 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                     <button 
                         className="schema-toolbar__btn schema-toolbar__btn--delete" 
                         onClick={onDelete} 
-                        title="Delete selected schemas"
+                        title={nls.localize('rockit/schemaManager/deleteSelected', 'Delete selected schemas')}
                     >
                         <span className="schema-toolbar__btn-icon">
                             <DeleteOutlineIcon className="schema-toolbar__icon-svg" />
                         </span>
-                        <span className="schema-toolbar__btn-label">Delete ({selectedCount})</span>
+                        <span className="schema-toolbar__btn-label">
+                            {nls.localize('rockit/schemaManager/deleteCount', 'Delete ({0})', selectedCount)}
+                        </span>
                     </button>
                 </div>
             )}

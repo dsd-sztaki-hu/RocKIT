@@ -65,10 +65,15 @@ async function main() {
 
   const result = await createDefaultRoCrateWorkspace(adapter, {
     datePublished: '2026-01-01T00:00:00.000Z',
+    rootDatasetDescription: 'Localized workspace description',
   })
   const graph = result.crate['@graph']
   assert.ok(Array.isArray(graph), 'Expected @graph array')
   assert.ok(graph.some((entity) => entity['@id'] === './'), 'Expected root dataset')
+  assert.equal(
+    graph.find((entity) => entity['@id'] === './').description,
+    'Localized workspace description',
+  )
   assert.ok(graph.some((entity) => entity['@id'] === 'data/'), 'Expected data directory')
   assert.ok(
     graph.some((entity) => entity['@id'] === 'data/nested/'),

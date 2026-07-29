@@ -5,6 +5,7 @@ import type {
 import type { Disposable } from '@theia/core'
 import { PreferenceScope } from '@theia/core'
 import { CommandService, MessageService, PreferenceService } from '@theia/core/lib/common'
+import { nls } from '@theia/core/lib/common/nls'
 import { URI } from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -160,10 +161,15 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         await this.appStateService.ready
 
         try {
-            const profileModule = await import('../../../data/init_profile.json')
+            const locale = String(
+                nls.localization?.languageId ?? nls.locale ?? nls.defaultLocale ?? 'en',
+            ).toLowerCase()
+            const profileModule = locale.split(/[-_]/, 1)[0] === 'hu'
+                ? await import('../../../data/init_profile.hu.json')
+                : await import('../../../data/init_profile.json')
             this.initialProfileTemplate = profileModule.default
             this.appStateService.setInitialProfileTemplate(profileModule.default)
-            this.appStateService.profile = this.appStateService.profile ?? profileModule.default
+            this.appStateService.profile = profileModule.default
         } catch (error) {
             console.error('Failed to load initial profile data:', error)
             this.initialProfileTemplate = undefined
@@ -414,7 +420,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
                     if (!(error instanceof RoCrateOpeningCancelledError)) {
                         console.error('Failed to resolve missing RO-Crate entity names:', error)
                         this.messageService.error(
-                            'Failed to generate missing RO-Crate entity names.',
+                            nls.localize(
+                                'rockit/appState/missingNames/failed',
+                                'Failed to generate missing RO-Crate entity names.',
+                            ),
                         )
                     }
                 } finally {
@@ -479,7 +488,11 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         }
 
         this.messageService.info(
-            `Generated ${missingNames.length} missing entity ${missingNames.length === 1 ? 'name' : 'names'}.`,
+            nls.localize(
+                'rockit/appState/missingNames/generated',
+                'Generated {0} missing entity names.',
+                missingNames.length,
+            ),
         )
         return repairedCrate
     }
@@ -516,12 +529,18 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
                                     console.error('Error refreshing complete profile after conversion', err)
                                 }
                                 this.messageService.info(
-                                    'RO-Crate IDs converted to workspace-relative paths.',
+                                    nls.localize(
+                                        'rockit/appState/idConversion/completed',
+                                        'RO-Crate IDs converted to workspace-relative paths.',
+                                    ),
                                 )
                             } catch (error) {
                                 console.error('RO-Crate conversion failed', error)
                                 this.messageService.error(
-                                    'Failed to update RO-Crate metadata to workspace-relative IDs.',
+                                    nls.localize(
+                                        'rockit/appState/idConversion/failed',
+                                        'Failed to update RO-Crate metadata to workspace-relative IDs.',
+                                    ),
                                 )
                             }
                         })()
@@ -546,12 +565,18 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
                                 console.error('Error refreshing complete profile after conversion', err)
                             }
                             this.messageService.info(
-                                'RO-Crate IDs converted to workspace-relative paths.',
+                                nls.localize(
+                                    'rockit/appState/idConversion/completed',
+                                    'RO-Crate IDs converted to workspace-relative paths.',
+                                ),
                             )
                         } catch (error) {
                             console.error('RO-Crate conversion failed', error)
                             this.messageService.error(
-                                'Failed to update RO-Crate metadata to workspace-relative IDs.',
+                                nls.localize(
+                                    'rockit/appState/idConversion/failed',
+                                    'Failed to update RO-Crate metadata to workspace-relative IDs.',
+                                ),
                             )
                         }
                     })()
@@ -663,12 +688,18 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     ): boolean {
         this.lastObservedConformsToKey = this.buildConformsToKey(content)
         const changed = this.roCrateHistoryService.applyRoCrateChange(content, {
-            label: 'Revert to saved RO-Crate',
+            label: nls.localize(
+                'rockit/appState/externalChanges/revertHistory',
+                'Revert to saved RO-Crate',
+            ),
             trackHistory: true,
             mergeWithNext: true,
         })
         this.roCrateHistoryService.applyRoCrateApprovalChange(roCrateApproval, {
-            label: 'Revert to saved RO-Crate',
+            label: nls.localize(
+                'rockit/appState/externalChanges/revertHistory',
+                'Revert to saved RO-Crate',
+            ),
             trackHistory: true,
             mergeWithPrevious: true,
         })
@@ -743,7 +774,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             await this.refreshCompleteProfile(undefined)
             if (shouldWarn) {
                 this.messageService.warn(
-                    'ro-crate-metadata.json was removed or is missing on disk.',
+                    nls.localize(
+                        'rockit/appState/externalChanges/missing',
+                        'ro-crate-metadata.json was removed or is missing on disk.',
+                    ),
                 )
                 void this.promptForCrateRecovery(root, false)
             }
@@ -785,7 +819,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
         if (action === 'auto') {
             this.messageService.info(
-                'ro-crate-metadata.json changed outside the application. Reloading.',
+                nls.localize(
+                    'rockit/appState/externalChanges/reloading',
+                    'ro-crate-metadata.json changed outside the application. Reloading.',
+                ),
             )
             await this.reloadExternalCrate(metadataUri)
             return
@@ -797,28 +834,43 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
         this.externalMetadataPromptInFlight = normalized
         try {
-            const choice = await this.messageService.info(
-                'ro-crate-metadata.json changed outside the application. Reload changes?',
-                'Reload',
+            const reload = nls.localize('rockit/appState/externalChanges/reload', 'Reload')
+            const alwaysReload = nls.localize(
+                'rockit/appState/externalChanges/alwaysReload',
                 'Always Reload',
-                'Ignore',
             )
-            if (choice === 'Always Reload') {
+            const ignore = nls.localize('rockit/appState/externalChanges/ignore', 'Ignore')
+            const choice = await this.messageService.info(
+                nls.localize(
+                    'rockit/appState/externalChanges/question',
+                    'ro-crate-metadata.json changed outside the application. Reload changes?',
+                ),
+                reload,
+                alwaysReload,
+                ignore,
+            )
+            if (choice === alwaysReload) {
                 await this.preferenceService.set(
                     ROCrateExternalChangeAction,
                     'auto',
                     PreferenceScope.User,
                 )
             }
-            if (choice === 'Reload' || choice === 'Always Reload') {
+            if (choice === reload || choice === alwaysReload) {
                 await this.reloadExternalCrate(metadataUri)
                 return
             }
-            if (choice === 'Ignore') {
+            if (choice === ignore) {
                 await this.restoreCurrentRoCrateToDisk(
                     metadataUri,
-                    'Cannot ignore external ro-crate-metadata.json changes because no RO-Crate is loaded.',
-                    'Failed to restore ro-crate-metadata.json after ignoring external changes.',
+                    nls.localize(
+                        'rockit/appState/externalChanges/cannotIgnore',
+                        'Cannot ignore external ro-crate-metadata.json changes because no RO-Crate is loaded.',
+                    ),
+                    nls.localize(
+                        'rockit/appState/externalChanges/ignoreRestoreFailed',
+                        'Failed to restore ro-crate-metadata.json after ignoring external changes.',
+                    ),
                 )
             }
         } finally {
@@ -831,7 +883,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     protected async promptToRestoreInvalidMetadata(metadataUri: URI): Promise<void> {
         if (!this.appStateService.roCrate) {
             this.messageService.error(
-                'ro-crate-metadata.json changed on disk but could not be parsed.',
+                nls.localize(
+                    'rockit/appState/externalChanges/parseFailed',
+                    'ro-crate-metadata.json changed on disk but could not be parsed.',
+                ),
             )
             return
         }
@@ -841,16 +896,32 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
         this.invalidMetadataPromptInFlight = true
         try {
-            const choice = await this.messageService.error(
-                'ro-crate-metadata.json is invalid. Restore the last valid version from the app?',
+            const restore = nls.localize(
+                'rockit/appState/externalChanges/restore',
                 'Restore Last Valid Version',
-                'Keep Invalid File',
             )
-            if (choice === 'Restore Last Valid Version') {
+            const choice = await this.messageService.error(
+                nls.localize(
+                    'rockit/appState/externalChanges/invalidQuestion',
+                    'ro-crate-metadata.json is invalid. Restore the last valid version from the app?',
+                ),
+                restore,
+                nls.localize(
+                    'rockit/appState/externalChanges/keepInvalid',
+                    'Keep Invalid File',
+                ),
+            )
+            if (choice === restore) {
                 await this.restoreCurrentRoCrateToDisk(
                     metadataUri,
-                    'Cannot restore ro-crate-metadata.json because no valid RO-Crate is loaded.',
-                    'Failed to restore ro-crate-metadata.json from the last valid version.',
+                    nls.localize(
+                        'rockit/appState/externalChanges/cannotRestore',
+                        'Cannot restore ro-crate-metadata.json because no valid RO-Crate is loaded.',
+                    ),
+                    nls.localize(
+                        'rockit/appState/externalChanges/restoreFailed',
+                        'Failed to restore ro-crate-metadata.json from the last valid version.',
+                    ),
                 )
             }
         } finally {
@@ -904,7 +975,10 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
             }
             console.error('Failed to reload RO-Crate after external change:', error)
             this.messageService.error(
-                'Failed to reload ro-crate-metadata.json after external change.',
+                nls.localize(
+                    'rockit/appState/externalChanges/reloadFailed',
+                    'Failed to reload ro-crate-metadata.json after external change.',
+                ),
             )
         }
     }
@@ -1163,14 +1237,18 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     }
 
     protected async getCachedConvertedProfileContent(convertedPath: string): Promise<any> {
-        const key = typeof convertedPath === 'string' ? convertedPath.trim() : ''
-        if (!key) {
+        const normalizedPath = typeof convertedPath === 'string' ? convertedPath.trim() : ''
+        if (!normalizedPath) {
             return undefined
         }
+        const locale = String(
+            nls.localization?.languageId ?? nls.locale ?? nls.defaultLocale ?? 'en',
+        ).toLowerCase()
+        const key = `${locale}:${normalizedPath}`
         if (this.convertedProfileContentCache.has(key)) {
             return this.convertedProfileContentCache.get(key)
         }
-        const content = await this.schemaManagerService.getConvertedProfileContent(key)
+        const content = await this.schemaManagerService.getConvertedProfileContent(normalizedPath)
         this.convertedProfileContentCache.set(key, content)
         return content
     }
