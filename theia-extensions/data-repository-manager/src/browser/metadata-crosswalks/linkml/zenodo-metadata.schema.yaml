@@ -1,0 +1,189 @@
+id: https://w3id.org/arp/linkml/zenodo-metadata
+name: zenodo-metadata
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+imports:
+  - linkml:types
+default_range: string
+classes:
+  ZenodoMetadata:
+    description: Zenodo deposition metadata represented by this crosswalk.
+    attributes:
+      access_conditions:
+        description: Zenodo access_conditions metadata field
+        required: false
+        multivalued: false
+      access_right:
+        description: Open access uploads have considerably higher visibility on Zenodo.
+        required: true
+        multivalued: false
+      communities:
+        description: Zenodo communities metadata field
+        required: false
+        multivalued: true
+      conference_acronym:
+        description: Zenodo conference_acronym metadata field
+        required: false
+        multivalued: false
+      conference_dates:
+        description: Zenodo conference_dates metadata field
+        required: false
+        multivalued: false
+      conference_place:
+        description: Zenodo conference_place metadata field
+        required: false
+        multivalued: false
+      conference_session:
+        description: Zenodo conference_session metadata field
+        required: false
+        multivalued: false
+      conference_session_part:
+        description: Zenodo conference_session_part metadata field
+        required: false
+        multivalued: false
+      conference_title:
+        description: Zenodo conference_title metadata field
+        required: false
+        multivalued: false
+      conference_url:
+        description: Zenodo conference_url metadata field
+        required: false
+        multivalued: false
+      contributors:
+        description: Zenodo contributors metadata field
+        required: false
+        multivalued: true
+      creators:
+        description: Zenodo creators metadata field
+        required: true
+        multivalued: true
+      description:
+        description: Description
+        required: true
+        multivalued: false
+      doi:
+        description: Zenodo doi metadata field
+        required: false
+        multivalued: false
+      embargo_date:
+        description: Zenodo embargo_date metadata field
+        required: false
+        multivalued: false
+      grants:
+        description: Zenodo grants metadata field
+        required: false
+        multivalued: true
+      image_type:
+        description: Zenodo image_type metadata field
+        required: false
+        multivalued: false
+      imprint_isbn:
+        description: Zenodo imprint_isbn metadata field
+        required: false
+        multivalued: false
+      imprint_place:
+        description: Zenodo imprint_place metadata field
+        required: false
+        multivalued: false
+      imprint_publisher:
+        description: Zenodo imprint_publisher metadata field
+        required: false
+        multivalued: false
+      journal_issue:
+        description: Zenodo journal_issue metadata field
+        required: false
+        multivalued: false
+      journal_pages:
+        description: Zenodo journal_pages metadata field
+        required: false
+        multivalued: false
+      journal_title:
+        description: Zenodo journal_title metadata field
+        required: false
+        multivalued: false
+      journal_volume:
+        description: Zenodo journal_volume metadata field
+        required: false
+        multivalued: false
+      keywords:
+        description: Zenodo keywords metadata field
+        required: false
+        multivalued: true
+      language:
+        description: ISO 639 language identifier.
+        required: false
+        multivalued: false
+      license:
+        description: Zenodo license metadata field
+        required: false
+        multivalued: false
+      notes:
+        description: Zenodo notes metadata field
+        required: false
+        multivalued: false
+      partof_pages:
+        description: Zenodo partof_pages metadata field
+        required: false
+        multivalued: false
+      partof_title:
+        description: Zenodo partof_title metadata field
+        required: false
+        multivalued: false
+      publication_date:
+        description: "Format: YYYY-MM-DD. In case your upload was already published
+          elsewhere, please use the date of first publication."
+        required: true
+        multivalued: false
+      publication_type:
+        description: Zenodo publication_type metadata field
+        required: false
+        multivalued: false
+      references:
+        description: Zenodo references metadata field
+        required: false
+        multivalued: true
+      related_identifiers:
+        description: Zenodo related_identifiers metadata field
+        required: false
+        multivalued: true
+      subjects:
+        description: Zenodo subjects metadata field
+        required: false
+        multivalued: true
+      thesis_supervisors:
+        description: Zenodo thesis_supervisors metadata field
+        required: false
+        multivalued: true
+      thesis_university:
+        description: Zenodo thesis_university metadata field
+        required: false
+        multivalued: false
+      title:
+        description: Zenodo title metadata field
+        required: true
+        multivalued: false
+      upload_type:
+        description: Zenodo upload_type metadata field
+        required: true
+        multivalued: false
+      version:
+        description: Zenodo version metadata field
+        required: false
+        multivalued: false
+      prereserve_doi:
+        description: Set true to reserve a Zenodo DOI before publication.
+        required: false
+        multivalued: false
+      locations:
+        description: Documented Zenodo location objects.
+        required: false
+        multivalued: true
+      dates:
+        description: Documented Zenodo date intervals; at least start or end is required.
+        required: false
+        multivalued: true
+      method:
+        description: Methodology employed for the study or research; HTML is allowed.
+        required: false
+        multivalued: false

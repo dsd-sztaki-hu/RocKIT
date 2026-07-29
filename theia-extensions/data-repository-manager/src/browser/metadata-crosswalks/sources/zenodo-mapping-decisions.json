@@ -1,0 +1,2784 @@
+{
+  "source": {
+    "model": "canonical RO-Crate 1.1"
+  },
+  "target": {
+    "repository": "zenodo",
+    "schemaFamily": "legacy deposition metadata"
+  },
+  "mappings": [
+    {
+      "id": "zenodo.access_conditions",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/accessToSources",
+            "localName": "accessToSources",
+            "block": "citation",
+            "valueTypes": [
+              "TextArea"
+            ],
+            "multiple": false
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.access_conditions",
+        "field": "access_conditions",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": {
+          "when": {
+            "field": "access_right",
+            "equals": "restricted"
+          }
+        },
+        "schemaPath": "/repositories/zenodo/schema/properties/access_conditions"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "errorWhenConditionMatches",
+        "condition": {
+          "field": "access_right",
+          "equals": "restricted"
+        }
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.access_right",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "property": "https://schema.org/conditionsOfAccess",
+            "localName": "conditionsOfAccess",
+            "block": "canonical"
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/accessToSources",
+            "localName": "accessToSources",
+            "block": "citation",
+            "valueTypes": [
+              "TextArea"
+            ],
+            "multiple": false
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.access_right",
+        "field": "access_right",
+        "type": "string",
+        "required": true,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/access_right"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "deriveAccessRight",
+          "default": "open",
+          "onAmbiguous": "reportForReview"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "error",
+        "message": "Zenodo requires metadata.access_right."
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.communities",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.communities",
+        "field": "communities",
+        "type": "array",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/communities"
+      },
+      "mappingStatus": "repositorySpecific",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "unmapped unless a repository-specific canonical property is present",
+      "unmappedReason": "No verified canonical semantic property exists; a Zenodo-specific IRI is not invented."
+    },
+    {
+      "id": "zenodo.conference_acronym",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "publication",
+            "property": "https://schema.org/alternateName",
+            "localName": "conferenceAcronym",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.conference_acronym",
+        "field": "conference_acronym",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/conference_acronym"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.conference_dates",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "timePeriodCovered",
+            "entityClass": "timePeriodCovered",
+            "property": "https://dataverse.org/schema/citation/timePeriodCoveredStart",
+            "localName": "timePeriodCoveredStart",
+            "block": "citation",
+            "valueTypes": [
+              "Date"
+            ],
+            "multiple": false
+          },
+          {
+            "entity": "timePeriodCovered",
+            "entityClass": "timePeriodCovered",
+            "property": "https://dataverse.org/schema/citation/timePeriodCoveredEnd",
+            "localName": "timePeriodCoveredEnd",
+            "block": "citation",
+            "valueTypes": [
+              "Date"
+            ],
+            "multiple": false
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.conference_dates",
+        "field": "conference_dates",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/conference_dates"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "flattenText",
+          "separator": " - "
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.conference_place",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/productionPlace",
+            "localName": "productionPlace",
+            "block": "citation",
+            "valueTypes": [
+              "Text"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.conference_place",
+        "field": "conference_place",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/conference_place"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.conference_session",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "publication",
+            "property": "https://schema.org/subEvent",
+            "localName": "conferenceSession",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.conference_session",
+        "field": "conference_session",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/conference_session"
+      },
+      "mappingStatus": "repositorySpecific",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "unmapped unless a repository-specific canonical property is present"
+    },
+    {
+      "id": "zenodo.conference_session_part",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.conference_session_part",
+        "field": "conference_session_part",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/conference_session_part"
+      },
+      "mappingStatus": "repositorySpecific",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "unmapped unless a repository-specific canonical property is present",
+      "unmappedReason": "No verified canonical semantic property exists; a Zenodo-specific IRI is not invented."
+    },
+    {
+      "id": "zenodo.conference_title",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "publication",
+            "entityClass": "publication",
+            "property": "http://purl.org/dc/terms/bibliographicCitation",
+            "localName": "publicationCitation",
+            "block": "citation",
+            "valueTypes": [
+              "TextArea"
+            ],
+            "multiple": false
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.conference_title",
+        "field": "conference_title",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/conference_title"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.conference_url",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "publication",
+            "entityClass": "publication",
+            "property": "https://schema.org/distribution",
+            "localName": "publicationURL",
+            "block": "citation",
+            "valueTypes": [
+              "URL"
+            ],
+            "multiple": false
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.conference_url",
+        "field": "conference_url",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/conference_url"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "validateUrl",
+          "schemes": [
+            "http",
+            "https"
+          ],
+          "onInvalid": "reportForReview"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.contributors",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "http://purl.org/dc/terms/contributor",
+            "localName": "contributor",
+            "block": "citation",
+            "valueTypes": [
+              "contributor"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.contributors",
+        "field": "contributors",
+        "type": "array",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/contributors"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "mapEntities",
+          "fields": {
+            "name": [
+              "contributorName",
+              "name"
+            ],
+            "type": [
+              "contributorType"
+            ],
+            "affiliation": [
+              "affiliation"
+            ],
+            "orcid": [
+              "identifier"
+            ]
+          },
+          "omitEmptyProperties": true
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.creators",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "http://purl.org/dc/terms/creator",
+            "localName": "author",
+            "block": "citation",
+            "valueTypes": [
+              "author"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "property": "https://schema.org/author",
+            "localName": "author",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.creators",
+        "field": "creators",
+        "type": "array",
+        "required": true,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/creators"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "mapEntities",
+          "fields": {
+            "name": [
+              "authorName",
+              "name"
+            ],
+            "affiliation": [
+              "authorAffiliation",
+              "affiliation"
+            ],
+            "orcid": [
+              "authorIdentifier",
+              "identifier"
+            ]
+          },
+          "omitEmptyProperties": true
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "error",
+        "message": "Zenodo requires metadata.creators."
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.description",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/dsDescription",
+            "localName": "dsDescription",
+            "block": "citation",
+            "valueTypes": [
+              "dsDescription"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "property": "https://schema.org/description",
+            "localName": "description",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.description",
+        "field": "description",
+        "type": "string",
+        "required": true,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/description"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "firstNonEmpty"
+        },
+        {
+          "operation": "flattenText",
+          "separator": "\n\n"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "error",
+        "message": "Zenodo requires metadata.description."
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.doi",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/otherId",
+            "localName": "otherId",
+            "block": "citation",
+            "valueTypes": [
+              "otherId"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "property": "https://schema.org/identifier",
+            "localName": "identifier",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.doi",
+        "field": "doi",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/doi"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "filterByValue",
+          "property": "otherIdAgency",
+          "equals": "doi",
+          "caseInsensitive": true
+        },
+        {
+          "operation": "first"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.embargo_date",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/distributionDate",
+            "localName": "distributionDate",
+            "block": "citation",
+            "valueTypes": [
+              "Date"
+            ],
+            "multiple": false
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.embargo_date",
+        "field": "embargo_date",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": {
+          "when": {
+            "field": "access_right",
+            "equals": "embargoed"
+          }
+        },
+        "schemaPath": "/repositories/zenodo/schema/properties/embargo_date"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "normalizeDate",
+          "onInvalid": "reportForReview"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "errorWhenConditionMatches",
+        "condition": {
+          "field": "access_right",
+          "equals": "embargoed"
+        }
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.grants",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://schema.org/sponsor",
+            "localName": "grantNumber",
+            "block": "citation",
+            "valueTypes": [
+              "grantNumber"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.grants",
+        "field": "grants",
+        "type": "array",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/grants"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "mapEntities",
+          "fields": {
+            "id": [
+              "grantNumberValue"
+            ]
+          },
+          "omitEmptyProperties": true
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.image_type",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "property": "https://schema.org/additionalType",
+            "localName": "additionalType",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.image_type",
+        "field": "image_type",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": {
+          "when": {
+            "field": "upload_type",
+            "equals": "image"
+          }
+        },
+        "schemaPath": "/repositories/zenodo/schema/properties/image_type"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "inferResourceType",
+          "vocabularyPath": "/repositories/zenodo/schema/properties/image_type/enum",
+          "onUnknown": "reportForReview"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "errorWhenConditionMatches",
+        "condition": {
+          "field": "upload_type",
+          "equals": "image"
+        }
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.imprint_isbn",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/otherId",
+            "localName": "otherId",
+            "block": "citation",
+            "valueTypes": [
+              "otherId"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.imprint_isbn",
+        "field": "imprint_isbn",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/imprint_isbn"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "filterByValue",
+          "property": "otherIdAgency",
+          "equals": "isbn",
+          "caseInsensitive": true
+        },
+        {
+          "operation": "first"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.imprint_place",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/productionPlace",
+            "localName": "productionPlace",
+            "block": "citation",
+            "valueTypes": [
+              "Text"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.imprint_place",
+        "field": "imprint_place",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/imprint_place"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.imprint_publisher",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/producer",
+            "localName": "producer",
+            "block": "citation",
+            "valueTypes": [
+              "producer"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.imprint_publisher",
+        "field": "imprint_publisher",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/imprint_publisher"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "firstNonEmpty"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.journal_issue",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "journalVolumeIssue",
+            "entityClass": "journalVolumeIssue",
+            "property": "https://dataverse.org/schema/journal/journalIssue",
+            "localName": "journalIssue",
+            "block": "journal",
+            "valueTypes": [
+              "Text"
+            ],
+            "multiple": false
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.journal_issue",
+        "field": "journal_issue",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/journal_issue"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.journal_pages",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "publication",
+            "property": "https://schema.org/pagination",
+            "localName": "pagination",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.journal_pages",
+        "field": "journal_pages",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/journal_pages"
+      },
+      "mappingStatus": "repositorySpecific",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "unmapped unless a repository-specific canonical property is present"
+    },
+    {
+      "id": "zenodo.journal_title",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "publication",
+            "entityClass": "publication",
+            "property": "http://purl.org/dc/terms/bibliographicCitation",
+            "localName": "publicationCitation",
+            "block": "citation",
+            "valueTypes": [
+              "TextArea"
+            ],
+            "multiple": false
+          },
+          {
+            "entity": "publication",
+            "property": "https://schema.org/isPartOf",
+            "localName": "journalTitle",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.journal_title",
+        "field": "journal_title",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/journal_title"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.journal_volume",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "journalVolumeIssue",
+            "entityClass": "journalVolumeIssue",
+            "property": "https://dataverse.org/schema/journal/journalVolume",
+            "localName": "journalVolume",
+            "block": "journal",
+            "valueTypes": [
+              "Text"
+            ],
+            "multiple": false
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.journal_volume",
+        "field": "journal_volume",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/journal_volume"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.keywords",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/keyword",
+            "localName": "keyword",
+            "block": "citation",
+            "valueTypes": [
+              "keyword"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "http://purl.org/dc/terms/subject",
+            "localName": "subject",
+            "block": "citation",
+            "valueTypes": [
+              "Select"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.keywords",
+        "field": "keywords",
+        "type": "array",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/keywords"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "asArray"
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.language",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "http://purl.org/dc/terms/language",
+            "localName": "language",
+            "block": "citation",
+            "valueTypes": [
+              "Select"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "property": "https://schema.org/inLanguage",
+            "localName": "inLanguage",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.language",
+        "field": "language",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/language"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.license",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "property": "https://schema.org/license",
+            "localName": "license",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.license",
+        "field": "license",
+        "required": false,
+        "conditionalRequired": {
+          "when": {
+            "field": "access_right",
+            "in": [
+              "open",
+              "embargoed"
+            ]
+          }
+        },
+        "schemaPath": "/repositories/zenodo/schema/properties/license"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "errorWhenConditionMatches",
+        "condition": {
+          "field": "access_right",
+          "in": [
+            "open",
+            "embargoed"
+          ]
+        }
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.notes",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/notesText",
+            "localName": "notesText",
+            "block": "citation",
+            "valueTypes": [
+              "TextArea"
+            ],
+            "multiple": false
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/socialscience/socialScienceNotes",
+            "localName": "socialScienceNotes",
+            "block": "socialscience",
+            "valueTypes": [
+              "socialScienceNotes"
+            ],
+            "multiple": false
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.notes",
+        "field": "notes",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/notes"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "flattenText",
+          "separator": "\n\n"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.partof_pages",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "publication",
+            "property": "https://schema.org/pagination",
+            "localName": "pagination",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.partof_pages",
+        "field": "partof_pages",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/partof_pages"
+      },
+      "mappingStatus": "repositorySpecific",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "unmapped unless a repository-specific canonical property is present"
+    },
+    {
+      "id": "zenodo.partof_title",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "series",
+            "entityClass": "series",
+            "property": "https://dataverse.org/schema/citation/seriesName",
+            "localName": "seriesName",
+            "block": "citation",
+            "valueTypes": [
+              "Text"
+            ],
+            "multiple": false
+          },
+          {
+            "entity": "root",
+            "property": "https://schema.org/isPartOf",
+            "localName": "isPartOf",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.partof_title",
+        "field": "partof_title",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/partof_title"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.publication_date",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "property": "https://schema.org/datePublished",
+            "localName": "datePublished",
+            "block": "canonical"
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/productionDate",
+            "localName": "productionDate",
+            "block": "citation",
+            "valueTypes": [
+              "Date"
+            ],
+            "multiple": false
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.publication_date",
+        "field": "publication_date",
+        "type": "string",
+        "required": true,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/publication_date"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "normalizeDate",
+          "onInvalid": "reportForReview"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "error",
+        "message": "Zenodo requires metadata.publication_date."
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.publication_type",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "property": "https://schema.org/additionalType",
+            "localName": "publicationType",
+            "block": "canonical"
+          },
+          {
+            "entity": "publication",
+            "entityClass": "publication",
+            "property": "http://datacite.org/schema/kernel-4/simpleTypes#relationType",
+            "localName": "publicationRelationType",
+            "block": "citation",
+            "valueTypes": [
+              "Select"
+            ],
+            "multiple": false
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.publication_type",
+        "field": "publication_type",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": {
+          "when": {
+            "field": "upload_type",
+            "equals": "publication"
+          }
+        },
+        "schemaPath": "/repositories/zenodo/schema/properties/publication_type"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "inferResourceType",
+          "vocabularyPath": "/repositories/zenodo/schema/properties/publication_type/enum",
+          "onUnknown": "reportForReview"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "errorWhenConditionMatches",
+        "condition": {
+          "field": "upload_type",
+          "equals": "publication"
+        }
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.references",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "http://purl.org/dc/terms/references",
+            "localName": "otherReferences",
+            "block": "citation",
+            "valueTypes": [
+              "Text"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/relatedMaterial",
+            "localName": "relatedMaterial",
+            "block": "citation",
+            "valueTypes": [
+              "TextArea"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "http://purl.org/dc/terms/relation",
+            "localName": "relatedDatasets",
+            "block": "citation",
+            "valueTypes": [
+              "TextArea"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://www.w3.org/TR/prov-o/#wasDerivedFrom",
+            "localName": "dataSources",
+            "block": "citation",
+            "valueTypes": [
+              "TextArea"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.references",
+        "field": "references",
+        "type": "array",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/references"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "asArray"
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.related_identifiers",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/otherId",
+            "localName": "otherId",
+            "block": "citation",
+            "valueTypes": [
+              "otherId"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "http://purl.org/dc/terms/isReferencedBy",
+            "localName": "publication",
+            "block": "citation",
+            "valueTypes": [
+              "publication"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/relatedMaterial",
+            "localName": "relatedMaterial",
+            "block": "citation",
+            "valueTypes": [
+              "TextArea"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "http://purl.org/dc/terms/relation",
+            "localName": "relatedDatasets",
+            "block": "citation",
+            "valueTypes": [
+              "TextArea"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.related_identifiers",
+        "field": "related_identifiers",
+        "type": "array",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/related_identifiers"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "aggregateIdentifiers",
+          "inferScheme": true,
+          "inferRelation": true
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.subjects",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/topicClassification",
+            "localName": "topicClassification",
+            "block": "citation",
+            "valueTypes": [
+              "topicClassification"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/keyword",
+            "localName": "keyword",
+            "block": "citation",
+            "valueTypes": [
+              "keyword"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "http://purl.org/dc/terms/subject",
+            "localName": "subject",
+            "block": "citation",
+            "valueTypes": [
+              "Select"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.subjects",
+        "field": "subjects",
+        "type": "array",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/subjects"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "mapEntities",
+          "fields": {
+            "term": [
+              "topicClassValue",
+              "keywordValue",
+              "name"
+            ],
+            "identifier": [
+              "keywordTermURI",
+              "identifier"
+            ],
+            "scheme": [
+              "keywordVocabulary",
+              "topicClassVocab"
+            ]
+          },
+          "omitEmptyProperties": true
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.thesis_supervisors",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "http://purl.org/dc/terms/contributor",
+            "localName": "contributor",
+            "block": "citation",
+            "valueTypes": [
+              "contributor"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.thesis_supervisors",
+        "field": "thesis_supervisors",
+        "type": "array",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/thesis_supervisors"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "filterByValue",
+          "property": "contributorType",
+          "equals": "Supervisor",
+          "caseInsensitive": true
+        },
+        {
+          "operation": "mapEntities",
+          "fields": {
+            "name": [
+              "contributorName",
+              "name"
+            ],
+            "affiliation": [
+              "affiliation"
+            ],
+            "orcid": [
+              "identifier"
+            ]
+          },
+          "omitEmptyProperties": true
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.thesis_university",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/producer",
+            "localName": "producer",
+            "block": "citation",
+            "valueTypes": [
+              "producer"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.thesis_university",
+        "field": "thesis_university",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/thesis_university"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "firstNonEmpty"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.title",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "http://purl.org/dc/terms/title",
+            "localName": "title",
+            "block": "citation",
+            "valueTypes": [
+              "Text"
+            ],
+            "multiple": false
+          },
+          {
+            "entity": "root",
+            "property": "https://schema.org/name",
+            "localName": "name",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.title",
+        "field": "title",
+        "type": "string",
+        "required": true,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/title"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "error",
+        "message": "Zenodo requires metadata.title."
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.upload_type",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "property": "@type",
+            "localName": "@type",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.upload_type",
+        "field": "upload_type",
+        "type": "string",
+        "required": true,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/upload_type"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "inferResourceType",
+          "vocabularyPath": "/repositories/zenodo/schema/properties/upload_type/enum",
+          "onUnknown": "useDefault"
+        },
+        {
+          "operation": "defaultValue",
+          "value": "dataset",
+          "classification": "repositoryFallback"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "error",
+        "message": "Zenodo requires metadata.upload_type."
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.version",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "software",
+            "entityClass": "software",
+            "property": "https://dataverse.org/schema/citation/softwareVersion",
+            "localName": "softwareVersion",
+            "block": "citation",
+            "valueTypes": [
+              "Text"
+            ],
+            "multiple": false
+          },
+          {
+            "entity": "root",
+            "property": "https://schema.org/version",
+            "localName": "version",
+            "block": "canonical"
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.version",
+        "field": "version",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/version"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.prereserve_doi",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.prereserve_doi",
+        "field": "prereserve_doi",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/prereserve_doi"
+      },
+      "mappingStatus": "repositorySpecific",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "unmapped unless a repository-specific canonical property is present",
+      "unmappedReason": "No verified canonical semantic property exists; a Zenodo-specific IRI is not invented."
+    },
+    {
+      "id": "zenodo.locations",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/geospatial/geographicCoverage",
+            "localName": "geographicCoverage",
+            "block": "geospatial",
+            "valueTypes": [
+              "geographicCoverage"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/geospatial/geographicBoundingBox",
+            "localName": "geographicBoundingBox",
+            "block": "geospatial",
+            "valueTypes": [
+              "geographicBoundingBox"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.locations",
+        "field": "locations",
+        "type": "array",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/locations"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "mapEntities",
+          "fields": {
+            "place": [
+              "city",
+              "state",
+              "country",
+              "otherGeographicCoverage"
+            ],
+            "lat": [
+              "northLatitude",
+              "southLatitude"
+            ],
+            "lon": [
+              "eastLongitude",
+              "westLongitude"
+            ],
+            "description": [
+              "description"
+            ]
+          },
+          "omitEmptyProperties": true
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    },
+    {
+      "id": "zenodo.dates",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/citation/dateOfCollection",
+            "localName": "dateOfCollection",
+            "block": "citation",
+            "valueTypes": [
+              "dateOfCollection"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://schema.org/temporalCoverage",
+            "localName": "timePeriodCovered",
+            "block": "citation",
+            "valueTypes": [
+              "timePeriodCovered"
+            ],
+            "multiple": true
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.dates",
+        "field": "dates",
+        "type": "array",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/dates"
+      },
+      "mappingStatus": "mapped",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "resolveReferences"
+        },
+        {
+          "operation": "mapEntities",
+          "fields": {
+            "start": [
+              "dateOfCollectionStart",
+              "timePeriodCoveredStart"
+            ],
+            "end": [
+              "dateOfCollectionEnd",
+              "timePeriodCoveredEnd"
+            ],
+            "type": {
+              "source": [
+                "type"
+              ],
+              "default": "Collected",
+              "defaultClassification": "repositoryFallback"
+            },
+            "description": [
+              "description"
+            ]
+          },
+          "omitEmptyProperties": true
+        },
+        {
+          "operation": "asArray"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "none expected, subject to nested vocabulary normalization"
+    },
+    {
+      "id": "zenodo.method",
+      "direction": "both",
+      "source": {
+        "canonicalCandidates": [
+          {
+            "entity": "root",
+            "property": "https://schema.org/measurementTechnique",
+            "localName": "measurementTechnique",
+            "block": "canonical"
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/socialscience/samplingProcedure",
+            "localName": "samplingProcedure",
+            "block": "socialscience",
+            "valueTypes": [
+              "TextArea"
+            ],
+            "multiple": false
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/socialscience/collectionMode",
+            "localName": "collectionMode",
+            "block": "socialscience",
+            "valueTypes": [
+              "TextArea"
+            ],
+            "multiple": true
+          },
+          {
+            "entity": "root",
+            "entityClass": "Dataset",
+            "property": "https://dataverse.org/schema/socialscience/researchInstrument",
+            "localName": "researchInstrument",
+            "block": "socialscience",
+            "valueTypes": [
+              "Text"
+            ],
+            "multiple": false
+          }
+        ],
+        "selection": "firstNonEmpty"
+      },
+      "target": {
+        "repository": "zenodo",
+        "path": "metadata.method",
+        "field": "method",
+        "type": "string",
+        "required": false,
+        "conditionalRequired": null,
+        "schemaPath": "/repositories/zenodo/schema/properties/method"
+      },
+      "mappingStatus": "needsReview",
+      "transformations": [
+        {
+          "operation": "omitEmpty"
+        },
+        {
+          "operation": "omitValues",
+          "values": [
+            "./",
+            "."
+          ]
+        },
+        {
+          "operation": "trim"
+        },
+        {
+          "operation": "flattenText",
+          "separator": "\n\n"
+        },
+        {
+          "operation": "first"
+        }
+      ],
+      "onMissing": {
+        "action": "omit"
+      },
+      "lossiness": "possible; mapping requires review for the active profile"
+    }
+  ]
+}

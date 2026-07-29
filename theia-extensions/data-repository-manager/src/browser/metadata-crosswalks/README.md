@@ -31,6 +31,52 @@ how metadata moves between ARP metadata, canonical RO-Crate, Dataverse, and
 Zenodo, including transformations, validation, and intentionally unmapped
 fields.
 
+## Generated sources
+
+`ro-crate-repository-crosswalk.json` is generated. Do not edit it directly.
+Its versioned inputs are:
+
+- `sources/arp-schema.json`: the ARP/CEDAR-derived schema snapshot;
+- `sources/dataverse-schema.json`: the nearly equivalent Dataverse metadata
+  block snapshot;
+- `sources/zenodo-schema.json`: all represented Zenodo deposition fields;
+- `sources/arp-to-canonical.json`: ARP-to-RO-Crate mapping decisions;
+- `sources/canonical-to-dataverse.json`: RO-Crate-to-Dataverse decisions;
+- `sources/zenodo-mapping-decisions.json`: one explicit decision for every
+  Zenodo field;
+- `sources/crosswalk-base.json`: format, transformation vocabulary,
+  provenance, and reporting policy;
+- `linkml/*.yaml`: source and target LinkML schemas plus the declarative
+  canonical-to-Zenodo transformation.
+
+Generate and validate the artifact from the repository root with:
+
+```shell
+yarn workspace data-repository-manager crosswalk:generate
+yarn workspace data-repository-manager crosswalk:check
+```
+
+The check fails if a Zenodo schema field is missing, duplicated, targets an
+unknown field, disagrees with the LinkML transformation's primary source, or
+if the checked-in JSON is stale. A field without a trustworthy ARP/Dataverse
+equivalent remains present with `repositorySpecific` (or another explicit
+unmapped status) and an explanation. It is never silently discarded.
+
+The LinkML files model the portable, declarative part of the mapping using the
+same `class_derivations` and `slot_derivations` approach as LinkML-Map.
+Nested RO-Crate reference resolution, controlled vocabularies, conditional
+requirements, and lossy conversions remain in the decision source because
+they require richer repository-specific operations than a simple slot
+derivation. If `linkml-map` is installed, the transformation can additionally
+be checked by running this from the `metadata-crosswalks` directory:
+
+```shell
+linkml-map validate-spec \
+  --source-schema linkml/canonical-metadata.schema.yaml \
+  --target-schema linkml/zenodo-metadata.schema.yaml \
+  linkml/canonical-to-zenodo.transform.yaml
+```
+
 ### Structure tree
 
 ```text

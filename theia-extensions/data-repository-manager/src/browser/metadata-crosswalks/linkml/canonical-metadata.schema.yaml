@@ -1,0 +1,122 @@
+id: https://w3id.org/arp/linkml/canonical-metadata
+name: canonical-metadata
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+imports:
+  - linkml:types
+default_range: string
+classes:
+  CanonicalMetadata:
+    description: Flattened semantic view of ARP/Dataverse RO-Crate metadata.
+    attributes:
+      accessToSources:
+        description: https://dataverse.org/schema/citation/accessToSources
+      conditionsOfAccess:
+        description: https://schema.org/conditionsOfAccess
+      conferenceAcronym:
+        description: https://schema.org/alternateName
+      timePeriodCoveredStart:
+        description: https://dataverse.org/schema/citation/timePeriodCoveredStart
+      timePeriodCoveredEnd:
+        description: https://dataverse.org/schema/citation/timePeriodCoveredEnd
+      productionPlace:
+        description: https://dataverse.org/schema/citation/productionPlace
+      conferenceSession:
+        description: https://schema.org/subEvent
+      publicationCitation:
+        description: http://purl.org/dc/terms/bibliographicCitation
+      publicationURL:
+        description: https://schema.org/distribution
+      contributor:
+        description: http://purl.org/dc/terms/contributor
+      author:
+        description: https://schema.org/author
+      dsDescription:
+        description: https://dataverse.org/schema/citation/dsDescription
+      description:
+        description: https://schema.org/description
+      otherId:
+        description: https://dataverse.org/schema/citation/otherId
+      identifier:
+        description: https://schema.org/identifier
+      distributionDate:
+        description: https://dataverse.org/schema/citation/distributionDate
+      grantNumber:
+        description: https://schema.org/sponsor
+      additionalType:
+        description: https://schema.org/additionalType
+      producer:
+        description: https://dataverse.org/schema/citation/producer
+      journalIssue:
+        description: https://dataverse.org/schema/journal/journalIssue
+      pagination:
+        description: https://schema.org/pagination
+      journalTitle:
+        description: https://schema.org/isPartOf
+      journalVolume:
+        description: https://dataverse.org/schema/journal/journalVolume
+      keyword:
+        description: https://dataverse.org/schema/citation/keyword
+      subject:
+        description: http://purl.org/dc/terms/subject
+      language:
+        description: http://purl.org/dc/terms/language
+      inLanguage:
+        description: https://schema.org/inLanguage
+      license:
+        description: https://schema.org/license
+      notesText:
+        description: https://dataverse.org/schema/citation/notesText
+      socialScienceNotes:
+        description: https://dataverse.org/schema/socialscience/socialScienceNotes
+      seriesName:
+        description: https://dataverse.org/schema/citation/seriesName
+      isPartOf:
+        description: https://schema.org/isPartOf
+      datePublished:
+        description: https://schema.org/datePublished
+      productionDate:
+        description: https://dataverse.org/schema/citation/productionDate
+      publicationType:
+        description: https://schema.org/additionalType
+      publicationRelationType:
+        description: http://datacite.org/schema/kernel-4/simpleTypes#relationType
+      otherReferences:
+        description: http://purl.org/dc/terms/references
+      relatedMaterial:
+        description: https://dataverse.org/schema/citation/relatedMaterial
+      relatedDatasets:
+        description: http://purl.org/dc/terms/relation
+      dataSources:
+        description: https://www.w3.org/TR/prov-o/#wasDerivedFrom
+      publication:
+        description: http://purl.org/dc/terms/isReferencedBy
+      topicClassification:
+        description: https://dataverse.org/schema/citation/topicClassification
+      title:
+        description: http://purl.org/dc/terms/title
+      name:
+        description: https://schema.org/name
+      "@type":
+        description: "@type"
+      softwareVersion:
+        description: https://dataverse.org/schema/citation/softwareVersion
+      version:
+        description: https://schema.org/version
+      geographicCoverage:
+        description: https://dataverse.org/schema/geospatial/geographicCoverage
+      geographicBoundingBox:
+        description: https://dataverse.org/schema/geospatial/geographicBoundingBox
+      dateOfCollection:
+        description: https://dataverse.org/schema/citation/dateOfCollection
+      timePeriodCovered:
+        description: https://schema.org/temporalCoverage
+      measurementTechnique:
+        description: https://schema.org/measurementTechnique
+      samplingProcedure:
+        description: https://dataverse.org/schema/socialscience/samplingProcedure
+      collectionMode:
+        description: https://dataverse.org/schema/socialscience/collectionMode
+      researchInstrument:
+        description: https://dataverse.org/schema/socialscience/researchInstrument
