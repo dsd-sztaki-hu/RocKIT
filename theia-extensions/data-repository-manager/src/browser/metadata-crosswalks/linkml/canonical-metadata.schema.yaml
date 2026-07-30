@@ -9,7 +9,10 @@ default_range: string
 classes:
   CanonicalMetadata:
     description: Flattened semantic view of ARP/Dataverse RO-Crate metadata.
+    tree_root: true
     attributes:
+      upload_type:
+        description: Repository upload category selected for this metadata record.
       accessToSources:
         description: https://dataverse.org/schema/citation/accessToSources
       conditionsOfAccess:

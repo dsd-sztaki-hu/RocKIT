@@ -45,7 +45,7 @@
     "watch": "tsc -w",
     "copy:assets": "shx mkdir -p lib/browser && shx cp -r src/browser/styles lib/browser/",
     "test": "jest --config configs/jest.config.ts",
-    "crosswalk:generate": "node src/browser/metadata-crosswalks/scripts/generate-crosswalk.js",
-    "crosswalk:check": "node src/browser/metadata-crosswalks/scripts/generate-crosswalk.js --check && node src/browser/metadata-crosswalks/scripts/test-crosswalk.js"
+    "crosswalk:generate": "python src/browser/metadata-crosswalks/scripts/validate_linkml.py --validate-only && node src/browser/metadata-crosswalks/scripts/generate-crosswalk.js",
+    "crosswalk:check": "node src/browser/metadata-crosswalks/scripts/generate-crosswalk.js --check && python src/browser/metadata-crosswalks/scripts/validate_linkml.py && node src/browser/metadata-crosswalks/scripts/test-crosswalk.js"
   }
 }

@@ -2369,7 +2369,7 @@
           {
             "entity": "root",
             "property": "@type",
-            "localName": "@type",
+            "localName": "upload_type",
             "block": "canonical"
           }
         ],

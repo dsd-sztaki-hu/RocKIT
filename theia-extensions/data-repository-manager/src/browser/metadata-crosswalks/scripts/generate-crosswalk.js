@@ -190,7 +190,12 @@ function validateCrosswalk(crosswalk, transform) {
             && mapping.source.canonicalCandidates
             && mapping.source.canonicalCandidates[0]
             && mapping.source.canonicalCandidates[0].localName;
-        if (slot && expectedSource && slot.populated_from !== expectedSource) {
+        if (
+            slot
+            && expectedSource
+            && slot.value === undefined
+            && slot.populated_from !== expectedSource
+        ) {
             errors.push(
                 `${mapping.id} LinkML source is ${slot.populated_from}; expected ${expectedSource}.`
             );

@@ -49,31 +49,46 @@ Its versioned inputs are:
 - `linkml/*.yaml`: source and target LinkML schemas plus the declarative
   canonical-to-Zenodo transformation.
 
-Generate and validate the artifact from the repository root with:
+Create the Python environment once from the repository root:
 
-```shell
+```powershell
+python -m venv .venv-crosswalk
+.\.venv-crosswalk\Scripts\Activate.ps1
+python -m pip install -r `
+  theia-extensions\data-repository-manager\src\browser\metadata-crosswalks\requirements.txt
+```
+
+Activate that environment in each new PowerShell session, then generate and
+validate the artifact:
+
+```powershell
+.\.venv-crosswalk\Scripts\Activate.ps1
 yarn workspace data-repository-manager crosswalk:generate
 yarn workspace data-repository-manager crosswalk:check
 ```
 
 The check fails if a Zenodo schema field is missing, duplicated, targets an
 unknown field, disagrees with the LinkML transformation's primary source, or
-if the checked-in JSON is stale. A field without a trustworthy ARP/Dataverse
-equivalent remains present with `repositorySpecific` (or another explicit
-unmapped status) and an explanation. It is never silently discarded.
+if the checked-in JSON is stale. It also validates the specification through
+the installed LinkML-Map library and executes the example transformation in
+`examples/`. A field without a trustworthy ARP/Dataverse equivalent remains
+present with `repositorySpecific` (or another explicit unmapped status) and
+an explanation. It is never silently discarded.
 
 The LinkML files model the portable, declarative part of the mapping using the
-same `class_derivations` and `slot_derivations` approach as LinkML-Map.
+real LinkML-Map `TransformationSpecification`, `class_derivations`, and
+`slot_derivations` models. Generation stops unless LinkML-Map reports that
+the schemas and transformation are structurally and semantically valid.
 Nested RO-Crate reference resolution, controlled vocabularies, conditional
 requirements, and lossy conversions remain in the decision source because
 they require richer repository-specific operations than a simple slot
-derivation. If `linkml-map` is installed, the transformation can additionally
-be checked by running this from the `metadata-crosswalks` directory:
+derivation. The equivalent direct CLI validation, from the
+`metadata-crosswalks` directory, is:
 
-```shell
-linkml-map validate-spec \
-  --source-schema linkml/canonical-metadata.schema.yaml \
-  --target-schema linkml/zenodo-metadata.schema.yaml \
+```powershell
+linkml-map validate-spec `
+  --source-schema linkml/canonical-metadata.schema.yaml `
+  --target-schema linkml/zenodo-metadata.schema.yaml `
   linkml/canonical-to-zenodo.transform.yaml
 ```
 

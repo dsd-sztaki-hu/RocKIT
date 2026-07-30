@@ -1,5 +1,11 @@
 id: https://w3id.org/arp/linkml/canonical-to-zenodo
 title: Canonical ARP/Dataverse RO-Crate to Zenodo metadata
+source_schema:
+  name: canonical-metadata
+  source_file: canonical-metadata.schema.yaml
+target_schema:
+  name: zenodo-metadata
+  source_file: zenodo-metadata.schema.yaml
 class_derivations:
   ZenodoMetadata:
     populated_from: CanonicalMetadata
@@ -121,8 +127,8 @@ class_derivations:
         populated_from: title
         description: "mapped: zenodo.title"
       upload_type:
-        populated_from: "@type"
-        description: "mapped: zenodo.upload_type"
+        populated_from: upload_type
+        description: "mapped: Zenodo dataset upload type"
       version:
         populated_from: softwareVersion
         description: "needsReview: zenodo.version"
