@@ -1,8 +1,5 @@
-import { injectable, inject } from 'inversify';
-import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
-import { URI } from '@theia/core/lib/common/uri';
-import { FileService } from '@theia/filesystem/lib/browser/file-service';
-import type { FileStat } from '@theia/filesystem/lib/common/files';
+import { injectable } from 'inversify';
+import crosswalk = require('../metadata-crosswalks/ro-crate-repository-crosswalk.json');
 
 type RoCrateEntity = Record<string, unknown>;
 type RoCrate = Record<string, unknown>;
@@ -38,6 +35,36 @@ interface DataverseMetadataBlockSchema {
     fields?: Record<string, DataverseFieldSchema>;
 }
 
+interface DataverseCrosswalkChild {
+    sourceCandidates?: Array<{ localName?: string }>;
+    target: { field: string };
+    mappingStatus: string;
+}
+
+interface DataverseCrosswalkMapping {
+    source?: { canonicalCandidates?: Array<{ localName?: string }> };
+    target: { block: string; field: string; required?: boolean };
+    mappingStatus: string;
+    children?: DataverseCrosswalkChild[];
+}
+
+interface DataverseCrosswalk {
+    repositories: {
+        dataverse: {
+            blocks: Record<string, {
+                schema: DataverseMetadataBlockSchema
+            }>
+        }
+    };
+    crosswalks: {
+        canonicalToDataverse: {
+            mappings: DataverseCrosswalkMapping[]
+        }
+    };
+}
+
+const repositoryCrosswalk = crosswalk as DataverseCrosswalk;
+
 @injectable()
 export class DataverseMetadataMappingService {
     protected readonly ignoredFields = new Set([
@@ -47,16 +74,13 @@ export class DataverseMetadataMappingService {
         'citation.dsDescription_hu.dsDescriptionDate_hu'
     ]);
 
-    constructor(
-        @inject(EnvVariablesServer) protected readonly envVariablesServer: EnvVariablesServer,
-        @inject(FileService) protected readonly fileService: FileService
-    ) { }
-
     public async buildMetadataBlocks(
         crate: RoCrate,
         enabledMetadataBlocks?: Set<string>
     ): Promise<Record<string, DataverseMetadataBlockDto>> {
-        const schemas = await this.readCachedBlockSchemas();
+        const schemas = this.readCrosswalkBlockSchemas();
+        const mappings = repositoryCrosswalk.crosswalks.canonicalToDataverse.mappings
+            .filter(mapping => this.isExecutableMapping(mapping.mappingStatus));
         const graph = this.readGraph(crate);
         const root = graph.find(entity => entity['@id'] === './');
         if (!root) {
@@ -69,7 +93,13 @@ export class DataverseMetadataMappingService {
             if (!blockName || !schema.fields || (enabledMetadataBlocks && !enabledMetadataBlocks.has(blockName))) {
                 continue;
             }
-            const fields = this.buildBlockFields(blockName, root, graph, schema);
+            const fields = this.buildBlockFields(
+                blockName,
+                root,
+                graph,
+                schema,
+                mappings.filter(mapping => mapping.target.block === blockName)
+            );
             if (fields.length) {
                 blocks[blockName] = {
                     displayName: schema.displayName ?? blockName,
@@ -80,15 +110,33 @@ export class DataverseMetadataMappingService {
         return blocks;
     }
 
+    public requiredFields(blockName: string): Set<string> {
+        return new Set(
+            repositoryCrosswalk.crosswalks.canonicalToDataverse.mappings
+                .filter(mapping =>
+                    mapping.target.block === blockName &&
+                    this.isExecutableMapping(mapping.mappingStatus) &&
+                    (mapping.target as { required?: boolean }).required === true
+                )
+                .map(mapping => mapping.target.field)
+        );
+    }
+
     protected buildBlockFields(
         blockName: string,
         root: RoCrateEntity,
         graph: RoCrateEntity[],
-        schema: DataverseMetadataBlockSchema
+        schema: DataverseMetadataBlockSchema,
+        mappings: DataverseCrosswalkMapping[]
     ): DataverseMetadataFieldDto[] {
-        return Object.values(schema.fields ?? {})
-            .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
-            .map(field => this.buildField(blockName, root, graph, field))
+        return mappings
+            .map(mapping => ({
+                mapping,
+                field: schema.fields?.[mapping.target.field]
+            }))
+            .filter((entry): entry is { mapping: DataverseCrosswalkMapping; field: DataverseFieldSchema } => !!entry.field)
+            .sort((a, b) => (a.field.displayOrder ?? 0) - (b.field.displayOrder ?? 0))
+            .map(({ field, mapping }) => this.buildField(blockName, root, graph, field, mapping))
             .filter((field): field is DataverseMetadataFieldDto => !!field);
     }
 
@@ -96,7 +144,8 @@ export class DataverseMetadataMappingService {
         blockName: string,
         root: RoCrateEntity,
         graph: RoCrateEntity[],
-        schema: DataverseFieldSchema
+        schema: DataverseFieldSchema,
+        mapping: DataverseCrosswalkMapping
     ): DataverseMetadataFieldDto | undefined {
         const typeName = schema.name;
         if (!typeName || this.ignoredFields.has(`${blockName}.${typeName}`)) {
@@ -104,7 +153,7 @@ export class DataverseMetadataMappingService {
         }
         const typeClass = this.toDataverseTypeClass(schema);
         if (typeClass === 'compound') {
-            const values = this.collectCompoundValues(blockName, root, graph, schema);
+            const values = this.collectCompoundValues(blockName, root, graph, schema, mapping);
             if (!values.length) {
                 return undefined;
             }
@@ -116,7 +165,8 @@ export class DataverseMetadataMappingService {
             };
         }
 
-        const values = this.collectPrimitiveValues(root, graph, typeName, schema);
+        const sourceName = mapping.source?.canonicalCandidates?.[0]?.localName ?? typeName;
+        const values = this.collectPrimitiveValues(root, graph, sourceName, schema);
         const value = this.buildPrimitiveValue(values, schema);
         if (value === undefined) {
             return undefined;
@@ -133,7 +183,8 @@ export class DataverseMetadataMappingService {
         blockName: string,
         root: RoCrateEntity,
         graph: RoCrateEntity[],
-        schema: DataverseFieldSchema
+        schema: DataverseFieldSchema,
+        mapping: DataverseCrosswalkMapping
     ): Array<Record<string, DataverseMetadataFieldDto>> {
         const typeName = schema.name;
         const childFields = schema.childFields;
@@ -145,12 +196,20 @@ export class DataverseMetadataMappingService {
         return entities
             .map(entity => {
                 const value: Record<string, DataverseMetadataFieldDto> = {};
+                const executableChildren = new Map(
+                    (mapping.children ?? [])
+                        .filter(child => this.isExecutableMapping(child.mappingStatus))
+                        .map(child => [child.target.field, child])
+                );
                 for (const child of Object.values(childFields).sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))) {
                     const childName = child.name;
-                    if (!childName || this.ignoredFields.has(`${blockName}.${typeName}.${childName}`)) {
+                    const childMapping = childName ? executableChildren.get(childName) : undefined;
+                    if (!childName || !childMapping || this.ignoredFields.has(`${blockName}.${typeName}.${childName}`)) {
                         continue;
                     }
-                    const childValues = this.collectEntityPrimitiveValues(entity, childName, child);
+                    const sourceName =
+                        childMapping.sourceCandidates?.[0]?.localName ?? childName;
+                    const childValues = this.collectEntityPrimitiveValues(entity, sourceName, child);
                     const childValue = this.buildPrimitiveValue(childValues, child);
                     if (childValue !== undefined) {
                         value[childName] = {
@@ -295,38 +354,15 @@ export class DataverseMetadataMappingService {
         return 'primitive';
     }
 
-    protected async readCachedBlockSchemas(): Promise<DataverseMetadataBlockSchema[]> {
-        const folder = await this.getDataverseSchemaFolderUri();
-        const stat = await this.fileService.resolve(folder);
-        const children = stat.children ?? [];
-        const schemas: DataverseMetadataBlockSchema[] = [];
-        for (const child of this.sortFileStats(children)) {
-            if (child.isDirectory || !child.resource.path.base.endsWith('.json')) {
-                continue;
-            }
-            const content = await this.fileService.readFile(child.resource);
-            const parsed = JSON.parse(content.value.toString()) as DataverseMetadataBlockSchema;
-            if (parsed.name && parsed.fields) {
-                schemas.push(parsed);
-            }
-        }
-        return schemas;
+    protected readCrosswalkBlockSchemas(): DataverseMetadataBlockSchema[] {
+        return Object.values(repositoryCrosswalk.repositories.dataverse.blocks)
+            .map(block => block.schema)
+            .filter(schema => !!schema.name && !!schema.fields)
+            .sort((a, b) => String(a.name).localeCompare(String(b.name)));
     }
 
-    protected sortFileStats(stats: FileStat[]): FileStat[] {
-        return [...stats].sort((a, b) => a.resource.path.base.localeCompare(b.resource.path.base));
-    }
-
-    protected async getDataverseSchemaFolderUri(): Promise<URI> {
-        const rootPath = (await this.envVariablesServer.getValue('ROCKIT_ROOT_PATH'))?.value;
-        if (!rootPath) {
-            throw new Error('ROCKIT_ROOT_PATH is not configured.');
-        }
-        const normalizedRoot = rootPath.replace(/\\/g, '/');
-        const root = normalizedRoot.match(/^[a-zA-Z]:/)
-            ? new URI(`file:///${normalizedRoot}`)
-            : new URI(`file://${normalizedRoot}`);
-        return root.resolve('metadata-schemas/dataverse');
+    protected isExecutableMapping(status: string): boolean {
+        return status === 'exactNameAndProfileMatch' || status === 'needsReview';
     }
 
     protected readGraph(crate: RoCrate): RoCrateEntity[] {

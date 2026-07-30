@@ -17,6 +17,7 @@ import {
   normalizeExportLogEntries,
   serializeExportLogEntries,
 } from './export-log'
+import { DataverseMetadataMappingService } from './dataverse-metadata-mapping-service'
 
 type RoCrateEntity = Record<string, any>
 type RoCrate = Record<string, any>
@@ -118,6 +119,8 @@ export class ArpRoCrateExportService {
   constructor(
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
+    @inject(DataverseMetadataMappingService)
+    protected readonly metadataMappingService: DataverseMetadataMappingService,
   ) {}
 
   public async exportToArp(
@@ -750,24 +753,26 @@ export class ArpRoCrateExportService {
       datasetMetadata.subjects.map((value) => value.trim()),
     )
     const metadataLanguage = datasetMetadata.metadataLanguage?.trim()
+    const requiredCitationFields =
+      this.metadataMappingService.requiredFields('citation')
     const missing: string[] = []
-    if (!title) {
+    if (requiredCitationFields.has('title') && !title) {
       missing.push(nls.localize('rockit/dataRepository/metadataTitle', 'Title'))
     }
-    if (!authorNames.length) {
+    if (requiredCitationFields.has('author') && !authorNames.length) {
       missing.push(nls.localize('rockit/dataRepository/authorName', 'Author Name'))
     }
-    if (!contactEmails.length) {
+    if (requiredCitationFields.has('datasetContact') && !contactEmails.length) {
       missing.push(
         nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email'),
       )
     }
-    if (!descriptions.length) {
+    if (requiredCitationFields.has('dsDescription') && !descriptions.length) {
       missing.push(
         nls.localize('rockit/dataRepository/descriptionText', 'Description Text'),
       )
     }
-    if (!subjects.length) {
+    if (requiredCitationFields.has('subject') && !subjects.length) {
       missing.push(nls.localize('rockit/dataRepository/subject', 'Subject'))
     }
     if (!metadataLanguage) {

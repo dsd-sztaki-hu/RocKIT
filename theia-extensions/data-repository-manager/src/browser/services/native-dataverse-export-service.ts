@@ -330,14 +330,6 @@ export class NativeDataverseExportService {
                 'Dataverse created the dataset but did not return a persistentId. File upload cannot continue.'
             ));
         }
-        await this.addDatasetSemanticMetadata(
-            baseUrl,
-            repository.apiKey,
-            persistentId,
-            crate,
-            true,
-            enabledMetadataBlocks
-        );
         reportProgress?.({
             completedSteps: 1,
             totalSteps,
@@ -569,14 +561,6 @@ export class NativeDataverseExportService {
             repository.apiKey,
             exportTarget.persistentId,
             crate,
-            enabledMetadataBlocks
-        );
-        await this.addDatasetSemanticMetadata(
-            baseUrl,
-            repository.apiKey,
-            exportTarget.persistentId,
-            crate,
-            true,
             enabledMetadataBlocks
         );
         reportProgress?.({
@@ -1015,23 +999,10 @@ export class NativeDataverseExportService {
     crate: RoCrate,
     enabledMetadataBlocks?: Set<string>,
   ): Promise<Record<string, { displayName: string; fields: DataverseMetadataField[] }>> {
-    try {
-      return (await this.metadataMappingService.buildMetadataBlocks(
-        crate,
-        enabledMetadataBlocks,
-      )) as Record<string, { displayName: string; fields: DataverseMetadataField[] }>
-    } catch (error) {
-      console.warn('Falling back to hardcoded Dataverse metadata mapping:', error)
-      const blocks = this.buildNativeDataverseMetadataBlocks(crate, enabledMetadataBlocks)
-      const citationFields = this.buildNativeCitationMetadataFields(crate)
-      if (citationFields.length) {
-        blocks.citation = {
-          displayName: 'Citation Metadata',
-          fields: citationFields,
-        }
-      }
-      return blocks
-    }
+    return (await this.metadataMappingService.buildMetadataBlocks(
+      crate,
+      enabledMetadataBlocks,
+    )) as Record<string, { displayName: string; fields: DataverseMetadataField[] }>
   }
 
   protected mergeNativeMetadataBlockFields(
