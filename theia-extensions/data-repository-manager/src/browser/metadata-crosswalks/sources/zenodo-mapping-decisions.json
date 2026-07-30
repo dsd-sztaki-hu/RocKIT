@@ -1571,6 +1571,33 @@
           "operation": "trim"
         },
         {
+          "operation": "mapVocabulary",
+          "values": {
+            "cc-zero": "cc-zero",
+            "cc-by-4.0": "cc-by-4.0",
+            "cc-by-sa-4.0": "cc-by-sa-4.0",
+            "cc-by-nc-4.0": "cc-by-nc-4.0",
+            "cc-by-nc-sa-4.0": "cc-by-nc-sa-4.0",
+            "cc-by-nd-4.0": "cc-by-nd-4.0",
+            "cc-by-nc-nd-4.0": "cc-by-nc-nd-4.0",
+            "https://creativecommons.org/publicdomain/zero/1.0": "cc-zero",
+            "https://creativecommons.org/publicdomain/zero/1.0/": "cc-zero",
+            "https://creativecommons.org/licenses/by/4.0": "cc-by-4.0",
+            "https://creativecommons.org/licenses/by/4.0/": "cc-by-4.0",
+            "https://creativecommons.org/licenses/by-sa/4.0": "cc-by-sa-4.0",
+            "https://creativecommons.org/licenses/by-sa/4.0/": "cc-by-sa-4.0",
+            "https://creativecommons.org/licenses/by-nc/4.0": "cc-by-nc-4.0",
+            "https://creativecommons.org/licenses/by-nc/4.0/": "cc-by-nc-4.0",
+            "https://creativecommons.org/licenses/by-nc-sa/4.0": "cc-by-nc-sa-4.0",
+            "https://creativecommons.org/licenses/by-nc-sa/4.0/": "cc-by-nc-sa-4.0",
+            "https://creativecommons.org/licenses/by-nd/4.0": "cc-by-nd-4.0",
+            "https://creativecommons.org/licenses/by-nd/4.0/": "cc-by-nd-4.0",
+            "https://creativecommons.org/licenses/by-nc-nd/4.0": "cc-by-nc-nd-4.0",
+            "https://creativecommons.org/licenses/by-nc-nd/4.0/": "cc-by-nc-nd-4.0"
+          },
+          "onUnknown": "reportForReview"
+        },
+        {
           "operation": "first"
         }
       ],

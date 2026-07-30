@@ -17,7 +17,10 @@ import {
   normalizeExportLogEntries,
   serializeExportLogEntries,
 } from './export-log'
-import { missingRequiredZenodoMetadataFields } from './zenodo-metadata-crosswalk'
+import {
+  buildZenodoMetadataFromCrosswalk,
+  missingRequiredZenodoMetadataFields,
+} from './zenodo-metadata-crosswalk'
 
 type RoCrateEntity = Record<string, unknown>
 type RoCrate = Record<string, unknown>
@@ -42,14 +45,13 @@ interface ZenodoRemoteFile {
   response: unknown
 }
 
-interface ZenodoDepositionMetadata {
-  upload_type: 'dataset'
+interface ZenodoDepositionMetadata extends Record<string, unknown> {
+  upload_type: string
   publication_date: string
   title: string
-  creators: Array<{ name: string }>
+  creators: Array<Record<string, unknown>>
   description: string
-  access_right: 'open'
-  license: 'cc-zero'
+  access_right: string
 }
 
 export interface ZenodoExportResult {
@@ -111,7 +113,7 @@ export class ZenodoExportService {
 
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const depositionMetadata = this.buildDepositionMetadata(crate, rootUri)
+    const depositionMetadata = this.buildDepositionMetadata(crate)
     const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
     const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
       uploadCrate,
@@ -302,7 +304,7 @@ export class ZenodoExportService {
 
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const depositionMetadata = this.buildDepositionMetadata(crate, rootUri)
+    const depositionMetadata = this.buildDepositionMetadata(crate)
     const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
     const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
       uploadCrate,
@@ -612,49 +614,10 @@ export class ZenodoExportService {
     return files
   }
 
-  protected buildDepositionMetadata(
-    crate: RoCrate,
-    rootUri: URI,
-  ): ZenodoDepositionMetadata {
-    const graph = this.readGraphEntities(crate)
-    const root = graph.find((entity) => entity['@id'] === './')
-    const title =
-      (root ? this.firstMeaningfulString(root.title, root.name) : undefined) ??
-      this.workspaceName(rootUri) ??
-      'Untitled RO-Crate'
-    const description =
-      (root
-        ? this.firstMeaningfulString(
-            root.description,
-            ...this.resolveEntities(root.dsDescription, graph).flatMap((entity) => [
-              entity.dsDescriptionValue,
-              entity.description,
-              entity.name,
-            ]),
-          )
-        : undefined) ?? 'RO-Crate exported from AROMA.'
-    const creators = root
-      ? this.extractCreators(root, graph).map((name) => ({ name }))
-      : []
-
-    if (!creators.length) {
-      throw new Error(nls.localize(
-        'rockit/dataRepository/zenodoCreatorRequired',
-        'Zenodo export requires at least one creator. Add an author name to the RO-Crate root Dataset before exporting.',
-      ))
-    }
-
-    const metadata: ZenodoDepositionMetadata = {
-      upload_type: 'dataset',
-      publication_date: this.currentDate(),
-      title,
-      creators,
-      description,
-      access_right: 'open',
-      license: 'cc-zero',
-    }
+  protected buildDepositionMetadata(crate: RoCrate): ZenodoDepositionMetadata {
+    const { metadata } = buildZenodoMetadataFromCrosswalk(crate)
     const missingRequiredFields = missingRequiredZenodoMetadataFields(
-      metadata as unknown as Record<string, unknown>,
+      metadata,
     )
     if (missingRequiredFields.length) {
       throw new Error(nls.localize(
@@ -663,7 +626,7 @@ export class ZenodoExportService {
         missingRequiredFields.join(', '),
       ))
     }
-    return metadata
+    return metadata as ZenodoDepositionMetadata
   }
 
   protected async localizeExternalLocalFileReferences(
