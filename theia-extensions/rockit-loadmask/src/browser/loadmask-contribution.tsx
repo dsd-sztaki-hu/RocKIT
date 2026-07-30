@@ -8,73 +8,6 @@ import * as React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { LoadMaskService, type LoadMaskState } from './loadmask-service'
 
-const SmoothedProgress: React.FC<{ worked: number; total: number }> = ({
-  worked,
-  total,
-}) => {
-  const targetPercentage = Math.min(100, Math.max(0, (worked / total) * 100))
-  const [displayedPercentage, setDisplayedPercentage] = React.useState(0)
-  const displayedRef = React.useRef(0)
-  const lastTargetAtRef = React.useRef<number>()
-
-  React.useEffect(() => {
-    const now = performance.now()
-    const updateInterval = lastTargetAtRef.current === undefined
-      ? undefined
-      : now - lastTargetAtRef.current
-    lastTargetAtRef.current = now
-
-    const startPercentage = displayedRef.current
-    if (targetPercentage <= startPercentage) {
-      displayedRef.current = targetPercentage
-      setDisplayedPercentage(targetPercentage)
-      return
-    }
-
-    const difference = targetPercentage - startPercentage
-    const baseDuration = Math.min(600, Math.max(140, difference * 35))
-    const duration = updateInterval !== undefined && updateInterval < 500
-      ? Math.min(baseDuration, Math.max(70, updateInterval * 0.85))
-      : baseDuration
-    const startedAt = now
-    let animationFrame = 0
-
-    const advance = (now: number) => {
-      const elapsed = now - startedAt
-      const fraction = Math.min(1, elapsed / duration)
-      const nextPercentage = startPercentage + difference * fraction
-      displayedRef.current = nextPercentage
-      setDisplayedPercentage(nextPercentage)
-      if (fraction < 1) {
-        animationFrame = window.requestAnimationFrame(advance)
-      }
-    }
-
-    animationFrame = window.requestAnimationFrame(advance)
-    return () => window.cancelAnimationFrame(animationFrame)
-  }, [targetPercentage])
-
-  const roundedPercentage = Math.round(displayedPercentage)
-  return (
-    <div className="rockit-loadmask-progress-group">
-      <div
-        className="rockit-loadmask-progress"
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={total}
-        aria-valuenow={worked}
-        aria-label={`${roundedPercentage}% complete`}
-      >
-        <div
-          className="rockit-loadmask-progress-value"
-          style={{ width: `${displayedPercentage}%` }}
-        />
-      </div>
-      <span className="rockit-loadmask-progress-label">{roundedPercentage}%</span>
-    </div>
-  )
-}
-
 @injectable()
 export class LoadMaskContribution implements FrontendApplicationContribution {
   @inject(LoadMaskService)
@@ -160,7 +93,27 @@ export class LoadMaskContribution implements FrontendApplicationContribution {
   }
 
   protected renderProgress(worked: number, total: number): React.ReactNode {
-    return <SmoothedProgress worked={worked} total={total} />
+    const percentage = Math.round(
+      Math.min(100, Math.max(0, (worked / total) * 100)),
+    )
+    return (
+      <div className="rockit-loadmask-progress-group">
+        <div
+          className="rockit-loadmask-progress"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={worked}
+          aria-label={`${percentage}% complete`}
+        >
+          <div
+            className="rockit-loadmask-progress-value"
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+        <span className="rockit-loadmask-progress-label">{percentage}%</span>
+      </div>
+    )
   }
 
   protected setShellBusy(busy: boolean): void {

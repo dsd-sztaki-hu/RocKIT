@@ -16,7 +16,7 @@ export interface LoadMaskOptions {
 
 export interface LoadMaskUpdate {
   message?: string
-  progress?: LoadMaskProgress
+  progress?: LoadMaskProgress | null
   onCancel?: (() => void | Promise<void>) | null
 }
 
@@ -115,7 +115,7 @@ export class LoadMaskService {
           operation.message = update.message
         }
         if (update.progress !== undefined) {
-          operation.progress = update.progress
+          operation.progress = update.progress ?? undefined
         }
         if (update.onCancel !== undefined) {
           operation.onCancel = update.onCancel ?? undefined
