@@ -17,6 +17,7 @@ import {
   normalizeExportLogEntries,
   serializeExportLogEntries,
 } from './export-log'
+import { missingRequiredZenodoMetadataFields } from './zenodo-metadata-crosswalk'
 
 type RoCrateEntity = Record<string, unknown>
 type RoCrate = Record<string, unknown>
@@ -643,7 +644,7 @@ export class ZenodoExportService {
       ))
     }
 
-    return {
+    const metadata: ZenodoDepositionMetadata = {
       upload_type: 'dataset',
       publication_date: this.currentDate(),
       title,
@@ -652,6 +653,17 @@ export class ZenodoExportService {
       access_right: 'open',
       license: 'cc-zero',
     }
+    const missingRequiredFields = missingRequiredZenodoMetadataFields(
+      metadata as unknown as Record<string, unknown>,
+    )
+    if (missingRequiredFields.length) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoRequiredMetadataMissing',
+        'Zenodo metadata is missing required fields defined by the repository crosswalk: {0}.',
+        missingRequiredFields.join(', '),
+      ))
+    }
+    return metadata
   }
 
   protected async localizeExternalLocalFileReferences(

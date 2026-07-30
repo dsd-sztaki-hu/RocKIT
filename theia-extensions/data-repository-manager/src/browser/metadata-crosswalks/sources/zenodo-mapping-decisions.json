@@ -1768,17 +1768,6 @@
             "property": "https://schema.org/datePublished",
             "localName": "datePublished",
             "block": "canonical"
-          },
-          {
-            "entity": "root",
-            "entityClass": "Dataset",
-            "property": "https://dataverse.org/schema/citation/productionDate",
-            "localName": "productionDate",
-            "block": "citation",
-            "valueTypes": [
-              "Date"
-            ],
-            "multiple": false
           }
         ],
         "selection": "firstNonEmpty"
@@ -1793,6 +1782,7 @@
         "schemaPath": "/repositories/zenodo/schema/properties/publication_date"
       },
       "mappingStatus": "mapped",
+      "mappingRationale": "Only a publication date is semantically compatible. ARP/Dataverse productionDate describes when the data was produced and must not be used as a fallback.",
       "transformations": [
         {
           "operation": "omitEmpty"
