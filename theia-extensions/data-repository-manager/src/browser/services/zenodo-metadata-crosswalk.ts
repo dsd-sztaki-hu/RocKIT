@@ -72,6 +72,11 @@ export interface ZenodoCrosswalkResult {
   diagnostics: ZenodoMappingDiagnostic[]
 }
 
+export interface ZenodoMetadataOption {
+  value: string
+  label: string
+}
+
 const repositoryCrosswalk = crosswalk as RepositoryCrosswalk
 const EMPTY = Symbol('empty-crosswalk-value')
 type MappingValue = unknown | typeof EMPTY
@@ -393,7 +398,11 @@ function mapVocabulary(
 ): MappingValue {
   const mappings = isObject(operation.values) ? operation.values : {}
   const mapped = values(value).flatMap((item) => {
-    const source = strings(item)[0]
+    const source = strings(
+      isObject(item)
+        ? item['@id'] ?? item.identifier ?? item.name
+        : item,
+    )[0]
     if (!source) {
       return []
     }
@@ -404,6 +413,18 @@ function mapVocabulary(
     return operation.onUnknown === 'keep' ? [source] : []
   })
   return mapped.length ? (Array.isArray(value) ? mapped : mapped[0]) : EMPTY
+}
+
+export function zenodoMetadataOptions(
+  field: string,
+): ZenodoMetadataOption[] {
+  const property = repositoryCrosswalk.repositories.zenodo.schema.properties[field]
+  const enumValues = property && Array.isArray(property.enum)
+    ? property.enum
+    : []
+  return enumValues
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => ({ value, label: value }))
 }
 
 function applyOperation(

@@ -20,7 +20,10 @@ import {
 import {
   buildZenodoMetadataFromCrosswalk,
   missingRequiredZenodoMetadataFields,
+  ZenodoMetadataOption,
+  zenodoMetadataOptions,
 } from './zenodo-metadata-crosswalk'
+import { ZenodoRequiredMetadataDialog } from '../components/zenodo-required-metadata-dialog'
 
 type RoCrateEntity = Record<string, unknown>
 type RoCrate = Record<string, unknown>
@@ -94,6 +97,13 @@ export type ZenodoExportProgressReporter = (progress: ZenodoExportProgress) => v
 
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
 
+export class ZenodoMetadataDialogCancelledError extends Error {
+  constructor() {
+    super('Zenodo metadata entry was cancelled.')
+    this.name = 'ZenodoMetadataDialogCancelledError'
+  }
+}
+
 @injectable()
 export class ZenodoExportService {
   constructor(
@@ -113,7 +123,7 @@ export class ZenodoExportService {
 
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const depositionMetadata = this.buildDepositionMetadata(crate)
+    const depositionMetadata = await this.buildDepositionMetadata(crate, baseUrl, token)
     const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
     const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
       uploadCrate,
@@ -304,7 +314,7 @@ export class ZenodoExportService {
 
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const depositionMetadata = this.buildDepositionMetadata(crate)
+    const depositionMetadata = await this.buildDepositionMetadata(crate, baseUrl, token)
     const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
     const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
       uploadCrate,
@@ -614,11 +624,34 @@ export class ZenodoExportService {
     return files
   }
 
-  protected buildDepositionMetadata(crate: RoCrate): ZenodoDepositionMetadata {
+  protected async buildDepositionMetadata(
+    crate: RoCrate,
+    baseUrl: string,
+    token: string,
+  ): Promise<ZenodoDepositionMetadata> {
     const { metadata } = buildZenodoMetadataFromCrosswalk(crate)
-    const missingRequiredFields = missingRequiredZenodoMetadataFields(
-      metadata,
-    )
+    let missingRequiredFields = missingRequiredZenodoMetadataFields(metadata)
+    if (
+      missingRequiredFields.some((field) =>
+        ['access_right', 'license', 'embargo_date', 'access_conditions'].includes(field),
+      )
+    ) {
+      const licenseOptions = await this.loadZenodoLicenseOptions(baseUrl, token)
+      const supplied = await new ZenodoRequiredMetadataDialog(
+        metadata,
+        licenseOptions,
+      ).open()
+      if (!supplied) {
+        throw new ZenodoMetadataDialogCancelledError()
+      }
+      Object.assign(metadata, supplied)
+      for (const field of ['license', 'embargo_date', 'access_conditions']) {
+        if (!(field in supplied)) {
+          delete metadata[field]
+        }
+      }
+      missingRequiredFields = missingRequiredZenodoMetadataFields(metadata)
+    }
     if (missingRequiredFields.length) {
       throw new Error(nls.localize(
         'rockit/dataRepository/zenodoRequiredMetadataMissing',
@@ -627,6 +660,89 @@ export class ZenodoExportService {
       ))
     }
     return metadata as ZenodoDepositionMetadata
+  }
+
+  protected async loadZenodoLicenseOptions(
+    baseUrl: string,
+    token: string,
+  ): Promise<ZenodoMetadataOption[]> {
+    const fallback = zenodoMetadataOptions('license')
+    try {
+      const url = new URL('/api/licenses/', `${baseUrl}/`)
+      url.searchParams.set('size', '1000')
+      const payload = await this.requestJson(
+        url.toString(),
+        { method: 'GET', headers: this.authorizationHeaders(token) },
+        nls.localize(
+          'rockit/dataRepository/zenodoLicensesLoadFailed',
+          'Zenodo licenses could not be loaded',
+        ),
+      )
+      const resources = this.extractZenodoLicenseResources(payload)
+      const options = resources.flatMap((resource) => {
+        const metadata =
+          resource.metadata &&
+          typeof resource.metadata === 'object' &&
+          !Array.isArray(resource.metadata)
+            ? resource.metadata as Record<string, unknown>
+            : resource
+        const value = this.firstString(metadata.id, resource.id)
+        if (!value) {
+          return []
+        }
+        const title = this.firstString(metadata.title, resource.title)
+        return [{
+          value,
+          label: title && title !== value ? `${title} (${value})` : value,
+        }]
+      })
+      const loadedOptions = options.length
+        ? Array.from(
+            new Map(options.map((option) => [option.value, option])).values(),
+          ).sort((left, right) => left.label.localeCompare(right.label))
+        : fallback
+      return this.withZenodoDefaultLicenses(loadedOptions)
+    } catch (error) {
+      console.warn('Could not load Zenodo licenses; using crosswalk vocabulary.', error)
+      return this.withZenodoDefaultLicenses(fallback)
+    }
+  }
+
+  protected withZenodoDefaultLicenses(
+    options: ZenodoMetadataOption[],
+  ): ZenodoMetadataOption[] {
+    const byId = new Map(options.map((option) => [option.value, option]))
+    for (const value of ['cc-zero', 'cc-by']) {
+      if (!byId.has(value)) {
+        byId.set(value, { value, label: value })
+      }
+    }
+    return Array.from(byId.values())
+  }
+
+  protected extractZenodoLicenseResources(
+    payload: unknown,
+  ): Array<Record<string, unknown>> {
+    if (Array.isArray(payload)) {
+      return payload.filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === 'object' && !Array.isArray(item),
+      )
+    }
+    if (!payload || typeof payload !== 'object') {
+      return []
+    }
+    const hits = (payload as Record<string, unknown>).hits
+    const nestedHits =
+      hits && typeof hits === 'object' && !Array.isArray(hits)
+        ? (hits as Record<string, unknown>).hits
+        : undefined
+    return Array.isArray(nestedHits)
+      ? nestedHits.filter(
+          (item): item is Record<string, unknown> =>
+            !!item && typeof item === 'object' && !Array.isArray(item),
+        )
+      : []
   }
 
   protected async localizeExternalLocalFileReferences(

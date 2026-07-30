@@ -93028,6 +93028,9 @@
               "operation": "omitEmpty"
             },
             {
+              "operation": "resolveReferences"
+            },
+            {
               "operation": "omitValues",
               "values": [
                 "./",

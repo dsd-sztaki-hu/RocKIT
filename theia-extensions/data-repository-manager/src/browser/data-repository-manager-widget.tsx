@@ -45,7 +45,10 @@ import {
 } from './services/native-dataverse-export-service'
 import { NativeDataverseImportService } from './services/native-dataverse-import-service'
 import { RoCrateFileHashService } from './services/ro-crate-file-hash-service'
-import { ZenodoExportService } from './services/zenodo-export-service'
+import {
+  ZenodoExportService,
+  ZenodoMetadataDialogCancelledError,
+} from './services/zenodo-export-service'
 import type { DataRepositoryCapabilities } from './types'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
@@ -531,6 +534,9 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         )
         console.log('RO-Crate files exported to Zenodo:', exportResult)
       } catch (error) {
+        if (error instanceof ZenodoMetadataDialogCancelledError) {
+          return
+        }
         console.error('Zenodo RO-Crate export failed:', error)
         this.messageService.error(
           nls.localize(
