@@ -289,6 +289,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     } else {
       selectedCapabilities = await this.capabilityService.detectRepositoryCapabilities(
         selectedRepo.baseUrl,
+        selectedRepo.apiKey,
       )
     }
 
@@ -1052,6 +1053,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   ): Promise<boolean> {
     const capabilities = await this.capabilityService.detectRepositoryCapabilities(
       repository.baseUrl,
+      repository.apiKey,
     )
     const dialog = new DataRepositoryExportDeleteDialog(target, action, capabilities.kind)
     if (!(await dialog.open())) {

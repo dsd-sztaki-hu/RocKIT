@@ -83,7 +83,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
     }
 
     protected async handleSelect(repo: DataRepositoryConfig, exportTarget?: DataRepositoryExportTarget) {
-        const capabilities = await this.capabilityService.detectRepositoryCapabilities(repo.baseUrl);
+        const capabilities = await this.capabilityService.detectRepositoryCapabilities(repo.baseUrl, repo.apiKey);
         this.result = { repository: repo, capabilities, exportTarget };
         this.accept();
     }
