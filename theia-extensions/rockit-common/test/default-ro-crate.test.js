@@ -8,6 +8,7 @@ const {
   findMissingRoCrateEntityNames,
   repairMissingRoCrateEntityNames,
 } = require('../lib/common/ro-crate-entity-name')
+const { serializeJsonObject } = require('../lib/browser/utf8-text-file')
 
 async function main() {
   const files = new Map([
@@ -141,6 +142,56 @@ async function main() {
   assert.equal(repairedCrate['@graph'][1].name, 'empty')
   assert.equal(repairedCrate['@graph'][2].name, 'Present')
   assert.equal(crateWithMissingNames['@graph'][0].name, undefined)
+
+  const serializedCrate = Array.from(
+    serializeJsonObject({
+      '@context': {
+        '@vocab': 'https://schema.org/',
+        ex: 'https://example.org/',
+      },
+      '@graph': [
+        {
+          '@id': 'ro-crate-metadata.json',
+          '@type': 'CreativeWork',
+        },
+        {
+          '@id': './',
+          '@type': 'Dataset',
+          name: 'Example crate',
+        },
+      ],
+    }),
+  ).join('')
+  assert.equal(
+    serializedCrate,
+    `${JSON.stringify(
+      {
+        '@context': {
+          '@vocab': 'https://schema.org/',
+          ex: 'https://example.org/',
+        },
+        '@graph': [
+          {
+            '@id': 'ro-crate-metadata.json',
+            '@type': 'CreativeWork',
+          },
+          {
+            '@id': './',
+            '@type': 'Dataset',
+            name: 'Example crate',
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+    'Saved RO-Crate metadata is pretty-printed and ends with a newline',
+  )
+  assert.equal(Array.from(serializeJsonObject({})).join(''), '{}\n')
+  assert.equal(
+    Array.from(serializeJsonObject({ '@graph': [] })).join(''),
+    '{\n  "@graph": []\n}\n',
+  )
 
   console.log('rockit-common default RO-Crate test passed')
 }

@@ -20,6 +20,7 @@ import {
 } from 'rockit-common/lib/common/schema-url-resolution';
 import { RemoteSchemaProviderStoreService } from './remote-schema-provider-store-service';
 import { MissingSchemasDialog } from '../components/missing-schemas-dialog'; 
+import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service';
 import {
   CedarProfileLanguage,
   toCedarProfileLanguage,
@@ -44,6 +45,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   @inject(AppStateService) protected readonly appStateService!: AppStateService;
   @inject(FileService) protected readonly fileService!: FileService;
   @inject(MessageService) protected readonly messageService!: MessageService;
+  @inject(LoadMaskService) protected readonly loadMaskService!: LoadMaskService;
   @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
   @inject(RemoteSchemaProviderStoreService) public readonly providerStoreService!: RemoteSchemaProviderStoreService; 
 
@@ -992,7 +994,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         dialog.open().then(() => resolve());
       });
 
-      await this.messageService.showProgress({
+      await this.loadMaskService.showProgress({
         text: nls.localize('rockit/schemaManager/resolvingMissing', 'Resolving Missing Schemas...'),
       })
         .then(async (progress: TaskProgress) => {

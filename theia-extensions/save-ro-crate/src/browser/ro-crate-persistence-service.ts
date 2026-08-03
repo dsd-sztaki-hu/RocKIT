@@ -80,6 +80,7 @@ export class RoCratePersistenceService {
           'rockit/saveRoCrate/savingPreview',
           'Saving RO-Crate preview...',
         ),
+        progress: null,
       })
       const previewUri = rootUri.resolve('ro-crate-preview.html')
       const preview = isLarge
