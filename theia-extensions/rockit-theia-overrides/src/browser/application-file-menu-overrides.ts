@@ -349,6 +349,9 @@ export class ApplicationFileMenuOverrides implements FrontendApplicationContribu
     if (this.persistPromise) {
       return this.persistPromise
     }
+    if (!this.hasPotentialUnsavedChanges()) {
+      return
+    }
     this.persistPromise = this.writeRoCrateFiles()
     try {
       await this.persistPromise
