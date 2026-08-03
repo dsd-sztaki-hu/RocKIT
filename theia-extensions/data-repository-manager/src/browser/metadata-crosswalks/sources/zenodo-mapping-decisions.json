@@ -707,6 +707,17 @@
             "multiple": true
           },
           {
+            "entity": "dsDescription",
+            "entityClass": "dsDescription",
+            "property": "https://dataverse.org/schema/citation/dsDescriptionValue",
+            "localName": "dsDescriptionValue",
+            "block": "citation",
+            "valueTypes": [
+              "Text"
+            ],
+            "multiple": true
+          },
+          {
             "entity": "root",
             "property": "https://schema.org/description",
             "localName": "description",
@@ -741,9 +752,6 @@
         },
         {
           "operation": "resolveReferences"
-        },
-        {
-          "operation": "firstNonEmpty"
         },
         {
           "operation": "flattenText",

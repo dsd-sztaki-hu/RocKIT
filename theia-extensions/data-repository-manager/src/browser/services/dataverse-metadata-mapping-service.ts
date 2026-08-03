@@ -272,10 +272,6 @@ export class DataverseMetadataMappingService {
             return this.readStrings(root.datasetContactEmail)
                 .map(datasetContactEmail => ({ datasetContactEmail }));
         }
-        if (typeName === 'dsDescription') {
-            return this.readStrings(root.description)
-                .map(dsDescriptionValue => ({ dsDescriptionValue }));
-        }
         return [];
     }
 
@@ -293,14 +289,26 @@ export class DataverseMetadataMappingService {
         if (fieldName === 'authorName') {
             return entity.authorName ?? entity.name;
         }
+        if (fieldName === 'authorAffiliation') {
+            return entity.authorAffiliation;
+        }
+        if (fieldName === 'authorIdentifierScheme') {
+            return entity.authorIdentifierScheme;
+        }
+        if (fieldName === 'authorIdentifier') {
+            return entity.authorIdentifier;
+        }
         if (fieldName === 'datasetContactName') {
             return entity.datasetContactName ?? entity.name;
+        }
+        if (fieldName === 'datasetContactAffiliation') {
+            return entity.datasetContactAffiliation;
         }
         if (fieldName === 'datasetContactEmail') {
             return entity.datasetContactEmail ?? entity.email;
         }
         if (fieldName === 'dsDescriptionValue') {
-            return entity.dsDescriptionValue ?? entity.description ?? entity.name;
+            return entity.dsDescriptionValue;
         }
         return entity[fieldName] ?? entity.value ?? entity.name;
     }
