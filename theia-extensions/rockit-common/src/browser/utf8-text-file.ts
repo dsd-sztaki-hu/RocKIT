@@ -70,37 +70,81 @@ function createJsonObjectReadable(
   }
 }
 
-function* serializeJsonObject(
+export function* serializeJsonObject(
   value: Record<string, unknown>,
   onGraphProgress?: (worked: number, total: number) => void,
 ): Generator<string> {
-  yield '{'
-  const keys = Object.keys(value)
-  let firstProperty = true
-  for (const key of keys) {
-    if (!firstProperty) {
-      yield ','
-    }
-    firstProperty = false
-    yield `${JSON.stringify(key)}:`
-
+  const serializedProperties: Array<{
+    key: string
+    value: string
+    graph?: unknown[]
+  }> = []
+  for (const key of Object.keys(value)) {
     const propertyValue = value[key]
     if (key === '@graph' && Array.isArray(propertyValue)) {
-      yield '['
-      for (let index = 0; index < propertyValue.length; index += 1) {
-        if (index > 0) {
-          yield ','
-        }
-        yield JSON.stringify(propertyValue[index])
-        if (index % 250 === 0) {
-          onGraphProgress?.(index + 1, propertyValue.length)
-        }
-      }
-      onGraphProgress?.(propertyValue.length, propertyValue.length)
-      yield ']'
-    } else {
-      yield JSON.stringify(propertyValue)
+      serializedProperties.push({ key, value: '', graph: propertyValue })
+      continue
+    }
+
+    const serializedValue = JSON.stringify(propertyValue, null, 2)
+    if (serializedValue !== undefined) {
+      serializedProperties.push({ key, value: serializedValue })
     }
   }
+
+  if (serializedProperties.length === 0) {
+    yield '{}\n'
+    return
+  }
+
+  yield '{\n'
+  for (
+    let propertyIndex = 0;
+    propertyIndex < serializedProperties.length;
+    propertyIndex += 1
+  ) {
+    const property = serializedProperties[propertyIndex]
+    yield `  ${JSON.stringify(property.key)}: `
+
+    if (property.graph) {
+      if (property.graph.length === 0) {
+        yield '[]'
+        onGraphProgress?.(0, 0)
+      } else {
+        yield '[\n'
+        for (let graphIndex = 0; graphIndex < property.graph.length; graphIndex += 1) {
+          const serializedEntity =
+            JSON.stringify(property.graph[graphIndex], null, 2) ?? 'null'
+          yield indentMultiline(serializedEntity, 4)
+          if (graphIndex < property.graph.length - 1) {
+            yield ','
+          }
+          yield '\n'
+          if (graphIndex % 250 === 0) {
+            onGraphProgress?.(graphIndex + 1, property.graph.length)
+          }
+        }
+        onGraphProgress?.(property.graph.length, property.graph.length)
+        yield '  ]'
+      }
+    } else {
+      yield indentContinuationLines(property.value, 2)
+    }
+
+    if (propertyIndex < serializedProperties.length - 1) {
+      yield ','
+    }
+    yield '\n'
+  }
   yield '}\n'
+}
+
+function indentMultiline(value: string, spaces: number): string {
+  const indentation = ' '.repeat(spaces)
+  return `${indentation}${value.replace(/\n/g, `\n${indentation}`)}`
+}
+
+function indentContinuationLines(value: string, spaces: number): string {
+  const indentation = ' '.repeat(spaces)
+  return value.replace(/\n/g, `\n${indentation}`)
 }

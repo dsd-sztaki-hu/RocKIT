@@ -16,6 +16,7 @@ import { DataverseService } from './services/dataverse-service';
 import { DataverseCollectionService } from './services/dataverse-collection-service';
 import { ArpRoCrateExportService } from './services/arp-ro-crate-export-service';
 import { ArpRoCrateImportService } from './services/arp-ro-crate-import-service';
+import { ArpRoCrateLinkService } from './services/arp-ro-crate-link-service';
 import { NativeDataverseExportService } from './services/native-dataverse-export-service';
 import { NativeDataverseImportService } from './services/native-dataverse-import-service';
 import { DataverseCapabilityService } from './services/dataverse-capability-service';
@@ -32,6 +33,7 @@ export default new ContainerModule(bind => {
     bind(DataverseCollectionService).toSelf().inSingletonScope();
     bind(ArpRoCrateExportService).toSelf().inSingletonScope();
     bind(ArpRoCrateImportService).toSelf().inSingletonScope();
+    bind(ArpRoCrateLinkService).toSelf().inSingletonScope();
     bind(NativeDataverseExportService).toSelf().inSingletonScope();
     bind(NativeDataverseImportService).toSelf().inSingletonScope();
     bind(DataverseCapabilityService).toSelf().inSingletonScope();

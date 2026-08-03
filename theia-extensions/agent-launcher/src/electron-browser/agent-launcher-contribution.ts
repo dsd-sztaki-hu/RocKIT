@@ -279,7 +279,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   registerMenus(menus: MenuModelRegistry): void {
     menus.registerSubmenu(
       EDIT_WITH_AI_MENU_PATH,
-      nls.localize('rockit/agentLauncher/editWithAi', 'Edit with AI tool'),
+      nls.localize('rockit/agentLauncher/editWithAi', 'Edit With AI Tool'),
       { sortString: 'a10' },
     )
 
