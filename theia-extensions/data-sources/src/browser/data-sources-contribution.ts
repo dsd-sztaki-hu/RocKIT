@@ -14,7 +14,7 @@ import { DataSourceService } from './data-source-service'
 
 export const AddDataSourceCommand: Command = {
   id: 'data-sources.add',
-  label: nls.localize('rockit/fileExplorer/addDataSource', 'Add new data source'),
+  label: nls.localize('rockit/fileExplorer/addDataSource', 'Add New Data Source'),
 }
 
 @injectable()

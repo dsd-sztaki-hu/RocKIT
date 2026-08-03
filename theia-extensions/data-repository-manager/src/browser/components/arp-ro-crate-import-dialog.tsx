@@ -14,6 +14,7 @@ export interface ArpRoCrateImportDialogOptions {
   title?: string
   description?: string
   placeholder?: string
+  fieldLabel?: string
 }
 
 export class ArpRoCrateImportDialog extends AbstractDialog<ArpRoCrateImportInput | undefined> {

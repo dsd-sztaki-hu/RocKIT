@@ -66,7 +66,7 @@ export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
   {
     commandId: 'RemoteRoCrateConversion.command',
     labelKey: 'rockit/menu/remoteToLocalConversion',
-    label: 'Remote to Locale Conversion',
+    label: 'Remote to Local Conversion',
     order: 'a09',
   },
 ]
