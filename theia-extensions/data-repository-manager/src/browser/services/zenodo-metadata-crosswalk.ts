@@ -143,6 +143,16 @@ function readGraph(crate: JsonObject): JsonObject[] {
   return Array.isArray(graph) ? graph.filter(isObject) : []
 }
 
+/**
+ * Resolves a crosswalk `resolveReferences` operation.
+ *
+ * This is important for fields such as Zenodo `keywords`: an RO-Crate keyword
+ * may be stored directly as a string, as an inline object, or as an `@id`
+ * reference to another entity in `@graph`. The generated mapping only declares
+ * that references should be resolved; this executor performs the lookup against
+ * the parsed graph before later operations coerce the value for the target
+ * Zenodo field.
+ */
 function resolveReferences(value: MappingValue, graph: JsonObject[]): MappingValue {
   const byId = new Map(
     graph
@@ -194,6 +204,13 @@ function candidateValue(
   return found.some(hasMeaningfulValue) ? found : EMPTY
 }
 
+/**
+ * Selects the first populated source candidate declared by the mapping.
+ *
+ * The generated crosswalk already orders candidates according to its selection
+ * policy. For `zenodo.keywords`, that means trying canonical/root `keyword`
+ * first, then falling back to root `subject` only when keyword is absent.
+ */
 function selectSourceValue(
   mapping: ZenodoMapping,
   root: JsonObject,
@@ -427,6 +444,14 @@ export function zenodoMetadataOptions(
     .map((value) => ({ value, label: value }))
 }
 
+/**
+ * Applies one declarative transformation from the generated crosswalk.
+ *
+ * Mappings remain data-driven: the JSON says which operation is needed for a
+ * target field, and this switch is the runtime vocabulary that gives those
+ * operation names behavior. For `zenodo.keywords`, the operations are
+ * `omitEmpty`, `omitValues`, `trim`, `resolveReferences`, and `asArray`.
+ */
 function applyOperation(
   value: MappingValue,
   operation: MappingOperation,
@@ -470,6 +495,13 @@ function applyOperation(
   }
 }
 
+/**
+ * Coerces the transformed value into the target field shape required by the
+ * Zenodo schema. For plain array targets such as `metadata.keywords`, object
+ * values are reduced to readable text with `textFromObject`, so Dataverse-style
+ * keyword objects contribute `keywordValue` rather than leaking their whole
+ * structured object into Zenodo's string array.
+ */
 function coerceTargetValue(mapping: ZenodoMapping, value: MappingValue): MappingValue {
   if (!hasMeaningfulValue(value)) {
     return EMPTY
@@ -532,7 +564,9 @@ export function missingRequiredZenodoMetadataFields(
  *
  * `mapped` rules are emitted. Required `needsReview` rules are also executed
  * so their declared fallback/validation behavior can satisfy the repository
- * contract; the report keeps that review status visible.
+ * contract; the report keeps that review status visible. Field-specific logic,
+ * including keyword extraction and coercion, is driven by each mapping's source
+ * candidates and transformation list rather than hardcoded by target field.
  */
 export function buildZenodoMetadataFromCrosswalk(
   crate: Record<string, unknown>,

@@ -635,7 +635,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
     }
 
-    if (!capabilities.supportsArpRoCrateZipUpload) {
+    if (!capabilities.supportsArpRoCrateZipUpload && selectedExportTarget) {
       const progress = await this.messageService.showProgress({
         text: nls.localize(
           'rockit/dataRepository/updatingUploaded',

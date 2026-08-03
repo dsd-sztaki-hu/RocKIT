@@ -111,6 +111,19 @@ export class ZenodoExportService {
     @inject(FileService) protected readonly fileService: FileService,
   ) {}
 
+  /**
+   * Creates a new Zenodo draft deposition from the workspace RO-Crate.
+   *
+   * The metadata transformation is deliberately completed before creating the
+   * remote draft. That means missing required repository metadata is discovered
+   * while the operation is still local and no empty Zenodo deposition has to be
+   * cleaned up after a cancelled metadata dialog.
+   *
+   * File synchronization is not part of the metadata crosswalk. It is handled
+   * here by uploading the localized RO-Crate metadata file plus each referenced
+   * workspace file to Zenodo's bucket API, then writing a local `.rockit`
+   * mapping from RO-Crate entity ids to the remote Zenodo file ids.
+   */
   public async createDraftAndUploadRoCrate(
     repository: DataRepositoryConfig,
     reportProgress?: ZenodoExportProgressReporter,
@@ -295,6 +308,16 @@ export class ZenodoExportService {
     }
   }
 
+  /**
+   * Updates an existing writable Zenodo draft using the current workspace
+   * RO-Crate.
+   *
+   * The method rebuilds the desired metadata and file list from local state,
+   * loads the remote deposition, compares files by Zenodo filename and MD5
+   * checksum, then deletes, replaces, or uploads only the files that changed.
+   * It refuses to update published depositions because Zenodo records are no
+   * longer mutable after publication.
+   */
   public async updateDeposition(
     repository: DataRepositoryConfig,
     exportTarget: DataRepositoryExportTarget,
@@ -492,6 +515,12 @@ export class ZenodoExportService {
     }
   }
 
+  /**
+   * Reconstructs the set of previously exported Zenodo targets from the local
+   * export log. The log records repository URL, target URL, and mapping file;
+   * `extractDepositionIdFromTarget` converts the target URL back to the Zenodo
+   * deposition id required by the deposition API.
+   */
   public async listExportTargets(
     repositories: DataRepositoryConfig[],
   ): Promise<Record<string, DataRepositoryExportTarget[]>> {
@@ -563,6 +592,14 @@ export class ZenodoExportService {
     }
   }
 
+  /**
+   * Builds the byte payloads sent to Zenodo's bucket endpoint.
+   *
+   * The uploaded RO-Crate metadata may differ from the workspace file only in
+   * localized file references: external local files are copied into the upload
+   * set and their `@id`s are rewritten to stable upload names. This keeps the
+   * metadata export separate from repository-specific file handling.
+   */
   protected async buildUploadFiles(
     crate: RoCrate,
     rootUri: URI,
@@ -624,6 +661,13 @@ export class ZenodoExportService {
     return files
   }
 
+  /**
+   * Builds and validates the Zenodo `metadata` object sent to the deposition
+   * API. The field values come from the generated crosswalk executor; this
+   * method only handles Zenodo-specific runtime requirements that cannot be
+   * satisfied from RO-Crate alone, such as prompting for access-right dependent
+   * license, embargo date, or access conditions.
+   */
   protected async buildDepositionMetadata(
     crate: RoCrate,
     baseUrl: string,
@@ -662,6 +706,13 @@ export class ZenodoExportService {
     return metadata as ZenodoDepositionMetadata
   }
 
+  /**
+   * Loads the active Zenodo license vocabulary from the target repository.
+   *
+   * Zenodo installations can expose license choices through `/api/licenses/`.
+   * The generated crosswalk vocabulary remains the fallback so the dialog still
+   * works when the repository cannot be queried.
+   */
   protected async loadZenodoLicenseOptions(
     baseUrl: string,
     token: string,
@@ -920,6 +971,11 @@ export class ZenodoExportService {
     return `${filename.slice(0, index)}-${suffix}${filename.slice(index)}`
   }
 
+  /**
+   * Records which remote Zenodo file id corresponds to each uploaded RO-Crate
+   * file entity. Metadata-only entities are intentionally absent from this map:
+   * Zenodo does not assign them separate remote file ids.
+   */
   protected buildEntityIdMapping(
     crate: RoCrate,
     uploadedFiles: ZenodoExportResult['uploadedFiles'],
@@ -938,6 +994,12 @@ export class ZenodoExportService {
     )
   }
 
+  /**
+   * Converts upload-time ids back to the ids used in the original metadata
+   * file. External local file references may be rewritten for upload, but the
+   * mapping stored in `.rockit` should remain understandable relative to the
+   * user's RO-Crate.
+   */
   protected toMetadataEntityIdMapping(
     metadataCrate: RoCrate,
     uploadMapping: RoCrateEntityIdMapping,
