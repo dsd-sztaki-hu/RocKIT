@@ -23,6 +23,7 @@ import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-
 import { DeleteConfirmationDialog } from './components/delete-confirmation-dialog'
 import type { SchemaInfo } from './types'
 import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
+import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
 
 import './styles/index.css'
 
@@ -53,6 +54,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         @inject(SchemaManagerService) protected readonly schemaManagerService: SchemaManagerService,
         @inject(ThemeService) protected readonly themeService: ThemeService,
         @inject(ApplicationShell) protected readonly shell: ApplicationShell,
+        @inject(LoadMaskService) protected readonly loadMaskService: LoadMaskService,
     ) {
         super()
 
@@ -151,7 +153,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         if (!fileUriOrUris) return
         const fileUris: URI[] = Array.isArray(fileUriOrUris) ? fileUriOrUris : [fileUriOrUris]
 
-        this.messageService
+        this.loadMaskService
             .showProgress({
                 text: nls.localize('rockit/schemaManager/importingSchemas', 'Importing Schemas...'),
             })
@@ -201,7 +203,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
     }
 
     protected async handleImportUrl(url: string): Promise<void> {
-        this.messageService
+        this.loadMaskService
             .showProgress({
                 text: nls.localize('rockit/schemaManager/importingFromUrl', 'Importing from URL...'),
             })

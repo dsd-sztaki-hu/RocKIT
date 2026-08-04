@@ -62,7 +62,8 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
             const dialog = new MetadataSchemaSelectorDialog(
                 this.schemaManagerService,
                 this.fileDialogService,
-                this.messageService
+                this.messageService,
+                this.loadMaskService,
             );
 
             const selectedSchemas = await dialog.open();
@@ -195,7 +196,8 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo[] | 
     constructor(
         protected readonly schemaManager: SchemaManagerService,
         protected readonly fileDialog: FileDialogService,
-        protected readonly msgService: MessageService
+        protected readonly msgService: MessageService,
+        protected readonly loadMaskService: LoadMaskService,
     ) {
         super({
             title: nls.localize('rockit/schemaManager/selectSchema', 'Select Metadata Schema')
@@ -236,6 +238,7 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo[] | 
                 service={this.schemaManager}
                 fileDialog={this.fileDialog}
                 msg={this.msgService}
+                loadMask={this.loadMaskService}
                 onAccept={(s) => this.handleAccept(s)}
                 onCancel={() => this.handleClose()}
             />
@@ -260,11 +263,12 @@ interface ContentProps {
     service: SchemaManagerService;
     fileDialog: FileDialogService;
     msg: MessageService;
+    loadMask: LoadMaskService;
     onAccept: (schemas: SchemaInfo[]) => void;
     onCancel: () => void;
 }
 
-const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onAccept, onCancel }) => {
+const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, loadMask, onAccept, onCancel }) => {
     const [schemas, setSchemas] = React.useState<SchemaInfo[]>([]);
     const [isLoading, setIsLoading] = React.useState(false);
     const [selectedSchemas, setSelectedSchemas] = React.useState<SchemaInfo[]>([]);
@@ -376,7 +380,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
         if (!uris) return;
         const fileUris = Array.isArray(uris) ? uris : [uris];
 
-        msg.showProgress({ text: nls.localize('rockit/schemaManager/importing', 'Importing...') }).then(async p => {
+        loadMask.showProgress({ text: nls.localize('rockit/schemaManager/importing', 'Importing...') }).then(async p => {
             try {
                 const res = await service.importFiles(fileUris, p);
                 if (res.success > 0) msg.info(nls.localize('rockit/schemaManager/importedCount', 'Successfully imported {0} schema(s).', res.success), { timeout: MSG_TIMEOUT });
@@ -388,7 +392,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, onA
     };
 
     const handleImportUrl = async (url: string) => {
-        msg.showProgress({ text: nls.localize('rockit/schemaManager/downloadingEllipsis', 'Downloading...') }).then(async p => {
+        loadMask.showProgress({ text: nls.localize('rockit/schemaManager/downloadingEllipsis', 'Downloading...') }).then(async p => {
             try {
                 const name = await service.importFromUrl(url, p);
                 msg.info(nls.localize('rockit/schemaManager/importedName', 'Successfully imported: {0}', name), { timeout: MSG_TIMEOUT });

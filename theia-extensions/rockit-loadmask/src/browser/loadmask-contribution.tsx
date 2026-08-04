@@ -93,7 +93,9 @@ export class LoadMaskContribution implements FrontendApplicationContribution {
   }
 
   protected renderProgress(worked: number, total: number): React.ReactNode {
-    const percentage = Math.round((worked / total) * 100)
+    const percentage = Math.round(
+      Math.min(100, Math.max(0, (worked / total) * 100)),
+    )
     return (
       <div className="rockit-loadmask-progress-group">
         <div
