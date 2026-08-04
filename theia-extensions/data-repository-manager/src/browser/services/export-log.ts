@@ -1,4 +1,4 @@
-export type ExportLogAction = 'create' | 'update';
+export type ExportLogAction = 'create' | 'update' | 'sync';
 
 export interface ExportLogEvent {
     action: ExportLogAction;
@@ -90,14 +90,14 @@ function readEvents(record: Record<string, unknown>): ExportLogEvent[] {
             const event = item as Record<string, unknown>;
             const action = event.action;
             const timestamp = stringValue(event.timestamp);
-            if ((action === 'create' || action === 'update') && timestamp) {
+            if ((action === 'create' || action === 'update' || action === 'sync') && timestamp) {
                 events.push({ action, timestamp });
             }
         }
     }
     const legacyAction = record.syncType;
     const legacyTimestamp = stringValue(record.syncedAt);
-    if ((legacyAction === 'create' || legacyAction === 'update') && legacyTimestamp) {
+    if ((legacyAction === 'create' || legacyAction === 'update' || legacyAction === 'sync') && legacyTimestamp) {
         events.push({ action: legacyAction, timestamp: legacyTimestamp });
     }
     return uniqueEvents(events);

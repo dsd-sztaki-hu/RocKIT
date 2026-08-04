@@ -5,6 +5,7 @@ import { DisposableCollection } from '@theia/core/lib/common/disposable'
 import { MessageService } from '@theia/core/lib/common/message-service'
 import { nls } from '@theia/core/lib/common/nls'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-loader'
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 import { createRoot, Root } from 'react-dom/client'
@@ -99,6 +100,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly zenodoExportService: ZenodoExportService,
     @inject(AppStateService)
     protected readonly appStateService: AppStateService,
+    @inject(RoCrateLoaderContribution)
+    protected readonly roCrateLoader: RoCrateLoaderContribution,
     @inject(ApplicationServer)
     protected readonly applicationServer: ApplicationServer,
   ) {
@@ -601,6 +604,82 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         ),
         { timeout: 10000 },
       )
+      return
+    }
+    if (
+      repositorySelection.action === 'sync' &&
+      capabilities.supportsArpRoCrateZipUpload &&
+      selectedExportTarget
+    ) {
+      const confirmed = await new ConfirmDialog({
+        title: nls.localize('rockit/dataRepository/syncFromRemote', 'Sync from remote'),
+        msg: nls.localize(
+          'rockit/dataRepository/syncFromRemoteWarning',
+          'By continuing, the local version of this dataset might be overwritten.\n\nThe local ro-crate-metadata.json will be replaced with the remote version, and changed remote files may overwrite matching local files. Local files removed remotely will stay in the workspace but may become orphaned.',
+        ),
+      }).open()
+      if (!confirmed) {
+        return
+      }
+      const progress = await this.loadMaskService.showProgress({
+        text: nls.localize(
+          'rockit/dataRepository/syncingFromRemote',
+          'Syncing from {0}...',
+          selectedRepo.title,
+        ),
+      })
+      try {
+        const syncResult = await this.arpExportService.syncFromArp(
+          selectedRepo,
+          selectedExportTarget,
+          (update) =>
+            progress.report({
+              message: update.message,
+              work: {
+                done: update.completedSteps,
+                total: update.totalSteps,
+              },
+            }),
+        )
+        await this.roCrateLoader.refresh()
+        await this.loadData()
+        this.messageService.info(
+          nls.localize(
+            'rockit/dataRepository/arpSyncCompleted',
+            'ARP sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} local-only file(s).',
+            syncResult.target,
+            syncResult.downloadedFileCount,
+            syncResult.replacedFileCount,
+            syncResult.removedRemoteFileCount,
+          ),
+          { timeout: 10000 },
+        )
+        if (syncResult.unmappedEntityIds.length && syncResult.mappingFileName) {
+          const previewLimit = 15
+          const idPreview = syncResult.unmappedEntityIds
+            .slice(0, previewLimit)
+            .map((id) => `- ${id.length > 80 ? `${id.slice(0, 77)}...` : id}`)
+            .join('\n')
+          const remainingCount = syncResult.unmappedEntityIds.length - previewLimit
+          this.messageService.warn(
+            `${nls.localize('rockit/dataRepository/syncUnmappedIds', 'ARP sync completed, but {0} entity ID mapping(s) could not be inferred. Empty values remain in .rockit/{1}.', syncResult.unmappedEntityIds.length, syncResult.mappingFileName)}\n${idPreview}${remainingCount > 0 ? `\n- ${nls.localize('rockit/dataRepository/andMore', '...and {0} more', remainingCount)}` : ''}`,
+            { timeout: 10000 },
+          )
+        }
+        console.log('ARP sync completed:', syncResult)
+      } catch (error) {
+        console.error('ARP sync failed:', error)
+        this.messageService.error(
+          nls.localize(
+            'rockit/dataRepository/arpSyncFailed',
+            'ARP sync failed: {0}',
+            error instanceof Error ? error.message : String(error),
+          ),
+          { timeout: 10000 },
+        )
+      } finally {
+        progress.cancel()
+      }
       return
     }
     if (capabilities.supportsArpRoCrateZipUpload && selectedExportTarget) {

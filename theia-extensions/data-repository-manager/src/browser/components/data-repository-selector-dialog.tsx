@@ -9,6 +9,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import {
     DataRepositoryConfig,
     DataRepositoryExportTarget,
@@ -82,9 +83,13 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         }
     }
 
-    protected async handleSelect(repo: DataRepositoryConfig, exportTarget?: DataRepositoryExportTarget) {
+    protected async handleSelect(
+        repo: DataRepositoryConfig,
+        exportTarget?: DataRepositoryExportTarget,
+        action: 'export' | 'sync' = 'export'
+    ) {
         const capabilities = await this.capabilityService.detectRepositoryCapabilities(repo.baseUrl, repo.apiKey);
-        this.result = { repository: repo, capabilities, exportTarget };
+        this.result = { repository: repo, capabilities, exportTarget, action };
         this.accept();
     }
 
@@ -213,6 +218,18 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                     </div>
                                 </div>
                                 <div className="data-repo-selector__export-actions">
+                                    <button
+                                        className="data-repo-selector__export-action"
+                                        title={nls.localize('rockit/dataRepository/syncFromRemote', 'Sync from remote')}
+                                        aria-label={nls.localize(
+                                            'rockit/dataRepository/syncFromRemoteTarget',
+                                            'Sync from {0}',
+                                            target.datasetName || target.pid
+                                        )}
+                                        onClick={() => void this.handleSelect(repo, target, 'sync')}
+                                    >
+                                        <FileDownloadOutlinedIcon className="data-repo-selector__export-update-icon" />
+                                    </button>
                                     <button
                                         className="data-repo-selector__export-action"
                                         title={nls.localize('rockit/dataRepository/uploadUpdates', 'Upload updates')}

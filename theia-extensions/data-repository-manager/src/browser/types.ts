@@ -52,6 +52,7 @@ export interface DataRepositorySelection {
     repository: DataRepositoryConfig;
     capabilities: DataRepositoryCapabilities;
     exportTarget?: DataRepositoryExportTarget;
+    action?: 'export' | 'sync';
 }
 
 export type DataRepositoryKind = 'arp-dataverse' | 'dataverse' | 'zenodo' | 'unknown';
@@ -69,7 +70,7 @@ export interface DataRepositoryExportTarget {
     repository: string;
     mappingFile: string;
     syncedAt: string;
-    syncType: 'create' | 'update';
+    syncType: 'create' | 'update' | 'sync';
     datasetName?: string;
     remoteState?: 'draft' | 'published';
 }
