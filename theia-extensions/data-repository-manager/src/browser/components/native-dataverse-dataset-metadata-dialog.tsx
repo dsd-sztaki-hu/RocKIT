@@ -52,6 +52,8 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
   private subjectValue: string
   private metadataLanguageValue: string
   private metadataLanguageOptions: Array<{ value: string; label: string }>
+  private requiredCitationFields: Set<string>
+  private subjectOptions: string[]
 
   constructor(
     defaults: NativeDataverseDatasetMetadata,
@@ -59,6 +61,8 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
       title?: string
       metadataLanguageOptions?: Array<{ value: string; label: string }>
       defaultMetadataLanguage?: string
+      requiredCitationFields?: Set<string>
+      subjectOptions?: string[]
     } = {},
   ) {
     super({
@@ -74,8 +78,18 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
     this.authorNamesValue = defaults.authorNames.join('\n')
     this.contactEmailsValue = defaults.contactEmails.join('\n')
     this.descriptionsValue = defaults.descriptions.join('\n')
+    this.requiredCitationFields = options.requiredCitationFields ?? new Set([
+      'title',
+      'author',
+      'datasetContact',
+      'dsDescription',
+      'subject',
+    ])
+    this.subjectOptions = options.subjectOptions?.length
+      ? options.subjectOptions
+      : DATAVERSE_SUBJECTS
     this.subjectValue =
-      defaults.subjects.find((subject) => DATAVERSE_SUBJECTS.includes(subject)) ?? ''
+      defaults.subjects.find((subject) => this.subjectOptions.includes(subject)) ?? ''
     this.metadataLanguageOptions = options.metadataLanguageOptions ?? []
     this.metadataLanguageValue =
       options.defaultMetadataLanguage ??
@@ -99,7 +113,7 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
           authorNames: this.lines(this.authorNamesValue),
           contactEmails: this.lines(this.contactEmailsValue),
           descriptions: this.lines(this.descriptionsValue),
-          subjects: [this.subjectValue],
+          subjects: this.subjectValue ? [this.subjectValue] : [],
           ...(this.metadataLanguageOptions.length
             ? { metadataLanguage: this.metadataLanguageValue }
             : {}),
@@ -109,11 +123,11 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
 
   protected isValid(_value: NativeDataverseDatasetMetadata | undefined): boolean {
     return (
-      !!this.titleValue.trim() &&
-      this.lines(this.authorNamesValue).length > 0 &&
-      this.lines(this.contactEmailsValue).length > 0 &&
-      this.lines(this.descriptionsValue).length > 0 &&
-      !!this.subjectValue &&
+      (!this.requiredCitationFields.has('title') || !!this.titleValue.trim()) &&
+      (!this.requiredCitationFields.has('author') || this.lines(this.authorNamesValue).length > 0) &&
+      (!this.requiredCitationFields.has('datasetContact') || this.lines(this.contactEmailsValue).length > 0) &&
+      (!this.requiredCitationFields.has('dsDescription') || this.lines(this.descriptionsValue).length > 0) &&
+      (!this.requiredCitationFields.has('subject') || !!this.subjectValue) &&
       (!this.metadataLanguageOptions.length || !!this.metadataLanguageValue)
     )
   }
@@ -129,28 +143,28 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
           {nls.localize('rockit/dataRepository/requiredMetadataDescription', 'Dataverse requires these citation metadata fields when creating a new dataset. Matching values found in the RO-Crate metadata are used as defaults.')}
         </p>
         <div className="native-dv-metadata__form">
-          {this.renderInput(
+          {this.requiredCitationFields.has('title') ? this.renderInput(
             nls.localize('rockit/dataRepository/metadataTitle', 'Title'),
             this.titleValue,
             (value) => {
               this.titleValue = value
             },
             true,
-          )}
-          {this.renderTextarea(nls.localize('rockit/dataRepository/authorName', 'Author Name'), this.authorNamesValue, (value) => {
+          ) : undefined}
+          {this.requiredCitationFields.has('author') ? this.renderTextarea(nls.localize('rockit/dataRepository/authorName', 'Author Name'), this.authorNamesValue, (value) => {
             this.authorNamesValue = value
-          })}
-          {this.renderTextarea(
+          }) : undefined}
+          {this.requiredCitationFields.has('datasetContact') ? this.renderTextarea(
             nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email'),
             this.contactEmailsValue,
             (value) => {
               this.contactEmailsValue = value
             },
-          )}
-          {this.renderTextarea(nls.localize('rockit/dataRepository/descriptionText', 'Description Text'), this.descriptionsValue, (value) => {
+          ) : undefined}
+          {this.requiredCitationFields.has('dsDescription') ? this.renderTextarea(nls.localize('rockit/dataRepository/descriptionText', 'Description Text'), this.descriptionsValue, (value) => {
             this.descriptionsValue = value
-          })}
-          <label className="native-dv-metadata__field">
+          }) : undefined}
+          {this.requiredCitationFields.has('subject') ? <label className="native-dv-metadata__field">
             <span className="native-dv-metadata__label">
               {nls.localize('rockit/dataRepository/subject', 'Subject')} <span className="native-dv-metadata__required">*</span>
             </span>
@@ -158,7 +172,7 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
               className="native-dv-metadata__select"
               value={this.subjectValue || undefined}
               placeholder={nls.localize('rockit/dataRepository/selectSubject', 'Select a subject')}
-              options={DATAVERSE_SUBJECTS.map((subject) => ({
+              options={this.subjectOptions.map((subject) => ({
                 value: subject,
                 label: DATAVERSE_SUBJECT_LABELS[subject]?.() ?? subject,
               }))}
@@ -168,7 +182,7 @@ export class NativeDataverseDatasetMetadataDialog extends AbstractDialog<
                 this.refresh()
               }}
             />
-          </label>
+          </label> : undefined}
           {this.metadataLanguageOptions.length ? (
             <label className="native-dv-metadata__field">
               <span className="native-dv-metadata__label">

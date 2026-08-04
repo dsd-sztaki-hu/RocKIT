@@ -37,7 +37,6 @@ import { DataRepositoryExportDeleteService } from './services/data-repository-ex
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
 import { DataverseCapabilityService } from './services/dataverse-capability-service'
 import { DataverseCollectionService } from './services/dataverse-collection-service'
-import { DataverseMetadataBlockCacheService } from './services/dataverse-metadata-block-cache-service'
 import { DataverseService } from './services/dataverse-service'
 import {
   NativeDataverseDatasetMetadata,
@@ -52,8 +51,6 @@ import {
 import type { DataRepositoryCapabilities } from './types'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
-
-type RoCrateEntity = Record<string, unknown>
 
 export const DATA_REPOSITORY_MANAGER_WIDGET_ID = 'data-repository-manager:widget'
 export const DATA_REPOSITORY_MANAGER_LABEL = nls.localize(
@@ -94,8 +91,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly nativeImportService: NativeDataverseImportService,
     @inject(DataverseCapabilityService)
     protected readonly capabilityService: DataverseCapabilityService,
-    @inject(DataverseMetadataBlockCacheService)
-    protected readonly metadataBlockCacheService: DataverseMetadataBlockCacheService,
     @inject(RoCrateFileHashService)
     protected readonly fileHashService: RoCrateFileHashService,
     @inject(LoadMaskService)
@@ -169,8 +164,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       )
       return
     }
-    await this.loadDataverseMetadataBlocks(selectedRepo)
-
     const importDialog = new ArpRoCrateImportDialog(
       capabilities.supportsArpRoCrateZipUpload
         ? undefined
@@ -457,6 +450,50 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const selectedExportTarget = repositorySelection.exportTarget
 
     if (capabilities.supportsZenodoApi) {
+      let preparedMetadata
+      const metadataProgress = await this.loadMaskService.showProgress({
+        text: nls.localize(
+          'rockit/dataRepository/preparingZenodoMetadata',
+          'Preparing Zenodo metadata for {0}...',
+          selectedRepo.title,
+        ),
+      })
+      let metadataProgressClosed = false
+      const closeMetadataProgress = (): void => {
+        if (!metadataProgressClosed) {
+          metadataProgressClosed = true
+          metadataProgress.cancel()
+        }
+      }
+      try {
+        preparedMetadata = await this.zenodoExportService.prepareDepositionMetadata(selectedRepo, {
+          onLoadingLicenses: () =>
+            metadataProgress.report({
+              message: nls.localize(
+                'rockit/dataRepository/loadingZenodoLicenses',
+                'Loading Zenodo license options from {0}...',
+                selectedRepo.title,
+              ),
+            }),
+          onBeforeMetadataDialog: closeMetadataProgress,
+        })
+      } catch (error) {
+        if (error instanceof ZenodoMetadataDialogCancelledError) {
+          return
+        }
+        console.error('Zenodo metadata preparation failed:', error)
+        this.messageService.error(
+          nls.localize(
+            'rockit/dataRepository/zenodoExportFailed',
+            'Zenodo export failed: {0}',
+            error instanceof Error ? error.message : String(error),
+          ),
+          { timeout: 10000 },
+        )
+        return
+      } finally {
+        closeMetadataProgress()
+      }
       const progress = await this.loadMaskService.showProgress({
         text: selectedExportTarget
           ? nls.localize(
@@ -483,6 +520,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                   total: update.totalSteps,
                 },
               }),
+            preparedMetadata,
           )
           this.messageService.info(
             nls.localize(
@@ -516,6 +554,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                 total: update.totalSteps,
               },
             }),
+          preparedMetadata,
         )
         this.messageService.info(
           nls.localize(
@@ -564,8 +603,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       )
       return
     }
-    await this.loadDataverseMetadataBlocks(selectedRepo)
-
     if (capabilities.supportsArpRoCrateZipUpload && selectedExportTarget) {
       const progress = await this.loadMaskService.showProgress({
         text: nls.localize(
@@ -688,7 +725,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     }
 
     if (capabilities.supportsArpRoCrateZipUpload) {
-      const missingMetadata = this.getMissingArpDatasetCreationMetadata()
+      const missingMetadata = await this.getMissingArpDatasetCreationMetadata()
       if (missingMetadata.length) {
         const documentationUrl = await this.getRepositoryExportDocumentationUrl()
         this.messageService.error(
@@ -746,6 +783,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               metadataDefaults.metadataLanguage ??
               metadataLanguageOptions.find((option) => option.value === 'en')?.value ??
               metadataLanguageOptions[0]?.value,
+            requiredCitationFields: this.nativeExportService.requiredDatasetCreationFields(),
+            subjectOptions: this.nativeExportService.datasetCreationSubjectOptions(),
           },
         )
         const datasetMetadata = await metadataDialog.open()
@@ -838,7 +877,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         )
         return
       }
-      const metadataDialog = new NativeDataverseDatasetMetadataDialog(metadataDefaults)
+      const metadataDialog = new NativeDataverseDatasetMetadataDialog(metadataDefaults, {
+        requiredCitationFields: this.nativeExportService.requiredDatasetCreationFields(),
+        subjectOptions: this.nativeExportService.datasetCreationSubjectOptions(),
+      })
       const datasetMetadata = await metadataDialog.open()
       if (!datasetMetadata) {
         return
@@ -946,35 +988,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       error.payload,
     )
     await dialog.open()
-  }
-
-  protected async loadDataverseMetadataBlocks(
-    repository: DataRepositoryConfig,
-  ): Promise<void> {
-    const progress = await this.loadMaskService.showProgress({
-      text: nls.localize(
-        'rockit/dataRepository/loadingDataverseMetadataSchemas',
-        'Loading Dataverse metadata schemas from {0}...',
-        repository.title,
-      ),
-    })
-    try {
-      const saved =
-        await this.metadataBlockCacheService.loadTargetMetadataBlocks(repository)
-      console.log('Dataverse metadata blocks loaded:', saved)
-    } catch (error) {
-      console.warn('Failed to load Dataverse metadata blocks:', error)
-      this.messageService.warn(
-        nls.localize(
-          'rockit/dataRepository/dataverseMetadataSchemasLoadFailed',
-          'Dataverse metadata schemas could not be loaded: {0}',
-          error instanceof Error ? error.message : String(error),
-        ),
-        { timeout: 10000 },
-      )
-    } finally {
-      progress.cancel()
-    }
   }
 
   protected handleAddRepository = async () => {
@@ -1110,33 +1123,24 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     })
   }
 
-  protected getMissingArpDatasetCreationMetadata(): string[] {
-    const crate = this.appStateService.roCrate
-    const graph = this.readGraph(crate)
-    const root = graph.find((entity) => entity['@id'] === './')
-    if (!root) {
-      return [nls.localize('rockit/dataRepository/rootDataset', 'Root Dataset')]
-    }
-
+  protected async getMissingArpDatasetCreationMetadata(): Promise<string[]> {
+    const metadata = await this.nativeExportService.getDatasetCreationMetadataDefaults()
+    const requiredCitationFields = this.nativeExportService.requiredDatasetCreationFields()
     const missing: string[] = []
-    if (!this.firstMeaningfulString(root.title, root.name)) {
-      missing.push(nls.localize('rockit/dataRepository/metadataTitle', 'Title'))
+    if (requiredCitationFields.has('title') && !metadata.title.trim()) {
+      missing.push(this.nativeExportService.datasetCreationFieldLabel('title'))
     }
-    if (!this.hasCompleteAuthors(root, graph)) {
-      missing.push(nls.localize('rockit/dataRepository/authorName', 'Author Name'))
+    if (requiredCitationFields.has('author') && !metadata.authorNames.length) {
+      missing.push(this.nativeExportService.datasetCreationFieldLabel('author'))
     }
-    if (!this.hasCompleteContactEmails(root, graph)) {
-      missing.push(
-        nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email'),
-      )
+    if (requiredCitationFields.has('datasetContact') && !metadata.contactEmails.length) {
+      missing.push(this.nativeExportService.datasetCreationFieldLabel('datasetContact'))
     }
-    if (!this.hasCompleteDescriptions(root, graph)) {
-      missing.push(
-        nls.localize('rockit/dataRepository/descriptionText', 'Description Text'),
-      )
+    if (requiredCitationFields.has('dsDescription') && !metadata.descriptions.length) {
+      missing.push(this.nativeExportService.datasetCreationFieldLabel('dsDescription'))
     }
-    if (!this.readStrings(root.subject).length) {
-      missing.push(nls.localize('rockit/dataRepository/subject', 'Subject'))
+    if (requiredCitationFields.has('subject') && !metadata.subjects.length) {
+      missing.push(this.nativeExportService.datasetCreationFieldLabel('subject'))
     }
     return missing
   }
@@ -1155,174 +1159,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         ROCKIT_DOCUMENTATION_PAGES.REPOSITORY_EXPORT_IMPORT,
       )
     }
-  }
-
-  protected hasCompleteAuthors(root: RoCrateEntity, graph: RoCrateEntity[]): boolean {
-    const authorReferences = this.resolveEntityReferences(root.author, graph)
-    const authorEntities = this.uniqueEntities([
-      ...authorReferences.entities,
-      ...this.entitiesWithType(graph, 'author'),
-    ])
-    if (authorEntities.some((author) => !this.firstMeaningfulString(author.authorName))) {
-      return false
-    }
-    return (
-      authorEntities.length > 0 ||
-      authorReferences.literals.some((value) => !this.looksLikeEntityId(value))
-    )
-  }
-
-  protected hasCompleteContactEmails(
-    root: RoCrateEntity,
-    graph: RoCrateEntity[],
-  ): boolean {
-    const contactReferences = this.resolveEntityReferences(
-      root.datasetContact ?? root.contactPoint,
-      graph,
-    )
-    const contactEntities = this.uniqueEntities([
-      ...contactReferences.entities,
-      ...this.entitiesWithType(graph, 'datasetContact'),
-    ])
-    if (
-      contactEntities.some(
-        (contact) =>
-          !this.firstMeaningfulString(contact.datasetContactEmail) ||
-          this.readStrings(contact.datasetContactEmail).some(
-            (email) => !this.isValidEmail(email),
-          ),
-      )
-    ) {
-      return false
-    }
-    return (
-      contactEntities.length > 0 ||
-      this.readStrings(root.datasetContactEmail).some((email) =>
-        this.isValidEmail(email),
-      ) ||
-      contactReferences.literals.some(
-        (value) => !this.looksLikeEntityId(value) && this.isValidEmail(value),
-      )
-    )
-  }
-
-  protected hasCompleteDescriptions(
-    root: RoCrateEntity,
-    graph: RoCrateEntity[],
-  ): boolean {
-    const descriptionReferences = this.resolveEntityReferences(root.dsDescription, graph)
-    const descriptionEntities = this.uniqueEntities([
-      ...descriptionReferences.entities,
-      ...this.entitiesWithType(graph, 'dsDescription'),
-    ])
-    if (
-      descriptionEntities.some(
-        (description) => !this.firstMeaningfulString(description.dsDescriptionValue),
-      )
-    ) {
-      return false
-    }
-    return (
-      descriptionEntities.length > 0 ||
-      this.firstMeaningfulString(root.description) !== undefined ||
-      descriptionReferences.literals.some((value) => !this.looksLikeEntityId(value))
-    )
-  }
-
-  protected resolveEntityReferences(
-    value: unknown,
-    graph: RoCrateEntity[],
-  ): { entities: RoCrateEntity[]; literals: string[] } {
-    if (Array.isArray(value)) {
-      const resolved = value.map((item) => this.resolveEntityReferences(item, graph))
-      return {
-        entities: resolved.flatMap((item) => item.entities),
-        literals: this.uniqueStrings(resolved.flatMap((item) => item.literals)),
-      }
-    }
-    if (value && typeof value === 'object') {
-      const entity = value as RoCrateEntity
-      const linkedEntity = this.readStrings(entity['@id'])
-        .map((id) => graph.find((graphEntity) => graphEntity['@id'] === id))
-        .find((graphEntity): graphEntity is RoCrateEntity => !!graphEntity)
-      return { entities: [linkedEntity ?? entity], literals: [] }
-    }
-    const literals = this.readStrings(value)
-    const entities = literals
-      .map((id) => graph.find((graphEntity) => graphEntity['@id'] === id))
-      .filter((entity): entity is RoCrateEntity => !!entity)
-    const resolvedEntityIds = new Set(
-      entities.flatMap((entity) => this.readStrings(entity['@id'])),
-    )
-    return {
-      entities,
-      literals: literals.filter((literal) => !resolvedEntityIds.has(literal)),
-    }
-  }
-
-  protected readGraph(crate: unknown): RoCrateEntity[] {
-    if (!crate || typeof crate !== 'object' || Array.isArray(crate)) {
-      return []
-    }
-    const graph = (crate as Record<string, unknown>)['@graph']
-    return Array.isArray(graph)
-      ? graph.filter(
-          (entity): entity is RoCrateEntity =>
-            !!entity && typeof entity === 'object' && !Array.isArray(entity),
-        )
-      : []
-  }
-
-  protected firstMeaningfulString(...values: unknown[]): string | undefined {
-    return values
-      .flatMap((value) => this.readStrings(value))
-      .find((value) => value !== './' && value !== '.')
-  }
-
-  protected readStrings(value: unknown): string[] {
-    if (typeof value === 'string') {
-      return value.trim() ? [value.trim()] : []
-    }
-    if (Array.isArray(value)) {
-      return this.uniqueStrings(value.flatMap((item) => this.readStrings(item)))
-    }
-    return []
-  }
-
-  protected uniqueStrings(values: string[]): string[] {
-    return Array.from(new Set(values.filter((value) => value.trim() !== '')))
-  }
-
-  protected uniqueEntities(entities: RoCrateEntity[]): RoCrateEntity[] {
-    const seen = new Set<string>()
-    const unique: RoCrateEntity[] = []
-    for (const entity of entities) {
-      const key = this.readStrings(entity['@id'])[0]
-      if (key && seen.has(key)) {
-        continue
-      }
-      if (key) {
-        seen.add(key)
-      }
-      unique.push(entity)
-    }
-    return unique
-  }
-
-  protected entitiesWithType(graph: RoCrateEntity[], typeName: string): RoCrateEntity[] {
-    return graph.filter((entity) => this.readStrings(entity['@type']).includes(typeName))
-  }
-
-  protected looksLikeEntityId(value: string): boolean {
-    return (
-      value.startsWith('#') ||
-      value.startsWith('./') ||
-      /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)
-    )
-  }
-
-  protected isValidEmail(value: string): boolean {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
   }
 
   // Handles single item deletion from the Action column

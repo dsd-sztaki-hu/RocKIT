@@ -122,6 +122,19 @@ export class DataverseMetadataMappingService {
         );
     }
 
+    public controlledVocabularyValues(blockName: string, fieldName: string): string[] {
+        const values = this.fieldSchema(blockName, fieldName)?.controlledVocabularyValues;
+        return Array.isArray(values) ? values : [];
+    }
+
+    public fieldDisplayName(blockName: string, fieldName: string): string {
+        return this.fieldSchema(blockName, fieldName)?.displayName ?? fieldName;
+    }
+
+    protected fieldSchema(blockName: string, fieldName: string): DataverseFieldSchema | undefined {
+        return repositoryCrosswalk.repositories.dataverse.blocks[blockName]?.schema.fields?.[fieldName];
+    }
+
     protected buildBlockFields(
         blockName: string,
         root: RoCrateEntity,

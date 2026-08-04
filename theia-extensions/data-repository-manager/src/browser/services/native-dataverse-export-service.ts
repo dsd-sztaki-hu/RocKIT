@@ -582,24 +582,73 @@ export class NativeDataverseExportService {
   public async getDatasetCreationMetadataDefaults(): Promise<NativeDataverseDatasetMetadata> {
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const graph = this.readGraph(crate)
-    const root = graph.find((entity) => entity['@id'] === './')
-    if (!root) {
-      return {
-        title: '',
-        authorNames: [],
-        contactEmails: [],
-        descriptions: [],
-        subjects: [],
-      }
+    const blocks = await this.metadataMappingService.buildMetadataBlocks(
+      crate,
+      new Set(['citation']),
+    )
+    return this.datasetCreationMetadataFromCrosswalkBlocks(blocks)
+  }
+
+  public requiredDatasetCreationFields(): Set<string> {
+    return this.metadataMappingService.requiredFields('citation')
+  }
+
+  public datasetCreationSubjectOptions(): string[] {
+    return this.metadataMappingService.controlledVocabularyValues('citation', 'subject')
+  }
+
+  public datasetCreationFieldLabel(fieldName: string): string {
+    switch (fieldName) {
+      case 'title':
+        return nls.localize('rockit/dataRepository/metadataTitle', 'Title')
+      case 'author':
+        return nls.localize('rockit/dataRepository/authorName', 'Author Name')
+      case 'datasetContact':
+        return nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email')
+      case 'dsDescription':
+        return nls.localize('rockit/dataRepository/descriptionText', 'Description Text')
+      case 'subject':
+        return nls.localize('rockit/dataRepository/subject', 'Subject')
+      default:
+        return this.metadataMappingService.fieldDisplayName('citation', fieldName)
     }
+  }
+
+  protected datasetCreationMetadataFromCrosswalkBlocks(
+    blocks: Record<string, { displayName: string; fields: DataverseMetadataField[] }>,
+  ): NativeDataverseDatasetMetadata {
+    const fields = blocks.citation?.fields ?? []
     return {
-      title: this.firstMeaningfulString(root.title, root.name) ?? '',
-      authorNames: this.uniqueStrings(this.extractAuthors(root, graph)),
-      contactEmails: this.uniqueStrings(this.extractContactEmails(root, graph)),
-      descriptions: this.uniqueStrings(this.extractDescriptions(root, graph)),
-      subjects: this.uniqueStrings(this.readStrings(root.subject)),
+      title: this.fieldStrings(fields, 'title')[0] ?? '',
+      authorNames: this.fieldStrings(fields, 'author', 'authorName'),
+      contactEmails: this.fieldStrings(fields, 'datasetContact', 'datasetContactEmail'),
+      descriptions: this.fieldStrings(fields, 'dsDescription', 'dsDescriptionValue'),
+      subjects: this.fieldStrings(fields, 'subject'),
     }
+  }
+
+  protected fieldStrings(
+    fields: DataverseMetadataField[],
+    typeName: string,
+    childTypeName?: string,
+  ): string[] {
+    const field = fields.find((candidate) => candidate.typeName === typeName)
+    if (!field) {
+      return []
+    }
+    if (!childTypeName) {
+      return this.uniqueStrings(this.readStrings(field.value))
+    }
+    const compoundValues = Array.isArray(field.value) ? field.value : [field.value]
+    return this.uniqueStrings(
+      compoundValues.flatMap((value) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return []
+        }
+        const child = (value as Record<string, DataverseMetadataField>)[childTypeName]
+        return child ? this.readStrings(child.value) : []
+      }),
+    )
   }
 
     protected getWorkspaceRoot(): URI {
@@ -641,12 +690,13 @@ export class NativeDataverseExportService {
         const descriptions = this.uniqueStrings(datasetMetadata.descriptions.map(value => value.trim()));
         const subjects = this.uniqueStrings(datasetMetadata.subjects.map(value => value.trim()));
         const missing: string[] = [];
+        const requiredCitationFields = this.metadataMappingService.requiredFields('citation');
 
-        if (!title) missing.push(nls.localize('rockit/dataRepository/metadataTitle', 'Title'));
-        if (!authors.length) missing.push(nls.localize('rockit/dataRepository/authorName', 'Author Name'));
-        if (!contactEmails.length) missing.push(nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email'));
-        if (!descriptions.length) missing.push(nls.localize('rockit/dataRepository/descriptionText', 'Description Text'));
-        if (!subjects.length) missing.push(nls.localize('rockit/dataRepository/subject', 'Subject'));
+        if (requiredCitationFields.has('title') && !title) missing.push(nls.localize('rockit/dataRepository/metadataTitle', 'Title'));
+        if (requiredCitationFields.has('author') && !authors.length) missing.push(nls.localize('rockit/dataRepository/authorName', 'Author Name'));
+        if (requiredCitationFields.has('datasetContact') && !contactEmails.length) missing.push(nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email'));
+        if (requiredCitationFields.has('dsDescription') && !descriptions.length) missing.push(nls.localize('rockit/dataRepository/descriptionText', 'Description Text'));
+        if (requiredCitationFields.has('subject') && !subjects.length) missing.push(nls.localize('rockit/dataRepository/subject', 'Subject'));
 
         if (missing.length) {
             throw new Error(nls.localize(
@@ -656,41 +706,50 @@ export class NativeDataverseExportService {
             ));
         }
 
-    const fields: DataverseMetadataField[] = [
-      this.primitiveField('title', false, title),
-      this.compoundField(
-        'author',
-        authors.map((authorName) => ({
-          authorName: this.primitiveField('authorName', false, authorName),
-        })),
-      ),
-      this.compoundField(
-        'datasetContact',
-        contactEmails.map((datasetContactEmail) => ({
-          datasetContactEmail: this.primitiveField(
-            'datasetContactEmail',
-            false,
-            datasetContactEmail,
-          ),
-        })),
-      ),
-      this.compoundField(
-        'dsDescription',
-        descriptions.map((dsDescriptionValue) => ({
-          dsDescriptionValue: this.primitiveField(
-            'dsDescriptionValue',
-            false,
-            dsDescriptionValue,
-          ),
-        })),
-      ),
-      {
-        typeName: 'subject',
-        typeClass: 'controlledVocabulary',
-        multiple: true,
-        value: subjects,
-      },
-    ]
+    const fields: DataverseMetadataField[] = []
+    if (requiredCitationFields.has('title') || title) {
+      fields.push(this.primitiveField('title', false, title))
+    }
+    if (requiredCitationFields.has('author') || authors.length) {
+      fields.push(this.compoundField(
+          'author',
+          authors.map((authorName) => ({
+            authorName: this.primitiveField('authorName', false, authorName),
+          })),
+      ))
+    }
+    if (requiredCitationFields.has('datasetContact') || contactEmails.length) {
+      fields.push(this.compoundField(
+          'datasetContact',
+          contactEmails.map((datasetContactEmail) => ({
+            datasetContactEmail: this.primitiveField(
+              'datasetContactEmail',
+              false,
+              datasetContactEmail,
+            ),
+          })),
+      ))
+    }
+    if (requiredCitationFields.has('dsDescription') || descriptions.length) {
+      fields.push(this.compoundField(
+          'dsDescription',
+          descriptions.map((dsDescriptionValue) => ({
+            dsDescriptionValue: this.primitiveField(
+              'dsDescriptionValue',
+              false,
+              dsDescriptionValue,
+            ),
+          })),
+      ))
+    }
+    if (requiredCitationFields.has('subject') || subjects.length) {
+      fields.push({
+          typeName: 'subject',
+          typeClass: 'controlledVocabulary',
+          multiple: true,
+          value: subjects,
+      })
+    }
 
     const metadataBlocks: Record<
       string,

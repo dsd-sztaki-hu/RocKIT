@@ -799,45 +799,79 @@ export class ArpRoCrateExportService {
         metadataBlocks: {
           citation: {
             displayName: 'Citation Metadata',
-            fields: [
-              this.primitiveField('title', false, title),
-              this.compoundField(
-                'author',
-                authorNames.map((authorName) => ({
-                  authorName: this.primitiveField('authorName', false, authorName),
-                })),
-              ),
-              this.compoundField(
-                'datasetContact',
-                contactEmails.map((datasetContactEmail) => ({
-                  datasetContactEmail: this.primitiveField(
-                    'datasetContactEmail',
-                    false,
-                    datasetContactEmail,
-                  ),
-                })),
-              ),
-              this.compoundField(
-                'dsDescription',
-                descriptions.map((dsDescriptionValue) => ({
-                  dsDescriptionValue: this.primitiveField(
-                    'dsDescriptionValue',
-                    false,
-                    dsDescriptionValue,
-                  ),
-                })),
-              ),
-              {
-                typeName: 'subject',
-                typeClass: 'controlledVocabulary',
-                multiple: true,
-                value: subjects,
-              },
-            ],
+            fields: this.buildDatasetCreationCitationFields(
+              requiredCitationFields,
+              title,
+              authorNames,
+              contactEmails,
+              descriptions,
+              subjects,
+            ),
           },
         },
       },
     }
+  }
+
+  protected buildDatasetCreationCitationFields(
+    requiredCitationFields: Set<string>,
+    title: string,
+    authorNames: string[],
+    contactEmails: string[],
+    descriptions: string[],
+    subjects: string[],
+  ): ArpDataverseMetadataField[] {
+    const fields: ArpDataverseMetadataField[] = []
+    if (requiredCitationFields.has('title') || title) {
+      fields.push(this.primitiveField('title', false, title))
+    }
+    if (requiredCitationFields.has('author') || authorNames.length) {
+      fields.push(
+        this.compoundField(
+          'author',
+          authorNames.map((authorName) => ({
+            authorName: this.primitiveField('authorName', false, authorName),
+          })),
+        ),
+      )
+    }
+    if (requiredCitationFields.has('datasetContact') || contactEmails.length) {
+      fields.push(
+        this.compoundField(
+          'datasetContact',
+          contactEmails.map((datasetContactEmail) => ({
+            datasetContactEmail: this.primitiveField(
+              'datasetContactEmail',
+              false,
+              datasetContactEmail,
+            ),
+          })),
+        ),
+      )
+    }
+    if (requiredCitationFields.has('dsDescription') || descriptions.length) {
+      fields.push(
+        this.compoundField(
+          'dsDescription',
+          descriptions.map((dsDescriptionValue) => ({
+            dsDescriptionValue: this.primitiveField(
+              'dsDescriptionValue',
+              false,
+              dsDescriptionValue,
+            ),
+          })),
+        ),
+      )
+    }
+    if (requiredCitationFields.has('subject') || subjects.length) {
+      fields.push({
+        typeName: 'subject',
+        typeClass: 'controlledVocabulary',
+        multiple: true,
+        value: subjects,
+      })
+    }
+    return fields
   }
 
   protected primitiveField(

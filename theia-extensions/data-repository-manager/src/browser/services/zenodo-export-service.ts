@@ -48,13 +48,20 @@ interface ZenodoRemoteFile {
   response: unknown
 }
 
-interface ZenodoDepositionMetadata extends Record<string, unknown> {
+export interface ZenodoDepositionMetadata extends Record<string, unknown> {
   upload_type: string
   publication_date: string
   title: string
   creators: Array<Record<string, unknown>>
   description: string
   access_right: string
+}
+
+export interface ZenodoMetadataPreparationHooks {
+  /** Called before Zenodo license options are fetched for the required metadata dialog. */
+  onLoadingLicenses?: () => void
+  /** Called after metadata preparation finishes and before the required metadata dialog is opened. */
+  onBeforeMetadataDialog?: () => void
 }
 
 export interface ZenodoExportResult {
@@ -127,6 +134,7 @@ export class ZenodoExportService {
   public async createDraftAndUploadRoCrate(
     repository: DataRepositoryConfig,
     reportProgress?: ZenodoExportProgressReporter,
+    preparedMetadata?: ZenodoDepositionMetadata,
   ): Promise<ZenodoExportResult> {
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const token = repository.apiKey?.trim()
@@ -136,7 +144,7 @@ export class ZenodoExportService {
 
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const depositionMetadata = await this.buildDepositionMetadata(crate, baseUrl, token)
+    const depositionMetadata = preparedMetadata ?? await this.buildDepositionMetadata(crate, baseUrl, token)
     const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
     const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
       uploadCrate,
@@ -322,6 +330,7 @@ export class ZenodoExportService {
     repository: DataRepositoryConfig,
     exportTarget: DataRepositoryExportTarget,
     reportProgress?: ZenodoExportProgressReporter,
+    preparedMetadata?: ZenodoDepositionMetadata,
   ): Promise<ZenodoUpdateResult> {
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const token = repository.apiKey?.trim()
@@ -337,7 +346,7 @@ export class ZenodoExportService {
 
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const depositionMetadata = await this.buildDepositionMetadata(crate, baseUrl, token)
+    const depositionMetadata = preparedMetadata ?? await this.buildDepositionMetadata(crate, baseUrl, token)
     const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
     const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
       uploadCrate,
@@ -564,6 +573,20 @@ export class ZenodoExportService {
     return targetsByRepositoryId
   }
 
+  public async prepareDepositionMetadata(
+    repository: DataRepositoryConfig,
+    hooks?: ZenodoMetadataPreparationHooks,
+  ): Promise<ZenodoDepositionMetadata> {
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const token = repository.apiKey?.trim()
+    if (!token) {
+      throw new Error(nls.localize('rockit/dataRepository/zenodoTokenMissing', 'Zenodo API token is missing.'))
+    }
+    const rootUri = this.getWorkspaceRoot()
+    const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
+    return this.buildDepositionMetadata(crate, baseUrl, token, hooks)
+  }
+
   protected getWorkspaceRoot(): URI {
     const roots = this.workspaceService.tryGetRoots()
     const root = roots?.[0]?.resource
@@ -672,6 +695,7 @@ export class ZenodoExportService {
     crate: RoCrate,
     baseUrl: string,
     token: string,
+    hooks?: ZenodoMetadataPreparationHooks,
   ): Promise<ZenodoDepositionMetadata> {
     const { metadata } = buildZenodoMetadataFromCrosswalk(crate)
     let missingRequiredFields = missingRequiredZenodoMetadataFields(metadata)
@@ -680,7 +704,9 @@ export class ZenodoExportService {
         ['access_right', 'license', 'embargo_date', 'access_conditions'].includes(field),
       )
     ) {
+      hooks?.onLoadingLicenses?.()
       const licenseOptions = await this.loadZenodoLicenseOptions(baseUrl, token)
+      hooks?.onBeforeMetadataDialog?.()
       const supplied = await new ZenodoRequiredMetadataDialog(
         metadata,
         licenseOptions,
