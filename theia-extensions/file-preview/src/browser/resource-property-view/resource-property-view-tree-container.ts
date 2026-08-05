@@ -30,6 +30,10 @@ import { ResourcePropertyViewWidgetProvider } from './resource-property-view-wid
 const RESOURCE_PROPERTY_VIEW_TREE_PROPS = {
   multiSelect: true,
   search: true,
+  // File previews contain variable-height Monaco and media elements. Rendering
+  // them in a virtual list can re-anchor the expanded preview row and visually
+  // push the File Info rows out of the widget.
+  virtualized: false,
 } as TreeProps
 
 function createResourcePropertyViewTreeWidget(

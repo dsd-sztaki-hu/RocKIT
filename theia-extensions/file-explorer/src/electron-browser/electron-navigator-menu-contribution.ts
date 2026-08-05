@@ -39,21 +39,31 @@ import { NavigatorContextMenu, SHELL_TABBAR_CONTEXT_REVEAL } from '../browser/na
 // Side-effect import to attach types to window for Electron
 import '@theia/core/lib/electron-common/electron-api'
 
-export const OPEN_CONTAINING_FOLDER = Command.toDefaultLocalizedCommand({
-  id: 'revealFileInOS',
-  category: CommonCommands.FILE_CATEGORY,
-  label: isWindows
-    ? 'Reveal in File Explorer'
+export const OPEN_CONTAINING_FOLDER = Command.toLocalizedCommand(
+  {
+    id: 'revealFileInOS',
+    category: CommonCommands.FILE_CATEGORY,
+    label: isWindows
+      ? 'Reveal in File Explorer'
+      : isOSX
+        ? 'Reveal in Finder'
+        : 'Open Containing Folder',
+  },
+  isWindows
+    ? 'rockit/fileExplorer/revealInFileExplorer'
     : isOSX
-      ? 'Reveal in Finder'
-      : 'Open Containing Folder',
-})
+      ? 'rockit/fileExplorer/revealInFinder'
+      : 'rockit/fileExplorer/openContainingFolder',
+)
 
-export const OPEN_WITH_SYSTEM_APP = Command.toDefaultLocalizedCommand({
-  id: 'openWithSystemApp',
-  category: CommonCommands.FILE_CATEGORY,
-  label: 'Open With System Editor',
-})
+export const OPEN_WITH_SYSTEM_APP = Command.toLocalizedCommand(
+  {
+    id: 'openWithSystemApp',
+    category: CommonCommands.FILE_CATEGORY,
+    label: 'Open With System Editor',
+  },
+  'rockit/fileExplorer/openWithSystemEditor',
+)
 
 @injectable()
 export class ElectronNavigatorMenuContribution
@@ -84,8 +94,8 @@ export class ElectronNavigatorMenuContribution
     )
     this.openWithService.registerHandler({
       id: 'system-editor',
-      label: nls.localize('theia/navigator/systemEditor', 'System Editor'),
-      providerName: nls.localizeByDefault('Built-in'),
+      label: nls.localize('rockit/fileExplorer/systemEditor', 'System Editor'),
+      providerName: nls.localize('rockit/fileExplorer/builtIn', 'Built-in'),
       canHandle: (uri) => (uri.scheme === 'file' ? 10 : 0),
       open: (uri) => {
         this.openWithSystemApplication(uri)

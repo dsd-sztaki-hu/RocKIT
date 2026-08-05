@@ -68,7 +68,6 @@ export const CLASS = 'theia-Files'
 export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   static SEARCH_VISIBLE_CLASS = 'navigator-search-visible'
   static BODY_SEARCH_VISIBLE_CLASS = 'navigator-search-visible'
-  protected static readonly SINGLE_CLICK_PREVIEW_DELAY = 250
   @inject(CommandService) protected readonly commandService: CommandService
   @inject(NavigatorContextKeyService)
   protected readonly contextKeyService: NavigatorContextKeyService
@@ -89,8 +88,6 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     fileNameFilter: '',
     roCrateFilter: 'all',
   }
-
-  protected pendingSingleClickPreview: ReturnType<typeof setTimeout> | undefined
 
   protected searchVisible = false
   protected readonly fileNameInputRef = React.createRef<HTMLInputElement>()
@@ -173,9 +170,6 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
     })
     this.toDispose.push({
       dispose: () => this.disposeWorkspaceFileWatch(),
-    })
-    this.toDispose.push({
-      dispose: () => this.cancelPendingSingleClickPreview(),
     })
     this.roCratePathIndex = this.buildRoCrateEntityPathIndex(this.appStateService.roCrate)
     this.ensureWorkspaceFileWatch()
@@ -571,29 +565,10 @@ export class FileNavigatorWidget extends AbstractNavigatorTreeWidget {
   }
 
   protected override tapNode(node?: TreeNode): void {
-    this.cancelPendingSingleClickPreview()
-    if (node && this.corePreferences['workbench.list.openMode'] === 'singleClick') {
-      this.pendingSingleClickPreview = setTimeout(() => {
-        this.pendingSingleClickPreview = undefined
-        this.model.previewNode(node)
-      }, FileNavigatorWidget.SINGLE_CLICK_PREVIEW_DELAY)
+    if (FileStatNode.is(node)) {
+      this.model.selectNode(node)
     }
     super.tapNode(node)
-  }
-
-  protected override handleDblClickEvent(
-    node: TreeNode | undefined,
-    event: React.MouseEvent<HTMLElement>,
-  ): void {
-    this.cancelPendingSingleClickPreview()
-    super.handleDblClickEvent(node, event)
-  }
-
-  protected cancelPendingSingleClickPreview(): void {
-    if (this.pendingSingleClickPreview !== undefined) {
-      clearTimeout(this.pendingSingleClickPreview)
-      this.pendingSingleClickPreview = undefined
-    }
   }
 
   protected override onAfterShow(msg: Message): void {

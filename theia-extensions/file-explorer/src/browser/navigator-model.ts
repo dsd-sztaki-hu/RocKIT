@@ -100,32 +100,6 @@ export class FileNavigatorModel extends FileTreeModel {
         }
     }
 
-    previewNode(node: TreeNode): void {
-        if (FileNode.is(node)) {
-            void this.openPreviewNode(node);
-        }
-    }
-
-    protected async openPreviewNode(node: FileNode): Promise<void> {
-        const extension = node.uri.path.ext.toLowerCase();
-        if (extension === '.csv' || extension === '.tsv' || extension === '.tab') {
-            try {
-                // The CSV editor is a VS Code extension and expects a vscode.Uri.
-                // A Theia URI is not revived when it is passed directly through the
-                // frontend command registry, causing the extension to edit the
-                // previously active document instead. Activate the requested file
-                // first and let the extension use the active text editor.
-                await open(this.openerService, node.uri, { mode: 'activate', preview: true });
-                await this.commandService.executeCommand('edit-csv.edit');
-                return;
-            } catch (error) {
-                console.warn('Failed to open the CSV table editor.', error);
-            }
-        }
-
-        await open(this.openerService, node.uri, { mode: 'reveal', preview: true });
-    }
-
     protected override doOpenNode(node: TreeNode): void {
         if (node.visible === false) {
             return;
