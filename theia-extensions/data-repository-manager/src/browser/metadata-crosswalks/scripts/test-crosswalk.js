@@ -8,8 +8,12 @@ const path = require('path');
 const YAML = require('yaml');
 
 const root = path.resolve(__dirname, '..');
-const crosswalk = JSON.parse(fs.readFileSync(
-    path.join(root, 'ro-crate-repository-crosswalk.json'),
+const dataverseCrosswalk = JSON.parse(fs.readFileSync(
+    path.resolve(root, '..', 'crosswalks', 'arp-dataverse-crosswalk.json'),
+    'utf8'
+));
+const zenodoCrosswalk = JSON.parse(fs.readFileSync(
+    path.resolve(root, '..', 'crosswalks', 'arp-zenodo-crosswalk.json'),
     'utf8'
 ));
 const transform = YAML.parse(fs.readFileSync(
@@ -17,14 +21,14 @@ const transform = YAML.parse(fs.readFileSync(
     'utf8'
 ));
 
-const zenodoProperties = Object.keys(crosswalk.repositories.zenodo.schema.properties);
-const zenodoMappings = crosswalk.crosswalks.canonicalToZenodo.mappings;
-const dataverseFields = Object.entries(crosswalk.repositories.dataverse.blocks).flatMap(
+const zenodoProperties = Object.keys(zenodoCrosswalk.repositories.zenodo.schema.properties);
+const zenodoMappings = zenodoCrosswalk.crosswalks.canonicalToZenodo.mappings;
+const dataverseFields = Object.entries(dataverseCrosswalk.repositories.dataverse.blocks).flatMap(
     ([blockName, block]) => Object.keys(block.schema.fields).map(
         fieldName => `${blockName}.${fieldName}`
     )
 );
-const dataverseTargets = crosswalk.crosswalks.canonicalToDataverse.mappings.map(
+const dataverseTargets = dataverseCrosswalk.crosswalks.canonicalToDataverse.mappings.map(
     mapping => `${mapping.target.block}.${mapping.target.field}`
 );
 const transformSlots =
@@ -54,9 +58,19 @@ assert.ok(
     'Repository-specific/unmappable fields must remain explicit.'
 );
 assert.strictEqual(
-    crosswalk.coverage.zenodoMappings,
+    zenodoCrosswalk.coverage.zenodoMappings,
     zenodoProperties.length,
     'Generated coverage must match the Zenodo schema.'
+);
+assert.strictEqual(
+    dataverseCrosswalk.name,
+    'ARP - DV',
+    'Dataverse crosswalk must expose a display name.'
+);
+assert.strictEqual(
+    zenodoCrosswalk.name,
+    'ARP - Zenodo',
+    'Zenodo crosswalk must expose a display name.'
 );
 assert.deepStrictEqual(
     [...dataverseTargets].sort(),

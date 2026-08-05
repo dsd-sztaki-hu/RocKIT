@@ -10,7 +10,11 @@ const YAML = require('yaml');
 const root = path.resolve(__dirname, '..');
 const sourcesDirectory = path.join(root, 'sources');
 const linkmlDirectory = path.join(root, 'linkml');
-const outputPath = path.join(root, 'ro-crate-repository-crosswalk.json');
+const crosswalksDirectory = path.resolve(root, '..', 'crosswalks');
+const splitOutputPaths = {
+    dataverse: path.join(crosswalksDirectory, 'arp-dataverse-crosswalk.json'),
+    zenodo: path.join(crosswalksDirectory, 'arp-zenodo-crosswalk.json')
+};
 
 const sourcePaths = {
     base: path.join(sourcesDirectory, 'crosswalk-base.json'),
@@ -244,124 +248,101 @@ function buildCrosswalk() {
     return crosswalk;
 }
 
-function bootstrap() {
-    if (!fs.existsSync(outputPath)) {
-        throw new Error(`Cannot bootstrap: ${outputPath} does not exist.`);
-    }
-    fs.mkdirSync(sourcesDirectory, { recursive: true });
-    fs.mkdirSync(linkmlDirectory, { recursive: true });
-
-    const current = readJson(outputPath);
-    const { repositories, crosswalks, coverage, ...base } = current;
-    writeJson(sourcePaths.base, { ...base, coverage });
-    writeJson(sourcePaths.arp, repositories.arp);
-    writeJson(sourcePaths.dataverse, repositories.dataverse);
-    writeJson(sourcePaths.zenodo, repositories.zenodo);
-    writeJson(sourcePaths.arpMappings, crosswalks.arpRoCrateToCanonical);
-    writeJson(sourcePaths.dataverseMappings, crosswalks.canonicalToDataverse);
-    writeJson(sourcePaths.zenodoDecisions, crosswalks.canonicalToZenodo);
-
-    const zenodoMappings = crosswalks.canonicalToZenodo.mappings;
-    const canonicalSlots = {};
-    const zenodoSlots = {};
-    const slotDerivations = {};
-
-    for (const mapping of zenodoMappings) {
-        const candidates = mapping.source && mapping.source.canonicalCandidates || [];
-        for (const candidate of candidates) {
-            if (candidate.localName) {
-                canonicalSlots[candidate.localName] = {
-                    description: candidate.property || `Canonical source for ${candidate.localName}`
-                };
-            }
-        }
-        const field = mapping.target.field;
-        const schemaProperty = repositories.zenodo.schema.properties[field] || {};
-        zenodoSlots[field] = {
-            description: schemaProperty.description || `Zenodo ${field} metadata field`,
-            required: Boolean(mapping.target.required),
-            multivalued: schemaProperty.type === 'array'
-        };
-        const firstCandidate = candidates.find(candidate => candidate.localName);
-        slotDerivations[field] = firstCandidate
-            ? {
-                populated_from: firstCandidate.localName,
-                description: `${mapping.mappingStatus}: ${mapping.id}`
-            }
-            : {
-                expr: 'None',
-                description:
-                    `${mapping.mappingStatus}: ${mapping.unmappedReason || 'no canonical source'}`
-            };
-    }
-
-    const commonSchema = {
-        prefixes: {
-            linkml: 'https://w3id.org/linkml/',
-            schema: 'https://schema.org/'
-        },
-        imports: ['linkml:types'],
-        default_range: 'string'
+function buildSplitCrosswalks(crosswalk) {
+    const common = {
+        crosswalkFormat: crosswalk.crosswalkFormat,
+        canonicalModel: crosswalk.canonicalModel,
+        provenance: crosswalk.provenance,
+        documentModel: crosswalk.documentModel,
+        transformationLibrary: crosswalk.transformationLibrary,
+        validationAndReporting: crosswalk.validationAndReporting
     };
-    fs.writeFileSync(linkmlPaths.sourceSchema, YAML.stringify({
-        id: 'https://w3id.org/arp/linkml/canonical-metadata',
-        name: 'canonical-metadata',
-        ...commonSchema,
-        classes: {
-            CanonicalMetadata: {
-                description: 'Flattened semantic view of ARP/Dataverse RO-Crate metadata.',
-                attributes: canonicalSlots
+    return {
+        dataverse: {
+            id: 'arp-dataverse',
+            name: 'ARP - DV',
+            displayName: 'ARP / RO-Crate to Dataverse',
+            ...common,
+            repositories: {
+                arp: crosswalk.repositories.arp,
+                dataverse: crosswalk.repositories.dataverse
+            },
+            crosswalks: {
+                arpRoCrateToCanonical: crosswalk.crosswalks.arpRoCrateToCanonical,
+                canonicalToDataverse: crosswalk.crosswalks.canonicalToDataverse
+            },
+            coverage: {
+                arpBlocks: crosswalk.coverage.arpBlocks,
+                arpCanonicalMappings: crosswalk.coverage.arpCanonicalMappings,
+                dataverseBlocks: crosswalk.coverage.dataverseBlocks,
+                dataverseTopLevelMappings: crosswalk.coverage.dataverseTopLevelMappings,
+                dataverseCompoundChildMappings: crosswalk.coverage.dataverseCompoundChildMappings,
+                dataverseMappedTopLevel: crosswalk.coverage.dataverseMappedTopLevel,
+                dataverseUnmappedTopLevel: crosswalk.coverage.dataverseUnmappedTopLevel,
+                dataverseUnmappedCompoundChildren: crosswalk.coverage.dataverseUnmappedCompoundChildren,
+                dataverseNeedsReviewTopLevel: crosswalk.coverage.dataverseNeedsReviewTopLevel
+            }
+        },
+        zenodo: {
+            id: 'arp-zenodo',
+            name: 'ARP - Zenodo',
+            displayName: 'ARP / RO-Crate to Zenodo',
+            ...common,
+            repositories: {
+                arp: crosswalk.repositories.arp,
+                zenodo: crosswalk.repositories.zenodo
+            },
+            crosswalks: {
+                arpRoCrateToCanonical: crosswalk.crosswalks.arpRoCrateToCanonical,
+                canonicalToZenodo: crosswalk.crosswalks.canonicalToZenodo
+            },
+            coverage: {
+                arpBlocks: crosswalk.coverage.arpBlocks,
+                arpCanonicalMappings: crosswalk.coverage.arpCanonicalMappings,
+                zenodoFields: crosswalk.coverage.zenodoFields,
+                zenodoMappings: crosswalk.coverage.zenodoMappings,
+                arpSourceOnlyUnmapped: crosswalk.coverage.arpSourceOnlyUnmapped,
+                zenodoSourceLessFields: crosswalk.coverage.zenodoSourceLessFields,
+                zenodoMappingsWithoutOpenQuestions: crosswalk.coverage.zenodoMappingsWithoutOpenQuestions,
+                zenodoNeedsReview: crosswalk.coverage.zenodoNeedsReview,
+                zenodoRepositorySpecific: crosswalk.coverage.zenodoRepositorySpecific
             }
         }
-    }, { lineWidth: 0 }));
-    fs.writeFileSync(linkmlPaths.targetSchema, YAML.stringify({
-        id: 'https://w3id.org/arp/linkml/zenodo-metadata',
-        name: 'zenodo-metadata',
-        ...commonSchema,
-        classes: {
-            ZenodoMetadata: {
-                description: 'Zenodo deposition metadata represented by this crosswalk.',
-                attributes: zenodoSlots
-            }
-        }
-    }, { lineWidth: 0 }));
-    fs.writeFileSync(linkmlPaths.transform, YAML.stringify({
-        id: 'https://w3id.org/arp/linkml/canonical-to-zenodo',
-        title: 'Canonical ARP/Dataverse RO-Crate to Zenodo metadata',
-        class_derivations: {
-            ZenodoMetadata: {
-                populated_from: 'CanonicalMetadata',
-                slot_derivations: slotDerivations
-            }
-        }
-    }, { lineWidth: 0 }));
-
-    console.log('Bootstrapped crosswalk sources and LinkML artifacts.');
+    };
 }
 
 function main() {
-    const bootstrapRequested = process.argv.includes('--bootstrap');
     const checkRequested = process.argv.includes('--check');
-    if (bootstrapRequested) {
-        bootstrap();
-    }
 
     const crosswalk = buildCrosswalk();
-    const rendered = `${JSON.stringify(crosswalk, null, 2)}\n`;
+    const splitCrosswalks = buildSplitCrosswalks(crosswalk);
+    const renderedOutputs = Object.entries(splitOutputPaths).map(([key, filePath]) => ({
+        key,
+        filePath,
+        rendered: `${JSON.stringify(splitCrosswalks[key], null, 2)}\n`
+    }));
     if (checkRequested) {
-        const current = fs.readFileSync(outputPath, 'utf8');
-        if (current !== rendered) {
-            throw new Error(
-                `Generated crosswalk is stale (current ${sha256(current)}, `
-                + `generated ${sha256(rendered)}). Run generate-crosswalk.js.`
-            );
+        for (const output of renderedOutputs) {
+            const current = fs.readFileSync(output.filePath, 'utf8');
+            if (current !== output.rendered) {
+                throw new Error(
+                    `Generated ${output.key} crosswalk is stale (current ${sha256(current)}, `
+                    + `generated ${sha256(output.rendered)}). Run generate-crosswalk.js.`
+                );
+            }
         }
-        console.log(`Crosswalk is current: ${crosswalk.coverage.zenodoMappings} Zenodo fields.`);
+        console.log(
+            `Crosswalks are current: ${crosswalk.coverage.dataverseTopLevelMappings} `
+            + `Dataverse and ${crosswalk.coverage.zenodoMappings} Zenodo fields.`
+        );
         return;
     }
-    fs.writeFileSync(outputPath, rendered);
+    fs.mkdirSync(crosswalksDirectory, { recursive: true });
+    for (const output of renderedOutputs) {
+        fs.writeFileSync(output.filePath, output.rendered);
+    }
     console.log(
-        `Generated ${outputPath} with ${crosswalk.coverage.arpCanonicalMappings} ARP, `
+        `Generated split crosswalks in ${crosswalksDirectory} with ${crosswalk.coverage.arpCanonicalMappings} ARP, `
         + `${crosswalk.coverage.dataverseTopLevelMappings} Dataverse, and `
         + `${crosswalk.coverage.zenodoMappings} Zenodo mappings.`
     );

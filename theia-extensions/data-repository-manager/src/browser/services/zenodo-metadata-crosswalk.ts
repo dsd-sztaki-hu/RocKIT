@@ -1,4 +1,4 @@
-import crosswalk = require('../metadata-crosswalks/ro-crate-repository-crosswalk.json')
+import crosswalk = require('../crosswalks/arp-zenodo-crosswalk.json')
 
 type JsonObject = Record<string, unknown>
 

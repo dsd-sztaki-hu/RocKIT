@@ -1,5 +1,5 @@
 import { injectable } from 'inversify';
-import crosswalk = require('../metadata-crosswalks/ro-crate-repository-crosswalk.json');
+import crosswalk = require('../crosswalks/arp-dataverse-crosswalk.json');
 
 type RoCrateEntity = Record<string, unknown>;
 type RoCrate = Record<string, unknown>;

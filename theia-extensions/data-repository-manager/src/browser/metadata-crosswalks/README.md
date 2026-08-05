@@ -1,11 +1,11 @@
 # Repository Metadata Crosswalk
 
-This document explains the structure and intended behavior of
-[`ro-crate-repository-crosswalk.json`](./ro-crate-repository-crosswalk.json).
+This document explains the structure and intended behavior of the generated
+runtime crosswalks in [`../crosswalks/`](../crosswalks/).
 
 The JSON is a draft, declarative description of:
 
-- the metadata schemas supported by ARP, Dataverse, and Zenodo;
+- the metadata schemas supported by ARP plus one target repository;
 - the semantic relationships between their fields;
 - the transformations needed when exporting metadata;
 - fields that intentionally have no equivalent in another repository;
@@ -33,7 +33,7 @@ fields.
 
 ## Generated sources
 
-`ro-crate-repository-crosswalk.json` is generated. Do not edit it directly.
+The JSON files in `../crosswalks/` are generated from these source files.
 Its versioned inputs are:
 
 - `sources/arp-schema.json`: the ARP/CEDAR-derived schema snapshot;
@@ -92,10 +92,21 @@ linkml-map validate-spec `
   linkml/canonical-to-zenodo.transform.yaml
 ```
 
+The generated runtime files are:
+
+- `../crosswalks/arp-dataverse-crosswalk.json`: ARP / RO-Crate to Dataverse;
+- `../crosswalks/arp-zenodo-crosswalk.json`: ARP / RO-Crate to Zenodo.
+
+Each file includes a machine-readable `id`, a display `name`, and a longer
+`displayName` for future user-selectable crosswalks.
+
 ### Structure tree
 
 ```text
-ro-crate-repository-crosswalk.json
+../crosswalks/arp-dataverse-crosswalk.json
+|
+|-- id, name, displayName
+|   Crosswalk identity and user-facing label
 |
 |-- crosswalkFormat
 |   Document name, version, date, and review status
@@ -118,13 +129,30 @@ ro-crate-repository-crosswalk.json
 |   |   ARP metadata blocks and fields
 |   |-- dataverse
 |   |   Metadata blocks, compound fields, and vocabularies
-|   `-- zenodo
-|       Deposition metadata fields and API requirements
 |
 |-- crosswalks
 |   |-- arpRoCrateToCanonical
 |   |-- canonicalToDataverse
-|   `-- canonicalToZenodo
+```
+
+```text
+../crosswalks/arp-zenodo-crosswalk.json
+|
+|-- id, name, displayName
+|   Crosswalk identity and user-facing label
+|
+|-- crosswalkFormat / canonicalModel / provenance / documentModel
+|   Shared crosswalk metadata and vocabulary
+|
+|-- repositories
+|   |-- arp
+|   |   ARP metadata blocks and fields
+|   |-- zenodo
+|   |   Zenodo deposition schema, requirements, and vocabularies
+|
+|-- crosswalks
+|   |-- arpRoCrateToCanonical
+|   |-- canonicalToZenodo
 |
 |-- validationAndReporting
 |   Processing order and expected diagnostics
@@ -135,7 +163,7 @@ ro-crate-repository-crosswalk.json
 
 ## 1. Top-level structure
 
-The JSON has these main sections:
+Each generated JSON has these main sections:
 
 ```json
 {
