@@ -18,6 +18,7 @@ import { injectable, inject, postConstruct } from '@theia/core/shared/inversify'
 import URI from '@theia/core/lib/common/uri';
 import { FileNode, FileTreeModel } from '@theia/filesystem/lib/browser';
 import { OpenerService, open, TreeNode, ExpandableTreeNode, CompositeTreeNode, SelectableTreeNode } from '@theia/core/lib/browser';
+import { CommandService } from '@theia/core/lib/common/command';
 import { FileNavigatorTree, NavigatorHeaderNode, NavigatorRootNode, WorkspaceNode } from './navigator-tree';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { FrontendApplicationStateService } from '@theia/core/lib/browser/frontend-application-state';
@@ -26,6 +27,7 @@ import { Deferred } from '@theia/core/lib/common/promise-util';
 import { Disposable } from '@theia/core/lib/common/disposable';
 import { DataSourceService } from 'data-sources/lib/browser/data-source-service';
 import { nls } from '@theia/core/lib/common/nls';
+import { OpenRoCrateEntityForResourceCommand } from 'rockit-common/lib/browser';
 
 @injectable()
 export class FileNavigatorModel extends FileTreeModel {
@@ -35,6 +37,7 @@ export class FileNavigatorModel extends FileTreeModel {
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService;
     @inject(FrontendApplicationStateService) protected readonly applicationState: FrontendApplicationStateService;
     @inject(DataSourceService) protected readonly dataSourceService: DataSourceService;
+    @inject(CommandService) protected readonly commandService: CommandService;
 
     @inject(ProgressService)
     protected readonly progressService: ProgressService;
@@ -99,16 +102,52 @@ export class FileNavigatorModel extends FileTreeModel {
 
     previewNode(node: TreeNode): void {
         if (FileNode.is(node)) {
-            open(this.openerService, node.uri, { mode: 'reveal', preview: true });
+            void this.openPreviewNode(node);
         }
+    }
+
+    protected async openPreviewNode(node: FileNode): Promise<void> {
+        const extension = node.uri.path.ext.toLowerCase();
+        if (extension === '.csv' || extension === '.tsv' || extension === '.tab') {
+            try {
+                // The CSV editor is a VS Code extension and expects a vscode.Uri.
+                // A Theia URI is not revived when it is passed directly through the
+                // frontend command registry, causing the extension to edit the
+                // previously active document instead. Activate the requested file
+                // first and let the extension use the active text editor.
+                await open(this.openerService, node.uri, { mode: 'activate', preview: true });
+                await this.commandService.executeCommand('edit-csv.edit');
+                return;
+            } catch (error) {
+                console.warn('Failed to open the CSV table editor.', error);
+            }
+        }
+
+        await open(this.openerService, node.uri, { mode: 'reveal', preview: true });
     }
 
     protected override doOpenNode(node: TreeNode): void {
         if (node.visible === false) {
             return;
         } else if (FileNode.is(node)) {
-            open(this.openerService, node.uri);
+            void this.openFileNode(node);
         }
+    }
+
+    protected async openFileNode(node: FileNode): Promise<void> {
+        try {
+            const openedInRoCrate = await this.commandService.executeCommand<boolean>(
+                OpenRoCrateEntityForResourceCommand.id,
+                node.uri,
+            );
+            if (openedInRoCrate) {
+                return;
+            }
+        } catch (error) {
+            console.warn('Failed to open the file entity in ReCrate.', error);
+        }
+
+        await open(this.openerService, node.uri);
     }
 
     override *getNodesByUri(uri: URI): IterableIterator<TreeNode> {

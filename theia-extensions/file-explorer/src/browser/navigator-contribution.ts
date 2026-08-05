@@ -489,10 +489,8 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             isEnabled: () => this.getSelectedFileNodes().length > 0,
             isVisible: () => this.getSelectedFileNodes().length > 0,
             execute: () => {
-                this.getSelectedFileNodes().forEach(async node => {
-                    const opener = await this.openerService.getOpener(node.uri);
-                    opener.open(node.uri);
-                });
+                const model = this.tryGetWidget()?.model;
+                this.getSelectedFileNodes().forEach(node => model?.openNode(node));
             }
         });
         registry.registerCommand(FileNavigatorCommands.OPEN_WITH, UriAwareCommandHandler.MonoSelect(this.selectionService, {
