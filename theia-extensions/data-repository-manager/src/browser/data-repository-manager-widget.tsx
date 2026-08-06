@@ -739,6 +739,67 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
       return
     }
+    if (
+      repositorySelection.action === 'sync' &&
+      !capabilities.supportsArpRoCrateZipUpload &&
+      selectedExportTarget
+    ) {
+      const syncOptions = await new RepositorySyncOptionsDialog().open()
+      if (!syncOptions) {
+        return
+      }
+      const progress = await this.loadMaskService.showProgress({
+        text: nls.localize(
+          'rockit/dataRepository/syncingFromRemote',
+          'Syncing from {0}...',
+          selectedRepo.title,
+        ),
+      })
+      try {
+        const syncResult = await this.nativeExportService.syncFromDataverse(
+          selectedRepo,
+          selectedExportTarget,
+          syncOptions,
+          (update) =>
+            progress.report({
+              message: update.message,
+              work: {
+                done: update.completedSteps,
+                total: update.totalSteps,
+              },
+            }),
+        )
+        if (syncResult) {
+          await this.roCrateLoader.refresh()
+          await this.loadData()
+          this.messageService.info(
+            nls.localize(
+              'rockit/dataRepository/dataverseSyncCompleted',
+              'Dataverse sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} unchanged file(s).',
+              syncResult.target,
+              syncResult.downloadedFileCount,
+              syncResult.replacedFileCount,
+              syncResult.keptLocalFileCount,
+            ),
+            { timeout: 12000 },
+          )
+          console.log('Native Dataverse sync completed:', syncResult)
+        }
+      } catch (error) {
+        console.error('Native Dataverse sync failed:', error)
+        this.messageService.error(
+          nls.localize(
+            'rockit/dataRepository/dataverseSyncFailed',
+            'Dataverse sync failed: {0}',
+            error instanceof Error ? error.message : String(error),
+          ),
+          { timeout: 10000 },
+        )
+      } finally {
+        progress.cancel()
+      }
+      return
+    }
     if (capabilities.supportsArpRoCrateZipUpload && selectedExportTarget) {
       const progress = await this.loadMaskService.showProgress({
         text: nls.localize(

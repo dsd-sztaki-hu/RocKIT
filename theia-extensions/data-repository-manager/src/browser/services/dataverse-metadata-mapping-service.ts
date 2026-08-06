@@ -17,6 +17,11 @@ export interface DataverseMetadataBlockDto {
     fields: DataverseMetadataFieldDto[];
 }
 
+export interface DataverseReverseCrosswalkResult {
+    crate: RoCrate;
+    updatedFields: string[];
+}
+
 interface DataverseFieldSchema {
     name?: string;
     displayName?: string;
@@ -131,8 +136,146 @@ export class DataverseMetadataMappingService {
         return this.fieldSchema(blockName, fieldName)?.displayName ?? fieldName;
     }
 
+    /**
+     * Applies Dataverse dataset-version metadata back to an RO-Crate by walking
+     * the same executable mappings used for export in the opposite direction.
+     *
+     * The Dataverse API envelope and file placement stay outside this mapper;
+     * this method only updates fields whose source and target relationship is
+     * declared by the crosswalk. Primitive fields overwrite root Dataset
+     * properties, while compound fields create or update referenced RO-Crate
+     * entities such as authors and dataset descriptions.
+     */
+    public applyMetadataBlocksToRoCrate(
+        crate: RoCrate,
+        datasetVersionData: Record<string, unknown>
+    ): DataverseReverseCrosswalkResult {
+        const nextCrate = JSON.parse(JSON.stringify(crate)) as RoCrate;
+        const graph = this.readMutableGraph(nextCrate);
+        const root = graph.find(entity => entity['@id'] === './');
+        if (!root) {
+            throw new Error('The RO-Crate does not contain a root Dataset with @id "./".');
+        }
+
+        const updatedFields: string[] = [];
+        const schemasByName = new Map(
+            this.readCrosswalkBlockSchemas()
+                .filter(schema => !!schema.name)
+                .map(schema => [schema.name as string, schema])
+        );
+        const mappings = repositoryCrosswalk.crosswalks.canonicalToDataverse.mappings
+            .filter(mapping => this.isExecutableMapping(mapping.mappingStatus));
+
+        for (const mapping of mappings) {
+            const block = this.readDataverseMetadataBlock(datasetVersionData, mapping.target.block);
+            const schema = schemasByName.get(mapping.target.block);
+            const fieldSchema = schema?.fields?.[mapping.target.field];
+            const field = block
+                ? this.findDataverseField(block.fields, mapping.target.field)
+                : undefined;
+            if (!field || !fieldSchema || this.ignoredFields.has(`${mapping.target.block}.${mapping.target.field}`)) {
+                continue;
+            }
+            const updated = this.toDataverseTypeClass(fieldSchema) === 'compound'
+                ? this.applyCompoundField(root, graph, field, fieldSchema, mapping)
+                : this.applyRootField(root, field, fieldSchema, mapping);
+            if (updated) {
+                updatedFields.push(mapping.target.field);
+            }
+        }
+
+        return { crate: nextCrate, updatedFields: this.uniqueStrings(updatedFields) };
+    }
+
     protected fieldSchema(blockName: string, fieldName: string): DataverseFieldSchema | undefined {
         return repositoryCrosswalk.repositories.dataverse.blocks[blockName]?.schema.fields?.[fieldName];
+    }
+
+    protected applyRootField(
+        root: RoCrateEntity,
+        field: DataverseMetadataFieldDto,
+        schema: DataverseFieldSchema,
+        mapping: DataverseCrosswalkMapping
+    ): boolean {
+        const sourceName = mapping.source?.canonicalCandidates?.[0]?.localName ?? field.typeName;
+        const value = this.reverseDataverseFieldValue(field, schema);
+        if (!this.hasMeaningfulValue(value)) {
+            return false;
+        }
+        root[sourceName] = value;
+        return true;
+    }
+
+    protected applyCompoundField(
+        root: RoCrateEntity,
+        graph: RoCrateEntity[],
+        field: DataverseMetadataFieldDto,
+        schema: DataverseFieldSchema,
+        mapping: DataverseCrosswalkMapping
+    ): boolean {
+        const typeName = schema.name ?? field.typeName;
+        const childFields = schema.childFields;
+        if (!typeName || !childFields) {
+            return false;
+        }
+        const rows = this.dataverseCompoundRows(field.value);
+        if (!rows.length) {
+            return false;
+        }
+
+        const referencedIds = this.readReferenceIds(this.readCompoundRootValue(root, typeName));
+        const existingEntities = graph.filter(entity => this.entityTypes(entity).includes(typeName));
+        const childMappings = new Map(
+            (mapping.children ?? [])
+                .filter(child => this.isExecutableMapping(child.mappingStatus))
+                .map(child => [child.target.field, child])
+        );
+        const refs: RoCrateEntity[] = [];
+
+        rows.forEach((row, index) => {
+            const id =
+                referencedIds[index] ??
+                this.readStrings(existingEntities[index]?.['@id'])[0] ??
+                this.generatedEntityId(root, typeName, index);
+            let entity = graph.find(candidate => candidate['@id'] === id);
+            if (!entity) {
+                entity = {
+                    '@id': id,
+                    '@type': typeName,
+                    '@reverse': { [typeName]: { '@id': './' } }
+                };
+                graph.push(entity);
+            }
+
+            let primaryName: string | undefined;
+            for (const [childName, childMapping] of childMappings) {
+                const childSchema = childFields[childName];
+                const childField = this.findDataverseField([row[childName]], childName);
+                if (!childSchema || !childField || this.ignoredFields.has(`${mapping.target.block}.${typeName}.${childName}`)) {
+                    continue;
+                }
+                const sourceName = childMapping.sourceCandidates?.[0]?.localName ?? childName;
+                const value = this.reverseDataverseFieldValue(childField, childSchema);
+                if (!this.hasMeaningfulValue(value)) {
+                    continue;
+                }
+                entity[sourceName] = value;
+                if (typeof value === 'string' && (
+                    sourceName === 'name' ||
+                    sourceName === `${typeName}Name` ||
+                    sourceName === `${typeName}Value`
+                )) {
+                    primaryName = value;
+                }
+            }
+            if (primaryName) {
+                entity.name = primaryName;
+            }
+            refs.push({ '@id': id });
+        });
+
+        root[typeName] = refs.length === 1 ? refs[0] : refs;
+        return refs.length > 0;
     }
 
     protected buildBlockFields(
@@ -382,6 +525,72 @@ export class DataverseMetadataMappingService {
             .sort((a, b) => String(a.name).localeCompare(String(b.name)));
     }
 
+    protected readDataverseMetadataBlock(
+        datasetVersionData: Record<string, unknown>,
+        blockName: string
+    ): DataverseMetadataBlockDto | undefined {
+        const blocks = datasetVersionData.metadataBlocks;
+        if (!blocks || typeof blocks !== 'object' || Array.isArray(blocks)) {
+            return undefined;
+        }
+        const block = (blocks as Record<string, unknown>)[blockName];
+        if (!block || typeof block !== 'object' || Array.isArray(block)) {
+            return undefined;
+        }
+        const fields = (block as Record<string, unknown>).fields;
+        if (!Array.isArray(fields)) {
+            return undefined;
+        }
+        return {
+            displayName: String((block as Record<string, unknown>).displayName ?? blockName),
+            fields: fields.filter(this.isDataverseFieldDto)
+        };
+    }
+
+    protected findDataverseField(
+        fields: unknown[],
+        typeName: string
+    ): DataverseMetadataFieldDto | undefined {
+        return fields
+            .filter(this.isDataverseFieldDto)
+            .find(field => field.typeName === typeName);
+    }
+
+    protected isDataverseFieldDto(value: unknown): value is DataverseMetadataFieldDto {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            return false;
+        }
+        const record = value as Record<string, unknown>;
+        return typeof record.typeName === 'string' &&
+            typeof record.typeClass === 'string' &&
+            typeof record.multiple === 'boolean' &&
+            'value' in record;
+    }
+
+    protected reverseDataverseFieldValue(
+        field: DataverseMetadataFieldDto,
+        schema: DataverseFieldSchema
+    ): unknown {
+        const values = this.readScalarValues(field.value)
+            .map(value => this.normalizeValue(field.typeName, value, schema))
+            .filter((value): value is DataverseValue => value !== undefined);
+        if (!values.length) {
+            return undefined;
+        }
+        return field.multiple || schema.multiple === true ? this.uniqueValues(values) : values[0];
+    }
+
+    protected dataverseCompoundRows(value: unknown): Array<Record<string, unknown>> {
+        if (Array.isArray(value)) {
+            return value.filter((item): item is Record<string, unknown> =>
+                !!item && typeof item === 'object' && !Array.isArray(item)
+            );
+        }
+        return value && typeof value === 'object' && !Array.isArray(value)
+            ? [value as Record<string, unknown>]
+            : [];
+    }
+
     protected isExecutableMapping(status: string): boolean {
         return status === 'exactNameAndProfileMatch' || status === 'needsReview';
     }
@@ -391,6 +600,13 @@ export class DataverseMetadataMappingService {
         return Array.isArray(graph)
             ? graph.filter((entity): entity is RoCrateEntity => !!entity && typeof entity === 'object' && !Array.isArray(entity))
             : [];
+    }
+
+    protected readMutableGraph(crate: RoCrate): RoCrateEntity[] {
+        if (!Array.isArray(crate['@graph'])) {
+            crate['@graph'] = [];
+        }
+        return crate['@graph'] as RoCrateEntity[];
     }
 
     protected resolveEntities(value: unknown, graph: RoCrateEntity[]): RoCrateEntity[] {
@@ -443,6 +659,10 @@ export class DataverseMetadataMappingService {
         return unique;
     }
 
+    protected uniqueStrings(values: string[]): string[] {
+        return this.uniqueValues(values) as string[];
+    }
+
     protected uniqueEntitiesById(entities: RoCrateEntity[]): RoCrateEntity[] {
         const seen = new Set<string>();
         const unique: RoCrateEntity[] = [];
@@ -459,5 +679,32 @@ export class DataverseMetadataMappingService {
 
     protected looksLikeEntityId(value: string): boolean {
         return value.startsWith('#') || value.startsWith('./') || /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value);
+    }
+
+    protected readReferenceIds(value: unknown): string[] {
+        if (Array.isArray(value)) {
+            return value.flatMap(item => this.readReferenceIds(item));
+        }
+        if (value && typeof value === 'object') {
+            return this.readStrings((value as RoCrateEntity)['@id']);
+        }
+        return this.readStrings(value);
+    }
+
+    protected generatedEntityId(root: RoCrateEntity, typeName: string, index: number): string {
+        const arpPid = this.readStrings(root['@arpPid'])[0];
+        if (arpPid) {
+            return `https://w3id.org/arp/ro-id/${arpPid}/${typeName}/sync-${index + 1}`;
+        }
+        return `#${typeName}-${index + 1}`;
+    }
+
+    protected hasMeaningfulValue(value: unknown): boolean {
+        if (Array.isArray(value)) {
+            return value.some(item => this.hasMeaningfulValue(item));
+        }
+        return typeof value === 'string'
+            ? value.trim().length > 0
+            : value !== undefined && value !== null;
     }
 }
