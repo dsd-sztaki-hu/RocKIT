@@ -18,6 +18,7 @@ import {
   serializeExportLogEntries,
 } from './export-log'
 import {
+  applyZenodoMetadataToRoCrate,
   buildZenodoMetadataFromCrosswalk,
   missingRequiredZenodoMetadataFields,
   ZenodoMetadataOption,
@@ -92,6 +93,21 @@ export interface ZenodoUpdateResult {
   unchangedFileCount: number
   unmappedEntityIds: string[]
   createdNewVersion: boolean
+}
+
+export interface ZenodoSyncOptions {
+  replaceLocalMetadataWithUploadedRoCrate: boolean
+}
+
+export interface ZenodoSyncResult {
+  depositionId: string
+  target: string
+  mappingFileName: string
+  downloadedFileCount: number
+  replacedFileCount: number
+  keptLocalFileCount: number
+  metadataSource: 'local' | 'uploaded'
+  updatedMetadataFields: string[]
 }
 
 export interface ZenodoExportProgress {
@@ -525,10 +541,174 @@ export class ZenodoExportService {
   }
 
   /**
+   * Pulls changes from a previously exported Zenodo deposition into the local
+   * workspace.
+   *
+   * File transfer is repository-specific: Zenodo exposes a flat deposition file
+   * list, so the local `.rockit` entity mapping is used to place remote files
+   * back at their RO-Crate paths. Metadata transformation is separate and uses
+   * the crosswalk in reverse, writing supported Zenodo deposition metadata
+   * fields into the local RO-Crate after the optional uploaded metadata file is
+   * localized.
+   */
+  public async syncFromZenodo(
+    repository: DataRepositoryConfig,
+    exportTarget: DataRepositoryExportTarget,
+    options: ZenodoSyncOptions,
+    reportProgress?: ZenodoExportProgressReporter,
+  ): Promise<ZenodoSyncResult> {
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const token = repository.apiKey?.trim()
+    if (!token) {
+      throw new Error(nls.localize('rockit/dataRepository/zenodoTokenMissing', 'Zenodo API token is missing.'))
+    }
+    if (!exportTarget?.pid || !exportTarget.mappingFile) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoMissingExportMappingForSync',
+        'This Zenodo export target has no local mapping file. Sync cannot safely place remote files in the workspace.',
+      ))
+    }
+
+    const rootUri = this.getWorkspaceRoot()
+    const metadataUri = rootUri.resolve('ro-crate-metadata.json')
+    const localCrate = await this.readRoCrate(metadataUri)
+    const mapping = await this.readEntityIdMapping(rootUri.resolve('.rockit').resolve(exportTarget.mappingFile))
+    if (!mapping) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoMissingExportMappingForSync',
+        'This Zenodo export target has no local mapping file. Sync cannot safely place remote files in the workspace.',
+      ))
+    }
+
+    reportProgress?.({
+      completedSteps: 0,
+      totalSteps: 1,
+      message: nls.localize('rockit/dataRepository/loadingZenodoDeposition', 'Loading Zenodo deposition...'),
+    })
+    const depositionUrl = new URL(
+      `/api/deposit/depositions/${encodeURIComponent(exportTarget.pid)}`,
+      `${baseUrl}/`,
+    ).toString()
+    const depositionPayload = await this.requestJson(
+      depositionUrl,
+      { method: 'GET', headers: this.authorizationHeaders(token) },
+      nls.localize('rockit/dataRepository/zenodoLookupFailed', 'Zenodo deposition lookup failed'),
+    )
+    const depositionId = this.extractDepositionId(depositionPayload) ?? exportTarget.pid
+    const metadata = this.extractDepositionMetadata(depositionPayload)
+    const remoteFiles = await this.listDepositionFiles(baseUrl, token, depositionId)
+    const remoteMetadataFile = remoteFiles.find((file) => file.filename === 'ro-crate-metadata.json')
+    const remoteToLocalMapping = this.invertEntityIdMapping(mapping)
+    const filesToDownload = remoteFiles
+      .filter((file) => file.filename !== 'ro-crate-metadata.json')
+      .map((file) => ({
+        remote: file,
+        localPath: this.localPathForZenodoRemoteFile(file, remoteToLocalMapping),
+      }))
+      .filter((item) => !!item.localPath) as Array<{ remote: ZenodoRemoteFile; localPath: string }>
+
+    const downloadPlan: Array<{ remote: ZenodoRemoteFile; localPath: string; kind: 'new' | 'changed' }> = []
+    let keptLocalFileCount = 0
+    for (const item of filesToDownload) {
+      const targetUri = rootUri.resolve(item.localPath)
+      if (!(await this.fileService.exists(targetUri))) {
+        downloadPlan.push({ ...item, kind: 'new' })
+      } else if (!(await this.localFileMatchesRemoteChecksum(targetUri, item.remote.checksum))) {
+        downloadPlan.push({ ...item, kind: 'changed' })
+      } else {
+        keptLocalFileCount += 1
+      }
+    }
+
+    const totalSteps =
+      downloadPlan.length +
+      (options.replaceLocalMetadataWithUploadedRoCrate && remoteMetadataFile ? 1 : 0) +
+      2
+    let completedSteps = 1
+    reportProgress?.({
+      completedSteps,
+      totalSteps,
+      message: nls.localize(
+        'rockit/dataRepository/zenodoRemoteCheckingComplete',
+        'Checking complete: {0} remote file(s) to download and {1} unchanged file(s) to keep.',
+        downloadPlan.length,
+        keptLocalFileCount,
+      ),
+    })
+
+    for (const item of downloadPlan) {
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: nls.localize('rockit/dataRepository/downloadingRemoteFile', 'Downloading {0}...', item.localPath),
+      })
+      await this.writeWorkspaceFile(rootUri, item.localPath, await this.downloadZenodoFile(item.remote, token))
+      completedSteps += 1
+    }
+
+    let crateBase = localCrate
+    let metadataSource: ZenodoSyncResult['metadataSource'] = 'local'
+    if (options.replaceLocalMetadataWithUploadedRoCrate && remoteMetadataFile) {
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: nls.localize(
+          'rockit/dataRepository/downloadingUploadedMetadata',
+          'Downloading uploaded ro-crate-metadata.json...',
+        ),
+      })
+      const remoteCrate = this.parseRemoteRoCrate(
+        await this.downloadZenodoFile(remoteMetadataFile, token),
+      )
+      crateBase = this.rewriteCrateEntityIds(remoteCrate, remoteToLocalMapping)
+      metadataSource = 'uploaded'
+      completedSteps += 1
+    }
+
+    reportProgress?.({
+      completedSteps,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/applyingRemoteMetadata', 'Applying remote repository metadata...'),
+    })
+    const reverseResult = applyZenodoMetadataToRoCrate(crateBase, metadata)
+    await this.fileService.writeFile(
+      metadataUri,
+      BinaryBuffer.fromString(`${JSON.stringify(reverseResult.crate, null, 2)}\n`),
+    )
+    await this.appendExportLog(rootUri, {
+      target: exportTarget.target,
+      repository: baseUrl,
+      mappingFile: exportTarget.mappingFile,
+      syncType: 'sync',
+      syncedAt: new Date().toISOString(),
+      datasetName: this.getRootDatasetName(reverseResult.crate),
+    })
+    reportProgress?.({
+      completedSteps: totalSteps,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/syncComplete', 'Sync complete.'),
+    })
+
+    return {
+      depositionId,
+      target: exportTarget.target,
+      mappingFileName: exportTarget.mappingFile,
+      downloadedFileCount: downloadPlan.filter((file) => file.kind === 'new').length,
+      replacedFileCount: downloadPlan.filter((file) => file.kind === 'changed').length,
+      keptLocalFileCount,
+      metadataSource,
+      updatedMetadataFields: reverseResult.updatedFields,
+    }
+  }
+
+  /**
    * Reconstructs the set of previously exported Zenodo targets from the local
-   * export log. The log records repository URL, target URL, and mapping file;
-   * `extractDepositionIdFromTarget` converts the target URL back to the Zenodo
-   * deposition id required by the deposition API.
+   * export log without contacting Zenodo.
+   *
+   * Opening the repository chooser should stay local because the user may pick
+   * another repository or create a fresh export. The selected Zenodo operation
+   * performs the deposition lookup later, when the remote state is actually
+   * needed.
    */
   public async listExportTargets(
     repositories: DataRepositoryConfig[],
@@ -563,11 +743,6 @@ export class ZenodoExportService {
       }
       targetsByRepositoryId[repository.id] = Array.from(latestByMappingFile.values())
         .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
-      await Promise.all(
-        targetsByRepositoryId[repository.id].map((target) =>
-          this.populateRemoteState(repository, target),
-        ),
-      )
     }
 
     return targetsByRepositoryId
@@ -610,6 +785,25 @@ export class ZenodoExportService {
       throw new Error(nls.localize(
         'rockit/dataRepository/parseMetadataFailed',
         'Failed to parse ro-crate-metadata.json: {0}',
+        error instanceof Error ? error.message : String(error),
+      ))
+    }
+  }
+
+  protected parseRemoteRoCrate(content: Uint8Array): RoCrate {
+    try {
+      const parsed = JSON.parse(new TextDecoder().decode(content)) as RoCrate
+      if (!Array.isArray(parsed['@graph'])) {
+        throw new Error(nls.localize(
+          'rockit/dataRepository/downloadedJsonMissingGraph',
+          'Downloaded JSON did not contain @graph.',
+        ))
+      }
+      return parsed
+    } catch (error) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/remoteMetadataInvalid',
+        'Remote ro-crate-metadata.json is invalid: {0}',
         error instanceof Error ? error.message : String(error),
       ))
     }
@@ -893,6 +1087,32 @@ export class ZenodoExportService {
       : []
   }
 
+  protected rewriteCrateEntityIds(
+    crate: RoCrate,
+    idMapping: RoCrateEntityIdMapping,
+  ): RoCrate {
+    const rewritten = JSON.parse(JSON.stringify(crate)) as RoCrate
+    this.rewriteEntityIdReferences(rewritten, idMapping)
+    return rewritten
+  }
+
+  protected rewriteEntityIdReferences(value: unknown, idMapping: RoCrateEntityIdMapping): void {
+    if (Array.isArray(value)) {
+      value.forEach((item) => this.rewriteEntityIdReferences(item, idMapping))
+      return
+    }
+    if (!value || typeof value !== 'object') {
+      return
+    }
+    const record = value as Record<string, unknown>
+    if (typeof record['@id'] === 'string' && idMapping[record['@id']]) {
+      record['@id'] = idMapping[record['@id']]
+    }
+    for (const child of Object.values(record)) {
+      this.rewriteEntityIdReferences(child, idMapping)
+    }
+  }
+
   protected entityTypes(entity: RoCrateEntity): string[] {
     const raw = entity['@type']
     if (typeof raw === 'string') {
@@ -953,6 +1173,90 @@ export class ZenodoExportService {
 
   protected isInsideRoot(rootUri: URI, resourceUri: URI): boolean {
     return rootUri.isEqualOrParent(resourceUri)
+  }
+
+  protected localPathForZenodoRemoteFile(
+    file: ZenodoRemoteFile,
+    remoteToLocalMapping: RoCrateEntityIdMapping,
+  ): string | undefined {
+    for (const identifier of this.zenodoRemoteFileIdentifiers(file)) {
+      const mappedLocalId = remoteToLocalMapping[identifier]
+      const mappedPath = mappedLocalId ? this.localCratePathFromEntityId(mappedLocalId) : undefined
+      if (mappedPath) {
+        return mappedPath
+      }
+    }
+    const fallback = file.filename.replace(/__/g, '/')
+    return this.isSafeRelativePath(fallback) ? fallback : undefined
+  }
+
+  protected zenodoRemoteFileIdentifiers(file: ZenodoRemoteFile): string[] {
+    const links = this.extractLinks(file.response)
+    return this.uniqueStrings([
+      file.id,
+      file.filename,
+      this.extractUploadedFileRemoteId(file.response),
+      this.readLink(links, 'self'),
+      this.readLink(links, 'download'),
+    ].filter((value): value is string => !!value))
+  }
+
+  protected async localFileMatchesRemoteChecksum(
+    uri: URI,
+    remoteChecksum?: string,
+  ): Promise<boolean> {
+    if (!remoteChecksum) {
+      return false
+    }
+    const normalizedRemote = remoteChecksum.replace(/^md5:/i, '').toLowerCase()
+    const localContent = await this.fileService.readFile(uri)
+    return SparkMD5.ArrayBuffer.hash(localContent.value.buffer).toLowerCase() === normalizedRemote
+  }
+
+  protected async writeWorkspaceFile(
+    rootUri: URI,
+    relativePath: string,
+    content: Uint8Array,
+  ): Promise<void> {
+    const normalized = relativePath.replace(/\\/g, '/')
+    if (!this.isSafeRelativePath(normalized)) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/syncUnsafeLocalPath',
+        'Refusing to write unsafe sync path: {0}',
+        relativePath,
+      ))
+    }
+    const targetUri = rootUri.resolve(normalized)
+    if (!this.isInsideRoot(rootUri, targetUri)) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/syncPathOutsideWorkspace',
+        'Refusing to write sync path outside the workspace: {0}',
+        relativePath,
+      ))
+    }
+    await this.ensureWorkspaceFolder(rootUri, this.parsePosixPath(normalized).dir)
+    await this.fileService.writeFile(targetUri, BinaryBuffer.wrap(content))
+  }
+
+  protected async ensureWorkspaceFolder(rootUri: URI, relativeDirectory: string): Promise<void> {
+    if (!relativeDirectory) {
+      return
+    }
+    let current = rootUri
+    for (const segment of relativeDirectory.split('/').filter((part) => !!part)) {
+      current = current.resolve(segment)
+      if (!(await this.fileService.exists(current))) {
+        await this.fileService.createFolder(current)
+      }
+    }
+  }
+
+  protected parsePosixPath(value: string): { dir: string; base: string } {
+    const normalized = value.replace(/\\/g, '/')
+    const index = normalized.lastIndexOf('/')
+    return index === -1
+      ? { dir: '', base: normalized }
+      : { dir: normalized.slice(0, index), base: normalized.slice(index + 1) }
   }
 
   protected normalizeBaseUrl(baseUrl: string): string {
@@ -1216,6 +1520,39 @@ export class ZenodoExportService {
     )
   }
 
+  protected async readEntityIdMapping(
+    mappingUri: URI,
+  ): Promise<RoCrateEntityIdMapping | undefined> {
+    if (!(await this.fileService.exists(mappingUri))) {
+      return undefined
+    }
+    try {
+      const parsed = JSON.parse((await this.fileService.readFile(mappingUri)).value.toString())
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return undefined
+      }
+      return Object.fromEntries(
+        Object.entries(parsed).filter(
+          (entry): entry is [string, string] =>
+            typeof entry[0] === 'string' && typeof entry[1] === 'string',
+        ),
+      )
+    } catch (error) {
+      console.warn('Failed to parse Zenodo mapping file for sync.', error)
+      return undefined
+    }
+  }
+
+  protected invertEntityIdMapping(mapping: RoCrateEntityIdMapping): RoCrateEntityIdMapping {
+    const inverted: RoCrateEntityIdMapping = {}
+    for (const [localId, remoteId] of Object.entries(mapping)) {
+      if (remoteId) {
+        inverted[remoteId] = localId
+      }
+    }
+    return inverted
+  }
+
   protected async appendExportLog(rootUri: URI, entry: ExportLogEntry): Promise<void> {
     const rockitUri = rootUri.resolve('.rockit')
     if (!(await this.fileService.exists(rockitUri))) {
@@ -1352,6 +1689,54 @@ export class ZenodoExportService {
         response: entry,
       }
     })
+  }
+
+  protected extractDepositionMetadata(payload: unknown): Record<string, unknown> {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/invalidZenodoDepositionResponse',
+        'Zenodo returned an invalid deposition response.',
+      ))
+    }
+    const metadata = (payload as Record<string, unknown>).metadata
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoDepositionMissingMetadata',
+        'Zenodo deposition response did not include a metadata object.',
+      ))
+    }
+    return metadata as Record<string, unknown>
+  }
+
+  protected async downloadZenodoFile(
+    file: ZenodoRemoteFile,
+    token: string,
+  ): Promise<Uint8Array> {
+    const links = this.extractLinks(file.response)
+    const downloadUrl = this.readLink(links, 'download')
+    if (!downloadUrl) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoFileMissingDownloadLink',
+        "Zenodo file '{0}' does not include a download link.",
+        file.filename,
+      ))
+    }
+    const response = await this.fetchWithTimeout(downloadUrl, {
+      method: 'GET',
+      headers: this.authorizationHeaders(token),
+    })
+    if (!response.ok) {
+      const payload = await this.readResponsePayload(response)
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoFileDownloadFailed',
+        "Zenodo file download failed for '{0}' ({1}) at {2}: {3}",
+        file.filename,
+        response.status,
+        response.url || downloadUrl,
+        this.payloadSummary(payload),
+      ))
+    }
+    return new Uint8Array(await response.arrayBuffer())
   }
 
   protected async fileMatchesRemoteChecksum(

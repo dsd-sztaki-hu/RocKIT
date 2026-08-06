@@ -28,6 +28,7 @@ import { DataRepositoryTable } from './components/data-repository-table'
 import { DataRepositoryToolbar } from './components/data-repository-toolbar'
 import { DataverseCollectionBrowserDialog } from './components/dataverse-collection-browser-dialog'
 import { NativeDataverseDatasetMetadataDialog } from './components/native-dataverse-dataset-metadata-dialog'
+import { RepositorySyncOptionsDialog } from './components/repository-sync-options-dialog'
 import {
   ArpRoCrateExportService,
   ArpRoCrateValidationError,
@@ -453,6 +454,65 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const selectedExportTarget = repositorySelection.exportTarget
 
     if (capabilities.supportsZenodoApi) {
+      if (repositorySelection.action === 'sync' && selectedExportTarget) {
+        const syncOptions = await new RepositorySyncOptionsDialog().open()
+        if (!syncOptions) {
+          return
+        }
+        const progress = await this.loadMaskService.showProgress({
+          text: nls.localize(
+            'rockit/dataRepository/syncingFromRemote',
+            'Syncing from {0}...',
+            selectedRepo.title,
+          ),
+        })
+        try {
+          const syncResult = await this.zenodoExportService.syncFromZenodo(
+            selectedRepo,
+            selectedExportTarget,
+            syncOptions,
+            (update) =>
+              progress.report({
+                message: update.message,
+                work: {
+                  done: update.completedSteps,
+                  total: update.totalSteps,
+                },
+              }),
+          )
+          await this.roCrateLoader.refresh()
+          await this.loadData()
+          this.messageService.info(
+            nls.localize(
+              'rockit/dataRepository/zenodoSyncCompleted',
+              'Zenodo sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} unchanged file(s). Updated metadata fields: {4}.',
+              syncResult.target,
+              syncResult.downloadedFileCount,
+              syncResult.replacedFileCount,
+              syncResult.keptLocalFileCount,
+              syncResult.updatedMetadataFields.length
+                ? syncResult.updatedMetadataFields.join(', ')
+                : nls.localize('rockit/dataRepository/none', 'none'),
+            ),
+            { timeout: 12000 },
+          )
+          console.log('Zenodo sync completed:', syncResult)
+        } catch (error) {
+          console.error('Zenodo sync failed:', error)
+          this.messageService.error(
+            nls.localize(
+              'rockit/dataRepository/zenodoSyncFailed',
+              'Zenodo sync failed: {0}',
+              error instanceof Error ? error.message : String(error),
+            ),
+            { timeout: 10000 },
+          )
+        } finally {
+          progress.cancel()
+        }
+        return
+      }
+
       let preparedMetadata
       const metadataProgress = await this.loadMaskService.showProgress({
         text: nls.localize(

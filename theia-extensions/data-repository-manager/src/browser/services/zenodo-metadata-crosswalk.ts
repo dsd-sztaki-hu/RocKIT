@@ -30,6 +30,7 @@ interface MappingOperation extends JsonObject {
 
 interface ZenodoMapping {
   id: string
+  direction?: string
   mappingStatus: string
   source?: {
     canonicalCandidates?: SourceCandidate[]
@@ -70,6 +71,11 @@ export interface ZenodoMappingDiagnostic {
 export interface ZenodoCrosswalkResult {
   metadata: Record<string, unknown>
   diagnostics: ZenodoMappingDiagnostic[]
+}
+
+export interface ZenodoReverseCrosswalkResult {
+  crate: Record<string, unknown>
+  updatedFields: string[]
 }
 
 export interface ZenodoMetadataOption {
@@ -432,6 +438,181 @@ function mapVocabulary(
   return mapped.length ? (Array.isArray(value) ? mapped : mapped[0]) : EMPTY
 }
 
+function htmlToPlainText(value: string): string {
+  const withBreaks = value
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\s*\/\s*p\s*>/gi, '\n\n')
+    .replace(/<[^>]*>/g, '')
+  if (typeof document !== 'undefined') {
+    const element = document.createElement('textarea')
+    element.innerHTML = withBreaks
+    return element.value.replace(/\n{3,}/g, '\n\n').trim()
+  }
+  return withBreaks
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function inverseVocabularyValue(value: unknown, mapping: ZenodoMapping): unknown {
+  const operation = mapping.transformations.find((item) => item.operation === 'mapVocabulary')
+  const mappings = operation && isObject(operation.values) ? operation.values : undefined
+  const text = strings(value)[0]
+  if (!text || !mappings) {
+    return value
+  }
+  const entries = Object.entries(mappings)
+    .filter(([, target]) => target === text)
+    .map(([source]) => source)
+  return entries.find((source) => /^https?:\/\//i.test(source)) ?? entries[0] ?? value
+}
+
+function firstWritableCandidate(mapping: ZenodoMapping): SourceCandidate | undefined {
+  const candidates = mapping.source?.canonicalCandidates ?? []
+  return (
+    candidates.find((candidate) =>
+      candidate.entity !== 'root' && !!candidate.localName,
+    ) ??
+    candidates.find((candidate) => candidate.entity === 'root' && !!candidate.localName)
+  )
+}
+
+function setRootValue(root: JsonObject, candidate: SourceCandidate, value: unknown, mapping: ZenodoMapping): boolean {
+  if (!candidate.localName || !hasMeaningfulValue(value)) {
+    return false
+  }
+  const nextValue = mapping.transformations.some((operation) => operation.operation === 'mapVocabulary')
+    ? inverseVocabularyValue(value, mapping)
+    : value
+  root[candidate.localName] = candidate.localName === 'license' && typeof nextValue === 'string' && /^https?:\/\//i.test(nextValue)
+    ? { '@id': nextValue }
+    : nextValue
+  return true
+}
+
+function updateDescriptionEntity(root: JsonObject, graph: JsonObject[], value: unknown): boolean {
+  const description = strings(value).map(htmlToPlainText)[0]
+  if (!description) {
+    return false
+  }
+  const existingId = strings(root.dsDescription)
+    .concat(values(root.dsDescription).flatMap((item) => isObject(item) ? strings(item['@id']) : []))[0]
+  let entity = existingId
+    ? graph.find((item) => item['@id'] === existingId)
+    : undefined
+  if (!entity) {
+    entity = graph.find((item) => entityTypes(item).includes('dsDescription'))
+  }
+  if (!entity) {
+    entity = {
+      '@id': '#description',
+      '@type': 'dsDescription',
+      '@reverse': { dsDescription: { '@id': './' } },
+    }
+    graph.push(entity)
+  }
+  if (typeof entity['@id'] === 'string') {
+    root.dsDescription = { '@id': entity['@id'] }
+  }
+  entity.name = description
+  entity.dsDescriptionValue = description
+  return true
+}
+
+function updateAdditionalDescriptionEntity(root: JsonObject, graph: JsonObject[], value: unknown): boolean {
+  const description = strings(value).map(htmlToPlainText)[0]
+  if (!description) {
+    return false
+  }
+  const currentDescriptionIds = values(root.dsDescription)
+    .flatMap((item) => isObject(item) ? strings(item['@id']) : strings(item))
+  const existing = graph
+    .filter((entity) => entityTypes(entity).includes('dsDescription'))
+    .find((entity) => !currentDescriptionIds.includes(strings(entity['@id'])[0] ?? ''))
+  const entity = existing ?? {
+    '@id': '#additional-description',
+    '@type': 'dsDescription',
+    '@reverse': { dsDescription: { '@id': './' } },
+  }
+  if (!existing) {
+    graph.push(entity)
+  }
+  entity.name = description
+  entity.dsDescriptionValue = description
+  const entityId = strings(entity['@id'])[0]
+  if (entityId && !currentDescriptionIds.includes(entityId)) {
+    const refs = [
+      ...values(root.dsDescription).filter((item) => hasMeaningfulValue(item)),
+      { '@id': entityId },
+    ]
+    root.dsDescription = refs.length === 1 ? refs[0] : refs
+  }
+  return true
+}
+
+function updateCreatorEntities(root: JsonObject, graph: JsonObject[], value: unknown): boolean {
+  const creators = values(value)
+    .filter(isObject)
+    .map((creator) => ({
+      name: strings(creator.name)[0],
+      affiliation: strings(creator.affiliation)[0],
+      orcid: strings(creator.orcid)[0],
+    }))
+    .filter((creator) => !!creator.name)
+  if (!creators.length) {
+    return false
+  }
+  const existingRefs = values(root.author)
+    .flatMap((item) => isObject(item) ? strings(item['@id']) : strings(item))
+  const existingAuthors = graph.filter((entity) => entityTypes(entity).includes('author'))
+  const refs: JsonObject[] = []
+  creators.forEach((creator, index) => {
+    const id = existingRefs[index] ?? strings(existingAuthors[index]?.['@id'])[0] ?? `#author-${index + 1}`
+    let entity = graph.find((item) => item['@id'] === id)
+    if (!entity) {
+      entity = {
+        '@id': id,
+        '@type': 'author',
+        '@reverse': { author: { '@id': './' } },
+      }
+      graph.push(entity)
+    }
+    entity.name = creator.name
+    entity.authorName = creator.name
+    if (creator.affiliation) {
+      entity.authorAffiliation = creator.affiliation
+    } else {
+      delete entity.authorAffiliation
+    }
+    if (creator.orcid) {
+      entity.authorIdentifier = creator.orcid
+      entity.authorIdentifierScheme = 'ORCID'
+    }
+    refs.push({ '@id': id })
+  })
+  root.author = refs.length === 1 ? refs[0] : refs
+  return true
+}
+
+function reverseScalarValue(value: unknown, mapping: ZenodoMapping): unknown {
+  const mapped = mapping.transformations.some((operation) => operation.operation === 'mapVocabulary')
+    ? inverseVocabularyValue(value, mapping)
+    : value
+  if (typeof mapped === 'string') {
+    return htmlToPlainText(mapped)
+  }
+  if (Array.isArray(mapped)) {
+    const decoded = mapped.map((item) => typeof item === 'string' ? htmlToPlainText(item) : item)
+    return mapping.target.type === 'array' ? decoded : decoded[0]
+  }
+  return mapped
+}
+
 export function zenodoMetadataOptions(
   field: string,
 ): ZenodoMetadataOption[] {
@@ -633,4 +814,61 @@ export function buildZenodoMetadataFromCrosswalk(
   }
 
   return { metadata, diagnostics }
+}
+
+/**
+ * Applies Zenodo deposition metadata back onto an RO-Crate using the
+ * bidirectional source candidates declared in the crosswalk.
+ *
+ * The reverse path intentionally updates only fields that the crosswalk says
+ * can travel both ways. Repository-only Zenodo fields stay out of the local
+ * RO-Crate because there is no declared local field to overwrite safely.
+ */
+export function applyZenodoMetadataToRoCrate(
+  crate: Record<string, unknown>,
+  zenodoMetadata: Record<string, unknown>,
+): ZenodoReverseCrosswalkResult {
+  const nextCrate = JSON.parse(JSON.stringify(crate)) as Record<string, unknown>
+  const graph = readGraph(nextCrate)
+  const root = graph.find((entity) => entity['@id'] === './')
+  if (!root) {
+    throw new Error('The RO-Crate does not contain a root Dataset with @id "./".')
+  }
+
+  const updatedFields: string[] = []
+  for (const mapping of repositoryCrosswalk.crosswalks.canonicalToZenodo.mappings) {
+    if (mapping.direction !== 'both' || mapping.mappingStatus === 'repositorySpecific') {
+      continue
+    }
+    const remoteValue = zenodoMetadata[mapping.target.field]
+    if (!hasMeaningfulValue(remoteValue)) {
+      continue
+    }
+    const candidate = firstWritableCandidate(mapping)
+    if (!candidate) {
+      continue
+    }
+    let updated = false
+    switch (mapping.target.field) {
+      case 'creators':
+        updated = updateCreatorEntities(root, graph, remoteValue)
+        break
+      case 'description':
+        updated = updateDescriptionEntity(root, graph, remoteValue)
+        break
+      case 'notes':
+        updated = updateAdditionalDescriptionEntity(root, graph, remoteValue)
+        break
+      default:
+        if (candidate.entity === 'root') {
+          updated = setRootValue(root, candidate, reverseScalarValue(remoteValue, mapping), mapping)
+        }
+        break
+    }
+    if (updated) {
+      updatedFields.push(mapping.target.field)
+    }
+  }
+
+  return { crate: nextCrate, updatedFields }
 }
