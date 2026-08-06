@@ -149,6 +149,15 @@ function readGraph(crate: JsonObject): JsonObject[] {
   return Array.isArray(graph) ? graph.filter(isObject) : []
 }
 
+function readMutableGraph(crate: JsonObject): JsonObject[] {
+  const graph = crate['@graph']
+  if (!Array.isArray(graph)) {
+    crate['@graph'] = []
+    return crate['@graph'] as JsonObject[]
+  }
+  return graph as JsonObject[]
+}
+
 /**
  * Resolves a crosswalk `resolveReferences` operation.
  *
@@ -495,63 +504,83 @@ function setRootValue(root: JsonObject, candidate: SourceCandidate, value: unkno
   return true
 }
 
-function updateDescriptionEntity(root: JsonObject, graph: JsonObject[], value: unknown): boolean {
-  const description = strings(value).map(htmlToPlainText)[0]
-  if (!description) {
-    return false
-  }
-  const existingId = strings(root.dsDescription)
-    .concat(values(root.dsDescription).flatMap((item) => isObject(item) ? strings(item['@id']) : []))[0]
-  let entity = existingId
-    ? graph.find((item) => item['@id'] === existingId)
-    : undefined
-  if (!entity) {
-    entity = graph.find((item) => entityTypes(item).includes('dsDescription'))
-  }
-  if (!entity) {
-    entity = {
-      '@id': '#description',
-      '@type': 'dsDescription',
-      '@reverse': { dsDescription: { '@id': './' } },
-    }
-    graph.push(entity)
-  }
-  if (typeof entity['@id'] === 'string') {
-    root.dsDescription = { '@id': entity['@id'] }
-  }
-  entity.name = description
-  entity.dsDescriptionValue = description
-  return true
+function zenodoDescriptionText(value: unknown): string[] {
+  return values(value)
+    .flatMap((item) => {
+      if (isObject(item)) {
+        return strings(
+          item.description ??
+            item.text ??
+            item.value ??
+            item.title ??
+            item.name,
+        )
+      }
+      return strings(item)
+    })
+    .map(htmlToPlainText)
+    .filter((item) => item.length > 0)
 }
 
-function updateAdditionalDescriptionEntity(root: JsonObject, graph: JsonObject[], value: unknown): boolean {
-  const description = strings(value).map(htmlToPlainText)[0]
-  if (!description) {
+function collectZenodoDescriptionTexts(metadata: Record<string, unknown>): string[] {
+  return unique([
+    ...zenodoDescriptionText(metadata.description),
+    ...zenodoDescriptionText(metadata.additional_descriptions),
+    ...zenodoDescriptionText(metadata.additionalDescriptions),
+    ...zenodoDescriptionText(metadata.additional_description),
+    ...zenodoDescriptionText(metadata.additionalDescription),
+    ...zenodoDescriptionText(metadata.notes),
+  ]).filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+}
+
+function rootDescriptionIds(root: JsonObject): string[] {
+  return values(root.dsDescription)
+    .flatMap((item) => isObject(item) ? strings(item['@id']) : strings(item))
+}
+
+function descriptionEntityId(root: JsonObject, index: number): string {
+  const arpPid = strings(root['@arpPid'])[0]
+  if (arpPid) {
+    const suffix = index === 0 ? 'sync-description' : `sync-description-${index + 1}`
+    return `https://w3id.org/arp/ro-id/${arpPid}/dsDescription/${suffix}`
+  }
+  return index === 0 ? '#description' : `#description-${index + 1}`
+}
+
+function generatedEntityId(root: JsonObject, typeName: string, index: number): string {
+  const arpPid = strings(root['@arpPid'])[0]
+  if (arpPid) {
+    return `https://w3id.org/arp/ro-id/${arpPid}/${typeName}/sync-${index + 1}`
+  }
+  return `#${typeName}-${index + 1}`
+}
+
+function updateDescriptionEntities(root: JsonObject, graph: JsonObject[], descriptions: string[]): boolean {
+  if (!descriptions.length) {
     return false
   }
-  const currentDescriptionIds = values(root.dsDescription)
-    .flatMap((item) => isObject(item) ? strings(item['@id']) : strings(item))
-  const existing = graph
-    .filter((entity) => entityTypes(entity).includes('dsDescription'))
-    .find((entity) => !currentDescriptionIds.includes(strings(entity['@id'])[0] ?? ''))
-  const entity = existing ?? {
-    '@id': '#additional-description',
-    '@type': 'dsDescription',
-    '@reverse': { dsDescription: { '@id': './' } },
-  }
-  if (!existing) {
-    graph.push(entity)
-  }
-  entity.name = description
-  entity.dsDescriptionValue = description
-  const entityId = strings(entity['@id'])[0]
-  if (entityId && !currentDescriptionIds.includes(entityId)) {
-    const refs = [
-      ...values(root.dsDescription).filter((item) => hasMeaningfulValue(item)),
-      { '@id': entityId },
-    ]
-    root.dsDescription = refs.length === 1 ? refs[0] : refs
-  }
+  const referencedIds = rootDescriptionIds(root)
+  const existingDescriptionEntities = graph.filter((entity) => entityTypes(entity).includes('dsDescription'))
+  const refs: JsonObject[] = []
+  descriptions.forEach((description, index) => {
+    const id =
+      referencedIds[index] ??
+      strings(existingDescriptionEntities[index]?.['@id'])[0] ??
+      descriptionEntityId(root, index)
+    let entity = graph.find((item) => item['@id'] === id)
+    if (!entity) {
+      entity = {
+        '@id': id,
+        '@type': 'dsDescription',
+        '@reverse': { dsDescription: { '@id': './' } },
+      }
+      graph.push(entity)
+    }
+    entity.name = description
+    entity.dsDescriptionValue = description
+    refs.push({ '@id': id })
+  })
+  root.dsDescription = refs.length === 1 ? refs[0] : refs
   return true
 }
 
@@ -572,7 +601,10 @@ function updateCreatorEntities(root: JsonObject, graph: JsonObject[], value: unk
   const existingAuthors = graph.filter((entity) => entityTypes(entity).includes('author'))
   const refs: JsonObject[] = []
   creators.forEach((creator, index) => {
-    const id = existingRefs[index] ?? strings(existingAuthors[index]?.['@id'])[0] ?? `#author-${index + 1}`
+    const id =
+      existingRefs[index] ??
+      strings(existingAuthors[index]?.['@id'])[0] ??
+      generatedEntityId(root, 'author', index)
     let entity = graph.find((item) => item['@id'] === id)
     if (!entity) {
       entity = {
@@ -829,15 +861,21 @@ export function applyZenodoMetadataToRoCrate(
   zenodoMetadata: Record<string, unknown>,
 ): ZenodoReverseCrosswalkResult {
   const nextCrate = JSON.parse(JSON.stringify(crate)) as Record<string, unknown>
-  const graph = readGraph(nextCrate)
+  const graph = readMutableGraph(nextCrate)
   const root = graph.find((entity) => entity['@id'] === './')
   if (!root) {
     throw new Error('The RO-Crate does not contain a root Dataset with @id "./".')
   }
 
   const updatedFields: string[] = []
+  if (updateDescriptionEntities(root, graph, collectZenodoDescriptionTexts(zenodoMetadata))) {
+    updatedFields.push('description')
+  }
   for (const mapping of repositoryCrosswalk.crosswalks.canonicalToZenodo.mappings) {
     if (mapping.direction !== 'both' || mapping.mappingStatus === 'repositorySpecific') {
+      continue
+    }
+    if (['description', 'notes'].includes(mapping.target.field)) {
       continue
     }
     const remoteValue = zenodoMetadata[mapping.target.field]
@@ -852,12 +890,6 @@ export function applyZenodoMetadataToRoCrate(
     switch (mapping.target.field) {
       case 'creators':
         updated = updateCreatorEntities(root, graph, remoteValue)
-        break
-      case 'description':
-        updated = updateDescriptionEntity(root, graph, remoteValue)
-        break
-      case 'notes':
-        updated = updateAdditionalDescriptionEntity(root, graph, remoteValue)
         break
       default:
         if (candidate.entity === 'root') {

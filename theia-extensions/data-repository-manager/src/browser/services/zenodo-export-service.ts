@@ -595,7 +595,10 @@ export class ZenodoExportService {
       nls.localize('rockit/dataRepository/zenodoLookupFailed', 'Zenodo deposition lookup failed'),
     )
     const depositionId = this.extractDepositionId(depositionPayload) ?? exportTarget.pid
-    const metadata = this.extractDepositionMetadata(depositionPayload)
+    const metadata = this.mergeZenodoSyncMetadata(
+      this.extractDepositionMetadata(depositionPayload),
+      await this.tryLoadZenodoRecordMetadata(baseUrl, token, depositionPayload, depositionId),
+    )
     const remoteFiles = await this.listDepositionFiles(baseUrl, token, depositionId)
     const remoteMetadataFile = remoteFiles.find((file) => file.filename === 'ro-crate-metadata.json')
     const remoteToLocalMapping = this.invertEntityIdMapping(mapping)
@@ -1706,6 +1709,149 @@ export class ZenodoExportService {
       ))
     }
     return metadata as Record<string, unknown>
+  }
+
+  protected async tryLoadZenodoRecordMetadata(
+    baseUrl: string,
+    token: string,
+    depositionPayload: unknown,
+    fallbackRecordId: string,
+  ): Promise<Record<string, unknown> | undefined> {
+    const recordId = this.firstString(
+      this.readObjectField(depositionPayload, 'record_id'),
+      this.readObjectField(depositionPayload, 'recid'),
+      fallbackRecordId,
+    )
+    if (!recordId) {
+      return undefined
+    }
+    for (const path of [
+      `/api/records/${encodeURIComponent(recordId)}/draft`,
+      `/api/records/${encodeURIComponent(recordId)}`,
+    ]) {
+      const url = new URL(path, `${baseUrl}/`).toString()
+      try {
+        const response = await this.fetchWithTimeout(url, {
+          method: 'GET',
+          headers: this.authorizationHeaders(token),
+        })
+        if (!response.ok) {
+          continue
+        }
+        const payload = await this.readResponsePayload(response)
+        const metadata = this.extractOptionalMetadataObject(payload)
+        if (metadata) {
+          return metadata
+        }
+      } catch (error) {
+        console.warn('Zenodo record metadata lookup failed; continuing with legacy deposition metadata.', error)
+      }
+    }
+    return undefined
+  }
+
+  protected mergeZenodoSyncMetadata(
+    legacyMetadata: Record<string, unknown>,
+    recordMetadata: Record<string, unknown> | undefined,
+  ): Record<string, unknown> {
+    if (!recordMetadata) {
+      return legacyMetadata
+    }
+    const merged = { ...legacyMetadata }
+    const additionalDescriptions =
+      recordMetadata.additional_descriptions ??
+      recordMetadata.additionalDescriptions ??
+      recordMetadata.additional_description ??
+      recordMetadata.additionalDescription
+    if (additionalDescriptions !== undefined) {
+      merged.additional_descriptions = additionalDescriptions
+    }
+    const creators = this.normalizeZenodoRecordCreators(recordMetadata.creators)
+    if (creators.length) {
+      merged.creators = creators
+    }
+    return merged
+  }
+
+  protected normalizeZenodoRecordCreators(value: unknown): Array<Record<string, unknown>> {
+    if (!Array.isArray(value)) {
+      return []
+    }
+    return value
+      .map((creator) => this.normalizeZenodoRecordCreator(creator))
+      .filter((creator): creator is Record<string, unknown> => !!creator)
+  }
+
+  protected normalizeZenodoRecordCreator(value: unknown): Record<string, unknown> | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return undefined
+    }
+    const creator = value as Record<string, unknown>
+    const personOrOrg = creator.person_or_org &&
+      typeof creator.person_or_org === 'object' &&
+      !Array.isArray(creator.person_or_org)
+      ? creator.person_or_org as Record<string, unknown>
+      : undefined
+    const name = this.firstString(
+      creator.name,
+      personOrOrg?.name,
+      this.joinNameParts(personOrOrg?.family_name, personOrOrg?.given_name),
+    )
+    if (!name) {
+      return undefined
+    }
+    const affiliation = this.firstString(
+      creator.affiliation,
+      ...(Array.isArray(creator.affiliations)
+        ? creator.affiliations.map((affiliationItem) =>
+            affiliationItem &&
+            typeof affiliationItem === 'object' &&
+            !Array.isArray(affiliationItem)
+              ? (affiliationItem as Record<string, unknown>).name
+              : affiliationItem,
+          )
+        : []),
+    )
+    const orcid = this.firstString(
+      creator.orcid,
+      ...(Array.isArray(personOrOrg?.identifiers)
+        ? personOrOrg.identifiers.map((identifierItem) => {
+            if (!identifierItem || typeof identifierItem !== 'object' || Array.isArray(identifierItem)) {
+              return undefined
+            }
+            const identifier = identifierItem as Record<string, unknown>
+            const scheme = this.firstString(identifier.scheme)?.toLowerCase()
+            return scheme === 'orcid' ? identifier.identifier : undefined
+          })
+        : []),
+    )
+    return {
+      name,
+      ...(affiliation ? { affiliation } : {}),
+      ...(orcid ? { orcid } : {}),
+    }
+  }
+
+  protected joinNameParts(familyName: unknown, givenName: unknown): string | undefined {
+    const family = this.firstString(familyName)
+    const given = this.firstString(givenName)
+    if (family && given) {
+      return `${family}, ${given}`
+    }
+    return family ?? given
+  }
+
+  protected extractOptionalMetadataObject(payload: unknown): Record<string, unknown> | undefined {
+    const metadata = this.readObjectField(payload, 'metadata')
+    return metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? metadata as Record<string, unknown>
+      : undefined
+  }
+
+  protected readObjectField(payload: unknown, field: string): unknown {
+    return payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)[field]
+      : undefined
   }
 
   protected async downloadZenodoFile(

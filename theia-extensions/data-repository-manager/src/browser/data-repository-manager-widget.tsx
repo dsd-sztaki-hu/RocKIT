@@ -485,14 +485,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           this.messageService.info(
             nls.localize(
               'rockit/dataRepository/zenodoSyncCompleted',
-              'Zenodo sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} unchanged file(s). Updated metadata fields: {4}.',
+              'Zenodo sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} unchanged file(s).',
               syncResult.target,
               syncResult.downloadedFileCount,
               syncResult.replacedFileCount,
               syncResult.keptLocalFileCount,
-              syncResult.updatedMetadataFields.length
-                ? syncResult.updatedMetadataFields.join(', ')
-                : nls.localize('rockit/dataRepository/none', 'none'),
             ),
             { timeout: 12000 },
           )
