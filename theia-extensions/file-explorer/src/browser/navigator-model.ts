@@ -18,7 +18,6 @@ import { injectable, inject, postConstruct } from '@theia/core/shared/inversify'
 import URI from '@theia/core/lib/common/uri';
 import { FileNode, FileTreeModel } from '@theia/filesystem/lib/browser';
 import { OpenerService, open, TreeNode, ExpandableTreeNode, CompositeTreeNode, SelectableTreeNode } from '@theia/core/lib/browser';
-import { CommandService } from '@theia/core/lib/common/command';
 import { FileNavigatorTree, NavigatorHeaderNode, NavigatorRootNode, WorkspaceNode } from './navigator-tree';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { FrontendApplicationStateService } from '@theia/core/lib/browser/frontend-application-state';
@@ -27,7 +26,6 @@ import { Deferred } from '@theia/core/lib/common/promise-util';
 import { Disposable } from '@theia/core/lib/common/disposable';
 import { DataSourceService } from 'data-sources/lib/browser/data-source-service';
 import { nls } from '@theia/core/lib/common/nls';
-import { OpenRoCrateEntityForResourceCommand } from 'rockit-common/lib/browser';
 
 @injectable()
 export class FileNavigatorModel extends FileTreeModel {
@@ -37,7 +35,6 @@ export class FileNavigatorModel extends FileTreeModel {
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService;
     @inject(FrontendApplicationStateService) protected readonly applicationState: FrontendApplicationStateService;
     @inject(DataSourceService) protected readonly dataSourceService: DataSourceService;
-    @inject(CommandService) protected readonly commandService: CommandService;
 
     @inject(ProgressService)
     protected readonly progressService: ProgressService;
@@ -109,18 +106,6 @@ export class FileNavigatorModel extends FileTreeModel {
     }
 
     protected async openFileNode(node: FileNode): Promise<void> {
-        try {
-            const openedInRoCrate = await this.commandService.executeCommand<boolean>(
-                OpenRoCrateEntityForResourceCommand.id,
-                node.uri,
-            );
-            if (openedInRoCrate) {
-                return;
-            }
-        } catch (error) {
-            console.warn('Failed to open the file entity in ReCrate.', error);
-        }
-
         await open(this.openerService, node.uri);
     }
 
