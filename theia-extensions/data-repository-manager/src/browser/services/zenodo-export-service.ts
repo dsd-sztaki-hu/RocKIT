@@ -119,6 +119,7 @@ export interface ZenodoExportProgress {
 export type ZenodoExportProgressReporter = (progress: ZenodoExportProgress) => void
 
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
+const ZENODO_CROSSWALK_FILE_NAME = 'arp-zenodo-crosswalk.json'
 
 export class ZenodoMetadataDialogCancelledError extends Error {
   constructor() {
@@ -306,6 +307,7 @@ export class ZenodoExportService {
       target,
       repository: baseUrl,
       mappingFile: mappingFileName,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'create',
       syncedAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(crate),
@@ -514,6 +516,7 @@ export class ZenodoExportService {
       target,
       repository: baseUrl,
       mappingFile: exportTarget.mappingFile,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'update',
       syncedAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(crate),
@@ -682,6 +685,7 @@ export class ZenodoExportService {
       target: exportTarget.target,
       repository: baseUrl,
       mappingFile: exportTarget.mappingFile,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'sync',
       syncedAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(reverseResult.crate),
@@ -739,6 +743,7 @@ export class ZenodoExportService {
           target: entry.target,
           repository: entry.repository,
           mappingFile: entry.mappingFile,
+          crosswalkFile: entry.crosswalkFile,
           syncedAt: entry.syncedAt,
           syncType: entry.syncType,
           datasetName: currentDatasetName ?? entry.datasetName,

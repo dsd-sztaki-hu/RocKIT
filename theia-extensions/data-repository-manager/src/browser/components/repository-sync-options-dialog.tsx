@@ -49,7 +49,7 @@ export class RepositorySyncOptionsDialog extends AbstractDialog<RepositorySyncOp
         <p className="repository-sync-options__secondary">
           {nls.localize(
             'rockit/dataRepository/syncFromRemoteDetails',
-            'Remote dataset metadata will be applied to the local RO-Crate using the selected crosswalk. New or changed remote files will be downloaded. Local files removed remotely will stay in the workspace but may become orphaned.',
+            'Remote dataset metadata will be applied to the local RO-Crate using the selected crosswalk file. New or changed remote files will be downloaded. Local files removed remotely will stay in the workspace but may become orphaned.',
           )}
         </p>
         <div className="repository-sync-options__form">

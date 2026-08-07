@@ -123,6 +123,7 @@ const DATAVERSE_FILE_CONTEXT: Record<string, string> = {
   url: 'https://schema.org/url',
 }
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
+const DATAVERSE_CROSSWALK_FILE_NAME = 'arp-dataverse-crosswalk.json'
 
 @injectable()
 export class ArpRoCrateExportService {
@@ -253,6 +254,7 @@ export class ArpRoCrateExportService {
       target,
       repository: baseUrl,
       mappingFile: mappingFileName,
+      crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'create',
       syncedAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(crate),
@@ -540,6 +542,7 @@ export class ArpRoCrateExportService {
         exportTarget.pid,
       repository: baseUrl,
       mappingFile: mappingFileName,
+      crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'update',
       syncedAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(metadataCrate),
@@ -595,6 +598,7 @@ export class ArpRoCrateExportService {
           target: this.buildDataverseDatasetUrl(baseUrl, pid) ?? entry.target,
           repository: entry.repository,
           mappingFile: entry.mappingFile,
+          crosswalkFile: entry.crosswalkFile,
           syncedAt: entry.syncedAt,
           syncType: entry.syncType,
           datasetName: currentDatasetName ?? entry.datasetName,
@@ -958,6 +962,7 @@ export class ArpRoCrateExportService {
         exportTarget.pid,
       repository: baseUrl,
       mappingFile: mappingFileName,
+      crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'sync',
       syncedAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(localizedRemoteCrate),
@@ -1209,6 +1214,7 @@ export class ArpRoCrateExportService {
             target: selectedTarget.target,
             repository: selectedTarget.repository,
             mappingFile: selectedTarget.mappingFile,
+            crosswalkFile: selectedTarget.crosswalkFile,
             syncType: selectedTarget.syncType,
             syncedAt: selectedTarget.syncedAt,
             datasetName: selectedTarget.datasetName,

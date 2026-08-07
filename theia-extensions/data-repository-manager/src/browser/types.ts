@@ -69,6 +69,7 @@ export interface DataRepositoryExportTarget {
     target: string;
     repository: string;
     mappingFile: string;
+    crosswalkFile?: string;
     syncedAt: string;
     syncType: 'create' | 'update' | 'sync';
     datasetName?: string;

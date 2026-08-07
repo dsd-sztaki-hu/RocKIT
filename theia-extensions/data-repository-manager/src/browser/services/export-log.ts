@@ -1,17 +1,18 @@
 export type ExportLogAction = 'create' | 'update' | 'sync';
 
-export interface ExportLogEvent {
+interface ExportLogEvent {
     action: ExportLogAction;
     timestamp: string;
+    crosswalkFile?: string;
 }
 
 export interface ExportLogEntry {
     target: string;
     repository: string;
     mappingFile: string;
+    crosswalkFile?: string;
     datasetName?: string;
     collectionId?: string;
-    log?: ExportLogEvent[];
     /** Derived compatibility fields used by the existing export services. */
     syncType: ExportLogAction;
     syncedAt: string;
@@ -40,20 +41,27 @@ export function normalizeExportLogEntries(value: unknown): ExportLogEntry[] {
         }
         const key = `${normalizeUrl(repository)}\n${mappingFile}`;
         const previous = grouped.get(key);
-        const combinedEvents = uniqueEvents([...(previous?.log ?? []), ...events]);
-        const latest = combinedEvents[combinedEvents.length - 1];
         const candidateLatest = events[events.length - 1];
-        const useCandidateDetails = !previous || candidateLatest.timestamp >= previous.syncedAt;
+        const latest = !previous || candidateLatest.timestamp >= previous.syncedAt
+            ? candidateLatest
+            : {
+                action: previous.syncType,
+                timestamp: previous.syncedAt,
+                crosswalkFile: previous.crosswalkFile
+            };
+        const useCandidateDetails = latest === candidateLatest;
         grouped.set(key, {
             ...(useCandidateDetails ? previous : record),
             ...(useCandidateDetails ? record : previous),
             target: useCandidateDetails ? target : previous!.target,
             repository: useCandidateDetails ? repository : previous!.repository,
             mappingFile,
+            crosswalkFile: latest.crosswalkFile
+                ?? optionalString(record.crosswalkFile)
+                ?? previous?.crosswalkFile,
             datasetName: useCandidateDetails
                 ? optionalString(record.datasetName) ?? previous?.datasetName
                 : previous?.datasetName,
-            log: combinedEvents,
             syncType: latest.action,
             syncedAt: latest.timestamp
         } as ExportLogEntry);
@@ -70,12 +78,11 @@ export function appendExportLogEvent(
 
 export function serializeExportLogEntries(entries: ExportLogEntry[]): object[] {
     return normalizeExportLogEntries(entries).map(entry => {
-        const { syncType: _syncType, syncedAt: _syncedAt, log, ...record } = entry;
-        const latest = latestEvent(log);
+        const { syncType, syncedAt, log: _log, ...record } = entry as ExportLogEntry & { log?: unknown };
         return {
             ...record,
-            syncType: latest.action,
-            syncedAt: latest.timestamp
+            syncType,
+            syncedAt
         };
     });
 }
@@ -91,30 +98,32 @@ function readEvents(record: Record<string, unknown>): ExportLogEvent[] {
             const action = event.action;
             const timestamp = stringValue(event.timestamp);
             if ((action === 'create' || action === 'update' || action === 'sync') && timestamp) {
-                events.push({ action, timestamp });
+                const crosswalkFile = optionalString(event.crosswalkFile) ?? optionalString(record.crosswalkFile);
+                events.push({
+                    action,
+                    timestamp,
+                    ...(crosswalkFile ? { crosswalkFile } : {})
+                });
             }
         }
     }
     const legacyAction = record.syncType;
     const legacyTimestamp = stringValue(record.syncedAt);
     if ((legacyAction === 'create' || legacyAction === 'update' || legacyAction === 'sync') && legacyTimestamp) {
-        events.push({ action: legacyAction, timestamp: legacyTimestamp });
+        const crosswalkFile = optionalString(record.crosswalkFile);
+        events.push({
+            action: legacyAction,
+            timestamp: legacyTimestamp,
+            ...(crosswalkFile ? { crosswalkFile } : {})
+        });
     }
     return uniqueEvents(events);
 }
 
 function uniqueEvents(events: ExportLogEvent[]): ExportLogEvent[] {
     return Array.from(
-        new Map(events.map(event => [`${event.timestamp}\n${event.action}`, event])).values()
+        new Map(events.map(event => [`${event.timestamp}\n${event.action}\n${event.crosswalkFile ?? ''}`, event])).values()
     ).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-}
-
-function latestEvent(events: ExportLogEvent[] | undefined): ExportLogEvent {
-    const latest = events?.[events.length - 1];
-    if (!latest) {
-        throw new Error('An export log entry must contain at least one synchronization event.');
-    }
-    return latest;
 }
 
 function normalizeUrl(value: string): string {

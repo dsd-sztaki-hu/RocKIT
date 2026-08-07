@@ -139,6 +139,7 @@ export type NativeDataverseExportProgressReporter = (
 ) => void
 
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
+const DATAVERSE_CROSSWALK_FILE_NAME = 'arp-dataverse-crosswalk.json'
 
 const DATAVERSE_MULTIPLE_VALUE_FIELDS = new Set([
   'geographicUnit',
@@ -376,11 +377,12 @@ export class NativeDataverseExportService {
             totalSteps,
             message: nls.localize('rockit/dataRepository/uploadedRewrittenMetadata', 'Uploaded rewritten ro-crate-metadata.json.')
         });
-        const target = this.buildPidTarget(persistentId) || persistentId;
+        const target = this.buildDataverseDatasetUrl(baseUrl, persistentId) || this.buildPidTarget(persistentId) || persistentId;
         await this.appendExportLog(rootUri, {
             target,
             repository: baseUrl,
             mappingFile: mappingFileName,
+            crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
             syncType: 'create',
             syncedAt: new Date().toISOString(),
             collectionId
@@ -558,9 +560,10 @@ export class NativeDataverseExportService {
             exportTarget.mapping
         );
         await this.appendExportLog(rootUri, {
-            target: this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
+            target: this.buildDataverseDatasetUrl(baseUrl, exportTarget.persistentId) || this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
             repository: baseUrl,
             mappingFile: exportTarget.exportLogEntry.mappingFile,
+            crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
             syncType: 'update',
             syncedAt: new Date().toISOString(),
             collectionId: exportTarget.exportLogEntry.collectionId
@@ -587,7 +590,7 @@ export class NativeDataverseExportService {
 
     return {
       persistentId: exportTarget.persistentId,
-      target: this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
+      target: this.buildDataverseDatasetUrl(baseUrl, exportTarget.persistentId) || this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
       addedFileCount: newFileIds.length,
       replacedFileCount: changedFileIds.length,
       removedFileCount: removedRemoteFileIds.length,
@@ -761,9 +764,10 @@ export class NativeDataverseExportService {
       exportTarget.mapping,
     )
     await this.appendExportLog(rootUri, {
-      target: this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
+      target: this.buildDataverseDatasetUrl(baseUrl, exportTarget.persistentId) || this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
       repository: baseUrl,
       mappingFile: exportTarget.exportLogEntry.mappingFile,
+      crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'sync',
       syncedAt: new Date().toISOString(),
       collectionId: exportTarget.exportLogEntry.collectionId,
@@ -777,7 +781,7 @@ export class NativeDataverseExportService {
 
     return {
       persistentId: exportTarget.persistentId,
-      target: this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
+      target: this.buildDataverseDatasetUrl(baseUrl, exportTarget.persistentId) || this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
       mappingFileName: exportTarget.exportLogEntry.mappingFile,
       downloadedFileCount: downloadPlan.filter(file => file.kind === 'new').length,
       replacedFileCount: downloadPlan.filter(file => file.kind === 'changed').length,
@@ -1015,6 +1019,7 @@ export class NativeDataverseExportService {
           target: this.buildDataverseDatasetUrl(baseUrl, pid) ?? entry.target,
           repository: entry.repository,
           mappingFile: entry.mappingFile,
+          crosswalkFile: entry.crosswalkFile,
           syncedAt: entry.syncedAt,
           syncType: entry.syncType,
           datasetName: currentDatasetName,
@@ -2643,6 +2648,7 @@ export class NativeDataverseExportService {
             target: selectedTarget.target,
             repository: selectedTarget.repository,
             mappingFile: selectedTarget.mappingFile,
+            crosswalkFile: selectedTarget.crosswalkFile,
             syncType: selectedTarget.syncType,
             syncedAt: selectedTarget.syncedAt,
           }

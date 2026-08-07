@@ -32,6 +32,7 @@ interface ExportLogEntry {
   target: string
   repository: string
   mappingFile: string
+  crosswalkFile?: string
   syncType: 'create' | 'update'
   syncedAt: string
   datasetName?: string
@@ -470,11 +471,17 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
         this.normalizeBaseUrl(existing.repository) === repository &&
         this.normalizePid(existing.target) === entryPid,
     )
+    const existing = existingIndex >= 0 ? entries[existingIndex] : undefined
+    const nextEntry: ExportLogEntry = {
+      ...existing,
+      ...entry,
+      crosswalkFile: entry.crosswalkFile ?? existing?.crosswalkFile,
+    }
     const nextEntries = [...entries]
     if (existingIndex >= 0) {
-      nextEntries[existingIndex] = entry
+      nextEntries[existingIndex] = nextEntry
     } else {
-      nextEntries.push(entry)
+      nextEntries.push(nextEntry)
     }
     await writeUtf8TextFile(
       this.fileService,

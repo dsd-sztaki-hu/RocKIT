@@ -789,7 +789,7 @@
       "syncFromRemote": "Szinkronizálás",
       "syncFromRemoteTarget": "Szinkronizálás innen: {0}",
       "syncFromRemotePrimaryWarning": "A folytatással az adatcsomag helyi verziója felülíródhat.",
-      "syncFromRemoteDetails": "A távoli adatcsomag metaadatai a kiválasztott crosswalk alapján bekerülnek a helyi RO-Crate-be. Az új vagy módosított távoli fájlok letöltődnek. A távolról eltávolított helyi fájlok a munkaterületen maradnak, de árva fájlokká válhatnak.",
+      "syncFromRemoteDetails": "A távoli adatcsomag metaadatai a kiválasztott crosswalk file alapján bekerülnek a helyi RO-Crate-be. Az új vagy módosított távoli fájlok letöltődnek. A távolról eltávolított helyi fájlok a munkaterületen maradnak, de árva fájlokká válhatnak.",
       "replaceLocalMetadataWithUploadedRoCrate": "A helyi RO-Crate-metaadatok előzetes lecserélése a feltöltött távoli ro-crate-metadata.json fájlra",
       "replaceLocalMetadataWithUploadedRoCrateDescription": "Ha be van kapcsolva, a RocKIT letölti a távoli repozitóriumban feltöltött ro-crate-metadata.json fájlt, lokalizálja az entitásazonosítóit, és ezt használja alapnak a repozitóriumi metaadatmezők alkalmazása előtt. Ha ki van kapcsolva, a jelenlegi helyi ro-crate-metadata.json marad az alap.",
       "syncFromRemoteWarning": "A folytatással az adatcsomag helyi verziója felülíródhat.\n\nA helyi ro-crate-metadata.json a távoli verzióra cserélődik, és a módosított távoli fájlok felülírhatják az egyező helyi fájlokat. A távolról eltávolított helyi fájlok a munkaterületen maradnak, de árva fájlokká válhatnak.",
