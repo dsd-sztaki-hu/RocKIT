@@ -347,13 +347,46 @@ export class NativeDataverseExportService {
                 'Dataverse created the dataset but did not return a persistentId. File upload cannot continue.'
             ));
         }
+        const mappingFileName = await this.createUniqueMappingFileName(rootUri);
+        let entityIdMapping = this.buildEntityIdMapping(
+            crate,
+            [],
+            uploadCollection.uploadEntryPathByEntityId
+        );
+        const target = this.buildDataverseDatasetUrl(baseUrl, persistentId) || this.buildPidTarget(persistentId) || persistentId;
+        await this.saveEntityIdMapping(rootUri, mappingFileName, entityIdMapping);
+        await this.appendExportLog(rootUri, {
+            target,
+            repository: baseUrl,
+            mappingFile: mappingFileName,
+            crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
+            syncType: 'create',
+            syncedAt: new Date().toISOString(),
+            datasetName: this.getRootDatasetName(crate),
+            collectionId
+        });
         reportProgress?.({
             completedSteps: 1,
             totalSteps,
             message: nls.localize('rockit/dataRepository/datasetMetadataSynchronized', 'Dataverse dataset created and metadata synchronized.')
         });
-        const uploadedDataFiles = await this.uploadRoCrateFiles(baseUrl, repository.apiKey, persistentId, uploadFiles, reportProgress, 1, totalSteps);
-        const entityIdMapping = this.buildEntityIdMapping(crate, uploadedDataFiles, uploadCollection.uploadEntryPathByEntityId);
+        const uploadedDataFiles = await this.uploadRoCrateFiles(
+            baseUrl,
+            repository.apiKey,
+            persistentId,
+            uploadFiles,
+            reportProgress,
+            1,
+            totalSteps,
+            async (uploadedFiles) => {
+                entityIdMapping = this.buildEntityIdMapping(
+                    crate,
+                    uploadedFiles,
+                    uploadCollection.uploadEntryPathByEntityId
+                );
+                await this.saveEntityIdMapping(rootUri, mappingFileName, entityIdMapping);
+            }
+        );
         const metadataUpload = this.buildRewrittenMetadataUploadFile(uploadCollection.metadataCrate, uploadedDataFiles);
         reportProgress?.({
             completedSteps: uploadFiles.length + 1,
@@ -370,14 +403,12 @@ export class NativeDataverseExportService {
             ));
         }
         entityIdMapping['ro-crate-metadata.json'] = metadataFileId;
-        const mappingFileName = await this.createUniqueMappingFileName(rootUri);
         await this.saveEntityIdMapping(rootUri, mappingFileName, entityIdMapping);
         reportProgress?.({
             completedSteps: totalSteps,
             totalSteps,
             message: nls.localize('rockit/dataRepository/uploadedRewrittenMetadata', 'Uploaded rewritten ro-crate-metadata.json.')
         });
-        const target = this.buildDataverseDatasetUrl(baseUrl, persistentId) || this.buildPidTarget(persistentId) || persistentId;
         await this.appendExportLog(rootUri, {
             target,
             repository: baseUrl,
@@ -491,6 +522,18 @@ export class NativeDataverseExportService {
                 removedRemoteFileIds.length
             )
         });
+        const mappingFileName = exportTarget.exportLogEntry.mappingFile;
+        const target = this.buildDataverseDatasetUrl(baseUrl, exportTarget.persistentId) || this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId;
+        await this.saveEntityIdMapping(rootUri, mappingFileName, exportTarget.mapping);
+        await this.appendExportLog(rootUri, {
+            target,
+            repository: baseUrl,
+            mappingFile: mappingFileName,
+            crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
+            syncType: 'update',
+            syncedAt: new Date().toISOString(),
+            collectionId: exportTarget.exportLogEntry.collectionId
+        });
 
         for (const localId of newFileIds) {
             reportProgress?.({
@@ -509,6 +552,7 @@ export class NativeDataverseExportService {
                 ));
             }
             exportTarget.mapping[localId] = remoteId;
+            await this.saveEntityIdMapping(rootUri, mappingFileName, exportTarget.mapping);
             completedSteps += 1;
         }
 
@@ -522,6 +566,7 @@ export class NativeDataverseExportService {
             const uploadFile = this.requireUploadFile(localId, uploadCollection, uploadFilesByPath);
             const result = await this.replaceFile(baseUrl, repository.apiKey, previousRemoteId, uploadFile);
             exportTarget.mapping[localId] = this.extractDataFileId(result.response) ?? previousRemoteId;
+            await this.saveEntityIdMapping(rootUri, mappingFileName, exportTarget.mapping);
             completedSteps += 1;
         }
 
@@ -533,6 +578,7 @@ export class NativeDataverseExportService {
             });
             await this.deleteFile(baseUrl, repository.apiKey, remoteId);
             this.removeMappedRemoteFileId(exportTarget.mapping, remoteId);
+            await this.saveEntityIdMapping(rootUri, mappingFileName, exportTarget.mapping);
             completedSteps += 1;
         }
 
@@ -556,13 +602,13 @@ export class NativeDataverseExportService {
             this.extractDataFileId(metadataReplacement.response) ?? metadataFileId;
         await this.saveEntityIdMapping(
             rootUri,
-            exportTarget.exportLogEntry.mappingFile,
+            mappingFileName,
             exportTarget.mapping
         );
         await this.appendExportLog(rootUri, {
-            target: this.buildDataverseDatasetUrl(baseUrl, exportTarget.persistentId) || this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
+            target,
             repository: baseUrl,
-            mappingFile: exportTarget.exportLogEntry.mappingFile,
+            mappingFile: mappingFileName,
             crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
             syncType: 'update',
             syncedAt: new Date().toISOString(),
@@ -590,11 +636,11 @@ export class NativeDataverseExportService {
 
     return {
       persistentId: exportTarget.persistentId,
-      target: this.buildDataverseDatasetUrl(baseUrl, exportTarget.persistentId) || this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
+      target,
       addedFileCount: newFileIds.length,
       replacedFileCount: changedFileIds.length,
       removedFileCount: removedRemoteFileIds.length,
-      mappingFileName: exportTarget.exportLogEntry.mappingFile,
+      mappingFileName,
     }
   }
 
@@ -1758,7 +1804,8 @@ export class NativeDataverseExportService {
         uploadFiles: NativeDataverseUploadFile[],
         reportProgress?: NativeDataverseExportProgressReporter,
         completedOffset = 1,
-        totalSteps = uploadFiles.length + completedOffset
+        totalSteps = uploadFiles.length + completedOffset,
+        afterUpload?: (uploadedFiles: NativeDataverseFileUploadResult[]) => Promise<void>
     ): Promise<NativeDataverseFileUploadResult[]> {
         const results: NativeDataverseFileUploadResult[] = [];
         for (const [index, file] of uploadFiles.entries()) {
@@ -1768,6 +1815,7 @@ export class NativeDataverseExportService {
                 message: nls.localize('rockit/dataRepository/uploadingFile', 'Uploading {0}...', file.entryPath)
             });
             results.push(await this.uploadFile(baseUrl, apiKey, persistentId, file));
+            await afterUpload?.([...results]);
             reportProgress?.({
                 completedSteps: completedOffset + index + 1,
                 totalSteps,
@@ -2819,7 +2867,15 @@ export class NativeDataverseExportService {
     }
     await this.fileService.writeFile(
       rockitUri.resolve(mappingFileName),
-      BinaryBuffer.fromString(`${JSON.stringify(mapping, null, 2)}\n`),
+      BinaryBuffer.fromString(`${JSON.stringify(this.compactEntityIdMapping(mapping), null, 2)}\n`),
+    )
+  }
+
+  protected compactEntityIdMapping(mapping: RoCrateEntityIdMapping): RoCrateEntityIdMapping {
+    return Object.fromEntries(
+      Object.entries(mapping)
+        .filter(([, remoteId]) => !!remoteId)
+        .sort((a, b) => a[0].localeCompare(b[0])),
     )
   }
 
