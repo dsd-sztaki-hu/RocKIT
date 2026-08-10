@@ -11,16 +11,17 @@
     "pack:rocrate-mcp-standalone": "yarn build:rocrate-mcp-standalone && yarn workspace rocrate-mcp-server pack:standalone",
     "test:rocrate-tools": "yarn workspace rocrate-context-core test && yarn workspace rockit-common test && yarn workspace rocrate-mcp-server test",
     "verify:rocrate-tools": "yarn build:rocrate-tools && yarn test:rocrate-tools",
-    "build:browser": "yarn run build:extensions && yarn workspace browser-app run bundle",
+    "download:plugins": "theia download:plugins && node scripts/configure-viewer-plugins.js",
+    "build:browser": "yarn run build:extensions && yarn run download:plugins && yarn workspace browser-app run bundle",
     "build:electron": "node scripts/build-electron.js",
-    "build:electron:impl": "yarn run build:extensions && yarn workspace electron-app run bundle",
+    "build:electron:impl": "yarn run build:extensions && yarn run download:plugins && yarn workspace electron-app run bundle",
     "prepare": "lerna run prepare",
     "clean": "node scripts/clean-build.js",
     "rebuild:electron": "node scripts/build-electron.js --rebuild",
     "rebuild:browser": "yarn run clean && yarn && yarn run build:browser",
     "postinstall": "theia check:theia-version",
-    "start:browser": "yarn workspace browser-app start",
-    "start:electron": "node scripts/start-electron.js",
+    "start:browser": "yarn run download:plugins && yarn workspace browser-app start --plugins=local-dir:../plugins",
+    "start:electron": "yarn run download:plugins && node scripts/start-electron.js",
     "start:rocrate-mcp": "yarn workspace rocrate-mcp-server start",
     "watch:browser": "lerna run --parallel watch --ignore electron-app",
     "watch:electron": "lerna run --parallel watch --ignore browser-app",
@@ -55,5 +56,13 @@
     "@types/minimatch": "3.0.5",
     "@types/react": "18.3.27",
     "@types/react-dom": "18.3.7"
+  },
+  "theiaPluginsDir": "plugins",
+  "theiaPlugins": {
+    "vscode.media-preview": "https://open-vsx.org/api/vscode/media-preview/1.95.3/file/vscode.media-preview-1.95.3.vsix",
+    "tomoki1207.pdf": "https://open-vsx.org/api/tomoki1207/pdf/1.2.2/file/tomoki1207.pdf-1.2.2.vsix",
+    "vscode.json": "https://open-vsx.org/api/vscode/json/1.95.3/file/vscode.json-1.95.3.vsix",
+    "vscode.json-language-features": "https://open-vsx.org/api/vscode/json-language-features/1.95.3/file/vscode.json-language-features-1.95.3.vsix",
+    "janisdd.vscode-edit-csv": "https://open-vsx.org/api/janisdd/vscode-edit-csv/0.11.9/file/janisdd.vscode-edit-csv-0.11.9.vsix"
   }
 }

@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "electron-app",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "homepage": "https://repo.researchdata.hu/rockit/",
   "author": {
     "name": "HUN-REN SZTAKI, DSD",
@@ -16,6 +16,7 @@
     "@theia/markers": "1.65.2",
     "@theia/messages": "1.65.2",
     "@theia/monaco": "1.65.2",
+    "@theia/plugin-ext-vscode": "1.65.2",
     "@theia/preferences": "1.65.2",
     "@theia/process": "1.65.2",
     "@theia/terminal": "1.65.2",
@@ -32,7 +33,7 @@
     "data-sources": "0.0.0",
     "entities-overview": "0.0.0",
     "export-ro-crate": "0.0.0",
-    "file-explorer": "0.0.0",
+    "@theia/navigator": "1.65.2",
     "file-preview": "0.0.0",
     "metadata-schema-manager": "0.0.0",
     "open-editors": "0.0.0",
@@ -47,7 +48,7 @@
     "multi-edit": "0.0.0"
   },
   "devDependencies": {
-    "@arpproject/recrate": "0.1.50",
+    "@arpproject/recrate": "0.1.51",
     "@theia/cli": "1.65.2",
     "allotment": "^1.20.5",
     "electron": "37.2.1"
@@ -60,7 +61,8 @@
     "dist:mac:arm64": "yarn run fetch:darwin-native arm64 && electron-builder --mac dmg --arm64",
     "dist:mac:x64": "yarn run fetch:darwin-native x64 && electron-builder --mac dmg --x64",
     "dist:mac": "yarn run dist:mac:x64 && yarn run dist:mac:arm64",
-    "rebuild": "theia rebuild:electron --cacheRoot ..",
+    "rebuild": "node ../scripts/ensure-electron-runtime.js && theia rebuild:electron --cacheRoot ..",
+    "prestart": "node ../scripts/ensure-electron-runtime.js",
     "start": "theia start",
     "watch": "yarn run rebuild && WATCHPACK_POLLING=true WATCHPACK_POLLING_INTERVAL=1000 theia build --watch --mode development"
   },
@@ -85,6 +87,13 @@
     "appId": "hu.sztaki.dsd.rockit",
     "productName": "RocKIT - RO-Crate Kit",
     "extraResources": [
+      {
+        "from": "../plugins",
+        "to": "plugins",
+        "filter": [
+          "**/*"
+        ]
+      },
       {
         "from": "../theia-extensions/rocrate-mcp-server/dist/npm",
         "to": "rocrate-mcp-server"

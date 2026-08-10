@@ -9,11 +9,12 @@
     "@theia/markers": "1.65.2",
     "@theia/messages": "1.65.2",
     "@theia/monaco": "1.65.2",
+    "@theia/plugin-ext-vscode": "1.65.2",
     "@theia/preferences": "1.65.2",
     "@theia/process": "1.65.2",
     "@theia/terminal": "1.65.2",
     "@theia/workspace": "1.65.2",
-    "file-explorer": "0.0.0",
+    "@theia/navigator": "1.65.2",
     "ro-crate-preview": "0.0.0",
     "file-preview": "0.0.0",
     "ro-crate-editor": "0.0.0",
@@ -31,7 +32,7 @@
   "devDependencies": {
     "@theia/cli": "1.65.2",
     "react-grab": "^0.0.53",
-    "@arpproject/recrate": "0.1.50"
+    "@arpproject/recrate": "0.1.51"
   },
   "scripts": {
     "bundle": "yarn run rebuild && theia build --mode development",

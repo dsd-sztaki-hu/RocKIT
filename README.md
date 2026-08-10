@@ -8,6 +8,24 @@ Please install all necessary [prerequisites](https://github.com/eclipse-theia/th
 3. yarn build:electron
 4. yarn start:electron
 
+The browser and Electron build/start scripts automatically download pinned
+extensions for media/PDF previews, JSON language support, and CSV/TSV editing
+into the ignored `plugins/` directory. To refresh external plugins
+without building the applications, run:
+
+    yarn download:plugins
+
+The Electron packaging configuration copies this directory beside the packaged
+application so these editors are also available in release builds. A single
+click opens the appropriate preview/editor automatically, including media, PDF,
+and an editable CSV/TSV table UI. JSON and JSON-with-comments files receive syntax
+highlighting, validation, formatting, and schema-aware completion. Double-clicking
+a described file still opens its ReCrate entity editor.
+
+React Grab is disabled by default so it does not intercept normal selection and
+copy shortcuts. Developers can opt in with the
+`rockit.developer.reactGrab.enabled` preference in a development build.
+
 ## Building and packaging the standalone RO-Crate MCP server
 
 The RO-Crate MCP server can be built as a standalone npm CLI package without

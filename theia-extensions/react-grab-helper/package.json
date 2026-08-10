@@ -4,6 +4,10 @@
     "theia-extension"
   ],
   "version": "0.0.0",
+  "dependencies": {
+    "@theia/core": "1.65.2",
+    "react-grab": "^0.0.53"
+  },
   "files": [
     "lib",
     "src"
