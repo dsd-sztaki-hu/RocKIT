@@ -97,18 +97,16 @@ export class FileNavigatorModel extends FileTreeModel {
         }
     }
 
-    previewNode(node: TreeNode): void {
-        if (FileNode.is(node)) {
-            open(this.openerService, node.uri, { mode: 'reveal', preview: true });
-        }
-    }
-
     protected override doOpenNode(node: TreeNode): void {
         if (node.visible === false) {
             return;
         } else if (FileNode.is(node)) {
-            open(this.openerService, node.uri);
+            void this.openFileNode(node);
         }
+    }
+
+    protected async openFileNode(node: FileNode): Promise<void> {
+        await open(this.openerService, node.uri);
     }
 
     override *getNodesByUri(uri: URI): IterableIterator<TreeNode> {

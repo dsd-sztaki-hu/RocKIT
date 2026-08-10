@@ -11,6 +11,7 @@
 # Dependency directories
 node_modules
 .browser_modules
+/plugins/
 
 # Logs
 *.log

@@ -23,6 +23,7 @@ import {
     FrontendApplication,
     FrontendApplicationContribution,
     KeybindingRegistry,
+    open,
     OpenerService,
     SelectableTreeNode,
     Widget,
@@ -376,6 +377,13 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
 
     override registerCommands(registry: CommandRegistry): void {
         super.registerCommands(registry);
+        this.openWithService.registerHandler({
+            id: 'rockit.csv-table-editor',
+            label: nls.localize('rockit/fileExplorer/csvTableEditor', 'CSV Table Editor'),
+            providerName: nls.localize('rockit/fileExplorer/editCsv', 'Edit CSV'),
+            canHandle: uri => ['.csv', '.tsv', '.tab'].includes(uri.path.ext.toLowerCase()) ? 500 : 0,
+            open: uri => this.openCsvTableEditor(registry, uri)
+        });
         registry.registerCommand(FileNavigatorCommands.FOCUS, {
             execute: () => this.openView({ activate: true })
         });
@@ -489,10 +497,8 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             isEnabled: () => this.getSelectedFileNodes().length > 0,
             isVisible: () => this.getSelectedFileNodes().length > 0,
             execute: () => {
-                this.getSelectedFileNodes().forEach(async node => {
-                    const opener = await this.openerService.getOpener(node.uri);
-                    opener.open(node.uri);
-                });
+                const model = this.tryGetWidget()?.model;
+                this.getSelectedFileNodes().forEach(node => model?.openNode(node));
             }
         });
         registry.registerCommand(FileNavigatorCommands.OPEN_WITH, UriAwareCommandHandler.MonoSelect(this.selectionService, {
@@ -521,6 +527,12 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             isEnabled: widget => this.withWidget(widget, () => this.workspaceService.opened),
             isVisible: widget => this.withWidget(widget, () => this.workspaceService.opened)
         });
+    }
+
+    protected async openCsvTableEditor(registry: CommandRegistry, uri: URI): Promise<object> {
+        await open(this.openerService, uri, { mode: 'activate', preview: true });
+        await registry.executeCommand('edit-csv.edit');
+        return {};
     }
 
     protected getSelectedFileNodes(): FileNode[] {
@@ -1221,12 +1233,12 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
 
         registry.registerMenuAction(NavigatorContextMenu.NAVIGATION, {
             commandId: FileNavigatorCommands.OPEN.id,
-            label: nls.localizeByDefault('Open')
+            label: nls.localize('rockit/fileExplorer/open', 'Open')
         });
         registry.registerMenuAction(NavigatorContextMenu.NAVIGATION, {
             commandId: FileNavigatorCommands.OPEN_WITH.id,
             when: '!explorerResourceIsFolder',
-            label: nls.localizeByDefault('Open With...')
+            label: nls.localize('rockit/fileExplorer/openWith', 'Open With...')
         });
 
         registry.registerMenuAction(NavigatorContextMenu.CLIPBOARD, {

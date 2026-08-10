@@ -1,6 +1,6 @@
 {
-  "name": "file-explorer",
-  "version": "0.0.0",
+  "name": "@theia/navigator",
+  "version": "1.65.2",
   "description": "Theia - Navigator Extension",
   "dependencies": {
     "@theia/core": "1.65.2",
@@ -12,6 +12,7 @@
     "rockit-common": "0.0.0",
     "data-sources": "0.0.0",
     "minimatch": "^10.0.3",
+    "open-editors": "0.0.0",
     "tslib": "^2.6.2"
   },
   "publishConfig": {

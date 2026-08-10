@@ -24,7 +24,9 @@ import {
   TreeProps,
   TreeWidget,
 } from '@theia/core/lib/browser'
+import { Endpoint } from '@theia/core/lib/browser/endpoint'
 import { nls } from '@theia/core/lib/common/nls'
+import type URI from '@theia/core/lib/common/uri'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -207,8 +209,6 @@ export class ResourcePropertyViewTreeWidget
     fileStat: FileStat,
   ): Promise<ResourcePropertiesCategoryNode | null> {
     try {
-      const content = await this.fileService.read(fileStat.resource)
-      const contentString = content.value
       const fileName = this.getFileName(fileStat)
       const fileExtension = fileName.split('.').pop()?.toLowerCase() || ''
 
@@ -218,26 +218,83 @@ export class ResourcePropertyViewTreeWidget
         nls.localize('rockit/filePreview/title', 'File Preview'),
       )
 
-      // Check if it's an image file
-      const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp']
+      const imageExtensions = [
+        'png',
+        'jpg',
+        'jpe',
+        'jpeg',
+        'gif',
+        'bmp',
+        'svg',
+        'webp',
+        'avif',
+        'ico',
+      ]
+      const audioExtensions = ['mp3', 'wav', 'ogg', 'oga']
+      const videoExtensions = ['mp4', 'webm']
+      const csvExtensions = ['csv', 'tsv', 'tab']
+      const previewUrl = this.getPreviewUrl(fileStat.resource)
+
       if (imageExtensions.includes(fileExtension)) {
-        // For images, create a special item node with image URI
         contentNode.children.push(
           this.createResultLineNode(
             'imageContent',
             '',
-            `IMAGE::${fileStat.resource.toString()}`,
+            `IMAGE::${previewUrl}`,
+            contentNode,
+          ),
+        )
+      } else if (audioExtensions.includes(fileExtension)) {
+        contentNode.children.push(
+          this.createResultLineNode(
+            'audioContent',
+            '',
+            `AUDIO::${previewUrl}`,
+            contentNode,
+          ),
+        )
+      } else if (videoExtensions.includes(fileExtension)) {
+        contentNode.children.push(
+          this.createResultLineNode(
+            'videoContent',
+            '',
+            `VIDEO::${previewUrl}`,
+            contentNode,
+          ),
+        )
+      } else if (fileExtension === 'pdf') {
+        contentNode.children.push(
+          this.createResultLineNode(
+            'pdfContent',
+            '',
+            `PDF::${previewUrl}`,
+            contentNode,
+          ),
+        )
+      } else if (csvExtensions.includes(fileExtension)) {
+        const content = await this.fileService.read(fileStat.resource)
+        const delimiter = fileExtension === 'csv' ? ',' : '\t'
+        const parsedRows = this.parseDelimitedText(content.value, delimiter)
+        const previewRowLimit = 100
+        contentNode.children.push(
+          this.createResultLineNode(
+            'csvContent',
+            '',
+            `CSV::${JSON.stringify({
+              rows: parsedRows.slice(0, previewRowLimit + 1),
+              truncated: parsedRows.length > previewRowLimit + 1,
+            })}`,
             contentNode,
           ),
         )
       } else {
-        // For text files, create an item node with content and language info
+        const content = await this.fileService.read(fileStat.resource)
         const language = this.guessLanguage(fileExtension)
         contentNode.children.push(
           this.createResultLineNode(
             'textContent',
             '',
-            `TEXT::${contentString}::${language}`,
+            `TEXT::${content.value}::${language}`,
             contentNode,
           ),
         )
@@ -263,6 +320,54 @@ export class ResourcePropertyViewTreeWidget
       )
       return contentNode
     }
+  }
+
+  protected getPreviewUrl(resource: URI): string {
+    if (resource.scheme === 'file') {
+      return new Endpoint({ path: 'file' })
+        .getRestUrl()
+        .withQuery(resource.toString())
+        .toString()
+    }
+    return resource.toString()
+  }
+
+  protected parseDelimitedText(content: string, delimiter: string): string[][] {
+    const rows: string[][] = []
+    let row: string[] = []
+    let field = ''
+    let quoted = false
+
+    for (let index = 0; index < content.length; index += 1) {
+      const character = content[index]
+      if (character === '"') {
+        if (quoted && content[index + 1] === '"') {
+          field += '"'
+          index += 1
+        } else {
+          quoted = !quoted
+        }
+      } else if (character === delimiter && !quoted) {
+        row.push(field)
+        field = ''
+      } else if ((character === '\n' || character === '\r') && !quoted) {
+        if (character === '\r' && content[index + 1] === '\n') {
+          index += 1
+        }
+        row.push(field)
+        rows.push(row)
+        row = []
+        field = ''
+      } else {
+        field += character
+      }
+    }
+
+    if (field.length > 0 || row.length > 0) {
+      row.push(field)
+      rows.push(row)
+    }
+    return rows
   }
 
   protected guessLanguage(fileExtension: string): string {
@@ -385,7 +490,10 @@ export class ResourcePropertyViewTreeWidget
   protected async refreshModelChildren(): Promise<void> {
     if (ResourcePropertiesRoot.is(this.model.root)) {
       this.model.root.children = Array.from(this.propertiesTree.values())
-      this.model.refresh()
+      await this.model.refresh()
+      // Each new file starts with its metadata in view; the media preview
+      // remains directly below it in the same scrollable widget.
+      this.node.scrollTop = 0
     }
   }
 
@@ -442,6 +550,79 @@ export class ResourcePropertyViewTreeWidget
             src={imageUrl}
             alt={nls.localize('rockit/filePreview/imagePreview', 'Image preview')}
           />
+        </div>
+      )
+    } else if (node.property.startsWith('AUDIO::')) {
+      const audioUrl = node.property.substring(7)
+      return (
+        <div className="resource-content-media-container resource-content-audio-container">
+          <audio
+            src={audioUrl}
+            controls
+            preload="metadata"
+            aria-label={nls.localize('rockit/filePreview/audioPreview', 'Audio preview')}
+          />
+        </div>
+      )
+    } else if (node.property.startsWith('VIDEO::')) {
+      const videoUrl = node.property.substring(7)
+      return (
+        <div className="resource-content-media-container resource-content-video-container">
+          <video
+            src={videoUrl}
+            controls
+            preload="metadata"
+            playsInline
+            aria-label={nls.localize('rockit/filePreview/videoPreview', 'Video preview')}
+          />
+        </div>
+      )
+    } else if (node.property.startsWith('PDF::')) {
+      const pdfUrl = node.property.substring(5)
+      return (
+        <div className="resource-content-pdf-container">
+          <iframe
+            src={pdfUrl}
+            title={nls.localize('rockit/filePreview/pdfPreview', 'PDF preview')}
+          />
+        </div>
+      )
+    } else if (node.property.startsWith('CSV::')) {
+      const preview = JSON.parse(node.property.substring(5)) as {
+        rows: string[][]
+        truncated: boolean
+      }
+      const [header = [], ...rows] = preview.rows
+      return (
+        <div className="resource-content-csv-container">
+          <table>
+            {header.length > 0 && (
+              <thead>
+                <tr>
+                  {header.map((value, index) => (
+                    <th key={index}>{value}</th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {rows.map((values, rowIndex) => (
+                <tr key={rowIndex}>
+                  {values.map((value, columnIndex) => (
+                    <td key={columnIndex}>{value}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {preview.truncated && (
+            <div className="resource-content-preview-truncated">
+              {nls.localize(
+                'rockit/filePreview/tableTruncated',
+                'Showing the first 100 data rows.',
+              )}
+            </div>
+          )}
         </div>
       )
     } else if (node.property.startsWith('TEXT::')) {
