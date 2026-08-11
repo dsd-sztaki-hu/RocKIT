@@ -1695,6 +1695,14 @@ export class ZenodoExportService {
     })
   }
 
+  public async markExportTargetFailed(target: DataRepositoryExportTarget, message: string): Promise<void> {
+    await this.appendExportLog(this.getWorkspaceRoot(), {
+      ...target,
+      status: 'failed',
+      errorMessage: message,
+    })
+  }
+
   protected async readExportLogEntries(logUri: URI): Promise<ExportLogEntry[]> {
     if (!(await this.fileService.exists(logUri))) {
       return []

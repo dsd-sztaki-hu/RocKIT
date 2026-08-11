@@ -45,7 +45,16 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
         @inject(OpenerService) protected readonly openerService: OpenerService
     ) { }
 
-    async initializeLayout(): Promise<void> { }
+    async initializeLayout(): Promise<void> {
+        const widget = await this.widgetManager.getOrCreateWidget<DataRepositoryManagerWidget>(
+            DATA_REPOSITORY_MANAGER_WIDGET_ID
+        );
+        setTimeout(() => {
+            void widget.offerInterruptedExportRecovery().catch(error =>
+                console.error('Failed to offer interrupted export recovery:', error)
+            );
+        }, 0);
+    }
 
     registerCommands(commands: CommandRegistry): void {
         commands.registerCommand(DataRepositoryManagerCommands.OPEN, {

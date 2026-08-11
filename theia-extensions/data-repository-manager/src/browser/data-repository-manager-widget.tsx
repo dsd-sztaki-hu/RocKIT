@@ -51,7 +51,7 @@ import {
   ZenodoMetadataDialogCancelledError,
 } from './services/zenodo-export-service'
 import type { DataRepositoryCapabilities } from './types'
-import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
+import { DataRepositoryConfig, DataRepositoryExportTarget, DataRepositorySelection } from './types'
 import './styles/index.css'
 
 export const DATA_REPOSITORY_MANAGER_WIDGET_ID = 'data-repository-manager:widget'
@@ -393,7 +393,60 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     this.handleExportToRemote()
   }
 
-  public async handleExportToRemote(): Promise<void> {
+  public async offerInterruptedExportRecovery(): Promise<void> {
+    const repositories = await this.storeService.loadRepositories()
+    const targetsByRepository = this.mergeExportTargets(
+      await this.arpExportService.listExportTargets(repositories),
+      await this.nativeExportService.listExportTargets(repositories),
+      await this.zenodoExportService.listExportTargets(repositories),
+    )
+    for (const repository of repositories) {
+      for (const target of targetsByRepository[repository.id] ?? []) {
+        if (target.status !== 'cancelled') {
+          continue
+        }
+        const capabilities = await this.capabilityService.detectRepositoryCapabilities(
+          repository.baseUrl,
+          repository.apiKey,
+        )
+        const resume = await new ConfirmDialog({
+          title: nls.localize(
+            'rockit/dataRepository/interruptedExport',
+            'Interrupted export',
+          ),
+          msg: nls.localize(
+            'rockit/dataRepository/resumeInterruptedExport',
+            'The export to {0} was interrupted. Do you want to continue it?',
+            target.datasetName || target.target,
+          ),
+          ok: nls.localize('rockit/dataRepository/continueExport', 'Continue'),
+          cancel: nls.localize('rockit/dataRepository/doNotContinueExport', 'Do not continue'),
+        }).open()
+        if (resume) {
+          await this.handleExportToRemote({
+            repository,
+            capabilities,
+            exportTarget: target,
+            action: 'export',
+          })
+        } else {
+          const message = nls.localize(
+            'rockit/dataRepository/userDeclinedExportRecovery',
+            'User chose not to continue the interrupted export.',
+          )
+          if (capabilities.supportsZenodoApi) {
+            await this.zenodoExportService.markExportTargetFailed(target, message)
+          } else if (capabilities.supportsArpRoCrateZipUpload) {
+            await this.arpExportService.markExportTargetFailed(target, message)
+          } else {
+            await this.nativeExportService.markExportTargetFailed(target, message)
+          }
+        }
+      }
+    }
+  }
+
+  public async handleExportToRemote(recoverySelection?: DataRepositorySelection): Promise<void> {
     if (this.hasUnsavedRoCrateChanges()) {
       this.messageService.warn(
         nls.localize(
@@ -429,8 +482,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       await this.zenodoExportService.listExportTargets(repositories),
     )
 
-    // Show repository selector first, matching the UX requested.
-    const selector = new DataRepositorySelectorDialog(
+    const selector = recoverySelection ? undefined : new DataRepositorySelectorDialog(
       repositories,
       this.storeService,
       this.dataverseService,
@@ -444,7 +496,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       async (repository, target, action) =>
         this.handleDeleteExportTarget(repository, target, action),
     )
-    const repositorySelection = await selector.open()
+    const repositorySelection = recoverySelection ?? await selector!.open()
 
     if (!repositorySelection) {
       return // User cancelled
