@@ -351,7 +351,8 @@ export class ArpRoCrateImportService {
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile: mappingFileName,
       syncType: 'update',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(crate),
     })
     return mappingFileName

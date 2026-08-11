@@ -214,7 +214,13 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                         {this.formatTargetLinkLabel(target)}
                                     </a>
                                     <div className="data-repo-selector__export-meta">
-                                        {nls.localize('rockit/dataRepository/lastUpdated', 'Last updated {0}', this.formatDate(target.syncedAt))}
+                                        {target.lastSuccessfulActionAt
+                                            ? nls.localize(
+                                                'rockit/dataRepository/lastSuccessfullyModified',
+                                                'Last successfully modified {0}',
+                                                this.formatDate(target.lastSuccessfulActionAt)
+                                            )
+                                            : ''}
                                     </div>
                                 </div>
                                 <div className="data-repo-selector__export-actions">

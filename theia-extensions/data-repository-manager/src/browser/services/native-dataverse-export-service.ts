@@ -361,7 +361,7 @@ export class NativeDataverseExportService {
             mappingFile: mappingFileName,
             crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
             syncType: 'create',
-            syncedAt: new Date().toISOString(),
+            status: 'failed',
             datasetName: this.getRootDatasetName(crate),
             collectionId
         });
@@ -415,7 +415,8 @@ export class NativeDataverseExportService {
             mappingFile: mappingFileName,
             crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
             syncType: 'create',
-            syncedAt: new Date().toISOString(),
+            status: 'success',
+            lastSuccessfulActionAt: new Date().toISOString(),
             collectionId
         });
         const unmappedEntityIds = Object.entries(entityIdMapping)
@@ -531,7 +532,7 @@ export class NativeDataverseExportService {
             mappingFile: mappingFileName,
             crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
             syncType: 'update',
-            syncedAt: new Date().toISOString(),
+            status: 'failed',
             collectionId: exportTarget.exportLogEntry.collectionId
         });
 
@@ -611,7 +612,8 @@ export class NativeDataverseExportService {
             mappingFile: mappingFileName,
             crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
             syncType: 'update',
-            syncedAt: new Date().toISOString(),
+            status: 'success',
+            lastSuccessfulActionAt: new Date().toISOString(),
             collectionId: exportTarget.exportLogEntry.collectionId
         });
         const enabledMetadataBlocks = exportTarget.exportLogEntry.collectionId
@@ -672,6 +674,11 @@ export class NativeDataverseExportService {
     if (!exportTarget) {
       return undefined
     }
+    await this.appendExportLog(rootUri, {
+      ...exportTarget.exportLogEntry,
+      syncType: 'sync',
+      status: 'failed',
+    })
 
     reportProgress?.({
       completedSteps: 0,
@@ -815,7 +822,8 @@ export class NativeDataverseExportService {
       mappingFile: exportTarget.exportLogEntry.mappingFile,
       crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'sync',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       collectionId: exportTarget.exportLogEntry.collectionId,
       datasetName: this.getRootDatasetName(reverseResult.crate),
     })
@@ -1066,14 +1074,14 @@ export class NativeDataverseExportService {
           repository: entry.repository,
           mappingFile: entry.mappingFile,
           crosswalkFile: entry.crosswalkFile,
-          syncedAt: entry.syncedAt,
+          lastSuccessfulActionAt: entry.lastSuccessfulActionAt,
           syncType: entry.syncType,
           datasetName: currentDatasetName,
         })
       }
       targetsByRepositoryId[repository.id] = Array.from(
         latestByMappingFile.values(),
-      ).sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
+      ).sort((a, b) => (b.lastSuccessfulActionAt ?? '').localeCompare(a.lastSuccessfulActionAt ?? ''))
     }
 
     return targetsByRepositoryId
@@ -2698,7 +2706,7 @@ export class NativeDataverseExportService {
             mappingFile: selectedTarget.mappingFile,
             crosswalkFile: selectedTarget.crosswalkFile,
             syncType: selectedTarget.syncType,
-            syncedAt: selectedTarget.syncedAt,
+            lastSuccessfulActionAt: selectedTarget.lastSuccessfulActionAt,
           }
         : undefined
     const entry = selectedEntry ?? selectedFallbackEntry ?? matchingEntries[0]

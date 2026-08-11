@@ -1222,12 +1222,12 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         )
         for (const target of targets) {
           const previous = latestByMappingFile.get(target.mappingFile)
-          if (!previous || previous.syncedAt.localeCompare(target.syncedAt) < 0) {
+          if (!previous || (previous.lastSuccessfulActionAt ?? '').localeCompare(target.lastSuccessfulActionAt ?? '') < 0) {
             latestByMappingFile.set(target.mappingFile, target)
           }
         }
         merged[repositoryId] = Array.from(latestByMappingFile.values()).sort((a, b) =>
-          b.syncedAt.localeCompare(a.syncedAt),
+          (b.lastSuccessfulActionAt ?? '').localeCompare(a.lastSuccessfulActionAt ?? ''),
         )
       }
     }

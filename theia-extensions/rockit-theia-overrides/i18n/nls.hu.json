@@ -688,7 +688,7 @@
       "chooseRepositoryDescription": "Válasszon repozitóriumot a gyűjtemények böngészéséhez.",
       "noRepositoriesFound": "Nem találhatók repozitóriumok",
       "noRepositoriesConfigured": "Még nincs beállítva adatrepozitórium.",
-      "lastUpdated": "Utoljára frissítve: {0}",
+      "lastSuccessfullyModified": "Utolsó sikeres módosítás: {0}",
       "update": "Frissítés",
       "displayNameRequired": "A megjelenítendő név megadása kötelező.",
       "baseUrlRequired": "Az alap-URL megadása kötelező.",

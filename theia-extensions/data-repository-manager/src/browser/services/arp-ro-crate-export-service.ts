@@ -214,7 +214,7 @@ export class ArpRoCrateExportService {
       mappingFile: mappingFileName,
       crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'create',
-      syncedAt: new Date().toISOString(),
+      status: 'failed',
       datasetName: this.getRootDatasetName(crate),
       collectionId: collection.alias || collection.id,
     })
@@ -284,7 +284,8 @@ export class ArpRoCrateExportService {
       mappingFile: mappingFileName,
       crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'create',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(crate),
     })
     const unmappedEntityIds = Object.entries(metadataIdMapping)
@@ -427,7 +428,7 @@ export class ArpRoCrateExportService {
       mappingFile: mappingFileName,
       crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'update',
-      syncedAt: new Date().toISOString(),
+      status: 'failed',
       datasetName: this.getRootDatasetName(metadataCrate),
     })
     for (const file of diff.newFiles) {
@@ -588,7 +589,8 @@ export class ArpRoCrateExportService {
       mappingFile: mappingFileName,
       crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'update',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(metadataCrate),
     })
     const unmappedEntityIds = Object.entries(metadataMapping)
@@ -643,13 +645,13 @@ export class ArpRoCrateExportService {
           repository: entry.repository,
           mappingFile: entry.mappingFile,
           crosswalkFile: entry.crosswalkFile,
-          syncedAt: entry.syncedAt,
+          lastSuccessfulActionAt: entry.lastSuccessfulActionAt,
           syncType: entry.syncType,
           datasetName: currentDatasetName ?? entry.datasetName,
         })
       }
       targetsByRepositoryId[repository.id] = Array.from(latestByMappingFile.values())
-        .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
+        .sort((a, b) => (b.lastSuccessfulActionAt ?? '').localeCompare(a.lastSuccessfulActionAt ?? ''))
     }
 
     return targetsByRepositoryId
@@ -898,6 +900,11 @@ export class ArpRoCrateExportService {
         ),
       )
     }
+    await this.appendExportLog(rootUri, {
+      ...exportTarget.exportLogEntry,
+      syncType: 'sync',
+      status: 'failed',
+    })
 
     const remoteCrate = await this.fetchRemoteRoCrate(
       baseUrl,
@@ -1008,7 +1015,8 @@ export class ArpRoCrateExportService {
       mappingFile: mappingFileName,
       crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'sync',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(localizedRemoteCrate),
     })
 
@@ -1260,7 +1268,7 @@ export class ArpRoCrateExportService {
             mappingFile: selectedTarget.mappingFile,
             crosswalkFile: selectedTarget.crosswalkFile,
             syncType: selectedTarget.syncType,
-            syncedAt: selectedTarget.syncedAt,
+            lastSuccessfulActionAt: selectedTarget.lastSuccessfulActionAt,
             datasetName: selectedTarget.datasetName,
           }
         : undefined

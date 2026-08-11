@@ -232,7 +232,7 @@ export class ZenodoExportService {
       mappingFile: mappingFileName,
       crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'create',
-      syncedAt: new Date().toISOString(),
+      status: 'failed',
       datasetName: this.getRootDatasetName(crate),
     })
     for (const file of uploadFiles) {
@@ -340,7 +340,8 @@ export class ZenodoExportService {
       mappingFile: mappingFileName,
       crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'create',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(crate),
     })
     const unmappedEntityIds = Object.entries(metadataMapping)
@@ -500,7 +501,7 @@ export class ZenodoExportService {
       mappingFile: exportTarget.mappingFile,
       crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'update',
-      syncedAt: new Date().toISOString(),
+      status: 'failed',
       datasetName: this.getRootDatasetName(crate),
     })
 
@@ -587,7 +588,8 @@ export class ZenodoExportService {
       mappingFile: exportTarget.mappingFile,
       crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'update',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(crate),
     })
     const unmappedEntityIds = Object.entries(metadataMapping)
@@ -651,6 +653,16 @@ export class ZenodoExportService {
         'This Zenodo export target has no local mapping file. Sync cannot safely place remote files in the workspace.',
       ))
     }
+    await this.appendExportLog(rootUri, {
+      target: exportTarget.target,
+      repository: baseUrl,
+      mappingFile: exportTarget.mappingFile,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
+      datasetName: exportTarget.datasetName,
+      syncType: 'sync',
+      status: 'failed',
+      lastSuccessfulActionAt: exportTarget.lastSuccessfulActionAt,
+    })
 
     reportProgress?.({
       completedSteps: 0,
@@ -756,7 +768,8 @@ export class ZenodoExportService {
       mappingFile: exportTarget.mappingFile,
       crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'sync',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(reverseResult.crate),
     })
     reportProgress?.({
@@ -813,13 +826,13 @@ export class ZenodoExportService {
           repository: entry.repository,
           mappingFile: entry.mappingFile,
           crosswalkFile: entry.crosswalkFile,
-          syncedAt: entry.syncedAt,
+          lastSuccessfulActionAt: entry.lastSuccessfulActionAt,
           syncType: entry.syncType,
           datasetName: currentDatasetName ?? entry.datasetName,
         })
       }
       targetsByRepositoryId[repository.id] = Array.from(latestByMappingFile.values())
-        .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
+        .sort((a, b) => (b.lastSuccessfulActionAt ?? '').localeCompare(a.lastSuccessfulActionAt ?? ''))
     }
 
     return targetsByRepositoryId
