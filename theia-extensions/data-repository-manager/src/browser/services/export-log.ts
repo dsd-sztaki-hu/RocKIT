@@ -43,6 +43,7 @@ export function normalizeExportLogEntries(value: unknown): ExportLogEntry[] {
         if (!events.length) {
             continue;
         }
+        const { syncedAt: _syncedAt, ...normalizedRecord } = record;
         const key = `${normalizeUrl(repository)}\n${mappingFile}`;
         const previous = grouped.get(key);
         const candidateLatest = events[events.length - 1];
@@ -52,7 +53,7 @@ export function normalizeExportLogEntries(value: unknown): ExportLogEntry[] {
             : previous?.lastSuccessfulActionAt;
         grouped.set(key, {
             ...previous,
-            ...record,
+            ...normalizedRecord,
             target,
             repository,
             mappingFile,
@@ -82,10 +83,12 @@ export function serializeExportLogEntries(entries: ExportLogEntry[]): object[] {
             syncType,
             log: _log,
             lastSuccessfulActionAt: _lastSuccessfulActionAt,
+            syncedAt: _syncedAt,
             ...record
         } = entry as ExportLogEntry & {
             log?: unknown;
             lastSuccessfulActionAt?: unknown;
+            syncedAt?: unknown;
         };
         return {
             ...record,
@@ -119,7 +122,7 @@ function readEvents(record: Record<string, unknown>): ExportLogEvent[] {
         }
     }
     const legacyAction = record.syncType;
-    const timestamp = stringValue(record.lastSuccessfulActionAt);
+    const timestamp = stringValue(record.lastSuccessfulActionAt) || stringValue(record.syncedAt);
     const status = readStatus(record.status) ?? 'success';
     if ((legacyAction === 'create' || legacyAction === 'update' || legacyAction === 'sync') && (timestamp || status !== 'success')) {
         const crosswalkFile = optionalString(record.crosswalkFile);
