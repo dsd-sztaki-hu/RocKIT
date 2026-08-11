@@ -495,6 +495,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           )
           console.log('Zenodo sync completed:', syncResult)
         } catch (error) {
+          await this.zenodoExportService.markActiveExportFailed(error)
           console.error('Zenodo sync failed:', error)
           this.messageService.error(
             nls.localize(
@@ -637,6 +638,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         if (error instanceof ZenodoMetadataDialogCancelledError) {
           return
         }
+        await this.zenodoExportService.markActiveExportFailed(error)
         console.error('Zenodo RO-Crate export failed:', error)
         this.messageService.error(
           nls.localize(
@@ -725,6 +727,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         }
         console.log('ARP sync completed:', syncResult)
       } catch (error) {
+        await this.arpExportService.markActiveExportFailed(error)
         console.error('ARP sync failed:', error)
         this.messageService.error(
           nls.localize(
@@ -786,6 +789,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           console.log('Native Dataverse sync completed:', syncResult)
         }
       } catch (error) {
+        await this.nativeExportService.markActiveExportFailed(error)
         console.error('Native Dataverse sync failed:', error)
         this.messageService.error(
           nls.localize(
@@ -849,6 +853,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           return
         }
       } catch (error) {
+        await this.arpExportService.markActiveExportFailed(error)
         console.error('ARP file update failed:', error)
         if (error instanceof ArpRoCrateValidationError) {
           progress.cancel()
@@ -906,6 +911,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           return
         }
       } catch (error) {
+        await this.nativeExportService.markActiveExportFailed(error)
         console.error('Native Dataverse update failed:', error)
         this.messageService.error(
           nls.localize(
@@ -1038,6 +1044,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           }
           console.log('RO-Crate exported to ARP:', exportResult)
         } catch (error) {
+          await this.arpExportService.markActiveExportFailed(error)
           console.error('RO-Crate export failed:', error)
           if (error instanceof ArpRoCrateValidationError) {
             progress.cancel()
@@ -1130,6 +1137,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         }
         console.log('Dataverse dataset created through native API:', creationResult)
       } catch (error) {
+        await this.nativeExportService.markActiveExportFailed(error)
         console.error('Native Dataverse dataset creation failed:', error)
         this.messageService.error(
           nls.localize(

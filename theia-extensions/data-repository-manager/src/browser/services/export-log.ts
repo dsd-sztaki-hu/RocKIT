@@ -16,6 +16,7 @@ export interface ExportLogEntry {
     datasetName?: string;
     collectionId?: string;
     status?: ExportLogStatus;
+    errorMessage?: string;
     /** Derived compatibility fields used by the existing export services. */
     syncType: ExportLogAction;
     lastSuccessfulActionAt?: string;
@@ -60,6 +61,7 @@ export function normalizeExportLogEntries(value: unknown): ExportLogEntry[] {
                 ?? previous?.crosswalkFile,
             datasetName: optionalString(record.datasetName) ?? previous?.datasetName,
             status: latest.status,
+            errorMessage: latest.status === 'failed' ? optionalString(record.errorMessage) ?? '' : '',
             syncType: latest.action,
             ...(lastSuccessfulActionAt ? { lastSuccessfulActionAt } : {})
         } as ExportLogEntry);

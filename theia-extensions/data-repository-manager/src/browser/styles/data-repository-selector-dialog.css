@@ -269,6 +269,36 @@
     white-space: nowrap;
 }
 
+.data-repo-selector__export-failure-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 3px;
+    color: var(--theia-errorForeground, #f14c4c);
+    font-size: 0.78em;
+}
+
+.data-repo-selector__export-failure-status {
+    font-weight: 600;
+}
+
+.data-repo-selector__export-error-details {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.data-repo-selector__export-error-details svg {
+    font-size: 14px;
+}
+
 .data-repo-selector__export-status {
     display: inline-block;
     margin-top: 3px;

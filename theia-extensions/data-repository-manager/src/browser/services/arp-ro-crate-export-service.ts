@@ -127,6 +127,7 @@ const DATAVERSE_CROSSWALK_FILE_NAME = 'arp-dataverse-crosswalk.json'
 
 @injectable()
 export class ArpRoCrateExportService {
+  protected activeExportLogEntry: ExportLogEntry | undefined
   constructor(
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
@@ -214,7 +215,7 @@ export class ArpRoCrateExportService {
       mappingFile: mappingFileName,
       crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'create',
-      status: 'failed',
+      status: 'cancelled',
       datasetName: this.getRootDatasetName(crate),
       collectionId: collection.alias || collection.id,
     })
@@ -428,7 +429,7 @@ export class ArpRoCrateExportService {
       mappingFile: mappingFileName,
       crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'update',
-      status: 'failed',
+      status: 'cancelled',
       datasetName: this.getRootDatasetName(metadataCrate),
     })
     for (const file of diff.newFiles) {
@@ -647,6 +648,8 @@ export class ArpRoCrateExportService {
           crosswalkFile: entry.crosswalkFile,
           lastSuccessfulActionAt: entry.lastSuccessfulActionAt,
           syncType: entry.syncType,
+          status: entry.status,
+          errorMessage: entry.errorMessage,
           datasetName: currentDatasetName ?? entry.datasetName,
         })
       }
@@ -903,7 +906,7 @@ export class ArpRoCrateExportService {
     await this.appendExportLog(rootUri, {
       ...exportTarget.exportLogEntry,
       syncType: 'sync',
-      status: 'failed',
+      status: 'cancelled',
     })
 
     const remoteCrate = await this.fetchRemoteRoCrate(
@@ -2589,6 +2592,19 @@ export class ArpRoCrateExportService {
       historyUri,
       BinaryBuffer.fromString(`${JSON.stringify(serializeExportLogEntries(nextEntries), null, 2)}\n`),
     )
+    this.activeExportLogEntry = entry.status === 'cancelled' ? entry : undefined
+  }
+
+  public async markActiveExportFailed(error: unknown): Promise<void> {
+    const entry = this.activeExportLogEntry
+    if (!entry) {
+      return
+    }
+    await this.appendExportLog(this.getWorkspaceRoot(), {
+      ...entry,
+      status: 'failed',
+      errorMessage: error instanceof Error ? error.message : String(error),
+    })
   }
 
   protected async readExportLogEntries(historyUri: URI): Promise<ExportLogEntry[]> {

@@ -130,6 +130,7 @@ export class ZenodoMetadataDialogCancelledError extends Error {
 
 @injectable()
 export class ZenodoExportService {
+  protected activeExportLogEntry: ExportLogEntry | undefined
   constructor(
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
@@ -232,7 +233,7 @@ export class ZenodoExportService {
       mappingFile: mappingFileName,
       crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'create',
-      status: 'failed',
+      status: 'cancelled',
       datasetName: this.getRootDatasetName(crate),
     })
     for (const file of uploadFiles) {
@@ -501,7 +502,7 @@ export class ZenodoExportService {
       mappingFile: exportTarget.mappingFile,
       crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'update',
-      status: 'failed',
+      status: 'cancelled',
       datasetName: this.getRootDatasetName(crate),
     })
 
@@ -660,7 +661,7 @@ export class ZenodoExportService {
       crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       datasetName: exportTarget.datasetName,
       syncType: 'sync',
-      status: 'failed',
+      status: 'cancelled',
       lastSuccessfulActionAt: exportTarget.lastSuccessfulActionAt,
     })
 
@@ -828,6 +829,8 @@ export class ZenodoExportService {
           crosswalkFile: entry.crosswalkFile,
           lastSuccessfulActionAt: entry.lastSuccessfulActionAt,
           syncType: entry.syncType,
+          status: entry.status,
+          errorMessage: entry.errorMessage,
           datasetName: currentDatasetName ?? entry.datasetName,
         })
       }
@@ -1677,6 +1680,19 @@ export class ZenodoExportService {
       logUri,
       BinaryBuffer.fromString(`${JSON.stringify(serializeExportLogEntries(nextEntries), null, 2)}\n`),
     )
+    this.activeExportLogEntry = entry.status === 'cancelled' ? entry : undefined
+  }
+
+  public async markActiveExportFailed(error: unknown): Promise<void> {
+    const entry = this.activeExportLogEntry
+    if (!entry) {
+      return
+    }
+    await this.appendExportLog(this.getWorkspaceRoot(), {
+      ...entry,
+      status: 'failed',
+      errorMessage: error instanceof Error ? error.message : String(error),
+    })
   }
 
   protected async readExportLogEntries(logUri: URI): Promise<ExportLogEntry[]> {

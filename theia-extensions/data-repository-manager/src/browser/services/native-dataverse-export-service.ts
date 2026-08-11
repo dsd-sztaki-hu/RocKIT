@@ -278,6 +278,7 @@ const DATAVERSE_SEMANTIC_METADATA_BLOCKS: Record<
 
 @injectable()
 export class NativeDataverseExportService {
+  protected activeExportLogEntry: ExportLogEntry | undefined
   constructor(
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
@@ -361,7 +362,7 @@ export class NativeDataverseExportService {
             mappingFile: mappingFileName,
             crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
             syncType: 'create',
-            status: 'failed',
+            status: 'cancelled',
             datasetName: this.getRootDatasetName(crate),
             collectionId
         });
@@ -532,7 +533,7 @@ export class NativeDataverseExportService {
             mappingFile: mappingFileName,
             crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
             syncType: 'update',
-            status: 'failed',
+            status: 'cancelled',
             collectionId: exportTarget.exportLogEntry.collectionId
         });
 
@@ -677,7 +678,7 @@ export class NativeDataverseExportService {
     await this.appendExportLog(rootUri, {
       ...exportTarget.exportLogEntry,
       syncType: 'sync',
-      status: 'failed',
+      status: 'cancelled',
     })
 
     reportProgress?.({
@@ -1076,6 +1077,8 @@ export class NativeDataverseExportService {
           crosswalkFile: entry.crosswalkFile,
           lastSuccessfulActionAt: entry.lastSuccessfulActionAt,
           syncType: entry.syncType,
+          status: entry.status,
+          errorMessage: entry.errorMessage,
           datasetName: currentDatasetName,
         })
       }
@@ -2926,6 +2929,19 @@ export class NativeDataverseExportService {
         `${JSON.stringify(serializeExportLogEntries(nextEntries), null, 2)}\n`,
       ),
     )
+    this.activeExportLogEntry = entry.status === 'cancelled' ? entry : undefined
+  }
+
+  public async markActiveExportFailed(error: unknown): Promise<void> {
+    const entry = this.activeExportLogEntry
+    if (!entry) {
+      return
+    }
+    await this.appendExportLog(this.getWorkspaceRoot(), {
+      ...entry,
+      status: 'failed',
+      errorMessage: error instanceof Error ? error.message : String(error),
+    })
   }
 
   protected async readExportLogEntries(logUri: URI): Promise<ExportLogEntry[]> {

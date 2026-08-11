@@ -10,6 +10,8 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import {
     DataRepositoryConfig,
     DataRepositoryExportTarget,
@@ -99,6 +101,17 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         if (result) {
             await this.storeService.saveRepository(result);
         }
+    }
+
+    protected showExportError(target: DataRepositoryExportTarget): void {
+        const dialog = new ConfirmDialog({
+            title: nls.localize('rockit/dataRepository/exportErrorDetails', 'Export error details'),
+            msg: target.errorMessage || nls.localize(
+                'rockit/dataRepository/noErrorDetailsAvailable',
+                'No error details are available.'
+            ),
+        });
+        void dialog.open();
     }
 
     protected async handleDeleteExport(
@@ -222,6 +235,28 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                             )
                                             : ''}
                                     </div>
+                                    {(target.status === 'failed' || target.status === 'cancelled') && (
+                                        <div className="data-repo-selector__export-failure-row">
+                                            <span className="data-repo-selector__export-failure-status">
+                                                {target.status === 'failed'
+                                                    ? nls.localize('rockit/dataRepository/exportFailedStatus', 'Failed')
+                                                    : nls.localize('rockit/dataRepository/exportCancelledStatus', 'Cancelled')}
+                                            </span>
+                                            {target.status === 'failed' && (
+                                                <button
+                                                    className="data-repo-selector__export-error-details"
+                                                    title={nls.localize('rockit/dataRepository/showErrorDetails', 'Show error details')}
+                                                    onClick={event => {
+                                                        event.stopPropagation();
+                                                        this.showExportError(target);
+                                                    }}
+                                                >
+                                                    <ErrorOutlineIcon />
+                                                    {nls.localize('rockit/dataRepository/details', 'Details')}
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="data-repo-selector__export-actions">
                                     <button

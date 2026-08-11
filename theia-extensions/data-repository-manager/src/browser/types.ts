@@ -74,4 +74,6 @@ export interface DataRepositoryExportTarget {
     syncType: 'create' | 'update' | 'sync';
     datasetName?: string;
     remoteState?: 'draft' | 'published';
+    status?: 'success' | 'failed' | 'cancelled';
+    errorMessage?: string;
 }
