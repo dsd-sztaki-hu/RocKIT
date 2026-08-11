@@ -1,9 +1,11 @@
 export type ExportLogAction = 'create' | 'update' | 'sync';
+export type ExportLogStatus = 'success' | 'failed' | 'cancelled';
 
 interface ExportLogEvent {
     action: ExportLogAction;
     timestamp: string;
     crosswalkFile?: string;
+    status: ExportLogStatus;
 }
 
 export interface ExportLogEntry {
@@ -13,6 +15,7 @@ export interface ExportLogEntry {
     crosswalkFile?: string;
     datasetName?: string;
     collectionId?: string;
+    status?: ExportLogStatus;
     /** Derived compatibility fields used by the existing export services. */
     syncType: ExportLogAction;
     syncedAt: string;
@@ -47,7 +50,8 @@ export function normalizeExportLogEntries(value: unknown): ExportLogEntry[] {
             : {
                 action: previous.syncType,
                 timestamp: previous.syncedAt,
-                crosswalkFile: previous.crosswalkFile
+                crosswalkFile: previous.crosswalkFile,
+                status: previous.status ?? 'success'
             };
         const useCandidateDetails = latest === candidateLatest;
         grouped.set(key, {
@@ -62,6 +66,7 @@ export function normalizeExportLogEntries(value: unknown): ExportLogEntry[] {
             datasetName: useCandidateDetails
                 ? optionalString(record.datasetName) ?? previous?.datasetName
                 : previous?.datasetName,
+            status: latest.status,
             syncType: latest.action,
             syncedAt: latest.timestamp
         } as ExportLogEntry);
@@ -102,6 +107,7 @@ function readEvents(record: Record<string, unknown>): ExportLogEvent[] {
                 events.push({
                     action,
                     timestamp,
+                    status: readStatus(event.status) ?? readStatus(record.status) ?? 'success',
                     ...(crosswalkFile ? { crosswalkFile } : {})
                 });
             }
@@ -114,6 +120,7 @@ function readEvents(record: Record<string, unknown>): ExportLogEvent[] {
         events.push({
             action: legacyAction,
             timestamp: legacyTimestamp,
+            status: readStatus(record.status) ?? 'success',
             ...(crosswalkFile ? { crosswalkFile } : {})
         });
     }
@@ -122,7 +129,7 @@ function readEvents(record: Record<string, unknown>): ExportLogEvent[] {
 
 function uniqueEvents(events: ExportLogEvent[]): ExportLogEvent[] {
     return Array.from(
-        new Map(events.map(event => [`${event.timestamp}\n${event.action}\n${event.crosswalkFile ?? ''}`, event])).values()
+        new Map(events.map(event => [`${event.timestamp}\n${event.action}\n${event.crosswalkFile ?? ''}\n${event.status}`, event])).values()
     ).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 }
 
@@ -137,4 +144,10 @@ function stringValue(value: unknown): string {
 function optionalString(value: unknown): string | undefined {
     const result = stringValue(value);
     return result || undefined;
+}
+
+function readStatus(value: unknown): ExportLogStatus | undefined {
+    return value === 'success' || value === 'failed' || value === 'cancelled'
+        ? value
+        : undefined;
 }
