@@ -45,17 +45,39 @@ export function collectRoCrateChangedProperties(
 
   const beforeEntities = buildEntityMap(before)
   const afterEntities = buildEntityMap(after)
+  const renamedEntityIds = findPureEntityIdRenames(beforeEntities, afterEntities)
+  const renamedFromEntityIds = new Set(renamedEntityIds.values())
 
   for (const entityId of sortedUnionKeysFromMaps(beforeEntities, afterEntities)) {
     const previousEntity = beforeEntities.get(entityId)
     const nextEntity = afterEntities.get(entityId)
     if (!previousEntity || !nextEntity) {
+      const renamedFromEntityId = renamedEntityIds.get(entityId)
+      if (nextEntity && renamedFromEntityId) {
+        changes.push({
+          entityId,
+          propertyName: '@id',
+          operation: 'update',
+          previousValue: renamedFromEntityId,
+        })
+        continue
+      }
+
+      if (previousEntity && renamedFromEntityIds.has(entityId)) {
+        continue
+      }
+
       const entity = previousEntity ?? nextEntity
       if (!entity) {
         continue
       }
       const operation: RoCrateApprovalOperation = previousEntity ? 'delete' : 'create'
-      for (const property of Object.keys(entity).filter((key) => key !== '@id').sort()) {
+      // Keep @id for whole-entity changes. Besides being entity data, it is the
+      // marker the approval UI uses to distinguish an entity creation/deletion
+      // from several independent property changes. Without it, rejecting a
+      // newly created entity only clears its fields and leaves an @id-only
+      // entity in the graph.
+      for (const property of Object.keys(entity).sort()) {
         changes.push({
           entityId,
           propertyName: property,
@@ -263,6 +285,77 @@ function buildEntityMap(crate: Record<string, any>): Map<string, Record<string, 
     }
   }
   return map
+}
+
+/**
+ * Pair only unambiguous, pure identifier changes. A rename otherwise looks
+ * like an unrelated entity deletion and creation because graph entities are
+ * indexed by @id. Recording it as one @id update keeps the approval attached
+ * to the live entity and gives rejection enough information to rename it back.
+ */
+function findPureEntityIdRenames(
+  beforeEntities: Map<string, Record<string, any>>,
+  afterEntities: Map<string, Record<string, any>>,
+): Map<string, string> {
+  const deletedEntitiesByBody = groupUnmatchedEntitiesByBody(
+    beforeEntities,
+    afterEntities,
+  )
+  const createdEntitiesByBody = groupUnmatchedEntitiesByBody(
+    afterEntities,
+    beforeEntities,
+  )
+
+  const renames = new Map<string, string>()
+  for (const [body, deletedIds] of deletedEntitiesByBody.entries()) {
+    const createdIds = createdEntitiesByBody.get(body)
+    if (deletedIds.length !== 1 || createdIds?.length !== 1) {
+      continue
+    }
+
+    renames.set(createdIds[0], deletedIds[0])
+  }
+
+  return renames
+}
+
+function groupUnmatchedEntitiesByBody(
+  entities: Map<string, Record<string, any>>,
+  otherEntities: Map<string, Record<string, any>>,
+): Map<string, string[]> {
+  const entityIdsByBody = new Map<string, string[]>()
+
+  for (const [entityId, entity] of entities.entries()) {
+    if (otherEntities.has(entityId)) {
+      continue
+    }
+
+    const body = entityBodySignature(entity)
+    if (!body) {
+      continue
+    }
+
+    const entityIds = entityIdsByBody.get(body) ?? []
+    entityIds.push(entityId)
+    entityIdsByBody.set(body, entityIds)
+  }
+
+  return entityIdsByBody
+}
+
+function entityBodySignature(entity: Record<string, any>): string | undefined {
+  const properties = Object.keys(entity)
+    .filter((property) => property !== '@id')
+    .sort()
+  if (properties.length === 0) {
+    return undefined
+  }
+
+  try {
+    return JSON.stringify(properties.map((property) => [property, entity[property]]))
+  } catch {
+    return undefined
+  }
 }
 
 function sortedUnionKeys(left: Record<string, any>, right: Record<string, any>): string[] {

@@ -1,8 +1,89 @@
 import {
+  collectRoCrateChangedProperties,
   maintainRoCrateApprovalFile,
-  removeRoCrateApprovalProperties,
   type RoCrateApprovalFile,
+  removeRoCrateApprovalProperties,
 } from '../src/browser/state/ro-crate-approval'
+
+describe('collectRoCrateChangedProperties', () => {
+  it('records a pure entity id change as an update on the live entity', () => {
+    const before = {
+      '@graph': [
+        {
+          '@id': './',
+          '@type': 'Dataset',
+          hasPart: [{ '@id': 'original.txt' }],
+        },
+        {
+          '@id': 'original.txt',
+          '@type': 'File',
+          name: 'Original file',
+        },
+      ],
+    }
+    const after = {
+      '@graph': [
+        {
+          '@id': './',
+          '@type': 'Dataset',
+          hasPart: [{ '@id': 'renamed.txt' }],
+        },
+        {
+          '@id': 'renamed.txt',
+          '@type': 'File',
+          name: 'Original file',
+        },
+      ],
+    }
+
+    expect(collectRoCrateChangedProperties(before, after)).toEqual([
+      {
+        entityId: './',
+        propertyName: 'hasPart',
+        operation: 'update',
+        previousValue: [{ '@id': 'original.txt' }],
+      },
+      {
+        entityId: 'renamed.txt',
+        propertyName: '@id',
+        operation: 'update',
+        previousValue: 'original.txt',
+      },
+    ])
+  })
+
+  it('keeps ambiguous identical additions and deletions as separate entity changes', () => {
+    const makeFile = (id: string) => ({
+      '@id': id,
+      '@type': 'File',
+      name: 'Same file',
+    })
+    const before = {
+      '@graph': [makeFile('old-a.txt'), makeFile('old-b.txt')],
+    }
+    const after = {
+      '@graph': [makeFile('new-a.txt'), makeFile('new-b.txt')],
+    }
+
+    const changes = collectRoCrateChangedProperties(before, after)
+
+    expect(changes).toEqual(expect.arrayContaining([
+      {
+        entityId: 'old-a.txt',
+        propertyName: '@id',
+        operation: 'delete',
+        previousValue: 'old-a.txt',
+      },
+      {
+        entityId: 'new-a.txt',
+        propertyName: '@id',
+        operation: 'create',
+        previousValue: undefined,
+      },
+    ]))
+    expect(changes).toHaveLength(12)
+  })
+})
 
 describe('maintainRoCrateApprovalFile', () => {
   it('appends new suggestions without dropping existing pending approvals', () => {
