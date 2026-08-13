@@ -219,6 +219,13 @@ function candidateValue(
   return found.some(hasMeaningfulValue) ? found : EMPTY
 }
 
+function shouldSkipExportSource(mapping: ZenodoMapping, candidate: SourceCandidate): boolean {
+  return (
+    (mapping.target.field === 'access_right' && !!candidate.localName) ||
+    (mapping.target.field === 'imprint_publisher' && candidate.localName === 'producer')
+  )
+}
+
 /**
  * Selects the first populated source candidate declared by the mapping.
  *
@@ -232,6 +239,9 @@ function selectSourceValue(
   graph: JsonObject[],
 ): MappingValue {
   for (const candidate of mapping.source?.canonicalCandidates ?? []) {
+    if (shouldSkipExportSource(mapping, candidate)) {
+      continue
+    }
     const value = candidateValue(candidate, root, graph)
     if (hasMeaningfulValue(value)) {
       return value
@@ -555,6 +565,37 @@ function generatedEntityId(root: JsonObject, typeName: string, index: number): s
   return `#${typeName}-${index + 1}`
 }
 
+function generatedKeywordEntityId(root: JsonObject, keyword: string, index: number): string {
+  const arpPid = strings(root['@arpPid'])[0]
+  if (arpPid) {
+    return `https://w3id.org/arp/ro-id/${arpPid}/keyword/${encodeURIComponent(keyword)}`
+  }
+  const encoded = encodeURIComponent(keyword)
+  return encoded ? `#${encoded}` : generatedEntityId(root, 'keyword', index)
+}
+
+function ensureContextTerm(crate: JsonObject, term: string, iri: string): void {
+  const context = crate['@context']
+  if (Array.isArray(context)) {
+    const existingObject = context.find(isObject)
+    if (existingObject) {
+      existingObject[term] = existingObject[term] ?? iri
+    } else {
+      context.push({ [term]: iri })
+    }
+    return
+  }
+  if (isObject(context)) {
+    context[term] = context[term] ?? iri
+    return
+  }
+  if (typeof context === 'string') {
+    crate['@context'] = [context, { [term]: iri }]
+    return
+  }
+  crate['@context'] = [{ [term]: iri }]
+}
+
 function updateDescriptionEntities(root: JsonObject, graph: JsonObject[], descriptions: string[]): boolean {
   if (!descriptions.length) {
     return false
@@ -628,6 +669,39 @@ function updateCreatorEntities(root: JsonObject, graph: JsonObject[], value: unk
     refs.push({ '@id': id })
   })
   root.author = refs.length === 1 ? refs[0] : refs
+  return true
+}
+
+function updateKeywordEntities(crate: JsonObject, root: JsonObject, graph: JsonObject[], value: unknown): boolean {
+  const keywords = unique(strings(value).map(htmlToPlainText))
+    .filter((item): item is string => typeof item === 'string' && item.length > 0)
+  if (!keywords.length) {
+    return false
+  }
+  ensureContextTerm(crate, 'keyword', 'https://dataverse.org/schema/citation/keyword')
+  const existingRefs = values(root.keyword)
+    .flatMap((item) => isObject(item) ? strings(item['@id']) : strings(item))
+  const existingKeywords = graph.filter((entity) => entityTypes(entity).includes('keyword'))
+  const refs: JsonObject[] = []
+  keywords.forEach((keyword, index) => {
+    const id =
+      existingRefs[index] ??
+      strings(existingKeywords[index]?.['@id'])[0] ??
+      generatedKeywordEntityId(root, keyword, index)
+    let entity = graph.find((item) => item['@id'] === id)
+    if (!entity) {
+      entity = {
+        '@id': id,
+        '@type': 'keyword',
+        '@reverse': { keyword: { '@id': './' } },
+      }
+      graph.push(entity)
+    }
+    entity.name = keyword
+    entity['@reverse'] = { keyword: { '@id': './' } }
+    refs.push({ '@id': id })
+  })
+  root.keyword = refs.length === 1 ? refs[0] : refs
   return true
 }
 
@@ -816,7 +890,7 @@ export function buildZenodoMetadataFromCrosswalk(
       const before = value
       value = applyOperation(value, operation, graph)
       if (
-        operation.operation === 'defaultValue' &&
+        (operation.operation === 'defaultValue' || operation.operation === 'deriveAccessRight') &&
         !hasMeaningfulValue(before) &&
         hasMeaningfulValue(value)
       ) {
@@ -875,7 +949,7 @@ export function applyZenodoMetadataToRoCrate(
     if (mapping.direction !== 'both' || mapping.mappingStatus === 'repositorySpecific') {
       continue
     }
-    if (['description', 'notes'].includes(mapping.target.field)) {
+    if (['access_right', 'description', 'imprint_publisher', 'notes', 'upload_type'].includes(mapping.target.field)) {
       continue
     }
     const remoteValue = zenodoMetadata[mapping.target.field]
@@ -890,6 +964,9 @@ export function applyZenodoMetadataToRoCrate(
     switch (mapping.target.field) {
       case 'creators':
         updated = updateCreatorEntities(root, graph, remoteValue)
+        break
+      case 'keywords':
+        updated = updateKeywordEntities(nextCrate, root, graph, remoteValue)
         break
       default:
         if (candidate.entity === 'root') {

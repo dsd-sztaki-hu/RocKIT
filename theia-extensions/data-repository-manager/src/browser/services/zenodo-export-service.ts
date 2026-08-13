@@ -899,9 +899,15 @@ export class ZenodoExportService {
     token: string,
     hooks?: ZenodoMetadataPreparationHooks,
   ): Promise<ZenodoDepositionMetadata> {
-    const { metadata } = buildZenodoMetadataFromCrosswalk(crate)
+    const { metadata, diagnostics } = buildZenodoMetadataFromCrosswalk(crate)
     let missingRequiredFields = missingRequiredZenodoMetadataFields(metadata)
+    const usesFallbackAccessRight = diagnostics.some(
+      (diagnostic) =>
+        diagnostic.targetField === 'access_right' &&
+        diagnostic.outcome === 'defaulted',
+    )
     if (
+      usesFallbackAccessRight ||
       missingRequiredFields.some((field) =>
         ['access_right', 'license', 'embargo_date', 'access_conditions'].includes(field),
       )
