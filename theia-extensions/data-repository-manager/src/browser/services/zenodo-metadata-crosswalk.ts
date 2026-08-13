@@ -698,6 +698,7 @@ function updateKeywordEntities(crate: JsonObject, root: JsonObject, graph: JsonO
       graph.push(entity)
     }
     entity.name = keyword
+    entity.keywordValue = keyword
     entity['@reverse'] = { keyword: { '@id': './' } }
     refs.push({ '@id': id })
   })
