@@ -15,7 +15,7 @@ export namespace DataRepositoryManagerCommands {
 
     export const EXPORT_TO_REMOTE: Command = {
         id: 'data-repository-manager:export-to-remote',
-        label: nls.localize('rockit/dataRepository/exportRemote', 'Export To Remote Repository')
+        label: nls.localize('rockit/dataRepository/repositoryOperations', 'Repository Operations')
     };
 
     export const IMPORT_FROM_REMOTE: Command = {
@@ -62,10 +62,7 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
             execute: async () => {
                 const widget = await this.widgetManager.getOrCreateWidget<DataRepositoryManagerWidget>(DATA_REPOSITORY_MANAGER_WIDGET_ID);
                 if (widget) {
-                    // We don't necessarily need to add it to shell if it's just a background action,
-                    // but usually, we want to ensure the widget is ready or has its state.
-                    // The user wants to trigger handleExportToRemote()
-                    (widget as any).handleExportToRemote();
+                    widget.handleRepositoryOperations();
                 }
             }
         });
@@ -107,21 +104,9 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
         });
 
         menus.registerMenuAction(CommonMenus.FILE, {
-            commandId: DataRepositoryManagerCommands.IMPORT_FROM_REMOTE.id,
-            label: DataRepositoryManagerCommands.IMPORT_FROM_REMOTE.label,
-            order: 'a11'
-        });
-
-        menus.registerMenuAction(CommonMenus.FILE, {
-            commandId: DataRepositoryManagerCommands.LINK_LOCAL_TO_REMOTE.id,
-            label: DataRepositoryManagerCommands.LINK_LOCAL_TO_REMOTE.label,
-            order: 'a12'
-        });
-
-        menus.registerMenuAction(CommonMenus.FILE, {
             commandId: DataRepositoryManagerCommands.EXPORT_TO_REMOTE.id,
             label: DataRepositoryManagerCommands.EXPORT_TO_REMOTE.label,
-            order: 'a13'
+            order: 'a11'
         });
     }
 

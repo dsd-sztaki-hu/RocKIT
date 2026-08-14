@@ -49,10 +49,10 @@ export interface DataverseCollectionSelection {
 }
 
 export interface DataRepositorySelection {
-    repository: DataRepositoryConfig;
-    capabilities: DataRepositoryCapabilities;
+    repository?: DataRepositoryConfig;
+    capabilities?: DataRepositoryCapabilities;
     exportTarget?: DataRepositoryExportTarget;
-    action?: 'export' | 'sync';
+    action?: 'export' | 'sync' | 'import' | 'link';
 }
 
 export type DataRepositoryKind = 'arp-dataverse' | 'dataverse' | 'zenodo' | 'unknown';

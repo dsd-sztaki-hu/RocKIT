@@ -50,7 +50,7 @@ import {
   ZenodoExportService,
   ZenodoMetadataDialogCancelledError,
 } from './services/zenodo-export-service'
-import type { DataRepositoryCapabilities } from './types'
+import type { DataRepositoryCapabilities, DataRepositorySelection } from './types'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
 
@@ -139,24 +139,31 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     void this.handleImportFromRemote()
   }
 
-  public async handleImportFromRemote(): Promise<void> {
-    const repositories = await this.storeService.loadRepositories()
-    this.repositories = repositories
-    this.update()
-
-    const selector = new DataRepositorySelectorDialog(
-      repositories,
-      this.storeService,
-      this.dataverseService,
-      this.capabilityService,
-    )
-    const repositorySelection = await selector.open()
+  public async handleImportFromRemote(
+    repositorySelection?: DataRepositorySelection,
+  ): Promise<void> {
     if (!repositorySelection) {
-      return
+      const repositories = await this.storeService.loadRepositories()
+      this.repositories = repositories
+      this.update()
+
+      const selector = new DataRepositorySelectorDialog(
+        repositories,
+        this.storeService,
+        this.dataverseService,
+        this.capabilityService,
+      )
+      repositorySelection = await selector.open()
+      if (!repositorySelection) {
+        return
+      }
     }
 
     const selectedRepo = repositorySelection.repository
     const capabilities = repositorySelection.capabilities
+    if (!selectedRepo || !capabilities) {
+      return
+    }
     if (!capabilities.supportsNativeDataverseApi) {
       this.messageService.warn(
         nls.localize(
@@ -278,7 +285,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.capabilityService,
       )
       const repositorySelection = await selector.open()
-      if (!repositorySelection) {
+      if (!repositorySelection || !repositorySelection.repository || !repositorySelection.capabilities) {
         return
       }
       selectedRepo = repositorySelection.repository
@@ -393,7 +400,48 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     this.handleExportToRemote()
   }
 
-  public async handleExportToRemote(): Promise<void> {
+  public async handleRepositoryOperations(): Promise<void> {
+    const repositories = await this.storeService.loadRepositories()
+    this.repositories = repositories
+    this.update()
+    const exportTargetsByRepositoryId = this.mergeExportTargets(
+      await this.arpExportService.listExportTargets(repositories),
+      await this.nativeExportService.listExportTargets(repositories),
+      await this.zenodoExportService.listExportTargets(repositories),
+    )
+
+    const selector = new DataRepositorySelectorDialog(
+      repositories,
+      this.storeService,
+      this.dataverseService,
+      this.capabilityService,
+      exportTargetsByRepositoryId,
+      this.recentArpValidationError
+        ? () => {
+            void this.openRecentArpValidationResponse()
+          }
+        : undefined,
+      async (repository, target, action) =>
+        this.handleDeleteExportTarget(repository, target, action),
+    )
+    const repositorySelection = await selector.open()
+    if (!repositorySelection) {
+      return
+    }
+    if (repositorySelection.action === 'link') {
+      await this.handleLinkLocalToRemote()
+      return
+    }
+    if (repositorySelection.action === 'import') {
+      await this.handleImportFromRemote(repositorySelection)
+      return
+    }
+    await this.handleExportToRemote(repositorySelection)
+  }
+
+  public async handleExportToRemote(
+    repositorySelection?: DataRepositorySelection,
+  ): Promise<void> {
     if (this.hasUnsavedRoCrateChanges()) {
       this.messageService.warn(
         nls.localize(
@@ -420,38 +468,50 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       return
     }
 
-    const repositories = await this.storeService.loadRepositories()
-    this.repositories = repositories
-    this.update()
-    const exportTargetsByRepositoryId = this.mergeExportTargets(
-      await this.arpExportService.listExportTargets(repositories),
-      await this.nativeExportService.listExportTargets(repositories),
-      await this.zenodoExportService.listExportTargets(repositories),
-    )
-
-    // Show repository selector first, matching the UX requested.
-    const selector = new DataRepositorySelectorDialog(
-      repositories,
-      this.storeService,
-      this.dataverseService,
-      this.capabilityService,
-      exportTargetsByRepositoryId,
-      this.recentArpValidationError
-        ? () => {
-            void this.openRecentArpValidationResponse()
-          }
-        : undefined,
-      async (repository, target, action) =>
-        this.handleDeleteExportTarget(repository, target, action),
-    )
-    const repositorySelection = await selector.open()
-
     if (!repositorySelection) {
-      return // User cancelled
+      const repositories = await this.storeService.loadRepositories()
+      this.repositories = repositories
+      this.update()
+      const exportTargetsByRepositoryId = this.mergeExportTargets(
+        await this.arpExportService.listExportTargets(repositories),
+        await this.nativeExportService.listExportTargets(repositories),
+        await this.zenodoExportService.listExportTargets(repositories),
+      )
+
+      const selector = new DataRepositorySelectorDialog(
+        repositories,
+        this.storeService,
+        this.dataverseService,
+        this.capabilityService,
+        exportTargetsByRepositoryId,
+        this.recentArpValidationError
+          ? () => {
+              void this.openRecentArpValidationResponse()
+            }
+          : undefined,
+        async (repository, target, action) =>
+          this.handleDeleteExportTarget(repository, target, action),
+      )
+      repositorySelection = await selector.open()
+
+      if (!repositorySelection) {
+        return // User cancelled
+      }
+      if (repositorySelection.action === 'link') {
+        await this.handleLinkLocalToRemote()
+        return
+      }
+      if (repositorySelection.action === 'import') {
+        await this.handleImportFromRemote(repositorySelection)
+        return
+      }
     }
     const selectedRepo = repositorySelection.repository
     const capabilities = repositorySelection.capabilities
     const selectedExportTarget = repositorySelection.exportTarget
+    if (!selectedRepo || !capabilities) {
+      return
+    }
 
     if (capabilities.supportsZenodoApi) {
       if (repositorySelection.action === 'sync' && selectedExportTarget) {
