@@ -127,6 +127,7 @@ const DATAVERSE_CROSSWALK_FILE_NAME = 'arp-dataverse-crosswalk.json'
 
 @injectable()
 export class ArpRoCrateExportService {
+  protected activeExportLogEntry: ExportLogEntry | undefined
   constructor(
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
@@ -193,6 +194,31 @@ export class ArpRoCrateExportService {
     }
 
     const uploadIdMapping = this.buildInitialUploadEntityIdMapping(uploadCrate)
+    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
+    const dataverseUrl = this.buildDataverseDatasetUrl(baseUrl, pid)
+    const target =
+      this.buildDatasetPidTarget(pid) ||
+      dataverseUrl ||
+      creation.requestUrl
+    await this.saveEntityIdMapping(
+      rootUri,
+      mappingFileName,
+      this.toMetadataEntityIdMapping(
+        crate,
+        uploadIdMapping,
+        localizedExternalFiles.originalToUploadIds,
+      ),
+    )
+    await this.appendExportLog(rootUri, {
+      target,
+      repository: baseUrl,
+      mappingFile: mappingFileName,
+      crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
+      syncType: 'create',
+      status: 'cancelled',
+      datasetName: this.getRootDatasetName(crate),
+      collectionId: collection.alias || collection.id,
+    })
     for (const [index, file] of uploadFiles.entries()) {
       reportProgress?.({
         completedSteps: index + 2,
@@ -220,6 +246,15 @@ export class ArpRoCrateExportService {
       if (file.entryPath !== file.entityId) {
         uploadIdMapping[file.entryPath] = uploadedFileEntityId
       }
+      await this.saveEntityIdMapping(
+        rootUri,
+        mappingFileName,
+        this.toMetadataEntityIdMapping(
+          crate,
+          uploadIdMapping,
+          localizedExternalFiles.originalToUploadIds,
+        ),
+      )
     }
 
     reportProgress?.({
@@ -242,21 +277,16 @@ export class ArpRoCrateExportService {
       uploadIdMapping,
       localizedExternalFiles.originalToUploadIds,
     )
-    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
     await this.saveEntityIdMapping(rootUri, mappingFileName, metadataIdMapping)
     const restoredCrate = this.buildRestoredCreatedCrate(uploadCrate, uploadIdMapping, pid)
-    const dataverseUrl = this.buildDataverseDatasetUrl(baseUrl, pid)
-    const target =
-      this.buildDatasetPidTarget(pid) ||
-      dataverseUrl ||
-      creation.requestUrl
     await this.appendExportLog(rootUri, {
       target,
       repository: baseUrl,
       mappingFile: mappingFileName,
       crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'create',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(crate),
     })
     const unmappedEntityIds = Object.entries(metadataIdMapping)
@@ -388,6 +418,20 @@ export class ArpRoCrateExportService {
     const uploadIdToMetadataId = this.toOriginalEntityIdMapping(
       localizedExternalFiles.originalToUploadIds,
     )
+    const mappingFileName = exportTarget.exportLogEntry.mappingFile
+    await this.saveEntityIdMapping(rootUri, mappingFileName, metadataMapping)
+    await this.appendExportLog(rootUri, {
+      target:
+        this.buildDatasetPidTarget(exportTarget.pid) ||
+        this.buildDataverseDatasetUrl(baseUrl, exportTarget.pid) ||
+        exportTarget.pid,
+      repository: baseUrl,
+      mappingFile: mappingFileName,
+      crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
+      syncType: 'update',
+      status: 'cancelled',
+      datasetName: this.getRootDatasetName(metadataCrate),
+    })
     for (const file of diff.newFiles) {
       reportProgress?.({
         completedSteps,
@@ -423,6 +467,7 @@ export class ArpRoCrateExportService {
       )
       uploadMapping[file.localId] = uploadedFileId
       metadataMapping[uploadIdToMetadataId[file.localId] ?? file.localId] = uploadedFileId
+      await this.saveEntityIdMapping(rootUri, mappingFileName, metadataMapping)
       completedSteps += 1
       reportProgress?.({
         completedSteps,
@@ -472,6 +517,7 @@ export class ArpRoCrateExportService {
       uploadMapping[file.localId] = replacementFileId
       metadataMapping[uploadIdToMetadataId[file.localId] ?? file.localId] =
         replacementFileId
+      await this.saveEntityIdMapping(rootUri, mappingFileName, metadataMapping)
       completedSteps += 1
       reportProgress?.({
         completedSteps,
@@ -510,6 +556,7 @@ export class ArpRoCrateExportService {
       )
       this.removeMappingEntriesByRemoteId(uploadMapping, file.remoteId)
       this.removeMappingEntriesByRemoteId(metadataMapping, file.remoteId)
+      await this.saveEntityIdMapping(rootUri, mappingFileName, metadataMapping)
       completedSteps += 1
       reportProgress?.({
         completedSteps,
@@ -533,7 +580,6 @@ export class ArpRoCrateExportService {
       exportTarget.pid,
       metadataUpdateCrate,
     )
-    const mappingFileName = exportTarget.exportLogEntry.mappingFile
     await this.saveEntityIdMapping(rootUri, mappingFileName, metadataMapping)
     await this.appendExportLog(rootUri, {
       target:
@@ -544,7 +590,8 @@ export class ArpRoCrateExportService {
       mappingFile: mappingFileName,
       crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'update',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(metadataCrate),
     })
     const unmappedEntityIds = Object.entries(metadataMapping)
@@ -599,13 +646,15 @@ export class ArpRoCrateExportService {
           repository: entry.repository,
           mappingFile: entry.mappingFile,
           crosswalkFile: entry.crosswalkFile,
-          syncedAt: entry.syncedAt,
+          lastSuccessfulActionAt: entry.lastSuccessfulActionAt,
           syncType: entry.syncType,
+          status: entry.status,
+          errorMessage: entry.errorMessage,
           datasetName: currentDatasetName ?? entry.datasetName,
         })
       }
       targetsByRepositoryId[repository.id] = Array.from(latestByMappingFile.values())
-        .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
+        .sort((a, b) => (b.lastSuccessfulActionAt ?? '').localeCompare(a.lastSuccessfulActionAt ?? ''))
     }
 
     return targetsByRepositoryId
@@ -854,6 +903,11 @@ export class ArpRoCrateExportService {
         ),
       )
     }
+    await this.appendExportLog(rootUri, {
+      ...exportTarget.exportLogEntry,
+      syncType: 'sync',
+      status: 'cancelled',
+    })
 
     const remoteCrate = await this.fetchRemoteRoCrate(
       baseUrl,
@@ -887,6 +941,7 @@ export class ArpRoCrateExportService {
       ]),
     )
     const metadataMapping: RoCrateEntityIdMapping = { ...exportTarget.mapping }
+    const mappingFileName = exportTarget.exportLogEntry.mappingFile
     const totalSteps = remoteFilesToDownload.length + 2
     let completedSteps = 1
     reportProgress?.({
@@ -953,7 +1008,6 @@ export class ArpRoCrateExportService {
       rootUri.resolve('ro-crate-metadata.json'),
       BinaryBuffer.fromString(`${JSON.stringify(localizedRemoteCrate, null, 2)}\n`),
     )
-    const mappingFileName = exportTarget.exportLogEntry.mappingFile
     await this.saveEntityIdMapping(rootUri, mappingFileName, metadataMapping)
     await this.appendExportLog(rootUri, {
       target:
@@ -964,7 +1018,8 @@ export class ArpRoCrateExportService {
       mappingFile: mappingFileName,
       crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'sync',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(localizedRemoteCrate),
     })
 
@@ -1216,7 +1271,7 @@ export class ArpRoCrateExportService {
             mappingFile: selectedTarget.mappingFile,
             crosswalkFile: selectedTarget.crosswalkFile,
             syncType: selectedTarget.syncType,
-            syncedAt: selectedTarget.syncedAt,
+            lastSuccessfulActionAt: selectedTarget.lastSuccessfulActionAt,
             datasetName: selectedTarget.datasetName,
           }
         : undefined
@@ -2456,7 +2511,15 @@ export class ArpRoCrateExportService {
     }
     await this.fileService.writeFile(
       rockitUri.resolve(mappingFileName),
-      BinaryBuffer.fromString(`${JSON.stringify(mapping, null, 2)}\n`),
+      BinaryBuffer.fromString(`${JSON.stringify(this.compactEntityIdMapping(mapping), null, 2)}\n`),
+    )
+  }
+
+  protected compactEntityIdMapping(mapping: RoCrateEntityIdMapping): RoCrateEntityIdMapping {
+    return Object.fromEntries(
+      Object.entries(mapping)
+        .filter(([, remoteId]) => !!remoteId)
+        .sort((a, b) => a[0].localeCompare(b[0])),
     )
   }
 
@@ -2529,6 +2592,27 @@ export class ArpRoCrateExportService {
       historyUri,
       BinaryBuffer.fromString(`${JSON.stringify(serializeExportLogEntries(nextEntries), null, 2)}\n`),
     )
+    this.activeExportLogEntry = entry.status === 'cancelled' ? entry : undefined
+  }
+
+  public async markActiveExportFailed(error: unknown): Promise<void> {
+    const entry = this.activeExportLogEntry
+    if (!entry) {
+      return
+    }
+    await this.appendExportLog(this.getWorkspaceRoot(), {
+      ...entry,
+      status: 'failed',
+      errorMessage: error instanceof Error ? error.message : String(error),
+    })
+  }
+
+  public async markExportTargetFailed(target: DataRepositoryExportTarget, message: string): Promise<void> {
+    await this.appendExportLog(this.getWorkspaceRoot(), {
+      ...target,
+      status: 'failed',
+      errorMessage: message,
+    })
   }
 
   protected async readExportLogEntries(historyUri: URI): Promise<ExportLogEntry[]> {

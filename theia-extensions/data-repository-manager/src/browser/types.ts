@@ -70,8 +70,10 @@ export interface DataRepositoryExportTarget {
     repository: string;
     mappingFile: string;
     crosswalkFile?: string;
-    syncedAt: string;
+    lastSuccessfulActionAt?: string;
     syncType: 'create' | 'update' | 'sync';
     datasetName?: string;
     remoteState?: 'draft' | 'published';
+    status?: 'success' | 'failed' | 'cancelled';
+    errorMessage?: string;
 }

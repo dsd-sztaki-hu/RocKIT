@@ -130,6 +130,7 @@ export class ZenodoMetadataDialogCancelledError extends Error {
 
 @injectable()
 export class ZenodoExportService {
+  protected activeExportLogEntry: ExportLogEntry | undefined
   constructor(
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
@@ -212,6 +213,29 @@ export class ZenodoExportService {
     completedSteps += 1
 
     const uploadedFiles: ZenodoExportResult['uploadedFiles'] = []
+    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
+    const target =
+      this.extractHtmlUrl(createPayload) ??
+      `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`
+    const uploadMapping = this.buildInitialUploadFileEntityIdMapping(uploadFiles)
+    await this.saveEntityIdMapping(
+      rootUri,
+      mappingFileName,
+      this.toMetadataEntityIdMapping(
+        crate,
+        uploadMapping,
+        localizedExternalFiles.originalToUploadIds,
+      ),
+    )
+    await this.appendExportLog(rootUri, {
+      target,
+      repository: baseUrl,
+      mappingFile: mappingFileName,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
+      syncType: 'create',
+      status: 'cancelled',
+      datasetName: this.getRootDatasetName(crate),
+    })
     for (const file of uploadFiles) {
       reportProgress?.({
         completedSteps,
@@ -239,13 +263,26 @@ export class ZenodoExportService {
           this.payloadSummary(uploadPayload),
         ))
       }
-      uploadedFiles.push({
+      const uploadedFile = {
         filename: file.filename,
         size: file.size,
         response: uploadPayload,
         remoteId: this.extractUploadedFileRemoteId(uploadPayload),
         entityId: file.entityId,
-      })
+      }
+      uploadedFiles.push(uploadedFile)
+      if (file.entityId) {
+        uploadMapping[file.entityId] = uploadedFile.remoteId ?? ''
+      }
+      await this.saveEntityIdMapping(
+        rootUri,
+        mappingFileName,
+        this.toMetadataEntityIdMapping(
+          crate,
+          uploadMapping,
+          localizedExternalFiles.originalToUploadIds,
+        ),
+      )
       completedSteps += 1
     }
 
@@ -292,24 +329,20 @@ export class ZenodoExportService {
         'Writing local export mapping...',
       ),
     })
-    const uploadMapping = this.buildEntityIdMapping(uploadCrate, uploadedFiles)
     const metadataMapping = this.toMetadataEntityIdMapping(
       crate,
       uploadMapping,
       localizedExternalFiles.originalToUploadIds,
     )
-    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
     await this.saveEntityIdMapping(rootUri, mappingFileName, metadataMapping)
-    const target =
-      this.extractHtmlUrl(createPayload) ??
-      `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`
     await this.appendExportLog(rootUri, {
       target,
       repository: baseUrl,
       mappingFile: mappingFileName,
       crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'create',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(crate),
     })
     const unmappedEntityIds = Object.entries(metadataMapping)
@@ -445,6 +478,33 @@ export class ZenodoExportService {
         entityId: local.entityId,
       }),
     )
+    const uploadMapping = {
+      ...this.buildInitialUploadFileEntityIdMapping(uploadFiles),
+      ...this.buildEntityIdMapping(uploadCrate, synchronizedFiles),
+    }
+    const target =
+      this.extractHtmlUrl(draftPayload) ?? `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`
+    const saveRuntimeMapping = async (): Promise<void> => {
+      await this.saveEntityIdMapping(
+        rootUri,
+        exportTarget.mappingFile,
+        this.toMetadataEntityIdMapping(
+          crate,
+          uploadMapping,
+          localizedExternalFiles.originalToUploadIds,
+        ),
+      )
+    }
+    await saveRuntimeMapping()
+    await this.appendExportLog(rootUri, {
+      target,
+      repository: baseUrl,
+      mappingFile: exportTarget.mappingFile,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
+      syncType: 'update',
+      status: 'cancelled',
+      datasetName: this.getRootDatasetName(crate),
+    })
 
     for (const file of removed) {
       reportProgress?.({
@@ -462,8 +522,17 @@ export class ZenodoExportService {
         message: nls.localize('rockit/dataRepository/replacingFile', 'Replacing {0}...', local.filename),
       })
       await this.deleteDepositionFile(baseUrl, token, depositionId, remote)
+      if (local.entityId) {
+        uploadMapping[local.entityId] = ''
+      }
+      await saveRuntimeMapping()
       completedSteps += 1
-      synchronizedFiles.push(await this.uploadFile(bucketUrl, token, local))
+      const uploaded = await this.uploadFile(bucketUrl, token, local)
+      synchronizedFiles.push(uploaded)
+      if (local.entityId) {
+        uploadMapping[local.entityId] = uploaded.remoteId ?? ''
+      }
+      await saveRuntimeMapping()
       completedSteps += 1
     }
     for (const local of added) {
@@ -472,7 +541,12 @@ export class ZenodoExportService {
         totalSteps,
         message: nls.localize('rockit/dataRepository/uploadingFile', 'Uploading {0}...', local.filename),
       })
-      synchronizedFiles.push(await this.uploadFile(bucketUrl, token, local))
+      const uploaded = await this.uploadFile(bucketUrl, token, local)
+      synchronizedFiles.push(uploaded)
+      if (local.entityId) {
+        uploadMapping[local.entityId] = uploaded.remoteId ?? ''
+      }
+      await saveRuntimeMapping()
       completedSteps += 1
     }
 
@@ -503,22 +577,20 @@ export class ZenodoExportService {
         'Writing local export mapping...',
       ),
     })
-    const uploadMapping = this.buildEntityIdMapping(uploadCrate, synchronizedFiles)
     const metadataMapping = this.toMetadataEntityIdMapping(
       crate,
       uploadMapping,
       localizedExternalFiles.originalToUploadIds,
     )
     await this.saveEntityIdMapping(rootUri, exportTarget.mappingFile, metadataMapping)
-    const target =
-      this.extractHtmlUrl(draftPayload) ?? `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`
     await this.appendExportLog(rootUri, {
       target,
       repository: baseUrl,
       mappingFile: exportTarget.mappingFile,
       crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'update',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(crate),
     })
     const unmappedEntityIds = Object.entries(metadataMapping)
@@ -582,6 +654,16 @@ export class ZenodoExportService {
         'This Zenodo export target has no local mapping file. Sync cannot safely place remote files in the workspace.',
       ))
     }
+    await this.appendExportLog(rootUri, {
+      target: exportTarget.target,
+      repository: baseUrl,
+      mappingFile: exportTarget.mappingFile,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
+      datasetName: exportTarget.datasetName,
+      syncType: 'sync',
+      status: 'cancelled',
+      lastSuccessfulActionAt: exportTarget.lastSuccessfulActionAt,
+    })
 
     reportProgress?.({
       completedSteps: 0,
@@ -687,7 +769,8 @@ export class ZenodoExportService {
       mappingFile: exportTarget.mappingFile,
       crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'sync',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(reverseResult.crate),
     })
     reportProgress?.({
@@ -744,13 +827,15 @@ export class ZenodoExportService {
           repository: entry.repository,
           mappingFile: entry.mappingFile,
           crosswalkFile: entry.crosswalkFile,
-          syncedAt: entry.syncedAt,
+          lastSuccessfulActionAt: entry.lastSuccessfulActionAt,
           syncType: entry.syncType,
+          status: entry.status,
+          errorMessage: entry.errorMessage,
           datasetName: currentDatasetName ?? entry.datasetName,
         })
       }
       targetsByRepositoryId[repository.id] = Array.from(latestByMappingFile.values())
-        .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
+        .sort((a, b) => (b.lastSuccessfulActionAt ?? '').localeCompare(a.lastSuccessfulActionAt ?? ''))
     }
 
     return targetsByRepositoryId
@@ -1338,6 +1423,20 @@ export class ZenodoExportService {
     )
   }
 
+  protected buildInitialUploadFileEntityIdMapping(
+    uploadFiles: ZenodoUploadFile[],
+  ): RoCrateEntityIdMapping {
+    const mapping: RoCrateEntityIdMapping = {}
+    for (const file of uploadFiles) {
+      if (file.entityId) {
+        mapping[file.entityId] = ''
+      }
+    }
+    return Object.fromEntries(
+      Object.entries(mapping).sort((a, b) => a[0].localeCompare(b[0])),
+    )
+  }
+
   /**
    * Converts upload-time ids back to the ids used in the original metadata
    * file. External local file references may be rewritten for upload, but the
@@ -1530,7 +1629,15 @@ export class ZenodoExportService {
     }
     await this.fileService.writeFile(
       rockitUri.resolve(mappingFileName),
-      BinaryBuffer.fromString(`${JSON.stringify(mapping, null, 2)}\n`),
+      BinaryBuffer.fromString(`${JSON.stringify(this.compactEntityIdMapping(mapping), null, 2)}\n`),
+    )
+  }
+
+  protected compactEntityIdMapping(mapping: RoCrateEntityIdMapping): RoCrateEntityIdMapping {
+    return Object.fromEntries(
+      Object.entries(mapping)
+        .filter(([, remoteId]) => !!remoteId)
+        .sort((a, b) => a[0].localeCompare(b[0])),
     )
   }
 
@@ -1579,6 +1686,27 @@ export class ZenodoExportService {
       logUri,
       BinaryBuffer.fromString(`${JSON.stringify(serializeExportLogEntries(nextEntries), null, 2)}\n`),
     )
+    this.activeExportLogEntry = entry.status === 'cancelled' ? entry : undefined
+  }
+
+  public async markActiveExportFailed(error: unknown): Promise<void> {
+    const entry = this.activeExportLogEntry
+    if (!entry) {
+      return
+    }
+    await this.appendExportLog(this.getWorkspaceRoot(), {
+      ...entry,
+      status: 'failed',
+      errorMessage: error instanceof Error ? error.message : String(error),
+    })
+  }
+
+  public async markExportTargetFailed(target: DataRepositoryExportTarget, message: string): Promise<void> {
+    await this.appendExportLog(this.getWorkspaceRoot(), {
+      ...target,
+      status: 'failed',
+      errorMessage: message,
+    })
   }
 
   protected async readExportLogEntries(logUri: URI): Promise<ExportLogEntry[]> {

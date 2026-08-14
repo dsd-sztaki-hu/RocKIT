@@ -79,7 +79,8 @@ export class ArpRoCrateLinkService {
       repository: baseUrl,
       mappingFile: mappingFileName,
       syncType: 'update',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(state.localCrate) ?? state.remoteDatasetTitle,
     })
 
@@ -678,7 +679,7 @@ export class ArpRoCrateLinkService {
           this.normalizeBaseUrl(entry.repository) === normalizedRepository &&
           this.normalizePid(entry.target) === normalizedPid,
       )
-      .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))[0]?.mappingFile
+      .sort((a, b) => (b.lastSuccessfulActionAt ?? '').localeCompare(a.lastSuccessfulActionAt ?? ''))[0]?.mappingFile
   }
 
   protected async readExportLogEntries(historyUri: URI): Promise<ExportLogEntry[]> {

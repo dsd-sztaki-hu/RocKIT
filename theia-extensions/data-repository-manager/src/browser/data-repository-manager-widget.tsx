@@ -400,6 +400,59 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     this.handleExportToRemote()
   }
 
+  public async offerInterruptedExportRecovery(): Promise<void> {
+    const repositories = await this.storeService.loadRepositories()
+    const targetsByRepository = this.mergeExportTargets(
+      await this.arpExportService.listExportTargets(repositories),
+      await this.nativeExportService.listExportTargets(repositories),
+      await this.zenodoExportService.listExportTargets(repositories),
+    )
+    for (const repository of repositories) {
+      for (const target of targetsByRepository[repository.id] ?? []) {
+        if (target.status !== 'cancelled') {
+          continue
+        }
+        const capabilities = await this.capabilityService.detectRepositoryCapabilities(
+          repository.baseUrl,
+          repository.apiKey,
+        )
+        const resume = await new ConfirmDialog({
+          title: nls.localize(
+            'rockit/dataRepository/interruptedExport',
+            'Interrupted export',
+          ),
+          msg: nls.localize(
+            'rockit/dataRepository/resumeInterruptedExport',
+            'The export to {0} was interrupted. Do you want to continue it?',
+            target.datasetName || target.target,
+          ),
+          ok: nls.localize('rockit/dataRepository/continueExport', 'Continue'),
+          cancel: nls.localize('rockit/dataRepository/doNotContinueExport', 'Do not continue'),
+        }).open()
+        if (resume) {
+          await this.handleExportToRemote({
+            repository,
+            capabilities,
+            exportTarget: target,
+            action: 'export',
+          })
+        } else {
+          const message = nls.localize(
+            'rockit/dataRepository/userDeclinedExportRecovery',
+            'User chose not to continue the interrupted export.',
+          )
+          if (capabilities.supportsZenodoApi) {
+            await this.zenodoExportService.markExportTargetFailed(target, message)
+          } else if (capabilities.supportsArpRoCrateZipUpload) {
+            await this.arpExportService.markExportTargetFailed(target, message)
+          } else {
+            await this.nativeExportService.markExportTargetFailed(target, message)
+          }
+        }
+      }
+    }
+  }
+
   public async handleRepositoryOperations(): Promise<void> {
     const repositories = await this.storeService.loadRepositories()
     this.repositories = repositories
@@ -555,6 +608,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           )
           console.log('Zenodo sync completed:', syncResult)
         } catch (error) {
+          await this.zenodoExportService.markActiveExportFailed(error)
           console.error('Zenodo sync failed:', error)
           this.messageService.error(
             nls.localize(
@@ -697,6 +751,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         if (error instanceof ZenodoMetadataDialogCancelledError) {
           return
         }
+        await this.zenodoExportService.markActiveExportFailed(error)
         console.error('Zenodo RO-Crate export failed:', error)
         this.messageService.error(
           nls.localize(
@@ -793,6 +848,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         }
         console.log('ARP sync completed:', syncResult)
       } catch (error) {
+        await this.arpExportService.markActiveExportFailed(error)
         console.error('ARP sync failed:', error)
         this.messageService.error(
           nls.localize(
@@ -854,6 +910,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           console.log('Native Dataverse sync completed:', syncResult)
         }
       } catch (error) {
+        await this.nativeExportService.markActiveExportFailed(error)
         console.error('Native Dataverse sync failed:', error)
         this.messageService.error(
           nls.localize(
@@ -917,6 +974,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           return
         }
       } catch (error) {
+        await this.arpExportService.markActiveExportFailed(error)
         console.error('ARP file update failed:', error)
         if (error instanceof ArpRoCrateValidationError) {
           progress.cancel()
@@ -974,6 +1032,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           return
         }
       } catch (error) {
+        await this.nativeExportService.markActiveExportFailed(error)
         console.error('Native Dataverse update failed:', error)
         this.messageService.error(
           nls.localize(
@@ -1106,6 +1165,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           }
           console.log('RO-Crate exported to ARP:', exportResult)
         } catch (error) {
+          await this.arpExportService.markActiveExportFailed(error)
           console.error('RO-Crate export failed:', error)
           if (error instanceof ArpRoCrateValidationError) {
             progress.cancel()
@@ -1198,6 +1258,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         }
         console.log('Dataverse dataset created through native API:', creationResult)
       } catch (error) {
+        await this.nativeExportService.markActiveExportFailed(error)
         console.error('Native Dataverse dataset creation failed:', error)
         this.messageService.error(
           nls.localize(
@@ -1290,12 +1351,12 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         )
         for (const target of targets) {
           const previous = latestByMappingFile.get(target.mappingFile)
-          if (!previous || previous.syncedAt.localeCompare(target.syncedAt) < 0) {
+          if (!previous || (previous.lastSuccessfulActionAt ?? '').localeCompare(target.lastSuccessfulActionAt ?? '') < 0) {
             latestByMappingFile.set(target.mappingFile, target)
           }
         }
         merged[repositoryId] = Array.from(latestByMappingFile.values()).sort((a, b) =>
-          b.syncedAt.localeCompare(a.syncedAt),
+          (b.lastSuccessfulActionAt ?? '').localeCompare(a.lastSuccessfulActionAt ?? ''),
         )
       }
     }

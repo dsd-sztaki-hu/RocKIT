@@ -278,6 +278,7 @@ const DATAVERSE_SEMANTIC_METADATA_BLOCKS: Record<
 
 @injectable()
 export class NativeDataverseExportService {
+  protected activeExportLogEntry: ExportLogEntry | undefined
   constructor(
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
@@ -347,13 +348,46 @@ export class NativeDataverseExportService {
                 'Dataverse created the dataset but did not return a persistentId. File upload cannot continue.'
             ));
         }
+        const mappingFileName = await this.createUniqueMappingFileName(rootUri);
+        let entityIdMapping = this.buildEntityIdMapping(
+            crate,
+            [],
+            uploadCollection.uploadEntryPathByEntityId
+        );
+        const target = this.buildDataverseDatasetUrl(baseUrl, persistentId) || this.buildPidTarget(persistentId) || persistentId;
+        await this.saveEntityIdMapping(rootUri, mappingFileName, entityIdMapping);
+        await this.appendExportLog(rootUri, {
+            target,
+            repository: baseUrl,
+            mappingFile: mappingFileName,
+            crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
+            syncType: 'create',
+            status: 'cancelled',
+            datasetName: this.getRootDatasetName(crate),
+            collectionId
+        });
         reportProgress?.({
             completedSteps: 1,
             totalSteps,
             message: nls.localize('rockit/dataRepository/datasetMetadataSynchronized', 'Dataverse dataset created and metadata synchronized.')
         });
-        const uploadedDataFiles = await this.uploadRoCrateFiles(baseUrl, repository.apiKey, persistentId, uploadFiles, reportProgress, 1, totalSteps);
-        const entityIdMapping = this.buildEntityIdMapping(crate, uploadedDataFiles, uploadCollection.uploadEntryPathByEntityId);
+        const uploadedDataFiles = await this.uploadRoCrateFiles(
+            baseUrl,
+            repository.apiKey,
+            persistentId,
+            uploadFiles,
+            reportProgress,
+            1,
+            totalSteps,
+            async (uploadedFiles) => {
+                entityIdMapping = this.buildEntityIdMapping(
+                    crate,
+                    uploadedFiles,
+                    uploadCollection.uploadEntryPathByEntityId
+                );
+                await this.saveEntityIdMapping(rootUri, mappingFileName, entityIdMapping);
+            }
+        );
         const metadataUpload = this.buildRewrittenMetadataUploadFile(uploadCollection.metadataCrate, uploadedDataFiles);
         reportProgress?.({
             completedSteps: uploadFiles.length + 1,
@@ -370,21 +404,20 @@ export class NativeDataverseExportService {
             ));
         }
         entityIdMapping['ro-crate-metadata.json'] = metadataFileId;
-        const mappingFileName = await this.createUniqueMappingFileName(rootUri);
         await this.saveEntityIdMapping(rootUri, mappingFileName, entityIdMapping);
         reportProgress?.({
             completedSteps: totalSteps,
             totalSteps,
             message: nls.localize('rockit/dataRepository/uploadedRewrittenMetadata', 'Uploaded rewritten ro-crate-metadata.json.')
         });
-        const target = this.buildDataverseDatasetUrl(baseUrl, persistentId) || this.buildPidTarget(persistentId) || persistentId;
         await this.appendExportLog(rootUri, {
             target,
             repository: baseUrl,
             mappingFile: mappingFileName,
             crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
             syncType: 'create',
-            syncedAt: new Date().toISOString(),
+            status: 'success',
+            lastSuccessfulActionAt: new Date().toISOString(),
             collectionId
         });
         const unmappedEntityIds = Object.entries(entityIdMapping)
@@ -491,6 +524,18 @@ export class NativeDataverseExportService {
                 removedRemoteFileIds.length
             )
         });
+        const mappingFileName = exportTarget.exportLogEntry.mappingFile;
+        const target = this.buildDataverseDatasetUrl(baseUrl, exportTarget.persistentId) || this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId;
+        await this.saveEntityIdMapping(rootUri, mappingFileName, exportTarget.mapping);
+        await this.appendExportLog(rootUri, {
+            target,
+            repository: baseUrl,
+            mappingFile: mappingFileName,
+            crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
+            syncType: 'update',
+            status: 'cancelled',
+            collectionId: exportTarget.exportLogEntry.collectionId
+        });
 
         for (const localId of newFileIds) {
             reportProgress?.({
@@ -509,6 +554,7 @@ export class NativeDataverseExportService {
                 ));
             }
             exportTarget.mapping[localId] = remoteId;
+            await this.saveEntityIdMapping(rootUri, mappingFileName, exportTarget.mapping);
             completedSteps += 1;
         }
 
@@ -522,6 +568,7 @@ export class NativeDataverseExportService {
             const uploadFile = this.requireUploadFile(localId, uploadCollection, uploadFilesByPath);
             const result = await this.replaceFile(baseUrl, repository.apiKey, previousRemoteId, uploadFile);
             exportTarget.mapping[localId] = this.extractDataFileId(result.response) ?? previousRemoteId;
+            await this.saveEntityIdMapping(rootUri, mappingFileName, exportTarget.mapping);
             completedSteps += 1;
         }
 
@@ -533,6 +580,7 @@ export class NativeDataverseExportService {
             });
             await this.deleteFile(baseUrl, repository.apiKey, remoteId);
             this.removeMappedRemoteFileId(exportTarget.mapping, remoteId);
+            await this.saveEntityIdMapping(rootUri, mappingFileName, exportTarget.mapping);
             completedSteps += 1;
         }
 
@@ -556,16 +604,17 @@ export class NativeDataverseExportService {
             this.extractDataFileId(metadataReplacement.response) ?? metadataFileId;
         await this.saveEntityIdMapping(
             rootUri,
-            exportTarget.exportLogEntry.mappingFile,
+            mappingFileName,
             exportTarget.mapping
         );
         await this.appendExportLog(rootUri, {
-            target: this.buildDataverseDatasetUrl(baseUrl, exportTarget.persistentId) || this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
+            target,
             repository: baseUrl,
-            mappingFile: exportTarget.exportLogEntry.mappingFile,
+            mappingFile: mappingFileName,
             crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
             syncType: 'update',
-            syncedAt: new Date().toISOString(),
+            status: 'success',
+            lastSuccessfulActionAt: new Date().toISOString(),
             collectionId: exportTarget.exportLogEntry.collectionId
         });
         const enabledMetadataBlocks = exportTarget.exportLogEntry.collectionId
@@ -590,11 +639,11 @@ export class NativeDataverseExportService {
 
     return {
       persistentId: exportTarget.persistentId,
-      target: this.buildDataverseDatasetUrl(baseUrl, exportTarget.persistentId) || this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId,
+      target,
       addedFileCount: newFileIds.length,
       replacedFileCount: changedFileIds.length,
       removedFileCount: removedRemoteFileIds.length,
-      mappingFileName: exportTarget.exportLogEntry.mappingFile,
+      mappingFileName,
     }
   }
 
@@ -626,6 +675,11 @@ export class NativeDataverseExportService {
     if (!exportTarget) {
       return undefined
     }
+    await this.appendExportLog(rootUri, {
+      ...exportTarget.exportLogEntry,
+      syncType: 'sync',
+      status: 'cancelled',
+    })
 
     reportProgress?.({
       completedSteps: 0,
@@ -769,7 +823,8 @@ export class NativeDataverseExportService {
       mappingFile: exportTarget.exportLogEntry.mappingFile,
       crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'sync',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       collectionId: exportTarget.exportLogEntry.collectionId,
       datasetName: this.getRootDatasetName(reverseResult.crate),
     })
@@ -1020,14 +1075,16 @@ export class NativeDataverseExportService {
           repository: entry.repository,
           mappingFile: entry.mappingFile,
           crosswalkFile: entry.crosswalkFile,
-          syncedAt: entry.syncedAt,
+          lastSuccessfulActionAt: entry.lastSuccessfulActionAt,
           syncType: entry.syncType,
+          status: entry.status,
+          errorMessage: entry.errorMessage,
           datasetName: currentDatasetName,
         })
       }
       targetsByRepositoryId[repository.id] = Array.from(
         latestByMappingFile.values(),
-      ).sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
+      ).sort((a, b) => (b.lastSuccessfulActionAt ?? '').localeCompare(a.lastSuccessfulActionAt ?? ''))
     }
 
     return targetsByRepositoryId
@@ -1758,7 +1815,8 @@ export class NativeDataverseExportService {
         uploadFiles: NativeDataverseUploadFile[],
         reportProgress?: NativeDataverseExportProgressReporter,
         completedOffset = 1,
-        totalSteps = uploadFiles.length + completedOffset
+        totalSteps = uploadFiles.length + completedOffset,
+        afterUpload?: (uploadedFiles: NativeDataverseFileUploadResult[]) => Promise<void>
     ): Promise<NativeDataverseFileUploadResult[]> {
         const results: NativeDataverseFileUploadResult[] = [];
         for (const [index, file] of uploadFiles.entries()) {
@@ -1768,6 +1826,7 @@ export class NativeDataverseExportService {
                 message: nls.localize('rockit/dataRepository/uploadingFile', 'Uploading {0}...', file.entryPath)
             });
             results.push(await this.uploadFile(baseUrl, apiKey, persistentId, file));
+            await afterUpload?.([...results]);
             reportProgress?.({
                 completedSteps: completedOffset + index + 1,
                 totalSteps,
@@ -2650,7 +2709,7 @@ export class NativeDataverseExportService {
             mappingFile: selectedTarget.mappingFile,
             crosswalkFile: selectedTarget.crosswalkFile,
             syncType: selectedTarget.syncType,
-            syncedAt: selectedTarget.syncedAt,
+            lastSuccessfulActionAt: selectedTarget.lastSuccessfulActionAt,
           }
         : undefined
     const entry = selectedEntry ?? selectedFallbackEntry ?? matchingEntries[0]
@@ -2819,7 +2878,15 @@ export class NativeDataverseExportService {
     }
     await this.fileService.writeFile(
       rockitUri.resolve(mappingFileName),
-      BinaryBuffer.fromString(`${JSON.stringify(mapping, null, 2)}\n`),
+      BinaryBuffer.fromString(`${JSON.stringify(this.compactEntityIdMapping(mapping), null, 2)}\n`),
+    )
+  }
+
+  protected compactEntityIdMapping(mapping: RoCrateEntityIdMapping): RoCrateEntityIdMapping {
+    return Object.fromEntries(
+      Object.entries(mapping)
+        .filter(([, remoteId]) => !!remoteId)
+        .sort((a, b) => a[0].localeCompare(b[0])),
     )
   }
 
@@ -2862,6 +2929,27 @@ export class NativeDataverseExportService {
         `${JSON.stringify(serializeExportLogEntries(nextEntries), null, 2)}\n`,
       ),
     )
+    this.activeExportLogEntry = entry.status === 'cancelled' ? entry : undefined
+  }
+
+  public async markActiveExportFailed(error: unknown): Promise<void> {
+    const entry = this.activeExportLogEntry
+    if (!entry) {
+      return
+    }
+    await this.appendExportLog(this.getWorkspaceRoot(), {
+      ...entry,
+      status: 'failed',
+      errorMessage: error instanceof Error ? error.message : String(error),
+    })
+  }
+
+  public async markExportTargetFailed(target: DataRepositoryExportTarget, message: string): Promise<void> {
+    await this.appendExportLog(this.getWorkspaceRoot(), {
+      ...target,
+      status: 'failed',
+      errorMessage: message,
+    })
   }
 
   protected async readExportLogEntries(logUri: URI): Promise<ExportLogEntry[]> {
