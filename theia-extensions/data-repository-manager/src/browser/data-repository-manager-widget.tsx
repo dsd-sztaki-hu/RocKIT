@@ -685,6 +685,13 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           selectedRepo.title,
         ),
       })
+      let progressClosed = false
+      const closeProgress = (): void => {
+        if (!progressClosed) {
+          progressClosed = true
+          progress.cancel()
+        }
+      }
       try {
         const syncResult = await this.arpExportService.syncFromArp(
           selectedRepo,
@@ -698,6 +705,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               },
             }),
         )
+        closeProgress()
         await this.roCrateLoader.refresh()
         await this.loadData()
         this.messageService.info(
@@ -735,7 +743,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           { timeout: 10000 },
         )
       } finally {
-        progress.cancel()
+        closeProgress()
       }
       return
     }
