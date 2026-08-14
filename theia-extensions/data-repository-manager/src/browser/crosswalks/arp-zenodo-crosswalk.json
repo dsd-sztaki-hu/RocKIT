@@ -70273,64 +70273,6 @@
           "lossiness": "possible; mapping requires review for the active profile"
         },
         {
-          "id": "zenodo.imprint_publisher",
-          "direction": "both",
-          "source": {
-            "canonicalCandidates": [
-              {
-                "entity": "root",
-                "entityClass": "Dataset",
-                "property": "https://dataverse.org/schema/citation/producer",
-                "localName": "producer",
-                "block": "citation",
-                "valueTypes": [
-                  "producer"
-                ],
-                "multiple": true
-              }
-            ],
-            "selection": "firstNonEmpty"
-          },
-          "target": {
-            "repository": "zenodo",
-            "path": "metadata.imprint_publisher",
-            "field": "imprint_publisher",
-            "type": "string",
-            "required": false,
-            "conditionalRequired": null,
-            "schemaPath": "/repositories/zenodo/schema/properties/imprint_publisher"
-          },
-          "mappingStatus": "needsReview",
-          "transformations": [
-            {
-              "operation": "omitEmpty"
-            },
-            {
-              "operation": "omitValues",
-              "values": [
-                "./",
-                "."
-              ]
-            },
-            {
-              "operation": "trim"
-            },
-            {
-              "operation": "resolveReferences"
-            },
-            {
-              "operation": "firstNonEmpty"
-            },
-            {
-              "operation": "first"
-            }
-          ],
-          "onMissing": {
-            "action": "omit"
-          },
-          "lossiness": "possible; mapping requires review for the active profile"
-        },
-        {
           "id": "zenodo.journal_issue",
           "direction": "both",
           "source": {
