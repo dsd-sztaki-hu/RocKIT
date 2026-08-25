@@ -10,6 +10,7 @@ import LinkOffIcon from '@mui/icons-material/LinkOff';
 import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import EditIcon from '@mui/icons-material/Edit';
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import {
     DataRepositoryConfig,
@@ -110,6 +111,14 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         }
     }
 
+    protected async handleEditRepository(repo: DataRepositoryConfig) {
+        const dialog = new DataRepositoryConfigDialog(this.dataverseService, repo);
+        const result = await dialog.open();
+        if (result) {
+            await this.storeService.saveRepository(result);
+        }
+    }
+
     protected showExportError(target: DataRepositoryExportTarget): void {
         const dialog = new ConfirmDialog({
             title: nls.localize('rockit/dataRepository/exportErrorDetails', 'Export error details'),
@@ -200,7 +209,24 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                             <StorageIcon className="data-repo-selector__item-icon" />
                         </div>
                         <div className="data-repo-selector__item-details">
-                            <div className="data-repo-selector__item-title">{repo.title}</div>
+                            <div className="data-repo-selector__item-title-row">
+                                <div className="data-repo-selector__item-title">{repo.title}</div>
+                                <button
+                                    className="data-repo-selector__edit-repository"
+                                    title={nls.localize('rockit/dataRepository/editRepository', 'Edit Repository')}
+                                    aria-label={nls.localize(
+                                        'rockit/dataRepository/editRepositoryNamed',
+                                        'Edit repository {0}',
+                                        repo.title
+                                    )}
+                                    onClick={event => {
+                                        event.stopPropagation();
+                                        void this.handleEditRepository(repo);
+                                    }}
+                                >
+                                    <EditIcon />
+                                </button>
+                            </div>
                             <div className="data-repo-selector__item-url">{repo.baseUrl}</div>
                         </div>
                     </div>

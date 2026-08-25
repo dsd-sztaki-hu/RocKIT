@@ -164,6 +164,13 @@
     min-width: 0;
 }
 
+.data-repo-selector__item-title-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
 .data-repo-selector__item-title {
     font-weight: 600;
     overflow: hidden;
@@ -171,6 +178,32 @@
     font-size: var(--theia-ui-font-size1);
     color: var(--theia-foreground);
     white-space: nowrap;
+}
+
+.data-repo-selector__edit-repository {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--theia-icon-foreground);
+    cursor: pointer;
+    opacity: 0.65;
+    outline: none;
+}
+
+.data-repo-selector__edit-repository:hover,
+.data-repo-selector__edit-repository:focus-visible {
+    color: var(--theia-textLink-foreground);
+    opacity: 1;
+}
+
+.data-repo-selector__edit-repository svg {
+    font-size: 16px;
 }
 
 .data-repo-selector__item-url {
