@@ -650,7 +650,7 @@ export class ArpRoCrateExportService {
           syncType: entry.syncType,
           status: entry.status,
           errorMessage: entry.errorMessage,
-          datasetName: currentDatasetName ?? entry.datasetName,
+          datasetName: entry.datasetName ?? currentDatasetName,
         })
       }
       targetsByRepositoryId[repository.id] = Array.from(latestByMappingFile.values())
