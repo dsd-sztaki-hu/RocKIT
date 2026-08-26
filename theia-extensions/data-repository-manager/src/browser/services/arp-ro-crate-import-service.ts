@@ -22,7 +22,6 @@ type RoCrateEntityIdMapping = Record<string, string>
 export interface ArpRoCrateImportResult {
   datasetPid: string
   targetDirectory: URI
-  zipPath: URI
   extractedFileCount: number
   mappingFileName?: string
 }
@@ -62,9 +61,6 @@ export class ArpRoCrateImportService {
       datasetPid,
     )
     const zipBytes = await this.downloadRoCrateZip(repository, datasetPid)
-    const zipPath = targetDirectory.resolve('rocrate.zip')
-    await this.fileService.writeFile(zipPath, BinaryBuffer.wrap(zipBytes))
-
     const extractedFileCount = await this.extractZip(zipBytes, targetDirectory)
     const metadataUri = targetDirectory.resolve('ro-crate-metadata.json')
     if (!(await this.fileService.exists(metadataUri))) {
@@ -83,7 +79,6 @@ export class ArpRoCrateImportService {
     return {
       datasetPid,
       targetDirectory,
-      zipPath,
       extractedFileCount,
       mappingFileName,
     }
