@@ -669,6 +669,7 @@
       "repositoryOperations": "Repozitóriumműveletek",
       "linkLocalRemote": "Repozitált adatcsomaghoz kapcsolás",
       "linkToRemoteShort": "Kapcsolás távolihoz",
+      "workspaceRequiredForExportOrLink": "Exportálás vagy helyi adatcsomag kapcsolása előtt nyisson meg egy munkaterületet.",
       "import": "Importálás",
       "export": "Exportálás",
       "addRepository": "Repozitórium hozzáadása",

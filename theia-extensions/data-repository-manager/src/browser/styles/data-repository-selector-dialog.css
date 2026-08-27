@@ -379,6 +379,16 @@
     box-shadow: none !important;
 }
 
+.data-repo-selector__export-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.25;
+}
+
+.data-repo-selector__export-action:disabled:hover,
+.data-repo-selector__export-action:disabled:focus-visible {
+    opacity: 0.25;
+}
+
 .data-repo-selector__repo-actions {
     align-self: center;
     flex: 0 0 auto;
@@ -396,6 +406,16 @@
     border-color: var(--theia-focusBorder) !important;
     background: var(--theia-button-hoverBackground) !important;
     color: var(--theia-button-foreground) !important;
+}
+
+.data-repo-selector__link-button:disabled,
+.data-repo-selector__link-button:disabled:hover,
+.data-repo-selector__link-button:disabled:focus-visible {
+    border-color: var(--theia-button-background) !important;
+    background: var(--theia-button-background) !important;
+    color: var(--theia-button-foreground) !important;
+    cursor: not-allowed;
+    opacity: 0.5;
 }
 
 .data-repo-selector__export-action--delete:hover,
