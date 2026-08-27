@@ -50,6 +50,7 @@ import {
   ZenodoExportService,
   ZenodoMetadataDialogCancelledError,
 } from './services/zenodo-export-service'
+import { ZenodoImportService } from './services/zenodo-import-service'
 import type { DataRepositoryCapabilities, DataRepositorySelection } from './types'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
@@ -99,6 +100,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly loadMaskService: LoadMaskService,
     @inject(ZenodoExportService)
     protected readonly zenodoExportService: ZenodoExportService,
+    @inject(ZenodoImportService)
+    protected readonly zenodoImportService: ZenodoImportService,
     @inject(AppStateService)
     protected readonly appStateService: AppStateService,
     @inject(RoCrateLoaderContribution)
@@ -164,11 +167,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     if (!selectedRepo || !capabilities) {
       return
     }
-    if (!capabilities.supportsNativeDataverseApi) {
+    if (!capabilities.supportsNativeDataverseApi && !capabilities.supportsZenodoApi) {
       this.messageService.warn(
         nls.localize(
           'rockit/dataRepository/importUnsupported',
-          "Import is currently only implemented for Dataverse-based repositories. '{0}' does not expose a supported Dataverse API.",
+          "Import is not implemented for '{0}' because it does not expose a supported Dataverse or Zenodo API.",
           selectedRepo.title,
         ),
         { timeout: 10000 },
@@ -176,9 +179,21 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       return
     }
     const importDialog = new ArpRoCrateImportDialog(
-      capabilities.supportsArpRoCrateZipUpload
-        ? undefined
-        : {
+      capabilities.supportsZenodoApi
+        ? {
+            title: nls.localize(
+              'rockit/dataRepository/importZenodoRecord',
+              'Import Zenodo Record',
+            ),
+            description: nls.localize(
+              'rockit/dataRepository/importZenodoRecordDescription',
+              'Enter a Zenodo upload URL in the format https://zenodo.org/uploads/{id}.',
+            ),
+            placeholder: 'https://zenodo.org/uploads/1234567',
+          }
+        : capabilities.supportsArpRoCrateZipUpload
+          ? undefined
+          : {
             title: nls.localize(
               'rockit/dataRepository/importDataset',
               'Import Dataverse Dataset',
@@ -203,19 +218,34 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       ),
     })
     try {
-      const result = capabilities.supportsArpRoCrateZipUpload
-        ? await this.arpImportService.importFromDatasetUrl(
+      const result = capabilities.supportsZenodoApi
+        ? await this.zenodoImportService.importFromRecordUrl(
             selectedRepo,
             importInput.datasetUrl,
           )
-        : await this.nativeImportService.importFromDatasetUrl(
-            selectedRepo,
-            importInput.datasetUrl,
-          )
+        : capabilities.supportsArpRoCrateZipUpload
+          ? await this.arpImportService.importFromDatasetUrl(
+              selectedRepo,
+              importInput.datasetUrl,
+            )
+          : await this.nativeImportService.importFromDatasetUrl(
+              selectedRepo,
+              importInput.datasetUrl,
+            )
       if (!result) {
         return
       }
-      if ('hasRoCrateMetadata' in result && !result.hasRoCrateMetadata) {
+      if ('recordId' in result) {
+        this.messageService.info(
+          nls.localize(
+            'rockit/dataRepository/importedZenodoRecord',
+            'Zenodo record imported to {0}. Downloaded {1} file(s) and created RO-Crate metadata.',
+            result.targetDirectory.path.fsPath(),
+            result.downloadedFileCount,
+          ),
+          { timeout: 10000 },
+        )
+      } else if ('hasRoCrateMetadata' in result && !result.hasRoCrateMetadata) {
         this.messageService.info(
           nls.localize(
             'rockit/dataRepository/importedWithoutMetadata',
