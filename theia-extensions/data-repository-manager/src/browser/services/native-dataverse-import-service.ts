@@ -7,7 +7,8 @@ import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { inject, injectable } from 'inversify'
 import JSZip = require('jszip')
 
-import { DataRepositoryConfig } from '../types'
+import { DataRepositoryConfig, DataRepositoryImportProgressReporter } from '../types'
+import { NativeDataverseExportService } from './native-dataverse-export-service'
 
 export interface NativeDataverseImportResult {
   persistentId: string
@@ -15,6 +16,7 @@ export interface NativeDataverseImportResult {
   zipPath: URI
   extractedFileCount: number
   hasRoCrateMetadata: boolean
+  mappingFileName: string
 }
 
 @injectable()
@@ -23,11 +25,14 @@ export class NativeDataverseImportService {
     @inject(FileDialogService) protected readonly fileDialogService: FileDialogService,
     @inject(FileService) protected readonly fileService: FileService,
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
+    @inject(NativeDataverseExportService)
+    protected readonly exportService: NativeDataverseExportService,
   ) {}
 
   public async importFromDatasetUrl(
     repository: DataRepositoryConfig,
     datasetUrl: string,
+    reportProgress?: DataRepositoryImportProgressReporter,
   ): Promise<NativeDataverseImportResult | undefined> {
     const persistentId = this.extractPersistentId(datasetUrl)
     if (!persistentId) {
@@ -49,16 +54,43 @@ export class NativeDataverseImportService {
       importParentDirectory,
       persistentId,
     )
+    const totalSteps = 4
+    reportProgress?.({
+      completedSteps: 0,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/downloadingDatasetArchive', 'Downloading dataset archive...'),
+    })
     const zipBytes = await this.downloadDatasetZip(repository, persistentId)
     const zipPath = targetDirectory.resolve('dataverse-dataset.zip')
     await this.fileService.writeFile(zipPath, BinaryBuffer.wrap(zipBytes))
 
+    reportProgress?.({
+      completedSteps: 1,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/extractingDatasetArchive', 'Extracting dataset archive...'),
+    })
     const extractedFileCount = await this.extractZip(zipBytes, targetDirectory)
     const hasRoCrateMetadata = await this.fileService.exists(
       targetDirectory.resolve('ro-crate-metadata.json'),
     )
+    reportProgress?.({
+      completedSteps: 2,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/generatingImportLinkMapping', 'Generating remote link mapping...'),
+    })
+    const link = await this.exportService.persistImportedDatasetLink(
+      targetDirectory,
+      repository,
+      persistentId,
+    )
 
+    reportProgress?.({
+      completedSteps: 3,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/openingImportedDataset', 'Opening imported dataset...'),
+    })
     this.workspaceService.open(targetDirectory, { preserveWindow: false })
+    reportProgress?.({ completedSteps: totalSteps, totalSteps, message: '' })
 
     return {
       persistentId,
@@ -66,6 +98,7 @@ export class NativeDataverseImportService {
       zipPath,
       extractedFileCount,
       hasRoCrateMetadata,
+      mappingFileName: link.mappingFileName,
     }
   }
 

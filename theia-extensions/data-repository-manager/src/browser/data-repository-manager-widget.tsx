@@ -51,7 +51,11 @@ import {
   ZenodoMetadataDialogCancelledError,
 } from './services/zenodo-export-service'
 import { ZenodoImportService } from './services/zenodo-import-service'
-import type { DataRepositoryCapabilities, DataRepositorySelection } from './types'
+import type {
+  DataRepositoryCapabilities,
+  DataRepositoryImportProgress,
+  DataRepositorySelection,
+} from './types'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
 
@@ -217,20 +221,31 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         selectedRepo.title,
       ),
     })
+    const reportImportProgress = (update: DataRepositoryImportProgress): void =>
+      progress.report({
+        message: update.message,
+        work: {
+          done: update.completedSteps,
+          total: update.totalSteps,
+        },
+      })
     try {
       const result = capabilities.supportsZenodoApi
         ? await this.zenodoImportService.importFromRecordUrl(
             selectedRepo,
             importInput.datasetUrl,
+            reportImportProgress,
           )
         : capabilities.supportsArpRoCrateZipUpload
           ? await this.arpImportService.importFromDatasetUrl(
               selectedRepo,
               importInput.datasetUrl,
+              reportImportProgress,
             )
           : await this.nativeImportService.importFromDatasetUrl(
               selectedRepo,
               importInput.datasetUrl,
+              reportImportProgress,
             )
       if (!result) {
         return

@@ -6,8 +6,9 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { inject, injectable } from 'inversify'
 
-import { DataRepositoryConfig } from '../types'
+import { DataRepositoryConfig, DataRepositoryImportProgressReporter } from '../types'
 import { applyZenodoMetadataToRoCrate } from './zenodo-metadata-crosswalk'
+import { ZenodoExportService } from './zenodo-export-service'
 
 type JsonObject = Record<string, unknown>
 
@@ -16,6 +17,7 @@ export interface ZenodoImportResult {
   targetDirectory: URI
   downloadedFileCount: number
   hasUploadedRoCrateMetadata: boolean
+  mappingFileName: string
 }
 
 interface ZenodoRemoteFile {
@@ -41,11 +43,13 @@ export class ZenodoImportService {
     @inject(FileDialogService) protected readonly fileDialogService: FileDialogService,
     @inject(FileService) protected readonly fileService: FileService,
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
+    @inject(ZenodoExportService) protected readonly exportService: ZenodoExportService,
   ) {}
 
   public async importFromRecordUrl(
     repository: DataRepositoryConfig,
     recordUrl: string,
+    reportProgress?: DataRepositoryImportProgressReporter,
   ): Promise<ZenodoImportResult | undefined> {
     const recordId = this.extractRecordId(recordUrl)
     if (!recordId) {
@@ -79,6 +83,11 @@ export class ZenodoImportService {
       return undefined
     }
 
+    reportProgress?.({
+      completedSteps: 0,
+      totalSteps: 1,
+      message: nls.localize('rockit/dataRepository/loadingRemoteDataset', 'Loading remote dataset...'),
+    })
     const loadedRecord = await this.loadRecord(repository, recordId)
     const targetDirectory = await this.createUniqueImportDirectory(
       importParentDirectory,
@@ -87,11 +96,26 @@ export class ZenodoImportService {
     const uploadedMetadataFile = loadedRecord.files.find(
       (file) => file.filename === RO_CRATE_METADATA_FILE,
     )
+    const downloadCount = loadedRecord.files.length
+    const totalSteps = downloadCount + 3
+    let completedDownloads = 0
     let uploadedCrate: JsonObject | undefined
     if (uploadedMetadataFile) {
+      reportProgress?.({
+        completedSteps: completedDownloads,
+        totalSteps,
+        message: nls.localize(
+          'rockit/dataRepository/downloadingImportFile',
+          'Downloading file {0}/{1}: {2}...',
+          completedDownloads + 1,
+          downloadCount,
+          uploadedMetadataFile.filename,
+        ),
+      })
       uploadedCrate = this.parseUploadedRoCrate(
         await this.downloadFile(repository, uploadedMetadataFile),
       )
+      completedDownloads += 1
     }
 
     const localPaths = this.buildLocalFilePaths(loadedRecord.files, uploadedCrate)
@@ -103,13 +127,30 @@ export class ZenodoImportService {
       if (!localPath) {
         continue
       }
+      reportProgress?.({
+        completedSteps: completedDownloads,
+        totalSteps,
+        message: nls.localize(
+          'rockit/dataRepository/downloadingImportFile',
+          'Downloading file {0}/{1}: {2}...',
+          completedDownloads + 1,
+          downloadCount,
+          remoteFile.filename,
+        ),
+      })
       await this.writeFile(
         targetDirectory,
         localPath,
         await this.downloadFile(repository, remoteFile),
       )
+      completedDownloads += 1
     }
 
+    reportProgress?.({
+      completedSteps: completedDownloads,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/generatingImportedMetadata', 'Generating imported RO-Crate metadata...'),
+    })
     const crateBase = uploadedCrate ?? this.createEmptyRoCrate()
     this.addDownloadedFilesToCrate(crateBase, loadedRecord.files, localPaths)
     const normalizedMetadata = this.normalizeRecordMetadata(loadedRecord.metadata)
@@ -121,13 +162,36 @@ export class ZenodoImportService {
       targetDirectory.resolve(RO_CRATE_METADATA_FILE),
       BinaryBuffer.fromString(`${JSON.stringify(importedCrate, null, 2)}\n`),
     )
+    reportProgress?.({
+      completedSteps: downloadCount + 1,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/generatingImportLinkMapping', 'Generating remote link mapping...'),
+    })
+    const link = await this.exportService.persistImportedRecordLink(
+      targetDirectory,
+      repository,
+      recordId,
+      importedCrate,
+      loadedRecord.files.flatMap((file) => {
+        const localPath = localPaths.get(file)
+        return localPath ? [{ localPath, remoteIdentifier: file.filename }] : []
+      }),
+      this.extractRecordHtmlUrl(loadedRecord.payload),
+    )
 
+    reportProgress?.({
+      completedSteps: downloadCount + 2,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/openingImportedDataset', 'Opening imported dataset...'),
+    })
     this.workspaceService.open(targetDirectory, { preserveWindow: false })
+    reportProgress?.({ completedSteps: totalSteps, totalSteps, message: '' })
     return {
       recordId,
       targetDirectory,
       downloadedFileCount: loadedRecord.files.length,
       hasUploadedRoCrateMetadata: !!uploadedCrate,
+      mappingFileName: link.mappingFileName,
     }
   }
 
@@ -149,6 +213,11 @@ export class ZenodoImportService {
     } catch {
       return undefined
     }
+  }
+
+  protected extractRecordHtmlUrl(payload: JsonObject): string | undefined {
+    const links = this.isObject(payload.links) ? payload.links : undefined
+    return this.firstString(links?.html, links?.latest_draft_html)
   }
 
   protected async loadRecord(

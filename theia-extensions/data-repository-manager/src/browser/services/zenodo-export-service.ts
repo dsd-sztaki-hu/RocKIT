@@ -110,6 +110,16 @@ export interface ZenodoSyncResult {
   updatedMetadataFields: string[]
 }
 
+export interface ZenodoImportedRemoteFileLink {
+  localPath: string
+  remoteIdentifier?: string
+}
+
+export interface ZenodoImportedLinkResult {
+  mappingFileName: string
+  target: string
+}
+
 export interface ZenodoExportProgress {
   completedSteps: number
   totalSteps: number
@@ -135,6 +145,43 @@ export class ZenodoExportService {
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
   ) {}
+
+  /** Writes the local update/sync state before an imported directory is opened. */
+  public async persistImportedRecordLink(
+    rootUri: URI,
+    repository: DataRepositoryConfig,
+    depositionId: string,
+    crate: RoCrate,
+    files: ZenodoImportedRemoteFileLink[],
+    targetUrl?: string,
+  ): Promise<ZenodoImportedLinkResult> {
+    const mapping: RoCrateEntityIdMapping = {}
+    for (const file of files) {
+      if (!file.remoteIdentifier) {
+        continue
+      }
+      const entityId = file.localPath === 'ro-crate-metadata.json'
+        ? 'ro-crate-metadata.json'
+        : this.findLocalEntityIdForPath(crate, file.localPath) ?? file.localPath
+      mapping[entityId] = file.remoteIdentifier
+    }
+
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
+    await this.saveEntityIdMapping(rootUri, mappingFileName, mapping)
+    const target = targetUrl || `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`
+    await this.appendExportLog(rootUri, {
+      target,
+      repository: baseUrl,
+      mappingFile: mappingFileName,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
+      syncType: 'update',
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
+      datasetName: this.getRootDatasetName(crate),
+    })
+    return { mappingFileName, target }
+  }
 
   /**
    * Creates a new Zenodo draft deposition from the workspace RO-Crate.
@@ -1238,6 +1285,14 @@ export class ZenodoExportService {
     return this.isSafeRelativePath(normalized) ? normalized : undefined
   }
 
+  protected findLocalEntityIdForPath(crate: RoCrate, path: string): string | undefined {
+    const normalizedPath = path.replace(/\\/g, '/').replace(/^\/+/, '')
+    return this.readGraphEntities(crate)
+      .map((entity) => typeof entity['@id'] === 'string' ? entity['@id'] : undefined)
+      .filter((entityId): entityId is string => !!entityId)
+      .find((entityId) => this.localCratePathFromEntityId(entityId) === normalizedPath)
+  }
+
   protected toLocalFileUri(value: string): URI | undefined {
     const trimmed = value.trim()
     if (!trimmed) {
@@ -1730,7 +1785,7 @@ export class ZenodoExportService {
     }
     try {
       const url = new URL(trimmed)
-      const match = url.pathname.match(/\/(?:deposit|record)\/(\d+)/)
+      const match = url.pathname.match(/\/(?:deposit|record|uploads)\/(\d+)/)
       return match?.[1]
     } catch {
       return undefined
