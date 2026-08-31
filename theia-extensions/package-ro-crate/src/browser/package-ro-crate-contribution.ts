@@ -29,14 +29,14 @@ import {
 } from 'rockit-common/lib/common/ro-crate-technical-files'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import {
-  ExportRoCrateDialog,
-  ExportRoCrateMode,
-  ExportRoCrateOptions,
-} from './export-ro-crate-dialog'
+  PackageRoCrateDialog,
+  PackageRoCrateMode,
+  PackageRoCrateOptions,
+} from './package-ro-crate-dialog'
 
-export const ExportRoCrateCommand: Command = {
-  id: 'ExportRoCrate.command',
-  label: nls.localize('rockit/exportRoCrate/title', 'Export RO-Crate'),
+export const PackageRoCrateCommand: Command = {
+  id: 'PackageRoCrate.command',
+  label: nls.localize('rockit/packageRoCrate/title', 'Package RO-Crate'),
 }
 
 interface IgnoreRule {
@@ -47,11 +47,11 @@ interface IgnoreRule {
 }
 
 @injectable()
-export class ExportRoCrateCommandContribution implements CommandContribution {
+export class PackageRoCrateCommandContribution implements CommandContribution {
   protected static readonly IGNORE_DIR = ROCKIT_IGNORE_DIR
   protected static readonly IGNORE_FILE = ROCKIT_IGNORE_FILE
   protected static readonly DEFAULT_IGNORED_ENTRIES = SHARED_DEFAULT_IGNORED_ENTRIES
-  protected static readonly FORCED_NORMAL_EXPORT_FILES = new Set([
+  protected static readonly FORCED_NORMAL_PACKAGE_FILES = new Set([
     'ro-crate-metadata.json',
     'ro-crate-preview.html',
   ])
@@ -78,26 +78,26 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
   protected readonly commandService!: CommandService
 
   registerCommands(registry: CommandRegistry): void {
-    registry.registerCommand(ExportRoCrateCommand, {
+    registry.registerCommand(PackageRoCrateCommand, {
       execute: async () => {
-        const dialog = new ExportRoCrateDialog({
+        const dialog = new PackageRoCrateDialog({
           hasUnsavedChanges: () => this.hasUnsavedRoCrateChanges(),
-          saveChanges: () => this.saveRoCrateBeforeExport(),
+          saveChanges: () => this.saveRoCrateBeforePackaging(),
         })
         const options = await dialog.open()
         if (!options) return
 
-        if (options.mode === ExportRoCrateMode.Normal) {
-          await this.handleNormalExport(options)
+        if (options.mode === PackageRoCrateMode.Normal) {
+          await this.handleNormalPackage(options)
           return
         }
 
-        await this.handleCleanExport(options)
+        await this.handleCleanPackage(options)
       },
     })
   }
 
-  protected async saveRoCrateBeforeExport(): Promise<void> {
+  protected async saveRoCrateBeforePackaging(): Promise<void> {
     let saveError: unknown
     const savePromise = this.commandService
       .executeCommand('ro-crate.save')
@@ -136,7 +136,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
       }
       return this.stringifyCrate(appCrate) !== this.stringifyCrate(diskCrate)
     } catch (error) {
-      console.warn('Failed to compare RO-Crate metadata before export', error)
+      console.warn('Failed to compare RO-Crate metadata before packaging', error)
       return true
     }
   }
@@ -149,11 +149,11 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     }
   }
 
-  protected async handleNormalExport(options: ExportRoCrateOptions): Promise<void> {
+  protected async handleNormalPackage(options: PackageRoCrateOptions): Promise<void> {
     const roots = this.workspaceService.tryGetRoots()
     if (!roots.length) {
       this.messageService.warn(
-        nls.localize('rockit/exportRoCrate/noWorkspace', 'No workspace is open.'),
+        nls.localize('rockit/packageRoCrate/noWorkspace', 'No workspace is open.'),
         { timeout: 3000 },
       )
       return
@@ -162,13 +162,13 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
 
     const target = await this.fileDialogService.showSaveDialog({
       title: nls.localize(
-        'rockit/exportRoCrate/saveNormalTitle',
-        'Save Normal export',
+        'rockit/packageRoCrate/saveNormalTitle',
+        'Save Normal Package',
       ),
       filters: {
-        [nls.localize('rockit/exportRoCrate/zipArchive', 'Zip Archive')]: ['zip'],
+        [nls.localize('rockit/packageRoCrate/zipArchive', 'Zip Archive')]: ['zip'],
       },
-      saveLabel: nls.localize('rockit/exportRoCrate/save', 'Save'),
+      saveLabel: nls.localize('rockit/packageRoCrate/save', 'Save'),
       inputValue: `${rootName}.zip`,
     })
     if (!target) {
@@ -196,8 +196,8 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
       await this.fileService.writeFile(target, BinaryBuffer.wrap(data))
       this.messageService.info(
         nls.localize(
-          'rockit/exportRoCrate/normalSaved',
-          'Normal export saved to {0}',
+          'rockit/packageRoCrate/normalSaved',
+          'Normal package saved to {0}',
           target.path.base,
         ),
         { timeout: 3000 },
@@ -206,8 +206,8 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
       console.error(error)
       this.messageService.error(
         nls.localize(
-          'rockit/exportRoCrate/normalFailed',
-          'Failed to create normal export: {0}',
+          'rockit/packageRoCrate/normalFailed',
+          'Failed to create normal package: {0}',
           String(error),
         ),
         { timeout: 3000 },
@@ -240,7 +240,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     if (
       relativeDir &&
       shouldOmit(relativeDir, true) &&
-      !this.isForcedNormalExportFile(relativeDir)
+      !this.isForcedNormalPackageFile(relativeDir)
     ) {
       return
     }
@@ -267,7 +267,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
       return
     }
 
-    if (shouldOmit(relativePath, false) && !this.isForcedNormalExportFile(relativePath)) {
+    if (shouldOmit(relativePath, false) && !this.isForcedNormalPackageFile(relativePath)) {
       return
     }
 
@@ -288,12 +288,12 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     return relative.toString().replace(/\\/g, '/').replace(/^\/+/, '')
   }
 
-  protected isForcedNormalExportFile(relativePath: string): boolean {
+  protected isForcedNormalPackageFile(relativePath: string): boolean {
     const normalized = relativePath
       .replace(/\\/g, '/')
       .replace(/^\/+/, '')
       .toLowerCase()
-    return ExportRoCrateCommandContribution.FORCED_NORMAL_EXPORT_FILES.has(normalized)
+    return PackageRoCrateCommandContribution.FORCED_NORMAL_PACKAGE_FILES.has(normalized)
   }
 
   protected async createIgnoreMatcher(
@@ -318,8 +318,8 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     }
 
     const ignoredUri = rootUri
-      .resolve(ExportRoCrateCommandContribution.IGNORE_DIR)
-      .resolve(ExportRoCrateCommandContribution.IGNORE_FILE)
+      .resolve(PackageRoCrateCommandContribution.IGNORE_DIR)
+      .resolve(PackageRoCrateCommandContribution.IGNORE_FILE)
     const diskEntries = await this.readIgnoreEntries(ignoredUri)
     return this.withDefaultIgnoreEntries(diskEntries)
   }
@@ -338,7 +338,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
   }
 
   protected withDefaultIgnoreEntries(entries: readonly string[]): string[] {
-    const defaults = ExportRoCrateCommandContribution.DEFAULT_IGNORED_ENTRIES.map((entry) =>
+    const defaults = PackageRoCrateCommandContribution.DEFAULT_IGNORED_ENTRIES.map((entry) =>
       this.normalizeIgnoreEntry(entry),
     ).filter((entry): entry is string => Boolean(entry))
     const existingPositive = new Set(entries.filter((entry) => !entry.startsWith('!')))
@@ -485,7 +485,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     for (const reference of collectRoCrateExportFileReferences(roCrate)) {
       if (
         shouldOmit(reference.entryPath, false) &&
-        !this.isForcedNormalExportFile(reference.entryPath)
+        !this.isForcedNormalPackageFile(reference.entryPath)
       ) {
         continue
       }
@@ -678,16 +678,16 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
   }
 
   // ----------------------------
-  // Clean export implementation
+  // Clean package implementation
   // ----------------------------
 
-  protected async handleCleanExport(options: ExportRoCrateOptions): Promise<void> {
+  protected async handleCleanPackage(options: PackageRoCrateOptions): Promise<void> {
     const rootUri = this.getWorkspaceRoot()
     if (!rootUri) {
       this.messageService.warn(
         nls.localize(
-          'rockit/exportRoCrate/noWorkspaceRoot',
-          'No workspace root available for Clean export.',
+          'rockit/packageRoCrate/noWorkspaceRoot',
+          'No workspace root available for a clean package.',
         ),
         { timeout: 3000 },
       )
@@ -699,8 +699,8 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     if (!(await this.fileService.exists(metadataUri))) {
       this.messageService.warn(
         nls.localize(
-          'rockit/exportRoCrate/metadataNotFound',
-          'RO-Crate metadata not found; cannot perform Clean export.',
+          'rockit/packageRoCrate/metadataNotFound',
+          'RO-Crate metadata not found; cannot create a clean package.',
         ),
         { timeout: 3000 },
       )
@@ -712,7 +712,7 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
     if (!crate) {
       this.messageService.error(
         nls.localize(
-          'rockit/exportRoCrate/parseFailed',
+          'rockit/packageRoCrate/parseFailed',
           'Failed to parse RO-Crate metadata.',
         ),
         { timeout: 3000 },
@@ -722,13 +722,13 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
 
     const target = await this.fileDialogService.showSaveDialog({
       title: nls.localize(
-        'rockit/exportRoCrate/saveCleanTitle',
-        'Save Clean RO-Crate export',
+        'rockit/packageRoCrate/saveCleanTitle',
+        'Save Clean RO-Crate Package',
       ),
       filters: {
-        [nls.localize('rockit/exportRoCrate/zipArchive', 'Zip Archive')]: ['zip'],
+        [nls.localize('rockit/packageRoCrate/zipArchive', 'Zip Archive')]: ['zip'],
       },
-      saveLabel: nls.localize('rockit/exportRoCrate/save', 'Save'),
+      saveLabel: nls.localize('rockit/packageRoCrate/save', 'Save'),
       inputValue: `${rootName}-clean.zip`,
     })
     if (!target) {
@@ -751,8 +751,8 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
       await this.fileService.writeFile(target, BinaryBuffer.wrap(data))
       this.messageService.info(
         nls.localize(
-          'rockit/exportRoCrate/cleanSaved',
-          'Clean export saved to {0}',
+          'rockit/packageRoCrate/cleanSaved',
+          'Clean package saved to {0}',
           target.path.base,
         ),
         { timeout: 3000 },
@@ -761,8 +761,8 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
       console.error(error)
       this.messageService.error(
         nls.localize(
-          'rockit/exportRoCrate/cleanFailed',
-          'Failed to create clean export: {0}',
+          'rockit/packageRoCrate/cleanFailed',
+          'Failed to create clean package: {0}',
           String(error),
         ),
         { timeout: 3000 },
@@ -793,11 +793,11 @@ export class ExportRoCrateCommandContribution implements CommandContribution {
 }
 
 @injectable()
-export class ExportRoCrateMenuContribution implements MenuContribution {
+export class PackageRoCrateMenuContribution implements MenuContribution {
   registerMenus(menus: MenuModelRegistry): void {
     menus.registerMenuAction(CommonMenus.FILE, {
-      commandId: ExportRoCrateCommand.id,
-      label: ExportRoCrateCommand.label,
+      commandId: PackageRoCrateCommand.id,
+      label: PackageRoCrateCommand.label,
     })
   }
 }
