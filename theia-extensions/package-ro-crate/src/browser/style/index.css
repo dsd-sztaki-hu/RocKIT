@@ -1,0 +1,79 @@
+.package-ro-crate-dialog input[type="radio"]:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+
+.package-unsaved-changes {
+  align-items: center;
+  background-color: var(--theia-inputValidation-errorBackground);
+  border: 1px solid var(--theia-inputValidation-errorBorder, var(--theia-errorForeground));
+  border-radius: 4px;
+  display: none;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 8px 10px;
+}
+
+.package-unsaved-changes-message {
+  color: var(--theia-foreground);
+  line-height: 1.4;
+}
+
+.package-unsaved-changes .theia-button.secondary.package-unsaved-changes-save {
+  background-color: #c62828;
+  border-color: #c62828;
+  color: var(--theia-button-foreground);
+  flex: 0 0 auto;
+  min-width: 72px;
+}
+
+.package-unsaved-changes .theia-button.secondary.package-unsaved-changes-save:hover:not(:disabled) {
+  background-color: #d32f2f;
+  border-color: #d32f2f;
+  filter: none;
+}
+
+.package-unsaved-changes .theia-button.secondary.package-unsaved-changes-save:active:not(:disabled) {
+  background-color: #b71c1c;
+  border-color: #b71c1c;
+  filter: none;
+}
+
+.package-unsaved-changes .theia-button.secondary.package-unsaved-changes-save:focus-visible {
+  outline: 1px solid var(--theia-focusBorder);
+  outline-offset: 2px;
+}
+
+body.hc-black .package-unsaved-changes,
+body.theia-hc .package-unsaved-changes {
+  background-color: rgba(128, 0, 0, 0.28);
+  border-color: var(--theia-errorForeground);
+  border-width: 2px;
+}
+
+body.hc-black .package-unsaved-changes-message,
+body.theia-hc .package-unsaved-changes-message {
+  color: var(--theia-foreground);
+}
+
+body.hc-black .package-unsaved-changes .theia-button.secondary.package-unsaved-changes-save,
+body.theia-hc .package-unsaved-changes .theia-button.secondary.package-unsaved-changes-save {
+  background-color: #c62828;
+  border: 2px solid var(--theia-contrastBorder);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+body.hc-black .package-unsaved-changes .theia-button.secondary.package-unsaved-changes-save:hover:not(:disabled),
+body.theia-hc .package-unsaved-changes .theia-button.secondary.package-unsaved-changes-save:hover:not(:disabled) {
+  background-color: #e53935;
+  border-color: var(--theia-contrastActiveBorder, var(--theia-contrastBorder));
+  color: #ffffff;
+}
+
+body.hc-black .package-unsaved-changes .theia-button.secondary.package-unsaved-changes-save:active:not(:disabled),
+body.theia-hc .package-unsaved-changes .theia-button.secondary.package-unsaved-changes-save:active:not(:disabled) {
+  background-color: #b71c1c;
+  border-color: var(--theia-contrastActiveBorder, var(--theia-contrastBorder));
+  color: #ffffff;
+}
