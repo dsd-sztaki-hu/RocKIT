@@ -2,45 +2,45 @@ import { Message } from '@lumino/messaging'
 import { AbstractDialog, DialogMode } from '@theia/core/lib/browser/dialogs'
 import { nls } from '@theia/core/lib/common'
 
-export enum ExportRoCrateMode {
+export enum PackageRoCrateMode {
   Normal = 'normal',
   Clean = 'clean',
 }
 
-export interface ExportRoCrateOptions {
-  mode: ExportRoCrateMode
+export interface PackageRoCrateOptions {
+  mode: PackageRoCrateMode
   includeReferencedLocalFiles: boolean
 }
 
-export interface ExportRoCrateDialogOptions {
+export interface PackageRoCrateDialogOptions {
   hasUnsavedChanges: () => Promise<boolean>
   saveChanges: () => Promise<void>
 }
 
-const MODE_DETAILS: Record<ExportRoCrateMode, { label: string; description: string }> = {
-  [ExportRoCrateMode.Normal]: {
-    label: nls.localize('rockit/exportRoCrate/normal', 'Normal Export'),
+const MODE_DETAILS: Record<PackageRoCrateMode, { label: string; description: string }> = {
+  [PackageRoCrateMode.Normal]: {
+    label: nls.localize('rockit/packageRoCrate/normal', 'Normal Package'),
     description: nls.localize(
-      'rockit/exportRoCrate/normalDescription',
-      'Exports the entire workspace as a ZIP, including all files and folders.',
+      'rockit/packageRoCrate/normalDescription',
+      'Packages the entire workspace as a ZIP, including all files and folders.',
     ),
   },
-  [ExportRoCrateMode.Clean]: {
+  [PackageRoCrateMode.Clean]: {
     label: nls.localize(
-      'rockit/exportRoCrate/clean',
-      'Clean RO-Crate Export',
+      'rockit/packageRoCrate/clean',
+      'Clean RO-Crate Package',
     ),
     description: nls.localize(
-      'rockit/exportRoCrate/cleanDescription',
-      'Exports only the RO-Crate structure, including files explicitly listed in ro-crate-metadata.json.',
+      'rockit/packageRoCrate/cleanDescription',
+      'Packages only the RO-Crate structure, including files explicitly listed in ro-crate-metadata.json.',
     ),
   },
 }
 
-export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
-  protected readonly radios: Record<ExportRoCrateMode, HTMLInputElement> = {
-    [ExportRoCrateMode.Normal]: document.createElement('input'),
-    [ExportRoCrateMode.Clean]: document.createElement('input'),
+export class PackageRoCrateDialog extends AbstractDialog<PackageRoCrateOptions> {
+  protected readonly radios: Record<PackageRoCrateMode, HTMLInputElement> = {
+    [PackageRoCrateMode.Normal]: document.createElement('input'),
+    [PackageRoCrateMode.Clean]: document.createElement('input'),
   }
 
   protected readonly includeReferencedLocalFiles = document.createElement('input')
@@ -50,37 +50,37 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
   protected saveError: string | undefined
   protected saveInProgress = false
 
-  constructor(protected readonly options: ExportRoCrateDialogOptions) {
+  constructor(protected readonly options: PackageRoCrateDialogOptions) {
     super({
-      title: nls.localize('rockit/exportRoCrate/title', 'Export RO-Crate'),
+      title: nls.localize('rockit/packageRoCrate/title', 'Package RO-Crate'),
     })
 
     this.appendCloseButton(nls.localize('rockit/common/cancel', 'Cancel'))
-    this.appendAcceptButton(nls.localize('rockit/exportRoCrate/export', 'Export'))
+    this.appendAcceptButton(nls.localize('rockit/packageRoCrate/package', 'Package'))
 
     const container = document.createElement('div')
-    container.classList.add('export-ro-crate-dialog')
+    container.classList.add('package-ro-crate-dialog')
     container.style.display = 'flex'
     container.style.flexDirection = 'column'
     container.style.gap = '1rem'
 
-    this.unsavedChangesNode.classList.add('export-unsaved-changes')
+    this.unsavedChangesNode.classList.add('package-unsaved-changes')
     this.unsavedChangesNode.style.display = 'none'
 
     this.unsavedChangesTextNode.textContent = nls.localize(
-      'rockit/exportRoCrate/unsavedChanges',
-      'RO-Crate metadata has unsaved changes. Save before exporting.',
+      'rockit/packageRoCrate/unsavedChanges',
+      'RO-Crate metadata has unsaved changes. Save before packaging.',
     )
-    this.unsavedChangesTextNode.classList.add('export-unsaved-changes-message')
+    this.unsavedChangesTextNode.classList.add('package-unsaved-changes-message')
 
     this.saveChangesButton.type = 'button'
     this.saveChangesButton.classList.add(
       'theia-button',
       'secondary',
-      'export-unsaved-changes-save',
+      'package-unsaved-changes-save',
     )
     this.saveChangesButton.textContent = nls.localize(
-      'rockit/exportRoCrate/save',
+      'rockit/packageRoCrate/save',
       'Save',
     )
     this.saveChangesButton.addEventListener('click', () => {
@@ -91,11 +91,11 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
     this.unsavedChangesNode.appendChild(this.saveChangesButton)
     container.appendChild(this.unsavedChangesNode)
 
-    for (const mode of [ExportRoCrateMode.Normal, ExportRoCrateMode.Clean]) {
+    for (const mode of [PackageRoCrateMode.Normal, PackageRoCrateMode.Clean]) {
       const details = MODE_DETAILS[mode]
 
       const section = document.createElement('div')
-      section.classList.add('export-mode-section')
+      section.classList.add('package-mode-section')
       section.style.border = '1px solid var(--theia-border-color)'
       section.style.borderRadius = '4px'
       section.style.padding = '0.75rem'
@@ -103,7 +103,7 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
 
       // Make the entire section clickable by using one label that wraps everything.
       const label = document.createElement('label')
-      label.classList.add('export-mode-label')
+      label.classList.add('package-mode-label')
       label.style.display = 'block'
       label.style.cursor = 'pointer'
 
@@ -114,18 +114,18 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
 
       const radio = this.radios[mode]
       radio.type = 'radio'
-      radio.name = 'export-mode'
+      radio.name = 'package-mode'
       radio.value = mode
-      radio.checked = mode === ExportRoCrateMode.Normal
+      radio.checked = mode === PackageRoCrateMode.Normal
 
       const title = document.createElement('span')
       title.textContent = details.label
-      title.classList.add('export-mode-title')
+      title.classList.add('package-mode-title')
       title.style.fontWeight = '600'
 
       const description = document.createElement('p')
       description.textContent = details.description
-      description.classList.add('export-mode-description')
+      description.classList.add('package-mode-description')
       description.style.margin = '0'
       description.style.marginLeft = '1.9rem'
       description.style.color = 'var(--theia-text-muted)'
@@ -141,7 +141,7 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
     }
 
     const includeSection = document.createElement('label')
-    includeSection.classList.add('export-include-referenced-local-files')
+    includeSection.classList.add('package-include-referenced-local-files')
     includeSection.style.display = 'flex'
     includeSection.style.alignItems = 'flex-start'
     includeSection.style.gap = '0.5rem'
@@ -153,7 +153,7 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
 
     const includeText = document.createElement('span')
     includeText.textContent = nls.localize(
-      'rockit/exportRoCrate/includeExternalFiles',
+      'rockit/packageRoCrate/includeExternalFiles',
       'Include referenced local files that are outside the RO-Crate folder',
     )
 
@@ -166,7 +166,7 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
 
   protected onAfterAttach(msg: Message): void {
     super.onAfterAttach(msg)
-    this.radios[ExportRoCrateMode.Normal]?.focus()
+    this.radios[PackageRoCrateMode.Normal]?.focus()
     void this.refreshUnsavedChangesState()
   }
 
@@ -178,16 +178,16 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
     this.saveError = undefined
     this.saveChangesButton.disabled = true
     this.saveChangesButton.textContent = nls.localize(
-      'rockit/exportRoCrate/saving',
+      'rockit/packageRoCrate/saving',
       'Saving...',
     )
 
     try {
       await this.options.saveChanges()
     } catch (error) {
-      console.error('Failed to save RO-Crate before export', error)
+      console.error('Failed to save RO-Crate before packaging', error)
       this.saveError = nls.localize(
-        'rockit/exportRoCrate/saveFailed',
+        'rockit/packageRoCrate/saveFailed',
         'Save failed: {0}',
         String(error),
       )
@@ -195,7 +195,7 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
       this.saveInProgress = false
       this.saveChangesButton.disabled = false
       this.saveChangesButton.textContent = nls.localize(
-        'rockit/exportRoCrate/save',
+        'rockit/packageRoCrate/save',
         'Save',
       )
       await this.refreshUnsavedChangesState()
@@ -208,8 +208,8 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
     this.unsavedChangesTextNode.textContent =
       this.saveError ??
       nls.localize(
-        'rockit/exportRoCrate/unsavedChanges',
-        'RO-Crate metadata has unsaved changes. Save before exporting.',
+        'rockit/packageRoCrate/unsavedChanges',
+        'RO-Crate metadata has unsaved changes. Save before packaging.',
       )
 
     if (this.acceptButton) {
@@ -219,22 +219,22 @@ export class ExportRoCrateDialog extends AbstractDialog<ExportRoCrateOptions> {
   }
 
   protected override async isValid(
-    _value: ExportRoCrateOptions,
+    _value: PackageRoCrateOptions,
     _mode: DialogMode,
   ): Promise<string> {
     if (await this.options.hasUnsavedChanges()) {
       return nls.localize(
-        'rockit/exportRoCrate/saveBeforeExport',
-        'Save RO-Crate metadata before exporting.',
+        'rockit/packageRoCrate/saveBeforePackaging',
+        'Save RO-Crate metadata before packaging.',
       )
     }
     return ''
   }
 
-  get value(): ExportRoCrateOptions {
-    const mode = this.radios[ExportRoCrateMode.Clean]?.checked
-      ? ExportRoCrateMode.Clean
-      : ExportRoCrateMode.Normal
+  get value(): PackageRoCrateOptions {
+    const mode = this.radios[PackageRoCrateMode.Clean]?.checked
+      ? PackageRoCrateMode.Clean
+      : PackageRoCrateMode.Normal
     return {
       mode,
       includeReferencedLocalFiles: this.includeReferencedLocalFiles.checked,

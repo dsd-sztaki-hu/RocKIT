@@ -49,9 +49,10 @@ export interface DataverseCollectionSelection {
 }
 
 export interface DataRepositorySelection {
-    repository: DataRepositoryConfig;
-    capabilities: DataRepositoryCapabilities;
+    repository?: DataRepositoryConfig;
+    capabilities?: DataRepositoryCapabilities;
     exportTarget?: DataRepositoryExportTarget;
+    action?: 'export' | 'sync' | 'import' | 'link';
 }
 
 export type DataRepositoryKind = 'arp-dataverse' | 'dataverse' | 'zenodo' | 'unknown';
@@ -68,8 +69,11 @@ export interface DataRepositoryExportTarget {
     target: string;
     repository: string;
     mappingFile: string;
-    syncedAt: string;
-    syncType: 'create' | 'update';
+    crosswalkFile?: string;
+    lastSuccessfulActionAt?: string;
+    syncType: 'create' | 'update' | 'sync';
     datasetName?: string;
     remoteState?: 'draft' | 'published';
+    status?: 'success' | 'failed' | 'cancelled';
+    errorMessage?: string;
 }

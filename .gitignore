@@ -26,3 +26,5 @@ dist
 *.tsbuildinfo
 yarn.lock
 .env
+.venv-crosswalk/
+.pystow-crosswalk/

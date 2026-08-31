@@ -1,0 +1,320 @@
+{
+  "crosswalkFormat": {
+    "name": "RocKIT Repository Metadata Crosswalk",
+    "version": "0.2.0-draft",
+    "generatedOn": "2026-07-15",
+    "status": "draft-for-review",
+    "description": "A declarative, single-file schema inventory and reviewed mapping draft between canonical RO-Crate metadata, seven ARP profiles, seven Dataverse metadata blocks, and the complete Zenodo legacy deposition upload metadata schema. Unmatched fields remain explicitly unmapped."
+  },
+  "canonicalModel": {
+    "format": "RO-Crate",
+    "version": "1.1",
+    "graphContainer": "@graph",
+    "rootEntityId": "./",
+    "identityProperty": "@id",
+    "typeProperty": "@type",
+    "semanticKeyPolicy": "Use a full property IRI only when it is declared by a source schema and verified as semantically portable.",
+    "cardinalityPolicy": "Preserve source multiplicity canonically; adapt cardinality only at repository boundaries.",
+    "placeholderPolicy": {
+      "omit": [
+        "./",
+        ".",
+        "",
+        null
+      ],
+      "rationale": "RO-Crate root identifiers and blank placeholders are not metadata values."
+    },
+    "iriPolicy": {
+      "inventMissingIris": false,
+      "sourceDeclaredRepositorySpecificIds": "retain as provenance, not as canonical mappings",
+      "unmatchedFields": "record explicitly as source-only or target-only with a null mapping"
+    }
+  },
+  "provenance": {
+    "arpAndRoCrate": "Runtime schemas from ROCKIT_ROOT_PATH/metadata-schemas on 2026-07-15.",
+    "dataverse": "Cached Dataverse metadata blocks returned by /api/metadatablocks?returnDatasetFieldTypes=true.",
+    "zenodoDocumentation": "https://developers.zenodo.org/#deposit-metadata",
+    "zenodoUpdateEndpoint": "https://developers.zenodo.org/#update-deposition",
+    "zenodoUploadSchema": "https://github.com/zenodraft/metadata-schema-zenodo/blob/main/schema.json",
+    "caveat": "The Zenodraft JSON Schema is unofficial. Official Zenodo documentation supplies required and conditional-required rules in this document."
+  },
+  "documentModel": {
+    "repositorySchema": "Defines accepted fields, types, cardinalities, controlled vocabularies, and requirements.",
+    "mapping": "Connects canonical semantic properties to repository target fields.",
+    "transformation": "References a named operation in transformationLibrary; JSON never contains executable code.",
+    "mappingStatus": [
+      "mapped",
+      "exactNameAndProfileMatch",
+      "normalizedNameProfileMatch",
+      "needsReview",
+      "repositorySpecific",
+      "targetOnlyUnmapped",
+      "sourceOnlyUnmapped"
+    ],
+    "unknownVocabularyPolicies": [
+      "omit",
+      "keep",
+      "error",
+      "useDefault",
+      "reportForReview"
+    ]
+  },
+  "transformationLibrary": {
+    "omitEmpty": {
+      "description": "Omit null, undefined, blank strings, empty arrays, and empty objects.",
+      "deterministic": true,
+      "reversible": false
+    },
+    "omitValues": {
+      "description": "Omit configured placeholder values before target validation.",
+      "parameters": {
+        "values": "array<any>"
+      },
+      "deterministic": true,
+      "reversible": false
+    },
+    "trim": {
+      "description": "Trim leading and trailing whitespace from strings.",
+      "deterministic": true,
+      "reversible": false
+    },
+    "firstNonEmpty": {
+      "description": "Select the first non-empty value from ordered source candidates.",
+      "deterministic": true,
+      "reversible": false
+    },
+    "first": {
+      "description": "Select the first item when the target is not repeatable.",
+      "deterministic": true,
+      "reversible": false
+    },
+    "asArray": {
+      "description": "Wrap a scalar as an array and preserve existing arrays.",
+      "deterministic": true,
+      "reversible": true
+    },
+    "normalizeDate": {
+      "description": "Normalize an ISO-like date to YYYY-MM-DD.",
+      "parameters": {
+        "onInvalid": [
+          "error",
+          "omit",
+          "reportForReview"
+        ]
+      },
+      "deterministic": true,
+      "reversible": false
+    },
+    "validateUrl": {
+      "description": "Accept only absolute URLs using configured schemes.",
+      "parameters": {
+        "schemes": "array<string>",
+        "onInvalid": [
+          "error",
+          "omit",
+          "reportForReview"
+        ]
+      },
+      "deterministic": true,
+      "reversible": true
+    },
+    "validateEmail": {
+      "description": "Validate an email-shaped string.",
+      "parameters": {
+        "onInvalid": [
+          "error",
+          "omit",
+          "reportForReview"
+        ]
+      },
+      "deterministic": true,
+      "reversible": true
+    },
+    "parseInteger": {
+      "description": "Convert a numeric-looking scalar to an integer.",
+      "parameters": {
+        "onInvalid": [
+          "error",
+          "omit",
+          "reportForReview"
+        ]
+      },
+      "deterministic": true,
+      "reversible": false
+    },
+    "parseNumber": {
+      "description": "Convert a numeric-looking scalar to a finite number.",
+      "parameters": {
+        "onInvalid": [
+          "error",
+          "omit",
+          "reportForReview"
+        ]
+      },
+      "deterministic": true,
+      "reversible": false
+    },
+    "mapVocabulary": {
+      "description": "Map source terms to the target controlled vocabulary.",
+      "parameters": {
+        "vocabularyPath": "JSON Pointer or schema-relative path",
+        "values": "optional object<string,string>",
+        "onUnknown": [
+          "omit",
+          "keep",
+          "error",
+          "useDefault",
+          "reportForReview"
+        ]
+      },
+      "deterministic": true,
+      "reversible": "only for one-to-one maps"
+    },
+    "resolveReferences": {
+      "description": "Resolve RO-Crate @id references against @graph before mapping.",
+      "deterministic": true,
+      "reversible": true
+    },
+    "mapEntities": {
+      "description": "Map resolved entities to target objects using nested field rules.",
+      "parameters": {
+        "fields": "object<string,mapping>",
+        "omitEmptyProperties": "boolean"
+      },
+      "deterministic": true,
+      "reversible": "when every nested mapping is reversible"
+    },
+    "buildCompound": {
+      "description": "Construct a Dataverse compound-field object from canonical properties.",
+      "parameters": {
+        "children": "array<mapping-id>"
+      },
+      "deterministic": true,
+      "reversible": "when every child mapping is reversible"
+    },
+    "flattenText": {
+      "description": "Flatten one or more text values into a single target string.",
+      "parameters": {
+        "separator": "string"
+      },
+      "deterministic": true,
+      "reversible": false
+    },
+    "defaultValue": {
+      "description": "Apply a repository fallback only when no semantic source value exists.",
+      "parameters": {
+        "value": "any",
+        "classification": [
+          "semanticDefault",
+          "repositoryFallback"
+        ]
+      },
+      "deterministic": true,
+      "reversible": false
+    },
+    "filterByValue": {
+      "description": "Keep compound entities whose selected property matches a configured value.",
+      "parameters": {
+        "property": "string",
+        "equals": "any",
+        "caseInsensitive": "boolean"
+      },
+      "deterministic": true,
+      "reversible": false
+    },
+    "inferResourceType": {
+      "description": "Infer a repository resource type from RO-Crate @type and content metadata.",
+      "parameters": {
+        "vocabularyPath": "string",
+        "onUnknown": [
+          "useDefault",
+          "reportForReview"
+        ]
+      },
+      "deterministic": true,
+      "reversible": false
+    },
+    "deriveAccessRight": {
+      "description": "Derive Zenodo access_right from access conditions, embargo, and license metadata.",
+      "parameters": {
+        "default": "open",
+        "onAmbiguous": [
+          "error",
+          "reportForReview"
+        ]
+      },
+      "deterministic": true,
+      "reversible": false
+    },
+    "aggregateIdentifiers": {
+      "description": "Normalize identifiers and relations into a repository identifier array.",
+      "parameters": {
+        "inferScheme": "boolean",
+        "inferRelation": "boolean"
+      },
+      "deterministic": true,
+      "reversible": false
+    },
+    "custom": {
+      "description": "Call a named, registered transformer for exceptional mappings.",
+      "parameters": {
+        "transformer": "string",
+        "options": "object"
+      },
+      "deterministic": "implementation-defined",
+      "reversible": "implementation-defined"
+    }
+  },
+  "validationAndReporting": {
+    "pipeline": [
+      "load canonical RO-Crate graph",
+      "resolve source candidates and linked entities",
+      "apply mapping transformations",
+      "validate types and cardinality against the embedded target schema",
+      "validate required and conditional-required fields",
+      "produce payload and mapping report"
+    ],
+    "reportCounters": [
+      "mapped",
+      "omitted",
+      "transformed",
+      "unmapped",
+      "invalid",
+      "lossy",
+      "needsReview"
+    ],
+    "perFieldReport": [
+      "mappingId",
+      "sourceValues",
+      "targetPath",
+      "result",
+      "transformations",
+      "warnings"
+    ],
+    "failBeforeUploadOn": [
+      "missing required field",
+      "invalid required value",
+      "unknown transformation",
+      "schema mismatch"
+    ],
+    "neverPersistPayloadByDefault": true
+  },
+  "coverage": {
+    "arpBlocks": 7,
+    "arpCanonicalMappings": 176,
+    "dataverseBlocks": 7,
+    "dataverseTopLevelMappings": 117,
+    "dataverseCompoundChildMappings": 86,
+    "dataverseMappedTopLevel": 101,
+    "dataverseUnmappedTopLevel": 13,
+    "zenodoFields": 44,
+    "zenodoMappings": 44,
+    "arpSourceOnlyUnmapped": 6,
+    "dataverseUnmappedCompoundChildren": 14,
+    "zenodoSourceLessFields": 3,
+    "zenodoMappingsWithoutOpenQuestions": 16,
+    "zenodoNeedsReview": 22,
+    "zenodoRepositorySpecific": 6,
+    "dataverseNeedsReviewTopLevel": 3
+  }
+}

@@ -56,11 +56,7 @@ export class DataverseService {
             };
         } catch (error: any) {
             console.error('Dataverse validation failed:', error);
-            try {
-                return await this.validateZenodoToken(baseUrl, apiKey);
-            } catch {
-                throw error;
-            }
+            throw error;
         }
     }
 

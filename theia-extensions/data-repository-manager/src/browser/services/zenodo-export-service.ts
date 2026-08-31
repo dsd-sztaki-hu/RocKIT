@@ -17,6 +17,14 @@ import {
   normalizeExportLogEntries,
   serializeExportLogEntries,
 } from './export-log'
+import {
+  applyZenodoMetadataToRoCrate,
+  buildZenodoMetadataFromCrosswalk,
+  missingRequiredZenodoMetadataFields,
+  ZenodoMetadataOption,
+  zenodoMetadataOptions,
+} from './zenodo-metadata-crosswalk'
+import { ZenodoRequiredMetadataDialog } from '../components/zenodo-required-metadata-dialog'
 
 type RoCrateEntity = Record<string, unknown>
 type RoCrate = Record<string, unknown>
@@ -41,14 +49,20 @@ interface ZenodoRemoteFile {
   response: unknown
 }
 
-interface ZenodoDepositionMetadata {
-  upload_type: 'dataset'
+export interface ZenodoDepositionMetadata extends Record<string, unknown> {
+  upload_type: string
   publication_date: string
   title: string
-  creators: Array<{ name: string }>
+  creators: Array<Record<string, unknown>>
   description: string
-  access_right: 'open'
-  license: 'cc-zero'
+  access_right: string
+}
+
+export interface ZenodoMetadataPreparationHooks {
+  /** Called before Zenodo license options are fetched for the required metadata dialog. */
+  onLoadingLicenses?: () => void
+  /** Called after metadata preparation finishes and before the required metadata dialog is opened. */
+  onBeforeMetadataDialog?: () => void
 }
 
 export interface ZenodoExportResult {
@@ -81,6 +95,21 @@ export interface ZenodoUpdateResult {
   createdNewVersion: boolean
 }
 
+export interface ZenodoSyncOptions {
+  replaceLocalMetadataWithUploadedRoCrate: boolean
+}
+
+export interface ZenodoSyncResult {
+  depositionId: string
+  target: string
+  mappingFileName: string
+  downloadedFileCount: number
+  replacedFileCount: number
+  keptLocalFileCount: number
+  metadataSource: 'local' | 'uploaded'
+  updatedMetadataFields: string[]
+}
+
 export interface ZenodoExportProgress {
   completedSteps: number
   totalSteps: number
@@ -90,17 +119,40 @@ export interface ZenodoExportProgress {
 export type ZenodoExportProgressReporter = (progress: ZenodoExportProgress) => void
 
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
+const ZENODO_CROSSWALK_FILE_NAME = 'arp-zenodo-crosswalk.json'
+
+export class ZenodoMetadataDialogCancelledError extends Error {
+  constructor() {
+    super('Zenodo metadata entry was cancelled.')
+    this.name = 'ZenodoMetadataDialogCancelledError'
+  }
+}
 
 @injectable()
 export class ZenodoExportService {
+  protected activeExportLogEntry: ExportLogEntry | undefined
   constructor(
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
   ) {}
 
+  /**
+   * Creates a new Zenodo draft deposition from the workspace RO-Crate.
+   *
+   * The metadata transformation is deliberately completed before creating the
+   * remote draft. That means missing required repository metadata is discovered
+   * while the operation is still local and no empty Zenodo deposition has to be
+   * cleaned up after a cancelled metadata dialog.
+   *
+   * File synchronization is not part of the metadata crosswalk. It is handled
+   * here by uploading the localized RO-Crate metadata file plus each referenced
+   * workspace file to Zenodo's bucket API, then writing a local `.rockit`
+   * mapping from RO-Crate entity ids to the remote Zenodo file ids.
+   */
   public async createDraftAndUploadRoCrate(
     repository: DataRepositoryConfig,
     reportProgress?: ZenodoExportProgressReporter,
+    preparedMetadata?: ZenodoDepositionMetadata,
   ): Promise<ZenodoExportResult> {
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const token = repository.apiKey?.trim()
@@ -110,7 +162,7 @@ export class ZenodoExportService {
 
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const depositionMetadata = this.buildDepositionMetadata(crate, rootUri)
+    const depositionMetadata = preparedMetadata ?? await this.buildDepositionMetadata(crate, baseUrl, token)
     const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
     const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
       uploadCrate,
@@ -161,6 +213,29 @@ export class ZenodoExportService {
     completedSteps += 1
 
     const uploadedFiles: ZenodoExportResult['uploadedFiles'] = []
+    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
+    const target =
+      this.extractHtmlUrl(createPayload) ??
+      `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`
+    const uploadMapping = this.buildInitialUploadFileEntityIdMapping(uploadFiles)
+    await this.saveEntityIdMapping(
+      rootUri,
+      mappingFileName,
+      this.toMetadataEntityIdMapping(
+        crate,
+        uploadMapping,
+        localizedExternalFiles.originalToUploadIds,
+      ),
+    )
+    await this.appendExportLog(rootUri, {
+      target,
+      repository: baseUrl,
+      mappingFile: mappingFileName,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
+      syncType: 'create',
+      status: 'cancelled',
+      datasetName: this.getRootDatasetName(crate),
+    })
     for (const file of uploadFiles) {
       reportProgress?.({
         completedSteps,
@@ -188,13 +263,26 @@ export class ZenodoExportService {
           this.payloadSummary(uploadPayload),
         ))
       }
-      uploadedFiles.push({
+      const uploadedFile = {
         filename: file.filename,
         size: file.size,
         response: uploadPayload,
         remoteId: this.extractUploadedFileRemoteId(uploadPayload),
         entityId: file.entityId,
-      })
+      }
+      uploadedFiles.push(uploadedFile)
+      if (file.entityId) {
+        uploadMapping[file.entityId] = uploadedFile.remoteId ?? ''
+      }
+      await this.saveEntityIdMapping(
+        rootUri,
+        mappingFileName,
+        this.toMetadataEntityIdMapping(
+          crate,
+          uploadMapping,
+          localizedExternalFiles.originalToUploadIds,
+        ),
+      )
       completedSteps += 1
     }
 
@@ -241,23 +329,20 @@ export class ZenodoExportService {
         'Writing local export mapping...',
       ),
     })
-    const uploadMapping = this.buildEntityIdMapping(uploadCrate, uploadedFiles)
     const metadataMapping = this.toMetadataEntityIdMapping(
       crate,
       uploadMapping,
       localizedExternalFiles.originalToUploadIds,
     )
-    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
     await this.saveEntityIdMapping(rootUri, mappingFileName, metadataMapping)
-    const target =
-      this.extractHtmlUrl(createPayload) ??
-      `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`
     await this.appendExportLog(rootUri, {
       target,
       repository: baseUrl,
       mappingFile: mappingFileName,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'create',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(crate),
     })
     const unmappedEntityIds = Object.entries(metadataMapping)
@@ -282,10 +367,21 @@ export class ZenodoExportService {
     }
   }
 
+  /**
+   * Updates an existing writable Zenodo draft using the current workspace
+   * RO-Crate.
+   *
+   * The method rebuilds the desired metadata and file list from local state,
+   * loads the remote deposition, compares files by Zenodo filename and MD5
+   * checksum, then deletes, replaces, or uploads only the files that changed.
+   * It refuses to update published depositions because Zenodo records are no
+   * longer mutable after publication.
+   */
   public async updateDeposition(
     repository: DataRepositoryConfig,
     exportTarget: DataRepositoryExportTarget,
     reportProgress?: ZenodoExportProgressReporter,
+    preparedMetadata?: ZenodoDepositionMetadata,
   ): Promise<ZenodoUpdateResult> {
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const token = repository.apiKey?.trim()
@@ -301,7 +397,7 @@ export class ZenodoExportService {
 
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const depositionMetadata = this.buildDepositionMetadata(crate, rootUri)
+    const depositionMetadata = preparedMetadata ?? await this.buildDepositionMetadata(crate, baseUrl, token)
     const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
     const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
       uploadCrate,
@@ -382,6 +478,33 @@ export class ZenodoExportService {
         entityId: local.entityId,
       }),
     )
+    const uploadMapping = {
+      ...this.buildInitialUploadFileEntityIdMapping(uploadFiles),
+      ...this.buildEntityIdMapping(uploadCrate, synchronizedFiles),
+    }
+    const target =
+      this.extractHtmlUrl(draftPayload) ?? `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`
+    const saveRuntimeMapping = async (): Promise<void> => {
+      await this.saveEntityIdMapping(
+        rootUri,
+        exportTarget.mappingFile,
+        this.toMetadataEntityIdMapping(
+          crate,
+          uploadMapping,
+          localizedExternalFiles.originalToUploadIds,
+        ),
+      )
+    }
+    await saveRuntimeMapping()
+    await this.appendExportLog(rootUri, {
+      target,
+      repository: baseUrl,
+      mappingFile: exportTarget.mappingFile,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
+      syncType: 'update',
+      status: 'cancelled',
+      datasetName: this.getRootDatasetName(crate),
+    })
 
     for (const file of removed) {
       reportProgress?.({
@@ -399,8 +522,17 @@ export class ZenodoExportService {
         message: nls.localize('rockit/dataRepository/replacingFile', 'Replacing {0}...', local.filename),
       })
       await this.deleteDepositionFile(baseUrl, token, depositionId, remote)
+      if (local.entityId) {
+        uploadMapping[local.entityId] = ''
+      }
+      await saveRuntimeMapping()
       completedSteps += 1
-      synchronizedFiles.push(await this.uploadFile(bucketUrl, token, local))
+      const uploaded = await this.uploadFile(bucketUrl, token, local)
+      synchronizedFiles.push(uploaded)
+      if (local.entityId) {
+        uploadMapping[local.entityId] = uploaded.remoteId ?? ''
+      }
+      await saveRuntimeMapping()
       completedSteps += 1
     }
     for (const local of added) {
@@ -409,7 +541,12 @@ export class ZenodoExportService {
         totalSteps,
         message: nls.localize('rockit/dataRepository/uploadingFile', 'Uploading {0}...', local.filename),
       })
-      synchronizedFiles.push(await this.uploadFile(bucketUrl, token, local))
+      const uploaded = await this.uploadFile(bucketUrl, token, local)
+      synchronizedFiles.push(uploaded)
+      if (local.entityId) {
+        uploadMapping[local.entityId] = uploaded.remoteId ?? ''
+      }
+      await saveRuntimeMapping()
       completedSteps += 1
     }
 
@@ -440,21 +577,20 @@ export class ZenodoExportService {
         'Writing local export mapping...',
       ),
     })
-    const uploadMapping = this.buildEntityIdMapping(uploadCrate, synchronizedFiles)
     const metadataMapping = this.toMetadataEntityIdMapping(
       crate,
       uploadMapping,
       localizedExternalFiles.originalToUploadIds,
     )
     await this.saveEntityIdMapping(rootUri, exportTarget.mappingFile, metadataMapping)
-    const target =
-      this.extractHtmlUrl(draftPayload) ?? `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`
     await this.appendExportLog(rootUri, {
       target,
       repository: baseUrl,
       mappingFile: exportTarget.mappingFile,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
       syncType: 'update',
-      syncedAt: new Date().toISOString(),
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(crate),
     })
     const unmappedEntityIds = Object.entries(metadataMapping)
@@ -479,6 +615,191 @@ export class ZenodoExportService {
     }
   }
 
+  /**
+   * Pulls changes from a previously exported Zenodo deposition into the local
+   * workspace.
+   *
+   * File transfer is repository-specific: Zenodo exposes a flat deposition file
+   * list, so the local `.rockit` entity mapping is used to place remote files
+   * back at their RO-Crate paths. Metadata transformation is separate and uses
+   * the crosswalk in reverse, writing supported Zenodo deposition metadata
+   * fields into the local RO-Crate after the optional uploaded metadata file is
+   * localized.
+   */
+  public async syncFromZenodo(
+    repository: DataRepositoryConfig,
+    exportTarget: DataRepositoryExportTarget,
+    options: ZenodoSyncOptions,
+    reportProgress?: ZenodoExportProgressReporter,
+  ): Promise<ZenodoSyncResult> {
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const token = repository.apiKey?.trim()
+    if (!token) {
+      throw new Error(nls.localize('rockit/dataRepository/zenodoTokenMissing', 'Zenodo API token is missing.'))
+    }
+    if (!exportTarget?.pid || !exportTarget.mappingFile) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoMissingExportMappingForSync',
+        'This Zenodo export target has no local mapping file. Sync cannot safely place remote files in the workspace.',
+      ))
+    }
+
+    const rootUri = this.getWorkspaceRoot()
+    const metadataUri = rootUri.resolve('ro-crate-metadata.json')
+    const localCrate = await this.readRoCrate(metadataUri)
+    const mapping = await this.readEntityIdMapping(rootUri.resolve('.rockit').resolve(exportTarget.mappingFile))
+    if (!mapping) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoMissingExportMappingForSync',
+        'This Zenodo export target has no local mapping file. Sync cannot safely place remote files in the workspace.',
+      ))
+    }
+    await this.appendExportLog(rootUri, {
+      target: exportTarget.target,
+      repository: baseUrl,
+      mappingFile: exportTarget.mappingFile,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
+      datasetName: exportTarget.datasetName,
+      syncType: 'sync',
+      status: 'cancelled',
+      lastSuccessfulActionAt: exportTarget.lastSuccessfulActionAt,
+    })
+
+    reportProgress?.({
+      completedSteps: 0,
+      totalSteps: 1,
+      message: nls.localize('rockit/dataRepository/loadingZenodoDeposition', 'Loading Zenodo deposition...'),
+    })
+    const depositionUrl = new URL(
+      `/api/deposit/depositions/${encodeURIComponent(exportTarget.pid)}`,
+      `${baseUrl}/`,
+    ).toString()
+    const depositionPayload = await this.requestJson(
+      depositionUrl,
+      { method: 'GET', headers: this.authorizationHeaders(token) },
+      nls.localize('rockit/dataRepository/zenodoLookupFailed', 'Zenodo deposition lookup failed'),
+    )
+    const depositionId = this.extractDepositionId(depositionPayload) ?? exportTarget.pid
+    const metadata = this.mergeZenodoSyncMetadata(
+      this.extractDepositionMetadata(depositionPayload),
+      await this.tryLoadZenodoRecordMetadata(baseUrl, token, depositionPayload, depositionId),
+    )
+    const remoteFiles = await this.listDepositionFiles(baseUrl, token, depositionId)
+    const remoteMetadataFile = remoteFiles.find((file) => file.filename === 'ro-crate-metadata.json')
+    const remoteToLocalMapping = this.invertEntityIdMapping(mapping)
+    const filesToDownload = remoteFiles
+      .filter((file) => file.filename !== 'ro-crate-metadata.json')
+      .map((file) => ({
+        remote: file,
+        localPath: this.localPathForZenodoRemoteFile(file, remoteToLocalMapping),
+      }))
+      .filter((item) => !!item.localPath) as Array<{ remote: ZenodoRemoteFile; localPath: string }>
+
+    const downloadPlan: Array<{ remote: ZenodoRemoteFile; localPath: string; kind: 'new' | 'changed' }> = []
+    let keptLocalFileCount = 0
+    for (const item of filesToDownload) {
+      const targetUri = rootUri.resolve(item.localPath)
+      if (!(await this.fileService.exists(targetUri))) {
+        downloadPlan.push({ ...item, kind: 'new' })
+      } else if (!(await this.localFileMatchesRemoteChecksum(targetUri, item.remote.checksum))) {
+        downloadPlan.push({ ...item, kind: 'changed' })
+      } else {
+        keptLocalFileCount += 1
+      }
+    }
+
+    const totalSteps =
+      downloadPlan.length +
+      (options.replaceLocalMetadataWithUploadedRoCrate && remoteMetadataFile ? 1 : 0) +
+      2
+    let completedSteps = 1
+    reportProgress?.({
+      completedSteps,
+      totalSteps,
+      message: nls.localize(
+        'rockit/dataRepository/zenodoRemoteCheckingComplete',
+        'Checking complete: {0} remote file(s) to download and {1} unchanged file(s) to keep.',
+        downloadPlan.length,
+        keptLocalFileCount,
+      ),
+    })
+
+    for (const item of downloadPlan) {
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: nls.localize('rockit/dataRepository/downloadingRemoteFile', 'Downloading {0}...', item.localPath),
+      })
+      await this.writeWorkspaceFile(rootUri, item.localPath, await this.downloadZenodoFile(item.remote, token))
+      completedSteps += 1
+    }
+
+    let crateBase = localCrate
+    let metadataSource: ZenodoSyncResult['metadataSource'] = 'local'
+    if (options.replaceLocalMetadataWithUploadedRoCrate && remoteMetadataFile) {
+      reportProgress?.({
+        completedSteps,
+        totalSteps,
+        message: nls.localize(
+          'rockit/dataRepository/downloadingUploadedMetadata',
+          'Downloading uploaded ro-crate-metadata.json...',
+        ),
+      })
+      const remoteCrate = this.parseRemoteRoCrate(
+        await this.downloadZenodoFile(remoteMetadataFile, token),
+      )
+      crateBase = this.rewriteCrateEntityIds(remoteCrate, remoteToLocalMapping)
+      metadataSource = 'uploaded'
+      completedSteps += 1
+    }
+
+    reportProgress?.({
+      completedSteps,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/applyingRemoteMetadata', 'Applying remote repository metadata...'),
+    })
+    const reverseResult = applyZenodoMetadataToRoCrate(crateBase, metadata)
+    await this.fileService.writeFile(
+      metadataUri,
+      BinaryBuffer.fromString(`${JSON.stringify(reverseResult.crate, null, 2)}\n`),
+    )
+    await this.appendExportLog(rootUri, {
+      target: exportTarget.target,
+      repository: baseUrl,
+      mappingFile: exportTarget.mappingFile,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
+      syncType: 'sync',
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
+      datasetName: this.getRootDatasetName(reverseResult.crate),
+    })
+    reportProgress?.({
+      completedSteps: totalSteps,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/syncComplete', 'Sync complete.'),
+    })
+
+    return {
+      depositionId,
+      target: exportTarget.target,
+      mappingFileName: exportTarget.mappingFile,
+      downloadedFileCount: downloadPlan.filter((file) => file.kind === 'new').length,
+      replacedFileCount: downloadPlan.filter((file) => file.kind === 'changed').length,
+      keptLocalFileCount,
+      metadataSource,
+      updatedMetadataFields: reverseResult.updatedFields,
+    }
+  }
+
+  /**
+   * Reconstructs the set of previously exported Zenodo targets from the local
+   * export log without contacting Zenodo.
+   *
+   * Opening the repository chooser should stay local because the user may pick
+   * another repository or create a fresh export. The selected Zenodo operation
+   * performs the deposition lookup later, when the remote state is actually
+   * needed.
+   */
   public async listExportTargets(
     repositories: DataRepositoryConfig[],
   ): Promise<Record<string, DataRepositoryExportTarget[]>> {
@@ -505,21 +826,33 @@ export class ZenodoExportService {
           target: entry.target,
           repository: entry.repository,
           mappingFile: entry.mappingFile,
-          syncedAt: entry.syncedAt,
+          crosswalkFile: entry.crosswalkFile,
+          lastSuccessfulActionAt: entry.lastSuccessfulActionAt,
           syncType: entry.syncType,
+          status: entry.status,
+          errorMessage: entry.errorMessage,
           datasetName: currentDatasetName ?? entry.datasetName,
         })
       }
       targetsByRepositoryId[repository.id] = Array.from(latestByMappingFile.values())
-        .sort((a, b) => b.syncedAt.localeCompare(a.syncedAt))
-      await Promise.all(
-        targetsByRepositoryId[repository.id].map((target) =>
-          this.populateRemoteState(repository, target),
-        ),
-      )
+        .sort((a, b) => (b.lastSuccessfulActionAt ?? '').localeCompare(a.lastSuccessfulActionAt ?? ''))
     }
 
     return targetsByRepositoryId
+  }
+
+  public async prepareDepositionMetadata(
+    repository: DataRepositoryConfig,
+    hooks?: ZenodoMetadataPreparationHooks,
+  ): Promise<ZenodoDepositionMetadata> {
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const token = repository.apiKey?.trim()
+    if (!token) {
+      throw new Error(nls.localize('rockit/dataRepository/zenodoTokenMissing', 'Zenodo API token is missing.'))
+    }
+    const rootUri = this.getWorkspaceRoot()
+    const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
+    return this.buildDepositionMetadata(crate, baseUrl, token, hooks)
   }
 
   protected getWorkspaceRoot(): URI {
@@ -550,6 +883,33 @@ export class ZenodoExportService {
     }
   }
 
+  protected parseRemoteRoCrate(content: Uint8Array): RoCrate {
+    try {
+      const parsed = JSON.parse(new TextDecoder().decode(content)) as RoCrate
+      if (!Array.isArray(parsed['@graph'])) {
+        throw new Error(nls.localize(
+          'rockit/dataRepository/downloadedJsonMissingGraph',
+          'Downloaded JSON did not contain @graph.',
+        ))
+      }
+      return parsed
+    } catch (error) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/remoteMetadataInvalid',
+        'Remote ro-crate-metadata.json is invalid: {0}',
+        error instanceof Error ? error.message : String(error),
+      ))
+    }
+  }
+
+  /**
+   * Builds the byte payloads sent to Zenodo's bucket endpoint.
+   *
+   * The uploaded RO-Crate metadata may differ from the workspace file only in
+   * localized file references: external local files are copied into the upload
+   * set and their `@id`s are rewritten to stable upload names. This keeps the
+   * metadata export separate from repository-specific file handling.
+   */
   protected async buildUploadFiles(
     crate: RoCrate,
     rootUri: URI,
@@ -611,47 +971,148 @@ export class ZenodoExportService {
     return files
   }
 
-  protected buildDepositionMetadata(
+  /**
+   * Builds and validates the Zenodo `metadata` object sent to the deposition
+   * API. The field values come from the generated crosswalk executor; this
+   * method only handles Zenodo-specific runtime requirements that cannot be
+   * satisfied from RO-Crate alone, such as prompting for access-right dependent
+   * license, embargo date, or access conditions.
+   */
+  protected async buildDepositionMetadata(
     crate: RoCrate,
-    rootUri: URI,
-  ): ZenodoDepositionMetadata {
-    const graph = this.readGraphEntities(crate)
-    const root = graph.find((entity) => entity['@id'] === './')
-    const title =
-      (root ? this.firstMeaningfulString(root.title, root.name) : undefined) ??
-      this.workspaceName(rootUri) ??
-      'Untitled RO-Crate'
-    const description =
-      (root
-        ? this.firstMeaningfulString(
-            root.description,
-            ...this.resolveEntities(root.dsDescription, graph).flatMap((entity) => [
-              entity.dsDescriptionValue,
-              entity.description,
-              entity.name,
-            ]),
-          )
-        : undefined) ?? 'RO-Crate exported from AROMA.'
-    const creators = root
-      ? this.extractCreators(root, graph).map((name) => ({ name }))
-      : []
-
-    if (!creators.length) {
+    baseUrl: string,
+    token: string,
+    hooks?: ZenodoMetadataPreparationHooks,
+  ): Promise<ZenodoDepositionMetadata> {
+    const { metadata, diagnostics } = buildZenodoMetadataFromCrosswalk(crate)
+    let missingRequiredFields = missingRequiredZenodoMetadataFields(metadata)
+    const usesFallbackAccessRight = diagnostics.some(
+      (diagnostic) =>
+        diagnostic.targetField === 'access_right' &&
+        diagnostic.outcome === 'defaulted',
+    )
+    if (
+      usesFallbackAccessRight ||
+      missingRequiredFields.some((field) =>
+        ['access_right', 'license', 'embargo_date', 'access_conditions'].includes(field),
+      )
+    ) {
+      hooks?.onLoadingLicenses?.()
+      const licenseOptions = await this.loadZenodoLicenseOptions(baseUrl, token)
+      hooks?.onBeforeMetadataDialog?.()
+      const supplied = await new ZenodoRequiredMetadataDialog(
+        metadata,
+        licenseOptions,
+      ).open()
+      if (!supplied) {
+        throw new ZenodoMetadataDialogCancelledError()
+      }
+      Object.assign(metadata, supplied)
+      for (const field of ['license', 'embargo_date', 'access_conditions']) {
+        if (!(field in supplied)) {
+          delete metadata[field]
+        }
+      }
+      missingRequiredFields = missingRequiredZenodoMetadataFields(metadata)
+    }
+    if (missingRequiredFields.length) {
       throw new Error(nls.localize(
-        'rockit/dataRepository/zenodoCreatorRequired',
-        'Zenodo export requires at least one creator. Add an author name to the RO-Crate root Dataset before exporting.',
+        'rockit/dataRepository/zenodoRequiredMetadataMissing',
+        'Zenodo metadata is missing required fields defined by the repository crosswalk: {0}.',
+        missingRequiredFields.join(', '),
       ))
     }
+    return metadata as ZenodoDepositionMetadata
+  }
 
-    return {
-      upload_type: 'dataset',
-      publication_date: this.currentDate(),
-      title,
-      creators,
-      description,
-      access_right: 'open',
-      license: 'cc-zero',
+  /**
+   * Loads the active Zenodo license vocabulary from the target repository.
+   *
+   * Zenodo installations can expose license choices through `/api/licenses/`.
+   * The generated crosswalk vocabulary remains the fallback so the dialog still
+   * works when the repository cannot be queried.
+   */
+  protected async loadZenodoLicenseOptions(
+    baseUrl: string,
+    token: string,
+  ): Promise<ZenodoMetadataOption[]> {
+    const fallback = zenodoMetadataOptions('license')
+    try {
+      const url = new URL('/api/licenses/', `${baseUrl}/`)
+      url.searchParams.set('size', '1000')
+      const payload = await this.requestJson(
+        url.toString(),
+        { method: 'GET', headers: this.authorizationHeaders(token) },
+        nls.localize(
+          'rockit/dataRepository/zenodoLicensesLoadFailed',
+          'Zenodo licenses could not be loaded',
+        ),
+      )
+      const resources = this.extractZenodoLicenseResources(payload)
+      const options = resources.flatMap((resource) => {
+        const metadata =
+          resource.metadata &&
+          typeof resource.metadata === 'object' &&
+          !Array.isArray(resource.metadata)
+            ? resource.metadata as Record<string, unknown>
+            : resource
+        const value = this.firstString(metadata.id, resource.id)
+        if (!value) {
+          return []
+        }
+        const title = this.firstString(metadata.title, resource.title)
+        return [{
+          value,
+          label: title && title !== value ? `${title} (${value})` : value,
+        }]
+      })
+      const loadedOptions = options.length
+        ? Array.from(
+            new Map(options.map((option) => [option.value, option])).values(),
+          ).sort((left, right) => left.label.localeCompare(right.label))
+        : fallback
+      return this.withZenodoDefaultLicenses(loadedOptions)
+    } catch (error) {
+      console.warn('Could not load Zenodo licenses; using crosswalk vocabulary.', error)
+      return this.withZenodoDefaultLicenses(fallback)
     }
+  }
+
+  protected withZenodoDefaultLicenses(
+    options: ZenodoMetadataOption[],
+  ): ZenodoMetadataOption[] {
+    const byId = new Map(options.map((option) => [option.value, option]))
+    for (const value of ['cc-zero', 'cc-by']) {
+      if (!byId.has(value)) {
+        byId.set(value, { value, label: value })
+      }
+    }
+    return Array.from(byId.values())
+  }
+
+  protected extractZenodoLicenseResources(
+    payload: unknown,
+  ): Array<Record<string, unknown>> {
+    if (Array.isArray(payload)) {
+      return payload.filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === 'object' && !Array.isArray(item),
+      )
+    }
+    if (!payload || typeof payload !== 'object') {
+      return []
+    }
+    const hits = (payload as Record<string, unknown>).hits
+    const nestedHits =
+      hits && typeof hits === 'object' && !Array.isArray(hits)
+        ? (hits as Record<string, unknown>).hits
+        : undefined
+    return Array.isArray(nestedHits)
+      ? nestedHits.filter(
+          (item): item is Record<string, unknown> =>
+            !!item && typeof item === 'object' && !Array.isArray(item),
+        )
+      : []
   }
 
   protected async localizeExternalLocalFileReferences(
@@ -725,6 +1186,32 @@ export class ZenodoExportService {
       : []
   }
 
+  protected rewriteCrateEntityIds(
+    crate: RoCrate,
+    idMapping: RoCrateEntityIdMapping,
+  ): RoCrate {
+    const rewritten = JSON.parse(JSON.stringify(crate)) as RoCrate
+    this.rewriteEntityIdReferences(rewritten, idMapping)
+    return rewritten
+  }
+
+  protected rewriteEntityIdReferences(value: unknown, idMapping: RoCrateEntityIdMapping): void {
+    if (Array.isArray(value)) {
+      value.forEach((item) => this.rewriteEntityIdReferences(item, idMapping))
+      return
+    }
+    if (!value || typeof value !== 'object') {
+      return
+    }
+    const record = value as Record<string, unknown>
+    if (typeof record['@id'] === 'string' && idMapping[record['@id']]) {
+      record['@id'] = idMapping[record['@id']]
+    }
+    for (const child of Object.values(record)) {
+      this.rewriteEntityIdReferences(child, idMapping)
+    }
+  }
+
   protected entityTypes(entity: RoCrateEntity): string[] {
     const raw = entity['@type']
     if (typeof raw === 'string') {
@@ -787,6 +1274,90 @@ export class ZenodoExportService {
     return rootUri.isEqualOrParent(resourceUri)
   }
 
+  protected localPathForZenodoRemoteFile(
+    file: ZenodoRemoteFile,
+    remoteToLocalMapping: RoCrateEntityIdMapping,
+  ): string | undefined {
+    for (const identifier of this.zenodoRemoteFileIdentifiers(file)) {
+      const mappedLocalId = remoteToLocalMapping[identifier]
+      const mappedPath = mappedLocalId ? this.localCratePathFromEntityId(mappedLocalId) : undefined
+      if (mappedPath) {
+        return mappedPath
+      }
+    }
+    const fallback = file.filename.replace(/__/g, '/')
+    return this.isSafeRelativePath(fallback) ? fallback : undefined
+  }
+
+  protected zenodoRemoteFileIdentifiers(file: ZenodoRemoteFile): string[] {
+    const links = this.extractLinks(file.response)
+    return this.uniqueStrings([
+      file.id,
+      file.filename,
+      this.extractUploadedFileRemoteId(file.response),
+      this.readLink(links, 'self'),
+      this.readLink(links, 'download'),
+    ].filter((value): value is string => !!value))
+  }
+
+  protected async localFileMatchesRemoteChecksum(
+    uri: URI,
+    remoteChecksum?: string,
+  ): Promise<boolean> {
+    if (!remoteChecksum) {
+      return false
+    }
+    const normalizedRemote = remoteChecksum.replace(/^md5:/i, '').toLowerCase()
+    const localContent = await this.fileService.readFile(uri)
+    return SparkMD5.ArrayBuffer.hash(localContent.value.buffer).toLowerCase() === normalizedRemote
+  }
+
+  protected async writeWorkspaceFile(
+    rootUri: URI,
+    relativePath: string,
+    content: Uint8Array,
+  ): Promise<void> {
+    const normalized = relativePath.replace(/\\/g, '/')
+    if (!this.isSafeRelativePath(normalized)) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/syncUnsafeLocalPath',
+        'Refusing to write unsafe sync path: {0}',
+        relativePath,
+      ))
+    }
+    const targetUri = rootUri.resolve(normalized)
+    if (!this.isInsideRoot(rootUri, targetUri)) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/syncPathOutsideWorkspace',
+        'Refusing to write sync path outside the workspace: {0}',
+        relativePath,
+      ))
+    }
+    await this.ensureWorkspaceFolder(rootUri, this.parsePosixPath(normalized).dir)
+    await this.fileService.writeFile(targetUri, BinaryBuffer.wrap(content))
+  }
+
+  protected async ensureWorkspaceFolder(rootUri: URI, relativeDirectory: string): Promise<void> {
+    if (!relativeDirectory) {
+      return
+    }
+    let current = rootUri
+    for (const segment of relativeDirectory.split('/').filter((part) => !!part)) {
+      current = current.resolve(segment)
+      if (!(await this.fileService.exists(current))) {
+        await this.fileService.createFolder(current)
+      }
+    }
+  }
+
+  protected parsePosixPath(value: string): { dir: string; base: string } {
+    const normalized = value.replace(/\\/g, '/')
+    const index = normalized.lastIndexOf('/')
+    return index === -1
+      ? { dir: '', base: normalized }
+      : { dir: normalized.slice(0, index), base: normalized.slice(index + 1) }
+  }
+
   protected normalizeBaseUrl(baseUrl: string): string {
     const normalized = baseUrl.trim().replace(/\/+$/, '').replace(/\/api$/, '')
     if (!normalized) {
@@ -829,6 +1400,11 @@ export class ZenodoExportService {
     return `${filename.slice(0, index)}-${suffix}${filename.slice(index)}`
   }
 
+  /**
+   * Records which remote Zenodo file id corresponds to each uploaded RO-Crate
+   * file entity. Metadata-only entities are intentionally absent from this map:
+   * Zenodo does not assign them separate remote file ids.
+   */
   protected buildEntityIdMapping(
     crate: RoCrate,
     uploadedFiles: ZenodoExportResult['uploadedFiles'],
@@ -847,6 +1423,26 @@ export class ZenodoExportService {
     )
   }
 
+  protected buildInitialUploadFileEntityIdMapping(
+    uploadFiles: ZenodoUploadFile[],
+  ): RoCrateEntityIdMapping {
+    const mapping: RoCrateEntityIdMapping = {}
+    for (const file of uploadFiles) {
+      if (file.entityId) {
+        mapping[file.entityId] = ''
+      }
+    }
+    return Object.fromEntries(
+      Object.entries(mapping).sort((a, b) => a[0].localeCompare(b[0])),
+    )
+  }
+
+  /**
+   * Converts upload-time ids back to the ids used in the original metadata
+   * file. External local file references may be rewritten for upload, but the
+   * mapping stored in `.rockit` should remain understandable relative to the
+   * user's RO-Crate.
+   */
   protected toMetadataEntityIdMapping(
     metadataCrate: RoCrate,
     uploadMapping: RoCrateEntityIdMapping,
@@ -1033,8 +1629,49 @@ export class ZenodoExportService {
     }
     await this.fileService.writeFile(
       rockitUri.resolve(mappingFileName),
-      BinaryBuffer.fromString(`${JSON.stringify(mapping, null, 2)}\n`),
+      BinaryBuffer.fromString(`${JSON.stringify(this.compactEntityIdMapping(mapping), null, 2)}\n`),
     )
+  }
+
+  protected compactEntityIdMapping(mapping: RoCrateEntityIdMapping): RoCrateEntityIdMapping {
+    return Object.fromEntries(
+      Object.entries(mapping)
+        .filter(([, remoteId]) => !!remoteId)
+        .sort((a, b) => a[0].localeCompare(b[0])),
+    )
+  }
+
+  protected async readEntityIdMapping(
+    mappingUri: URI,
+  ): Promise<RoCrateEntityIdMapping | undefined> {
+    if (!(await this.fileService.exists(mappingUri))) {
+      return undefined
+    }
+    try {
+      const parsed = JSON.parse((await this.fileService.readFile(mappingUri)).value.toString())
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return undefined
+      }
+      return Object.fromEntries(
+        Object.entries(parsed).filter(
+          (entry): entry is [string, string] =>
+            typeof entry[0] === 'string' && typeof entry[1] === 'string',
+        ),
+      )
+    } catch (error) {
+      console.warn('Failed to parse Zenodo mapping file for sync.', error)
+      return undefined
+    }
+  }
+
+  protected invertEntityIdMapping(mapping: RoCrateEntityIdMapping): RoCrateEntityIdMapping {
+    const inverted: RoCrateEntityIdMapping = {}
+    for (const [localId, remoteId] of Object.entries(mapping)) {
+      if (remoteId) {
+        inverted[remoteId] = localId
+      }
+    }
+    return inverted
   }
 
   protected async appendExportLog(rootUri: URI, entry: ExportLogEntry): Promise<void> {
@@ -1049,6 +1686,27 @@ export class ZenodoExportService {
       logUri,
       BinaryBuffer.fromString(`${JSON.stringify(serializeExportLogEntries(nextEntries), null, 2)}\n`),
     )
+    this.activeExportLogEntry = entry.status === 'cancelled' ? entry : undefined
+  }
+
+  public async markActiveExportFailed(error: unknown): Promise<void> {
+    const entry = this.activeExportLogEntry
+    if (!entry) {
+      return
+    }
+    await this.appendExportLog(this.getWorkspaceRoot(), {
+      ...entry,
+      status: 'failed',
+      errorMessage: error instanceof Error ? error.message : String(error),
+    })
+  }
+
+  public async markExportTargetFailed(target: DataRepositoryExportTarget, message: string): Promise<void> {
+    await this.appendExportLog(this.getWorkspaceRoot(), {
+      ...target,
+      status: 'failed',
+      errorMessage: message,
+    })
   }
 
   protected async readExportLogEntries(logUri: URI): Promise<ExportLogEntry[]> {
@@ -1173,6 +1831,197 @@ export class ZenodoExportService {
         response: entry,
       }
     })
+  }
+
+  protected extractDepositionMetadata(payload: unknown): Record<string, unknown> {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/invalidZenodoDepositionResponse',
+        'Zenodo returned an invalid deposition response.',
+      ))
+    }
+    const metadata = (payload as Record<string, unknown>).metadata
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoDepositionMissingMetadata',
+        'Zenodo deposition response did not include a metadata object.',
+      ))
+    }
+    return metadata as Record<string, unknown>
+  }
+
+  protected async tryLoadZenodoRecordMetadata(
+    baseUrl: string,
+    token: string,
+    depositionPayload: unknown,
+    fallbackRecordId: string,
+  ): Promise<Record<string, unknown> | undefined> {
+    const recordId = this.firstString(
+      this.readObjectField(depositionPayload, 'record_id'),
+      this.readObjectField(depositionPayload, 'recid'),
+      fallbackRecordId,
+    )
+    if (!recordId) {
+      return undefined
+    }
+    for (const path of [
+      `/api/records/${encodeURIComponent(recordId)}/draft`,
+      `/api/records/${encodeURIComponent(recordId)}`,
+    ]) {
+      const url = new URL(path, `${baseUrl}/`).toString()
+      try {
+        const response = await this.fetchWithTimeout(url, {
+          method: 'GET',
+          headers: this.authorizationHeaders(token),
+        })
+        if (!response.ok) {
+          continue
+        }
+        const payload = await this.readResponsePayload(response)
+        const metadata = this.extractOptionalMetadataObject(payload)
+        if (metadata) {
+          return metadata
+        }
+      } catch (error) {
+        console.warn('Zenodo record metadata lookup failed; continuing with legacy deposition metadata.', error)
+      }
+    }
+    return undefined
+  }
+
+  protected mergeZenodoSyncMetadata(
+    legacyMetadata: Record<string, unknown>,
+    recordMetadata: Record<string, unknown> | undefined,
+  ): Record<string, unknown> {
+    if (!recordMetadata) {
+      return legacyMetadata
+    }
+    const merged = { ...legacyMetadata }
+    const additionalDescriptions =
+      recordMetadata.additional_descriptions ??
+      recordMetadata.additionalDescriptions ??
+      recordMetadata.additional_description ??
+      recordMetadata.additionalDescription
+    if (additionalDescriptions !== undefined) {
+      merged.additional_descriptions = additionalDescriptions
+    }
+    const creators = this.normalizeZenodoRecordCreators(recordMetadata.creators)
+    if (creators.length) {
+      merged.creators = creators
+    }
+    return merged
+  }
+
+  protected normalizeZenodoRecordCreators(value: unknown): Array<Record<string, unknown>> {
+    if (!Array.isArray(value)) {
+      return []
+    }
+    return value
+      .map((creator) => this.normalizeZenodoRecordCreator(creator))
+      .filter((creator): creator is Record<string, unknown> => !!creator)
+  }
+
+  protected normalizeZenodoRecordCreator(value: unknown): Record<string, unknown> | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return undefined
+    }
+    const creator = value as Record<string, unknown>
+    const personOrOrg = creator.person_or_org &&
+      typeof creator.person_or_org === 'object' &&
+      !Array.isArray(creator.person_or_org)
+      ? creator.person_or_org as Record<string, unknown>
+      : undefined
+    const name = this.firstString(
+      creator.name,
+      personOrOrg?.name,
+      this.joinNameParts(personOrOrg?.family_name, personOrOrg?.given_name),
+    )
+    if (!name) {
+      return undefined
+    }
+    const affiliation = this.firstString(
+      creator.affiliation,
+      ...(Array.isArray(creator.affiliations)
+        ? creator.affiliations.map((affiliationItem) =>
+            affiliationItem &&
+            typeof affiliationItem === 'object' &&
+            !Array.isArray(affiliationItem)
+              ? (affiliationItem as Record<string, unknown>).name
+              : affiliationItem,
+          )
+        : []),
+    )
+    const orcid = this.firstString(
+      creator.orcid,
+      ...(Array.isArray(personOrOrg?.identifiers)
+        ? personOrOrg.identifiers.map((identifierItem) => {
+            if (!identifierItem || typeof identifierItem !== 'object' || Array.isArray(identifierItem)) {
+              return undefined
+            }
+            const identifier = identifierItem as Record<string, unknown>
+            const scheme = this.firstString(identifier.scheme)?.toLowerCase()
+            return scheme === 'orcid' ? identifier.identifier : undefined
+          })
+        : []),
+    )
+    return {
+      name,
+      ...(affiliation ? { affiliation } : {}),
+      ...(orcid ? { orcid } : {}),
+    }
+  }
+
+  protected joinNameParts(familyName: unknown, givenName: unknown): string | undefined {
+    const family = this.firstString(familyName)
+    const given = this.firstString(givenName)
+    if (family && given) {
+      return `${family}, ${given}`
+    }
+    return family ?? given
+  }
+
+  protected extractOptionalMetadataObject(payload: unknown): Record<string, unknown> | undefined {
+    const metadata = this.readObjectField(payload, 'metadata')
+    return metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? metadata as Record<string, unknown>
+      : undefined
+  }
+
+  protected readObjectField(payload: unknown, field: string): unknown {
+    return payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)[field]
+      : undefined
+  }
+
+  protected async downloadZenodoFile(
+    file: ZenodoRemoteFile,
+    token: string,
+  ): Promise<Uint8Array> {
+    const links = this.extractLinks(file.response)
+    const downloadUrl = this.readLink(links, 'download')
+    if (!downloadUrl) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoFileMissingDownloadLink',
+        "Zenodo file '{0}' does not include a download link.",
+        file.filename,
+      ))
+    }
+    const response = await this.fetchWithTimeout(downloadUrl, {
+      method: 'GET',
+      headers: this.authorizationHeaders(token),
+    })
+    if (!response.ok) {
+      const payload = await this.readResponsePayload(response)
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoFileDownloadFailed',
+        "Zenodo file download failed for '{0}' ({1}) at {2}: {3}",
+        file.filename,
+        response.status,
+        response.url || downloadUrl,
+        this.payloadSummary(payload),
+      ))
+    }
+    return new Uint8Array(await response.arrayBuffer())
   }
 
   protected async fileMatchesRemoteChecksum(

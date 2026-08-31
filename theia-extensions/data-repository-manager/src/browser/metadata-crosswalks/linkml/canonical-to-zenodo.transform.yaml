@@ -1,0 +1,147 @@
+id: https://w3id.org/arp/linkml/canonical-to-zenodo
+title: Canonical ARP/Dataverse RO-Crate to Zenodo metadata
+source_schema:
+  name: canonical-metadata
+  source_file: canonical-metadata.schema.yaml
+target_schema:
+  name: zenodo-metadata
+  source_file: zenodo-metadata.schema.yaml
+class_derivations:
+  ZenodoMetadata:
+    populated_from: CanonicalMetadata
+    slot_derivations:
+      access_conditions:
+        populated_from: accessToSources
+        description: "needsReview: zenodo.access_conditions"
+      access_right:
+        populated_from: conditionsOfAccess
+        description: "needsReview: zenodo.access_right"
+      communities:
+        expr: None
+        description: "repositorySpecific: No verified canonical semantic property
+          exists; a Zenodo-specific IRI is not invented."
+      conference_acronym:
+        populated_from: conferenceAcronym
+        description: "needsReview: zenodo.conference_acronym"
+      conference_dates:
+        populated_from: timePeriodCoveredStart
+        description: "needsReview: zenodo.conference_dates"
+      conference_place:
+        populated_from: productionPlace
+        description: "needsReview: zenodo.conference_place"
+      conference_session:
+        populated_from: conferenceSession
+        description: "repositorySpecific: zenodo.conference_session"
+      conference_session_part:
+        expr: None
+        description: "repositorySpecific: No verified canonical semantic property
+          exists; a Zenodo-specific IRI is not invented."
+      conference_title:
+        populated_from: publicationCitation
+        description: "needsReview: zenodo.conference_title"
+      conference_url:
+        populated_from: publicationURL
+        description: "needsReview: zenodo.conference_url"
+      contributors:
+        populated_from: contributor
+        description: "mapped: zenodo.contributors"
+      creators:
+        populated_from: author
+        description: "mapped: zenodo.creators"
+      description:
+        populated_from: dsDescription
+        description: "mapped: zenodo.description"
+      doi:
+        populated_from: otherId
+        description: "needsReview: zenodo.doi"
+      embargo_date:
+        populated_from: distributionDate
+        description: "needsReview: zenodo.embargo_date"
+      grants:
+        populated_from: grantNumber
+        description: "mapped: zenodo.grants"
+      image_type:
+        populated_from: additionalType
+        description: "needsReview: zenodo.image_type"
+      imprint_isbn:
+        populated_from: otherId
+        description: "needsReview: zenodo.imprint_isbn"
+      imprint_place:
+        populated_from: productionPlace
+        description: "needsReview: zenodo.imprint_place"
+      imprint_publisher:
+        populated_from: producer
+        description: "needsReview: zenodo.imprint_publisher"
+      journal_issue:
+        populated_from: journalIssue
+        description: "mapped: zenodo.journal_issue"
+      journal_pages:
+        populated_from: pagination
+        description: "repositorySpecific: zenodo.journal_pages"
+      journal_title:
+        populated_from: publicationCitation
+        description: "needsReview: zenodo.journal_title"
+      journal_volume:
+        populated_from: journalVolume
+        description: "mapped: zenodo.journal_volume"
+      keywords:
+        populated_from: keyword
+        description: "mapped: zenodo.keywords"
+      language:
+        populated_from: language
+        description: "mapped: zenodo.language"
+      license:
+        populated_from: license
+        description: "mapped: zenodo.license"
+      notes:
+        populated_from: notesText
+        description: "mapped: zenodo.notes"
+      partof_pages:
+        populated_from: pagination
+        description: "repositorySpecific: zenodo.partof_pages"
+      partof_title:
+        populated_from: seriesName
+        description: "needsReview: zenodo.partof_title"
+      publication_date:
+        populated_from: datePublished
+        description: "mapped: zenodo.publication_date"
+      publication_type:
+        populated_from: publicationType
+        description: "needsReview: zenodo.publication_type"
+      references:
+        populated_from: otherReferences
+        description: "mapped: zenodo.references"
+      related_identifiers:
+        populated_from: otherId
+        description: "mapped: zenodo.related_identifiers"
+      subjects:
+        populated_from: topicClassification
+        description: "needsReview: zenodo.subjects"
+      thesis_supervisors:
+        populated_from: contributor
+        description: "needsReview: zenodo.thesis_supervisors"
+      thesis_university:
+        populated_from: producer
+        description: "needsReview: zenodo.thesis_university"
+      title:
+        populated_from: title
+        description: "mapped: zenodo.title"
+      upload_type:
+        populated_from: upload_type
+        description: "mapped: Zenodo dataset upload type"
+      version:
+        populated_from: softwareVersion
+        description: "needsReview: zenodo.version"
+      prereserve_doi:
+        expr: None
+        description: "repositorySpecific: No verified canonical semantic property
+          exists; a Zenodo-specific IRI is not invented."
+      locations:
+        populated_from: geographicCoverage
+        description: "needsReview: zenodo.locations"
+      dates:
+        populated_from: dateOfCollection
+        description: "mapped: zenodo.dates"
+      method:
+        populated_from: measurementTechnique
+        description: "needsReview: zenodo.method"

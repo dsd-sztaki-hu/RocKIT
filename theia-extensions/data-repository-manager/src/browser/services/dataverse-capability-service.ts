@@ -4,8 +4,8 @@ import { DataRepositoryCapabilities } from '../types';
 @injectable()
 export class DataverseCapabilityService {
 
-    public async detectRepositoryCapabilities(baseUrl: string): Promise<DataRepositoryCapabilities> {
-        const supportsArpRoCrateZipUpload = await this.supportsArpRoCrateZipUpload(baseUrl);
+    public async detectRepositoryCapabilities(baseUrl: string, apiKey?: string): Promise<DataRepositoryCapabilities> {
+        const supportsArpRoCrateZipUpload = await this.supportsArpRoCrateZipUpload(baseUrl, apiKey);
         if (supportsArpRoCrateZipUpload) {
             return {
                 kind: 'arp-dataverse',
@@ -14,7 +14,7 @@ export class DataverseCapabilityService {
                 supportsZenodoApi: false
             };
         }
-        if (await this.supportsNativeDataverseApi(baseUrl)) {
+        if (await this.supportsNativeDataverseApi(baseUrl, apiKey)) {
             return {
                 kind: 'dataverse',
                 supportsArpRoCrateZipUpload: false,
@@ -22,7 +22,7 @@ export class DataverseCapabilityService {
                 supportsZenodoApi: false
             };
         }
-        if (await this.supportsZenodoApi(baseUrl)) {
+        if (await this.supportsZenodoApi(baseUrl, apiKey)) {
             return {
                 kind: 'zenodo',
                 supportsArpRoCrateZipUpload: false,
@@ -38,15 +38,20 @@ export class DataverseCapabilityService {
         };
     }
 
-    protected async supportsArpRoCrateZipUpload(baseUrl: string): Promise<boolean> {
+    protected async supportsArpRoCrateZipUpload(baseUrl: string, apiKey?: string): Promise<boolean> {
         const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '').replace(/\/api\/v1$/, '');
         if (!normalizedBaseUrl) {
             return false;
         }
 
         try {
+            const headers: Record<string, string> = {};
+            if (apiKey) {
+                headers['x-dataverse-key'] = apiKey;
+            }
             const response = await fetch(`${normalizedBaseUrl}/api/arp/uploadRoCrateZip`, {
-                method: 'OPTIONS'
+                method: 'OPTIONS',
+                headers
             });
             if (!response.ok) {
                 return false;
@@ -63,14 +68,18 @@ export class DataverseCapabilityService {
         }
     }
 
-    protected async supportsNativeDataverseApi(baseUrl: string): Promise<boolean> {
+    protected async supportsNativeDataverseApi(baseUrl: string, apiKey?: string): Promise<boolean> {
         const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '').replace(/\/api\/v1$/, '');
         if (!normalizedBaseUrl) {
             return false;
         }
         try {
+            const headers: Record<string, string> = { accept: 'application/json' };
+            if (apiKey) {
+                headers['x-dataverse-key'] = apiKey;
+            }
             const response = await fetch(`${normalizedBaseUrl}/api/dataverses/root`, {
-                headers: { accept: 'application/json' }
+                headers
             });
             if (!response.ok) {
                 return false;
@@ -91,7 +100,7 @@ export class DataverseCapabilityService {
         }
     }
 
-    protected async supportsZenodoApi(baseUrl: string): Promise<boolean> {
+    protected async supportsZenodoApi(baseUrl: string, apiKey?: string): Promise<boolean> {
         const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '').replace(/\/api$/, '');
         if (!normalizedBaseUrl) {
             return false;
@@ -107,9 +116,20 @@ export class DataverseCapabilityService {
         }
 
         try {
+            const headers: Record<string, string> = { accept: 'application/json' };
+            if (apiKey) {
+                headers.authorization = `Bearer ${apiKey}`;
+            }
             const response = await fetch(`${normalizedBaseUrl}/api/deposit/depositions`, {
-                headers: { accept: 'application/json' }
+                headers
             });
+            const contentType = response.headers.get('content-type') ?? '';
+            if (!contentType.toLowerCase().includes('application/json')) {
+                return false;
+            }
+            if (response.ok) {
+                return true;
+            }
             return response.status === 401 || response.status === 403;
         } catch (error) {
             console.warn('Failed to detect Zenodo API capability:', error);

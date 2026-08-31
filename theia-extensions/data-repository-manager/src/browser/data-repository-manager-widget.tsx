@@ -5,6 +5,7 @@ import { DisposableCollection } from '@theia/core/lib/common/disposable'
 import { MessageService } from '@theia/core/lib/common/message-service'
 import { nls } from '@theia/core/lib/common/nls'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-loader'
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 import { createRoot, Root } from 'react-dom/client'
@@ -27,6 +28,7 @@ import { DataRepositoryTable } from './components/data-repository-table'
 import { DataRepositoryToolbar } from './components/data-repository-toolbar'
 import { DataverseCollectionBrowserDialog } from './components/dataverse-collection-browser-dialog'
 import { NativeDataverseDatasetMetadataDialog } from './components/native-dataverse-dataset-metadata-dialog'
+import { RepositorySyncOptionsDialog } from './components/repository-sync-options-dialog'
 import {
   ArpRoCrateExportService,
   ArpRoCrateValidationError,
@@ -37,7 +39,6 @@ import { DataRepositoryExportDeleteService } from './services/data-repository-ex
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
 import { DataverseCapabilityService } from './services/dataverse-capability-service'
 import { DataverseCollectionService } from './services/dataverse-collection-service'
-import { DataverseMetadataBlockCacheService } from './services/dataverse-metadata-block-cache-service'
 import { DataverseService } from './services/dataverse-service'
 import {
   NativeDataverseDatasetMetadata,
@@ -45,12 +46,13 @@ import {
 } from './services/native-dataverse-export-service'
 import { NativeDataverseImportService } from './services/native-dataverse-import-service'
 import { RoCrateFileHashService } from './services/ro-crate-file-hash-service'
-import { ZenodoExportService } from './services/zenodo-export-service'
-import type { DataRepositoryCapabilities } from './types'
+import {
+  ZenodoExportService,
+  ZenodoMetadataDialogCancelledError,
+} from './services/zenodo-export-service'
+import type { DataRepositoryCapabilities, DataRepositorySelection } from './types'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
-
-type RoCrateEntity = Record<string, unknown>
 
 export const DATA_REPOSITORY_MANAGER_WIDGET_ID = 'data-repository-manager:widget'
 export const DATA_REPOSITORY_MANAGER_LABEL = nls.localize(
@@ -91,8 +93,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly nativeImportService: NativeDataverseImportService,
     @inject(DataverseCapabilityService)
     protected readonly capabilityService: DataverseCapabilityService,
-    @inject(DataverseMetadataBlockCacheService)
-    protected readonly metadataBlockCacheService: DataverseMetadataBlockCacheService,
     @inject(RoCrateFileHashService)
     protected readonly fileHashService: RoCrateFileHashService,
     @inject(LoadMaskService)
@@ -101,6 +101,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly zenodoExportService: ZenodoExportService,
     @inject(AppStateService)
     protected readonly appStateService: AppStateService,
+    @inject(RoCrateLoaderContribution)
+    protected readonly roCrateLoader: RoCrateLoaderContribution,
     @inject(ApplicationServer)
     protected readonly applicationServer: ApplicationServer,
   ) {
@@ -137,24 +139,31 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     void this.handleImportFromRemote()
   }
 
-  public async handleImportFromRemote(): Promise<void> {
-    const repositories = await this.storeService.loadRepositories()
-    this.repositories = repositories
-    this.update()
-
-    const selector = new DataRepositorySelectorDialog(
-      repositories,
-      this.storeService,
-      this.dataverseService,
-      this.capabilityService,
-    )
-    const repositorySelection = await selector.open()
+  public async handleImportFromRemote(
+    repositorySelection?: DataRepositorySelection,
+  ): Promise<void> {
     if (!repositorySelection) {
-      return
+      const repositories = await this.storeService.loadRepositories()
+      this.repositories = repositories
+      this.update()
+
+      const selector = new DataRepositorySelectorDialog(
+        repositories,
+        this.storeService,
+        this.dataverseService,
+        this.capabilityService,
+      )
+      repositorySelection = await selector.open()
+      if (!repositorySelection) {
+        return
+      }
     }
 
     const selectedRepo = repositorySelection.repository
     const capabilities = repositorySelection.capabilities
+    if (!selectedRepo || !capabilities) {
+      return
+    }
     if (!capabilities.supportsNativeDataverseApi) {
       this.messageService.warn(
         nls.localize(
@@ -166,8 +175,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       )
       return
     }
-    await this.loadDataverseMetadataBlocks(selectedRepo)
-
     const importDialog = new ArpRoCrateImportDialog(
       capabilities.supportsArpRoCrateZipUpload
         ? undefined
@@ -278,7 +285,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.capabilityService,
       )
       const repositorySelection = await selector.open()
-      if (!repositorySelection) {
+      if (!repositorySelection || !repositorySelection.repository || !repositorySelection.capabilities) {
         return
       }
       selectedRepo = repositorySelection.repository
@@ -286,6 +293,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     } else {
       selectedCapabilities = await this.capabilityService.detectRepositoryCapabilities(
         selectedRepo.baseUrl,
+        selectedRepo.apiKey,
       )
     }
 
@@ -392,7 +400,101 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     this.handleExportToRemote()
   }
 
-  public async handleExportToRemote(): Promise<void> {
+  public async offerInterruptedExportRecovery(): Promise<void> {
+    const repositories = await this.storeService.loadRepositories()
+    const targetsByRepository = this.mergeExportTargets(
+      await this.arpExportService.listExportTargets(repositories),
+      await this.nativeExportService.listExportTargets(repositories),
+      await this.zenodoExportService.listExportTargets(repositories),
+    )
+    for (const repository of repositories) {
+      for (const target of targetsByRepository[repository.id] ?? []) {
+        if (target.status !== 'cancelled') {
+          continue
+        }
+        const capabilities = await this.capabilityService.detectRepositoryCapabilities(
+          repository.baseUrl,
+          repository.apiKey,
+        )
+        const resume = await new ConfirmDialog({
+          title: nls.localize(
+            'rockit/dataRepository/interruptedExport',
+            'Interrupted export',
+          ),
+          msg: nls.localize(
+            'rockit/dataRepository/resumeInterruptedExport',
+            'The export to {0} was interrupted. Do you want to continue it?',
+            target.datasetName || target.target,
+          ),
+          ok: nls.localize('rockit/dataRepository/continueExport', 'Continue'),
+          cancel: nls.localize('rockit/dataRepository/doNotContinueExport', 'Do not continue'),
+        }).open()
+        if (resume) {
+          await this.handleExportToRemote({
+            repository,
+            capabilities,
+            exportTarget: target,
+            action: 'export',
+          })
+        } else {
+          const message = nls.localize(
+            'rockit/dataRepository/userDeclinedExportRecovery',
+            'User chose not to continue the interrupted export.',
+          )
+          if (capabilities.supportsZenodoApi) {
+            await this.zenodoExportService.markExportTargetFailed(target, message)
+          } else if (capabilities.supportsArpRoCrateZipUpload) {
+            await this.arpExportService.markExportTargetFailed(target, message)
+          } else {
+            await this.nativeExportService.markExportTargetFailed(target, message)
+          }
+        }
+      }
+    }
+  }
+
+  public async handleRepositoryOperations(): Promise<void> {
+    const repositories = await this.storeService.loadRepositories()
+    this.repositories = repositories
+    this.update()
+    const exportTargetsByRepositoryId = this.mergeExportTargets(
+      await this.arpExportService.listExportTargets(repositories),
+      await this.nativeExportService.listExportTargets(repositories),
+      await this.zenodoExportService.listExportTargets(repositories),
+    )
+
+    const selector = new DataRepositorySelectorDialog(
+      repositories,
+      this.storeService,
+      this.dataverseService,
+      this.capabilityService,
+      exportTargetsByRepositoryId,
+      this.recentArpValidationError
+        ? () => {
+            void this.openRecentArpValidationResponse()
+          }
+        : undefined,
+      async (repository, target, action) =>
+        this.handleDeleteExportTarget(repository, target, action),
+    )
+    const repositorySelection = await selector.open()
+    if (!repositorySelection) {
+      return
+    }
+    if (repositorySelection.action === 'link') {
+      await this.handleLinkLocalToRemote()
+      return
+    }
+    if (repositorySelection.action === 'import') {
+      await this.handleImportFromRemote(repositorySelection)
+      return
+    }
+    await this.handleExportToRemote(repositorySelection)
+  }
+
+  public async handleExportToRemote(
+    repositorySelection?: DataRepositorySelection,
+  ): Promise<void> {
     if (this.hasUnsavedRoCrateChanges()) {
       this.messageService.warn(
         nls.localize(
@@ -419,40 +521,153 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       return
     }
 
-    const repositories = await this.storeService.loadRepositories()
-    this.repositories = repositories
-    this.update()
-    const exportTargetsByRepositoryId = this.mergeExportTargets(
-      await this.arpExportService.listExportTargets(repositories),
-      await this.nativeExportService.listExportTargets(repositories),
-      await this.zenodoExportService.listExportTargets(repositories),
-    )
-
-    // Show repository selector first, matching the UX requested.
-    const selector = new DataRepositorySelectorDialog(
-      repositories,
-      this.storeService,
-      this.dataverseService,
-      this.capabilityService,
-      exportTargetsByRepositoryId,
-      this.recentArpValidationError
-        ? () => {
-            void this.openRecentArpValidationResponse()
-          }
-        : undefined,
-      async (repository, target, action) =>
-        this.handleDeleteExportTarget(repository, target, action),
-    )
-    const repositorySelection = await selector.open()
-
     if (!repositorySelection) {
-      return // User cancelled
+      const repositories = await this.storeService.loadRepositories()
+      this.repositories = repositories
+      this.update()
+      const exportTargetsByRepositoryId = this.mergeExportTargets(
+        await this.arpExportService.listExportTargets(repositories),
+        await this.nativeExportService.listExportTargets(repositories),
+        await this.zenodoExportService.listExportTargets(repositories),
+      )
+
+      const selector = new DataRepositorySelectorDialog(
+        repositories,
+        this.storeService,
+        this.dataverseService,
+        this.capabilityService,
+        exportTargetsByRepositoryId,
+        this.recentArpValidationError
+          ? () => {
+              void this.openRecentArpValidationResponse()
+            }
+          : undefined,
+        async (repository, target, action) =>
+          this.handleDeleteExportTarget(repository, target, action),
+      )
+      repositorySelection = await selector.open()
+
+      if (!repositorySelection) {
+        return // User cancelled
+      }
+      if (repositorySelection.action === 'link') {
+        await this.handleLinkLocalToRemote()
+        return
+      }
+      if (repositorySelection.action === 'import') {
+        await this.handleImportFromRemote(repositorySelection)
+        return
+      }
     }
     const selectedRepo = repositorySelection.repository
     const capabilities = repositorySelection.capabilities
     const selectedExportTarget = repositorySelection.exportTarget
+    if (!selectedRepo || !capabilities) {
+      return
+    }
 
     if (capabilities.supportsZenodoApi) {
+      if (repositorySelection.action === 'sync' && selectedExportTarget) {
+        const syncOptions = await new RepositorySyncOptionsDialog().open()
+        if (!syncOptions) {
+          return
+        }
+        const progress = await this.loadMaskService.showProgress({
+          text: nls.localize(
+            'rockit/dataRepository/syncingFromRemote',
+            'Syncing from {0}...',
+            selectedRepo.title,
+          ),
+        })
+        try {
+          const syncResult = await this.zenodoExportService.syncFromZenodo(
+            selectedRepo,
+            selectedExportTarget,
+            syncOptions,
+            (update) =>
+              progress.report({
+                message: update.message,
+                work: {
+                  done: update.completedSteps,
+                  total: update.totalSteps,
+                },
+              }),
+          )
+          await this.roCrateLoader.refresh()
+          await this.loadData()
+          this.messageService.info(
+            nls.localize(
+              'rockit/dataRepository/zenodoSyncCompleted',
+              'Zenodo sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} unchanged file(s).',
+              syncResult.target,
+              syncResult.downloadedFileCount,
+              syncResult.replacedFileCount,
+              syncResult.keptLocalFileCount,
+            ),
+            { timeout: 12000 },
+          )
+          console.log('Zenodo sync completed:', syncResult)
+        } catch (error) {
+          await this.zenodoExportService.markActiveExportFailed(error)
+          console.error('Zenodo sync failed:', error)
+          this.messageService.error(
+            nls.localize(
+              'rockit/dataRepository/zenodoSyncFailed',
+              'Zenodo sync failed: {0}',
+              error instanceof Error ? error.message : String(error),
+            ),
+            { timeout: 10000 },
+          )
+        } finally {
+          progress.cancel()
+        }
+        return
+      }
+
+      let preparedMetadata
+      const metadataProgress = await this.loadMaskService.showProgress({
+        text: nls.localize(
+          'rockit/dataRepository/preparingZenodoMetadata',
+          'Preparing Zenodo metadata for {0}...',
+          selectedRepo.title,
+        ),
+      })
+      let metadataProgressClosed = false
+      const closeMetadataProgress = (): void => {
+        if (!metadataProgressClosed) {
+          metadataProgressClosed = true
+          metadataProgress.cancel()
+        }
+      }
+      try {
+        preparedMetadata = await this.zenodoExportService.prepareDepositionMetadata(selectedRepo, {
+          onLoadingLicenses: () =>
+            metadataProgress.report({
+              message: nls.localize(
+                'rockit/dataRepository/loadingZenodoLicenses',
+                'Loading Zenodo license options from {0}...',
+                selectedRepo.title,
+              ),
+            }),
+          onBeforeMetadataDialog: closeMetadataProgress,
+        })
+      } catch (error) {
+        if (error instanceof ZenodoMetadataDialogCancelledError) {
+          return
+        }
+        console.error('Zenodo metadata preparation failed:', error)
+        this.messageService.error(
+          nls.localize(
+            'rockit/dataRepository/zenodoExportFailed',
+            'Zenodo export failed: {0}',
+            error instanceof Error ? error.message : String(error),
+          ),
+          { timeout: 10000 },
+        )
+        return
+      } finally {
+        closeMetadataProgress()
+      }
       const progress = await this.loadMaskService.showProgress({
         text: selectedExportTarget
           ? nls.localize(
@@ -479,6 +694,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                   total: update.totalSteps,
                 },
               }),
+            preparedMetadata,
           )
           this.messageService.info(
             nls.localize(
@@ -512,6 +728,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                 total: update.totalSteps,
               },
             }),
+          preparedMetadata,
         )
         this.messageService.info(
           nls.localize(
@@ -531,6 +748,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         )
         console.log('RO-Crate files exported to Zenodo:', exportResult)
       } catch (error) {
+        if (error instanceof ZenodoMetadataDialogCancelledError) {
+          return
+        }
+        await this.zenodoExportService.markActiveExportFailed(error)
         console.error('Zenodo RO-Crate export failed:', error)
         this.messageService.error(
           nls.localize(
@@ -557,8 +778,153 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       )
       return
     }
-    await this.loadDataverseMetadataBlocks(selectedRepo)
-
+    if (
+      repositorySelection.action === 'sync' &&
+      capabilities.supportsArpRoCrateZipUpload &&
+      selectedExportTarget
+    ) {
+      const confirmed = await new ConfirmDialog({
+        title: nls.localize('rockit/dataRepository/syncFromRemote', 'Sync from remote'),
+        msg: nls.localize(
+          'rockit/dataRepository/syncFromRemoteWarning',
+          'By continuing, the local version of this dataset might be overwritten.\n\nThe local ro-crate-metadata.json will be replaced with the remote version, and changed remote files may overwrite matching local files. Local files removed remotely will stay in the workspace but may become orphaned.',
+        ),
+      }).open()
+      if (!confirmed) {
+        return
+      }
+      const progress = await this.loadMaskService.showProgress({
+        text: nls.localize(
+          'rockit/dataRepository/syncingFromRemote',
+          'Syncing from {0}...',
+          selectedRepo.title,
+        ),
+      })
+      let progressClosed = false
+      const closeProgress = (): void => {
+        if (!progressClosed) {
+          progressClosed = true
+          progress.cancel()
+        }
+      }
+      try {
+        const syncResult = await this.arpExportService.syncFromArp(
+          selectedRepo,
+          selectedExportTarget,
+          (update) =>
+            progress.report({
+              message: update.message,
+              work: {
+                done: update.completedSteps,
+                total: update.totalSteps,
+              },
+            }),
+        )
+        closeProgress()
+        await this.roCrateLoader.refresh()
+        await this.loadData()
+        this.messageService.info(
+          nls.localize(
+            'rockit/dataRepository/arpSyncCompleted',
+            'ARP sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} local-only file(s).',
+            syncResult.target,
+            syncResult.downloadedFileCount,
+            syncResult.replacedFileCount,
+            syncResult.removedRemoteFileCount,
+          ),
+          { timeout: 10000 },
+        )
+        if (syncResult.unmappedEntityIds.length && syncResult.mappingFileName) {
+          const previewLimit = 15
+          const idPreview = syncResult.unmappedEntityIds
+            .slice(0, previewLimit)
+            .map((id) => `- ${id.length > 80 ? `${id.slice(0, 77)}...` : id}`)
+            .join('\n')
+          const remainingCount = syncResult.unmappedEntityIds.length - previewLimit
+          this.messageService.warn(
+            `${nls.localize('rockit/dataRepository/syncUnmappedIds', 'ARP sync completed, but {0} entity ID mapping(s) could not be inferred. Empty values remain in .rockit/{1}.', syncResult.unmappedEntityIds.length, syncResult.mappingFileName)}\n${idPreview}${remainingCount > 0 ? `\n- ${nls.localize('rockit/dataRepository/andMore', '...and {0} more', remainingCount)}` : ''}`,
+            { timeout: 10000 },
+          )
+        }
+        console.log('ARP sync completed:', syncResult)
+      } catch (error) {
+        await this.arpExportService.markActiveExportFailed(error)
+        console.error('ARP sync failed:', error)
+        this.messageService.error(
+          nls.localize(
+            'rockit/dataRepository/arpSyncFailed',
+            'ARP sync failed: {0}',
+            error instanceof Error ? error.message : String(error),
+          ),
+          { timeout: 10000 },
+        )
+      } finally {
+        closeProgress()
+      }
+      return
+    }
+    if (
+      repositorySelection.action === 'sync' &&
+      !capabilities.supportsArpRoCrateZipUpload &&
+      selectedExportTarget
+    ) {
+      const syncOptions = await new RepositorySyncOptionsDialog().open()
+      if (!syncOptions) {
+        return
+      }
+      const progress = await this.loadMaskService.showProgress({
+        text: nls.localize(
+          'rockit/dataRepository/syncingFromRemote',
+          'Syncing from {0}...',
+          selectedRepo.title,
+        ),
+      })
+      try {
+        const syncResult = await this.nativeExportService.syncFromDataverse(
+          selectedRepo,
+          selectedExportTarget,
+          syncOptions,
+          (update) =>
+            progress.report({
+              message: update.message,
+              work: {
+                done: update.completedSteps,
+                total: update.totalSteps,
+              },
+            }),
+        )
+        if (syncResult) {
+          await this.roCrateLoader.refresh()
+          await this.loadData()
+          this.messageService.info(
+            nls.localize(
+              'rockit/dataRepository/dataverseSyncCompleted',
+              'Dataverse sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} unchanged file(s).',
+              syncResult.target,
+              syncResult.downloadedFileCount,
+              syncResult.replacedFileCount,
+              syncResult.keptLocalFileCount,
+            ),
+            { timeout: 12000 },
+          )
+          console.log('Native Dataverse sync completed:', syncResult)
+        }
+      } catch (error) {
+        await this.nativeExportService.markActiveExportFailed(error)
+        console.error('Native Dataverse sync failed:', error)
+        this.messageService.error(
+          nls.localize(
+            'rockit/dataRepository/dataverseSyncFailed',
+            'Dataverse sync failed: {0}',
+            error instanceof Error ? error.message : String(error),
+          ),
+          { timeout: 10000 },
+        )
+      } finally {
+        progress.cancel()
+      }
+      return
+    }
     if (capabilities.supportsArpRoCrateZipUpload && selectedExportTarget) {
       const progress = await this.loadMaskService.showProgress({
         text: nls.localize(
@@ -608,6 +974,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           return
         }
       } catch (error) {
+        await this.arpExportService.markActiveExportFailed(error)
         console.error('ARP file update failed:', error)
         if (error instanceof ArpRoCrateValidationError) {
           progress.cancel()
@@ -628,7 +995,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
     }
 
-    if (!capabilities.supportsArpRoCrateZipUpload) {
+    if (!capabilities.supportsArpRoCrateZipUpload && selectedExportTarget) {
       const progress = await this.loadMaskService.showProgress({
         text: nls.localize(
           'rockit/dataRepository/updatingUploaded',
@@ -665,6 +1032,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           return
         }
       } catch (error) {
+        await this.nativeExportService.markActiveExportFailed(error)
         console.error('Native Dataverse update failed:', error)
         this.messageService.error(
           nls.localize(
@@ -681,7 +1049,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     }
 
     if (capabilities.supportsArpRoCrateZipUpload) {
-      const missingMetadata = this.getMissingArpDatasetCreationMetadata()
+      const missingMetadata = await this.getMissingArpDatasetCreationMetadata()
       if (missingMetadata.length) {
         const documentationUrl = await this.getRepositoryExportDocumentationUrl()
         this.messageService.error(
@@ -739,6 +1107,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               metadataDefaults.metadataLanguage ??
               metadataLanguageOptions.find((option) => option.value === 'en')?.value ??
               metadataLanguageOptions[0]?.value,
+            requiredCitationFields: this.nativeExportService.requiredDatasetCreationFields(),
+            subjectOptions: this.nativeExportService.datasetCreationSubjectOptions(),
           },
         )
         const datasetMetadata = await metadataDialog.open()
@@ -795,6 +1165,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           }
           console.log('RO-Crate exported to ARP:', exportResult)
         } catch (error) {
+          await this.arpExportService.markActiveExportFailed(error)
           console.error('RO-Crate export failed:', error)
           if (error instanceof ArpRoCrateValidationError) {
             progress.cancel()
@@ -831,7 +1202,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         )
         return
       }
-      const metadataDialog = new NativeDataverseDatasetMetadataDialog(metadataDefaults)
+      const metadataDialog = new NativeDataverseDatasetMetadataDialog(metadataDefaults, {
+        requiredCitationFields: this.nativeExportService.requiredDatasetCreationFields(),
+        subjectOptions: this.nativeExportService.datasetCreationSubjectOptions(),
+      })
       const datasetMetadata = await metadataDialog.open()
       if (!datasetMetadata) {
         return
@@ -884,6 +1258,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         }
         console.log('Dataverse dataset created through native API:', creationResult)
       } catch (error) {
+        await this.nativeExportService.markActiveExportFailed(error)
         console.error('Native Dataverse dataset creation failed:', error)
         this.messageService.error(
           nls.localize(
@@ -941,35 +1316,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     await dialog.open()
   }
 
-  protected async loadDataverseMetadataBlocks(
-    repository: DataRepositoryConfig,
-  ): Promise<void> {
-    const progress = await this.loadMaskService.showProgress({
-      text: nls.localize(
-        'rockit/dataRepository/loadingDataverseMetadataSchemas',
-        'Loading Dataverse metadata schemas from {0}...',
-        repository.title,
-      ),
-    })
-    try {
-      const saved =
-        await this.metadataBlockCacheService.loadTargetMetadataBlocks(repository)
-      console.log('Dataverse metadata blocks loaded:', saved)
-    } catch (error) {
-      console.warn('Failed to load Dataverse metadata blocks:', error)
-      this.messageService.warn(
-        nls.localize(
-          'rockit/dataRepository/dataverseMetadataSchemasLoadFailed',
-          'Dataverse metadata schemas could not be loaded: {0}',
-          error instanceof Error ? error.message : String(error),
-        ),
-        { timeout: 10000 },
-      )
-    } finally {
-      progress.cancel()
-    }
-  }
-
   protected handleAddRepository = async () => {
     const dialog = new DataRepositoryConfigDialog(this.dataverseService)
     const result = await dialog.open()
@@ -1005,12 +1351,12 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         )
         for (const target of targets) {
           const previous = latestByMappingFile.get(target.mappingFile)
-          if (!previous || previous.syncedAt.localeCompare(target.syncedAt) < 0) {
+          if (!previous || (previous.lastSuccessfulActionAt ?? '').localeCompare(target.lastSuccessfulActionAt ?? '') < 0) {
             latestByMappingFile.set(target.mappingFile, target)
           }
         }
         merged[repositoryId] = Array.from(latestByMappingFile.values()).sort((a, b) =>
-          b.syncedAt.localeCompare(a.syncedAt),
+          (b.lastSuccessfulActionAt ?? '').localeCompare(a.lastSuccessfulActionAt ?? ''),
         )
       }
     }
@@ -1046,6 +1392,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   ): Promise<boolean> {
     const capabilities = await this.capabilityService.detectRepositoryCapabilities(
       repository.baseUrl,
+      repository.apiKey,
     )
     const dialog = new DataRepositoryExportDeleteDialog(target, action, capabilities.kind)
     if (!(await dialog.open())) {
@@ -1102,33 +1449,24 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     })
   }
 
-  protected getMissingArpDatasetCreationMetadata(): string[] {
-    const crate = this.appStateService.roCrate
-    const graph = this.readGraph(crate)
-    const root = graph.find((entity) => entity['@id'] === './')
-    if (!root) {
-      return [nls.localize('rockit/dataRepository/rootDataset', 'Root Dataset')]
-    }
-
+  protected async getMissingArpDatasetCreationMetadata(): Promise<string[]> {
+    const metadata = await this.nativeExportService.getDatasetCreationMetadataDefaults()
+    const requiredCitationFields = this.nativeExportService.requiredDatasetCreationFields()
     const missing: string[] = []
-    if (!this.firstMeaningfulString(root.title, root.name)) {
-      missing.push(nls.localize('rockit/dataRepository/metadataTitle', 'Title'))
+    if (requiredCitationFields.has('title') && !metadata.title.trim()) {
+      missing.push(this.nativeExportService.datasetCreationFieldLabel('title'))
     }
-    if (!this.hasCompleteAuthors(root, graph)) {
-      missing.push(nls.localize('rockit/dataRepository/authorName', 'Author Name'))
+    if (requiredCitationFields.has('author') && !metadata.authorNames.length) {
+      missing.push(this.nativeExportService.datasetCreationFieldLabel('author'))
     }
-    if (!this.hasCompleteContactEmails(root, graph)) {
-      missing.push(
-        nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email'),
-      )
+    if (requiredCitationFields.has('datasetContact') && !metadata.contactEmails.length) {
+      missing.push(this.nativeExportService.datasetCreationFieldLabel('datasetContact'))
     }
-    if (!this.hasCompleteDescriptions(root, graph)) {
-      missing.push(
-        nls.localize('rockit/dataRepository/descriptionText', 'Description Text'),
-      )
+    if (requiredCitationFields.has('dsDescription') && !metadata.descriptions.length) {
+      missing.push(this.nativeExportService.datasetCreationFieldLabel('dsDescription'))
     }
-    if (!this.readStrings(root.subject).length) {
-      missing.push(nls.localize('rockit/dataRepository/subject', 'Subject'))
+    if (requiredCitationFields.has('subject') && !metadata.subjects.length) {
+      missing.push(this.nativeExportService.datasetCreationFieldLabel('subject'))
     }
     return missing
   }
@@ -1147,174 +1485,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         ROCKIT_DOCUMENTATION_PAGES.REPOSITORY_EXPORT_IMPORT,
       )
     }
-  }
-
-  protected hasCompleteAuthors(root: RoCrateEntity, graph: RoCrateEntity[]): boolean {
-    const authorReferences = this.resolveEntityReferences(root.author, graph)
-    const authorEntities = this.uniqueEntities([
-      ...authorReferences.entities,
-      ...this.entitiesWithType(graph, 'author'),
-    ])
-    if (authorEntities.some((author) => !this.firstMeaningfulString(author.authorName))) {
-      return false
-    }
-    return (
-      authorEntities.length > 0 ||
-      authorReferences.literals.some((value) => !this.looksLikeEntityId(value))
-    )
-  }
-
-  protected hasCompleteContactEmails(
-    root: RoCrateEntity,
-    graph: RoCrateEntity[],
-  ): boolean {
-    const contactReferences = this.resolveEntityReferences(
-      root.datasetContact ?? root.contactPoint,
-      graph,
-    )
-    const contactEntities = this.uniqueEntities([
-      ...contactReferences.entities,
-      ...this.entitiesWithType(graph, 'datasetContact'),
-    ])
-    if (
-      contactEntities.some(
-        (contact) =>
-          !this.firstMeaningfulString(contact.datasetContactEmail) ||
-          this.readStrings(contact.datasetContactEmail).some(
-            (email) => !this.isValidEmail(email),
-          ),
-      )
-    ) {
-      return false
-    }
-    return (
-      contactEntities.length > 0 ||
-      this.readStrings(root.datasetContactEmail).some((email) =>
-        this.isValidEmail(email),
-      ) ||
-      contactReferences.literals.some(
-        (value) => !this.looksLikeEntityId(value) && this.isValidEmail(value),
-      )
-    )
-  }
-
-  protected hasCompleteDescriptions(
-    root: RoCrateEntity,
-    graph: RoCrateEntity[],
-  ): boolean {
-    const descriptionReferences = this.resolveEntityReferences(root.dsDescription, graph)
-    const descriptionEntities = this.uniqueEntities([
-      ...descriptionReferences.entities,
-      ...this.entitiesWithType(graph, 'dsDescription'),
-    ])
-    if (
-      descriptionEntities.some(
-        (description) => !this.firstMeaningfulString(description.dsDescriptionValue),
-      )
-    ) {
-      return false
-    }
-    return (
-      descriptionEntities.length > 0 ||
-      this.firstMeaningfulString(root.description) !== undefined ||
-      descriptionReferences.literals.some((value) => !this.looksLikeEntityId(value))
-    )
-  }
-
-  protected resolveEntityReferences(
-    value: unknown,
-    graph: RoCrateEntity[],
-  ): { entities: RoCrateEntity[]; literals: string[] } {
-    if (Array.isArray(value)) {
-      const resolved = value.map((item) => this.resolveEntityReferences(item, graph))
-      return {
-        entities: resolved.flatMap((item) => item.entities),
-        literals: this.uniqueStrings(resolved.flatMap((item) => item.literals)),
-      }
-    }
-    if (value && typeof value === 'object') {
-      const entity = value as RoCrateEntity
-      const linkedEntity = this.readStrings(entity['@id'])
-        .map((id) => graph.find((graphEntity) => graphEntity['@id'] === id))
-        .find((graphEntity): graphEntity is RoCrateEntity => !!graphEntity)
-      return { entities: [linkedEntity ?? entity], literals: [] }
-    }
-    const literals = this.readStrings(value)
-    const entities = literals
-      .map((id) => graph.find((graphEntity) => graphEntity['@id'] === id))
-      .filter((entity): entity is RoCrateEntity => !!entity)
-    const resolvedEntityIds = new Set(
-      entities.flatMap((entity) => this.readStrings(entity['@id'])),
-    )
-    return {
-      entities,
-      literals: literals.filter((literal) => !resolvedEntityIds.has(literal)),
-    }
-  }
-
-  protected readGraph(crate: unknown): RoCrateEntity[] {
-    if (!crate || typeof crate !== 'object' || Array.isArray(crate)) {
-      return []
-    }
-    const graph = (crate as Record<string, unknown>)['@graph']
-    return Array.isArray(graph)
-      ? graph.filter(
-          (entity): entity is RoCrateEntity =>
-            !!entity && typeof entity === 'object' && !Array.isArray(entity),
-        )
-      : []
-  }
-
-  protected firstMeaningfulString(...values: unknown[]): string | undefined {
-    return values
-      .flatMap((value) => this.readStrings(value))
-      .find((value) => value !== './' && value !== '.')
-  }
-
-  protected readStrings(value: unknown): string[] {
-    if (typeof value === 'string') {
-      return value.trim() ? [value.trim()] : []
-    }
-    if (Array.isArray(value)) {
-      return this.uniqueStrings(value.flatMap((item) => this.readStrings(item)))
-    }
-    return []
-  }
-
-  protected uniqueStrings(values: string[]): string[] {
-    return Array.from(new Set(values.filter((value) => value.trim() !== '')))
-  }
-
-  protected uniqueEntities(entities: RoCrateEntity[]): RoCrateEntity[] {
-    const seen = new Set<string>()
-    const unique: RoCrateEntity[] = []
-    for (const entity of entities) {
-      const key = this.readStrings(entity['@id'])[0]
-      if (key && seen.has(key)) {
-        continue
-      }
-      if (key) {
-        seen.add(key)
-      }
-      unique.push(entity)
-    }
-    return unique
-  }
-
-  protected entitiesWithType(graph: RoCrateEntity[], typeName: string): RoCrateEntity[] {
-    return graph.filter((entity) => this.readStrings(entity['@type']).includes(typeName))
-  }
-
-  protected looksLikeEntityId(value: string): boolean {
-    return (
-      value.startsWith('#') ||
-      value.startsWith('./') ||
-      /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)
-    )
-  }
-
-  protected isValidEmail(value: string): boolean {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
   }
 
   // Handles single item deletion from the Action column

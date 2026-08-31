@@ -5,10 +5,12 @@ import { createRoot, Root } from 'react-dom/client';
 import DnsIcon from '@mui/icons-material/Dns';
 import StorageIcon from '@mui/icons-material/Storage';
 import DatasetIcon from '@mui/icons-material/Dataset';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import FileUploadOutlinedIcon from '@mui/icons-material/FileUploadOutlined';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import {
     DataRepositoryConfig,
     DataRepositoryExportTarget,
@@ -59,6 +61,9 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
             validationButton.classList.add('data-repo-selector__validation-error-button');
             validationButton.addEventListener('click', () => this.onShowRecentValidationResponse?.());
         }
+        const linkButton = this.appendButton(nls.localize('rockit/dataRepository/linkToRemoteShort', 'Link to Remote'), false);
+        linkButton.classList.add('data-repo-selector__link-button');
+        linkButton.addEventListener('click', () => this.handleLinkLocalToRemote());
         const addButton = this.appendButton(nls.localize('rockit/dataRepository/addRepository', 'Add Repository'), true);
         addButton.addEventListener('click', () => void this.handleAddRepository());
         const cancelButton = this.appendCloseButton();
@@ -82,9 +87,18 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         }
     }
 
-    protected async handleSelect(repo: DataRepositoryConfig, exportTarget?: DataRepositoryExportTarget) {
-        const capabilities = await this.capabilityService.detectRepositoryCapabilities(repo.baseUrl);
-        this.result = { repository: repo, capabilities, exportTarget };
+    protected async handleSelect(
+        repo: DataRepositoryConfig,
+        exportTarget?: DataRepositoryExportTarget,
+        action: 'export' | 'sync' | 'import' = 'export'
+    ) {
+        const capabilities = await this.capabilityService.detectRepositoryCapabilities(repo.baseUrl, repo.apiKey);
+        this.result = { repository: repo, capabilities, exportTarget, action };
+        this.accept();
+    }
+
+    protected handleLinkLocalToRemote(): void {
+        this.result = { action: 'link' };
         this.accept();
     }
 
@@ -94,6 +108,17 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         if (result) {
             await this.storeService.saveRepository(result);
         }
+    }
+
+    protected showExportError(target: DataRepositoryExportTarget): void {
+        const dialog = new ConfirmDialog({
+            title: nls.localize('rockit/dataRepository/exportErrorDetails', 'Export error details'),
+            msg: target.errorMessage || nls.localize(
+                'rockit/dataRepository/noErrorDetailsAvailable',
+                'No error details are available.'
+            ),
+        });
+        void dialog.open();
     }
 
     protected async handleDeleteExport(
@@ -166,9 +191,8 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         const exportTargets = this.exportTargetsByRepositoryId[repo.id] ?? [];
         return (
             <div key={repo.id} className="data-repo-selector__repo-group">
-                <button
+                <div
                     className="data-repo-selector__item"
-                    onClick={() => void this.handleSelect(repo)}
                     title={repo.baseUrl}
                 >
                     <div className="data-repo-selector__item-content">
@@ -180,8 +204,35 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                             <div className="data-repo-selector__item-url">{repo.baseUrl}</div>
                         </div>
                     </div>
-                    <ChevronRightIcon style={{ color: 'var(--theia-icon-foreground)', opacity: 0.5 }} />
-                </button>
+                    <div
+                        className="data-repo-selector__export-actions data-repo-selector__repo-actions"
+                    >
+                        <button
+                            className="data-repo-selector__export-action"
+                            title={nls.localize('rockit/dataRepository/importFromRemote', 'Import from remote')}
+                            aria-label={nls.localize(
+                                'rockit/dataRepository/importFromRepository',
+                                'Import from {0}',
+                                repo.title
+                            )}
+                            onClick={() => void this.handleSelect(repo, undefined, 'import')}
+                        >
+                            <FileDownloadOutlinedIcon className="data-repo-selector__export-update-icon" />
+                        </button>
+                        <button
+                            className="data-repo-selector__export-action"
+                            title={nls.localize('rockit/dataRepository/newExport', 'New export')}
+                            aria-label={nls.localize(
+                                'rockit/dataRepository/exportToRepository',
+                                'Export to {0}',
+                                repo.title
+                            )}
+                            onClick={() => void this.handleSelect(repo)}
+                        >
+                            <FileUploadOutlinedIcon className="data-repo-selector__export-update-icon" />
+                        </button>
+                    </div>
+                </div>
                 {exportTargets.length > 0 && (
                     <div className="data-repo-selector__exports">
                         {exportTargets.map(target => {
@@ -209,10 +260,50 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                         {this.formatTargetLinkLabel(target)}
                                     </a>
                                     <div className="data-repo-selector__export-meta">
-                                        {nls.localize('rockit/dataRepository/lastUpdated', 'Last updated {0}', this.formatDate(target.syncedAt))}
+                                        {target.lastSuccessfulActionAt
+                                            ? nls.localize(
+                                                'rockit/dataRepository/lastSuccessfullyModified',
+                                                'Last successfully modified {0}',
+                                                this.formatDate(target.lastSuccessfulActionAt)
+                                            )
+                                            : ''}
                                     </div>
+                                    {(target.status === 'failed' || target.status === 'cancelled') && (
+                                        <div className="data-repo-selector__export-failure-row">
+                                            <span className="data-repo-selector__export-failure-status">
+                                                {target.status === 'failed'
+                                                    ? nls.localize('rockit/dataRepository/exportFailedStatus', 'Failed')
+                                                    : nls.localize('rockit/dataRepository/exportCancelledStatus', 'Cancelled')}
+                                            </span>
+                                            {target.status === 'failed' && (
+                                                <button
+                                                    className="data-repo-selector__export-error-details"
+                                                    title={nls.localize('rockit/dataRepository/showErrorDetails', 'Show error details')}
+                                                    onClick={event => {
+                                                        event.stopPropagation();
+                                                        this.showExportError(target);
+                                                    }}
+                                                >
+                                                    <ErrorOutlineIcon />
+                                                    {nls.localize('rockit/dataRepository/details', 'Details')}
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="data-repo-selector__export-actions">
+                                    <button
+                                        className="data-repo-selector__export-action"
+                                        title={nls.localize('rockit/dataRepository/syncFromRemote', 'Sync from remote')}
+                                        aria-label={nls.localize(
+                                            'rockit/dataRepository/syncFromRemoteTarget',
+                                            'Sync from {0}',
+                                            target.datasetName || target.pid
+                                        )}
+                                        onClick={() => void this.handleSelect(repo, target, 'sync')}
+                                    >
+                                        <FileDownloadOutlinedIcon className="data-repo-selector__export-update-icon" />
+                                    </button>
                                     <button
                                         className="data-repo-selector__export-action"
                                         title={nls.localize('rockit/dataRepository/uploadUpdates', 'Upload updates')}

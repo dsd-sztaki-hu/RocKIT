@@ -23,7 +23,6 @@ import { DataverseCapabilityService } from './services/dataverse-capability-serv
 import { RoCrateFileHashService } from './services/ro-crate-file-hash-service';
 import { ZenodoExportService } from './services/zenodo-export-service';
 import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service';
-import { DataverseMetadataBlockCacheService } from './services/dataverse-metadata-block-cache-service';
 import { DataverseMetadataMappingService } from './services/dataverse-metadata-mapping-service';
 
 export default new ContainerModule(bind => {
@@ -40,7 +39,6 @@ export default new ContainerModule(bind => {
     bind(RoCrateFileHashService).toSelf().inSingletonScope();
     bind(ZenodoExportService).toSelf().inSingletonScope();
     bind(DataRepositoryExportDeleteService).toSelf().inSingletonScope();
-    bind(DataverseMetadataBlockCacheService).toSelf().inSingletonScope();
     bind(DataverseMetadataMappingService).toSelf().inSingletonScope();
 
     // 2. Widget

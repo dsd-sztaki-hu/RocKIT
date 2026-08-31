@@ -1,0 +1,31 @@
+.repository-sync-options {
+    box-sizing: border-box;
+    padding: 20px;
+    overflow: auto;
+    color: var(--theia-foreground);
+}
+
+.repository-sync-options__primary {
+    margin: 0 0 14px;
+    color: var(--theia-foreground);
+}
+
+.repository-sync-options__secondary {
+    margin: 0 0 16px;
+    color: var(--theia-foreground);
+}
+
+.repository-sync-options__form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.repository-sync-options__checkbox {
+    color: var(--theia-descriptionForeground);
+}
+
+.repository-sync-options__description {
+    margin: 0;
+    color: var(--theia-descriptionForeground);
+}

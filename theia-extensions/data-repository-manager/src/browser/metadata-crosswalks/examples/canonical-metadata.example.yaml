@@ -1,0 +1,14 @@
+upload_type: dataset
+title: Archaeological survey dataset
+datePublished: "2026-07-29"
+author:
+  - Ada Lovelace
+  - János Neumann
+dsDescription: Measurements and derived models from the survey.
+conditionsOfAccess: open
+license: cc-zero
+keyword:
+  - archaeology
+  - 3D
+language: eng
+softwareVersion: "2.1"
