@@ -1,5 +1,5 @@
 {
-  "name": "export-ro-crate",
+  "name": "package-ro-crate",
   "keywords": [
     "theia-extension"
   ],
@@ -26,7 +26,7 @@
   },
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/export-ro-crate-frontend-module"
+      "frontend": "lib/browser/package-ro-crate-frontend-module"
     }
   ]
 }
