@@ -9,6 +9,7 @@ import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 import { createRoot, Root } from 'react-dom/client'
+import { WorkspaceService } from '@theia/workspace/lib/browser'
 import {
   buildDocumentationUrl,
   ROCKIT_DOCUMENTATION_PAGES,
@@ -112,6 +113,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly roCrateLoader: RoCrateLoaderContribution,
     @inject(ApplicationServer)
     protected readonly applicationServer: ApplicationServer,
+    @inject(WorkspaceService)
+    protected readonly workspaceService: WorkspaceService,
   ) {
     super()
     this.id = DATA_REPOSITORY_MANAGER_WIDGET_ID
@@ -159,6 +162,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.storeService,
         this.dataverseService,
         this.capabilityService,
+        this.hasOpenWorkspace(),
       )
       repositorySelection = await selector.open()
       if (!repositorySelection) {
@@ -328,6 +332,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.storeService,
         this.dataverseService,
         this.capabilityService,
+        this.hasOpenWorkspace(),
       )
       const repositorySelection = await selector.open()
       if (!repositorySelection || !repositorySelection.repository || !repositorySelection.capabilities) {
@@ -446,6 +451,9 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   }
 
   public async offerInterruptedExportRecovery(): Promise<void> {
+    if (!this.hasOpenWorkspace()) {
+      return
+    }
     const repositories = await this.storeService.loadRepositories()
     const targetsByRepository = this.mergeExportTargets(
       await this.arpExportService.listExportTargets(repositories),
@@ -502,17 +510,21 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const repositories = await this.storeService.loadRepositories()
     this.repositories = repositories
     this.update()
-    const exportTargetsByRepositoryId = this.mergeExportTargets(
-      await this.arpExportService.listExportTargets(repositories),
-      await this.nativeExportService.listExportTargets(repositories),
-      await this.zenodoExportService.listExportTargets(repositories),
-    )
+    const hasWorkspace = this.hasOpenWorkspace()
+    const exportTargetsByRepositoryId = hasWorkspace
+      ? this.mergeExportTargets(
+          await this.arpExportService.listExportTargets(repositories),
+          await this.nativeExportService.listExportTargets(repositories),
+          await this.zenodoExportService.listExportTargets(repositories),
+        )
+      : {}
 
     const selector = new DataRepositorySelectorDialog(
       repositories,
       this.storeService,
       this.dataverseService,
       this.capabilityService,
+      hasWorkspace,
       exportTargetsByRepositoryId,
       this.recentArpValidationError
         ? () => {
@@ -581,6 +593,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.storeService,
         this.dataverseService,
         this.capabilityService,
+        this.hasOpenWorkspace(),
         exportTargetsByRepositoryId,
         this.recentArpValidationError
           ? () => {
@@ -1383,6 +1396,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.appStateService.dirty ||
       (!!crate && this.appStateService.isRoCrateDirty(crate))
     )
+  }
+
+  protected hasOpenWorkspace(): boolean {
+    return this.workspaceService.tryGetRoots().length > 0
   }
 
   protected mergeExportTargets(
