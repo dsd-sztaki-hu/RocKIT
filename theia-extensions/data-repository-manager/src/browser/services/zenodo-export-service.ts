@@ -9,7 +9,6 @@ import {
   RoCrateExportFileSource,
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import { inject, injectable } from 'inversify'
-import * as SparkMD5 from 'spark-md5'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from '../types'
 import {
   appendExportLogEvent,
@@ -25,6 +24,7 @@ import {
   zenodoMetadataOptions,
 } from './zenodo-metadata-crosswalk'
 import { ZenodoRequiredMetadataDialog } from '../components/zenodo-required-metadata-dialog'
+import { FileHashStoreService } from './file-hash-store-service'
 
 type RoCrateEntity = Record<string, unknown>
 type RoCrate = Record<string, unknown>
@@ -40,6 +40,8 @@ interface ZenodoUploadFile {
   content: Blob
   size: number
   entityId?: string
+  localFileId?: string
+  lastModified?: number
 }
 
 interface ZenodoRemoteFile {
@@ -144,6 +146,8 @@ export class ZenodoExportService {
   constructor(
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
+    @inject(FileHashStoreService)
+    protected readonly fileHashStoreService: FileHashStoreService,
   ) {}
 
   /** Writes the local update/sync state before an imported directory is opened. */
@@ -219,6 +223,7 @@ export class ZenodoExportService {
       uploadCrate,
       rootUri,
       localizedExternalFiles.entries,
+      localizedExternalFiles.originalToUploadIds,
     )
     const totalSteps = uploadFiles.length + 3
     let completedSteps = 0
@@ -318,6 +323,14 @@ export class ZenodoExportService {
         entityId: file.entityId,
       }
       uploadedFiles.push(uploadedFile)
+      if (file.localFileId) {
+        await this.fileHashStoreService.recordUploadResponse(
+          rootUri,
+          file.localFileId,
+          file.lastModified,
+          uploadPayload,
+        )
+      }
       if (file.entityId) {
         uploadMapping[file.entityId] = uploadedFile.remoteId ?? ''
       }
@@ -419,8 +432,8 @@ export class ZenodoExportService {
    * RO-Crate.
    *
    * The method rebuilds the desired metadata and file list from local state,
-   * loads the remote deposition, compares files by Zenodo filename and MD5
-   * checksum, then deletes, replaces, or uploads only the files that changed.
+   * loads the remote deposition, compares the file lists, then deletes,
+   * replaces, or uploads files as needed.
    * It refuses to update published depositions because Zenodo records are no
    * longer mutable after publication.
    */
@@ -454,6 +467,7 @@ export class ZenodoExportService {
       uploadCrate,
       rootUri,
       localizedExternalFiles.entries,
+      localizedExternalFiles.originalToUploadIds,
     )
 
     reportProgress?.({
@@ -495,8 +509,6 @@ export class ZenodoExportService {
       const remote = remoteByFilename.get(local.filename)
       if (!remote) {
         added.push(local)
-      } else if (await this.fileMatchesRemoteChecksum(local, remote.checksum)) {
-        unchanged.push({ local, remote })
       } else {
         replaced.push({ local, remote })
       }
@@ -748,10 +760,8 @@ export class ZenodoExportService {
       const targetUri = rootUri.resolve(item.localPath)
       if (!(await this.fileService.exists(targetUri))) {
         downloadPlan.push({ ...item, kind: 'new' })
-      } else if (!(await this.localFileMatchesRemoteChecksum(targetUri, item.remote.checksum))) {
-        downloadPlan.push({ ...item, kind: 'changed' })
       } else {
-        keptLocalFileCount += 1
+        downloadPlan.push({ ...item, kind: 'changed' })
       }
     }
 
@@ -961,6 +971,7 @@ export class ZenodoExportService {
     crate: RoCrate,
     rootUri: URI,
     externalFileEntries = new Map<string, URI>(),
+    originalToUploadIds = new Map<string, string>(),
   ): Promise<ZenodoUploadFile[]> {
     const metadataContent = `${JSON.stringify(crate, null, 2)}\n`
     const files: ZenodoUploadFile[] = [
@@ -1003,15 +1014,22 @@ export class ZenodoExportService {
     }
 
     const zenodoFilenameByEntryPath = this.buildZenodoFilenameMap(Array.from(fileEntries.keys()))
+    const originalEntityIdByUploadId = new Map(
+      Array.from(originalToUploadIds.entries()).map(([originalId, uploadId]) => [uploadId, originalId]),
+    )
     for (const [name, uri] of Array.from(fileEntries.entries()).sort((a, b) =>
       a[0].localeCompare(b[0]),
     )) {
+      const stat = await this.fileService.resolve(uri)
       const content = await this.fileService.readFile(uri)
       files.push({
         filename: zenodoFilenameByEntryPath.get(name) ?? this.sanitizeZenodoFilename(name),
         content: new Blob([content.value.buffer], { type: 'application/octet-stream' }),
         size: content.value.buffer.byteLength,
         entityId: name,
+        localFileId:
+          originalEntityIdByUploadId.get(name) ?? this.findLocalEntityIdForPath(crate, name) ?? name,
+        lastModified: stat.mtime,
       })
     }
 
@@ -1353,18 +1371,6 @@ export class ZenodoExportService {
       this.readLink(links, 'self'),
       this.readLink(links, 'download'),
     ].filter((value): value is string => !!value))
-  }
-
-  protected async localFileMatchesRemoteChecksum(
-    uri: URI,
-    remoteChecksum?: string,
-  ): Promise<boolean> {
-    if (!remoteChecksum) {
-      return false
-    }
-    const normalizedRemote = remoteChecksum.replace(/^md5:/i, '').toLowerCase()
-    const localContent = await this.fileService.readFile(uri)
-    return SparkMD5.ArrayBuffer.hash(localContent.value.buffer).toLowerCase() === normalizedRemote
   }
 
   protected async writeWorkspaceFile(
@@ -2079,18 +2085,6 @@ export class ZenodoExportService {
     return new Uint8Array(await response.arrayBuffer())
   }
 
-  protected async fileMatchesRemoteChecksum(
-    file: ZenodoUploadFile,
-    remoteChecksum?: string,
-  ): Promise<boolean> {
-    if (!remoteChecksum) {
-      return false
-    }
-    const normalizedRemote = remoteChecksum.replace(/^md5:/i, '').toLowerCase()
-    const localChecksum = SparkMD5.ArrayBuffer.hash(await file.content.arrayBuffer()).toLowerCase()
-    return normalizedRemote === localChecksum
-  }
-
   protected async deleteDepositionFile(
     baseUrl: string,
     token: string,
@@ -2150,13 +2144,22 @@ export class ZenodoExportService {
         this.payloadSummary(payload),
       ))
     }
-    return {
+    const result = {
       filename: file.filename,
       size: file.size,
       response: payload,
       remoteId: this.extractUploadedFileRemoteId(payload),
       entityId: file.entityId,
     }
+    if (file.localFileId) {
+      await this.fileHashStoreService.recordUploadResponse(
+        this.getWorkspaceRoot(),
+        file.localFileId,
+        file.lastModified,
+        payload,
+      )
+    }
+    return result
   }
 
   protected authorizationHeaders(token: string): Record<string, string> {

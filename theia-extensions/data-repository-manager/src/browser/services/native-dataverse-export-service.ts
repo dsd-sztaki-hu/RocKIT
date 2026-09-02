@@ -22,7 +22,7 @@ import {
   normalizeExportLogEntries,
   serializeExportLogEntries,
 } from './export-log'
-import * as SparkMD5 from 'spark-md5'
+import { FileHashStoreService } from './file-hash-store-service'
 
 type RoCrateEntity = Record<string, unknown>
 type RoCrate = Record<string, unknown>
@@ -120,11 +120,15 @@ export interface NativeDataverseFileUploadResult {
   directoryLabel?: string
   fileName: string
   response: NativeDataverseResponse
+  localFileId?: string
+  lastModified?: number
 }
 
 interface NativeDataverseUploadFile {
   entryPath: string
   content: Uint8Array
+  localFileId?: string
+  lastModified?: number
 }
 
 interface NativeDataverseExportTarget {
@@ -289,6 +293,8 @@ export class NativeDataverseExportService {
     @inject(FileService) protected readonly fileService: FileService,
     @inject(DataverseMetadataMappingService)
     protected readonly metadataMappingService: DataverseMetadataMappingService,
+    @inject(FileHashStoreService)
+    protected readonly fileHashStoreService: FileHashStoreService,
   ) {}
 
   /**
@@ -815,8 +821,9 @@ export class NativeDataverseExportService {
       const localEntity = localFilesById.get(item.localId)
       const checksum = item.checksum ?? this.fileEntityHash(item.remoteEntity)
       const matches = checksum
-        ? await this.localFileMatchesRemoteChecksum(targetUri, checksum)
-        : (this.fileEntityHash(localEntity ?? {}) ?? '') === (this.fileEntityHash(item.remoteEntity) ?? '')
+        ? false
+        : (this.fileEntityHash(localEntity ?? {}) ?? '') ===
+          (this.fileEntityHash(item.remoteEntity) ?? '')
       if (matches) {
         keptLocalFileCount += 1
       } else {
@@ -1931,6 +1938,12 @@ export class NativeDataverseExportService {
       externalFiles.set(reference.importedPath, reference.resolvedSource)
       uploadEntryPathByEntityId.set(reference.reference.entityId, reference.importedPath)
     }
+    const originalEntityIdByUploadId = new Map(
+      localizedReferences.map((reference) => [
+        reference.importedPath,
+        reference.reference.entityId,
+      ]),
+    )
 
     const uploadFiles = new Map<string, NativeDataverseUploadFile>()
 
@@ -1947,10 +1960,13 @@ export class NativeDataverseExportService {
         )
         continue
       }
+      const stat = await this.fileService.resolve(resolved.uri)
       const content = await this.fileService.readFile(resolved.uri)
       uploadFiles.set(reference.entryPath, {
         entryPath: reference.entryPath,
         content: content.value.buffer,
+        localFileId: originalEntityIdByUploadId.get(reference.entityId) ?? reference.entityId,
+        lastModified: stat.mtime,
       })
     }
 
@@ -2003,12 +2019,16 @@ export class NativeDataverseExportService {
                 this.payloadSummary(payload)
             ));
         }
-        return {
+        const result = {
             entryPath: file.entryPath,
             directoryLabel: dir || undefined,
             fileName: base,
-            response: payload
+            response: payload,
+            localFileId: file.localFileId,
+            lastModified: file.lastModified,
         };
+        await this.recordResponseHash(result)
+        return result
     }
 
   protected async replaceFile(
@@ -2049,12 +2069,28 @@ export class NativeDataverseExportService {
             ),
       )
     }
-    return {
+    const result = {
       entryPath: file.entryPath,
       directoryLabel: dir || undefined,
       fileName: base,
       response: payload,
+      localFileId: file.localFileId,
+      lastModified: file.lastModified,
     }
+    await this.recordResponseHash(result)
+    return result
+  }
+
+  protected async recordResponseHash(result: NativeDataverseFileUploadResult): Promise<void> {
+    if (!result.localFileId) {
+      return
+    }
+    await this.fileHashStoreService.recordUploadResponse(
+      this.getWorkspaceRoot(),
+      result.localFileId,
+      result.lastModified,
+      result.response,
+    )
   }
 
     protected async deleteFile(
@@ -2253,18 +2289,6 @@ export class NativeDataverseExportService {
       return this.isSafeRelativePath(path) ? path : undefined
     }
 
-    protected async localFileMatchesRemoteChecksum(
-      uri: URI,
-      remoteChecksum?: string,
-    ): Promise<boolean> {
-      if (!remoteChecksum) {
-        return false
-      }
-      const normalizedRemote = remoteChecksum.replace(/^md5:/i, '').toLowerCase()
-      const localContent = await this.fileService.readFile(uri)
-      return SparkMD5.ArrayBuffer.hash(localContent.value.buffer).toLowerCase() === normalizedRemote
-    }
-
     protected async writeWorkspaceFile(
       rootUri: URI,
       relativePath: string,
@@ -2405,11 +2429,28 @@ export class NativeDataverseExportService {
       this.groupRemoteFilesByHashAndDirectory(uploadedFiles)
     const remoteFilesBySignature = this.groupRemoteFilesBySignature(uploadedFiles)
     const mapping = new Map<string, NativeDataverseRemoteFileReference>()
+    for (const uploadedFile of uploadedFiles) {
+      if (!uploadedFile.localFileId) {
+        continue
+      }
+      const remoteId = this.extractDataFileId(uploadedFile.response)
+      if (remoteId) {
+        mapping.set(uploadedFile.localFileId, {
+          md5: this.fileHashStoreService.extractMd5(uploadedFile.response) ?? '',
+          directoryLabel: uploadedFile.directoryLabel ?? '',
+          label: uploadedFile.fileName,
+          remoteId,
+        })
+      }
+    }
     for (const entity of this.readGraph(crate)) {
       if (!this.shouldPersistEntityMapping(entity)) {
         continue
       }
       const entityId = this.requireEntityId(entity)
+      if (mapping.has(entityId)) {
+        continue
+      }
       const hashAndDirectorySignature = this.fileEntityHashAndDirectorySignature(
         entity,
         uploadEntryPathByEntityId,

@@ -46,7 +46,6 @@ import {
   NativeDataverseExportService,
 } from './services/native-dataverse-export-service'
 import { NativeDataverseImportService } from './services/native-dataverse-import-service'
-import { RoCrateFileHashService } from './services/ro-crate-file-hash-service'
 import {
   ZenodoExportService,
   ZenodoMetadataDialogCancelledError,
@@ -99,8 +98,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly nativeImportService: NativeDataverseImportService,
     @inject(DataverseCapabilityService)
     protected readonly capabilityService: DataverseCapabilityService,
-    @inject(RoCrateFileHashService)
-    protected readonly fileHashService: RoCrateFileHashService,
     @inject(LoadMaskService)
     protected readonly loadMaskService: LoadMaskService,
     @inject(ZenodoExportService)
@@ -557,21 +554,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         nls.localize(
           'rockit/dataRepository/unsavedExportBlocked',
           'Remote export is not possible while the RO-Crate has unsaved changes. Save the RO-Crate first, then export again.',
-        ),
-        { timeout: 10000 },
-      )
-      return
-    }
-
-    try {
-      await this.fileHashService.persistFileMetadata()
-    } catch (error) {
-      console.error('Failed to calculate file hashes before remote export:', error)
-      this.messageService.error(
-        nls.localize(
-          'rockit/dataRepository/exportPreparationFailed',
-          'Remote export preparation failed: {0}',
-          error instanceof Error ? error.message : String(error),
         ),
         { timeout: 10000 },
       )

@@ -21,8 +21,9 @@ export interface DefaultRoCrateDirectoryEntry {
 export interface DefaultRoCrateWorkspaceAdapter {
   rootName: string
   listChildren(relativeDirectoryPath: string): Promise<DefaultRoCrateDirectoryEntry[]>
-  readFileContent(relativeFilePath: string): Promise<DefaultRoCrateFileContent>
-  hashContent(content: DefaultRoCrateFileContent): string
+  readFileContent?(relativeFilePath: string): Promise<DefaultRoCrateFileContent>
+  hashContent?(content: DefaultRoCrateFileContent): string
+  onFileScanned?(): void
   readTextFile?(relativeFilePath: string): Promise<string | undefined>
 }
 
@@ -262,7 +263,9 @@ async function scanEntry(
   if (!entityId) {
     return
   }
-  const content = await adapter.readFileContent(relativePath)
+  const hash = adapter.readFileContent && adapter.hashContent
+    ? adapter.hashContent(await adapter.readFileContent(relativePath))
+    : undefined
   const fileEntity: Record<string, unknown> = {
     '@id': entityId,
     '@type': 'File',
@@ -272,8 +275,9 @@ async function scanEntry(
     contentSize: typeof entry.size === 'number' ? `${entry.size}` : undefined,
     dateModified:
       typeof entry.mtimeMs === 'number' ? new Date(entry.mtimeMs).toISOString() : undefined,
-    hash: adapter.hashContent(content),
+    ...(hash ? { hash } : {}),
   }
+  adapter.onFileScanned?.()
   context.graph.push(fileEntity)
   context.filesSeen += 1
   parentHasPart.push({ '@id': entityId })

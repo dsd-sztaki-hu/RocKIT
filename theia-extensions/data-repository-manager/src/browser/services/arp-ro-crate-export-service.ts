@@ -18,6 +18,7 @@ import {
   serializeExportLogEntries,
 } from './export-log'
 import { DataverseMetadataMappingService } from './dataverse-metadata-mapping-service'
+import { FileHashStoreService } from './file-hash-store-service'
 
 type RoCrateEntity = Record<string, any>
 type RoCrate = Record<string, any>
@@ -58,6 +59,7 @@ interface ArpUpdateUploadFile {
   entityId: string
   entryPath: string
   content: Uint8Array
+  lastModified?: number
 }
 
 interface ArpDataverseMetadataField {
@@ -133,6 +135,8 @@ export class ArpRoCrateExportService {
     @inject(FileService) protected readonly fileService: FileService,
     @inject(DataverseMetadataMappingService)
     protected readonly metadataMappingService: DataverseMetadataMappingService,
+    @inject(FileHashStoreService)
+    protected readonly fileHashStoreService: FileHashStoreService,
   ) {}
 
   public async exportToArp(
@@ -156,6 +160,7 @@ export class ArpRoCrateExportService {
       uploadCrate,
       rootUri,
       localizedExternalFiles.entries,
+      localizedExternalFiles.originalToUploadIds,
     )
     const totalSteps = uploadFiles.length + 3
     reportProgress?.({
@@ -456,7 +461,12 @@ export class ArpRoCrateExportService {
         baseUrl,
         repository.apiKey,
         exportTarget.pid,
-        await this.readUploadFile(localFile, rootUri, localizedExternalFiles.entries),
+        await this.readUploadFile(
+          localFile,
+          rootUri,
+          localizedExternalFiles.entries,
+          localizedExternalFiles.originalToUploadIds,
+        ),
       )
       const uploadedFileId = this.buildArpFileEntityId(
         uploadedDataFileId,
@@ -505,7 +515,12 @@ export class ArpRoCrateExportService {
         repository.apiKey,
         this.requireDataverseFileId(remoteFile),
         localFile,
-        await this.readUploadFile(localFile, rootUri, localizedExternalFiles.entries),
+        await this.readUploadFile(
+          localFile,
+          rootUri,
+          localizedExternalFiles.entries,
+          localizedExternalFiles.originalToUploadIds,
+        ),
       )
       const replacementFileId = this.buildArpFileEntityId(
         replacementDataFileId,
@@ -722,14 +737,11 @@ export class ArpRoCrateExportService {
       if (stat.isDirectory) {
         continue
       }
-      const content = await this.fileService.readFile(fileUri)
       const parsed = this.parsePosixPath(relativePath)
       entity.name = this.readOptionalEntityString(entity, 'name') ?? parsed.base
-      entity.hash =
-        this.readOptionalEntityString(entity, 'hash') ?? this.md5(content.value.buffer)
       entity.contentSize =
         this.readOptionalEntityString(entity, 'contentSize') ??
-        String(content.value.buffer.byteLength)
+        String(stat.size ?? 0)
       entity.encodingFormat =
         this.readOptionalEntityString(entity, 'encodingFormat') ??
         this.mimeTypeFromFilename(relativePath)
@@ -747,6 +759,7 @@ export class ArpRoCrateExportService {
     crate: RoCrate,
     rootUri: URI,
     externalFileEntries: Map<string, URI>,
+    originalToUploadIds: Map<string, string>,
   ): Promise<ArpUpdateUploadFile[]> {
     const entitiesByPath = new Map<string, RoCrateEntity>()
     for (const entity of this.readGraphEntities(crate)) {
@@ -761,7 +774,9 @@ export class ArpRoCrateExportService {
     return Promise.all(
       Array.from(entitiesByPath.entries())
         .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([, entity]) => this.readUploadFile(entity, rootUri, externalFileEntries)),
+        .map(([, entity]) =>
+          this.readUploadFile(entity, rootUri, externalFileEntries, originalToUploadIds),
+        ),
     )
   }
 
@@ -1224,14 +1239,12 @@ export class ArpRoCrateExportService {
       if (!entity || !this.entityTypes(entity).includes('File')) {
         continue
       }
-      const content = await this.fileService.readFile(uri)
+      const stat = await this.fileService.resolve(uri)
       const parsed = this.parsePosixPath(entryPath)
       entity.name = parsed.base
-      entity.hash =
-        this.readOptionalEntityString(entity, 'hash') ?? this.md5(content.value.buffer)
       entity.contentSize =
         this.readOptionalEntityString(entity, 'contentSize') ??
-        String(content.value.buffer.byteLength)
+        String(stat.size ?? 0)
       entity.encodingFormat =
         this.readOptionalEntityString(entity, 'encodingFormat') ??
         this.mimeTypeFromFilename(entryPath)
@@ -1543,6 +1556,7 @@ export class ArpRoCrateExportService {
     entity: RoCrateEntity,
     rootUri: URI,
     externalFileEntries: Map<string, URI>,
+    originalToUploadIds = new Map<string, string>(),
   ): Promise<ArpUpdateUploadFile> {
     const entryPath = this.dataverseFilePathFromEntity(entity)
     if (!entryPath) {
@@ -1578,10 +1592,14 @@ export class ArpRoCrateExportService {
         entryPath,
       ))
     }
+    const uploadEntityId = this.requireEntityId(entity)
+    const entityId = Array.from(originalToUploadIds.entries())
+      .find(([, uploadId]) => uploadId === uploadEntityId)?.[0] ?? uploadEntityId
     return {
-      entityId: this.requireEntityId(entity),
+      entityId,
       entryPath,
       content: (await this.fileService.readFile(uri)).value.buffer,
+      lastModified: stat.mtime,
     }
   }
 
@@ -1702,6 +1720,12 @@ export class ArpRoCrateExportService {
         ),
       )
     }
+    await this.fileHashStoreService.recordUploadResponse(
+      this.getWorkspaceRoot(),
+      file.entityId,
+      file.lastModified,
+      payload,
+    )
     return fileId
   }
 
@@ -1787,6 +1811,12 @@ export class ArpRoCrateExportService {
         ),
       )
     }
+    await this.fileHashStoreService.recordUploadResponse(
+      this.getWorkspaceRoot(),
+      file.entityId,
+      file.lastModified,
+      payload,
+    )
     return replacementFileId
   }
 
@@ -3269,84 +3299,4 @@ export class ArpRoCrateExportService {
     return 'application/octet-stream'
   }
 
-  protected md5(input: Uint8Array): string {
-    const bytes = Array.from(input)
-    const originalBitLength = bytes.length * 8
-    bytes.push(0x80)
-    while (bytes.length % 64 !== 56) {
-      bytes.push(0)
-    }
-    for (let i = 0; i < 8; i++) {
-      bytes.push((originalBitLength >>> (8 * i)) & 0xff)
-    }
-
-    let a0 = 0x67452301
-    let b0 = 0xefcdab89
-    let c0 = 0x98badcfe
-    let d0 = 0x10325476
-    const shifts = [
-      7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14,
-      20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11,
-      16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
-    ]
-    const constants = Array.from(
-      { length: 64 },
-      (_, i) => Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32) >>> 0,
-    )
-
-    for (let offset = 0; offset < bytes.length; offset += 64) {
-      const words = new Array<number>(16)
-      for (let i = 0; i < 16; i++) {
-        const j = offset + i * 4
-        words[i] =
-          (bytes[j] |
-            (bytes[j + 1] << 8) |
-            (bytes[j + 2] << 16) |
-            (bytes[j + 3] << 24)) >>>
-          0
-      }
-      let a = a0
-      let b = b0
-      let c = c0
-      let d = d0
-      for (let i = 0; i < 64; i++) {
-        let f: number
-        let g: number
-        if (i < 16) {
-          f = (b & c) | (~b & d)
-          g = i
-        } else if (i < 32) {
-          f = (d & b) | (~d & c)
-          g = (5 * i + 1) % 16
-        } else if (i < 48) {
-          f = b ^ c ^ d
-          g = (3 * i + 5) % 16
-        } else {
-          f = c ^ (b | ~d)
-          g = (7 * i) % 16
-        }
-        const sum = (a + f + constants[i] + words[g]) >>> 0
-        a = d
-        d = c
-        c = b
-        b = (b + this.leftRotate(sum, shifts[i])) >>> 0
-      }
-      a0 = (a0 + a) >>> 0
-      b0 = (b0 + b) >>> 0
-      c0 = (c0 + c) >>> 0
-      d0 = (d0 + d) >>> 0
-    }
-
-    return [a0, b0, c0, d0].map((word) => this.toLittleEndianHex(word)).join('')
-  }
-
-  protected leftRotate(value: number, amount: number): number {
-    return ((value << amount) | (value >>> (32 - amount))) >>> 0
-  }
-
-  protected toLittleEndianHex(word: number): string {
-    return [0, 8, 16, 24]
-      .map((shift) => ((word >>> shift) & 0xff).toString(16).padStart(2, '0'))
-      .join('')
-  }
 }
