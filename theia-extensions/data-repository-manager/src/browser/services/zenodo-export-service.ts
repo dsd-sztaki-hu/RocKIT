@@ -444,7 +444,6 @@ export class ZenodoExportService {
 
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const depositionMetadata = preparedMetadata ?? await this.buildDepositionMetadata(crate, baseUrl, token)
     const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
     const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
       uploadCrate,
@@ -473,6 +472,10 @@ export class ZenodoExportService {
     const { payload: draftPayload, createdNewVersion } = await this.resolveWritableDraft(
       existingPayload,
       token,
+    )
+    const depositionMetadata = preparedMetadata ?? this.buildUpdateDepositionMetadata(
+      crate,
+      this.extractDepositionMetadata(draftPayload),
     )
     const depositionId = this.extractDepositionId(draftPayload)
     const bucketUrl = this.extractBucketUrl(draftPayload)
@@ -1062,6 +1065,35 @@ export class ZenodoExportService {
       }
       missingRequiredFields = missingRequiredZenodoMetadataFields(metadata)
     }
+    if (missingRequiredFields.length) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoRequiredMetadataMissing',
+        'Zenodo metadata is missing required fields defined by the repository crosswalk: {0}.',
+        missingRequiredFields.join(', '),
+      ))
+    }
+    return metadata as ZenodoDepositionMetadata
+  }
+
+  /**
+   * Rebuilds editable metadata while retaining the access policy already stored
+   * by Zenodo. Access right, licence, and their conditional fields are selected
+   * when the deposition is first created and must not be prompted for again.
+   */
+  protected buildUpdateDepositionMetadata(
+    crate: RoCrate,
+    remoteMetadata: Record<string, unknown>,
+  ): ZenodoDepositionMetadata {
+    const { metadata } = buildZenodoMetadataFromCrosswalk(crate)
+    for (const field of ['access_right', 'license', 'embargo_date', 'access_conditions']) {
+      if (Object.prototype.hasOwnProperty.call(remoteMetadata, field)) {
+        metadata[field] = remoteMetadata[field]
+      } else {
+        delete metadata[field]
+      }
+    }
+
+    const missingRequiredFields = missingRequiredZenodoMetadataFields(metadata)
     if (missingRequiredFields.length) {
       throw new Error(nls.localize(
         'rockit/dataRepository/zenodoRequiredMetadataMissing',
