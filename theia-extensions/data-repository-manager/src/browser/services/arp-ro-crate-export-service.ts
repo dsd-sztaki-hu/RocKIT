@@ -62,6 +62,11 @@ interface ArpUpdateUploadFile {
   lastModified?: number
 }
 
+interface ArpDataverseFileUploadResult {
+  fileId: string
+  md5?: string
+}
+
 interface ArpDataverseMetadataField {
   typeName: string
   typeClass: 'primitive' | 'compound' | 'controlledVocabulary'
@@ -234,14 +239,22 @@ export class ArpRoCrateExportService {
           file.entryPath,
         ),
       })
-      const uploadedDataFileId = await this.uploadDataverseFile(
+      const uploadedFile = await this.uploadDataverseFile(
         baseUrl,
         repository.apiKey,
         pid,
         file,
       )
+      await this.persistUploadedFileHash(
+        metadataUri,
+        crate,
+        file.entityId,
+        uploadCrate,
+        localizedExternalFiles.originalToUploadIds.get(file.entityId) ?? file.entityId,
+        uploadedFile.md5,
+      )
       const uploadedFileEntityId = this.buildArpFileEntityId(
-        uploadedDataFileId,
+        uploadedFile.fileId,
         uploadIdMapping,
         { '@graph': [] },
         baseUrl,
@@ -457,19 +470,28 @@ export class ArpRoCrateExportService {
           ),
         )
       }
-      const uploadedDataFileId = await this.uploadDataverseFile(
+      const uploadFile = await this.readUploadFile(
+        localFile,
+        rootUri,
+        localizedExternalFiles.entries,
+        localizedExternalFiles.originalToUploadIds,
+      )
+      const uploadedFile = await this.uploadDataverseFile(
         baseUrl,
         repository.apiKey,
         exportTarget.pid,
-        await this.readUploadFile(
-          localFile,
-          rootUri,
-          localizedExternalFiles.entries,
-          localizedExternalFiles.originalToUploadIds,
-        ),
+        uploadFile,
+      )
+      await this.persistUploadedFileHash(
+        rootUri.resolve('ro-crate-metadata.json'),
+        metadataCrate,
+        uploadIdToMetadataId[file.localId] ?? file.localId,
+        uploadCrate,
+        file.localId,
+        uploadedFile.md5,
       )
       const uploadedFileId = this.buildArpFileEntityId(
-        uploadedDataFileId,
+        uploadedFile.fileId,
         uploadMapping,
         remoteCrate,
         baseUrl,
@@ -510,20 +532,29 @@ export class ArpRoCrateExportService {
           ),
         )
       }
-      const replacementDataFileId = await this.replaceDataverseFile(
+      const replacementUploadFile = await this.readUploadFile(
+        localFile,
+        rootUri,
+        localizedExternalFiles.entries,
+        localizedExternalFiles.originalToUploadIds,
+      )
+      const replacementFile = await this.replaceDataverseFile(
         baseUrl,
         repository.apiKey,
         this.requireDataverseFileId(remoteFile),
         localFile,
-        await this.readUploadFile(
-          localFile,
-          rootUri,
-          localizedExternalFiles.entries,
-          localizedExternalFiles.originalToUploadIds,
-        ),
+        replacementUploadFile,
+      )
+      await this.persistUploadedFileHash(
+        rootUri.resolve('ro-crate-metadata.json'),
+        metadataCrate,
+        uploadIdToMetadataId[file.localId] ?? file.localId,
+        uploadCrate,
+        file.localId,
+        replacementFile.md5,
       )
       const replacementFileId = this.buildArpFileEntityId(
-        replacementDataFileId,
+        replacementFile.fileId,
         uploadMapping,
         remoteCrate,
         baseUrl,
@@ -1682,7 +1713,7 @@ export class ArpRoCrateExportService {
     apiKey: string | undefined,
     pid: string,
     file: ArpUpdateUploadFile,
-  ): Promise<string> {
+  ): Promise<ArpDataverseFileUploadResult> {
     const { dir, base } = this.parsePosixPath(file.entryPath)
     const requestUrl = `${baseUrl}/api/v1/datasets/:persistentId/add?persistentId=${encodeURIComponent(pid)}`
     const form = new FormData()
@@ -1726,7 +1757,10 @@ export class ArpRoCrateExportService {
       file.lastModified,
       payload,
     )
-    return fileId
+    return {
+      fileId,
+      md5: this.fileHashStoreService.extractMd5(payload),
+    }
   }
 
   protected extractDataverseUploadFileId(payload: unknown): string | undefined {
@@ -1766,7 +1800,7 @@ export class ArpRoCrateExportService {
     fileId: number,
     entity: RoCrateEntity,
     file: ArpUpdateUploadFile,
-  ): Promise<string> {
+  ): Promise<ArpDataverseFileUploadResult> {
     const { dir, base } = this.parsePosixPath(file.entryPath)
     const requestUrl = `${baseUrl}/api/files/${fileId}/replace`
     const jsonData = {
@@ -1817,7 +1851,47 @@ export class ArpRoCrateExportService {
       file.lastModified,
       payload,
     )
-    return replacementFileId
+    return {
+      fileId: replacementFileId,
+      md5: this.fileHashStoreService.extractMd5(payload),
+    }
+  }
+
+  protected async persistUploadedFileHash(
+    metadataUri: URI,
+    localCrate: RoCrate,
+    localEntityId: string,
+    uploadCrate: RoCrate,
+    uploadEntityId: string,
+    md5: string | undefined,
+  ): Promise<void> {
+    if (!md5) {
+      return
+    }
+
+    const localEntity = this.readGraphEntities(localCrate).find(
+      (entity) => this.readOptionalEntityString(entity, '@id') === localEntityId,
+    )
+    const uploadEntity = this.readGraphEntities(uploadCrate).find(
+      (entity) => this.readOptionalEntityString(entity, '@id') === uploadEntityId,
+    )
+    if (!localEntity || !uploadEntity) {
+      throw new Error(
+        nls.localize(
+          'rockit/dataRepository/uploadedFileHashEntityMissing',
+          "The uploaded file hash could not be saved because File entity '{0}' was not found in the RO-Crate metadata.",
+          localEntityId,
+        ),
+      )
+    }
+
+    localEntity.hash = md5
+    uploadEntity.hash = md5
+    this.ensureDataverseFileContext(localCrate)
+    await this.fileService.writeFile(
+      metadataUri,
+      BinaryBuffer.fromString(`${JSON.stringify(localCrate, null, 2)}\n`),
+    )
   }
 
   protected buildArpFileEntityId(
