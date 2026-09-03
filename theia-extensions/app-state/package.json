@@ -2,6 +2,8 @@
   "name": "app-state",
   "version": "0.0.1",
   "private": true,
+  "license": "Apache-2.0",
+  "author": "HUN-REN SZTAKI, Department of Distributed Systems",
   "files": [
     "lib",
     "src"
@@ -29,7 +31,7 @@
   "dependencies": {
     "mime-types": "^3.0.2",
     "spark-md5": "^3.0.2",
-    "rockit-common": "0.0.0",
+    "rockit-common": "1.0.0",
     "rfc6902": "^5.2.0"
   }
 }

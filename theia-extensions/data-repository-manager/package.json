@@ -1,7 +1,9 @@
 {
   "name": "data-repository-manager",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "A Theia extension to manage remote data repositories",
+  "license": "Apache-2.0",
+  "author": "HUN-REN SZTAKI, Department of Distributed Systems",
   "keywords": [
     "theia-extension",
     "frontend"
@@ -24,7 +26,7 @@
       "@emotion/styled": "^11.11.0",
       "@iqss/dataverse-client-javascript": "2.1.0",
       "jszip": "^3.10.1",
-      "rockit-common": "0.0.0",
+      "rockit-common": "1.0.0",
       "rockit-loadmask": "0.0.0",
       "app-state": "0.0.1",
       "spark-md5": "^3.0.2"
