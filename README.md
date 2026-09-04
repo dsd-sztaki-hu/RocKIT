@@ -170,3 +170,7 @@ https://github.com/aidenybai/react-grab has been added via the `react-grab` exte
 The UI part works
 with cmd+c, but it doesn't collect the React specific file paths, only the
 HTML selection. So, this is of minimal use for now.
+
+## License
+
+RocKIT is licensed under the Apache License, Version 2.0. See [LICENSE.md](LICENSE.md) for details.

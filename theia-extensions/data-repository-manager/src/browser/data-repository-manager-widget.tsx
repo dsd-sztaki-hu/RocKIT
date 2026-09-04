@@ -665,48 +665,50 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
 
       let preparedMetadata
-      const metadataProgress = await this.loadMaskService.showProgress({
-        text: nls.localize(
-          'rockit/dataRepository/preparingZenodoMetadata',
-          'Preparing Zenodo metadata for {0}...',
-          selectedRepo.title,
-        ),
-      })
-      let metadataProgressClosed = false
-      const closeMetadataProgress = (): void => {
-        if (!metadataProgressClosed) {
-          metadataProgressClosed = true
-          metadataProgress.cancel()
-        }
-      }
-      try {
-        preparedMetadata = await this.zenodoExportService.prepareDepositionMetadata(selectedRepo, {
-          onLoadingLicenses: () =>
-            metadataProgress.report({
-              message: nls.localize(
-                'rockit/dataRepository/loadingZenodoLicenses',
-                'Loading Zenodo license options from {0}...',
-                selectedRepo.title,
-              ),
-            }),
-          onBeforeMetadataDialog: closeMetadataProgress,
-        })
-      } catch (error) {
-        if (error instanceof ZenodoMetadataDialogCancelledError) {
-          return
-        }
-        console.error('Zenodo metadata preparation failed:', error)
-        this.messageService.error(
-          nls.localize(
-            'rockit/dataRepository/zenodoExportFailed',
-            'Zenodo export failed: {0}',
-            error instanceof Error ? error.message : String(error),
+      if (!selectedExportTarget) {
+        const metadataProgress = await this.loadMaskService.showProgress({
+          text: nls.localize(
+            'rockit/dataRepository/preparingZenodoMetadata',
+            'Preparing Zenodo metadata for {0}...',
+            selectedRepo.title,
           ),
-          { timeout: 10000 },
-        )
-        return
-      } finally {
-        closeMetadataProgress()
+        })
+        let metadataProgressClosed = false
+        const closeMetadataProgress = (): void => {
+          if (!metadataProgressClosed) {
+            metadataProgressClosed = true
+            metadataProgress.cancel()
+          }
+        }
+        try {
+          preparedMetadata = await this.zenodoExportService.prepareDepositionMetadata(selectedRepo, {
+            onLoadingLicenses: () =>
+              metadataProgress.report({
+                message: nls.localize(
+                  'rockit/dataRepository/loadingZenodoLicenses',
+                  'Loading Zenodo license options from {0}...',
+                  selectedRepo.title,
+                ),
+              }),
+            onBeforeMetadataDialog: closeMetadataProgress,
+          })
+        } catch (error) {
+          if (error instanceof ZenodoMetadataDialogCancelledError) {
+            return
+          }
+          console.error('Zenodo metadata preparation failed:', error)
+          this.messageService.error(
+            nls.localize(
+              'rockit/dataRepository/zenodoExportFailed',
+              'Zenodo export failed: {0}',
+              error instanceof Error ? error.message : String(error),
+            ),
+            { timeout: 10000 },
+          )
+          return
+        } finally {
+          closeMetadataProgress()
+        }
       }
       const progress = await this.loadMaskService.showProgress({
         text: selectedExportTarget

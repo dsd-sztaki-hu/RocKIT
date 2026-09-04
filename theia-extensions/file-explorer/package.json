@@ -9,10 +9,10 @@
     "@theia/terminal": "1.65.2",
     "@theia/workspace": "1.65.2",
     "app-state": "0.0.1",
-    "rockit-common": "0.0.0",
-    "data-sources": "0.0.0",
+    "rockit-common": "1.0.0",
+    "data-sources": "1.0.0",
     "minimatch": "^10.0.3",
-    "open-editors": "0.0.0",
+    "open-editors": "1.0.0",
     "tslib": "^2.6.2"
   },
   "publishConfig": {

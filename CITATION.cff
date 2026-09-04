@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use RocKIT, please cite it using the metadata from this file."
+title: "RocKIT"
+type: software
+authors:
+  - given-names: Balázs
+    family-names: Pataki
+    orcid: 'https://orcid.org/0000-0003-3482-0325'
+    affiliation: HUN-REN SZTAKI, Department of Distributed Systems
+  - given-names: Kadosa
+    family-names: Nagy
+    affiliation: HUN-REN SZTAKI, Department of Distributed Systems
+  - given-names: Réka
+    family-names: Csontos
+    affiliation: HUN-REN SZTAKI, Department of Distributed Systems
+  - given-names: Roland
+    family-names: Tanácsi
+    affiliation: HUN-REN SZTAKI, Department of Distributed Systems
+  - given-names: Zoltán
+    family-names: Tóth
+    orcid: 'https://orcid.org/0000-0002-5688-9668'
+    affiliation: HUN-REN SZTAKI, Department of Distributed Systems
+  - name: "HUN-REN SZTAKI, Department of Distributed Systems"
+repository-code: "https://github.com/YOUR-ORG/YOUR-REPO"
+license: Apache-2.0

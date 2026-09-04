@@ -1201,7 +1201,7 @@ export class NativeDataverseExportService {
           syncType: entry.syncType,
           status: entry.status,
           errorMessage: entry.errorMessage,
-          datasetName: currentDatasetName,
+          datasetName: entry.datasetName ?? currentDatasetName,
         })
       }
       targetsByRepositoryId[repository.id] = Array.from(
