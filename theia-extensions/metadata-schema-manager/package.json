@@ -1,7 +1,9 @@
 {
   "name": "metadata-schema-manager",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "A Theia extension to manage metadata schemas",
+  "license": "Apache-2.0",
+  "author": "HUN-REN SZTAKI, Department of Distributed Systems",
   "keywords": [
     "theia-extension",
     "frontend"
@@ -17,9 +19,9 @@
     "@theia/core": "1.65.2",
     "@theia/filesystem": "1.65.2",
     "cedar-template-converter": "1.0.0",
-    "metadata-profile-core": "0.0.0",
+    "metadata-profile-core": "1.0.0",
     "app-state": "0.0.1",
-    "rockit-common": "0.0.0",
+    "rockit-common": "1.0.0",
     "rockit-loadmask": "0.0.0",
     "axios": "^1.6.0",
     "await-to-js": "^3.0.0",

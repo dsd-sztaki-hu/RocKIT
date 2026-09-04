@@ -420,17 +420,49 @@ export class RemoteRoCrateConversionCommandContribution implements CommandContri
     arpPid: string,
     mapping: RoCrateEntityIdMapping,
   ): Promise<string> {
-    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
+    const target = this.buildDatasetPidTarget(arpPid)
+    const repository = this.inferRepositoryUrl(crate, arpPid)
+    const mappingFileName =
+      (await this.findExistingMappingFile(rootUri, repository, target)) ??
+      (await this.createUniqueMappingFileName(rootUri))
     await this.saveEntityIdMapping(rootUri, mappingFileName, mapping)
     await this.appendExportLog(rootUri, {
-      target: this.buildDatasetPidTarget(arpPid),
-      repository: this.inferRepositoryUrl(crate, arpPid),
+      target,
+      repository,
       mappingFile: mappingFileName,
       syncType: 'update',
       syncedAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(crate),
     })
     return mappingFileName
+  }
+
+  private async findExistingMappingFile(
+    rootUri: URI,
+    repository: string,
+    target: string,
+  ): Promise<string | undefined> {
+    const entries = await this.readExportLogEntries(
+      rootUri.resolve('.rockit').resolve(EXPORT_LOG_FILE_NAME),
+    )
+    const normalizedRepository = this.normalizeBaseUrl(repository)
+    const normalizedPid = this.normalizePid(target)
+    const mappingFile = entries.find(
+      (entry) =>
+        this.normalizeBaseUrl(entry.repository) === normalizedRepository &&
+        this.normalizePid(entry.target) === normalizedPid,
+    )?.mappingFile
+    return this.isSafeMappingFileName(mappingFile) ? mappingFile : undefined
+  }
+
+  private isSafeMappingFileName(value: unknown): value is string {
+    return typeof value === 'string' &&
+      value.length > 0 &&
+      value.toLowerCase().endsWith('.json') &&
+      !value.includes('/') &&
+      !value.includes('\\') &&
+      value !== '.' &&
+      value !== '..'
   }
 
   private async createUniqueMappingFileName(rootUri: URI): Promise<string> {

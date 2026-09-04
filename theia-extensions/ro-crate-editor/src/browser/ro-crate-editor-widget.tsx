@@ -507,13 +507,18 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     this.update()
                     return
                 }
-                const entityId = this.getActiveEntityId()
+                let entityId = this.getActiveEntityId()
                 if (!entityId) {
                     return
                 }
                 if (!this.entityExistsInCrate(crate, entityId)) {
-                    this.close()
-                    return
+                    const fallbackEntityId = this.resolveNavigableEntityId(crate)
+                    if (!fallbackEntityId) {
+                        this.close()
+                        return
+                    }
+                    this.assignEntity(fallbackEntityId)
+                    entityId = fallbackEntityId
                 }
                 this.nextProfileListValidationScope = 'targeted'
                 await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always', 'targeted')
@@ -700,11 +705,20 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         ? (saveData as any).entityId.trim()
         : ''
 
-    if (savedEntityId) {
-      this.assignedEntityId = savedEntityId
-      this.localSelectedEntityId = savedEntityId
+    // Recrate can restore or remove the entity currently being reviewed while
+    // its save callback still carries that entity's stale id. Select a target
+    // that exists in the exported graph before publishing the crate; state
+    // subscribers run synchronously and must never observe that stale id.
+    const navigableEntityId = this.resolveNavigableEntityId(
+      crate,
+      savedEntityId,
+      this.getActiveEntityId(),
+    )
+    if (navigableEntityId && navigableEntityId !== this.getActiveEntityId()) {
+      this.assignedEntityId = navigableEntityId
+      this.localSelectedEntityId = navigableEntityId
       if (this.id) {
-        this.appStateService.registerEntityEditor(this.id, savedEntityId)
+        this.appStateService.registerEntityEditor(this.id, navigableEntityId)
       }
       this.updateTitleLabel()
     }
@@ -720,44 +734,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       this.localCrate = crate
     }
 
-    const graph = Array.isArray(crate?.['@graph'])
-      ? (crate['@graph'] as Record<string, any>[])
-      : []
-    const activeEntityId = this.getActiveEntityId()
-    const hasActiveEntity =
-      !!activeEntityId &&
-      graph.some(
-        (entry) =>
-          entry && typeof entry === 'object' && String(entry['@id']) === activeEntityId,
-      )
-
-    if (!hasActiveEntity) {
-      const fallbackEntityId =
-        (savedEntityId &&
-        graph.some(
-          (entry) =>
-            entry && typeof entry === 'object' && String(entry['@id']) === savedEntityId,
-        )
-          ? savedEntityId
-          : undefined) ??
-        (graph.some(
-          (entry) => entry && typeof entry === 'object' && String(entry['@id']) === './',
-        )
-          ? './'
-          : typeof graph[0]?.['@id'] === 'string'
-            ? String(graph[0]['@id'])
-            : undefined)
-
-      if (fallbackEntityId) {
-        this.assignedEntityId = fallbackEntityId
-        this.localSelectedEntityId = fallbackEntityId
-        if (this.id) {
-          this.appStateService.registerEntityEditor(this.id, fallbackEntityId)
-        }
-        this.updateTitleLabel()
-      }
-    }
-
     this.updateDirtyStateForCurrentEntity(crate)
 
     const profileEntityId = this.getActiveEntityId()
@@ -767,9 +743,17 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
     await this.validateCurrentCrate()
 
+    // Recrate mutations update and save the whole RO-Crate, not just the
+    // currently displayed entity. An @id rejection changes the active entity
+    // id, which makes the per-entity baseline logic above capture the restored
+    // entity as a new clean baseline. Reconcile the widget Saveable state with
+    // the persisted crate snapshot so the restored metadata still requires a
+    // real disk save.
+    const isDirty = this.appStateService.isRoCrateDirty(crate)
+    this.appStateService.dirty = isDirty
+    this.setDirtyState(isDirty)
+
     if (hasCrateChanged) {
-      const isDirty = this.appStateService.isRoCrateDirty(crate)
-      this.appStateService.dirty = isDirty
       this.onContentChangedEmitter.fire()
     }
 
@@ -890,6 +874,39 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     return graph.some(
       (entry) => entry && typeof entry === 'object' && String(entry['@id']) === entityId,
     )
+  }
+
+  protected resolveNavigableEntityId(
+    crate: Record<string, any> | undefined,
+    ...preferredEntityIds: Array<string | undefined>
+  ): string | undefined {
+    const graph = Array.isArray(crate?.['@graph'])
+      ? (crate['@graph'] as Record<string, any>[])
+      : []
+    const availableEntityIds = new Set(
+      graph
+        .map((entry) =>
+          entry && typeof entry === 'object' && typeof entry['@id'] === 'string'
+            ? entry['@id'].trim()
+            : '',
+        )
+        .filter(Boolean),
+    )
+
+    for (const preferredEntityId of preferredEntityIds) {
+      const candidate = typeof preferredEntityId === 'string'
+        ? preferredEntityId.trim()
+        : ''
+      if (candidate && availableEntityIds.has(candidate)) {
+        return candidate
+      }
+    }
+
+    if (availableEntityIds.has('./')) {
+      return './'
+    }
+
+    return availableEntityIds.values().next().value
   }
 
   protected resolveInitialEntityId(optionEntityId?: string): string {

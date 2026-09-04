@@ -9,6 +9,7 @@ import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-
 import { inject, injectable } from 'inversify'
 import * as React from 'react'
 import { createRoot, Root } from 'react-dom/client'
+import { WorkspaceService } from '@theia/workspace/lib/browser'
 import {
   buildDocumentationUrl,
   ROCKIT_DOCUMENTATION_PAGES,
@@ -50,7 +51,12 @@ import {
   ZenodoExportService,
   ZenodoMetadataDialogCancelledError,
 } from './services/zenodo-export-service'
-import type { DataRepositoryCapabilities, DataRepositorySelection } from './types'
+import { ZenodoImportService } from './services/zenodo-import-service'
+import type {
+  DataRepositoryCapabilities,
+  DataRepositoryImportProgress,
+  DataRepositorySelection,
+} from './types'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
 
@@ -99,12 +105,16 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly loadMaskService: LoadMaskService,
     @inject(ZenodoExportService)
     protected readonly zenodoExportService: ZenodoExportService,
+    @inject(ZenodoImportService)
+    protected readonly zenodoImportService: ZenodoImportService,
     @inject(AppStateService)
     protected readonly appStateService: AppStateService,
     @inject(RoCrateLoaderContribution)
     protected readonly roCrateLoader: RoCrateLoaderContribution,
     @inject(ApplicationServer)
     protected readonly applicationServer: ApplicationServer,
+    @inject(WorkspaceService)
+    protected readonly workspaceService: WorkspaceService,
   ) {
     super()
     this.id = DATA_REPOSITORY_MANAGER_WIDGET_ID
@@ -152,6 +162,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.storeService,
         this.dataverseService,
         this.capabilityService,
+        this.hasOpenWorkspace(),
       )
       repositorySelection = await selector.open()
       if (!repositorySelection) {
@@ -164,11 +175,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     if (!selectedRepo || !capabilities) {
       return
     }
-    if (!capabilities.supportsNativeDataverseApi) {
+    if (!capabilities.supportsNativeDataverseApi && !capabilities.supportsZenodoApi) {
       this.messageService.warn(
         nls.localize(
           'rockit/dataRepository/importUnsupported',
-          "Import is currently only implemented for Dataverse-based repositories. '{0}' does not expose a supported Dataverse API.",
+          "Import is not implemented for '{0}' because it does not expose a supported Dataverse or Zenodo API.",
           selectedRepo.title,
         ),
         { timeout: 10000 },
@@ -176,9 +187,21 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       return
     }
     const importDialog = new ArpRoCrateImportDialog(
-      capabilities.supportsArpRoCrateZipUpload
-        ? undefined
-        : {
+      capabilities.supportsZenodoApi
+        ? {
+            title: nls.localize(
+              'rockit/dataRepository/importZenodoRecord',
+              'Import Zenodo Record',
+            ),
+            description: nls.localize(
+              'rockit/dataRepository/importZenodoRecordDescription',
+              'Enter a Zenodo upload URL in the format https://zenodo.org/uploads/{id}.',
+            ),
+            placeholder: 'https://zenodo.org/uploads/1234567',
+          }
+        : capabilities.supportsArpRoCrateZipUpload
+          ? undefined
+          : {
             title: nls.localize(
               'rockit/dataRepository/importDataset',
               'Import Dataverse Dataset',
@@ -202,20 +225,46 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         selectedRepo.title,
       ),
     })
+    const reportImportProgress = (update: DataRepositoryImportProgress): void =>
+      progress.report({
+        message: update.message,
+        work: {
+          done: update.completedSteps,
+          total: update.totalSteps,
+        },
+      })
     try {
-      const result = capabilities.supportsArpRoCrateZipUpload
-        ? await this.arpImportService.importFromDatasetUrl(
+      const result = capabilities.supportsZenodoApi
+        ? await this.zenodoImportService.importFromRecordUrl(
             selectedRepo,
             importInput.datasetUrl,
+            reportImportProgress,
           )
-        : await this.nativeImportService.importFromDatasetUrl(
-            selectedRepo,
-            importInput.datasetUrl,
-          )
+        : capabilities.supportsArpRoCrateZipUpload
+          ? await this.arpImportService.importFromDatasetUrl(
+              selectedRepo,
+              importInput.datasetUrl,
+              reportImportProgress,
+            )
+          : await this.nativeImportService.importFromDatasetUrl(
+              selectedRepo,
+              importInput.datasetUrl,
+              reportImportProgress,
+            )
       if (!result) {
         return
       }
-      if ('hasRoCrateMetadata' in result && !result.hasRoCrateMetadata) {
+      if ('recordId' in result) {
+        this.messageService.info(
+          nls.localize(
+            'rockit/dataRepository/importedZenodoRecord',
+            'Zenodo record imported to {0}. Downloaded {1} file(s) and created RO-Crate metadata.',
+            result.targetDirectory.path.fsPath(),
+            result.downloadedFileCount,
+          ),
+          { timeout: 10000 },
+        )
+      } else if ('hasRoCrateMetadata' in result && !result.hasRoCrateMetadata) {
         this.messageService.info(
           nls.localize(
             'rockit/dataRepository/importedWithoutMetadata',
@@ -283,6 +332,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.storeService,
         this.dataverseService,
         this.capabilityService,
+        this.hasOpenWorkspace(),
       )
       const repositorySelection = await selector.open()
       if (!repositorySelection || !repositorySelection.repository || !repositorySelection.capabilities) {
@@ -401,6 +451,9 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   }
 
   public async offerInterruptedExportRecovery(): Promise<void> {
+    if (!this.hasOpenWorkspace()) {
+      return
+    }
     const repositories = await this.storeService.loadRepositories()
     const targetsByRepository = this.mergeExportTargets(
       await this.arpExportService.listExportTargets(repositories),
@@ -457,17 +510,21 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const repositories = await this.storeService.loadRepositories()
     this.repositories = repositories
     this.update()
-    const exportTargetsByRepositoryId = this.mergeExportTargets(
-      await this.arpExportService.listExportTargets(repositories),
-      await this.nativeExportService.listExportTargets(repositories),
-      await this.zenodoExportService.listExportTargets(repositories),
-    )
+    const hasWorkspace = this.hasOpenWorkspace()
+    const exportTargetsByRepositoryId = hasWorkspace
+      ? this.mergeExportTargets(
+          await this.arpExportService.listExportTargets(repositories),
+          await this.nativeExportService.listExportTargets(repositories),
+          await this.zenodoExportService.listExportTargets(repositories),
+        )
+      : {}
 
     const selector = new DataRepositorySelectorDialog(
       repositories,
       this.storeService,
       this.dataverseService,
       this.capabilityService,
+      hasWorkspace,
       exportTargetsByRepositoryId,
       this.recentArpValidationError
         ? () => {
@@ -536,6 +593,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.storeService,
         this.dataverseService,
         this.capabilityService,
+        this.hasOpenWorkspace(),
         exportTargetsByRepositoryId,
         this.recentArpValidationError
           ? () => {
@@ -625,48 +683,50 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
 
       let preparedMetadata
-      const metadataProgress = await this.loadMaskService.showProgress({
-        text: nls.localize(
-          'rockit/dataRepository/preparingZenodoMetadata',
-          'Preparing Zenodo metadata for {0}...',
-          selectedRepo.title,
-        ),
-      })
-      let metadataProgressClosed = false
-      const closeMetadataProgress = (): void => {
-        if (!metadataProgressClosed) {
-          metadataProgressClosed = true
-          metadataProgress.cancel()
-        }
-      }
-      try {
-        preparedMetadata = await this.zenodoExportService.prepareDepositionMetadata(selectedRepo, {
-          onLoadingLicenses: () =>
-            metadataProgress.report({
-              message: nls.localize(
-                'rockit/dataRepository/loadingZenodoLicenses',
-                'Loading Zenodo license options from {0}...',
-                selectedRepo.title,
-              ),
-            }),
-          onBeforeMetadataDialog: closeMetadataProgress,
-        })
-      } catch (error) {
-        if (error instanceof ZenodoMetadataDialogCancelledError) {
-          return
-        }
-        console.error('Zenodo metadata preparation failed:', error)
-        this.messageService.error(
-          nls.localize(
-            'rockit/dataRepository/zenodoExportFailed',
-            'Zenodo export failed: {0}',
-            error instanceof Error ? error.message : String(error),
+      if (!selectedExportTarget) {
+        const metadataProgress = await this.loadMaskService.showProgress({
+          text: nls.localize(
+            'rockit/dataRepository/preparingZenodoMetadata',
+            'Preparing Zenodo metadata for {0}...',
+            selectedRepo.title,
           ),
-          { timeout: 10000 },
-        )
-        return
-      } finally {
-        closeMetadataProgress()
+        })
+        let metadataProgressClosed = false
+        const closeMetadataProgress = (): void => {
+          if (!metadataProgressClosed) {
+            metadataProgressClosed = true
+            metadataProgress.cancel()
+          }
+        }
+        try {
+          preparedMetadata = await this.zenodoExportService.prepareDepositionMetadata(selectedRepo, {
+            onLoadingLicenses: () =>
+              metadataProgress.report({
+                message: nls.localize(
+                  'rockit/dataRepository/loadingZenodoLicenses',
+                  'Loading Zenodo license options from {0}...',
+                  selectedRepo.title,
+                ),
+              }),
+            onBeforeMetadataDialog: closeMetadataProgress,
+          })
+        } catch (error) {
+          if (error instanceof ZenodoMetadataDialogCancelledError) {
+            return
+          }
+          console.error('Zenodo metadata preparation failed:', error)
+          this.messageService.error(
+            nls.localize(
+              'rockit/dataRepository/zenodoExportFailed',
+              'Zenodo export failed: {0}',
+              error instanceof Error ? error.message : String(error),
+            ),
+            { timeout: 10000 },
+          )
+          return
+        } finally {
+          closeMetadataProgress()
+        }
       }
       const progress = await this.loadMaskService.showProgress({
         text: selectedExportTarget
@@ -1338,6 +1398,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.appStateService.dirty ||
       (!!crate && this.appStateService.isRoCrateDirty(crate))
     )
+  }
+
+  protected hasOpenWorkspace(): boolean {
+    return this.workspaceService.tryGetRoots().length > 0
   }
 
   protected mergeExportTargets(

@@ -43,6 +43,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         private readonly storeService: DataRepositoryStoreService,
         private readonly dataverseService: DataverseService,
         private readonly capabilityService: DataverseCapabilityService,
+        private readonly hasWorkspace: boolean = true,
         private readonly exportTargetsByRepositoryId: Record<string, DataRepositoryExportTarget[]> = {},
         private readonly onShowRecentValidationResponse?: () => void,
         private readonly onDeleteExportTarget?: DeleteExportTargetHandler
@@ -64,6 +65,13 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         }
         const linkButton = this.appendButton(nls.localize('rockit/dataRepository/linkToRemoteShort', 'Link to Remote'), false);
         linkButton.classList.add('data-repo-selector__link-button');
+        linkButton.disabled = !this.hasWorkspace;
+        if (!this.hasWorkspace) {
+            linkButton.title = nls.localize(
+                'rockit/dataRepository/workspaceRequiredForExportOrLink',
+                'Open a workspace before exporting or linking a local dataset.'
+            );
+        }
         linkButton.addEventListener('click', () => this.handleLinkLocalToRemote());
         const addButton = this.appendButton(nls.localize('rockit/dataRepository/addRepository', 'Add Repository'), true);
         addButton.addEventListener('click', () => void this.handleAddRepository());
@@ -247,12 +255,18 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                         </button>
                         <button
                             className="data-repo-selector__export-action"
-                            title={nls.localize('rockit/dataRepository/newExport', 'New export')}
+                            title={this.hasWorkspace
+                                ? nls.localize('rockit/dataRepository/newExport', 'New export')
+                                : nls.localize(
+                                    'rockit/dataRepository/workspaceRequiredForExportOrLink',
+                                    'Open a workspace before exporting or linking a local dataset.'
+                                )}
                             aria-label={nls.localize(
                                 'rockit/dataRepository/exportToRepository',
                                 'Export to {0}',
                                 repo.title
                             )}
+                            disabled={!this.hasWorkspace}
                             onClick={() => void this.handleSelect(repo)}
                         >
                             <FileUploadOutlinedIcon className="data-repo-selector__export-update-icon" />

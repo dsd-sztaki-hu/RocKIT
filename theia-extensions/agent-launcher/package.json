@@ -1,6 +1,7 @@
 {
+  "private": true,
   "name": "agent-launcher",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "RocKIT coding agent launcher",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.111",
@@ -8,15 +9,12 @@
     "@theia/filesystem": "1.65.2",
     "@theia/terminal": "1.65.2",
     "@theia/workspace": "1.65.2",
-    "agent-instructions": "0.0.0",
+    "agent-instructions": "1.0.0",
     "app-state": "0.0.1",
-    "rockit-common": "0.0.0",
+    "rockit-common": "1.0.0",
     "markdown-it": "^12.3.2",
     "ro-crate-editor": "0.0.0",
     "tslib": "^2.6.2"
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "theiaExtensions": [
     {
@@ -27,7 +25,8 @@
   "keywords": [
     "theia-extension"
   ],
-  "license": "EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0",
+  "license": "Apache-2.0",
+  "author": "HUN-REN SZTAKI, Department of Distributed Systems",
   "files": [
     "lib",
     "src"

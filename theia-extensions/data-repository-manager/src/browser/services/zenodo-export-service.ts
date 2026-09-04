@@ -110,6 +110,16 @@ export interface ZenodoSyncResult {
   updatedMetadataFields: string[]
 }
 
+export interface ZenodoImportedRemoteFileLink {
+  localPath: string
+  remoteIdentifier?: string
+}
+
+export interface ZenodoImportedLinkResult {
+  mappingFileName: string
+  target: string
+}
+
 export interface ZenodoExportProgress {
   completedSteps: number
   totalSteps: number
@@ -135,6 +145,43 @@ export class ZenodoExportService {
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
   ) {}
+
+  /** Writes the local update/sync state before an imported directory is opened. */
+  public async persistImportedRecordLink(
+    rootUri: URI,
+    repository: DataRepositoryConfig,
+    depositionId: string,
+    crate: RoCrate,
+    files: ZenodoImportedRemoteFileLink[],
+    targetUrl?: string,
+  ): Promise<ZenodoImportedLinkResult> {
+    const mapping: RoCrateEntityIdMapping = {}
+    for (const file of files) {
+      if (!file.remoteIdentifier) {
+        continue
+      }
+      const entityId = file.localPath === 'ro-crate-metadata.json'
+        ? 'ro-crate-metadata.json'
+        : this.findLocalEntityIdForPath(crate, file.localPath) ?? file.localPath
+      mapping[entityId] = file.remoteIdentifier
+    }
+
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
+    await this.saveEntityIdMapping(rootUri, mappingFileName, mapping)
+    const target = targetUrl || `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`
+    await this.appendExportLog(rootUri, {
+      target,
+      repository: baseUrl,
+      mappingFile: mappingFileName,
+      crosswalkFile: ZENODO_CROSSWALK_FILE_NAME,
+      syncType: 'update',
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
+      datasetName: this.getRootDatasetName(crate),
+    })
+    return { mappingFileName, target }
+  }
 
   /**
    * Creates a new Zenodo draft deposition from the workspace RO-Crate.
@@ -397,7 +444,6 @@ export class ZenodoExportService {
 
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const depositionMetadata = preparedMetadata ?? await this.buildDepositionMetadata(crate, baseUrl, token)
     const uploadCrate = JSON.parse(JSON.stringify(crate)) as RoCrate
     const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
       uploadCrate,
@@ -426,6 +472,10 @@ export class ZenodoExportService {
     const { payload: draftPayload, createdNewVersion } = await this.resolveWritableDraft(
       existingPayload,
       token,
+    )
+    const depositionMetadata = preparedMetadata ?? this.buildUpdateDepositionMetadata(
+      crate,
+      this.extractDepositionMetadata(draftPayload),
     )
     const depositionId = this.extractDepositionId(draftPayload)
     const bucketUrl = this.extractBucketUrl(draftPayload)
@@ -1026,6 +1076,35 @@ export class ZenodoExportService {
   }
 
   /**
+   * Rebuilds editable metadata while retaining the access policy already stored
+   * by Zenodo. Access right, licence, and their conditional fields are selected
+   * when the deposition is first created and must not be prompted for again.
+   */
+  protected buildUpdateDepositionMetadata(
+    crate: RoCrate,
+    remoteMetadata: Record<string, unknown>,
+  ): ZenodoDepositionMetadata {
+    const { metadata } = buildZenodoMetadataFromCrosswalk(crate)
+    for (const field of ['access_right', 'license', 'embargo_date', 'access_conditions']) {
+      if (Object.prototype.hasOwnProperty.call(remoteMetadata, field)) {
+        metadata[field] = remoteMetadata[field]
+      } else {
+        delete metadata[field]
+      }
+    }
+
+    const missingRequiredFields = missingRequiredZenodoMetadataFields(metadata)
+    if (missingRequiredFields.length) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/zenodoRequiredMetadataMissing',
+        'Zenodo metadata is missing required fields defined by the repository crosswalk: {0}.',
+        missingRequiredFields.join(', '),
+      ))
+    }
+    return metadata as ZenodoDepositionMetadata
+  }
+
+  /**
    * Loads the active Zenodo license vocabulary from the target repository.
    *
    * Zenodo installations can expose license choices through `/api/licenses/`.
@@ -1236,6 +1315,14 @@ export class ZenodoExportService {
     }
     const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '')
     return this.isSafeRelativePath(normalized) ? normalized : undefined
+  }
+
+  protected findLocalEntityIdForPath(crate: RoCrate, path: string): string | undefined {
+    const normalizedPath = path.replace(/\\/g, '/').replace(/^\/+/, '')
+    return this.readGraphEntities(crate)
+      .map((entity) => typeof entity['@id'] === 'string' ? entity['@id'] : undefined)
+      .filter((entityId): entityId is string => !!entityId)
+      .find((entityId) => this.localCratePathFromEntityId(entityId) === normalizedPath)
   }
 
   protected toLocalFileUri(value: string): URI | undefined {
@@ -1730,7 +1817,7 @@ export class ZenodoExportService {
     }
     try {
       const url = new URL(trimmed)
-      const match = url.pathname.match(/\/(?:deposit|record)\/(\d+)/)
+      const match = url.pathname.match(/\/(?:deposit|record|uploads)\/(\d+)/)
       return match?.[1]
     } catch {
       return undefined

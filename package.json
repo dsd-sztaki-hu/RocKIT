@@ -1,5 +1,7 @@
 {
   "private": true,
+  "license": "Apache-2.0",
+  "author": "HUN-REN SZTAKI, Department of Distributed Systems",
   "engines": {
     "node": ">=18",
     "npm": ">=8"

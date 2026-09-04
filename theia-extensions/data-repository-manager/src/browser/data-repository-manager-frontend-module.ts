@@ -22,6 +22,7 @@ import { NativeDataverseImportService } from './services/native-dataverse-import
 import { DataverseCapabilityService } from './services/dataverse-capability-service';
 import { RoCrateFileHashService } from './services/ro-crate-file-hash-service';
 import { ZenodoExportService } from './services/zenodo-export-service';
+import { ZenodoImportService } from './services/zenodo-import-service';
 import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service';
 import { DataverseMetadataMappingService } from './services/dataverse-metadata-mapping-service';
 
@@ -38,6 +39,7 @@ export default new ContainerModule(bind => {
     bind(DataverseCapabilityService).toSelf().inSingletonScope();
     bind(RoCrateFileHashService).toSelf().inSingletonScope();
     bind(ZenodoExportService).toSelf().inSingletonScope();
+    bind(ZenodoImportService).toSelf().inSingletonScope();
     bind(DataRepositoryExportDeleteService).toSelf().inSingletonScope();
     bind(DataverseMetadataMappingService).toSelf().inSingletonScope();
 

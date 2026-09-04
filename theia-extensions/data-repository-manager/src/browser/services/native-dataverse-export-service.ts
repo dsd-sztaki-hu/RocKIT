@@ -101,6 +101,11 @@ export interface NativeDataverseSyncResult {
   updatedMetadataFields: string[]
 }
 
+export interface NativeDataverseImportedLinkResult {
+  mappingFileName: string
+  target: string
+}
+
 export interface NativeDataverseDatasetMetadata {
   title: string
   authorNames: string[]
@@ -285,6 +290,72 @@ export class NativeDataverseExportService {
     @inject(DataverseMetadataMappingService)
     protected readonly metadataMappingService: DataverseMetadataMappingService,
   ) {}
+
+  /**
+   * Persists the local side of a link for a dataset downloaded from Dataverse.
+   * The explicit root URI is intentional: the imported directory is not the
+   * active workspace until after this method completes.
+   */
+  public async persistImportedDatasetLink(
+    rootUri: URI,
+    repository: DataRepositoryConfig,
+    persistentId: string,
+  ): Promise<NativeDataverseImportedLinkResult> {
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const datasetVersionData = await this.fetchDatasetVersionDataWithFallback(
+      baseUrl,
+      repository.apiKey,
+      persistentId,
+    )
+    const metadataUri = rootUri.resolve('ro-crate-metadata.json')
+    const crate = await this.fileService.exists(metadataUri)
+      ? await this.readRoCrate(metadataUri)
+      : undefined
+    const remoteReferences = this.extractRemoteFileReferences(datasetVersionData)
+    const mapping = crate
+      ? this.buildEntityIdMapping(crate, [{
+          entryPath: '',
+          fileName: '',
+          response: datasetVersionData as NativeDataverseResponse,
+        }])
+      : {}
+
+    for (const reference of remoteReferences) {
+      const remotePath = [reference.directoryLabel, reference.label]
+        .filter(Boolean)
+        .join('/')
+      if (!remotePath) {
+        continue
+      }
+      const localId = crate
+        ? this.findLocalEntityIdForPath(crate, remotePath) ?? remotePath
+        : remotePath
+      mapping[localId] = reference.remoteId
+    }
+
+    const metadataFile = this.extractDraftFileRecords(datasetVersionData)
+      .find((file) => file.label === 'ro-crate-metadata.json')
+    if (metadataFile) {
+      mapping['ro-crate-metadata.json'] = metadataFile.id
+    }
+
+    const mappingFileName = await this.createUniqueMappingFileName(rootUri)
+    await this.saveEntityIdMapping(rootUri, mappingFileName, mapping)
+    const target = this.buildDataverseDatasetUrl(baseUrl, persistentId)
+      || this.buildPidTarget(persistentId)
+      || persistentId
+    await this.appendExportLog(rootUri, {
+      target,
+      repository: baseUrl,
+      mappingFile: mappingFileName,
+      crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
+      syncType: 'update',
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
+      datasetName: crate ? this.getRootDatasetName(crate) : undefined,
+    })
+    return { mappingFileName, target }
+  }
 
   public async createDataset(
     repository: DataRepositoryConfig,
@@ -3106,6 +3177,15 @@ export class NativeDataverseExportService {
     }
     const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '')
     return normalized && !normalized.split('/').includes('..') ? normalized : undefined
+  }
+
+  protected findLocalEntityIdForPath(crate: RoCrate, path: string): string | undefined {
+    const normalizedPath = this.normalizeDirectoryLabel(path)
+    return this.readGraph(crate)
+      .map((entity) => this.requireEntityId(entity))
+      .find((entityId) =>
+        this.normalizeDirectoryLabel(this.localCratePathFromEntityId(entityId) ?? '') === normalizedPath,
+      )
   }
 
   protected isSafeRelativePath(value: string): boolean {

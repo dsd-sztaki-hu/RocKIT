@@ -7,7 +7,7 @@ import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { inject, injectable } from 'inversify'
 import JSZip = require('jszip')
 
-import { DataRepositoryConfig } from '../types'
+import { DataRepositoryConfig, DataRepositoryImportProgressReporter } from '../types'
 import {
   appendExportLogEvent,
   ExportLogEntry,
@@ -22,9 +22,8 @@ type RoCrateEntityIdMapping = Record<string, string>
 export interface ArpRoCrateImportResult {
   datasetPid: string
   targetDirectory: URI
-  zipPath: URI
   extractedFileCount: number
-  mappingFileName?: string
+  mappingFileName: string
 }
 
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
@@ -40,6 +39,7 @@ export class ArpRoCrateImportService {
   public async importFromDatasetUrl(
     repository: DataRepositoryConfig,
     datasetUrl: string,
+    reportProgress?: DataRepositoryImportProgressReporter,
   ): Promise<ArpRoCrateImportResult | undefined> {
     const datasetPid = this.extractDatasetPid(datasetUrl)
     if (!datasetPid) {
@@ -61,16 +61,29 @@ export class ArpRoCrateImportService {
       importParentDirectory,
       datasetPid,
     )
+    const totalSteps = 4
+    reportProgress?.({
+      completedSteps: 0,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/downloadingDatasetArchive', 'Downloading dataset archive...'),
+    })
     const zipBytes = await this.downloadRoCrateZip(repository, datasetPid)
-    const zipPath = targetDirectory.resolve('rocrate.zip')
-    await this.fileService.writeFile(zipPath, BinaryBuffer.wrap(zipBytes))
-
+    reportProgress?.({
+      completedSteps: 1,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/extractingDatasetArchive', 'Extracting dataset archive...'),
+    })
     const extractedFileCount = await this.extractZip(zipBytes, targetDirectory)
     const metadataUri = targetDirectory.resolve('ro-crate-metadata.json')
     if (!(await this.fileService.exists(metadataUri))) {
       throw new Error(nls.localize('rockit/dataRepository/missingDownloadedMetadata', 'The downloaded ZIP did not contain ro-crate-metadata.json.'))
     }
     const crate = await this.readRoCrate(metadataUri)
+    reportProgress?.({
+      completedSteps: 2,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/generatingImportLinkMapping', 'Generating remote link mapping...'),
+    })
     const mappingFileName = await this.persistImportedExportState(
       targetDirectory,
       repository,
@@ -78,12 +91,17 @@ export class ArpRoCrateImportService {
       crate,
     )
 
+    reportProgress?.({
+      completedSteps: 3,
+      totalSteps,
+      message: nls.localize('rockit/dataRepository/openingImportedDataset', 'Opening imported dataset...'),
+    })
     this.workspaceService.open(targetDirectory, { preserveWindow: false })
+    reportProgress?.({ completedSteps: totalSteps, totalSteps, message: '' })
 
     return {
       datasetPid,
       targetDirectory,
-      zipPath,
       extractedFileCount,
       mappingFileName,
     }
@@ -338,12 +356,8 @@ export class ArpRoCrateImportService {
     repository: DataRepositoryConfig,
     datasetPid: string,
     crate: RoCrate,
-  ): Promise<string | undefined> {
+  ): Promise<string> {
     const mapping = this.buildImportedEntityIdMapping(crate, datasetPid)
-    if (Object.keys(mapping).length === 0) {
-      return undefined
-    }
-
     const mappingFileName = await this.createUniqueMappingFileName(rootUri)
     await this.saveEntityIdMapping(rootUri, mappingFileName, mapping)
     await this.appendExportLog(rootUri, {

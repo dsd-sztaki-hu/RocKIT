@@ -55,6 +55,16 @@ export interface DataRepositorySelection {
     action?: 'export' | 'sync' | 'import' | 'link';
 }
 
+export interface DataRepositoryImportProgress {
+    completedSteps: number;
+    totalSteps: number;
+    message: string;
+}
+
+export type DataRepositoryImportProgressReporter = (
+    progress: DataRepositoryImportProgress
+) => void;
+
 export type DataRepositoryKind = 'arp-dataverse' | 'dataverse' | 'zenodo' | 'unknown';
 
 export interface DataRepositoryCapabilities {

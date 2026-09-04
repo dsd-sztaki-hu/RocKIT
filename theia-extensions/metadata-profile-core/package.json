@@ -1,6 +1,8 @@
 {
   "name": "metadata-profile-core",
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "author": "HUN-REN SZTAKI, Department of Distributed Systems",
   "description": "Node-safe CEDAR metadata profile storage and conversion utilities",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -14,7 +16,7 @@
   },
   "dependencies": {
     "cedar-template-converter": "1.0.0",
-    "rockit-common": "0.0.0"
+    "rockit-common": "1.0.0"
   },
   "optionalDependencies": {
     "keytar": "^7.9.0"
