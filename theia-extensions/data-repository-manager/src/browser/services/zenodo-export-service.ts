@@ -48,6 +48,7 @@ interface ZenodoRemoteFile {
   id?: string
   filename: string
   checksum?: string
+  size?: number
   response: unknown
 }
 
@@ -328,6 +329,7 @@ export class ZenodoExportService {
           rootUri,
           file.localFileId,
           file.lastModified,
+          file.size,
           uploadPayload,
         )
       }
@@ -504,11 +506,22 @@ export class ZenodoExportService {
     const replaced: Array<{ local: ZenodoUploadFile; remote: ZenodoRemoteFile }> = []
     const unchanged: Array<{ local: ZenodoUploadFile; remote: ZenodoRemoteFile }> = []
     const removed = remoteFiles.filter((file) => !desiredByFilename.has(file.filename))
+    const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri)
 
     for (const local of uploadFiles) {
       const remote = remoteByFilename.get(local.filename)
       if (!remote) {
         added.push(local)
+      } else if (
+        local.localFileId &&
+        this.fileHashStoreService.isFileRecordUnchanged(storedFileHashes[local.localFileId], {
+          localLastModified: local.lastModified,
+          localSize: local.size,
+          remoteMd5: remote.checksum,
+          remoteSize: remote.size,
+        })
+      ) {
+        unchanged.push({ local, remote })
       } else {
         replaced.push({ local, remote })
       }
@@ -1885,10 +1898,14 @@ export class ZenodoExportService {
           'Zenodo returned a deposition file without a filename.',
         ))
       }
+      const sizeValue = record.size ?? record.filesize
       return {
         id: this.firstString(record.id),
         filename,
         checksum: this.firstString(record.checksum),
+        size: typeof sizeValue === 'number' && Number.isFinite(sizeValue)
+          ? sizeValue
+          : undefined,
         response: entry,
       }
     })
@@ -2156,6 +2173,7 @@ export class ZenodoExportService {
         this.getWorkspaceRoot(),
         file.localFileId,
         file.lastModified,
+        file.size,
         payload,
       )
     }

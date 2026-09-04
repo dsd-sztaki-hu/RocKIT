@@ -46,6 +46,8 @@ interface NativeDataverseDraftFileRecord {
   id: string
   label: string
   persistentId?: string
+  md5?: string
+  size?: number
 }
 
 interface DataverseMetadataField {
@@ -122,6 +124,7 @@ export interface NativeDataverseFileUploadResult {
   response: NativeDataverseResponse
   localFileId?: string
   lastModified?: number
+  sourceSize?: number
 }
 
 interface NativeDataverseUploadFile {
@@ -129,6 +132,7 @@ interface NativeDataverseUploadFile {
   content: Uint8Array
   localFileId?: string
   lastModified?: number
+  sourceSize?: number
 }
 
 interface NativeDataverseExportTarget {
@@ -557,6 +561,7 @@ export class NativeDataverseExportService {
         }
         exportTarget.mapping['ro-crate-metadata.json'] = metadataFileId;
         const remoteMetadataCrate = await this.downloadRemoteMetadataFile(baseUrl, repository.apiKey, metadataFileId);
+        const draftFilesById = new Map(draftFiles.map(file => [file.id, file]));
         const localReachableIds = this.collectReachableEntityIds(crate);
         const localFilesById = new Map(
             this.readGraph(crate)
@@ -571,7 +576,8 @@ export class NativeDataverseExportService {
         const newFileIds: string[] = [];
         const changedFileIds: string[] = [];
         const matchedRemoteFileIds = new Set<string>();
-        for (const [localId, localEntity] of localFilesById) {
+        const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri);
+        for (const [localId] of localFilesById) {
             const remoteId = exportTarget.mapping[localId];
             const remoteEntity = remoteId ? remoteEntitiesById.get(remoteId) : undefined;
             if (!remoteId || !remoteEntity) {
@@ -579,7 +585,15 @@ export class NativeDataverseExportService {
                 continue;
             }
             matchedRemoteFileIds.add(remoteId);
-            if ((this.fileEntityHash(localEntity) ?? '') !== (this.fileEntityHash(remoteEntity) ?? '')) {
+            const uploadFile = this.requireUploadFile(localId, uploadCollection, uploadFilesByPath);
+            const draftFile = draftFilesById.get(remoteId);
+            const unchanged = this.fileHashStoreService.isFileRecordUnchanged(storedFileHashes[localId], {
+                localLastModified: uploadFile.lastModified,
+                localSize: uploadFile.sourceSize,
+                remoteMd5: draftFile?.md5 ?? this.fileEntityHash(remoteEntity),
+                remoteSize: draftFile?.size ?? this.fileEntitySize(remoteEntity)
+            });
+            if (!unchanged) {
                 changedFileIds.push(localId);
             }
         }
@@ -1967,6 +1981,7 @@ export class NativeDataverseExportService {
         content: content.value.buffer,
         localFileId: originalEntityIdByUploadId.get(reference.entityId) ?? reference.entityId,
         lastModified: stat.mtime,
+        sourceSize: content.value.buffer.byteLength,
       })
     }
 
@@ -2026,6 +2041,7 @@ export class NativeDataverseExportService {
             response: payload,
             localFileId: file.localFileId,
             lastModified: file.lastModified,
+            sourceSize: file.sourceSize,
         };
         await this.recordResponseHash(result)
         return result
@@ -2076,6 +2092,7 @@ export class NativeDataverseExportService {
       response: payload,
       localFileId: file.localFileId,
       lastModified: file.lastModified,
+      sourceSize: file.sourceSize,
     }
     await this.recordResponseHash(result)
     return result
@@ -2089,6 +2106,7 @@ export class NativeDataverseExportService {
       this.getWorkspaceRoot(),
       result.localFileId,
       result.lastModified,
+      result.sourceSize,
       result.response,
     )
   }
@@ -2537,6 +2555,15 @@ export class NativeDataverseExportService {
     return this.readOptionalString(entity.hash)?.toLowerCase().replace(/^md5:/, '')
   }
 
+  protected fileEntitySize(entity: RoCrateEntity): number | undefined {
+    const value = this.readOptionalString(entity.contentSize)
+    if (!value) {
+      return undefined
+    }
+    const size = Number(value)
+    return Number.isFinite(size) ? size : undefined
+  }
+
   protected fileHashAndDirectorySignature(
     md5: string,
     directoryLabel: string | undefined,
@@ -2925,11 +2952,17 @@ export class NativeDataverseExportService {
         this.readOptionalString(record.label) ??
         this.readOptionalString(dataFileRecord.filename)
       if (id && label) {
+        const sizeValue = this.readOptionalString(
+          dataFileRecord.filesize ?? dataFileRecord.contentSize,
+        )
+        const size = sizeValue === undefined ? undefined : Number(sizeValue)
         return [
           {
             id,
             label,
             persistentId: this.extractPersistentId(dataFileRecord),
+            md5: this.extractMd5(dataFileRecord),
+            size: size !== undefined && Number.isFinite(size) ? size : undefined,
           },
         ]
       }

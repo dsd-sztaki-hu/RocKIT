@@ -7,12 +7,22 @@ export const FILE_HASH_STORE_NAME = 'file-hashes.json'
 
 export interface StoredFileHash {
   md5: string
-  lastModified: string
+  /** When the server response containing this hash was received. */
+  hashUpdatedAt: string
+  /** Local file metadata captured for the exact bytes sent to the server. */
+  sourceLastModifiedAt: string
+  sourceSize: number
 }
 
 interface FileHashStore {
-  version: 1
   files: Record<string, StoredFileHash>
+}
+
+export interface FileHashComparison {
+  localLastModified: number | undefined
+  localSize: number | undefined
+  remoteMd5?: string
+  remoteSize?: number
 }
 
 @injectable()
@@ -27,36 +37,97 @@ export class FileHashStoreService {
     rootUri: URI,
     localFileId: string,
     lastModified: number | undefined,
+    sourceSize: number | undefined,
     response: unknown,
   ): Promise<boolean> {
     const md5 = this.extractMd5(response)
-    if (!md5 || lastModified === undefined || !Number.isFinite(lastModified)) {
+    if (
+      !md5 ||
+      lastModified === undefined ||
+      !Number.isFinite(lastModified) ||
+      sourceSize === undefined ||
+      !Number.isFinite(sourceSize)
+    ) {
       return false
     }
     const store = await this.read(rootUri)
     store.files[localFileId] = {
       md5,
-      lastModified: new Date(lastModified).toISOString(),
+      hashUpdatedAt: new Date().toISOString(),
+      sourceLastModifiedAt: new Date(lastModified).toISOString(),
+      sourceSize,
     }
     await this.write(rootUri, store)
     return true
   }
 
+  /**
+   * Returns true only when the local and remote file still match the snapshot
+   * captured after a successful upload. Unknown or incomplete state is treated
+   * conservatively as changed.
+   */
+  public async isFileUnchanged(
+    rootUri: URI,
+    localFileId: string,
+    comparison: FileHashComparison,
+  ): Promise<boolean> {
+    const stored = (await this.read(rootUri)).files[localFileId]
+    return this.isFileRecordUnchanged(stored, comparison)
+  }
+
+  public async readFileHashes(rootUri: URI): Promise<Readonly<Record<string, StoredFileHash>>> {
+    return (await this.read(rootUri)).files
+  }
+
+  public isFileRecordUnchanged(
+    stored: StoredFileHash | undefined,
+    comparison: FileHashComparison,
+  ): boolean {
+    const localLastModified = comparison.localLastModified
+    const localSize = comparison.localSize
+    if (
+      !stored ||
+      localLastModified === undefined ||
+      !Number.isFinite(localLastModified) ||
+      localSize === undefined ||
+      !Number.isFinite(localSize)
+    ) {
+      return false
+    }
+    const remoteMd5 = this.normalizeMd5(comparison.remoteMd5)
+    if (!remoteMd5 || remoteMd5 !== stored.md5) {
+      return false
+    }
+    if (
+      comparison.remoteSize !== undefined &&
+      Number.isFinite(comparison.remoteSize) &&
+      comparison.remoteSize !== localSize
+    ) {
+      return false
+    }
+    if (stored.sourceSize !== undefined && stored.sourceSize !== localSize) {
+      return false
+    }
+    // ISO timestamps have millisecond precision; normalize filesystem values
+    // before comparing in case a provider reports fractional milliseconds.
+    return Date.parse(stored.sourceLastModifiedAt) === Math.trunc(localLastModified)
+  }
+
   protected async read(rootUri: URI): Promise<FileHashStore> {
     const uri = rootUri.resolve('.rockit').resolve(FILE_HASH_STORE_NAME)
     if (!(await this.fileService.exists(uri))) {
-      return { version: 1, files: {} }
+      return { files: {} }
     }
     try {
       const parsed = JSON.parse(
         (await this.fileService.readFile(uri)).value.toString(),
       ) as unknown
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        return { version: 1, files: {} }
+        return { files: {} }
       }
       const files = (parsed as Record<string, unknown>).files
       if (!files || typeof files !== 'object' || Array.isArray(files)) {
-        return { version: 1, files: {} }
+        return { files: {} }
       }
       const normalized: Record<string, StoredFileHash> = {}
       for (const [id, value] of Object.entries(files)) {
@@ -65,19 +136,40 @@ export class FileHashStoreService {
         }
         const record = value as Record<string, unknown>
         const md5 = this.normalizeMd5(record.md5)
-        const lastModified =
-          typeof record.lastModified === 'string' ? record.lastModified : ''
-        if (md5 && !Number.isNaN(Date.parse(lastModified))) {
-          normalized[id] = { md5, lastModified }
+        const sourceLastModifiedAt =
+          typeof record.sourceLastModifiedAt === 'string'
+            ? record.sourceLastModifiedAt
+            : ''
+        const hashUpdatedAt =
+          typeof record.hashUpdatedAt === 'string' &&
+          !Number.isNaN(Date.parse(record.hashUpdatedAt))
+            ? record.hashUpdatedAt
+            : undefined
+        const sourceSize =
+          typeof record.sourceSize === 'number' && Number.isFinite(record.sourceSize)
+            ? record.sourceSize
+            : undefined
+        if (
+          md5 &&
+          hashUpdatedAt &&
+          !Number.isNaN(Date.parse(sourceLastModifiedAt)) &&
+          sourceSize !== undefined
+        ) {
+          normalized[id] = {
+            md5,
+            hashUpdatedAt,
+            sourceLastModifiedAt,
+            sourceSize,
+          }
         }
       }
-      return { version: 1, files: normalized }
+      return { files: normalized }
     } catch (error) {
       console.warn(
         `Failed to parse .rockit/${FILE_HASH_STORE_NAME}; starting a new hash store.`,
         error,
       )
-      return { version: 1, files: {} }
+      return { files: {} }
     }
   }
 
@@ -92,7 +184,7 @@ export class FileHashStoreService {
     await this.fileService.writeFile(
       rockitUri.resolve(FILE_HASH_STORE_NAME),
       BinaryBuffer.fromString(
-        `${JSON.stringify({ version: 1, files: sortedFiles }, null, 2)}\n`,
+        `${JSON.stringify({ files: sortedFiles }, null, 2)}\n`,
       ),
     )
   }

@@ -60,6 +60,15 @@ interface ArpUpdateUploadFile {
   entryPath: string
   content: Uint8Array
   lastModified?: number
+  sourceSize?: number
+}
+
+interface ArpUploadFileSource {
+  entityId: string
+  entryPath: string
+  uri: URI
+  lastModified?: number
+  sourceSize?: number
 }
 
 interface ArpDataverseFileUploadResult {
@@ -404,9 +413,55 @@ export class ArpRoCrateExportService {
       repository: baseUrl,
       exportLogEntry: exportTarget.exportLogEntry,
     })
-    const changedFilesToReplace = diff.changedFiles.filter(
-      (file: Record<string, any>) => file.changes?.hash,
+    const localEntitiesById = new Map(
+      this.readGraphEntities(uploadCrate).map((entity) => [
+        this.requireEntityId(entity),
+        entity,
+      ]),
     )
+    const remoteEntitiesById = new Map(
+      this.readGraphEntities(remoteCrate).map((entity) => [
+        this.requireEntityId(entity),
+        entity,
+      ]),
+    )
+    const newLocalFileIds = new Set(
+      diff.newFiles.map((file: Record<string, any>) => file.localId),
+    )
+    const changedFilesToReplace: Array<Record<string, any>> = []
+    const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri)
+    for (const [localId, localEntity] of localEntitiesById) {
+      if (!this.entityTypes(localEntity).includes('File') || newLocalFileIds.has(localId)) {
+        continue
+      }
+      const remoteId = uploadMapping[localId] || localId
+      const remoteEntity = remoteEntitiesById.get(remoteId)
+      if (!remoteEntity) {
+        continue
+      }
+      const source = await this.resolveUploadFileSource(
+        localEntity,
+        rootUri,
+        localizedExternalFiles.entries,
+        localizedExternalFiles.originalToUploadIds,
+      )
+      const remoteSizeValue = this.readOptionalEntityString(remoteEntity, 'contentSize')
+      const remoteSize = remoteSizeValue === undefined ? undefined : Number(remoteSizeValue)
+      const unchanged = this.fileHashStoreService.isFileRecordUnchanged(
+        storedFileHashes[source.entityId],
+        {
+          localLastModified: source.lastModified,
+          localSize: source.sourceSize,
+          remoteMd5: this.readOptionalEntityString(remoteEntity, 'hash'),
+          remoteSize: remoteSize !== undefined && Number.isFinite(remoteSize)
+            ? remoteSize
+            : undefined,
+        },
+      )
+      if (!unchanged) {
+        changedFilesToReplace.push({ localId, remoteId })
+      }
+    }
     const totalSteps =
       diff.newFiles.length + changedFilesToReplace.length + diff.removedFiles.length + 2
     let completedSteps = 1
@@ -421,18 +476,6 @@ export class ArpRoCrateExportService {
         diff.removedFiles.length,
       ),
     })
-    const localEntitiesById = new Map(
-      this.readGraphEntities(uploadCrate).map((entity) => [
-        this.requireEntityId(entity),
-        entity,
-      ]),
-    )
-    const remoteEntitiesById = new Map(
-      this.readGraphEntities(remoteCrate).map((entity) => [
-        this.requireEntityId(entity),
-        entity,
-      ]),
-    )
     const uploadIdToMetadataId = this.toOriginalEntityIdMapping(
       localizedExternalFiles.originalToUploadIds,
     )
@@ -1589,6 +1632,27 @@ export class ArpRoCrateExportService {
     externalFileEntries: Map<string, URI>,
     originalToUploadIds = new Map<string, string>(),
   ): Promise<ArpUpdateUploadFile> {
+    const source = await this.resolveUploadFileSource(
+      entity,
+      rootUri,
+      externalFileEntries,
+      originalToUploadIds,
+    )
+    return {
+      entityId: source.entityId,
+      entryPath: source.entryPath,
+      content: (await this.fileService.readFile(source.uri)).value.buffer,
+      lastModified: source.lastModified,
+      sourceSize: source.sourceSize,
+    }
+  }
+
+  protected async resolveUploadFileSource(
+    entity: RoCrateEntity,
+    rootUri: URI,
+    externalFileEntries: Map<string, URI>,
+    originalToUploadIds = new Map<string, string>(),
+  ): Promise<ArpUploadFileSource> {
     const entryPath = this.dataverseFilePathFromEntity(entity)
     if (!entryPath) {
       throw new Error(
@@ -1629,8 +1693,9 @@ export class ArpRoCrateExportService {
     return {
       entityId,
       entryPath,
-      content: (await this.fileService.readFile(uri)).value.buffer,
+      uri,
       lastModified: stat.mtime,
+      sourceSize: stat.size,
     }
   }
 
@@ -1755,6 +1820,7 @@ export class ArpRoCrateExportService {
       this.getWorkspaceRoot(),
       file.entityId,
       file.lastModified,
+      file.sourceSize,
       payload,
     )
     return {
@@ -1849,6 +1915,7 @@ export class ArpRoCrateExportService {
       this.getWorkspaceRoot(),
       file.entityId,
       file.lastModified,
+      file.sourceSize,
       payload,
     )
     return {
