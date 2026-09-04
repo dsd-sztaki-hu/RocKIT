@@ -37,6 +37,7 @@ interface NativeDataverseUploadCollection {
 
 interface NativeDataverseRemoteFileReference {
   md5: string
+  size?: number
   directoryLabel: string
   label: string
   remoteId: string
@@ -341,6 +342,24 @@ export class NativeDataverseExportService {
         ? this.findLocalEntityIdForPath(crate, remotePath) ?? remotePath
         : remotePath
       mapping[localId] = reference.remoteId
+      const localUri = rootUri.resolve(remotePath)
+      if (
+        reference.label !== 'ro-crate-metadata.json' &&
+        this.isSafeRelativePath(remotePath) &&
+        this.isInsideRoot(rootUri, localUri) &&
+        await this.fileService.exists(localUri)
+      ) {
+        const stat = await this.fileService.resolve(localUri)
+        if (!stat.isDirectory) {
+          await this.fileHashStoreService.recordKnownHash(
+            rootUri,
+            localId,
+            stat.mtime,
+            stat.size,
+            reference.md5,
+          )
+        }
+      }
     }
 
     const metadataFile = this.extractDraftFileRecords(datasetVersionData)
@@ -802,11 +821,6 @@ export class NativeDataverseExportService {
       metadataFileId,
     )
     const remoteToLocalMapping = this.invertEntityIdMapping(exportTarget.mapping)
-    const localFilesById = new Map(
-      this.readGraph(localCrate)
-        .filter(entity => this.entityTypes(entity).includes('File'))
-        .map(entity => [this.requireEntityId(entity), entity]),
-    )
     const remoteMetadataFiles = this.readGraph(remoteMetadataCrate)
       .filter(entity => this.entityTypes(entity).includes('File'))
       .filter(entity => this.requireEntityId(entity) !== 'ro-crate-metadata.json')
@@ -821,24 +835,32 @@ export class NativeDataverseExportService {
     }
     const downloadPlan: Array<{
       remoteId: string
+      localId: string
       localPath: string
       checksum?: string
+      remoteSize?: number
       kind: 'new' | 'changed'
     }> = []
     let keptLocalFileCount = 0
+    const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri)
     for (const item of remoteItems) {
       const targetUri = rootUri.resolve(item.localPath)
       if (!(await this.fileService.exists(targetUri))) {
         downloadPlan.push({ ...item, kind: 'new' })
         continue
       }
-      const localEntity = localFilesById.get(item.localId)
       const checksum = item.checksum ?? this.fileEntityHash(item.remoteEntity)
-      const matches = checksum
-        ? false
-        : (this.fileEntityHash(localEntity ?? {}) ?? '') ===
-          (this.fileEntityHash(item.remoteEntity) ?? '')
-      if (matches) {
+      const stat = await this.fileService.resolve(targetUri)
+      const unchanged = !stat.isDirectory && this.fileHashStoreService.isFileRecordUnchanged(
+        storedFileHashes[item.localId],
+        {
+          localLastModified: stat.mtime,
+          localSize: stat.size,
+          remoteMd5: checksum,
+          remoteSize: item.remoteSize,
+        },
+      )
+      if (unchanged) {
         keptLocalFileCount += 1
       } else {
         downloadPlan.push({ ...item, kind: 'changed' })
@@ -871,6 +893,14 @@ export class NativeDataverseExportService {
         rootUri,
         item.localPath,
         await this.downloadDataverseFileContent(baseUrl, repository.apiKey, item.remoteId),
+      )
+      const downloadedStat = await this.fileService.resolve(rootUri.resolve(item.localPath))
+      await this.fileHashStoreService.recordKnownHash(
+        rootUri,
+        item.localId,
+        downloadedStat.mtime,
+        downloadedStat.size,
+        item.checksum,
       )
       completedSteps += 1
     }
@@ -2208,6 +2238,7 @@ export class NativeDataverseExportService {
       localId: string
       localPath: string
       checksum?: string
+      remoteSize?: number
       remoteEntity: RoCrateEntity
     }> {
       const remoteEntitiesById = new Map(
@@ -2218,6 +2249,7 @@ export class NativeDataverseExportService {
         localId: string
         localPath: string
         checksum?: string
+        remoteSize?: number
         remoteEntity: RoCrateEntity
       }>()
 
@@ -2237,6 +2269,7 @@ export class NativeDataverseExportService {
             localId,
             localPath,
             checksum: reference?.md5 ?? this.fileEntityHash(entity),
+            remoteSize: reference?.size ?? this.fileEntitySize(entity),
             remoteEntity: entity,
           })
         }
@@ -2259,12 +2292,14 @@ export class NativeDataverseExportService {
           localId,
           localPath,
           checksum: reference.md5,
+          remoteSize: reference.size,
           remoteEntity: remoteEntitiesById.get(reference.remoteId) ?? {
             '@id': reference.remoteId,
             '@type': 'File',
             name: reference.label,
             directoryLabel: reference.directoryLabel,
             hash: reference.md5,
+            contentSize: reference.size,
           },
         })
       }
@@ -2636,6 +2671,10 @@ export class NativeDataverseExportService {
     if (dataFile && typeof dataFile === 'object' && !Array.isArray(dataFile)) {
       const dataFileRecord = dataFile as Record<string, unknown>
       const md5 = this.extractMd5(dataFileRecord)
+      const sizeValue = this.readOptionalString(
+        dataFileRecord.filesize ?? dataFileRecord.contentSize,
+      )
+      const size = sizeValue === undefined ? undefined : Number(sizeValue)
       const remoteId =
         this.readOptionalString(dataFileRecord.id) ??
         this.buildPidTarget(this.extractPersistentId(dataFileRecord))
@@ -2651,6 +2690,7 @@ export class NativeDataverseExportService {
         return [
           {
             md5,
+            size: size !== undefined && Number.isFinite(size) ? size : undefined,
             directoryLabel: this.normalizeDirectoryLabel(directoryLabel),
             label,
             remoteId,

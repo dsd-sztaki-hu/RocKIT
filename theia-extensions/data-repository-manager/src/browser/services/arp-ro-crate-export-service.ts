@@ -1009,20 +1009,6 @@ export class ArpRoCrateExportService {
       repository: baseUrl,
       exportLogEntry: exportTarget.exportLogEntry,
     })
-    const remoteFilesToDownload = [
-      ...syncDiff.newFiles.map((file: Record<string, any>) => ({
-        remoteId: file.localId,
-        localId: file.remoteId,
-        kind: 'new' as const,
-      })),
-      ...syncDiff.changedFiles
-        .filter((file: Record<string, any>) => file.changes?.hash)
-        .map((file: Record<string, any>) => ({
-          remoteId: file.localId,
-          localId: file.remoteId,
-          kind: 'changed' as const,
-        })),
-    ].filter((file) => file.remoteId !== 'ro-crate-metadata.json')
     const remoteEntitiesById = new Map(
       this.readGraphEntities(remoteCrate).map((entity) => [
         this.requireEntityId(entity),
@@ -1030,6 +1016,61 @@ export class ArpRoCrateExportService {
       ]),
     )
     const metadataMapping: RoCrateEntityIdMapping = { ...exportTarget.mapping }
+    const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri)
+    const remoteFilesToDownload: Array<{
+      remoteId: string
+      localId: string
+      localPath: string
+      md5?: string
+      kind: 'new' | 'changed'
+    }> = []
+    let keptLocalFileCount = 0
+    for (const [remoteId, remoteFile] of remoteEntitiesById) {
+      if (
+        remoteId === 'ro-crate-metadata.json' ||
+        !this.entityTypes(remoteFile).includes('File')
+      ) {
+        continue
+      }
+      const localTarget = this.localTargetForRemoteFile(remoteFile, metadataMapping)
+      const targetUri = rootUri.resolve(localTarget.path)
+      const md5 = this.readOptionalEntityString(remoteFile, 'hash')
+      if (!(await this.fileService.exists(targetUri))) {
+        remoteFilesToDownload.push({
+          remoteId,
+          localId: localTarget.entityId,
+          localPath: localTarget.path,
+          md5,
+          kind: 'new',
+        })
+        continue
+      }
+      const stat = await this.fileService.resolve(targetUri)
+      const remoteSizeValue = this.readOptionalEntityString(remoteFile, 'contentSize')
+      const remoteSize = remoteSizeValue === undefined ? undefined : Number(remoteSizeValue)
+      const unchanged = !stat.isDirectory && this.fileHashStoreService.isFileRecordUnchanged(
+        storedFileHashes[localTarget.entityId],
+        {
+          localLastModified: stat.mtime,
+          localSize: stat.size,
+          remoteMd5: md5,
+          remoteSize: remoteSize !== undefined && Number.isFinite(remoteSize)
+            ? remoteSize
+            : undefined,
+        },
+      )
+      if (unchanged) {
+        keptLocalFileCount += 1
+      } else {
+        remoteFilesToDownload.push({
+          remoteId,
+          localId: localTarget.entityId,
+          localPath: localTarget.path,
+          md5,
+          kind: 'changed',
+        })
+      }
+    }
     const mappingFileName = exportTarget.exportLogEntry.mappingFile
     const totalSteps = remoteFilesToDownload.length + 2
     let completedSteps = 1
@@ -1038,9 +1079,9 @@ export class ArpRoCrateExportService {
       totalSteps,
       message: nls.localize(
         'rockit/dataRepository/remoteCheckingComplete',
-        'Checking complete: {0} remote file(s) to download and {1} local orphaned file(s) to keep.',
+        'Checking complete: {0} remote file(s) to download and {1} unchanged file(s) to keep.',
         remoteFilesToDownload.length,
-        syncDiff.removedFiles.length,
+        keptLocalFileCount,
       ),
     })
 
@@ -1055,14 +1096,13 @@ export class ArpRoCrateExportService {
           ),
         )
       }
-      const localTarget = this.localTargetForRemoteFile(remoteFile, metadataMapping)
       reportProgress?.({
         completedSteps,
         totalSteps,
         message: nls.localize(
           'rockit/dataRepository/downloadingRemoteFile',
           'Downloading {0}...',
-          localTarget.path,
+          file.localPath,
         ),
       })
       const content = await this.downloadDataverseFile(
@@ -1070,8 +1110,16 @@ export class ArpRoCrateExportService {
         repository.apiKey,
         this.requireDataverseFileId(remoteFile),
       )
-      await this.writeWorkspaceFile(rootUri, localTarget.path, content)
-      metadataMapping[localTarget.entityId] = file.remoteId
+      await this.writeWorkspaceFile(rootUri, file.localPath, content)
+      const downloadedStat = await this.fileService.resolve(rootUri.resolve(file.localPath))
+      await this.fileHashStoreService.recordKnownHash(
+        rootUri,
+        file.localId,
+        downloadedStat.mtime,
+        downloadedStat.size,
+        file.md5,
+      )
+      metadataMapping[file.localId] = file.remoteId
       completedSteps += 1
       reportProgress?.({
         completedSteps,
@@ -1079,7 +1127,7 @@ export class ArpRoCrateExportService {
         message: nls.localize(
           'rockit/dataRepository/downloadedRemoteFile',
           'Downloaded {0}.',
-          localTarget.path,
+          file.localPath,
         ),
       })
     }

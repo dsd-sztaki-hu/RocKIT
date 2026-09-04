@@ -41,8 +41,19 @@ export class FileHashStoreService {
     response: unknown,
   ): Promise<boolean> {
     const md5 = this.extractMd5(response)
+    return this.recordKnownHash(rootUri, localFileId, lastModified, sourceSize, md5)
+  }
+
+  public async recordKnownHash(
+    rootUri: URI,
+    localFileId: string,
+    lastModified: number | undefined,
+    sourceSize: number | undefined,
+    md5: string | undefined,
+  ): Promise<boolean> {
+    const normalizedMd5 = this.normalizeMd5(md5)
     if (
-      !md5 ||
+      !normalizedMd5 ||
       lastModified === undefined ||
       !Number.isFinite(lastModified) ||
       sourceSize === undefined ||
@@ -52,7 +63,7 @@ export class FileHashStoreService {
     }
     const store = await this.read(rootUri)
     store.files[localFileId] = {
-      md5,
+      md5: normalizedMd5,
       hashUpdatedAt: new Date().toISOString(),
       sourceLastModifiedAt: new Date(lastModified).toISOString(),
       sourceSize,

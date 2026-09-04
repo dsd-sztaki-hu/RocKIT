@@ -116,6 +116,7 @@ export interface ZenodoSyncResult {
 export interface ZenodoImportedRemoteFileLink {
   localPath: string
   remoteIdentifier?: string
+  checksum?: string
 }
 
 export interface ZenodoImportedLinkResult {
@@ -169,6 +170,21 @@ export class ZenodoExportService {
         ? 'ro-crate-metadata.json'
         : this.findLocalEntityIdForPath(crate, file.localPath) ?? file.localPath
       mapping[entityId] = file.remoteIdentifier
+      if (file.localPath !== 'ro-crate-metadata.json' && file.checksum) {
+        const localUri = rootUri.resolve(file.localPath)
+        if (await this.fileService.exists(localUri)) {
+          const stat = await this.fileService.resolve(localUri)
+          if (!stat.isDirectory) {
+            await this.fileHashStoreService.recordKnownHash(
+              rootUri,
+              entityId,
+              stat.mtime,
+              stat.size,
+              file.checksum,
+            )
+          }
+        }
+      }
     }
 
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
@@ -764,17 +780,42 @@ export class ZenodoExportService {
       .map((file) => ({
         remote: file,
         localPath: this.localPathForZenodoRemoteFile(file, remoteToLocalMapping),
+        localId: this.localIdForZenodoRemoteFile(file, remoteToLocalMapping),
       }))
-      .filter((item) => !!item.localPath) as Array<{ remote: ZenodoRemoteFile; localPath: string }>
+      .filter((item) => !!item.localPath && !!item.localId) as Array<{
+        remote: ZenodoRemoteFile
+        localPath: string
+        localId: string
+      }>
 
-    const downloadPlan: Array<{ remote: ZenodoRemoteFile; localPath: string; kind: 'new' | 'changed' }> = []
+    const downloadPlan: Array<{
+      remote: ZenodoRemoteFile
+      localPath: string
+      localId: string
+      kind: 'new' | 'changed'
+    }> = []
     let keptLocalFileCount = 0
+    const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri)
     for (const item of filesToDownload) {
       const targetUri = rootUri.resolve(item.localPath)
       if (!(await this.fileService.exists(targetUri))) {
         downloadPlan.push({ ...item, kind: 'new' })
       } else {
-        downloadPlan.push({ ...item, kind: 'changed' })
+        const stat = await this.fileService.resolve(targetUri)
+        const unchanged = !stat.isDirectory && this.fileHashStoreService.isFileRecordUnchanged(
+          storedFileHashes[item.localId],
+          {
+            localLastModified: stat.mtime,
+            localSize: stat.size,
+            remoteMd5: item.remote.checksum,
+            remoteSize: item.remote.size,
+          },
+        )
+        if (unchanged) {
+          keptLocalFileCount += 1
+        } else {
+          downloadPlan.push({ ...item, kind: 'changed' })
+        }
       }
     }
 
@@ -801,6 +842,14 @@ export class ZenodoExportService {
         message: nls.localize('rockit/dataRepository/downloadingRemoteFile', 'Downloading {0}...', item.localPath),
       })
       await this.writeWorkspaceFile(rootUri, item.localPath, await this.downloadZenodoFile(item.remote, token))
+      const downloadedStat = await this.fileService.resolve(rootUri.resolve(item.localPath))
+      await this.fileHashStoreService.recordKnownHash(
+        rootUri,
+        item.localId,
+        downloadedStat.mtime,
+        downloadedStat.size,
+        item.remote.checksum,
+      )
       completedSteps += 1
     }
 
@@ -1373,6 +1422,16 @@ export class ZenodoExportService {
     }
     const fallback = file.filename.replace(/__/g, '/')
     return this.isSafeRelativePath(fallback) ? fallback : undefined
+  }
+
+  protected localIdForZenodoRemoteFile(
+    file: ZenodoRemoteFile,
+    remoteToLocalMapping: RoCrateEntityIdMapping,
+  ): string | undefined {
+    return this.zenodoRemoteFileIdentifiers(file)
+      .map((identifier) => remoteToLocalMapping[identifier])
+      .find((value): value is string => !!value)
+      ?? this.localPathForZenodoRemoteFile(file, remoteToLocalMapping)
   }
 
   protected zenodoRemoteFileIdentifiers(file: ZenodoRemoteFile): string[] {
