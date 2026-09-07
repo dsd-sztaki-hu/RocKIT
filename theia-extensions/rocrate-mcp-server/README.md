@@ -8,7 +8,7 @@ After the package is published to npm, users can install the standalone MCP
 server globally:
 
 ```bash
-npm install -g rocrate-mcp-server
+npm install -g @arpproject/rocrate-mcp-server
 ```
 
 Run it directly over stdio:
@@ -92,10 +92,10 @@ npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-<version
 rocrate-mcp-server
 ```
 
-For the current `0.0.1` package version, run this from the repository root:
+For the current `1.0.0` package version, run this from the repository root:
 
 ```bash
-npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-0.0.1.tgz
+npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-1.0.0.tgz
 ```
 
 To publish to npm, publish the generated package directory:
@@ -525,9 +525,9 @@ need copied instruction files in the dataset directory.
 ## Build, test, run
 
 ```bash
-yarn workspace rocrate-mcp-server build
-yarn workspace rocrate-mcp-server test
-yarn workspace rocrate-mcp-server start
+yarn workspace @arpproject/rocrate-mcp-server build
+yarn workspace @arpproject/rocrate-mcp-server test
+yarn workspace @arpproject/rocrate-mcp-server start
 ```
 
 Recommended first-time build order:
