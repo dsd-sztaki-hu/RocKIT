@@ -4,11 +4,13 @@ import { FileUri } from '@theia/core/lib/common/file-uri'
 import { URI } from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import {
   localizeExternalRoCrateFileReferences,
   RoCrateExportFileSource,
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import { inject, injectable } from 'inversify'
+import { RoCratePersistenceService } from 'save-ro-crate/lib/browser/ro-crate-persistence-service'
 import { DataRepositoryConfig, DataRepositoryExportTarget, DataverseCollection } from '../types'
 import type { NativeDataverseDatasetMetadata } from './native-dataverse-export-service'
 import {
@@ -18,6 +20,7 @@ import {
   serializeExportLogEntries,
 } from './export-log'
 import { DataverseMetadataMappingService } from './dataverse-metadata-mapping-service'
+import { FileHashStoreService } from './file-hash-store-service'
 
 type RoCrateEntity = Record<string, any>
 type RoCrate = Record<string, any>
@@ -58,6 +61,21 @@ interface ArpUpdateUploadFile {
   entityId: string
   entryPath: string
   content: Uint8Array
+  lastModified?: number
+  sourceSize?: number
+}
+
+interface ArpUploadFileSource {
+  entityId: string
+  entryPath: string
+  uri: URI
+  lastModified?: number
+  sourceSize?: number
+}
+
+interface ArpDataverseFileUploadResult {
+  fileId: string
+  md5?: string
 }
 
 interface ArpDataverseMetadataField {
@@ -133,6 +151,12 @@ export class ArpRoCrateExportService {
     @inject(FileService) protected readonly fileService: FileService,
     @inject(DataverseMetadataMappingService)
     protected readonly metadataMappingService: DataverseMetadataMappingService,
+    @inject(FileHashStoreService)
+    protected readonly fileHashStoreService: FileHashStoreService,
+    @inject(AppStateService)
+    protected readonly appStateService: AppStateService,
+    @inject(RoCratePersistenceService)
+    protected readonly roCratePersistenceService: RoCratePersistenceService,
   ) {}
 
   public async exportToArp(
@@ -156,6 +180,7 @@ export class ArpRoCrateExportService {
       uploadCrate,
       rootUri,
       localizedExternalFiles.entries,
+      localizedExternalFiles.originalToUploadIds,
     )
     const totalSteps = uploadFiles.length + 3
     reportProgress?.({
@@ -229,14 +254,22 @@ export class ArpRoCrateExportService {
           file.entryPath,
         ),
       })
-      const uploadedDataFileId = await this.uploadDataverseFile(
+      const uploadedFile = await this.uploadDataverseFile(
         baseUrl,
         repository.apiKey,
         pid,
         file,
       )
+      await this.persistUploadedFileHash(
+        rootUri,
+        crate,
+        file.entityId,
+        uploadCrate,
+        localizedExternalFiles.originalToUploadIds.get(file.entityId) ?? file.entityId,
+        uploadedFile.md5,
+      )
       const uploadedFileEntityId = this.buildArpFileEntityId(
-        uploadedDataFileId,
+        uploadedFile.fileId,
         uploadIdMapping,
         { '@graph': [] },
         baseUrl,
@@ -386,9 +419,55 @@ export class ArpRoCrateExportService {
       repository: baseUrl,
       exportLogEntry: exportTarget.exportLogEntry,
     })
-    const changedFilesToReplace = diff.changedFiles.filter(
-      (file: Record<string, any>) => file.changes?.hash,
+    const localEntitiesById = new Map(
+      this.readGraphEntities(uploadCrate).map((entity) => [
+        this.requireEntityId(entity),
+        entity,
+      ]),
     )
+    const remoteEntitiesById = new Map(
+      this.readGraphEntities(remoteCrate).map((entity) => [
+        this.requireEntityId(entity),
+        entity,
+      ]),
+    )
+    const newLocalFileIds = new Set(
+      diff.newFiles.map((file: Record<string, any>) => file.localId),
+    )
+    const changedFilesToReplace: Array<Record<string, any>> = []
+    const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri)
+    for (const [localId, localEntity] of localEntitiesById) {
+      if (!this.entityTypes(localEntity).includes('File') || newLocalFileIds.has(localId)) {
+        continue
+      }
+      const remoteId = uploadMapping[localId] || localId
+      const remoteEntity = remoteEntitiesById.get(remoteId)
+      if (!remoteEntity) {
+        continue
+      }
+      const source = await this.resolveUploadFileSource(
+        localEntity,
+        rootUri,
+        localizedExternalFiles.entries,
+        localizedExternalFiles.originalToUploadIds,
+      )
+      const remoteSizeValue = this.readOptionalEntityString(remoteEntity, 'contentSize')
+      const remoteSize = remoteSizeValue === undefined ? undefined : Number(remoteSizeValue)
+      const unchanged = this.fileHashStoreService.isFileRecordUnchanged(
+        storedFileHashes[source.entityId],
+        {
+          localLastModified: source.lastModified,
+          localSize: source.sourceSize,
+          remoteMd5: this.readOptionalEntityString(remoteEntity, 'hash'),
+          remoteSize: remoteSize !== undefined && Number.isFinite(remoteSize)
+            ? remoteSize
+            : undefined,
+        },
+      )
+      if (!unchanged) {
+        changedFilesToReplace.push({ localId, remoteId })
+      }
+    }
     const totalSteps =
       diff.newFiles.length + changedFilesToReplace.length + diff.removedFiles.length + 2
     let completedSteps = 1
@@ -403,18 +482,6 @@ export class ArpRoCrateExportService {
         diff.removedFiles.length,
       ),
     })
-    const localEntitiesById = new Map(
-      this.readGraphEntities(uploadCrate).map((entity) => [
-        this.requireEntityId(entity),
-        entity,
-      ]),
-    )
-    const remoteEntitiesById = new Map(
-      this.readGraphEntities(remoteCrate).map((entity) => [
-        this.requireEntityId(entity),
-        entity,
-      ]),
-    )
     const uploadIdToMetadataId = this.toOriginalEntityIdMapping(
       localizedExternalFiles.originalToUploadIds,
     )
@@ -452,14 +519,28 @@ export class ArpRoCrateExportService {
           ),
         )
       }
-      const uploadedDataFileId = await this.uploadDataverseFile(
+      const uploadFile = await this.readUploadFile(
+        localFile,
+        rootUri,
+        localizedExternalFiles.entries,
+        localizedExternalFiles.originalToUploadIds,
+      )
+      const uploadedFile = await this.uploadDataverseFile(
         baseUrl,
         repository.apiKey,
         exportTarget.pid,
-        await this.readUploadFile(localFile, rootUri, localizedExternalFiles.entries),
+        uploadFile,
+      )
+      await this.persistUploadedFileHash(
+        rootUri,
+        metadataCrate,
+        uploadIdToMetadataId[file.localId] ?? file.localId,
+        uploadCrate,
+        file.localId,
+        uploadedFile.md5,
       )
       const uploadedFileId = this.buildArpFileEntityId(
-        uploadedDataFileId,
+        uploadedFile.fileId,
         uploadMapping,
         remoteCrate,
         baseUrl,
@@ -500,15 +581,29 @@ export class ArpRoCrateExportService {
           ),
         )
       }
-      const replacementDataFileId = await this.replaceDataverseFile(
+      const replacementUploadFile = await this.readUploadFile(
+        localFile,
+        rootUri,
+        localizedExternalFiles.entries,
+        localizedExternalFiles.originalToUploadIds,
+      )
+      const replacementFile = await this.replaceDataverseFile(
         baseUrl,
         repository.apiKey,
         this.requireDataverseFileId(remoteFile),
         localFile,
-        await this.readUploadFile(localFile, rootUri, localizedExternalFiles.entries),
+        replacementUploadFile,
+      )
+      await this.persistUploadedFileHash(
+        rootUri,
+        metadataCrate,
+        uploadIdToMetadataId[file.localId] ?? file.localId,
+        uploadCrate,
+        file.localId,
+        replacementFile.md5,
       )
       const replacementFileId = this.buildArpFileEntityId(
-        replacementDataFileId,
+        replacementFile.fileId,
         uploadMapping,
         remoteCrate,
         baseUrl,
@@ -722,14 +817,11 @@ export class ArpRoCrateExportService {
       if (stat.isDirectory) {
         continue
       }
-      const content = await this.fileService.readFile(fileUri)
       const parsed = this.parsePosixPath(relativePath)
       entity.name = this.readOptionalEntityString(entity, 'name') ?? parsed.base
-      entity.hash =
-        this.readOptionalEntityString(entity, 'hash') ?? this.md5(content.value.buffer)
       entity.contentSize =
         this.readOptionalEntityString(entity, 'contentSize') ??
-        String(content.value.buffer.byteLength)
+        String(stat.size ?? 0)
       entity.encodingFormat =
         this.readOptionalEntityString(entity, 'encodingFormat') ??
         this.mimeTypeFromFilename(relativePath)
@@ -747,6 +839,7 @@ export class ArpRoCrateExportService {
     crate: RoCrate,
     rootUri: URI,
     externalFileEntries: Map<string, URI>,
+    originalToUploadIds: Map<string, string>,
   ): Promise<ArpUpdateUploadFile[]> {
     const entitiesByPath = new Map<string, RoCrateEntity>()
     for (const entity of this.readGraphEntities(crate)) {
@@ -761,7 +854,9 @@ export class ArpRoCrateExportService {
     return Promise.all(
       Array.from(entitiesByPath.entries())
         .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([, entity]) => this.readUploadFile(entity, rootUri, externalFileEntries)),
+        .map(([, entity]) =>
+          this.readUploadFile(entity, rootUri, externalFileEntries, originalToUploadIds),
+        ),
     )
   }
 
@@ -920,20 +1015,6 @@ export class ArpRoCrateExportService {
       repository: baseUrl,
       exportLogEntry: exportTarget.exportLogEntry,
     })
-    const remoteFilesToDownload = [
-      ...syncDiff.newFiles.map((file: Record<string, any>) => ({
-        remoteId: file.localId,
-        localId: file.remoteId,
-        kind: 'new' as const,
-      })),
-      ...syncDiff.changedFiles
-        .filter((file: Record<string, any>) => file.changes?.hash)
-        .map((file: Record<string, any>) => ({
-          remoteId: file.localId,
-          localId: file.remoteId,
-          kind: 'changed' as const,
-        })),
-    ].filter((file) => file.remoteId !== 'ro-crate-metadata.json')
     const remoteEntitiesById = new Map(
       this.readGraphEntities(remoteCrate).map((entity) => [
         this.requireEntityId(entity),
@@ -941,6 +1022,61 @@ export class ArpRoCrateExportService {
       ]),
     )
     const metadataMapping: RoCrateEntityIdMapping = { ...exportTarget.mapping }
+    const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri)
+    const remoteFilesToDownload: Array<{
+      remoteId: string
+      localId: string
+      localPath: string
+      md5?: string
+      kind: 'new' | 'changed'
+    }> = []
+    let keptLocalFileCount = 0
+    for (const [remoteId, remoteFile] of remoteEntitiesById) {
+      if (
+        remoteId === 'ro-crate-metadata.json' ||
+        !this.entityTypes(remoteFile).includes('File')
+      ) {
+        continue
+      }
+      const localTarget = this.localTargetForRemoteFile(remoteFile, metadataMapping)
+      const targetUri = rootUri.resolve(localTarget.path)
+      const md5 = this.readOptionalEntityString(remoteFile, 'hash')
+      if (!(await this.fileService.exists(targetUri))) {
+        remoteFilesToDownload.push({
+          remoteId,
+          localId: localTarget.entityId,
+          localPath: localTarget.path,
+          md5,
+          kind: 'new',
+        })
+        continue
+      }
+      const stat = await this.fileService.resolve(targetUri)
+      const remoteSizeValue = this.readOptionalEntityString(remoteFile, 'contentSize')
+      const remoteSize = remoteSizeValue === undefined ? undefined : Number(remoteSizeValue)
+      const unchanged = !stat.isDirectory && this.fileHashStoreService.isFileRecordUnchanged(
+        storedFileHashes[localTarget.entityId],
+        {
+          localLastModified: stat.mtime,
+          localSize: stat.size,
+          remoteMd5: md5,
+          remoteSize: remoteSize !== undefined && Number.isFinite(remoteSize)
+            ? remoteSize
+            : undefined,
+        },
+      )
+      if (unchanged) {
+        keptLocalFileCount += 1
+      } else {
+        remoteFilesToDownload.push({
+          remoteId,
+          localId: localTarget.entityId,
+          localPath: localTarget.path,
+          md5,
+          kind: 'changed',
+        })
+      }
+    }
     const mappingFileName = exportTarget.exportLogEntry.mappingFile
     const totalSteps = remoteFilesToDownload.length + 2
     let completedSteps = 1
@@ -949,9 +1085,9 @@ export class ArpRoCrateExportService {
       totalSteps,
       message: nls.localize(
         'rockit/dataRepository/remoteCheckingComplete',
-        'Checking complete: {0} remote file(s) to download and {1} local orphaned file(s) to keep.',
+        'Checking complete: {0} remote file(s) to download and {1} unchanged file(s) to keep.',
         remoteFilesToDownload.length,
-        syncDiff.removedFiles.length,
+        keptLocalFileCount,
       ),
     })
 
@@ -966,14 +1102,13 @@ export class ArpRoCrateExportService {
           ),
         )
       }
-      const localTarget = this.localTargetForRemoteFile(remoteFile, metadataMapping)
       reportProgress?.({
         completedSteps,
         totalSteps,
         message: nls.localize(
           'rockit/dataRepository/downloadingRemoteFile',
           'Downloading {0}...',
-          localTarget.path,
+          file.localPath,
         ),
       })
       const content = await this.downloadDataverseFile(
@@ -981,8 +1116,16 @@ export class ArpRoCrateExportService {
         repository.apiKey,
         this.requireDataverseFileId(remoteFile),
       )
-      await this.writeWorkspaceFile(rootUri, localTarget.path, content)
-      metadataMapping[localTarget.entityId] = file.remoteId
+      await this.writeWorkspaceFile(rootUri, file.localPath, content)
+      const downloadedStat = await this.fileService.resolve(rootUri.resolve(file.localPath))
+      await this.fileHashStoreService.recordKnownHash(
+        rootUri,
+        file.localId,
+        downloadedStat.mtime,
+        downloadedStat.size,
+        file.md5,
+      )
+      metadataMapping[file.localId] = file.remoteId
       completedSteps += 1
       reportProgress?.({
         completedSteps,
@@ -990,7 +1133,7 @@ export class ArpRoCrateExportService {
         message: nls.localize(
           'rockit/dataRepository/downloadedRemoteFile',
           'Downloaded {0}.',
-          localTarget.path,
+          file.localPath,
         ),
       })
     }
@@ -1224,14 +1367,12 @@ export class ArpRoCrateExportService {
       if (!entity || !this.entityTypes(entity).includes('File')) {
         continue
       }
-      const content = await this.fileService.readFile(uri)
+      const stat = await this.fileService.resolve(uri)
       const parsed = this.parsePosixPath(entryPath)
       entity.name = parsed.base
-      entity.hash =
-        this.readOptionalEntityString(entity, 'hash') ?? this.md5(content.value.buffer)
       entity.contentSize =
         this.readOptionalEntityString(entity, 'contentSize') ??
-        String(content.value.buffer.byteLength)
+        String(stat.size ?? 0)
       entity.encodingFormat =
         this.readOptionalEntityString(entity, 'encodingFormat') ??
         this.mimeTypeFromFilename(entryPath)
@@ -1543,7 +1684,29 @@ export class ArpRoCrateExportService {
     entity: RoCrateEntity,
     rootUri: URI,
     externalFileEntries: Map<string, URI>,
+    originalToUploadIds = new Map<string, string>(),
   ): Promise<ArpUpdateUploadFile> {
+    const source = await this.resolveUploadFileSource(
+      entity,
+      rootUri,
+      externalFileEntries,
+      originalToUploadIds,
+    )
+    return {
+      entityId: source.entityId,
+      entryPath: source.entryPath,
+      content: (await this.fileService.readFile(source.uri)).value.buffer,
+      lastModified: source.lastModified,
+      sourceSize: source.sourceSize,
+    }
+  }
+
+  protected async resolveUploadFileSource(
+    entity: RoCrateEntity,
+    rootUri: URI,
+    externalFileEntries: Map<string, URI>,
+    originalToUploadIds = new Map<string, string>(),
+  ): Promise<ArpUploadFileSource> {
     const entryPath = this.dataverseFilePathFromEntity(entity)
     if (!entryPath) {
       throw new Error(
@@ -1578,10 +1741,15 @@ export class ArpRoCrateExportService {
         entryPath,
       ))
     }
+    const uploadEntityId = this.requireEntityId(entity)
+    const entityId = Array.from(originalToUploadIds.entries())
+      .find(([, uploadId]) => uploadId === uploadEntityId)?.[0] ?? uploadEntityId
     return {
-      entityId: this.requireEntityId(entity),
+      entityId,
       entryPath,
-      content: (await this.fileService.readFile(uri)).value.buffer,
+      uri,
+      lastModified: stat.mtime,
+      sourceSize: stat.size,
     }
   }
 
@@ -1664,7 +1832,7 @@ export class ArpRoCrateExportService {
     apiKey: string | undefined,
     pid: string,
     file: ArpUpdateUploadFile,
-  ): Promise<string> {
+  ): Promise<ArpDataverseFileUploadResult> {
     const { dir, base } = this.parsePosixPath(file.entryPath)
     const requestUrl = `${baseUrl}/api/v1/datasets/:persistentId/add?persistentId=${encodeURIComponent(pid)}`
     const form = new FormData()
@@ -1702,7 +1870,17 @@ export class ArpRoCrateExportService {
         ),
       )
     }
-    return fileId
+    await this.fileHashStoreService.recordUploadResponse(
+      this.getWorkspaceRoot(),
+      file.entityId,
+      file.lastModified,
+      file.sourceSize,
+      payload,
+    )
+    return {
+      fileId,
+      md5: this.fileHashStoreService.extractMd5(payload),
+    }
   }
 
   protected extractDataverseUploadFileId(payload: unknown): string | undefined {
@@ -1742,7 +1920,7 @@ export class ArpRoCrateExportService {
     fileId: number,
     entity: RoCrateEntity,
     file: ArpUpdateUploadFile,
-  ): Promise<string> {
+  ): Promise<ArpDataverseFileUploadResult> {
     const { dir, base } = this.parsePosixPath(file.entryPath)
     const requestUrl = `${baseUrl}/api/files/${fileId}/replace`
     const jsonData = {
@@ -1787,7 +1965,59 @@ export class ArpRoCrateExportService {
         ),
       )
     }
-    return replacementFileId
+    await this.fileHashStoreService.recordUploadResponse(
+      this.getWorkspaceRoot(),
+      file.entityId,
+      file.lastModified,
+      file.sourceSize,
+      payload,
+    )
+    return {
+      fileId: replacementFileId,
+      md5: this.fileHashStoreService.extractMd5(payload),
+    }
+  }
+
+  protected async persistUploadedFileHash(
+    rootUri: URI,
+    localCrate: RoCrate,
+    localEntityId: string,
+    uploadCrate: RoCrate,
+    uploadEntityId: string,
+    md5: string | undefined,
+  ): Promise<void> {
+    if (!md5) {
+      return
+    }
+
+    const appStateCrate = this.appStateService.roCrate ?? localCrate
+    const nextAppStateCrate = JSON.parse(JSON.stringify(appStateCrate)) as RoCrate
+    const appStateEntity = this.readGraphEntities(nextAppStateCrate).find(
+      (entity) => this.readOptionalEntityString(entity, '@id') === localEntityId,
+    )
+    const localEntity = this.readGraphEntities(localCrate).find(
+      (entity) => this.readOptionalEntityString(entity, '@id') === localEntityId,
+    )
+    const uploadEntity = this.readGraphEntities(uploadCrate).find(
+      (entity) => this.readOptionalEntityString(entity, '@id') === uploadEntityId,
+    )
+    if (!appStateEntity || !localEntity || !uploadEntity) {
+      throw new Error(
+        nls.localize(
+          'rockit/dataRepository/uploadedFileHashEntityMissing',
+          "The uploaded file hash could not be saved because File entity '{0}' was not found in the RO-Crate metadata.",
+          localEntityId,
+        ),
+      )
+    }
+
+    appStateEntity.hash = md5
+    localEntity.hash = md5
+    uploadEntity.hash = md5
+    this.ensureDataverseFileContext(nextAppStateCrate)
+    this.ensureDataverseFileContext(localCrate)
+    this.appStateService.roCrate = nextAppStateCrate
+    await this.roCratePersistenceService.write(rootUri, nextAppStateCrate)
   }
 
   protected buildArpFileEntityId(
@@ -3269,84 +3499,4 @@ export class ArpRoCrateExportService {
     return 'application/octet-stream'
   }
 
-  protected md5(input: Uint8Array): string {
-    const bytes = Array.from(input)
-    const originalBitLength = bytes.length * 8
-    bytes.push(0x80)
-    while (bytes.length % 64 !== 56) {
-      bytes.push(0)
-    }
-    for (let i = 0; i < 8; i++) {
-      bytes.push((originalBitLength >>> (8 * i)) & 0xff)
-    }
-
-    let a0 = 0x67452301
-    let b0 = 0xefcdab89
-    let c0 = 0x98badcfe
-    let d0 = 0x10325476
-    const shifts = [
-      7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14,
-      20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11,
-      16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
-    ]
-    const constants = Array.from(
-      { length: 64 },
-      (_, i) => Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32) >>> 0,
-    )
-
-    for (let offset = 0; offset < bytes.length; offset += 64) {
-      const words = new Array<number>(16)
-      for (let i = 0; i < 16; i++) {
-        const j = offset + i * 4
-        words[i] =
-          (bytes[j] |
-            (bytes[j + 1] << 8) |
-            (bytes[j + 2] << 16) |
-            (bytes[j + 3] << 24)) >>>
-          0
-      }
-      let a = a0
-      let b = b0
-      let c = c0
-      let d = d0
-      for (let i = 0; i < 64; i++) {
-        let f: number
-        let g: number
-        if (i < 16) {
-          f = (b & c) | (~b & d)
-          g = i
-        } else if (i < 32) {
-          f = (d & b) | (~d & c)
-          g = (5 * i + 1) % 16
-        } else if (i < 48) {
-          f = b ^ c ^ d
-          g = (3 * i + 5) % 16
-        } else {
-          f = c ^ (b | ~d)
-          g = (7 * i) % 16
-        }
-        const sum = (a + f + constants[i] + words[g]) >>> 0
-        a = d
-        d = c
-        c = b
-        b = (b + this.leftRotate(sum, shifts[i])) >>> 0
-      }
-      a0 = (a0 + a) >>> 0
-      b0 = (b0 + b) >>> 0
-      c0 = (c0 + c) >>> 0
-      d0 = (d0 + d) >>> 0
-    }
-
-    return [a0, b0, c0, d0].map((word) => this.toLittleEndianHex(word)).join('')
-  }
-
-  protected leftRotate(value: number, amount: number): number {
-    return ((value << amount) | (value >>> (32 - amount))) >>> 0
-  }
-
-  protected toLittleEndianHex(word: number): string {
-    return [0, 8, 16, 24]
-      .map((shift) => ((word >>> shift) & 0xff).toString(16).padStart(2, '0'))
-      .join('')
-  }
 }

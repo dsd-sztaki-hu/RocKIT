@@ -17,8 +17,7 @@
     "rockit-common": "1.0.0",
     "multi-edit": "1.0.0",
     "ro-crate-editor": "1.0.0",
-    "schema-validator": "1.0.0",
-    "spark-md5": "^3.0.2"
+    "schema-validator": "1.0.0"
   },
   "devDependencies": {
     "@testing-library/react": "^14.0.0",

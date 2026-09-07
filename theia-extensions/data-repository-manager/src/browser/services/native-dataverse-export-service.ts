@@ -4,12 +4,14 @@ import { BinaryBuffer } from '@theia/core/lib/common/buffer';
 import { nls } from '@theia/core/lib/common/nls';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { inject, injectable } from 'inversify';
 import {
   collectRoCrateExportFileReferences,
   localizeExternalRoCrateFileReferences,
   RoCrateExportFileSource,
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
+import { RoCratePersistenceService } from 'save-ro-crate/lib/browser/ro-crate-persistence-service'
 import {
   DataRepositoryConfig,
   DataRepositoryExportTarget,
@@ -22,7 +24,7 @@ import {
   normalizeExportLogEntries,
   serializeExportLogEntries,
 } from './export-log'
-import * as SparkMD5 from 'spark-md5'
+import { FileHashStoreService } from './file-hash-store-service'
 
 type RoCrateEntity = Record<string, unknown>
 type RoCrate = Record<string, unknown>
@@ -37,6 +39,7 @@ interface NativeDataverseUploadCollection {
 
 interface NativeDataverseRemoteFileReference {
   md5: string
+  size?: number
   directoryLabel: string
   label: string
   remoteId: string
@@ -46,6 +49,8 @@ interface NativeDataverseDraftFileRecord {
   id: string
   label: string
   persistentId?: string
+  md5?: string
+  size?: number
 }
 
 interface DataverseMetadataField {
@@ -120,11 +125,17 @@ export interface NativeDataverseFileUploadResult {
   directoryLabel?: string
   fileName: string
   response: NativeDataverseResponse
+  localFileId?: string
+  lastModified?: number
+  sourceSize?: number
 }
 
 interface NativeDataverseUploadFile {
   entryPath: string
   content: Uint8Array
+  localFileId?: string
+  lastModified?: number
+  sourceSize?: number
 }
 
 interface NativeDataverseExportTarget {
@@ -145,6 +156,7 @@ export type NativeDataverseExportProgressReporter = (
 
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
 const DATAVERSE_CROSSWALK_FILE_NAME = 'arp-dataverse-crosswalk.json'
+const FILE_HASH_CONTEXT = 'https://dataverse.org/schema/file/hash'
 
 const DATAVERSE_MULTIPLE_VALUE_FIELDS = new Set([
   'geographicUnit',
@@ -289,6 +301,12 @@ export class NativeDataverseExportService {
     @inject(FileService) protected readonly fileService: FileService,
     @inject(DataverseMetadataMappingService)
     protected readonly metadataMappingService: DataverseMetadataMappingService,
+    @inject(FileHashStoreService)
+    protected readonly fileHashStoreService: FileHashStoreService,
+    @inject(AppStateService)
+    protected readonly appStateService: AppStateService,
+    @inject(RoCratePersistenceService)
+    protected readonly roCratePersistenceService: RoCratePersistenceService,
   ) {}
 
   /**
@@ -331,6 +349,24 @@ export class NativeDataverseExportService {
         ? this.findLocalEntityIdForPath(crate, remotePath) ?? remotePath
         : remotePath
       mapping[localId] = reference.remoteId
+      const localUri = rootUri.resolve(remotePath)
+      if (
+        reference.label !== 'ro-crate-metadata.json' &&
+        this.isSafeRelativePath(remotePath) &&
+        this.isInsideRoot(rootUri, localUri) &&
+        await this.fileService.exists(localUri)
+      ) {
+        const stat = await this.fileService.resolve(localUri)
+        if (!stat.isDirectory) {
+          await this.fileHashStoreService.recordKnownHash(
+            rootUri,
+            localId,
+            stat.mtime,
+            stat.size,
+            reference.md5,
+          )
+        }
+      }
     }
 
     const metadataFile = this.extractDraftFileRecords(datasetVersionData)
@@ -451,6 +487,18 @@ export class NativeDataverseExportService {
             1,
             totalSteps,
             async (uploadedFiles) => {
+                const latestUpload = uploadedFiles[uploadedFiles.length - 1];
+                if (latestUpload?.localFileId) {
+                    await this.persistUploadedFileHash(
+                        rootUri,
+                        crate,
+                        latestUpload.localFileId,
+                        uploadCollection.metadataCrate,
+                        uploadCollection.originalToUploadIds.get(latestUpload.localFileId)
+                            ?? latestUpload.localFileId,
+                        this.fileHashStoreService.extractMd5(latestUpload.response)
+                    );
+                }
                 entityIdMapping = this.buildEntityIdMapping(
                     crate,
                     uploadedFiles,
@@ -551,6 +599,7 @@ export class NativeDataverseExportService {
         }
         exportTarget.mapping['ro-crate-metadata.json'] = metadataFileId;
         const remoteMetadataCrate = await this.downloadRemoteMetadataFile(baseUrl, repository.apiKey, metadataFileId);
+        const draftFilesById = new Map(draftFiles.map(file => [file.id, file]));
         const localReachableIds = this.collectReachableEntityIds(crate);
         const localFilesById = new Map(
             this.readGraph(crate)
@@ -564,8 +613,10 @@ export class NativeDataverseExportService {
         const uploadFilesByPath = new Map(uploadCollection.files.map(file => [file.entryPath, file]));
         const newFileIds: string[] = [];
         const changedFileIds: string[] = [];
+        const unchangedFileIds: string[] = [];
         const matchedRemoteFileIds = new Set<string>();
-        for (const [localId, localEntity] of localFilesById) {
+        const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri);
+        for (const [localId] of localFilesById) {
             const remoteId = exportTarget.mapping[localId];
             const remoteEntity = remoteId ? remoteEntitiesById.get(remoteId) : undefined;
             if (!remoteId || !remoteEntity) {
@@ -573,8 +624,18 @@ export class NativeDataverseExportService {
                 continue;
             }
             matchedRemoteFileIds.add(remoteId);
-            if ((this.fileEntityHash(localEntity) ?? '') !== (this.fileEntityHash(remoteEntity) ?? '')) {
+            const uploadFile = this.requireUploadFile(localId, uploadCollection, uploadFilesByPath);
+            const draftFile = draftFilesById.get(remoteId);
+            const unchanged = this.fileHashStoreService.isFileRecordUnchanged(storedFileHashes[localId], {
+                localLastModified: uploadFile.lastModified,
+                localSize: uploadFile.sourceSize,
+                remoteMd5: draftFile?.md5 ?? this.fileEntityHash(remoteEntity),
+                remoteSize: draftFile?.size ?? this.fileEntitySize(remoteEntity)
+            });
+            if (!unchanged) {
                 changedFileIds.push(localId);
+            } else {
+                unchangedFileIds.push(localId);
             }
         }
         const removedRemoteFileIds = this.readGraph(remoteMetadataCrate)
@@ -608,6 +669,25 @@ export class NativeDataverseExportService {
             collectionId: exportTarget.exportLogEntry.collectionId
         });
 
+        let restoredStoredHashes = false;
+        for (const localId of unchangedFileIds) {
+            restoredStoredHashes = await this.persistUploadedFileHash(
+                rootUri,
+                crate,
+                localId,
+                uploadCollection.metadataCrate,
+                uploadCollection.originalToUploadIds.get(localId) ?? localId,
+                storedFileHashes[localId]?.md5,
+                false
+            ) || restoredStoredHashes;
+        }
+        if (restoredStoredHashes) {
+            await this.roCratePersistenceService.write(
+                rootUri,
+                this.appStateService.roCrate ?? crate
+            );
+        }
+
         for (const localId of newFileIds) {
             reportProgress?.({
                 completedSteps,
@@ -616,6 +696,14 @@ export class NativeDataverseExportService {
             });
             const uploadFile = this.requireUploadFile(localId, uploadCollection, uploadFilesByPath);
             const result = await this.uploadFile(baseUrl, repository.apiKey, exportTarget.persistentId, uploadFile);
+            await this.persistUploadedFileHash(
+                rootUri,
+                crate,
+                localId,
+                uploadCollection.metadataCrate,
+                uploadCollection.originalToUploadIds.get(localId) ?? localId,
+                this.fileHashStoreService.extractMd5(result.response)
+            );
             const remoteId = this.extractDataFileId(result.response);
             if (!remoteId) {
                 throw new Error(nls.localize(
@@ -638,6 +726,14 @@ export class NativeDataverseExportService {
             const previousRemoteId = exportTarget.mapping[localId];
             const uploadFile = this.requireUploadFile(localId, uploadCollection, uploadFilesByPath);
             const result = await this.replaceFile(baseUrl, repository.apiKey, previousRemoteId, uploadFile);
+            await this.persistUploadedFileHash(
+                rootUri,
+                crate,
+                localId,
+                uploadCollection.metadataCrate,
+                uploadCollection.originalToUploadIds.get(localId) ?? localId,
+                this.fileHashStoreService.extractMd5(result.response)
+            );
             exportTarget.mapping[localId] = this.extractDataFileId(result.response) ?? previousRemoteId;
             await this.saveEntityIdMapping(rootUri, mappingFileName, exportTarget.mapping);
             completedSteps += 1;
@@ -782,11 +878,6 @@ export class NativeDataverseExportService {
       metadataFileId,
     )
     const remoteToLocalMapping = this.invertEntityIdMapping(exportTarget.mapping)
-    const localFilesById = new Map(
-      this.readGraph(localCrate)
-        .filter(entity => this.entityTypes(entity).includes('File'))
-        .map(entity => [this.requireEntityId(entity), entity]),
-    )
     const remoteMetadataFiles = this.readGraph(remoteMetadataCrate)
       .filter(entity => this.entityTypes(entity).includes('File'))
       .filter(entity => this.requireEntityId(entity) !== 'ro-crate-metadata.json')
@@ -801,23 +892,32 @@ export class NativeDataverseExportService {
     }
     const downloadPlan: Array<{
       remoteId: string
+      localId: string
       localPath: string
       checksum?: string
+      remoteSize?: number
       kind: 'new' | 'changed'
     }> = []
     let keptLocalFileCount = 0
+    const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri)
     for (const item of remoteItems) {
       const targetUri = rootUri.resolve(item.localPath)
       if (!(await this.fileService.exists(targetUri))) {
         downloadPlan.push({ ...item, kind: 'new' })
         continue
       }
-      const localEntity = localFilesById.get(item.localId)
       const checksum = item.checksum ?? this.fileEntityHash(item.remoteEntity)
-      const matches = checksum
-        ? await this.localFileMatchesRemoteChecksum(targetUri, checksum)
-        : (this.fileEntityHash(localEntity ?? {}) ?? '') === (this.fileEntityHash(item.remoteEntity) ?? '')
-      if (matches) {
+      const stat = await this.fileService.resolve(targetUri)
+      const unchanged = !stat.isDirectory && this.fileHashStoreService.isFileRecordUnchanged(
+        storedFileHashes[item.localId],
+        {
+          localLastModified: stat.mtime,
+          localSize: stat.size,
+          remoteMd5: checksum,
+          remoteSize: item.remoteSize,
+        },
+      )
+      if (unchanged) {
         keptLocalFileCount += 1
       } else {
         downloadPlan.push({ ...item, kind: 'changed' })
@@ -850,6 +950,14 @@ export class NativeDataverseExportService {
         rootUri,
         item.localPath,
         await this.downloadDataverseFileContent(baseUrl, repository.apiKey, item.remoteId),
+      )
+      const downloadedStat = await this.fileService.resolve(rootUri.resolve(item.localPath))
+      await this.fileHashStoreService.recordKnownHash(
+        rootUri,
+        item.localId,
+        downloadedStat.mtime,
+        downloadedStat.size,
+        item.checksum,
       )
       completedSteps += 1
     }
@@ -1931,6 +2039,12 @@ export class NativeDataverseExportService {
       externalFiles.set(reference.importedPath, reference.resolvedSource)
       uploadEntryPathByEntityId.set(reference.reference.entityId, reference.importedPath)
     }
+    const originalEntityIdByUploadId = new Map(
+      localizedReferences.map((reference) => [
+        reference.importedPath,
+        reference.reference.entityId,
+      ]),
+    )
 
     const uploadFiles = new Map<string, NativeDataverseUploadFile>()
 
@@ -1947,10 +2061,14 @@ export class NativeDataverseExportService {
         )
         continue
       }
+      const stat = await this.fileService.resolve(resolved.uri)
       const content = await this.fileService.readFile(resolved.uri)
       uploadFiles.set(reference.entryPath, {
         entryPath: reference.entryPath,
         content: content.value.buffer,
+        localFileId: originalEntityIdByUploadId.get(reference.entityId) ?? reference.entityId,
+        lastModified: stat.mtime,
+        sourceSize: content.value.buffer.byteLength,
       })
     }
 
@@ -2003,12 +2121,17 @@ export class NativeDataverseExportService {
                 this.payloadSummary(payload)
             ));
         }
-        return {
+        const result = {
             entryPath: file.entryPath,
             directoryLabel: dir || undefined,
             fileName: base,
-            response: payload
+            response: payload,
+            localFileId: file.localFileId,
+            lastModified: file.lastModified,
+            sourceSize: file.sourceSize,
         };
+        await this.recordResponseHash(result)
+        return result
     }
 
   protected async replaceFile(
@@ -2049,12 +2172,30 @@ export class NativeDataverseExportService {
             ),
       )
     }
-    return {
+    const result = {
       entryPath: file.entryPath,
       directoryLabel: dir || undefined,
       fileName: base,
       response: payload,
+      localFileId: file.localFileId,
+      lastModified: file.lastModified,
+      sourceSize: file.sourceSize,
     }
+    await this.recordResponseHash(result)
+    return result
+  }
+
+  protected async recordResponseHash(result: NativeDataverseFileUploadResult): Promise<void> {
+    if (!result.localFileId) {
+      return
+    }
+    await this.fileHashStoreService.recordUploadResponse(
+      this.getWorkspaceRoot(),
+      result.localFileId,
+      result.lastModified,
+      result.sourceSize,
+      result.response,
+    )
   }
 
     protected async deleteFile(
@@ -2154,6 +2295,7 @@ export class NativeDataverseExportService {
       localId: string
       localPath: string
       checksum?: string
+      remoteSize?: number
       remoteEntity: RoCrateEntity
     }> {
       const remoteEntitiesById = new Map(
@@ -2164,6 +2306,7 @@ export class NativeDataverseExportService {
         localId: string
         localPath: string
         checksum?: string
+        remoteSize?: number
         remoteEntity: RoCrateEntity
       }>()
 
@@ -2183,6 +2326,7 @@ export class NativeDataverseExportService {
             localId,
             localPath,
             checksum: reference?.md5 ?? this.fileEntityHash(entity),
+            remoteSize: reference?.size ?? this.fileEntitySize(entity),
             remoteEntity: entity,
           })
         }
@@ -2205,12 +2349,14 @@ export class NativeDataverseExportService {
           localId,
           localPath,
           checksum: reference.md5,
+          remoteSize: reference.size,
           remoteEntity: remoteEntitiesById.get(reference.remoteId) ?? {
             '@id': reference.remoteId,
             '@type': 'File',
             name: reference.label,
             directoryLabel: reference.directoryLabel,
             hash: reference.md5,
+            contentSize: reference.size,
           },
         })
       }
@@ -2251,18 +2397,6 @@ export class NativeDataverseExportService {
       const directory = this.normalizeDirectoryLabel(reference.directoryLabel)
       const path = directory ? `${directory}/${reference.label}` : reference.label
       return this.isSafeRelativePath(path) ? path : undefined
-    }
-
-    protected async localFileMatchesRemoteChecksum(
-      uri: URI,
-      remoteChecksum?: string,
-    ): Promise<boolean> {
-      if (!remoteChecksum) {
-        return false
-      }
-      const normalizedRemote = remoteChecksum.replace(/^md5:/i, '').toLowerCase()
-      const localContent = await this.fileService.readFile(uri)
-      return SparkMD5.ArrayBuffer.hash(localContent.value.buffer).toLowerCase() === normalizedRemote
     }
 
     protected async writeWorkspaceFile(
@@ -2326,6 +2460,75 @@ export class NativeDataverseExportService {
         }
         return uploadFile;
     }
+
+  protected async persistUploadedFileHash(
+    rootUri: URI,
+    localCrate: RoCrate,
+    localEntityId: string,
+    uploadCrate: RoCrate,
+    uploadEntityId: string,
+    md5: string | undefined,
+    saveImmediately = true,
+  ): Promise<boolean> {
+    if (!md5) {
+      return false
+    }
+
+    const appStateCrate = this.appStateService.roCrate ?? localCrate
+    const nextAppStateCrate = JSON.parse(JSON.stringify(appStateCrate)) as RoCrate
+    const appStateEntity = this.findEntity(nextAppStateCrate, localEntityId)
+    const localEntity = this.findEntity(localCrate, localEntityId)
+    const uploadEntity = this.findEntity(uploadCrate, uploadEntityId)
+    if (!appStateEntity || !localEntity || !uploadEntity) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/uploadedFileHashEntityMissing',
+        "The uploaded file hash could not be saved because File entity '{0}' was not found in the RO-Crate metadata.",
+        localEntityId,
+      ))
+    }
+
+    appStateEntity.hash = md5
+    localEntity.hash = md5
+    uploadEntity.hash = md5
+    this.ensureFileHashContext(nextAppStateCrate)
+    this.ensureFileHashContext(localCrate)
+    this.ensureFileHashContext(uploadCrate)
+    this.appStateService.roCrate = nextAppStateCrate
+    if (saveImmediately) {
+      await this.roCratePersistenceService.write(rootUri, nextAppStateCrate)
+    }
+    return true
+  }
+
+  protected findEntity(crate: RoCrate, entityId: string): RoCrateEntity | undefined {
+    return this.readGraph(crate).find(
+      (entity) => this.readOptionalString(entity['@id']) === entityId,
+    )
+  }
+
+  protected ensureFileHashContext(crate: RoCrate): void {
+    const context = crate['@context']
+    if (Array.isArray(context)) {
+      const existingObject = context.find(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === 'object' && !Array.isArray(item),
+      )
+      if (existingObject) {
+        existingObject.hash = FILE_HASH_CONTEXT
+      } else {
+        context.push({ hash: FILE_HASH_CONTEXT })
+      }
+      return
+    }
+    if (context && typeof context === 'object') {
+      const contextObject = context as Record<string, unknown>
+      contextObject.hash = FILE_HASH_CONTEXT
+      return
+    }
+    crate['@context'] = context
+      ? [context, { hash: FILE_HASH_CONTEXT }]
+      : ['https://w3id.org/ro/crate/1.1/context', { hash: FILE_HASH_CONTEXT }]
+  }
 
   protected buildRewrittenMetadataUploadFile(
     metadataCrate: RoCrate,
@@ -2405,11 +2608,28 @@ export class NativeDataverseExportService {
       this.groupRemoteFilesByHashAndDirectory(uploadedFiles)
     const remoteFilesBySignature = this.groupRemoteFilesBySignature(uploadedFiles)
     const mapping = new Map<string, NativeDataverseRemoteFileReference>()
+    for (const uploadedFile of uploadedFiles) {
+      if (!uploadedFile.localFileId) {
+        continue
+      }
+      const remoteId = this.extractDataFileId(uploadedFile.response)
+      if (remoteId) {
+        mapping.set(uploadedFile.localFileId, {
+          md5: this.fileHashStoreService.extractMd5(uploadedFile.response) ?? '',
+          directoryLabel: uploadedFile.directoryLabel ?? '',
+          label: uploadedFile.fileName,
+          remoteId,
+        })
+      }
+    }
     for (const entity of this.readGraph(crate)) {
       if (!this.shouldPersistEntityMapping(entity)) {
         continue
       }
       const entityId = this.requireEntityId(entity)
+      if (mapping.has(entityId)) {
+        continue
+      }
       const hashAndDirectorySignature = this.fileEntityHashAndDirectorySignature(
         entity,
         uploadEntryPathByEntityId,
@@ -2496,6 +2716,15 @@ export class NativeDataverseExportService {
     return this.readOptionalString(entity.hash)?.toLowerCase().replace(/^md5:/, '')
   }
 
+  protected fileEntitySize(entity: RoCrateEntity): number | undefined {
+    const value = this.readOptionalString(entity.contentSize)
+    if (!value) {
+      return undefined
+    }
+    const size = Number(value)
+    return Number.isFinite(size) ? size : undefined
+  }
+
   protected fileHashAndDirectorySignature(
     md5: string,
     directoryLabel: string | undefined,
@@ -2568,6 +2797,10 @@ export class NativeDataverseExportService {
     if (dataFile && typeof dataFile === 'object' && !Array.isArray(dataFile)) {
       const dataFileRecord = dataFile as Record<string, unknown>
       const md5 = this.extractMd5(dataFileRecord)
+      const sizeValue = this.readOptionalString(
+        dataFileRecord.filesize ?? dataFileRecord.contentSize,
+      )
+      const size = sizeValue === undefined ? undefined : Number(sizeValue)
       const remoteId =
         this.readOptionalString(dataFileRecord.id) ??
         this.buildPidTarget(this.extractPersistentId(dataFileRecord))
@@ -2583,6 +2816,7 @@ export class NativeDataverseExportService {
         return [
           {
             md5,
+            size: size !== undefined && Number.isFinite(size) ? size : undefined,
             directoryLabel: this.normalizeDirectoryLabel(directoryLabel),
             label,
             remoteId,
@@ -2884,11 +3118,17 @@ export class NativeDataverseExportService {
         this.readOptionalString(record.label) ??
         this.readOptionalString(dataFileRecord.filename)
       if (id && label) {
+        const sizeValue = this.readOptionalString(
+          dataFileRecord.filesize ?? dataFileRecord.contentSize,
+        )
+        const size = sizeValue === undefined ? undefined : Number(sizeValue)
         return [
           {
             id,
             label,
             persistentId: this.extractPersistentId(dataFileRecord),
+            md5: this.extractMd5(dataFileRecord),
+            size: size !== undefined && Number.isFinite(size) ? size : undefined,
           },
         ]
       }

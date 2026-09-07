@@ -4,12 +4,13 @@ import { nls } from '@theia/core/lib/common/nls'
 import { URI } from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import {
   localizeExternalRoCrateFileReferences,
   RoCrateExportFileSource,
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import { inject, injectable } from 'inversify'
-import * as SparkMD5 from 'spark-md5'
+import { RoCratePersistenceService } from 'save-ro-crate/lib/browser/ro-crate-persistence-service'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from '../types'
 import {
   appendExportLogEvent,
@@ -25,6 +26,7 @@ import {
   zenodoMetadataOptions,
 } from './zenodo-metadata-crosswalk'
 import { ZenodoRequiredMetadataDialog } from '../components/zenodo-required-metadata-dialog'
+import { FileHashStoreService } from './file-hash-store-service'
 
 type RoCrateEntity = Record<string, unknown>
 type RoCrate = Record<string, unknown>
@@ -40,12 +42,15 @@ interface ZenodoUploadFile {
   content: Blob
   size: number
   entityId?: string
+  localFileId?: string
+  lastModified?: number
 }
 
 interface ZenodoRemoteFile {
   id?: string
   filename: string
   checksum?: string
+  size?: number
   response: unknown
 }
 
@@ -113,6 +118,7 @@ export interface ZenodoSyncResult {
 export interface ZenodoImportedRemoteFileLink {
   localPath: string
   remoteIdentifier?: string
+  checksum?: string
 }
 
 export interface ZenodoImportedLinkResult {
@@ -130,6 +136,7 @@ export type ZenodoExportProgressReporter = (progress: ZenodoExportProgress) => v
 
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
 const ZENODO_CROSSWALK_FILE_NAME = 'arp-zenodo-crosswalk.json'
+const FILE_HASH_CONTEXT = 'https://dataverse.org/schema/file/hash'
 
 export class ZenodoMetadataDialogCancelledError extends Error {
   constructor() {
@@ -144,6 +151,12 @@ export class ZenodoExportService {
   constructor(
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
+    @inject(FileHashStoreService)
+    protected readonly fileHashStoreService: FileHashStoreService,
+    @inject(AppStateService)
+    protected readonly appStateService: AppStateService,
+    @inject(RoCratePersistenceService)
+    protected readonly roCratePersistenceService: RoCratePersistenceService,
   ) {}
 
   /** Writes the local update/sync state before an imported directory is opened. */
@@ -164,6 +177,21 @@ export class ZenodoExportService {
         ? 'ro-crate-metadata.json'
         : this.findLocalEntityIdForPath(crate, file.localPath) ?? file.localPath
       mapping[entityId] = file.remoteIdentifier
+      if (file.localPath !== 'ro-crate-metadata.json' && file.checksum) {
+        const localUri = rootUri.resolve(file.localPath)
+        if (await this.fileService.exists(localUri)) {
+          const stat = await this.fileService.resolve(localUri)
+          if (!stat.isDirectory) {
+            await this.fileHashStoreService.recordKnownHash(
+              rootUri,
+              entityId,
+              stat.mtime,
+              stat.size,
+              file.checksum,
+            )
+          }
+        }
+      }
     }
 
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
@@ -219,6 +247,7 @@ export class ZenodoExportService {
       uploadCrate,
       rootUri,
       localizedExternalFiles.entries,
+      localizedExternalFiles.originalToUploadIds,
     )
     const totalSteps = uploadFiles.length + 3
     let completedSteps = 0
@@ -283,7 +312,8 @@ export class ZenodoExportService {
       status: 'cancelled',
       datasetName: this.getRootDatasetName(crate),
     })
-    for (const file of uploadFiles) {
+    for (const pendingFile of uploadFiles) {
+      const file = this.refreshMetadataUploadFile(pendingFile, uploadCrate)
       reportProgress?.({
         completedSteps,
         totalSteps,
@@ -318,6 +348,25 @@ export class ZenodoExportService {
         entityId: file.entityId,
       }
       uploadedFiles.push(uploadedFile)
+      if (file.localFileId) {
+        await this.fileHashStoreService.recordUploadResponse(
+          rootUri,
+          file.localFileId,
+          file.lastModified,
+          file.size,
+          uploadPayload,
+        )
+      }
+      if (file.localFileId && file.entityId) {
+        await this.persistUploadedFileHash(
+          rootUri,
+          crate,
+          file.localFileId,
+          uploadCrate,
+          file.entityId,
+          this.fileHashStoreService.extractMd5(uploadPayload),
+        )
+      }
       if (file.entityId) {
         uploadMapping[file.entityId] = uploadedFile.remoteId ?? ''
       }
@@ -419,8 +468,8 @@ export class ZenodoExportService {
    * RO-Crate.
    *
    * The method rebuilds the desired metadata and file list from local state,
-   * loads the remote deposition, compares files by Zenodo filename and MD5
-   * checksum, then deletes, replaces, or uploads only the files that changed.
+   * loads the remote deposition, compares the file lists, then deletes,
+   * replaces, or uploads files as needed.
    * It refuses to update published depositions because Zenodo records are no
    * longer mutable after publication.
    */
@@ -453,6 +502,7 @@ export class ZenodoExportService {
       uploadCrate,
       rootUri,
       localizedExternalFiles.entries,
+      localizedExternalFiles.originalToUploadIds,
     )
 
     reportProgress?.({
@@ -493,12 +543,21 @@ export class ZenodoExportService {
     const replaced: Array<{ local: ZenodoUploadFile; remote: ZenodoRemoteFile }> = []
     const unchanged: Array<{ local: ZenodoUploadFile; remote: ZenodoRemoteFile }> = []
     const removed = remoteFiles.filter((file) => !desiredByFilename.has(file.filename))
+    const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri)
 
     for (const local of uploadFiles) {
       const remote = remoteByFilename.get(local.filename)
       if (!remote) {
         added.push(local)
-      } else if (await this.fileMatchesRemoteChecksum(local, remote.checksum)) {
+      } else if (
+        local.localFileId &&
+        this.fileHashStoreService.isFileRecordUnchanged(storedFileHashes[local.localFileId], {
+          localLastModified: local.lastModified,
+          localSize: local.size,
+          remoteMd5: remote.checksum,
+          remoteSize: remote.size,
+        })
+      ) {
         unchanged.push({ local, remote })
       } else {
         replaced.push({ local, remote })
@@ -556,6 +615,28 @@ export class ZenodoExportService {
       datasetName: this.getRootDatasetName(crate),
     })
 
+    let restoredStoredHashes = false
+    for (const { local } of unchanged) {
+      if (!local.localFileId || !local.entityId) {
+        continue
+      }
+      restoredStoredHashes = await this.persistUploadedFileHash(
+        rootUri,
+        crate,
+        local.localFileId,
+        uploadCrate,
+        local.entityId,
+        storedFileHashes[local.localFileId]?.md5,
+        false,
+      ) || restoredStoredHashes
+    }
+    if (restoredStoredHashes) {
+      await this.roCratePersistenceService.write(
+        rootUri,
+        this.appStateService.roCrate ?? crate,
+      )
+    }
+
     for (const file of removed) {
       reportProgress?.({
         completedSteps,
@@ -577,7 +658,18 @@ export class ZenodoExportService {
       }
       await saveRuntimeMapping()
       completedSteps += 1
-      const uploaded = await this.uploadFile(bucketUrl, token, local)
+      const uploadFile = this.refreshMetadataUploadFile(local, uploadCrate)
+      const uploaded = await this.uploadFile(bucketUrl, token, uploadFile)
+      if (uploadFile.localFileId && uploadFile.entityId) {
+        await this.persistUploadedFileHash(
+          rootUri,
+          crate,
+          uploadFile.localFileId,
+          uploadCrate,
+          uploadFile.entityId,
+          this.fileHashStoreService.extractMd5(uploaded.response),
+        )
+      }
       synchronizedFiles.push(uploaded)
       if (local.entityId) {
         uploadMapping[local.entityId] = uploaded.remoteId ?? ''
@@ -591,7 +683,18 @@ export class ZenodoExportService {
         totalSteps,
         message: nls.localize('rockit/dataRepository/uploadingFile', 'Uploading {0}...', local.filename),
       })
-      const uploaded = await this.uploadFile(bucketUrl, token, local)
+      const uploadFile = this.refreshMetadataUploadFile(local, uploadCrate)
+      const uploaded = await this.uploadFile(bucketUrl, token, uploadFile)
+      if (uploadFile.localFileId && uploadFile.entityId) {
+        await this.persistUploadedFileHash(
+          rootUri,
+          crate,
+          uploadFile.localFileId,
+          uploadCrate,
+          uploadFile.entityId,
+          this.fileHashStoreService.extractMd5(uploaded.response),
+        )
+      }
       synchronizedFiles.push(uploaded)
       if (local.entityId) {
         uploadMapping[local.entityId] = uploaded.remoteId ?? ''
@@ -742,19 +845,42 @@ export class ZenodoExportService {
       .map((file) => ({
         remote: file,
         localPath: this.localPathForZenodoRemoteFile(file, remoteToLocalMapping),
+        localId: this.localIdForZenodoRemoteFile(file, remoteToLocalMapping),
       }))
-      .filter((item) => !!item.localPath) as Array<{ remote: ZenodoRemoteFile; localPath: string }>
+      .filter((item) => !!item.localPath && !!item.localId) as Array<{
+        remote: ZenodoRemoteFile
+        localPath: string
+        localId: string
+      }>
 
-    const downloadPlan: Array<{ remote: ZenodoRemoteFile; localPath: string; kind: 'new' | 'changed' }> = []
+    const downloadPlan: Array<{
+      remote: ZenodoRemoteFile
+      localPath: string
+      localId: string
+      kind: 'new' | 'changed'
+    }> = []
     let keptLocalFileCount = 0
+    const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri)
     for (const item of filesToDownload) {
       const targetUri = rootUri.resolve(item.localPath)
       if (!(await this.fileService.exists(targetUri))) {
         downloadPlan.push({ ...item, kind: 'new' })
-      } else if (!(await this.localFileMatchesRemoteChecksum(targetUri, item.remote.checksum))) {
-        downloadPlan.push({ ...item, kind: 'changed' })
       } else {
-        keptLocalFileCount += 1
+        const stat = await this.fileService.resolve(targetUri)
+        const unchanged = !stat.isDirectory && this.fileHashStoreService.isFileRecordUnchanged(
+          storedFileHashes[item.localId],
+          {
+            localLastModified: stat.mtime,
+            localSize: stat.size,
+            remoteMd5: item.remote.checksum,
+            remoteSize: item.remote.size,
+          },
+        )
+        if (unchanged) {
+          keptLocalFileCount += 1
+        } else {
+          downloadPlan.push({ ...item, kind: 'changed' })
+        }
       }
     }
 
@@ -781,6 +907,14 @@ export class ZenodoExportService {
         message: nls.localize('rockit/dataRepository/downloadingRemoteFile', 'Downloading {0}...', item.localPath),
       })
       await this.writeWorkspaceFile(rootUri, item.localPath, await this.downloadZenodoFile(item.remote, token))
+      const downloadedStat = await this.fileService.resolve(rootUri.resolve(item.localPath))
+      await this.fileHashStoreService.recordKnownHash(
+        rootUri,
+        item.localId,
+        downloadedStat.mtime,
+        downloadedStat.size,
+        item.remote.checksum,
+      )
       completedSteps += 1
     }
 
@@ -964,16 +1098,9 @@ export class ZenodoExportService {
     crate: RoCrate,
     rootUri: URI,
     externalFileEntries = new Map<string, URI>(),
+    originalToUploadIds = new Map<string, string>(),
   ): Promise<ZenodoUploadFile[]> {
-    const metadataContent = `${JSON.stringify(crate, null, 2)}\n`
-    const files: ZenodoUploadFile[] = [
-      {
-        filename: 'ro-crate-metadata.json',
-        content: new Blob([metadataContent], { type: 'application/octet-stream' }),
-        size: new TextEncoder().encode(metadataContent).byteLength,
-        entityId: 'ro-crate-metadata.json',
-      },
-    ]
+    const files: ZenodoUploadFile[] = []
     const fileEntries = new Map(externalFileEntries)
     for (const relativePath of this.extractCrateFilePaths(crate)) {
       if (relativePath === 'ro-crate-metadata.json' || fileEntries.has(relativePath)) {
@@ -1006,19 +1133,112 @@ export class ZenodoExportService {
     }
 
     const zenodoFilenameByEntryPath = this.buildZenodoFilenameMap(Array.from(fileEntries.keys()))
+    const originalEntityIdByUploadId = new Map(
+      Array.from(originalToUploadIds.entries()).map(([originalId, uploadId]) => [uploadId, originalId]),
+    )
     for (const [name, uri] of Array.from(fileEntries.entries()).sort((a, b) =>
       a[0].localeCompare(b[0]),
     )) {
+      const stat = await this.fileService.resolve(uri)
       const content = await this.fileService.readFile(uri)
       files.push({
         filename: zenodoFilenameByEntryPath.get(name) ?? this.sanitizeZenodoFilename(name),
         content: new Blob([content.value.buffer], { type: 'application/octet-stream' }),
         size: content.value.buffer.byteLength,
         entityId: name,
+        localFileId:
+          originalEntityIdByUploadId.get(name) ?? this.findLocalEntityIdForPath(crate, name) ?? name,
+        lastModified: stat.mtime,
       })
     }
 
+    files.push(this.createMetadataUploadFile(crate))
     return files
+  }
+
+  protected createMetadataUploadFile(crate: RoCrate): ZenodoUploadFile {
+    const metadataContent = `${JSON.stringify(crate, null, 2)}\n`
+    return {
+      filename: 'ro-crate-metadata.json',
+      content: new Blob([metadataContent], { type: 'application/octet-stream' }),
+      size: new TextEncoder().encode(metadataContent).byteLength,
+      entityId: 'ro-crate-metadata.json',
+    }
+  }
+
+  protected refreshMetadataUploadFile(file: ZenodoUploadFile, crate: RoCrate): ZenodoUploadFile {
+    return file.filename === 'ro-crate-metadata.json'
+      ? this.createMetadataUploadFile(crate)
+      : file
+  }
+
+  protected async persistUploadedFileHash(
+    rootUri: URI,
+    localCrate: RoCrate,
+    localEntityId: string,
+    uploadCrate: RoCrate,
+    uploadEntityId: string,
+    md5: string | undefined,
+    saveImmediately = true,
+  ): Promise<boolean> {
+    if (!md5) {
+      return false
+    }
+
+    const appStateCrate = this.appStateService.roCrate ?? localCrate
+    const nextAppStateCrate = JSON.parse(JSON.stringify(appStateCrate)) as RoCrate
+    const appStateEntity = this.findEntity(nextAppStateCrate, localEntityId)
+    const localEntity = this.findEntity(localCrate, localEntityId)
+    const uploadEntity = this.findEntity(uploadCrate, uploadEntityId)
+    if (!appStateEntity || !localEntity || !uploadEntity) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/uploadedFileHashEntityMissing',
+        "The uploaded file hash could not be saved because File entity '{0}' was not found in the RO-Crate metadata.",
+        localEntityId,
+      ))
+    }
+
+    appStateEntity.hash = md5
+    localEntity.hash = md5
+    uploadEntity.hash = md5
+    this.ensureFileHashContext(nextAppStateCrate)
+    this.ensureFileHashContext(localCrate)
+    this.ensureFileHashContext(uploadCrate)
+    this.appStateService.roCrate = nextAppStateCrate
+    if (saveImmediately) {
+      await this.roCratePersistenceService.write(rootUri, nextAppStateCrate)
+    }
+    return true
+  }
+
+  protected findEntity(crate: RoCrate, entityId: string): RoCrateEntity | undefined {
+    return this.readGraphEntities(crate).find(
+      (entity) => this.readOptionalEntityString(entity, '@id') === entityId,
+    )
+  }
+
+  protected ensureFileHashContext(crate: RoCrate): void {
+    const context = crate['@context']
+    if (Array.isArray(context)) {
+      const existingObject = context.find(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === 'object' && !Array.isArray(item),
+      )
+      if (existingObject) {
+        existingObject.hash = FILE_HASH_CONTEXT
+      } else {
+        context.push({ hash: FILE_HASH_CONTEXT })
+      }
+      return
+    }
+    if (context && typeof context === 'object') {
+      const contextObject = context as Record<string, unknown>
+      contextObject.hash = FILE_HASH_CONTEXT
+      return
+    }
+    crate['@context'] = context
+      ? [context, { hash: FILE_HASH_CONTEXT }]
+      : ['https://w3id.org/ro/crate/1.1/context', { hash: FILE_HASH_CONTEXT }]
   }
 
   /**
@@ -1376,6 +1596,16 @@ export class ZenodoExportService {
     return this.isSafeRelativePath(fallback) ? fallback : undefined
   }
 
+  protected localIdForZenodoRemoteFile(
+    file: ZenodoRemoteFile,
+    remoteToLocalMapping: RoCrateEntityIdMapping,
+  ): string | undefined {
+    return this.zenodoRemoteFileIdentifiers(file)
+      .map((identifier) => remoteToLocalMapping[identifier])
+      .find((value): value is string => !!value)
+      ?? this.localPathForZenodoRemoteFile(file, remoteToLocalMapping)
+  }
+
   protected zenodoRemoteFileIdentifiers(file: ZenodoRemoteFile): string[] {
     const links = this.extractLinks(file.response)
     return this.uniqueStrings([
@@ -1385,18 +1615,6 @@ export class ZenodoExportService {
       this.readLink(links, 'self'),
       this.readLink(links, 'download'),
     ].filter((value): value is string => !!value))
-  }
-
-  protected async localFileMatchesRemoteChecksum(
-    uri: URI,
-    remoteChecksum?: string,
-  ): Promise<boolean> {
-    if (!remoteChecksum) {
-      return false
-    }
-    const normalizedRemote = remoteChecksum.replace(/^md5:/i, '').toLowerCase()
-    const localContent = await this.fileService.readFile(uri)
-    return SparkMD5.ArrayBuffer.hash(localContent.value.buffer).toLowerCase() === normalizedRemote
   }
 
   protected async writeWorkspaceFile(
@@ -1911,10 +2129,14 @@ export class ZenodoExportService {
           'Zenodo returned a deposition file without a filename.',
         ))
       }
+      const sizeValue = record.size ?? record.filesize
       return {
         id: this.firstString(record.id),
         filename,
         checksum: this.firstString(record.checksum),
+        size: typeof sizeValue === 'number' && Number.isFinite(sizeValue)
+          ? sizeValue
+          : undefined,
         response: entry,
       }
     })
@@ -2111,18 +2333,6 @@ export class ZenodoExportService {
     return new Uint8Array(await response.arrayBuffer())
   }
 
-  protected async fileMatchesRemoteChecksum(
-    file: ZenodoUploadFile,
-    remoteChecksum?: string,
-  ): Promise<boolean> {
-    if (!remoteChecksum) {
-      return false
-    }
-    const normalizedRemote = remoteChecksum.replace(/^md5:/i, '').toLowerCase()
-    const localChecksum = SparkMD5.ArrayBuffer.hash(await file.content.arrayBuffer()).toLowerCase()
-    return normalizedRemote === localChecksum
-  }
-
   protected async deleteDepositionFile(
     baseUrl: string,
     token: string,
@@ -2182,13 +2392,23 @@ export class ZenodoExportService {
         this.payloadSummary(payload),
       ))
     }
-    return {
+    const result = {
       filename: file.filename,
       size: file.size,
       response: payload,
       remoteId: this.extractUploadedFileRemoteId(payload),
       entityId: file.entityId,
     }
+    if (file.localFileId) {
+      await this.fileHashStoreService.recordUploadResponse(
+        this.getWorkspaceRoot(),
+        file.localFileId,
+        file.lastModified,
+        file.size,
+        payload,
+      )
+    }
+    return result
   }
 
   protected authorizationHeaders(token: string): Record<string, string> {

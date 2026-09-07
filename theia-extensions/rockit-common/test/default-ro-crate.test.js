@@ -50,14 +50,6 @@ async function main() {
         a.relativePath.localeCompare(b.relativePath),
       )
     },
-    async readFileContent(relativeFilePath) {
-      const file = files.get(relativeFilePath)
-      assert.ok(file, `Expected test file: ${relativeFilePath}`)
-      return file.content
-    },
-    hashContent(content) {
-      return `hash:${content}`
-    },
     async readTextFile(relativeFilePath) {
       assert.equal(relativeFilePath, '.rockit/ignored.txt')
       return 'custom.tmp\nRO-CRATE-METADATA.JSON\n'
@@ -85,7 +77,7 @@ async function main() {
   assert.equal(file.directoryLabel, 'data/')
   assert.equal(file.encodingFormat, 'text/plain')
   assert.equal(file.contentSize, '6')
-  assert.equal(file.hash, 'hash:hello\n')
+  assert.equal(file.hash, undefined)
   assert.ok(!graph.some((entity) => entity['@id'] === '.hidden'), 'Root dotfiles are skipped')
   assert.ok(
     !graph.some((entity) => entity['@id'] === 'ro-crate-preview.html'),

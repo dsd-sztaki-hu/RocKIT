@@ -10,7 +10,6 @@ import type { WorkspaceService } from '@theia/workspace/lib/browser'
 import {
   createDefaultRoCrateWorkspace,
   RoCrateHtmlGenerator,
-  type DefaultRoCrateFileContent,
   type DefaultRoCrateWorkspaceAdapter,
   writeUtf8TextFile,
 } from 'rockit-common/lib/browser'
@@ -19,7 +18,6 @@ import {
   RO_CRATE_APPROVAL_FILE_NAME,
 } from 'rockit-common/lib/common/ro-crate-technical-files'
 import type * as React from 'react'
-import SparkMD5 from 'spark-md5'
 import { Message } from '@lumino/messaging'
 import { nls } from '@theia/core/lib/common/nls'
 
@@ -263,14 +261,6 @@ export class ROCrateDialog extends ReactDialog<string> {
     }
   }
 
-  protected hashFileContent(content: Uint8Array): string {
-    const arrayBuffer = content.buffer.slice(
-      content.byteOffset,
-      content.byteOffset + content.byteLength,
-    ) as ArrayBuffer
-    return SparkMD5.ArrayBuffer.hash(arrayBuffer)
-  }
-
   protected getErrorMessage(error: unknown): string {
     if (error instanceof Error && error.message.trim()) {
       return error.message
@@ -303,17 +293,9 @@ export class ROCrateDialog extends ReactDialog<string> {
           })),
         )
       },
-      readFileContent: async (relativeFilePath: string) => {
-        const content = await this.fileService.read(resolveRelative(relativeFilePath))
-        return `${content.value ?? ''}`
-      },
-      hashContent: (content: DefaultRoCrateFileContent) => {
-        const hash = typeof content === 'string'
-          ? SparkMD5.hash(content)
-          : this.hashFileContent(content)
+      onFileScanned: () => {
         this.scannedFileCount += 1
         this.updateGenerationProgress()
-        return hash
       },
       readTextFile: async (relativeFilePath: string) => {
         try {

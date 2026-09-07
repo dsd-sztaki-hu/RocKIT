@@ -14,6 +14,7 @@ import {
   normalizeExportLogEntries,
   serializeExportLogEntries,
 } from './export-log'
+import { FileHashStoreService } from './file-hash-store-service'
 
 type RoCrate = Record<string, any>
 type RoCrateEntity = Record<string, any>
@@ -34,6 +35,8 @@ export class ArpRoCrateImportService {
     @inject(FileDialogService) protected readonly fileDialogService: FileDialogService,
     @inject(FileService) protected readonly fileService: FileService,
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
+    @inject(FileHashStoreService)
+    protected readonly fileHashStoreService: FileHashStoreService,
   ) {}
 
   public async importFromDatasetUrl(
@@ -90,6 +93,7 @@ export class ArpRoCrateImportService {
       datasetPid,
       crate,
     )
+    await this.persistImportedFileHashes(targetDirectory, crate, datasetPid)
 
     reportProgress?.({
       completedSteps: 3,
@@ -394,6 +398,38 @@ export class ArpRoCrateImportService {
     return Object.fromEntries(
       Object.entries(mapping).sort((a, b) => a[0].localeCompare(b[0])),
     )
+  }
+
+  protected async persistImportedFileHashes(
+    rootUri: URI,
+    crate: RoCrate,
+    datasetPid: string,
+  ): Promise<void> {
+    for (const entity of this.readGraphEntities(crate)) {
+      if (!this.entityTypes(entity).includes('File')) {
+        continue
+      }
+      const remoteId = this.readOptionalEntityString(entity, '@id')
+      const md5 = this.readOptionalEntityString(entity, 'hash')
+      const localPath = this.computeRelativePathFromDirectoryLabelAndName(entity)
+      if (!remoteId || !md5 || !localPath || !this.isArpFileEntityId(remoteId, datasetPid)) {
+        continue
+      }
+      const localUri = this.resolveSafeChild(rootUri, localPath)
+      if (!(await this.fileService.exists(localUri))) {
+        continue
+      }
+      const stat = await this.fileService.resolve(localUri)
+      if (!stat.isDirectory) {
+        await this.fileHashStoreService.recordKnownHash(
+          rootUri,
+          localPath,
+          stat.mtime,
+          stat.size,
+          md5,
+        )
+      }
+    }
   }
 
   protected computeRelativePathFromDirectoryLabelAndName(

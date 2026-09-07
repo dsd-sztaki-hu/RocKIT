@@ -20,7 +20,7 @@ import { ArpRoCrateLinkService } from './services/arp-ro-crate-link-service';
 import { NativeDataverseExportService } from './services/native-dataverse-export-service';
 import { NativeDataverseImportService } from './services/native-dataverse-import-service';
 import { DataverseCapabilityService } from './services/dataverse-capability-service';
-import { RoCrateFileHashService } from './services/ro-crate-file-hash-service';
+import { FileHashStoreService } from './services/file-hash-store-service';
 import { ZenodoExportService } from './services/zenodo-export-service';
 import { ZenodoImportService } from './services/zenodo-import-service';
 import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service';
@@ -37,7 +37,7 @@ export default new ContainerModule(bind => {
     bind(NativeDataverseExportService).toSelf().inSingletonScope();
     bind(NativeDataverseImportService).toSelf().inSingletonScope();
     bind(DataverseCapabilityService).toSelf().inSingletonScope();
-    bind(RoCrateFileHashService).toSelf().inSingletonScope();
+    bind(FileHashStoreService).toSelf().inSingletonScope();
     bind(ZenodoExportService).toSelf().inSingletonScope();
     bind(ZenodoImportService).toSelf().inSingletonScope();
     bind(DataRepositoryExportDeleteService).toSelf().inSingletonScope();
