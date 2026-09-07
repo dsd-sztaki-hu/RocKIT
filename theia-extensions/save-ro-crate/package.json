@@ -3,7 +3,9 @@
   "keywords": [
     "theia-extension"
   ],
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "author": "HUN-REN SZTAKI, Department of Distributed Systems",
   "main": "lib/browser/index.js",
   "types": "lib/browser/index.d.ts",
   "files": [
@@ -15,7 +17,7 @@
     "@theia/filesystem": "1.65.2",
     "app-state": "0.0.1",
     "rockit-common": "1.0.0",
-    "rockit-loadmask": "0.0.0"
+    "rockit-loadmask": "1.0.0"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
