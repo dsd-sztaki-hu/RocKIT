@@ -2,6 +2,61 @@
 
 MCP server for RO-Crate editing, validation, and profile-aware constraints.
 
+## English quick start
+
+`@arpproject/rocrate-mcp-server` connects MCP-compatible AI assistants to the
+ARP/AROMA research-data workflow. It provides tools for creating, reading,
+validating, and editing RO-Crate metadata, using metadata profiles, and
+working with ARP Dataverse services.
+
+Install it with Node.js 18 or newer:
+
+```bash
+npm install -g @arpproject/rocrate-mcp-server
+```
+
+Then either configure your MCP client to run `rocrate-mcp-server`, or use the
+interactive installer:
+
+```bash
+rocrate-mcp-server -i
+```
+
+Once connected, work with a directory containing `ro-crate-metadata.json`.
+The assistant can create, update, and validate the crate; use
+`open_aroma_for_local_file` to open local work in AROMA. For ARP Dataverse
+access, set `DATAVERSE_BASE_URL` and, when required, `DATAVERSE_API_KEY` in
+the MCP server environment.
+
+## Magyar gyors kezdés
+
+Az `@arpproject/rocrate-mcp-server` az MCP-kompatibilis AI-asszisztenseket az
+ARP/AROMA kutatási adatok kezelését támogató munkafolyamataihoz kapcsolja.
+Eszközöket ad
+RO-Crate metaadatok létrehozásához, olvasásához, szerkesztéséhez és
+ellenőrzéséhez, metaadatprofilok használatához, valamint az ARP Dataverse
+szolgáltatásaival való együttműködéshez.
+
+Node.js 18 vagy újabb szükséges:
+
+```bash
+npm install -g @arpproject/rocrate-mcp-server
+```
+
+Ezután állítsuk be az MCP-klienst a `rocrate-mcp-server` indítására, vagy
+használjuk az interaktív telepítőt:
+
+```bash
+rocrate-mcp-server -i
+```
+
+Kapcsolódás után dolgozzunk egy olyan könyvtárral, amely tartalmazza a
+`ro-crate-metadata.json` fájlt. Az asszisztens létrehozhatja, módosíthatja és
+ellenőrizheti a crate-et; a helyi munka az `open_aroma_for_local_file`
+eszközzel nyitható meg az AROMA-ban. Az ARP Dataverse eléréséhez állítsuk be
+az MCP-szerver környezetében a `DATAVERSE_BASE_URL`, szükség esetén pedig a
+`DATAVERSE_API_KEY` változót.
+
 ## Install
 
 After the package is published to npm, users can install the standalone MCP

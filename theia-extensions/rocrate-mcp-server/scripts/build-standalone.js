@@ -107,6 +107,8 @@ async function main() {
     )}\n`,
     'utf8',
   )
+
+  fs.copyFileSync(path.join(packageRoot, 'README.md'), path.join(outRoot, 'README.md'))
 }
 
 main().catch((error) => {
