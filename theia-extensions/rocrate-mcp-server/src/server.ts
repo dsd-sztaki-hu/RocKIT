@@ -39,6 +39,7 @@ import { createToolDispatcher } from './server/tool-dispatcher'
 import { startServerWithTransports } from './server/transports'
 import type { AccessMode, ProfileResolutionInputs } from './server/types'
 import { createWebHandlers } from './server/web'
+import { runInteractiveInstall } from './cli/install'
 import {
   formatStartupVersion,
   formatVersionInfo,
@@ -776,6 +777,12 @@ function main(): void {
   const args = process.argv.slice(2)
   if (isVersionRequest(args)) {
     process.stdout.write(`${formatVersionInfo(getBuildInfo())}\n`)
+    return
+  }
+  if (args.includes('-i') || args.includes('--install')) {
+    void runInteractiveInstall().then((exitCode) => {
+      process.exitCode = exitCode
+    })
     return
   }
 

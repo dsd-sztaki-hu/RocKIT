@@ -47,21 +47,25 @@ The tarball is written to:
 
     theia-extensions/rocrate-mcp-server/rocrate-mcp-server-<version>.tgz
 
-For example, if the MCP package version is `0.0.1`, install the local tarball
+For example, if the MCP package version is `1.0.2`, install the local tarball
 from the repo root with:
 
-    npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-0.0.1.tgz
+    npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-1.0.2.tgz
 
 To publish the standalone MCP server to npm, publish the generated package
 directory, not the raw workspace package:
 
     cd theia-extensions/rocrate-mcp-server/dist/npm
-    npm publish
+    npm publish --access public
 
 After publishing, users can install and run it with:
 
-    npm install -g rocrate-mcp-server
+    npm install -g @arpproject/rocrate-mcp-server
     rocrate-mcp-server
+
+To install the MCP server into a detected coding agent, run:
+
+    rocrate-mcp-server -i
 
 The standalone package bundles the internal workspace code needed by the MCP
 server. The normal Theia/Electron build still uses the workspace package and

@@ -26,6 +26,17 @@ rocrate-mcp-server -v
 rocrate-mcp-server --version
 ```
 
+Install the MCP server into a detected coding agent:
+
+```bash
+rocrate-mcp-server -i
+```
+
+The installer detects Codex, Claude Code, OpenCode, Kilo Code, Roo Code,
+Gemini CLI, and Qwen Code. It shows the detected agents, asks you to select
+one, previews the user configuration file it will update, and asks for
+confirmation before writing a direct stdio MCP configuration.
+
 Or use the recommended shared daemon/proxy topology:
 
 ```bash
@@ -56,7 +67,7 @@ There are two build paths:
 - Workspace build: used by the Theia/Electron application and local
   development.
 - Standalone npm build: generates a self-contained npm package for
-  `npm install -g rocrate-mcp-server`.
+  `npm install -g @arpproject/rocrate-mcp-server`.
 
 From the repository root, build the workspace server:
 
@@ -101,17 +112,17 @@ npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-<version
 rocrate-mcp-server
 ```
 
-For the current `1.0.1` package version, run this from the repository root:
+For the current `1.0.2` package version, run this from the repository root:
 
 ```bash
-npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-1.0.1.tgz
+npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-1.0.2.tgz
 ```
 
 To publish to npm, publish the generated package directory:
 
 ```bash
 cd theia-extensions/rocrate-mcp-server/dist/npm
-npm publish
+npm publish --access public
 ```
 
 Do not publish the raw workspace package for the standalone distribution. The
