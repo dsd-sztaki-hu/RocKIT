@@ -47,6 +47,9 @@ async function main() {
     target: 'node18',
     format: 'cjs',
     sourcemap: true,
+    define: {
+      'process.env.ROCRATE_MCP_RELEASE_BUILD': JSON.stringify('true'),
+    },
     external: [
       // Optional native module used only for secure provider credentials.
       'keytar',
@@ -108,7 +111,10 @@ async function main() {
     'utf8',
   )
 
-  fs.copyFileSync(path.join(packageRoot, 'README.md'), path.join(outRoot, 'README.md'))
+  fs.copyFileSync(
+    path.join(packageRoot, 'README_PUBLIC.md'),
+    path.join(outRoot, 'README.md'),
+  )
 }
 
 main().catch((error) => {

@@ -24,6 +24,7 @@ import { startDashboardIfNeeded } from './dashboard/http-server'
 import { createContextReconciliationHelpers } from './server/context-reconciliation'
 import { createCrateOpsHelpers } from './server/crate-ops'
 import { createDataverseHandlers } from './server/dataverse'
+import { DEFAULT_DATAVERSE_BASE_URL } from './server/dataverse-defaults'
 import { createMetadataProfileHandlers } from './server/metadata-profiles'
 import { createOntologyHelpers } from './server/ontology'
 import { createProfileContextStore } from './server/profile-context'
@@ -68,7 +69,6 @@ const DEFAULT_SCHEMA_INDEX_FILENAME = 'metadata-schema-index.json'
 const DEFAULT_PROFILE_CONTEXT_TTL_SEC = 3600
 const DEFAULT_SUMMARY_ISSUE_LIMIT = 10
 const DEFAULT_SUMMARY_ENTITY_ID_LIMIT = 10
-const DEFAULT_DATAVERSE_BASE_URL = 'http://localhost:8080'
 const DEFAULT_DATAVERSE_OWNER_ID = 'root'
 const DEFAULT_DATAVERSE_VALIDATE_PATH = '/api/arp/validateRoCrate'
 const BASE_ALLOWED_PROPERTIES = new Set<string>([
