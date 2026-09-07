@@ -18,19 +18,19 @@
     }
   ],
   "dependencies": {
-      "@theia/core": "1.65.2",
-      "antd": "^5.29.1",
-      "@mui/material": "^5.15.0",
-      "@mui/icons-material": "^5.15.0",
-      "@emotion/react": "^11.11.0",
-      "@emotion/styled": "^11.11.0",
-      "@iqss/dataverse-client-javascript": "2.1.0",
-      "jszip": "^3.10.1",
-      "rockit-common": "1.0.0",
-      "rockit-loadmask": "1.0.0",
-      "app-state": "0.0.1",
-      "save-ro-crate": "0.0.0"
-    },
+    "@theia/core": "1.65.2",
+    "antd": "^5.29.1",
+    "@mui/material": "^5.15.0",
+    "@mui/icons-material": "^5.15.0",
+    "@emotion/react": "^11.11.0",
+    "@emotion/styled": "^11.11.0",
+    "@iqss/dataverse-client-javascript": "2.1.0",
+    "jszip": "^3.10.1",
+    "rockit-common": "1.0.0",
+    "rockit-loadmask": "1.0.0",
+    "app-state": "0.0.1",
+    "save-ro-crate": "1.0.0"
+  },
   "devDependencies": {
     "@testing-library/react": "^14.0.0",
     "@types/jest": "^29.5.0",
