@@ -45,12 +45,12 @@ To create the npm tarball:
 
 The tarball is written to:
 
-    theia-extensions/rocrate-mcp-server/rocrate-mcp-server-<version>.tgz
+    theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-<version>.tgz
 
 For example, if the MCP package version is `1.0.2`, install the local tarball
 from the repo root with:
 
-    npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-1.0.2.tgz
+    npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-1.0.2.tgz
 
 To publish the standalone MCP server to npm, publish the generated package
 directory, not the raw workspace package:

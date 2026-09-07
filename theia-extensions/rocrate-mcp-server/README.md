@@ -1,63 +1,79 @@
-# rocrate-mcp-server
+# RO-Crate MCP Server 
 
-MCP server for RO-Crate editing, validation, and profile-aware constraints.
+`@arpproject/rocrate-mcp-server` is an [MCP server](https://www.dreamfactory.com/use-cases/mcp-server/) for [RO-Crate](https://www.researchobject.org/ro-crate/) editing, validation, and profile-aware constraints following the best practices of the ARP project (https://researchdata.hu/). It is designed to be used with MCP-compatible AI assistants such as Codex, Claude Code. It can be used with the schemas and profiles offered by the ARP Schema Registry (https://cedar.schema.researchdata.hu/)
 
-## English quick start
+Copyright 2026, SZTAKI DSD, (https://dsd.sztaki.hu/). Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
 
-`@arpproject/rocrate-mcp-server` connects MCP-compatible AI assistants to the
-ARP/AROMA research-data workflow. It provides tools for creating, reading,
-validating, and editing RO-Crate metadata, using metadata profiles, and
-working with ARP Dataverse services.
+## Quick start
 
-Install it with Node.js 18 or newer:
+`@arpproject/rocrate-mcp-server` makes it easy to create RO-Crate packages using MCP-compatible AI assistants and subsequently upload them to the ARP system.
 
-```bash
-npm install -g @arpproject/rocrate-mcp-server
-```
+To use it, you need an MCP-compatible AI assistant, such as Codex, Claude Code, OpenCode, Kilo Code, Roo Code, Gemini CLI, or Qwen Code.
 
-Then either configure your MCP client to run `rocrate-mcp-server`, or use the
-interactive installer:
-
-```bash
-rocrate-mcp-server -i
-```
-
-Once connected, work with a directory containing `ro-crate-metadata.json`.
-The assistant can create, update, and validate the crate; use
-`open_aroma_for_local_file` to open local work in AROMA. For ARP Dataverse
-access, set `DATAVERSE_BASE_URL` and, when required, `DATAVERSE_API_KEY` in
-the MCP server environment.
-
-## Magyar gyors kezdés
-
-Az `@arpproject/rocrate-mcp-server` az MCP-kompatibilis AI-asszisztenseket az
-ARP/AROMA kutatási adatok kezelését támogató munkafolyamataihoz kapcsolja.
-Eszközöket ad
-RO-Crate metaadatok létrehozásához, olvasásához, szerkesztéséhez és
-ellenőrzéséhez, metaadatprofilok használatához, valamint az ARP Dataverse
-szolgáltatásaival való együttműködéshez.
-
-Node.js 18 vagy újabb szükséges:
+Node.js 18 or newer is required for installation:
 
 ```bash
 npm install -g @arpproject/rocrate-mcp-server
 ```
 
-Ezután állítsuk be az MCP-klienst a `rocrate-mcp-server` indítására, vagy
-használjuk az interaktív telepítőt:
+To configure it for a particular AI assistant, use the interactive installer:
 
 ```bash
 rocrate-mcp-server -i
 ```
 
-Kapcsolódás után dolgozzunk egy olyan könyvtárral, amely tartalmazza a
-`ro-crate-metadata.json` fájlt. Az asszisztens létrehozhatja, módosíthatja és
-ellenőrizheti a crate-et; a helyi munka az `open_aroma_for_local_file`
-eszközzel nyitható meg az AROMA-ban. Az ARP Dataverse eléréséhez állítsuk be
-az MCP-szerver környezetében a `DATAVERSE_BASE_URL`, szükség esetén pedig a
-`DATAVERSE_API_KEY` változót.
+Select the AI assistant you want to use, and the installer will automatically create the required configuration.
 
-## Install
+You can verify that the installation was successful by starting the AI assistant and listing the configured MCP servers. This is typically done using the `/mcp` command (for example, in Codex and Claude Code) or `/mcps` (for example, in OpenCode). The list should contain an MCP server named `rocrate` that runs the `rocrate-mcp-server` command.
+
+To use `rocrate-mcp-server`, start your AI assistant in the directory where you want to create or edit the RO-Crate. Give the assistant the appropriate instructions for creating the RO-Crate package, and it will automatically start using `rocrate-mcp-server` and follow the workflows provided by the server.
+
+At the end of the workflow, the completed RO-Crate package (the `ro-crate-metadata.json` file) can be opened in the ARP AROMA software. The assistant will usually offer to do this automatically. If it does not, simply ask it to 
+```
+ "Open the dataset in AROMA". 
+```
+The assistant will provide a URL that opens AROMA in a browser with the RO-Crate package you are currently editing.
+
+If you place the AI assistant and the AROMA browser window side by side, changes made to the RO-Crate through the assistant will immediately appear in AROMA, where they can be reviewed and also edited directly.
+
+`rocrate-mcp-server` can also upload the dataset to ARP Dataverse; simply ask your assistant to do so. For uploads to work, set the `DATAVERSE_API_KEY` environment variable. You can get it from https://repo.researchdata.hu/dataverseuser.xhtml?selectTab=apiTokenTab. The assistant will also ask for this value if they have not been configured.
+
+## Első lépések
+
+Az `@arpproject/rocrate-mcp-server` segítségével MCP-kompatibilis AI-asszisztenseket használva egyszerűen hozhatók létre RO-Crate csomagok, amelyeket aztán az ARP rendszerébe is fel lehet tölteni.
+
+A használatához szükség van egy MCP-kompatibilis AI-asszisztensre, például Codex, Claude Code, OpenCode, Kilo Code, Roo Code, Gemini CLI vagy Qwen Code.
+
+A telepítéshez Node.js 18 vagy újabb szükséges:
+
+```bash
+npm install -g @arpproject/rocrate-mcp-server
+```
+
+Egy adott AI-asszisztenshez való konfiguráláshoz használja az interaktív telepítőt:
+
+```bash
+rocrate-mcp-server -i
+```
+
+Itt válassza ki a használni kívánt AI-asszisztenst, és a telepítő automatikusan beállítja a szükséges konfigurációt.
+
+A sikeres telepítést úgy ellenőrizheti, hogy elindítja az AI-asszisztenst, és listázza a beállított MCP-szervereket. Ehhez tipikusan az `/mcp` (például Codex és Claude Code esetében) vagy az `/mcps` (például OpenCode esetében) parancsot kell kiadni. A listában meg kell jelennie a `rocrate` nevű MCP-szervernek, amely a `rocrate-mcp-server` parancsot futtatja.
+
+A `rocrate-mcp-server` használatához az AI-asszisztenst abban a könyvtárban indítsa el, ahol a RO-Crate-et létre szeretné hozni vagy szerkeszteni. Adja meg az RO-Crate csomag létrehozásához a megfelelő utasítást, és az asszisztens automatikusan elkezdi használni a `rocrate-mcp-server`-t, követve az abban meghatározott munkafolyamatokat.
+
+A munkafolyamat végén az elkészült RO-Crate csomag (a `ro-crate-metadata.json` fájl) megnyitható az ARP AROMA szoftverben. Ezt általában automatikusan felajánlja az asszisztens. Ha nem, akkor csak kérje meg: 
+```
+„   Nyisd meg az adatcsomagot az AROMA-ban”.
+```
+ 
+ Ennek hatására az asszisztens ad egy URL-t, amelyre kattintva a böngészőben megnyílik az AROMA az éppen szerkesztett RO-Crate csomaggal.
+
+Ha az AI-asszisztenst és a megnyitott AROMA böngészőablakot egymás mellé helyezi, akkor az asszisztenssel végzett módosítások azonnal megjelennek az AROMA-ban is, ahol ellenőrizhetők, illetve közvetlenül szerkeszthetők.
+
+A `rocrate-mcp-server` használatával az adatcsomag az ARP Dataverse-be is feltölthető; ehhez csak kérje meg az asszisztenst. A feltöltéshez állítsa be a `DATAVERSE_API_KEY` környezeti változót. Ezt a https://repo.researchdata.hu/dataverseuser.xhtml?selectTab=apiTokenTab oldalon tudja beszerezbi. Ha nincs ez a környezeti változó beállítba asszisztens is bekérheti.
+
+## Installation
 
 After the package is published to npm, users can install the standalone MCP
 server globally:
@@ -157,20 +173,20 @@ yarn pack:rocrate-mcp-standalone
 This writes:
 
 ```text
-theia-extensions/rocrate-mcp-server/rocrate-mcp-server-<version>.tgz
+theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-<version>.tgz
 ```
 
 To test the tarball locally:
 
 ```bash
-npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-<version>.tgz
+npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-<version>.tgz
 rocrate-mcp-server
 ```
 
 For the current `1.0.2` package version, run this from the repository root:
 
 ```bash
-npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-1.0.2.tgz
+npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-1.0.2.tgz
 ```
 
 To publish to npm, publish the generated package directory:
@@ -642,7 +658,7 @@ node /absolute/path/to/rocrate-mcp-server/lib/server.js --connect /Users/<you>/.
 ### External Services
 - `TAVILY_API_KEY`: Tavily key for `search`.
 - `TAVILY_API_URL` (optional): Tavily endpoint override.
-- `DATAVERSE_BASE_URL` (optional): Dataverse/ARP base URL for upload/download tools (default `http://localhost:8080`).
+- `DATAVERSE_BASE_URL` (optional): Dataverse/ARP base URL for upload/download tools. Workspace builds default to `http://localhost:8080`; the published standalone package defaults to `https://repo.researchdata.hu`.
 - `DATAVERSE_OWNER_ID` (optional): owner ID for new uploads (default `root`).
 - `DATAVERSE_API_KEY` (optional): API key used as `X-Dataverse-key` header.
 - `ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS` (optional): keep temporary Dataverse upload ZIPs for debugging.
