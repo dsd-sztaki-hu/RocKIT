@@ -174,7 +174,13 @@ export class ZenodoImportService {
       importedCrate,
       loadedRecord.files.flatMap((file) => {
         const localPath = localPaths.get(file)
-        return localPath ? [{ localPath, remoteIdentifier: file.filename }] : []
+        return localPath
+          ? [{
+              localPath,
+              remoteIdentifier: file.filename,
+              checksum: file.checksum,
+            }]
+          : []
       }),
       this.extractRecordHtmlUrl(loadedRecord.payload),
     )

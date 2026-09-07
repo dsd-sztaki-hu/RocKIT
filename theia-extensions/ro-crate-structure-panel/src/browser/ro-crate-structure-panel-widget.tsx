@@ -28,7 +28,6 @@ import * as mime from 'mime-types'
 import * as React from 'react'
 import { RoCrateEditorWidget } from 'ro-crate-editor/lib/browser/ro-crate-editor-widget'
 import { SchemaValidatorWidget } from 'schema-validator/lib/browser/schema-validator-widget'
-import * as SparkMD5 from 'spark-md5'
 import { RoCrateValidationErrorsDialog } from './ro-crate-validation-errors-dialog'
 
 interface CrateNode {
@@ -2316,12 +2315,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         try {
             const fileStat = await this.fileService.resolve(fileUri, { resolveMetadata: true })
             fileEntity.contentSize = fileStat.size ? `${fileStat.size}` : undefined
-            try {
-                const content = await this.fileService.read(fileUri)
-                fileEntity.hash = SparkMD5.hash(content.value)
-            } catch (error) {
-                console.warn('Failed to read dropped file for hash', relPath, error)
-            }
         } catch (error) {
             console.warn('Failed to resolve dropped file metadata', relPath, error)
         }
