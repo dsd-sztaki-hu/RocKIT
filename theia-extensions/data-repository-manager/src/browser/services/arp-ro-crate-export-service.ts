@@ -4,11 +4,13 @@ import { FileUri } from '@theia/core/lib/common/file-uri'
 import { URI } from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import {
   localizeExternalRoCrateFileReferences,
   RoCrateExportFileSource,
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import { inject, injectable } from 'inversify'
+import { RoCratePersistenceService } from 'save-ro-crate/lib/browser/ro-crate-persistence-service'
 import { DataRepositoryConfig, DataRepositoryExportTarget, DataverseCollection } from '../types'
 import type { NativeDataverseDatasetMetadata } from './native-dataverse-export-service'
 import {
@@ -151,6 +153,10 @@ export class ArpRoCrateExportService {
     protected readonly metadataMappingService: DataverseMetadataMappingService,
     @inject(FileHashStoreService)
     protected readonly fileHashStoreService: FileHashStoreService,
+    @inject(AppStateService)
+    protected readonly appStateService: AppStateService,
+    @inject(RoCratePersistenceService)
+    protected readonly roCratePersistenceService: RoCratePersistenceService,
   ) {}
 
   public async exportToArp(
@@ -255,7 +261,7 @@ export class ArpRoCrateExportService {
         file,
       )
       await this.persistUploadedFileHash(
-        metadataUri,
+        rootUri,
         crate,
         file.entityId,
         uploadCrate,
@@ -526,7 +532,7 @@ export class ArpRoCrateExportService {
         uploadFile,
       )
       await this.persistUploadedFileHash(
-        rootUri.resolve('ro-crate-metadata.json'),
+        rootUri,
         metadataCrate,
         uploadIdToMetadataId[file.localId] ?? file.localId,
         uploadCrate,
@@ -589,7 +595,7 @@ export class ArpRoCrateExportService {
         replacementUploadFile,
       )
       await this.persistUploadedFileHash(
-        rootUri.resolve('ro-crate-metadata.json'),
+        rootUri,
         metadataCrate,
         uploadIdToMetadataId[file.localId] ?? file.localId,
         uploadCrate,
@@ -1973,7 +1979,7 @@ export class ArpRoCrateExportService {
   }
 
   protected async persistUploadedFileHash(
-    metadataUri: URI,
+    rootUri: URI,
     localCrate: RoCrate,
     localEntityId: string,
     uploadCrate: RoCrate,
@@ -1984,13 +1990,18 @@ export class ArpRoCrateExportService {
       return
     }
 
+    const appStateCrate = this.appStateService.roCrate ?? localCrate
+    const nextAppStateCrate = JSON.parse(JSON.stringify(appStateCrate)) as RoCrate
+    const appStateEntity = this.readGraphEntities(nextAppStateCrate).find(
+      (entity) => this.readOptionalEntityString(entity, '@id') === localEntityId,
+    )
     const localEntity = this.readGraphEntities(localCrate).find(
       (entity) => this.readOptionalEntityString(entity, '@id') === localEntityId,
     )
     const uploadEntity = this.readGraphEntities(uploadCrate).find(
       (entity) => this.readOptionalEntityString(entity, '@id') === uploadEntityId,
     )
-    if (!localEntity || !uploadEntity) {
+    if (!appStateEntity || !localEntity || !uploadEntity) {
       throw new Error(
         nls.localize(
           'rockit/dataRepository/uploadedFileHashEntityMissing',
@@ -2000,13 +2011,13 @@ export class ArpRoCrateExportService {
       )
     }
 
+    appStateEntity.hash = md5
     localEntity.hash = md5
     uploadEntity.hash = md5
+    this.ensureDataverseFileContext(nextAppStateCrate)
     this.ensureDataverseFileContext(localCrate)
-    await this.fileService.writeFile(
-      metadataUri,
-      BinaryBuffer.fromString(`${JSON.stringify(localCrate, null, 2)}\n`),
-    )
+    this.appStateService.roCrate = nextAppStateCrate
+    await this.roCratePersistenceService.write(rootUri, nextAppStateCrate)
   }
 
   protected buildArpFileEntityId(
