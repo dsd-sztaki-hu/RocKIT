@@ -4,12 +4,14 @@ import { BinaryBuffer } from '@theia/core/lib/common/buffer';
 import { nls } from '@theia/core/lib/common/nls';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { inject, injectable } from 'inversify';
 import {
   collectRoCrateExportFileReferences,
   localizeExternalRoCrateFileReferences,
   RoCrateExportFileSource,
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
+import { RoCratePersistenceService } from 'save-ro-crate/lib/browser/ro-crate-persistence-service'
 import {
   DataRepositoryConfig,
   DataRepositoryExportTarget,
@@ -154,6 +156,7 @@ export type NativeDataverseExportProgressReporter = (
 
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
 const DATAVERSE_CROSSWALK_FILE_NAME = 'arp-dataverse-crosswalk.json'
+const FILE_HASH_CONTEXT = 'https://dataverse.org/schema/file/hash'
 
 const DATAVERSE_MULTIPLE_VALUE_FIELDS = new Set([
   'geographicUnit',
@@ -300,6 +303,10 @@ export class NativeDataverseExportService {
     protected readonly metadataMappingService: DataverseMetadataMappingService,
     @inject(FileHashStoreService)
     protected readonly fileHashStoreService: FileHashStoreService,
+    @inject(AppStateService)
+    protected readonly appStateService: AppStateService,
+    @inject(RoCratePersistenceService)
+    protected readonly roCratePersistenceService: RoCratePersistenceService,
   ) {}
 
   /**
@@ -480,6 +487,18 @@ export class NativeDataverseExportService {
             1,
             totalSteps,
             async (uploadedFiles) => {
+                const latestUpload = uploadedFiles[uploadedFiles.length - 1];
+                if (latestUpload?.localFileId) {
+                    await this.persistUploadedFileHash(
+                        rootUri,
+                        crate,
+                        latestUpload.localFileId,
+                        uploadCollection.metadataCrate,
+                        uploadCollection.originalToUploadIds.get(latestUpload.localFileId)
+                            ?? latestUpload.localFileId,
+                        this.fileHashStoreService.extractMd5(latestUpload.response)
+                    );
+                }
                 entityIdMapping = this.buildEntityIdMapping(
                     crate,
                     uploadedFiles,
@@ -594,6 +613,7 @@ export class NativeDataverseExportService {
         const uploadFilesByPath = new Map(uploadCollection.files.map(file => [file.entryPath, file]));
         const newFileIds: string[] = [];
         const changedFileIds: string[] = [];
+        const unchangedFileIds: string[] = [];
         const matchedRemoteFileIds = new Set<string>();
         const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri);
         for (const [localId] of localFilesById) {
@@ -614,6 +634,8 @@ export class NativeDataverseExportService {
             });
             if (!unchanged) {
                 changedFileIds.push(localId);
+            } else {
+                unchangedFileIds.push(localId);
             }
         }
         const removedRemoteFileIds = this.readGraph(remoteMetadataCrate)
@@ -647,6 +669,25 @@ export class NativeDataverseExportService {
             collectionId: exportTarget.exportLogEntry.collectionId
         });
 
+        let restoredStoredHashes = false;
+        for (const localId of unchangedFileIds) {
+            restoredStoredHashes = await this.persistUploadedFileHash(
+                rootUri,
+                crate,
+                localId,
+                uploadCollection.metadataCrate,
+                uploadCollection.originalToUploadIds.get(localId) ?? localId,
+                storedFileHashes[localId]?.md5,
+                false
+            ) || restoredStoredHashes;
+        }
+        if (restoredStoredHashes) {
+            await this.roCratePersistenceService.write(
+                rootUri,
+                this.appStateService.roCrate ?? crate
+            );
+        }
+
         for (const localId of newFileIds) {
             reportProgress?.({
                 completedSteps,
@@ -655,6 +696,14 @@ export class NativeDataverseExportService {
             });
             const uploadFile = this.requireUploadFile(localId, uploadCollection, uploadFilesByPath);
             const result = await this.uploadFile(baseUrl, repository.apiKey, exportTarget.persistentId, uploadFile);
+            await this.persistUploadedFileHash(
+                rootUri,
+                crate,
+                localId,
+                uploadCollection.metadataCrate,
+                uploadCollection.originalToUploadIds.get(localId) ?? localId,
+                this.fileHashStoreService.extractMd5(result.response)
+            );
             const remoteId = this.extractDataFileId(result.response);
             if (!remoteId) {
                 throw new Error(nls.localize(
@@ -677,6 +726,14 @@ export class NativeDataverseExportService {
             const previousRemoteId = exportTarget.mapping[localId];
             const uploadFile = this.requireUploadFile(localId, uploadCollection, uploadFilesByPath);
             const result = await this.replaceFile(baseUrl, repository.apiKey, previousRemoteId, uploadFile);
+            await this.persistUploadedFileHash(
+                rootUri,
+                crate,
+                localId,
+                uploadCollection.metadataCrate,
+                uploadCollection.originalToUploadIds.get(localId) ?? localId,
+                this.fileHashStoreService.extractMd5(result.response)
+            );
             exportTarget.mapping[localId] = this.extractDataFileId(result.response) ?? previousRemoteId;
             await this.saveEntityIdMapping(rootUri, mappingFileName, exportTarget.mapping);
             completedSteps += 1;
@@ -2403,6 +2460,75 @@ export class NativeDataverseExportService {
         }
         return uploadFile;
     }
+
+  protected async persistUploadedFileHash(
+    rootUri: URI,
+    localCrate: RoCrate,
+    localEntityId: string,
+    uploadCrate: RoCrate,
+    uploadEntityId: string,
+    md5: string | undefined,
+    saveImmediately = true,
+  ): Promise<boolean> {
+    if (!md5) {
+      return false
+    }
+
+    const appStateCrate = this.appStateService.roCrate ?? localCrate
+    const nextAppStateCrate = JSON.parse(JSON.stringify(appStateCrate)) as RoCrate
+    const appStateEntity = this.findEntity(nextAppStateCrate, localEntityId)
+    const localEntity = this.findEntity(localCrate, localEntityId)
+    const uploadEntity = this.findEntity(uploadCrate, uploadEntityId)
+    if (!appStateEntity || !localEntity || !uploadEntity) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/uploadedFileHashEntityMissing',
+        "The uploaded file hash could not be saved because File entity '{0}' was not found in the RO-Crate metadata.",
+        localEntityId,
+      ))
+    }
+
+    appStateEntity.hash = md5
+    localEntity.hash = md5
+    uploadEntity.hash = md5
+    this.ensureFileHashContext(nextAppStateCrate)
+    this.ensureFileHashContext(localCrate)
+    this.ensureFileHashContext(uploadCrate)
+    this.appStateService.roCrate = nextAppStateCrate
+    if (saveImmediately) {
+      await this.roCratePersistenceService.write(rootUri, nextAppStateCrate)
+    }
+    return true
+  }
+
+  protected findEntity(crate: RoCrate, entityId: string): RoCrateEntity | undefined {
+    return this.readGraph(crate).find(
+      (entity) => this.readOptionalString(entity['@id']) === entityId,
+    )
+  }
+
+  protected ensureFileHashContext(crate: RoCrate): void {
+    const context = crate['@context']
+    if (Array.isArray(context)) {
+      const existingObject = context.find(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === 'object' && !Array.isArray(item),
+      )
+      if (existingObject) {
+        existingObject.hash = FILE_HASH_CONTEXT
+      } else {
+        context.push({ hash: FILE_HASH_CONTEXT })
+      }
+      return
+    }
+    if (context && typeof context === 'object') {
+      const contextObject = context as Record<string, unknown>
+      contextObject.hash = FILE_HASH_CONTEXT
+      return
+    }
+    crate['@context'] = context
+      ? [context, { hash: FILE_HASH_CONTEXT }]
+      : ['https://w3id.org/ro/crate/1.1/context', { hash: FILE_HASH_CONTEXT }]
+  }
 
   protected buildRewrittenMetadataUploadFile(
     metadataCrate: RoCrate,
