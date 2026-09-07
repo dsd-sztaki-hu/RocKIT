@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "electron-app",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "homepage": "https://repo.researchdata.hu/rockit/",
   "author": {
     "name": "HUN-REN SZTAKI, Department of Distributed Systems",
