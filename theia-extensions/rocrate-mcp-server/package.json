@@ -1,6 +1,6 @@
 {
   "name": "@arpproject/rocrate-mcp-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server exposing RO-Crate editing and profile-aware validation tools",
   "license": "Apache-2.0",
   "author": "HUN-REN SZTAKI, Department of Distributed Systems",
@@ -20,7 +20,7 @@
     "clean": "rimraf lib tsconfig.tsbuildinfo",
     "watch": "node scripts/generate-workflow-docs-bundle.js && tsc -b -w",
     "start": "node lib/server.js",
-    "test": "yarn build && node test/test-core.js && node test/test-mcp-server.js",
+    "test": "yarn build && node test/test-core.js && node test/test-cli.js && node test/test-mcp-server.js",
     "test:dashboard": "yarn build && node test/test-dashboard-collector.js && node test/test-dashboard-http.js",
     "test:socket": "yarn build && node test/test-socket-lifecycle.js"
   },

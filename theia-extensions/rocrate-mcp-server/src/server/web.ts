@@ -1,4 +1,5 @@
 import type { DownloadUrlParams, WebSearchParams } from './types'
+import { getServerUserAgent } from './version'
 
 type TelemetryCollector = {
   recordDependencyCall: (dependency: string, success: boolean, latencyMs: number) => void
@@ -72,7 +73,7 @@ export function createWebHandlers(deps: {
     return fetchWithTimeout(url, timeoutMs, {
       method: 'GET',
       headers: {
-        'user-agent': 'rocrate-mcp-server/0.0.0',
+        'user-agent': getServerUserAgent(),
       },
     })
   }
@@ -127,7 +128,7 @@ export function createWebHandlers(deps: {
       headers: {
         'content-type': 'application/json',
         accept: 'application/json',
-        'user-agent': 'rocrate-mcp-server/0.0.0',
+        'user-agent': getServerUserAgent(),
       },
       body: JSON.stringify({
         api_key: apiKey,

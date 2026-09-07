@@ -7,6 +7,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { handleSocketLifecycleArgs } from '../bootstrap/socket-lifecycle'
 import { clearAgentSessionContext } from './agent-session-context'
 import type { McpToolTextResult, ToolDefinition, TransportMode } from './types'
+import { getBuildInfo } from './version'
 
 type TelemetryCollector = {
   deactivateSession: (sessionKey: string) => void
@@ -131,7 +132,7 @@ export async function startServerWithTransports(options: StartServerOptions): Pr
     const mcpServer = new McpServer(
       {
         name: 'rocrate-mcp-server',
-        version: '0.0.0',
+        version: getBuildInfo().version,
       },
       {
         capabilities: {

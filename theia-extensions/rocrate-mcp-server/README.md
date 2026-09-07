@@ -17,6 +17,15 @@ Run it directly over stdio:
 rocrate-mcp-server
 ```
 
+Show the installed version and standalone build date without starting the MCP
+server:
+
+```bash
+rocrate-mcp-server -v
+# or
+rocrate-mcp-server --version
+```
+
 Or use the recommended shared daemon/proxy topology:
 
 ```bash
@@ -92,10 +101,10 @@ npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-<version
 rocrate-mcp-server
 ```
 
-For the current `1.0.0` package version, run this from the repository root:
+For the current `1.0.1` package version, run this from the repository root:
 
 ```bash
-npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-1.0.0.tgz
+npm install -g ./theia-extensions/rocrate-mcp-server/rocrate-mcp-server-1.0.1.tgz
 ```
 
 To publish to npm, publish the generated package directory:

@@ -39,6 +39,12 @@ import { createToolDispatcher } from './server/tool-dispatcher'
 import { startServerWithTransports } from './server/transports'
 import type { AccessMode, ProfileResolutionInputs } from './server/types'
 import { createWebHandlers } from './server/web'
+import {
+  formatStartupVersion,
+  formatVersionInfo,
+  getBuildInfo,
+  isVersionRequest,
+} from './server/version'
 
 /**
  * rocrate-mcp-server architecture (single-file entrypoint)
@@ -738,6 +744,7 @@ write_crate_atomic also supports contextMode auto context reconciliation (defaul
  * Handles start server.
  */
 async function startServer(): Promise<void> {
+  process.stderr.write(`${formatStartupVersion(getBuildInfo())}\n`)
   await startServerWithTransports({
     tools,
     instructions: getMcpServerInstructions(),
@@ -765,4 +772,14 @@ async function startServer(): Promise<void> {
   })
 }
 
-void startServer()
+function main(): void {
+  const args = process.argv.slice(2)
+  if (isVersionRequest(args)) {
+    process.stdout.write(`${formatVersionInfo(getBuildInfo())}\n`)
+    return
+  }
+
+  void startServer()
+}
+
+main()

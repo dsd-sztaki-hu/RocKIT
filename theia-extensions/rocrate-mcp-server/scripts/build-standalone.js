@@ -85,12 +85,14 @@ async function main() {
   })
 
   const packageJson = readJson(path.join(packageRoot, 'package.json'))
+  const buildDate = process.env.ROCRATE_MCP_BUILD_DATE || new Date().toISOString()
   fs.writeFileSync(
     path.join(outRoot, 'package.json'),
     `${JSON.stringify(
       {
         name: packageJson.name,
         version: packageJson.version,
+        buildDate,
         description: packageJson.description,
         main: 'lib/server.js',
         bin: {
