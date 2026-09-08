@@ -3651,6 +3651,13 @@ body.hc-black .rocrate-editor .recrate-scope .focus\:border-green-600:focus {
   border-color: var(--theia-focusBorder, #f38518) !important;
 }
 
+/* Core fields contain a second layout element with the same property class.
+ * Keep the data-bearing outer row as the sole highlight target everywhere. */
+.theia-hc .rocrate-editor .recrate-scope [data-recrate-property].recrate-property > .recrate-property,
+body.hc-black .rocrate-editor .recrate-scope [data-recrate-property].recrate-property > .recrate-property {
+  border-color: transparent !important;
+}
+
 .theia-hc .rocrate-editor .recrate-scope .recrate .ant-tabs-tab.ant-tabs-tab-active,
 .theia-hc
   .rocrate-editor

@@ -473,6 +473,33 @@
 
 .data-repo-selector__sync-menu { width: 270px; }
 
+.theia-hc .data-repo-selector__options-menu button:hover,
+.theia-hc .data-repo-selector__options-menu button:focus-visible,
+.theia-hc .data-repo-selector__delete-menu button:hover,
+.theia-hc .data-repo-selector__delete-menu button:focus-visible,
+body.hc-black .data-repo-selector__options-menu button:hover,
+body.hc-black .data-repo-selector__options-menu button:focus-visible,
+body.hc-black .data-repo-selector__delete-menu button:hover,
+body.hc-black .data-repo-selector__delete-menu button:focus-visible {
+    outline: 1px solid var(--theia-focusBorder, #f38518) !important;
+    outline-offset: -1px;
+}
+
+.theia-hc .data-repo-selector__options-menu button:hover > svg,
+.theia-hc .data-repo-selector__options-menu button:hover strong,
+.theia-hc .data-repo-selector__options-menu button:hover small,
+.theia-hc .data-repo-selector__options-menu button:focus-visible > svg,
+.theia-hc .data-repo-selector__options-menu button:focus-visible strong,
+.theia-hc .data-repo-selector__options-menu button:focus-visible small,
+body.hc-black .data-repo-selector__options-menu button:hover > svg,
+body.hc-black .data-repo-selector__options-menu button:hover strong,
+body.hc-black .data-repo-selector__options-menu button:hover small,
+body.hc-black .data-repo-selector__options-menu button:focus-visible > svg,
+body.hc-black .data-repo-selector__options-menu button:focus-visible strong,
+body.hc-black .data-repo-selector__options-menu button:focus-visible small {
+    color: var(--theia-focusBorder, #f38518) !important;
+}
+
 .data-repo-selector__validation-error-button {
     color: var(--theia-inputValidation-errorForeground, var(--theia-errorForeground));
     border-color: var(--theia-inputValidation-errorBorder, var(--theia-errorForeground));
