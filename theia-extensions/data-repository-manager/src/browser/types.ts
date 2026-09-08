@@ -53,7 +53,10 @@ export interface DataRepositorySelection {
     capabilities?: DataRepositoryCapabilities;
     exportTarget?: DataRepositoryExportTarget;
     action?: 'export' | 'sync' | 'import' | 'link';
+    syncMode?: RepositorySyncMode;
 }
+
+export type RepositorySyncMode = 'complete' | 'remote-additions' | 'local-additions';
 
 export interface DataRepositoryImportProgress {
     completedSteps: number;

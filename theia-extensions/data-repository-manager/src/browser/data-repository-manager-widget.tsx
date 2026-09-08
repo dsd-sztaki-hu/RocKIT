@@ -608,7 +608,9 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     if (capabilities.supportsZenodoApi) {
       if (repositorySelection.action === 'sync' && selectedExportTarget) {
-        const syncOptions = await new RepositorySyncOptionsDialog().open()
+        const syncOptions = repositorySelection.syncMode
+          ? { metadataMode: repositorySelection.syncMode }
+          : await new RepositorySyncOptionsDialog().open()
         if (!syncOptions) {
           return
         }
@@ -825,14 +827,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       capabilities.supportsArpRoCrateZipUpload &&
       selectedExportTarget
     ) {
-      const confirmed = await new ConfirmDialog({
-        title: nls.localize('rockit/dataRepository/syncFromRemote', 'Sync from remote'),
-        msg: nls.localize(
-          'rockit/dataRepository/syncFromRemoteWarning',
-          'By continuing, the local version of this dataset might be overwritten.\n\nThe local ro-crate-metadata.json will be replaced with the remote version, and changed remote files may overwrite matching local files. Local files removed remotely will stay in the workspace but may become orphaned.',
-        ),
-      }).open()
-      if (!confirmed) {
+      const syncOptions = repositorySelection.syncMode
+        ? { metadataMode: repositorySelection.syncMode }
+        : await new RepositorySyncOptionsDialog().open()
+      if (!syncOptions) {
         return
       }
       const progress = await this.loadMaskService.showProgress({
@@ -853,6 +851,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         const syncResult = await this.arpExportService.syncFromArp(
           selectedRepo,
           selectedExportTarget,
+          syncOptions,
           (update) =>
             progress.report({
               message: update.message,
@@ -910,7 +909,9 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       !capabilities.supportsArpRoCrateZipUpload &&
       selectedExportTarget
     ) {
-      const syncOptions = await new RepositorySyncOptionsDialog().open()
+      const syncOptions = repositorySelection.syncMode
+        ? { metadataMode: repositorySelection.syncMode }
+        : await new RepositorySyncOptionsDialog().open()
       if (!syncOptions) {
         return
       }

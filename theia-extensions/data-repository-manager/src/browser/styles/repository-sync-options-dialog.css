@@ -21,11 +21,18 @@
     gap: 12px;
 }
 
-.repository-sync-options__checkbox {
-    color: var(--theia-descriptionForeground);
+.repository-sync-options__option {
+    align-items: flex-start;
+    color: var(--theia-foreground);
 }
 
-.repository-sync-options__description {
-    margin: 0;
+.repository-sync-options__option-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.repository-sync-options__option-content small {
     color: var(--theia-descriptionForeground);
+    white-space: normal;
 }

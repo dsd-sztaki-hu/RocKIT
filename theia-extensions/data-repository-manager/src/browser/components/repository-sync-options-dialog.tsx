@@ -1,17 +1,18 @@
 import { AbstractDialog, Message } from '@theia/core/lib/browser'
 import { nls } from '@theia/core/lib/common/nls'
-import { Checkbox } from 'antd'
+import { Radio } from 'antd'
 import * as React from 'react'
 import { createRoot, Root } from 'react-dom/client'
 import '../styles/repository-sync-options-dialog.css'
+import { RepositorySyncMode } from '../types'
 
 export interface RepositorySyncOptions {
-  replaceLocalMetadataWithUploadedRoCrate: boolean
+  metadataMode: RepositorySyncMode
 }
 
 export class RepositorySyncOptionsDialog extends AbstractDialog<RepositorySyncOptions | undefined> {
   private reactRoot: Root | undefined
-  private replaceLocalMetadataWithUploadedRoCrate = false
+  private metadataMode: RepositorySyncMode = 'remote-additions'
 
   constructor() {
     super({
@@ -26,7 +27,7 @@ export class RepositorySyncOptionsDialog extends AbstractDialog<RepositorySyncOp
 
   get value(): RepositorySyncOptions | undefined {
     return {
-      replaceLocalMetadataWithUploadedRoCrate: this.replaceLocalMetadataWithUploadedRoCrate,
+      metadataMode: this.metadataMode,
     }
   }
 
@@ -52,28 +53,42 @@ export class RepositorySyncOptionsDialog extends AbstractDialog<RepositorySyncOp
             'Remote dataset metadata will be applied to the local RO-Crate using the selected crosswalk file. New or changed remote files will be downloaded. Local files removed remotely will stay in the workspace but may become orphaned.',
           )}
         </p>
-        <div className="repository-sync-options__form">
-          <Checkbox
-            className="repository-sync-options__checkbox"
-            checked={this.replaceLocalMetadataWithUploadedRoCrate}
-            onChange={(event) => {
-              this.replaceLocalMetadataWithUploadedRoCrate = event.target.checked
-              this.refresh()
-            }}
-          >
-            {nls.localize(
-              'rockit/dataRepository/replaceLocalMetadataWithUploadedRoCrate',
-              'Replace local RO-Crate metadata with the uploaded remote ro-crate-metadata.json first',
-            )}
-          </Checkbox>
-          <p className="repository-sync-options__description">
-            {nls.localize(
-              'rockit/dataRepository/replaceLocalMetadataWithUploadedRoCrateDescription',
-              'When enabled, RocKIT downloads the uploaded ro-crate-metadata.json from the remote repository, localizes its entity IDs, and uses it as the base before applying the repository metadata fields. When disabled, the current local ro-crate-metadata.json is kept as the base.',
-            )}
-          </p>
-        </div>
+        <Radio.Group
+          className="repository-sync-options__form"
+          value={this.metadataMode}
+          onChange={(event) => {
+            this.metadataMode = event.target.value as RepositorySyncMode
+            this.refresh()
+          }}
+        >
+          {this.renderOption(
+            'complete',
+            nls.localize('rockit/dataRepository/completeSync', 'Complete sync'),
+            nls.localize('rockit/dataRepository/completeSyncDescription', 'Use the remote crate structure and metadata. Local files removed remotely remain on disk as orphaned files.'),
+          )}
+          {this.renderOption(
+            'remote-additions',
+            nls.localize('rockit/dataRepository/keepRemoteAdditions', 'Keep only the remote additions'),
+            nls.localize('rockit/dataRepository/keepRemoteAdditionsDescription', 'Keep local entities and edits, and add entities that exist only in the remote crate with their relationships.'),
+          )}
+          {this.renderOption(
+            'local-additions',
+            nls.localize('rockit/dataRepository/keepLocalAdditions', 'Keep only the local additions'),
+            nls.localize('rockit/dataRepository/keepLocalAdditionsDescription', 'Use the remote crate as the base, then restore entities that exist only in the local crate with their relationships.'),
+          )}
+        </Radio.Group>
       </div>,
+    )
+  }
+
+  private renderOption(value: RepositorySyncMode, label: string, description: string): React.ReactNode {
+    return (
+      <Radio value={value} className="repository-sync-options__option">
+        <span className="repository-sync-options__option-content">
+          <strong>{label}</strong>
+          <small>{description}</small>
+        </span>
+      </Radio>
     )
   }
 

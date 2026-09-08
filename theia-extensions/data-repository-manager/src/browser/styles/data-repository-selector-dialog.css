@@ -427,38 +427,51 @@
     font-size: 20px !important;
 }
 
-.data-repo-selector__delete-control { position: relative; display: flex; }
-.data-repo-selector__delete-menu {
+.data-repo-selector__delete-control,
+.data-repo-selector__sync-control { position: relative; display: flex; }
+.data-repo-selector__delete-menu,
+.data-repo-selector__options-menu {
     position: absolute; z-index: 10; top: calc(100% - 3px); right: 2px; width: 205px;
     padding: 5px; border: 1px solid var(--theia-menu-border, var(--theia-panel-border));
     border-radius: 5px; background: var(--theia-menu-background);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
 }
-.data-repo-selector__delete-menu--upward {
+.data-repo-selector__delete-menu--upward,
+.data-repo-selector__options-menu--upward {
     top: auto;
     bottom: calc(100% - 3px);
 }
-.data-repo-selector__delete-menu button {
+.data-repo-selector__delete-menu button,
+.data-repo-selector__options-menu button {
     display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 9px;
     border: 0; border-radius: 3px; background: transparent;
     color: var(--theia-menu-foreground); text-align: left; cursor: pointer;
 }
 .data-repo-selector__delete-menu button:hover,
-.data-repo-selector__delete-menu button:focus-visible {
+.data-repo-selector__delete-menu button:focus-visible,
+.data-repo-selector__options-menu button:hover,
+.data-repo-selector__options-menu button:focus-visible {
     background: var(--theia-menu-selectionBackground);
     color: var(--theia-menu-selectionForeground); outline: none;
 }
 .data-repo-selector__delete-menu button:hover *,
-.data-repo-selector__delete-menu button:focus-visible * {
+.data-repo-selector__delete-menu button:focus-visible *,
+.data-repo-selector__options-menu button:hover *,
+.data-repo-selector__options-menu button:focus-visible * {
     color: var(--theia-menu-selectionForeground) !important;
 }
-.data-repo-selector__delete-menu svg { flex: 0 0 auto; font-size: 18px; }
-.data-repo-selector__delete-menu span { display: flex; flex-direction: column; gap: 1px; }
-.data-repo-selector__delete-menu small {
+.data-repo-selector__delete-menu svg,
+.data-repo-selector__options-menu svg { flex: 0 0 auto; font-size: 18px; }
+.data-repo-selector__delete-menu span,
+.data-repo-selector__options-menu span { display: flex; flex-direction: column; gap: 1px; }
+.data-repo-selector__delete-menu small,
+.data-repo-selector__options-menu small {
     color: var(--theia-descriptionForeground); font-size: 11px;
 }
 .data-repo-selector__delete-menu-danger strong,
 .data-repo-selector__delete-menu-danger > svg { color: var(--theia-errorForeground); }
+
+.data-repo-selector__sync-menu { width: 270px; }
 
 .data-repo-selector__validation-error-button {
     color: var(--theia-inputValidation-errorForeground, var(--theia-errorForeground));

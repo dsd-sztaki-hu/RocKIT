@@ -15,7 +15,8 @@ import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import {
     DataRepositoryConfig,
     DataRepositoryExportTarget,
-    DataRepositorySelection
+    DataRepositorySelection,
+    RepositorySyncMode
 } from '../types';
 import { DataRepositoryConfigDialog } from './data-repository-config-dialog';
 import { DataRepositoryStoreService } from '../services/data-repository-store-service';
@@ -35,7 +36,9 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
 
     private reactRoot: Root | undefined;
     private result: DataRepositorySelection | undefined;
+    private openSyncMenuKey: string | undefined;
     private openDeleteMenuKey: string | undefined;
+    private syncMenuOpensUpward = false;
     private deleteMenuOpensUpward = false;
 
     constructor(
@@ -99,10 +102,11 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
     protected async handleSelect(
         repo: DataRepositoryConfig,
         exportTarget?: DataRepositoryExportTarget,
-        action: 'export' | 'sync' | 'import' = 'export'
+        action: 'export' | 'sync' | 'import' = 'export',
+        syncMode?: RepositorySyncMode
     ) {
         const capabilities = await this.capabilityService.detectRepositoryCapabilities(repo.baseUrl, repo.apiKey);
-        this.result = { repository: repo, capabilities, exportTarget, action };
+        this.result = { repository: repo, capabilities, exportTarget, action, syncMode };
         this.accept();
     }
 
@@ -164,6 +168,11 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
             <div
                 className="data-repo-selector"
                 onClick={() => {
+                    if (this.openSyncMenuKey) {
+                        this.openSyncMenuKey = undefined;
+                        this.syncMenuOpensUpward = false;
+                        this.render();
+                    }
                     if (this.openDeleteMenuKey) {
                         this.openDeleteMenuKey = undefined;
                         this.deleteMenuOpensUpward = false;
@@ -332,18 +341,52 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                     )}
                                 </div>
                                 <div className="data-repo-selector__export-actions">
-                                    <button
-                                        className="data-repo-selector__export-action"
-                                        title={nls.localize('rockit/dataRepository/syncFromRemote', 'Sync from remote')}
-                                        aria-label={nls.localize(
-                                            'rockit/dataRepository/syncFromRemoteTarget',
-                                            'Sync from {0}',
-                                            target.datasetName || target.pid
+                                    <div className="data-repo-selector__sync-control">
+                                        <button
+                                            className="data-repo-selector__export-action"
+                                            title={nls.localize('rockit/dataRepository/syncOptions', 'Sync options')}
+                                            aria-label={nls.localize(
+                                                'rockit/dataRepository/syncOptionsFor',
+                                                'Sync options for {0}',
+                                                target.datasetName || target.pid
+                                            )}
+                                            aria-expanded={this.openSyncMenuKey === menuKey}
+                                            onClick={event => {
+                                                event.stopPropagation();
+                                                if (this.openSyncMenuKey === menuKey) {
+                                                    this.openSyncMenuKey = undefined;
+                                                    this.syncMenuOpensUpward = false;
+                                                } else {
+                                                    this.openDeleteMenuKey = undefined;
+                                                    this.deleteMenuOpensUpward = false;
+                                                    this.syncMenuOpensUpward = this.shouldMenuOpenUpward(event.currentTarget, 184);
+                                                    this.openSyncMenuKey = menuKey;
+                                                }
+                                                this.render();
+                                            }}
+                                        >
+                                            <FileDownloadOutlinedIcon className="data-repo-selector__export-update-icon" />
+                                        </button>
+                                        {this.openSyncMenuKey === menuKey && (
+                                            <div
+                                                className={`data-repo-selector__options-menu data-repo-selector__sync-menu${
+                                                    this.syncMenuOpensUpward ? ' data-repo-selector__options-menu--upward' : ''
+                                                }`}
+                                                role="menu"
+                                                onClick={event => event.stopPropagation()}
+                                            >
+                                                {this.renderSyncMenuItem(repo, target, 'complete',
+                                                    nls.localize('rockit/dataRepository/completeSync', 'Complete sync'),
+                                                    nls.localize('rockit/dataRepository/completeSyncShort', 'Use remote metadata and structure'))}
+                                                {this.renderSyncMenuItem(repo, target, 'remote-additions',
+                                                    nls.localize('rockit/dataRepository/keepRemoteAdditions', 'Keep only remote additions'),
+                                                    nls.localize('rockit/dataRepository/keepRemoteAdditionsShort', 'Keep local edits, add remote entities'))}
+                                                {this.renderSyncMenuItem(repo, target, 'local-additions',
+                                                    nls.localize('rockit/dataRepository/keepLocalAdditions', 'Keep only local additions'),
+                                                    nls.localize('rockit/dataRepository/keepLocalAdditionsShort', 'Use remote edits, retain new local entities'))}
+                                            </div>
                                         )}
-                                        onClick={() => void this.handleSelect(repo, target, 'sync')}
-                                    >
-                                        <FileDownloadOutlinedIcon className="data-repo-selector__export-update-icon" />
-                                    </button>
+                                    </div>
                                     <button
                                         className="data-repo-selector__export-action"
                                         title={nls.localize('rockit/dataRepository/uploadUpdates', 'Upload updates')}
@@ -367,9 +410,11 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                                     target.datasetName || target.pid
                                                 )}
                                                 aria-expanded={this.openDeleteMenuKey === menuKey}
-                                                onClick={event => {
-                                                    event.stopPropagation();
-                                                    if (this.openDeleteMenuKey === menuKey) {
+                                                    onClick={event => {
+                                                        event.stopPropagation();
+                                                        this.openSyncMenuKey = undefined;
+                                                        this.syncMenuOpensUpward = false;
+                                                        if (this.openDeleteMenuKey === menuKey) {
                                                         this.openDeleteMenuKey = undefined;
                                                         this.deleteMenuOpensUpward = false;
                                                     } else {
@@ -435,6 +480,36 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                 )}
             </div>
         );
+    }
+
+    protected renderSyncMenuItem(
+        repo: DataRepositoryConfig,
+        target: DataRepositoryExportTarget,
+        mode: RepositorySyncMode,
+        label: string,
+        description: string
+    ): React.ReactNode {
+        return (
+            <button role="menuitem" onClick={() => void this.handleSelect(repo, target, 'sync', mode)}>
+                <FileDownloadOutlinedIcon />
+                <span>
+                    <strong>{label}</strong>
+                    <small>{description}</small>
+                </span>
+            </button>
+        );
+    }
+
+    protected shouldMenuOpenUpward(button: HTMLElement, menuHeight: number): boolean {
+        const buttonRect = button.getBoundingClientRect();
+        const scrollViewport = button.closest('.data-repo-selector__body')?.getBoundingClientRect();
+        const spaceBelow = scrollViewport
+            ? scrollViewport.bottom - buttonRect.bottom
+            : window.innerHeight - buttonRect.bottom;
+        const spaceAbove = scrollViewport
+            ? buttonRect.top - scrollViewport.top
+            : buttonRect.top;
+        return spaceBelow < menuHeight && spaceAbove > spaceBelow;
     }
 
     protected formatDate(value: string): string {
