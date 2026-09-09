@@ -4,7 +4,7 @@
   "version": "1.0.8",
   "homepage": "https://repo.researchdata.hu/rockit/",
   "author": {
-    "name": "HUN-REN SZTAKI, Department of Distributed Systems",
+    "name": "SZTAKI, Department of Distributed Systems",
     "email": "zoltan.toth@sztaki.hun-ren.hu"
   },
   "license": "Apache-2.0",
@@ -122,7 +122,7 @@
         "deb"
       ],
       "category": "Development",
-      "maintainer": "HUN-REN SZTAKI, DSD <zoltan.toth@sztaki.hun-ren.hu>"
+      "maintainer": "SZTAKI, DSD <zoltan.toth@sztaki.hun-ren.hu>"
     }
   }
 }
