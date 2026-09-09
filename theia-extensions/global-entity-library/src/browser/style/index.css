@@ -1,0 +1,100 @@
+.global-entity-library-widget {
+    height: 100%;
+    overflow: auto;
+    padding: 16px;
+    box-sizing: border-box;
+    font-family: var(--theia-ui-font-family);
+    font-size: var(--theia-ui-font-size1);
+}
+
+.global-entity-library-table {
+    min-width: 720px;
+}
+
+.global-entity-library-table-container {
+    border: 1px solid var(--theia-panel-border);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.global-entity-library-table-container .ant-table,
+.global-entity-library-table-container .ant-table-container {
+    background-color: transparent !important;
+    color: var(--theia-foreground) !important;
+    border-color: var(--theia-panel-border) !important;
+}
+
+.global-entity-library-table-container .ant-table-thead > tr > th {
+    background-color: var(--theia-editor-background) !important;
+    color: var(--theia-foreground) !important;
+    border-bottom: 1px solid var(--theia-panel-border) !important;
+    border-right: none !important;
+    font-weight: 600;
+}
+
+.global-entity-library-table-container .ant-table-thead > tr > th::before,
+.global-entity-library-table-container .ant-table-thead > tr > th.ant-table-cell-scrollbar {
+    display: none !important;
+}
+
+.global-entity-library-table-container .ant-table-column-sorter-inner {
+    color: var(--theia-foreground) !important;
+    opacity: 0.5;
+}
+
+.global-entity-library-table-container .ant-table-tbody > tr > td {
+    background-color: transparent !important;
+    border-bottom: 1px solid var(--theia-panel-border) !important;
+    color: var(--theia-foreground) !important;
+    padding: 6px 8px !important;
+    transition: none !important;
+}
+
+.global-entity-library-table-container .ant-table-tbody > tr:hover > td {
+    background-color: transparent !important;
+}
+
+.global-entity-library-table-container .ant-tag {
+    background-color: transparent !important;
+    border-color: var(--theia-panel-border) !important;
+    color: var(--theia-foreground) !important;
+}
+
+.global-entity-library-toolbar {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.global-entity-library-toolbar .ant-input-search {
+    max-width: 440px;
+}
+
+.global-entity-library-toolbar .ant-btn {
+    align-items: center;
+    display: inline-flex;
+    gap: 7px;
+}
+
+.global-entity-library-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-top: 8px;
+}
+
+.global-entity-library-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.global-entity-library-form label > span {
+    font-weight: 600;
+}
+
+.global-entity-library-table .ant-table-cell {
+    vertical-align: top;
+}

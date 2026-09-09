@@ -1,10 +1,13 @@
-import { injectable } from '@theia/core/shared/inversify';
-import { MenuModelRegistry } from '@theia/core';
-import { GlobalEntityLibraryWidget } from './global-entity-library-widget';
-import { AbstractViewContribution } from '@theia/core/lib/browser';
-import { Command, CommandRegistry } from '@theia/core/lib/common/command';
+import { injectable } from '@theia/core/shared/inversify'
+import { MenuModelRegistry, nls } from '@theia/core'
+import { GlobalEntityLibraryWidget } from './global-entity-library-widget'
+import { AbstractViewContribution } from '@theia/core/lib/browser'
+import { Command, CommandRegistry } from '@theia/core/lib/common/command'
 
-export const GlobalEntityLibraryCommand: Command = { id: 'global-entity-library:command' };
+export const GlobalEntityLibraryCommand: Command = {
+    id: 'global-entity-library:open',
+    label: nls.localize('rockit/globalEntities/open', 'Open Global Entity Library'),
+}
 
 @injectable()
 export class GlobalEntityLibraryContribution extends AbstractViewContribution<GlobalEntityLibraryWidget> {
@@ -21,9 +24,9 @@ export class GlobalEntityLibraryContribution extends AbstractViewContribution<Gl
         super({
             widgetId: GlobalEntityLibraryWidget.ID,
             widgetName: GlobalEntityLibraryWidget.LABEL,
-            defaultWidgetOptions: { area: 'left' },
-            toggleCommandId: GlobalEntityLibraryCommand.id
-        });
+            defaultWidgetOptions: { area: 'main' },
+            toggleCommandId: GlobalEntityLibraryCommand.id,
+        })
     }
 
     /**
@@ -46,8 +49,8 @@ export class GlobalEntityLibraryContribution extends AbstractViewContribution<Gl
      */
     registerCommands(commands: CommandRegistry): void {
         commands.registerCommand(GlobalEntityLibraryCommand, {
-            execute: () => super.openView({ activate: false, reveal: true })
-        });
+            execute: () => this.openView({ activate: true, reveal: true }),
+        })
     }
 
     /**
@@ -64,7 +67,7 @@ export class GlobalEntityLibraryContribution extends AbstractViewContribution<Gl
      * 
      * @param menus
      */
-    registerMenus(menus: MenuModelRegistry): void {
-        super.registerMenus(menus);
+    registerMenus(_menus: MenuModelRegistry): void {
+        // RocKIT registers this command in the RO-Crate managers group.
     }
 }

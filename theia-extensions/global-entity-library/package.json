@@ -9,7 +9,10 @@
     "src"
   ],
   "dependencies": {
-    "@theia/core": "1.75.0"
+    "@theia/core": "1.65.2",
+    "@theia/filesystem": "1.65.2",
+    "antd": "^5.29.1",
+    "rockit-common": "1.0.0"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
@@ -17,15 +20,15 @@
     "@testing-library/react": "^11.2.7",
     "@types/jest": "^26.0.20",
     "jest": "^26.6.3",
+    "shx": "^0.3.3",
     "ts-node": "^10.9.1",
     "ts-jest": "^26.5.6"
   },
   "scripts": {
-    "prepare": "yarn run clean && yarn run build",
     "clean": "rimraf lib",
-    "build": "tsc",
+    "build": "tsc && yarn copy:assets",
     "watch": "tsc -w",
-    "test": "jest --config configs/jest.config.ts"
+    "copy:assets": "shx mkdir -p lib/browser && shx cp -r src/browser/style lib/browser/"
   },
   "theiaExtensions": [
     {
