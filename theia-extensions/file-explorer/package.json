@@ -1,7 +1,9 @@
 {
-  "name": "@rockit/file-explorer",
-  "version": "1.0.0",
+  "name": "@theia/navigator",
+  "version": "1.65.2",
   "description": "RocKIT file explorer extension derived from Eclipse Theia Navigator",
+  "rockitPackageName": "@rockit/file-explorer",
+  "rockitPackageVersion": "1.0.0",
   "dependencies": {
     "@theia/core": "1.65.2",
     "@theia/file-search": "1.65.2",

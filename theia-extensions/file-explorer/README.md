@@ -1,18 +1,26 @@
-# @rockit/file-explorer
+# @theia/navigator
 
 ## Description
 
 RocKIT file explorer extension.
 
-This package is a modified fork of Eclipse Theia's `@theia/navigator`
-extension. It preserves the upstream navigator behavior and adds RocKIT-specific
-RO-Crate workspace features, including RO-Crate description include/omit
-commands, ignored-file handling, data source roots, and metadata-aware filtering.
+This workspace package intentionally keeps the upstream package identity
+`@theia/navigator@1.65.2` so Theia's own transitive dependencies resolve to this
+local fork instead of installing a second upstream navigator extension.
+
+The RocKIT package identity for project documentation is `@rockit/file-explorer`
+version `1.0.0`.
+
+This package preserves the upstream navigator behavior and adds RocKIT-specific
+RO-Crate workspace features, including RO-Crate description include/omit commands,
+ignored-file handling, data source roots, and metadata-aware filtering.
 
 ## Upstream
 
 - Package: `@theia/navigator`
 - Base version: `1.65.2`
+- RocKIT name: `@rockit/file-explorer`
+- RocKIT version: `1.0.0`
 - Repository: <https://github.com/eclipse-theia/theia>
 
 ## License
