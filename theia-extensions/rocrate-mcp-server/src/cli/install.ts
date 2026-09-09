@@ -342,6 +342,16 @@ export function upsertJsonMcpConfig(
   return `${JSON.stringify(parsed, null, 2)}\n`
 }
 
+export function buildMcpConfigSection(
+  agent: Pick<DiscoveredAgent, 'id' | 'configKind'>,
+  launchConfig: InstallLaunchConfig,
+): string {
+  if (agent.configKind === 'toml') {
+    return `${buildTomlSnippet(launchConfig)}\n`
+  }
+  return upsertJsonMcpConfig('{}', agent.id, launchConfig)
+}
+
 function writeFileAtomically(filePath: string, content: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   const temporaryPath = `${filePath}.${process.pid}.tmp`
@@ -495,18 +505,19 @@ async function selectAgentWithKeyboard(
   })
 }
 
-function printConfigurationPreview(prepared: PreparedMcpConfig): void {
-  const content = prepared.updatedContent.endsWith('\n')
-    ? prepared.updatedContent
-    : `${prepared.updatedContent}\n`
+function printConfigurationPreview(
+  prepared: PreparedMcpConfig,
+  configSection: string,
+): void {
+  const content = configSection.endsWith('\n') ? configSection : `${configSection}\n`
   const action = prepared.changed
     ? 'will be written'
     : 'is already present; no write is needed'
   process.stdout.write(
-    `\nThe following complete configuration ${action} to:\n${prepared.configPath}\n\n` +
-      `----- BEGIN ${prepared.configPath} -----\n` +
+    `\nThe following MCP configuration section ${action} to:\n${prepared.configPath}\n\n` +
+      '----- BEGIN MCP SECTION -----\n' +
       content +
-      `----- END ${prepared.configPath} -----\n\n`,
+      '----- END MCP SECTION -----\n\n',
   )
 }
 
@@ -548,6 +559,7 @@ export async function runInteractiveInstall(requestedAgentId?: string): Promise<
   }
 
   const launchConfig = getInstallLaunchConfig()
+  const configSection = buildMcpConfigSection(selected, launchConfig)
   let prepared: PreparedMcpConfig
   try {
     prepared = prepareMcpConfig(selected, launchConfig)
@@ -557,7 +569,7 @@ export async function runInteractiveInstall(requestedAgentId?: string): Promise<
     )
     return 1
   }
-  printConfigurationPreview(prepared)
+  printConfigurationPreview(prepared, configSection)
   if (!prepared.changed) {
     return 0
   }

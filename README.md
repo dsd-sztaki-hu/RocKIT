@@ -68,8 +68,8 @@ To install the MCP server into a detected coding agent, run:
     rocrate-mcp-server -i
 
 Use the up/down arrows or an agent number to select the target. The installer
-shows the exact configuration and destination before confirmation; pressing
-Enter accepts the default yes. To select an agent explicitly, for example:
+shows the exact MCP section and destination before confirmation; pressing Enter
+accepts the default yes. To select an agent explicitly, for example:
 
     rocrate-mcp-server -i codex
 

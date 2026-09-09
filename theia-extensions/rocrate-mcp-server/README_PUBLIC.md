@@ -26,8 +26,7 @@ Select the AI assistant you want to use, and the installer will automatically cr
 
 The selection screen supports the up/down arrow keys as well as entering an
 agent number. Before asking for confirmation, the installer displays the exact
-complete contents it will write and the destination file. Press Enter to accept
-the default `Y`, or use an explicit agent ID when preferred:
+MCP section it will write and the destination file. Press Enter to accept, or use an explicit agent ID when preferred:
 
 ```bash
 rocrate-mcp-server -i codex
@@ -72,9 +71,8 @@ rocrate-mcp-server -i
 Itt válassza ki a használni kívánt AI-asszisztenst, és a telepítő automatikusan beállítja a szükséges konfigurációt.
 
 A választóképernyőn a fel/le nyilakkal és a sorszám megadásával is
-navigálhat. A telepítő a megerősítés előtt megmutatja a teljes, pontosan
-kiírandó konfigurációt és a célfájlt. Az Enter az alapértelmezett `Y` választ
-fogadja el. Egy adott asszisztens közvetlen kiválasztásához használható például:
+navigálhat. A telepítő a megerősítés előtt megmutatja a pontosan kiírandó MCP
+szekciót. Egy adott asszisztens közvetlen kiválasztásához használható például:
 
 ```bash
 rocrate-mcp-server -i codex

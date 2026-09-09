@@ -4,6 +4,7 @@ const os = require('node:os')
 const path = require('node:path')
 
 const {
+  buildMcpConfigSection,
   discoverInstalledAgents,
   getInstallLaunchConfig,
   isConfirmationAccepted,
@@ -48,6 +49,11 @@ assert.match(toml, /args = \["--connect", ".*rocrate-mcp-server\.sock"\]/)
 assert.match(toml, /\[mcp_servers\.rocrate\.tools\.search\]/)
 assert.doesNotMatch(toml, /command = "old"/)
 
+assert.equal(
+  buildMcpConfigSection({ id: 'codex', configKind: 'toml' }, launchConfig),
+  upsertTomlMcpConfig('', launchConfig),
+)
+
 const json = JSON.parse(
   upsertJsonMcpConfig(JSON.stringify({ existing: true }), 'gemini', launchConfig),
 )
@@ -62,12 +68,16 @@ assert.deepEqual(json.mcpServers.rocrate, {
 })
 
 const opencode = JSON.parse(upsertJsonMcpConfig('{}', 'opencode', launchConfig))
+const opencodeSection = JSON.parse(
+  buildMcpConfigSection({ id: 'opencode', configKind: 'json' }, launchConfig),
+)
 assert.deepEqual(opencode.mcp.rocrate.command, [
   'rocrate-mcp-server',
   '--connect',
   expectedSocketPath,
 ])
 assert.equal(opencode.mcp.rocrate.type, 'local')
+assert.deepEqual(opencodeSection, opencode)
 
 for (const agentId of ['claude', 'gemini', 'qwen', 'kilo', 'roo']) {
   const config = JSON.parse(upsertJsonMcpConfig('{}', agentId, launchConfig))

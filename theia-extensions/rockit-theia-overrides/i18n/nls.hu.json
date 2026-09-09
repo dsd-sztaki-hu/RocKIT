@@ -298,7 +298,17 @@
       "nodeRuntimeNotFound": "Nem található Node futtatókörnyezet az RO-Crate MCP-szerverhez.",
       "mcpNotConfiguredFor": "A RocKIT MCP még nincs beállítva ehhez: {0}.",
       "rockitWillRun": "A RocKIT a következő parancsot futtatja:",
-      "addConfigurationQuestion": "Hozzáadja most ezt a konfigurációt?"
+      "addConfigurationQuestion": "Hozzáadja most ezt a konfigurációt?",
+      "mcpSocketConflictTitle": "RocKIT MCP-ütközés",
+      "mcpSocketConflictSummary": "Már be van állítva egy „{0}” nevű MCP-szerver ehhez: {1}.",
+      "mcpSocketConflictSocketLabel": "Megosztott socket",
+      "mcpSocketConflictQuestionTitle": "Hogyan kezelje a RocKIT ezt a konfigurációt?",
+      "mcpSocketConflictQuestion": "Megtartja a jelenlegi szervert, lecseréli RocKIT-re, vagy a RocKIT-et a „{0}” néven mellé adja?",
+      "mcpSocketConflictOverwriteTitle": "RocKIT-konfiguráció — „rocrate” cseréje",
+      "mcpSocketConflictAlongsideTitle": "RocKIT-konfiguráció — hozzáadás „{0}” néven",
+      "mcpSocketConflictKeep": "Jelenlegi megtartása",
+      "mcpSocketConflictAlongside": "Hozzáadás „{0}” néven",
+      "mcpSocketConflictOverwrite": "„rocrate” cseréje"
     },
     "roCrateEditor": {
       "loadingEntity": "Entitás betöltése…",

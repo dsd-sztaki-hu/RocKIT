@@ -23,7 +23,7 @@ rocrate-mcp-server -i
 ```
 
 Use the up/down arrow keys or enter the number of the AI assistant you want to
-use. The installer shows the complete configuration and destination file before
+use. The installer shows the exact MCP section and destination file before
 asking for confirmation; pressing Enter accepts the default `Y`.
 
 To select an agent explicitly without the selection screen, pass its ID:
@@ -132,8 +132,8 @@ rocrate-mcp-server -i codex
 
 The installer detects Codex, Claude Code, OpenCode, Kilo Code, Roo Code,
 Gemini CLI, and Qwen Code. Without an agent ID, use the up/down arrow keys or
-the agent number to select one. The installer previews the exact complete
-contents and path of the file it will write, then asks `Continue? [Y/n]`; an
+the agent number to select one. The installer previews the exact MCP section
+and path of the file it will write, then asks `Continue? [Y/n]`; an
 empty answer confirms. The generated entry uses the shared RockIT daemon/proxy
 socket. Supported IDs for explicit selection are `codex`, `claude`, `opencode`,
 `kilo`, `roo`, `gemini`, and `qwen`.
