@@ -24,6 +24,19 @@ rocrate-mcp-server -i
 
 Select the AI assistant you want to use, and the installer will automatically create the required configuration.
 
+The selection screen supports the up/down arrow keys as well as entering an
+agent number. Before asking for confirmation, the installer displays the exact
+complete contents it will write and the destination file. Press Enter to accept
+the default `Y`, or use an explicit agent ID when preferred:
+
+```bash
+rocrate-mcp-server -i codex
+```
+
+Supported IDs are `codex`, `claude`, `opencode`, `kilo`, `roo`, `gemini`, and
+`qwen`. The generated configuration launches the standalone server through the
+shared per-user RockIT socket (`~/.rockit/rocrate-mcp-server.sock`).
+
 You can verify that the installation was successful by starting the AI assistant and listing the configured MCP servers. This is typically done using the `/mcp` command (for example, in Codex and Claude Code) or `/mcps` (for example, in OpenCode). The list should contain an MCP server named `rocrate` that runs the `rocrate-mcp-server` command.
 
 To use `rocrate-mcp-server`, start your AI assistant in the directory where you want to create or edit the RO-Crate. Give the assistant the appropriate instructions for creating the RO-Crate package, and it will automatically start using `rocrate-mcp-server` and follow the workflows provided by the server.
@@ -57,6 +70,20 @@ rocrate-mcp-server -i
 ```
 
 Itt válassza ki a használni kívánt AI-asszisztenst, és a telepítő automatikusan beállítja a szükséges konfigurációt.
+
+A választóképernyőn a fel/le nyilakkal és a sorszám megadásával is
+navigálhat. A telepítő a megerősítés előtt megmutatja a teljes, pontosan
+kiírandó konfigurációt és a célfájlt. Az Enter az alapértelmezett `Y` választ
+fogadja el. Egy adott asszisztens közvetlen kiválasztásához használható például:
+
+```bash
+rocrate-mcp-server -i codex
+```
+
+Az elérhető azonosítók: `codex`, `claude`, `opencode`, `kilo`, `roo`, `gemini`
+és `qwen`. A létrehozott konfiguráció a standalone szervert a közös,
+felhasználónkénti RockIT socketen (`~/.rockit/rocrate-mcp-server.sock`) keresztül
+indítja.
 
 A sikeres telepítést úgy ellenőrizheti, hogy elindítja az AI-asszisztenst, és listázza a beállított MCP-szervereket. Ehhez tipikusan az `/mcp` (például Codex és Claude Code esetében) vagy az `/mcps` (például OpenCode esetében) parancsot kell kiadni. A listában meg kell jelennie a `rocrate` nevű MCP-szervernek, amely a `rocrate-mcp-server` parancsot futtatja.
 

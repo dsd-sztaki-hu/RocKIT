@@ -22,7 +22,20 @@ To configure it for a particular AI assistant, use the interactive installer:
 rocrate-mcp-server -i
 ```
 
-Select the AI assistant you want to use, and the installer will automatically create the required configuration.
+Use the up/down arrow keys or enter the number of the AI assistant you want to
+use. The installer shows the complete configuration and destination file before
+asking for confirmation; pressing Enter accepts the default `Y`.
+
+To select an agent explicitly without the selection screen, pass its ID:
+
+```bash
+rocrate-mcp-server -i codex
+```
+
+Supported IDs are `codex`, `claude`, `opencode`, `kilo`, `roo`, `gemini`, and
+`qwen`. The generated configuration starts `rocrate-mcp-server` in proxy mode
+with `--connect` and the shared per-user RockIT socket. This lets all supported
+agents use one local daemon and dashboard.
 
 You can verify that the installation was successful by starting the AI assistant and listing the configured MCP servers. This is typically done using the `/mcp` command (for example, in Codex and Claude Code) or `/mcps` (for example, in OpenCode). The list should contain an MCP server named `rocrate` that runs the `rocrate-mcp-server` command.
 
@@ -56,7 +69,19 @@ Egy adott AI-asszisztenshez való konfiguráláshoz használja az interaktív te
 rocrate-mcp-server -i
 ```
 
-Itt válassza ki a használni kívánt AI-asszisztenst, és a telepítő automatikusan beállítja a szükséges konfigurációt.
+A használni kívánt AI-asszisztenst a fel/le nyilakkal vagy a sorszám
+megadásával választhatja ki. A telepítő a megerősítés előtt megmutatja a teljes
+konfigurációt és a célfájlt; az Enter az alapértelmezett `Y` választ fogadja el.
+
+Egy adott asszisztens közvetlen kiválasztásához adja meg az azonosítóját:
+
+```bash
+rocrate-mcp-server -i codex
+```
+
+Az elérhető azonosítók: `codex`, `claude`, `opencode`, `kilo`, `roo`, `gemini`
+és `qwen`. A létrehozott konfiguráció a `rocrate-mcp-server` programot a
+közös, felhasználónkénti RockIT socketen keresztül, proxy módban indítja.
 
 A sikeres telepítést úgy ellenőrizheti, hogy elindítja az AI-asszisztenst, és listázza a beállított MCP-szervereket. Ehhez tipikusan az `/mcp` (például Codex és Claude Code esetében) vagy az `/mcps` (például OpenCode esetében) parancsot kell kiadni. A listában meg kell jelennie a `rocrate` nevű MCP-szervernek, amely a `rocrate-mcp-server` parancsot futtatja.
 
@@ -101,18 +126,23 @@ Install the MCP server into a detected coding agent:
 
 ```bash
 rocrate-mcp-server -i
+# or select one explicitly
+rocrate-mcp-server -i codex
 ```
 
 The installer detects Codex, Claude Code, OpenCode, Kilo Code, Roo Code,
-Gemini CLI, and Qwen Code. It shows the detected agents, asks you to select
-one, previews the user configuration file it will update, and asks for
-confirmation before writing a direct stdio MCP configuration.
+Gemini CLI, and Qwen Code. Without an agent ID, use the up/down arrow keys or
+the agent number to select one. The installer previews the exact complete
+contents and path of the file it will write, then asks `Continue? [Y/n]`; an
+empty answer confirms. The generated entry uses the shared RockIT daemon/proxy
+socket. Supported IDs for explicit selection are `codex`, `claude`, `opencode`,
+`kilo`, `roo`, `gemini`, and `qwen`.
 
 Or use the recommended shared daemon/proxy topology:
 
 ```bash
-rocrate-mcp-server --ensure-daemon "$HOME/.aroma/rocrate-mcp-server.sock"
-rocrate-mcp-server --connect "$HOME/.aroma/rocrate-mcp-server.sock"
+rocrate-mcp-server --ensure-daemon "$HOME/.rockit/rocrate-mcp-server.sock"
+rocrate-mcp-server --connect "$HOME/.rockit/rocrate-mcp-server.sock"
 ```
 
 Example MCP client configuration for a global install:
@@ -124,8 +154,12 @@ Example MCP client configuration for a global install:
       "command": "rocrate-mcp-server",
       "args": [
         "--connect",
-        "/Users/<you>/.aroma/rocrate-mcp-server.sock"
-      ]
+        "/Users/<you>/.rockit/rocrate-mcp-server.sock"
+      ],
+      "env": {
+        "ROCRATE_MCP_DEFAULT_MODE": "local",
+        "ROCRATE_DASHBOARD_LOCALE": "en"
+      }
     }
   }
 }
@@ -183,10 +217,10 @@ npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-serv
 rocrate-mcp-server
 ```
 
-For the current `1.0.2` package version, run this from the repository root:
+For the current `1.0.3` package version, run this from the repository root:
 
 ```bash
-npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-1.0.2.tgz
+npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-1.0.3.tgz
 ```
 
 To publish to npm, publish the generated package directory:
@@ -228,7 +262,7 @@ and have each agent connect through proxy mode:
    ```
    Or, from a workspace build:
    ```bash
-   node /absolute/path/to/rocrate-mcp-server/lib/server.js --ensure-daemon /Users/<you>/.aroma/rocrate-mcp-server.sock
+   node /absolute/path/to/rocrate-mcp-server/lib/server.js --ensure-daemon /Users/<you>/.rockit/rocrate-mcp-server.sock
    ```
 2. Configure each MCP client to launch:
    ```bash
@@ -641,19 +675,20 @@ Shared daemon:
 
 ```bash
 # Start daemon explicitly
-node /absolute/path/to/rocrate-mcp-server/lib/server.js --listen /Users/<you>/.aroma/rocrate-mcp-server.sock
+node /absolute/path/to/rocrate-mcp-server/lib/server.js --listen /Users/<you>/.rockit/rocrate-mcp-server.sock
 
 # Or start only if needed
-node /absolute/path/to/rocrate-mcp-server/lib/server.js --ensure-daemon /Users/<you>/.aroma/rocrate-mcp-server.sock
+node /absolute/path/to/rocrate-mcp-server/lib/server.js --ensure-daemon /Users/<you>/.rockit/rocrate-mcp-server.sock
 
 # Per-agent proxy client
-node /absolute/path/to/rocrate-mcp-server/lib/server.js --connect /Users/<you>/.aroma/rocrate-mcp-server.sock
+node /absolute/path/to/rocrate-mcp-server/lib/server.js --connect /Users/<you>/.rockit/rocrate-mcp-server.sock
 ```
 
 ## Environment variables
 
 ### Server Configuration
 - `ROCRATE_MCP_DEFAULT_MODE` (optional): default mode if tool arg omitted (`local` or `remote`).
+- `ROCKIT_ROCRATE_MCP_SOCKET_PATH` (optional): override the shared daemon socket used by the installer and proxy configuration (default `~/.rockit/rocrate-mcp-server.sock` on macOS/Linux).
 
 ### External Services
 - `TAVILY_API_KEY`: Tavily key for `search`.
@@ -695,24 +730,25 @@ For workspace development, replace the command with `node` and put
 ```toml
 [mcp_servers.rocrate]
 command = "/absolute/path/to/node"
-args = ["/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"]
+args = ["/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.rockit/rocrate-mcp-server.sock"]
 startup_timeout_sec = 30
-env = { ROCRATE_MCP_DEFAULT_MODE = "local" }
+env = { ROCRATE_MCP_DEFAULT_MODE = "local", ROCRATE_DASHBOARD_LOCALE = "en" }
 ```
 
-If you do not run a shared daemon, fallback to direct stdio by removing
-`--connect` and socket args.
+The installer uses the same shared-daemon proxy configuration with the global
+`rocrate-mcp-server` command. A direct stdio configuration is still available
+for manual troubleshooting, but it starts a separate local session per agent.
 
 ### Claude Code
 
 Prefer CLI-based setup:
 
 ```bash
-claude mcp add-json -s user rocrate '{"type":"stdio","command":"rocrate-mcp-server","args":["--connect","/Users/<you>/.aroma/rocrate-mcp-server.sock"],"env":{"ROCRATE_MCP_DEFAULT_MODE":"local"}}'
+claude mcp add-json -s user rocrate '{"type":"stdio","command":"rocrate-mcp-server","args":["--connect","/Users/<you>/.rockit/rocrate-mcp-server.sock"],"env":{"ROCRATE_MCP_DEFAULT_MODE":"local","ROCRATE_DASHBOARD_LOCALE":"en"}}'
 ```
 
 For shared daemon mode, set args to:
-`["/absolute/path/to/rocrate-mcp-server/lib/server.js","--connect","/Users/<you>/.aroma/rocrate-mcp-server.sock"]`
+`["/absolute/path/to/rocrate-mcp-server/lib/server.js","--connect","/Users/<you>/.rockit/rocrate-mcp-server.sock"]`
 
 Then verify:
 
@@ -729,9 +765,10 @@ Gemini CLI uses `mcpServers` in settings JSON (user-level `~/.gemini/settings.js
   "mcpServers": {
     "rocrate": {
       "command": "/absolute/path/to/node",
-      "args": ["/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"],
+      "args": ["/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.rockit/rocrate-mcp-server.sock"],
       "env": {
-        "ROCRATE_MCP_DEFAULT_MODE": "local"
+        "ROCRATE_MCP_DEFAULT_MODE": "local",
+        "ROCRATE_DASHBOARD_LOCALE": "en"
       }
     }
   }
@@ -747,9 +784,10 @@ Qwen Code can use the same `mcpServers` JSON shape as Gemini-style clients.
   "mcpServers": {
     "rocrate": {
       "command": "/absolute/path/to/node",
-      "args": ["/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"],
+      "args": ["/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.rockit/rocrate-mcp-server.sock"],
       "env": {
-        "ROCRATE_MCP_DEFAULT_MODE": "local"
+        "ROCRATE_MCP_DEFAULT_MODE": "local",
+        "ROCRATE_DASHBOARD_LOCALE": "en"
       }
     }
   }
@@ -766,9 +804,10 @@ OpenCode expects `mcp` (not `mcpServers`):
     "rocrate": {
       "type": "local",
       "enabled": true,
-      "command": ["/absolute/path/to/node", "/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.aroma/rocrate-mcp-server.sock"],
+      "command": ["/absolute/path/to/node", "/absolute/path/to/rocrate-mcp-server/lib/server.js", "--connect", "/Users/<you>/.rockit/rocrate-mcp-server.sock"],
       "environment": {
-        "ROCRATE_MCP_DEFAULT_MODE": "local"
+        "ROCRATE_MCP_DEFAULT_MODE": "local",
+        "ROCRATE_DASHBOARD_LOCALE": "en"
       }
     }
   }

@@ -9,6 +9,7 @@ import {
   type DefaultRoCrateWorkspaceAdapter,
 } from 'rockit-common/lib/common/default-ro-crate'
 import { DEFAULT_REGISTERED_SCHEMAS } from 'rocrate-context-core'
+import { parseInstallAgentId, runInteractiveInstall } from './cli/install'
 import {
   applyChangeSet,
   normalizeCrate,
@@ -39,14 +40,13 @@ import { CHANGE_SET_ALLOWED_KEYS, tools } from './server/tool-definitions'
 import { createToolDispatcher } from './server/tool-dispatcher'
 import { startServerWithTransports } from './server/transports'
 import type { AccessMode, ProfileResolutionInputs } from './server/types'
-import { createWebHandlers } from './server/web'
-import { runInteractiveInstall } from './cli/install'
 import {
   formatStartupVersion,
   formatVersionInfo,
   getBuildInfo,
   isVersionRequest,
 } from './server/version'
+import { createWebHandlers } from './server/web'
 
 /**
  * rocrate-mcp-server architecture (single-file entrypoint)
@@ -362,7 +362,10 @@ async function runCreateDefaultRoCrate(
 
   let ignoredFilePath: string | undefined
   if (result.ignoredFile) {
-    const ignoredDirectoryPath = path.join(directoryPath, result.ignoredFile.directoryPath)
+    const ignoredDirectoryPath = path.join(
+      directoryPath,
+      result.ignoredFile.directoryPath,
+    )
     ignoredFilePath = path.join(directoryPath, result.ignoredFile.filePath)
     fs.mkdirSync(ignoredDirectoryPath, { recursive: true })
     fs.writeFileSync(ignoredFilePath, result.ignoredFile.payload, 'utf8')
@@ -416,7 +419,9 @@ function assertExistingDirectory(directoryPath: string): string {
   return directoryPath
 }
 
-function createNodeDefaultRoCrateAdapter(rootPath: string): DefaultRoCrateWorkspaceAdapter {
+function createNodeDefaultRoCrateAdapter(
+  rootPath: string,
+): DefaultRoCrateWorkspaceAdapter {
   const normalizePath = (value: string): string => value.replace(/\\/g, '/')
   const absolutePathFor = (relativePath: string): string =>
     relativePath ? path.join(rootPath, relativePath) : rootPath
@@ -434,7 +439,7 @@ function createNodeDefaultRoCrateAdapter(rootPath: string): DefaultRoCrateWorksp
           return {
             name: entry.name,
             relativePath: normalizePath(path.relative(rootPath, absoluteChildPath)),
-            kind: entry.isDirectory() ? 'directory' as const : 'file' as const,
+            kind: entry.isDirectory() ? ('directory' as const) : ('file' as const),
             size: stat.size,
             mtimeMs: stat.mtimeMs,
           }
@@ -779,8 +784,12 @@ function main(): void {
     process.stdout.write(`${formatVersionInfo(getBuildInfo())}\n`)
     return
   }
-  if (args.includes('-i') || args.includes('--install')) {
-    void runInteractiveInstall().then((exitCode) => {
+  if (
+    args.includes('-i') ||
+    args.includes('--install') ||
+    args.some((arg) => arg.startsWith('-i=') || arg.startsWith('--install='))
+  ) {
+    void runInteractiveInstall(parseInstallAgentId(args)).then((exitCode) => {
       process.exitCode = exitCode
     })
     return
