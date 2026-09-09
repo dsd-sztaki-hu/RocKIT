@@ -39,6 +39,7 @@ import {
   deleteCedarProvider,
   type CedarProvider,
 } from 'metadata-profile-core'
+import { DEFAULT_DATAVERSE_BASE_URL } from '../server/dataverse-defaults'
 
 declare const __dirname: string
 
@@ -55,7 +56,6 @@ function resolveStaticRoot(): string {
 }
 
 const STATIC_DIR = resolveStaticRoot()
-const DEFAULT_DATAVERSE_BASE_URL = 'http://localhost:8080'
 type AccessMode = 'local' | 'remote'
 
 type SchemaRegistryStore = {

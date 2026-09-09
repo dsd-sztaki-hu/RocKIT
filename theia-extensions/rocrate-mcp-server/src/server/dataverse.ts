@@ -10,6 +10,7 @@ import type {
   DataverseUploadParams,
   ProfileResolutionInputs,
 } from './types'
+import { getServerUserAgent } from './version'
 
 type DataverseDeps = {
   defaultBaseUrl: string
@@ -1275,7 +1276,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
     const headers: Record<string, string> = {
       'content-type': 'application/json',
       accept: 'application/json',
-      'user-agent': 'rocrate-mcp-server/0.0.0',
+      'user-agent': getServerUserAgent(),
     }
     if (apiKey) {
       headers['x-dataverse-key'] = apiKey
@@ -1419,7 +1420,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
           accept: 'application/json',
           'content-length': String(multipart.contentLength),
           'content-type': `multipart/form-data; boundary=${boundary}`,
-          'user-agent': 'rocrate-mcp-server/0.0.0',
+          'user-agent': getServerUserAgent(),
         }
         if (params.apiKey) {
           headers['x-dataverse-key'] = params.apiKey
@@ -1438,7 +1439,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
         const headers: Record<string, string> = {
           'content-type': 'application/json',
           accept: 'application/json',
-          'user-agent': 'rocrate-mcp-server/0.0.0',
+          'user-agent': getServerUserAgent(),
         }
         if (params.apiKey) {
           headers['x-dataverse-key'] = params.apiKey
@@ -1534,7 +1535,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
     }
     const headers: Record<string, string> = {
       accept: 'application/json',
-      'user-agent': 'rocrate-mcp-server/0.0.0',
+      'user-agent': getServerUserAgent(),
     }
     if (params.apiKey) {
       headers['x-dataverse-key'] = params.apiKey

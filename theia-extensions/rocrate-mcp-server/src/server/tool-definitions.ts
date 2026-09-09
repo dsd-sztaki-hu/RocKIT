@@ -1,3 +1,4 @@
+import { DEFAULT_DATAVERSE_BASE_URL } from './dataverse-defaults'
 import type { ToolDefinition } from './types'
 
 export const CHANGE_SET_ALLOWED_KEYS = new Set<string>([
@@ -279,7 +280,7 @@ export const tools: ToolDefinition[] = [
         baseUrl: {
           type: 'string',
           description:
-            'Optional Dataverse base URL. Defaults to DATAVERSE_BASE_URL or http://localhost:8080.',
+            `Optional Dataverse base URL. Defaults to DATAVERSE_BASE_URL or ${DEFAULT_DATAVERSE_BASE_URL}.`,
         },
         ownerId: {
           type: 'string',
@@ -331,7 +332,7 @@ export const tools: ToolDefinition[] = [
         baseUrl: {
           type: 'string',
           description:
-            'Optional Dataverse base URL. Defaults to DATAVERSE_BASE_URL or http://localhost:8080.',
+            `Optional Dataverse base URL. Defaults to DATAVERSE_BASE_URL or ${DEFAULT_DATAVERSE_BASE_URL}.`,
         },
         apiKey: { type: 'string', description: 'Optional X-Dataverse-key override.' },
         timeoutMs: { type: 'number' },

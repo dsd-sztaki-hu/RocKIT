@@ -47,6 +47,9 @@ async function main() {
     target: 'node18',
     format: 'cjs',
     sourcemap: true,
+    define: {
+      'process.env.ROCRATE_MCP_RELEASE_BUILD': JSON.stringify('true'),
+    },
     external: [
       // Optional native module used only for secure provider credentials.
       'keytar',
@@ -85,12 +88,14 @@ async function main() {
   })
 
   const packageJson = readJson(path.join(packageRoot, 'package.json'))
+  const buildDate = process.env.ROCRATE_MCP_BUILD_DATE || new Date().toISOString()
   fs.writeFileSync(
     path.join(outRoot, 'package.json'),
     `${JSON.stringify(
       {
         name: packageJson.name,
         version: packageJson.version,
+        buildDate,
         description: packageJson.description,
         main: 'lib/server.js',
         bin: {
@@ -104,6 +109,11 @@ async function main() {
       2,
     )}\n`,
     'utf8',
+  )
+
+  fs.copyFileSync(
+    path.join(packageRoot, 'README_PUBLIC.md'),
+    path.join(outRoot, 'README.md'),
   )
 }
 

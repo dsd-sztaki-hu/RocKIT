@@ -24,6 +24,7 @@ import { startDashboardIfNeeded } from './dashboard/http-server'
 import { createContextReconciliationHelpers } from './server/context-reconciliation'
 import { createCrateOpsHelpers } from './server/crate-ops'
 import { createDataverseHandlers } from './server/dataverse'
+import { DEFAULT_DATAVERSE_BASE_URL } from './server/dataverse-defaults'
 import { createMetadataProfileHandlers } from './server/metadata-profiles'
 import { createOntologyHelpers } from './server/ontology'
 import { createProfileContextStore } from './server/profile-context'
@@ -39,6 +40,13 @@ import { createToolDispatcher } from './server/tool-dispatcher'
 import { startServerWithTransports } from './server/transports'
 import type { AccessMode, ProfileResolutionInputs } from './server/types'
 import { createWebHandlers } from './server/web'
+import { runInteractiveInstall } from './cli/install'
+import {
+  formatStartupVersion,
+  formatVersionInfo,
+  getBuildInfo,
+  isVersionRequest,
+} from './server/version'
 
 /**
  * rocrate-mcp-server architecture (single-file entrypoint)
@@ -61,7 +69,6 @@ const DEFAULT_SCHEMA_INDEX_FILENAME = 'metadata-schema-index.json'
 const DEFAULT_PROFILE_CONTEXT_TTL_SEC = 3600
 const DEFAULT_SUMMARY_ISSUE_LIMIT = 10
 const DEFAULT_SUMMARY_ENTITY_ID_LIMIT = 10
-const DEFAULT_DATAVERSE_BASE_URL = 'http://localhost:8080'
 const DEFAULT_DATAVERSE_OWNER_ID = 'root'
 const DEFAULT_DATAVERSE_VALIDATE_PATH = '/api/arp/validateRoCrate'
 const BASE_ALLOWED_PROPERTIES = new Set<string>([
@@ -738,6 +745,7 @@ write_crate_atomic also supports contextMode auto context reconciliation (defaul
  * Handles start server.
  */
 async function startServer(): Promise<void> {
+  process.stderr.write(`${formatStartupVersion(getBuildInfo())}\n`)
   await startServerWithTransports({
     tools,
     instructions: getMcpServerInstructions(),
@@ -765,4 +773,20 @@ async function startServer(): Promise<void> {
   })
 }
 
-void startServer()
+function main(): void {
+  const args = process.argv.slice(2)
+  if (isVersionRequest(args)) {
+    process.stdout.write(`${formatVersionInfo(getBuildInfo())}\n`)
+    return
+  }
+  if (args.includes('-i') || args.includes('--install')) {
+    void runInteractiveInstall().then((exitCode) => {
+      process.exitCode = exitCode
+    })
+    return
+  }
+
+  void startServer()
+}
+
+main()
