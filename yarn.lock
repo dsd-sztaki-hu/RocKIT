@@ -5620,6 +5620,17 @@
     tslib "^2.6.2"
     webpack "^5.76.0"
 
+"@theia/navigator@1.65.2":
+  version "1.65.2"
+  resolved "https://registry.yarnpkg.com/@theia/navigator/-/navigator-1.65.2.tgz#8da7ad84b0ecb82cdc2ea65a3a9b77f009eff69c"
+  integrity sha512-AaGa2/bYB3oyaF57yGNSCq+nxcpPkw9nXD2FLG7Y2A/zRI7qD0YB/M1Yq2dkjVXL/8nyhwVTVA+7OtD+R1CAfg==
+  dependencies:
+    "@theia/core" "1.65.2"
+    "@theia/filesystem" "1.65.2"
+    "@theia/workspace" "1.65.2"
+    minimatch "^10.0.3"
+    tslib "^2.6.2"
+
 "@theia/notebook@1.65.2":
   version "1.65.2"
   resolved "https://registry.yarnpkg.com/@theia/notebook/-/notebook-1.65.2.tgz#f94596c8dfca38fd21a012c1c54f0f5ee99c501e"

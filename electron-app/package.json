@@ -33,7 +33,7 @@
     "data-sources": "1.0.0",
     "entities-overview": "1.0.0",
     "package-ro-crate": "1.0.0",
-    "@theia/navigator": "1.65.2",
+    "@rockit/file-explorer": "1.0.0",
     "file-preview": "0.0.0",
     "metadata-schema-manager": "1.0.0",
     "open-editors": "1.0.0",
