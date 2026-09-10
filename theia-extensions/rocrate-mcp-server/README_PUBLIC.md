@@ -64,6 +64,11 @@ shutdown of the shared MCP daemon and closes active MCP connections.
 
 `rocrate-mcp-server` can also upload the dataset to ARP Dataverse; simply ask your assistant to do so. For uploads to work, set the `DATAVERSE_API_KEY` environment variable. You can get it from https://repo.researchdata.hu/dataverseuser.xhtml?selectTab=apiTokenTab. The assistant will also ask for this value if they have not been configured.
 
+The dashboard Settings page lets you enter or override the `TAVILY_API_KEY`,
+`DATAVERSE_BASE_URL`, and `DATAVERSE_API_KEY` values for the running MCP
+process. Environment variables remain the defaults; dashboard overrides are
+held in memory until the process restarts, and can be cleared from Settings.
+
 ## Első lépések
 
 Az `@arpproject/rocrate-mcp-server` segítségével MCP-kompatibilis AI-asszisztenseket használva egyszerűen hozhatók létre RO-Crate csomagok, amelyeket aztán az ARP rendszerébe is fel lehet tölteni.
@@ -125,3 +130,9 @@ A szerver helyi vezérlőpultot is biztosít a MCP-tevékenység megfigyeléséh
 közös MCP démont, és bezárja az aktív MCP-kapcsolatokat.
 
 A `rocrate-mcp-server` használatával az adatcsomag az ARP Dataverse-be is feltölthető; ehhez csak kérje meg az asszisztenst. A feltöltéshez állítsa be a `DATAVERSE_API_KEY` környezeti változót. Ezt a https://repo.researchdata.hu/dataverseuser.xhtml?selectTab=apiTokenTab oldalon tudja beszerezbi. Ha nincs ez a környezeti változó beállítba asszisztens is bekérheti.
+
+A vezérlőpult Beállítások oldala lehetővé teszi a `TAVILY_API_KEY`,
+`DATAVERSE_BASE_URL` és `DATAVERSE_API_KEY` értékek megadását vagy felülírását
+az éppen futó MCP-folyamatban. Alapértelmezés szerint a környezeti változók
+használatosak; a vezérlőpult felülírásai újraindításig memóriában maradnak, és a
+Beállítások oldalon törölhetők.

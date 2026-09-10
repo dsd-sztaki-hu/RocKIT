@@ -5,6 +5,7 @@ import * as path from 'node:path'
 import { Readable } from 'node:stream'
 import { validateCrate } from '../core'
 import type { RoCrate, RoCrateEntity } from '../core/types'
+import { getRuntimeEnvValue } from './runtime-config'
 import type {
   DataverseDownloadParams,
   DataverseUploadParams,
@@ -218,7 +219,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
   function resolveDataverseBaseUrl(value: unknown): string {
     const raw =
       readOptionalStringParam(value) ??
-      readOptionalStringParam(process.env.DATAVERSE_BASE_URL) ??
+      getRuntimeEnvValue('DATAVERSE_BASE_URL') ??
       deps.defaultBaseUrl
     return raw.replace(/\/+$/, '')
   }
@@ -240,7 +241,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
   function resolveDataverseApiKey(value: unknown): string | undefined {
     return (
       readOptionalStringParam(value) ??
-      readOptionalStringParam(process.env.DATAVERSE_API_KEY)
+      getRuntimeEnvValue('DATAVERSE_API_KEY')
     )
   }
 

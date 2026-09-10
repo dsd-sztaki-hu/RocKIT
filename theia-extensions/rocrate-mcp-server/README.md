@@ -357,12 +357,19 @@ The RO-Crate MCP server includes a built-in web dashboard for real-time monitori
 - **Tool call details**: Inspect parameters and results (with detailed logging enabled)
 - **Error tracking**: Recent errors with timestamps and stack traces
 - **Dependency monitoring**: External service call tracking (Tavily, Dataverse)
-- **Runtime configuration**: Toggle detailed logging and adjust retention settings
+- **Runtime configuration**: Toggle detailed logging, adjust retention settings, and override external service settings
 - **Daemon control**: Request a graceful MCP shutdown from the dashboard
 
 ### Accessing the Dashboard
 
 By default, the dashboard starts automatically at `http://127.0.0.1:9393`. Open this URL in your browser to view the dashboard. The **Shut down MCP** button requests a graceful shutdown of the MCP daemon and closes active MCP connections.
+
+The Settings page can override `TAVILY_API_KEY`, `DATAVERSE_BASE_URL`, and
+`DATAVERSE_API_KEY` for the running MCP process. Values from the dashboard take
+precedence over the corresponding environment variables. Leave the dashboard
+override cleared to use the environment value again. These overrides are held
+in memory and return to the environment defaults when the MCP process restarts;
+secret values are never returned by the dashboard API.
 
 Notes:
 - Sessions are connection-scoped: each active `--connect` client appears as a
@@ -713,6 +720,11 @@ node /absolute/path/to/rocrate-mcp-server/lib/server.js --connect /Users/<you>/.
 - `DATAVERSE_OWNER_ID` (optional): owner ID for new uploads (default `root`).
 - `DATAVERSE_API_KEY` (optional): API key used as `X-Dataverse-key` header.
 - `ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS` (optional): keep temporary Dataverse upload ZIPs for debugging.
+
+`TAVILY_API_KEY`, `DATAVERSE_BASE_URL`, and `DATAVERSE_API_KEY` can also be
+changed at runtime from the dashboard Settings page. A dashboard value takes
+precedence over the environment variable for the current process only; clear
+the dashboard override to restore the environment fallback.
 
 ### Profile Resolution
 - `ROCKIT_ROOT_PATH` (optional): shared base directory for schema index/profile files (default `~/.rockit`).

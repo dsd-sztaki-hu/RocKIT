@@ -13,6 +13,7 @@ async function testHttpServer() {
 
   const originalDataverseBaseUrl = process.env.DATAVERSE_BASE_URL
   const originalDataverseApiKey = process.env.DATAVERSE_API_KEY
+  const originalTavilyApiKey = process.env.TAVILY_API_KEY
   const originalKeepUploadZips = process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
   const originalDashboardPort = process.env.ROCRATE_DASHBOARD_PORT
   const originalDashboardEnabled = process.env.ROCRATE_DASHBOARD_ENABLED
@@ -26,6 +27,7 @@ async function testHttpServer() {
   const originalAromaProviderKeytarService = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
   process.env.DATAVERSE_BASE_URL = 'https://dataverse.example.test/'
   process.env.DATAVERSE_API_KEY = 'test-dataverse-key'
+  process.env.TAVILY_API_KEY = 'test-tavily-key'
   delete process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
   delete process.env.ROCRATE_DASHBOARD_ENABLED
   delete process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED
@@ -34,6 +36,13 @@ async function testHttpServer() {
   const { TelemetryCollector } = await import('../lib/dashboard/collector.js')
   const { DashboardHttpServer } = await import('../lib/dashboard/http-server.js')
   const { registerLocalFileForAroma } = await import('../lib/dashboard/local-file-bridge.js')
+  const { createWebHandlers } = await import('../lib/server/web.js')
+  const { createDataverseHandlers } = await import('../lib/server/dataverse.js')
+  const {
+    clearRuntimeEnvOverrides,
+    getRuntimeEnvValue,
+  } = await import('../lib/server/runtime-config.js')
+  clearRuntimeEnvOverrides()
 
   // Create a collector with some test data
   const collector = new TelemetryCollector({
@@ -301,18 +310,89 @@ async function testHttpServer() {
       'https://dataverse.example.test',
     )
     assert.strictEqual(configData.dataverse.baseUrlSource, 'env')
-    assert.strictEqual(configData.dataverse.apiKey, 'test-dataverse-key')
+    assert.strictEqual(configData.dataverse.apiKeyPresent, true)
+    assert.strictEqual(Object.hasOwn(configData.dataverse, 'apiKey'), false)
     assert.strictEqual(configData.dataverse.apiKeySource, 'env')
+    assert.strictEqual(configData.tavily.apiKeyPresent, true)
+    assert.strictEqual(configData.tavily.apiKeySource, 'env')
     assert.strictEqual(configData.keepDataverseUploadZips, false)
     const configUpdateResp = await requestWithBody('POST', '/config', {
       detailedToolCallLogging: true,
       keepDataverseUploadZips: true,
       retentionHours: 2,
+      TAVILY_API_KEY: 'dashboard-tavily-key',
+      DATAVERSE_BASE_URL: 'https://dashboard.example.test/',
+      DATAVERSE_API_KEY: 'dashboard-dataverse-key',
     })
     assert.strictEqual(configUpdateResp.status, 200)
     const configUpdateData = JSON.parse(configUpdateResp.data)
     assert.strictEqual(configUpdateData.config.keepDataverseUploadZips, true)
     assert.strictEqual(process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS, 'true')
+    assert.strictEqual(configUpdateData.config.dataverse.baseUrl, 'https://dashboard.example.test')
+    assert.strictEqual(configUpdateData.config.dataverse.baseUrlSource, 'dashboard')
+    assert.strictEqual(configUpdateData.config.dataverse.apiKeyPresent, true)
+    assert.strictEqual(configUpdateData.config.dataverse.apiKeySource, 'dashboard')
+    assert.strictEqual(configUpdateData.config.tavily.apiKeyPresent, true)
+    assert.strictEqual(configUpdateData.config.tavily.apiKeySource, 'dashboard')
+    assert.strictEqual(JSON.stringify(configUpdateData).includes('dashboard-tavily-key'), false)
+    assert.strictEqual(JSON.stringify(configUpdateData).includes('dashboard-dataverse-key'), false)
+    assert.strictEqual(getRuntimeEnvValue('TAVILY_API_KEY'), 'dashboard-tavily-key')
+    assert.strictEqual(getRuntimeEnvValue('DATAVERSE_BASE_URL'), 'https://dashboard.example.test/')
+    assert.strictEqual(getRuntimeEnvValue('DATAVERSE_API_KEY'), 'dashboard-dataverse-key')
+
+    const webHandlers = createWebHandlers({ getTelemetryCollector: () => null })
+    const originalFetch = global.fetch
+    let tavilyRequestBody
+    global.fetch = async (_url, init) => {
+      tavilyRequestBody = JSON.parse(init.body)
+      return new Response('{"results":[]}', { status: 200 })
+    }
+    try {
+      await webHandlers.runWebSearch({
+        query: 'dashboard override test',
+        maxResults: 1,
+        includeRawContent: false,
+        searchDepth: 'basic',
+      })
+    } finally {
+      global.fetch = originalFetch
+    }
+    assert.strictEqual(tavilyRequestBody.api_key, 'dashboard-tavily-key')
+
+    const dataverseHandlers = createDataverseHandlers({
+      defaultBaseUrl: 'https://default.example.test',
+      defaultOwnerId: 'root',
+      defaultValidatePath: '/tmp/validate.js',
+      rocrateConformsToUrl: 'https://w3id.org/ro/crate/1.1',
+      externalContextCoverageUrls: new Set(),
+      loadCrateFromParams: () => ({ mode: 'remote', crate: {} }),
+      parseAccessMode: () => 'remote',
+      ensureCratePath: () => '/tmp/ro-crate-metadata.json',
+      parseResponseMode: () => 'summary',
+      parseProfileResolutionInputs: () => ({}),
+      writeCrateAtomic: () => {},
+      ensureProfileConformanceOrThrow: () => ({}),
+      buildContextTermSuggestion: () => ({ missingTerms: [] }),
+      uniqueStrings: (values) => values,
+      getTelemetryCollector: () => null,
+    })
+    const parsedDataverse = dataverseHandlers.parseDataverseDownloadParams({ pid: 'doi:test' })
+    assert.strictEqual(parsedDataverse.baseUrl, 'https://dashboard.example.test')
+    assert.strictEqual(parsedDataverse.apiKey, 'dashboard-dataverse-key')
+
+    const clearCredentialOverridesResp = await requestWithBody('POST', '/config', {
+      TAVILY_API_KEY: null,
+      DATAVERSE_BASE_URL: null,
+      DATAVERSE_API_KEY: null,
+    })
+    assert.strictEqual(clearCredentialOverridesResp.status, 200)
+    const clearCredentialOverridesData = JSON.parse(clearCredentialOverridesResp.data)
+    assert.strictEqual(clearCredentialOverridesData.config.dataverse.baseUrlSource, 'env')
+    assert.strictEqual(clearCredentialOverridesData.config.dataverse.apiKeySource, 'env')
+    assert.strictEqual(clearCredentialOverridesData.config.tavily.apiKeySource, 'env')
+    assert.strictEqual(getRuntimeEnvValue('TAVILY_API_KEY'), 'test-tavily-key')
+    assert.strictEqual(getRuntimeEnvValue('DATAVERSE_BASE_URL'), 'https://dataverse.example.test/')
+    assert.strictEqual(getRuntimeEnvValue('DATAVERSE_API_KEY'), 'test-dataverse-key')
 
     // Test metadata profile endpoints
     console.log('  Testing /metadata-profiles endpoints...')
@@ -520,6 +600,7 @@ async function testHttpServer() {
   } finally {
     // Stop the dashboard server
     await dashboard.stop()
+    clearRuntimeEnvOverrides()
     if (originalDataverseBaseUrl === undefined) {
       delete process.env.DATAVERSE_BASE_URL
     } else {
@@ -529,6 +610,11 @@ async function testHttpServer() {
       delete process.env.DATAVERSE_API_KEY
     } else {
       process.env.DATAVERSE_API_KEY = originalDataverseApiKey
+    }
+    if (originalTavilyApiKey === undefined) {
+      delete process.env.TAVILY_API_KEY
+    } else {
+      process.env.TAVILY_API_KEY = originalTavilyApiKey
     }
     if (originalKeepUploadZips === undefined) {
       delete process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS

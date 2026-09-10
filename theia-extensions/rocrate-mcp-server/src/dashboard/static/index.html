@@ -270,6 +270,7 @@
             <div class="settings-section-header">
               <h3>Dataverse Upload Tool</h3>
             </div>
+            <p class="settings-help"><span>Environment variables are used by default. Values entered here override them for the current MCP process only.</span> <span>Select “Use environment/default value” to clear a dashboard override.</span></p>
             <div class="setting-row">
               <label class="setting-label">
                 <strong>Keep RO-Crate ZIPs</strong>
@@ -287,8 +288,12 @@
                 <strong>DATAVERSE_BASE_URL</strong>
                 <span class="setting-description" id="dataverseBaseUrlSource">Loading...</span>
               </label>
-              <div class="setting-control setting-value">
-                <code id="dataverseBaseUrlValue">Loading...</code>
+              <div class="setting-control setting-credential-control">
+                <input type="url" id="dataverseBaseUrlInput" class="text-input" autocomplete="url" placeholder="https://dataverse.example">
+                <label class="setting-reset">
+                  <input type="checkbox" id="dataverseBaseUrlUseEnv">
+                  Use environment/default value
+                </label>
               </div>
             </div>
             <div class="setting-row">
@@ -296,8 +301,32 @@
                 <strong>DATAVERSE_API_KEY</strong>
                 <span class="setting-description" id="dataverseApiKeySource">Loading...</span>
               </label>
-              <div class="setting-control setting-value">
-                <code id="dataverseApiKeyValue">Loading...</code>
+              <div class="setting-control setting-credential-control">
+                <input type="password" id="dataverseApiKeyInput" class="text-input" autocomplete="new-password" placeholder="Enter a new dashboard override">
+                <label class="setting-reset">
+                  <input type="checkbox" id="dataverseApiKeyUseEnv">
+                  Use environment value
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <div class="settings-section-header">
+              <h3>Web Search Tool</h3>
+            </div>
+            <p class="settings-help"><span>Configure the Tavily API key used by the</span> <code>search</code> <span>tool.</span> <span>The value is never displayed after it is saved.</span></p>
+            <div class="setting-row">
+              <label class="setting-label">
+                <strong>TAVILY_API_KEY</strong>
+                <span class="setting-description" id="tavilyApiKeySource">Loading...</span>
+              </label>
+              <div class="setting-control setting-credential-control">
+                <input type="password" id="tavilyApiKeyInput" class="text-input" autocomplete="new-password" placeholder="Enter a new dashboard override">
+                <label class="setting-reset">
+                  <input type="checkbox" id="tavilyApiKeyUseEnv">
+                  Use environment value
+                </label>
               </div>
             </div>
           </section>

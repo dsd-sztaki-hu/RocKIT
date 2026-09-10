@@ -621,6 +621,18 @@ body {
   color: var(--color-text);
 }
 
+.settings-help {
+  margin: 0 0 var(--spacing-sm) 0;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.settings-help code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
 .setting-row {
   display: flex;
   justify-content: space-between;
@@ -651,6 +663,32 @@ body {
   align-items: center;
   gap: var(--spacing-sm);
   min-width: 0;
+}
+
+.setting-credential-control {
+  flex: 1;
+  min-width: 280px;
+  max-width: 390px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-xs);
+}
+
+.setting-credential-control .text-input {
+  width: 100%;
+}
+
+.setting-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.setting-reset input {
+  accent-color: var(--color-primary);
 }
 
 .setting-value {

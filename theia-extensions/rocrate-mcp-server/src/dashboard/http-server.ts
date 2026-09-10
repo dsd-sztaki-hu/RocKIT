@@ -22,6 +22,13 @@ import {
   saveCedarProvider,
 } from 'metadata-profile-core'
 import { DEFAULT_DATAVERSE_BASE_URL } from '../server/dataverse-defaults'
+import {
+  getRuntimeEnvOverride,
+  getRuntimeEnvValue,
+  RUNTIME_ENV_KEYS,
+  type RuntimeEnvKey,
+  setRuntimeEnvOverride,
+} from '../server/runtime-config'
 import type {
   RegisterSchemaInput,
   SchemaRegistryEntry,
@@ -141,20 +148,49 @@ function readOptionalEnv(name: string): string | undefined {
   return trimmed === '' ? undefined : trimmed
 }
 
+function getRuntimeEnvSource(key: RuntimeEnvKey): 'dashboard' | 'env' | 'unset' {
+  if (getRuntimeEnvOverride(key) !== undefined) {
+    return 'dashboard'
+  }
+  return readOptionalEnv(key) ? 'env' : 'unset'
+}
+
 function getDataverseUploadConfig(): {
   baseUrl: string
-  baseUrlSource: 'env' | 'default'
-  apiKey: string | null
-  apiKeySource: 'env' | 'unset'
+  baseUrlSource: 'dashboard' | 'env' | 'default'
+  apiKeyPresent: boolean
+  apiKeySource: 'dashboard' | 'env' | 'unset'
 } {
-  const envBaseUrl = readOptionalEnv('DATAVERSE_BASE_URL')
-  const apiKey = readOptionalEnv('DATAVERSE_API_KEY')
+  const baseUrl = getRuntimeEnvValue('DATAVERSE_BASE_URL')
+  const apiKey = getRuntimeEnvValue('DATAVERSE_API_KEY')
+  const baseUrlSource = getRuntimeEnvSource('DATAVERSE_BASE_URL')
+  const apiKeySource = getRuntimeEnvSource('DATAVERSE_API_KEY')
 
   return {
-    baseUrl: (envBaseUrl ?? DEFAULT_DATAVERSE_BASE_URL).replace(/\/+$/, ''),
-    baseUrlSource: envBaseUrl ? 'env' : 'default',
-    apiKey: apiKey ?? null,
-    apiKeySource: apiKey ? 'env' : 'unset',
+    baseUrl: (baseUrl ?? DEFAULT_DATAVERSE_BASE_URL).replace(/\/+$/, ''),
+    baseUrlSource: baseUrlSource === 'unset' ? 'default' : baseUrlSource,
+    apiKeyPresent: apiKey !== undefined,
+    apiKeySource,
+  }
+}
+
+function getTavilyConfig(): {
+  apiKeyPresent: boolean
+  apiKeySource: 'dashboard' | 'env' | 'unset'
+} {
+  return {
+    apiKeyPresent: getRuntimeEnvValue('TAVILY_API_KEY') !== undefined,
+    apiKeySource: getRuntimeEnvSource('TAVILY_API_KEY'),
+  }
+}
+
+function getExternalServiceConfig(): {
+  dataverse: ReturnType<typeof getDataverseUploadConfig>
+  tavily: ReturnType<typeof getTavilyConfig>
+} {
+  return {
+    dataverse: getDataverseUploadConfig(),
+    tavily: getTavilyConfig(),
   }
 }
 
@@ -573,7 +609,7 @@ class DashboardApiHandlers {
       keepDataverseUploadZips: this.config.keepDataverseUploadZips,
       retentionHours: this.config.retentionHours,
       enabled: this.config.enabled,
-      dataverse: getDataverseUploadConfig(),
+      ...getExternalServiceConfig(),
     })
   }
 
@@ -593,11 +629,7 @@ class DashboardApiHandlers {
         return
       }
 
-      const apiKey =
-        typeof process.env.TAVILY_API_KEY === 'string' &&
-        process.env.TAVILY_API_KEY.trim() !== ''
-          ? process.env.TAVILY_API_KEY.trim()
-          : undefined
+      const apiKey = getRuntimeEnvValue('TAVILY_API_KEY')
 
       if (!apiKey) {
         sendJson(
@@ -672,9 +704,7 @@ class DashboardApiHandlers {
         {
           success: false,
           error: message,
-          apiKeyPresent:
-            typeof process.env.TAVILY_API_KEY === 'string' &&
-            process.env.TAVILY_API_KEY.trim() !== '',
+          apiKeyPresent: getRuntimeEnvValue('TAVILY_API_KEY') !== undefined,
         },
         200,
       )
@@ -706,11 +736,28 @@ class DashboardApiHandlers {
       return
     }
 
+    const updateRecord = updates as Record<string, unknown>
+    const runtimeUpdates: Array<{ key: RuntimeEnvKey; value: string | null }> = []
+    for (const key of RUNTIME_ENV_KEYS) {
+      if (!(key in updateRecord)) {
+        continue
+      }
+
+      const value = updateRecord[key]
+      if (value !== null && typeof value !== 'string') {
+        sendJson(res, {
+          error: `${key} must be a string or null`,
+        }, 400)
+        return
+      }
+      runtimeUpdates.push({ key, value: value as string | null })
+    }
+
     const changes: Record<string, unknown> = {}
 
     // Handle detailedToolCallLogging
     if ('detailedToolCallLogging' in updates) {
-      const value = (updates as Record<string, unknown>).detailedToolCallLogging
+      const value = updateRecord.detailedToolCallLogging
       if (typeof value === 'boolean') {
         this.config.detailedToolCallLogging = value
         changes.detailedToolCallLogging = value
@@ -721,7 +768,7 @@ class DashboardApiHandlers {
 
     // Handle retentionHours
     if ('retentionHours' in updates) {
-      const value = (updates as Record<string, unknown>).retentionHours
+      const value = updateRecord.retentionHours
       if (typeof value === 'number' && value > 0) {
         this.config.retentionHours = value
         changes.retentionHours = value
@@ -730,12 +777,17 @@ class DashboardApiHandlers {
     }
 
     if ('keepDataverseUploadZips' in updates) {
-      const value = (updates as Record<string, unknown>).keepDataverseUploadZips
+      const value = updateRecord.keepDataverseUploadZips
       if (typeof value === 'boolean') {
         this.config.keepDataverseUploadZips = value
         process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS = value ? 'true' : 'false'
         changes.keepDataverseUploadZips = value
       }
+    }
+
+    for (const { key, value } of runtimeUpdates) {
+      setRuntimeEnvOverride(key, value)
+      changes[key] = value === null || value.trim() === '' ? 'fallback' : 'dashboard'
     }
 
     sendJson(res, {
@@ -746,6 +798,7 @@ class DashboardApiHandlers {
         keepDataverseUploadZips: this.config.keepDataverseUploadZips,
         retentionHours: this.config.retentionHours,
         enabled: this.config.enabled,
+        ...getExternalServiceConfig(),
       },
     })
   }

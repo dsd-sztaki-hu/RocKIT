@@ -68,6 +68,20 @@ const huTranslations = {
   'How long to keep telemetry data (hours)': 'A telemetriai adatok megőrzési ideje (óra)',
   'hours': 'óra',
   'Dataverse Upload Tool': 'Dataverse-feltöltő eszköz',
+  'Environment variables are used by default. Values entered here override them for the current MCP process only.': 'Alapértelmezés szerint a környezeti változók használatosak. Az itt megadott értékek csak a jelenlegi MCP-folyamatban írják felül ezeket.',
+  'Select “Use environment/default value” to clear a dashboard override.': 'A vezérlőpult felülírásának törléséhez válassza a „Környezeti/alapértelmezett érték használata” lehetőséget.',
+  'Use environment/default value': 'Környezeti/alapértelmezett érték használata',
+  'Use environment value': 'Környezeti érték használata',
+  'Enter a new dashboard override': 'Új vezérlőpult-felülírás megadása',
+  'Leave blank to keep the current value': 'Hagyja üresen az aktuális érték megtartásához',
+  'Web Search Tool': 'Webes keresőeszköz',
+  'Configure the Tavily API key used by the': 'A Tavily API-kulcs beállítása, amelyet a',
+  'tool.': 'eszköz.',
+  'The value is never displayed after it is saved.': 'A mentés után az érték nem jelenik meg.',
+  'Dashboard override active': 'Aktív vezérlőpult-felülírás',
+  'Using environment variable: {0}': 'Környezeti változó használata: {0}',
+  'Using built-in default': 'Beépített alapérték használata',
+  'Not configured': 'Nincs beállítva',
   'Keep RO-Crate ZIPs': 'RO-Crate ZIP-fájlok megtartása',
   'Keep generated ZIP files after successful Dataverse uploads': 'A létrehozott ZIP-fájlok megtartása sikeres Dataverse-feltöltés után',
   'Save Changes': 'Módosítások mentése',
@@ -295,6 +309,12 @@ let cedarBrowserState = {
   loading: new Set(),
   query: '',
 };
+let serviceSettingsState = {
+  dataverseBaseUrl: '',
+  dataverseBaseUrlSource: 'default',
+  dataverseApiKeySource: 'unset',
+  tavilyApiKeySource: 'unset',
+};
 
 // DOM Elements
 const elements = {
@@ -332,10 +352,15 @@ const elements = {
   metadataProfilesModal: document.getElementById('metadataProfilesModal'),
   closeMetadataProfilesModal: document.getElementById('closeMetadataProfilesModal'),
   settingsMessage: document.getElementById('settingsMessage'),
-  dataverseBaseUrlValue: document.getElementById('dataverseBaseUrlValue'),
+  dataverseBaseUrlInput: document.getElementById('dataverseBaseUrlInput'),
+  dataverseBaseUrlUseEnv: document.getElementById('dataverseBaseUrlUseEnv'),
   dataverseBaseUrlSource: document.getElementById('dataverseBaseUrlSource'),
-  dataverseApiKeyValue: document.getElementById('dataverseApiKeyValue'),
+  dataverseApiKeyInput: document.getElementById('dataverseApiKeyInput'),
+  dataverseApiKeyUseEnv: document.getElementById('dataverseApiKeyUseEnv'),
   dataverseApiKeySource: document.getElementById('dataverseApiKeySource'),
+  tavilyApiKeyInput: document.getElementById('tavilyApiKeyInput'),
+  tavilyApiKeyUseEnv: document.getElementById('tavilyApiKeyUseEnv'),
+  tavilyApiKeySource: document.getElementById('tavilyApiKeySource'),
   metadataProfileStorageValue: document.getElementById('metadataProfileStorageValue'),
   metadataProfilesTableBody: document.querySelector('#metadataProfilesTable tbody'),
   metadataProfilesPagination: document.getElementById('metadataProfilesPagination'),
@@ -993,6 +1018,7 @@ async function loadSettings() {
     elements.keepDataverseUploadZipsToggle.checked = config.keepDataverseUploadZips === true;
     elements.retentionHoursInput.value = config.retentionHours;
     renderDataverseSettings(config.dataverse);
+    renderTavilySettings(config.tavily);
   } catch (err) {
     showError(t('Failed to load settings: {0}', err.message));
   }
@@ -1000,19 +1026,79 @@ async function loadSettings() {
 
 function renderDataverseSettings(dataverse) {
   const config = dataverse || {};
-  const baseUrl = config.baseUrl || t('(not set)');
-  const apiKey = config.apiKey || t('(not set)');
-  const baseUrlSource = config.baseUrlSource === 'env'
-    ? t('Set from DATAVERSE_BASE_URL')
-    : t('Using upload tool default');
-  const apiKeySource = config.apiKeySource === 'env'
-    ? t('Set from DATAVERSE_API_KEY')
-    : t('DATAVERSE_API_KEY is not set');
+  const baseUrl = config.baseUrl || '';
+  const baseUrlSource = config.baseUrlSource || 'default';
+  const apiKeySource = config.apiKeySource || 'unset';
 
-  elements.dataverseBaseUrlValue.textContent = baseUrl;
-  elements.dataverseBaseUrlSource.textContent = baseUrlSource;
-  elements.dataverseApiKeyValue.textContent = apiKey;
-  elements.dataverseApiKeySource.textContent = apiKeySource;
+  serviceSettingsState.dataverseBaseUrl = baseUrl;
+  serviceSettingsState.dataverseBaseUrlSource = baseUrlSource;
+  serviceSettingsState.dataverseApiKeySource = apiKeySource;
+
+  elements.dataverseBaseUrlInput.value = baseUrl;
+  elements.dataverseBaseUrlUseEnv.checked = baseUrlSource !== 'dashboard';
+  elements.dataverseBaseUrlSource.textContent = formatRuntimeSource(
+    baseUrlSource,
+    'DATAVERSE_BASE_URL',
+    true,
+  );
+  elements.dataverseApiKeyInput.value = '';
+  elements.dataverseApiKeyUseEnv.checked = apiKeySource !== 'dashboard';
+  elements.dataverseApiKeyInput.placeholder = config.apiKeyPresent
+    ? t('Leave blank to keep the current value')
+    : t('Enter a new dashboard override');
+  elements.dataverseApiKeySource.textContent = formatRuntimeSource(
+    apiKeySource,
+    'DATAVERSE_API_KEY',
+    false,
+  );
+}
+
+function renderTavilySettings(tavily) {
+  const config = tavily || {};
+  const apiKeySource = config.apiKeySource || 'unset';
+
+  serviceSettingsState.tavilyApiKeySource = apiKeySource;
+  elements.tavilyApiKeyInput.value = '';
+  elements.tavilyApiKeyUseEnv.checked = apiKeySource !== 'dashboard';
+  elements.tavilyApiKeyInput.placeholder = config.apiKeyPresent
+    ? t('Leave blank to keep the current value')
+    : t('Enter a new dashboard override');
+  elements.tavilyApiKeySource.textContent = formatRuntimeSource(
+    apiKeySource,
+    'TAVILY_API_KEY',
+    false,
+  );
+}
+
+function formatRuntimeSource(source, environmentName, hasDefault) {
+  if (source === 'dashboard') {
+    return t('Dashboard override active');
+  }
+  if (source === 'env') {
+    return t('Using environment variable: {0}', environmentName);
+  }
+  return hasDefault ? t('Using built-in default') : t('Not configured');
+}
+
+function addRuntimeSettingUpdate(updates, key, input, useEnvironment, initialValue) {
+  if (useEnvironment.checked) {
+    updates[key] = null;
+    return;
+  }
+
+  const value = input.value.trim();
+  if (value === '') {
+    return;
+  }
+
+  if (key === 'DATAVERSE_BASE_URL') {
+    const normalizedValue = value.replace(/\/+$/, '');
+    if (normalizedValue === initialValue) {
+      return;
+    }
+  }
+
+  updates[key] = value;
 }
 
 async function saveSettings(e) {
@@ -1027,12 +1113,39 @@ async function saveSettings(e) {
     return;
   }
 
+  const updates = {
+    detailedToolCallLogging: detailedLogging,
+    keepDataverseUploadZips: keepDataverseUploadZips,
+    retentionHours: retentionHours,
+  };
+  addRuntimeSettingUpdate(
+    updates,
+    'DATAVERSE_BASE_URL',
+    elements.dataverseBaseUrlInput,
+    elements.dataverseBaseUrlUseEnv,
+    serviceSettingsState.dataverseBaseUrl,
+  );
+  addRuntimeSettingUpdate(
+    updates,
+    'DATAVERSE_API_KEY',
+    elements.dataverseApiKeyInput,
+    elements.dataverseApiKeyUseEnv,
+    '',
+  );
+  addRuntimeSettingUpdate(
+    updates,
+    'TAVILY_API_KEY',
+    elements.tavilyApiKeyInput,
+    elements.tavilyApiKeyUseEnv,
+    '',
+  );
+
   try {
-    const result = await postAPI('/config', {
-      detailedToolCallLogging: detailedLogging,
-      keepDataverseUploadZips: keepDataverseUploadZips,
-      retentionHours: retentionHours,
-    });
+    const result = await postAPI('/config', updates);
+    if (result.config) {
+      renderDataverseSettings(result.config.dataverse);
+      renderTavilySettings(result.config.tavily);
+    }
 
     showSettingsMessage(t('Settings saved successfully!'), 'success');
 
@@ -1051,6 +1164,18 @@ function showSettingsMessage(message, type) {
   setTimeout(() => {
     elements.settingsMessage.classList.add('hidden');
   }, 3000);
+}
+
+function bindRuntimeSettingInput(input, useEnvironment) {
+  if (!input || !useEnvironment) {
+    return;
+  }
+
+  input.addEventListener('input', () => {
+    if (input.value.trim() !== '') {
+      useEnvironment.checked = false;
+    }
+  });
 }
 
 function showSchemaRegistryMessage(message, type) {
@@ -1913,6 +2038,19 @@ if (elements.closeMetadataProfilesModal) {
 if (elements.settingsForm) {
   elements.settingsForm.addEventListener('submit', saveSettings);
 }
+
+bindRuntimeSettingInput(
+  elements.dataverseBaseUrlInput,
+  elements.dataverseBaseUrlUseEnv,
+);
+bindRuntimeSettingInput(
+  elements.dataverseApiKeyInput,
+  elements.dataverseApiKeyUseEnv,
+);
+bindRuntimeSettingInput(
+  elements.tavilyApiKeyInput,
+  elements.tavilyApiKeyUseEnv,
+);
 
 if (elements.settingsModal) {
   elements.settingsModal.addEventListener('click', (e) => {
