@@ -18,9 +18,12 @@ async function testHttpServer() {
   const originalDashboardEnabled = process.env.ROCRATE_DASHBOARD_ENABLED
   const originalBridgeEnabled = process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED
   const originalAllowedOrigins = process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS
+  const originalRockitRootPath = process.env.ROCKIT_ROOT_PATH
   const originalAromaRootPath = process.env.AROMA_ROOT_PATH
-  const originalProviderConfigFile = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
-  const originalProviderKeytarService = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
+  const originalRockitProviderConfigFile = process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+  const originalAromaProviderConfigFile = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+  const originalRockitProviderKeytarService = process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
+  const originalAromaProviderKeytarService = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
   process.env.DATAVERSE_BASE_URL = 'https://dataverse.example.test/'
   process.env.DATAVERSE_API_KEY = 'test-dataverse-key'
   delete process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
@@ -79,11 +82,15 @@ async function testHttpServer() {
 
   const port = await getPort()
   process.env.ROCRATE_DASHBOARD_PORT = String(port)
-  process.env.AROMA_ROOT_PATH = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'rocrate-dashboard-aroma-'),
+  const profileRootPath = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'rocrate-dashboard-rockit-'),
   )
-  process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = 'remote-schema-providers.json'
-  process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'AROMA2.RemoteSchemaProvider'
+  process.env.ROCKIT_ROOT_PATH = profileRootPath
+  process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = 'remote-schema-providers.json'
+  process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteSchemaProvider'
+  delete process.env.AROMA_ROOT_PATH
+  delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+  delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
 
   // Create and start the HTTP server
   const dashboard = new DashboardHttpServer(collector, {
@@ -297,7 +304,7 @@ async function testHttpServer() {
     const profileStatusResp = await get('/metadata-profiles/storage-status')
     assert.strictEqual(profileStatusResp.status, 200)
     const profileStatus = JSON.parse(profileStatusResp.data)
-    assert.strictEqual(profileStatus.storage.rootPath, process.env.AROMA_ROOT_PATH)
+    assert.strictEqual(profileStatus.storage.rootPath, profileRootPath)
 
     const profilesResp = await get('/metadata-profiles')
     assert.strictEqual(profilesResp.status, 200)
@@ -310,12 +317,12 @@ async function testHttpServer() {
     assert.strictEqual(Array.isArray(providersData.providers), true)
     assert.strictEqual(providersData.providers[0].id, 'arp-prod')
     assert.strictEqual(
-      fs.existsSync(path.join(process.env.AROMA_ROOT_PATH, 'remote-schema-providers.json')),
+      fs.existsSync(path.join(profileRootPath, 'remote-schema-providers.json')),
       true,
     )
     assert.strictEqual(
       JSON.parse(
-        fs.readFileSync(path.join(process.env.AROMA_ROOT_PATH, 'remote-schema-providers.json'), 'utf8'),
+        fs.readFileSync(path.join(profileRootPath, 'remote-schema-providers.json'), 'utf8'),
       )[0].id,
       'arp-prod',
     )
@@ -409,6 +416,18 @@ async function testHttpServer() {
       registration.localFileUrl.startsWith(`http://127.0.0.1:${port}/local-file?id=`),
       true,
     )
+
+    const originalCwd = process.cwd()
+    let defaultRegistration
+    let expectedDefaultPath
+    try {
+      process.chdir(tmpDir)
+      expectedDefaultPath = path.join(process.cwd(), 'ro-crate-metadata.json')
+      defaultRegistration = registerLocalFileForAroma({})
+    } finally {
+      process.chdir(originalCwd)
+    }
+    assert.strictEqual(defaultRegistration.path, expectedDefaultPath)
 
     const bridgePath = new URL(registration.localFileUrl).pathname
       + new URL(registration.localFileUrl).search
@@ -521,20 +540,35 @@ async function testHttpServer() {
     } else {
       process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS = originalAllowedOrigins
     }
+    if (originalRockitRootPath === undefined) {
+      delete process.env.ROCKIT_ROOT_PATH
+    } else {
+      process.env.ROCKIT_ROOT_PATH = originalRockitRootPath
+    }
     if (originalAromaRootPath === undefined) {
       delete process.env.AROMA_ROOT_PATH
     } else {
       process.env.AROMA_ROOT_PATH = originalAromaRootPath
     }
-    if (originalProviderConfigFile === undefined) {
+    if (originalRockitProviderConfigFile === undefined) {
+      delete process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+    } else {
+      process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = originalRockitProviderConfigFile
+    }
+    if (originalAromaProviderConfigFile === undefined) {
       delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
     } else {
-      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = originalProviderConfigFile
+      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = originalAromaProviderConfigFile
     }
-    if (originalProviderKeytarService === undefined) {
+    if (originalRockitProviderKeytarService === undefined) {
+      delete process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
+    } else {
+      process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = originalRockitProviderKeytarService
+    }
+    if (originalAromaProviderKeytarService === undefined) {
       delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
     } else {
-      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = originalProviderKeytarService
+      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = originalAromaProviderKeytarService
     }
   }
 }

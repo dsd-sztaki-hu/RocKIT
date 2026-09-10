@@ -645,6 +645,25 @@ async function run() {
       toolNames.includes('open_aroma_for_local_file'),
       'open_aroma_for_local_file tool should exist',
     )
+    assert.equal(
+      toolNames[0],
+      'open_aroma_for_local_file',
+      'open_aroma_for_local_file should be listed first for direct AROMA requests',
+    )
+    const openAromaTool = (list.result.tools || []).find(
+      (tool) => tool.name === 'open_aroma_for_local_file',
+    )
+    assert.equal(openAromaTool?.title, 'Open dataset in AROMA')
+    assert.match(
+      openAromaTool?.description || '',
+      /canonical tool.*open dataset in AROMA.*call it immediately/i,
+      'open_aroma_for_local_file should advertise its AROMA request routing purpose',
+    )
+    assert.match(
+      openAromaTool?.inputSchema?.properties?.path?.description || '',
+      /current working directory/i,
+      'open_aroma_for_local_file should explain the current-directory path',
+    )
     assert.ok(
       toolNames.includes('upload_rocrate_to_dataverse'),
       'upload_rocrate_to_dataverse tool should exist',
@@ -691,8 +710,30 @@ async function run() {
     )
     assert.match(
       initialize.result.instructions,
+      /canonical way to open a local RO-Crate dataset in AROMA is open_aroma_for_local_file[\s\S]*exact request "open dataset in AROMA"[\s\S]*first tool[\s\S]*current working directory/i,
+      'initialize instructions should route direct AROMA requests to the dedicated tool',
+    )
+    assert.match(
+      initialize.result.instructions,
       /offer create_default_rocrate/,
       'initialize instructions should offer default RO-Crate creation when metadata is missing',
+    )
+
+    const defaultProfileListingResponse = await request('tools/call', {
+      name: 'list_metadata_profiles',
+      arguments: {},
+    })
+    assert.ok(
+      defaultProfileListingResponse.result,
+      'list_metadata_profiles should use the configured RocKIT root by default',
+    )
+    const defaultProfileListingPayload = JSON.parse(
+      defaultProfileListingResponse.result.content[0].text,
+    )
+    assert.equal(defaultProfileListingPayload.storage.rootPath, rockitRoot)
+    assert.equal(
+      defaultProfileListingPayload.storage.indexPath,
+      path.join(rockitRoot, 'metadata-schema-index.json'),
     )
 
     const workflowDocResponse = await request('tools/call', {
@@ -812,7 +853,7 @@ async function run() {
     assert.ok(defaultCrateResponse.result, 'create_default_rocrate should succeed')
     const defaultCratePayload = JSON.parse(defaultCrateResponse.result.content[0].text)
     const defaultCratePath = path.join(defaultCrateRoot, 'ro-crate-metadata.json')
-    const defaultIgnoredPath = path.join(defaultCrateRoot, '.aroma', 'ignored.txt')
+    const defaultIgnoredPath = path.join(defaultCrateRoot, '.rockit', 'ignored.txt')
     assert.equal(defaultCratePayload.writeApplied, true)
     assert.equal(defaultCratePayload.cratePath, defaultCratePath)
     assert.equal(defaultCratePayload.ignoredFilePath, defaultIgnoredPath)

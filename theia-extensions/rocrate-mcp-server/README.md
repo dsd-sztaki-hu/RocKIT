@@ -291,7 +291,7 @@ dashboard instance.
 - `adopt_pending_dataverse_rocrate`: replace local metadata with the Dataverse-updated crate returned by upload.
 - `download_rocrate_from_dataverse`: download crate JSON by PID from Dataverse ARP API.
 - `read_crate`: read crate (`local` from disk or `remote` from provided `crate` payload).
-- `create_default_rocrate`: initialize a directory with `ro-crate-metadata.json` and `.aroma/ignored.txt`.
+- `create_default_rocrate`: initialize a directory with `ro-crate-metadata.json` and `.rockit/ignored.txt`.
 - `apply_changes`: apply compact changeset.
   - Local mode persists by default.
   - Use `dryRun: true` to preview without writing.
@@ -417,6 +417,11 @@ RO-Crate metadata file, exposes a short-lived HTTP session for that file, and
 returns an AROMA URL containing the bridge URL.
 
 ### When it is used
+
+For a direct request such as “open dataset in AROMA”, call
+`open_aroma_for_local_file` with the dataset's `ro-crate-metadata.json` path.
+When the dataset is the current working directory, use
+`ro-crate-metadata.json`.
 
 Agents should call `open_aroma_for_local_file` after successful local edits or
 validation when the user is working outside an already-open AROMA session and
@@ -699,9 +704,15 @@ node /absolute/path/to/rocrate-mcp-server/lib/server.js --connect /Users/<you>/.
 - `ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS` (optional): keep temporary Dataverse upload ZIPs for debugging.
 
 ### Profile Resolution
-- `AROMA_ROOT_PATH` (optional): base directory for schema index/profile files (default `~/.aroma`).
-- `AROMA_METADATA_SCHEMA_INDEX_FILE` (optional): schema index filename or absolute path.
-- `ROCRATE_REMOTE_SCHEMA_REGISTRY_DIR` (optional): remote-mode schema registry directory (default `~/.aroma/schema-registry-remote`).
+- `ROCKIT_ROOT_PATH` (optional): shared base directory for schema index/profile files (default `~/.rockit`).
+- `ROCKIT_METADATA_SCHEMA_INDEX_FILE` (optional): schema index filename or absolute path.
+- `ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE` (optional): remote CEDAR provider configuration filename or absolute path.
+- `ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE` (optional): keychain service used for remote CEDAR provider credentials.
+- `ROCKIT_CEDAR_API_KEY` (optional): fallback CEDAR API key; `CEDAR_API_KEY` is preferred.
+- `ROCRATE_REMOTE_SCHEMA_REGISTRY_DIR` (optional): remote-mode schema registry directory (default `~/.rockit/schema-registry-remote`).
+
+The older `AROMA_*` profile environment variables remain accepted as
+compatibility aliases, but `ROCKIT_*` variables and `~/.rockit` are canonical.
 
 ### Dashboard
 - `ROCRATE_DASHBOARD_ENABLED`: Enable/disable dashboard (default: `true`).

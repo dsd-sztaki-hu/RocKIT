@@ -133,6 +133,8 @@ export async function startServerWithTransports(options: StartServerOptions): Pr
       {
         name: 'rocrate-mcp-server',
         version: getBuildInfo().version,
+        description:
+          'RO-Crate metadata tools. The canonical way to open a local RO-Crate dataset in AROMA is open_aroma_for_local_file.',
       },
       {
         capabilities: {

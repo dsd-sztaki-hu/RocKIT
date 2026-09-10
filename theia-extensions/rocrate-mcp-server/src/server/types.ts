@@ -2,6 +2,7 @@ import type { RoCrate } from '../core/types'
 
 export type ToolDefinition = {
   name: string
+  title?: string
   description: string
   inputSchema: Record<string, unknown>
 }

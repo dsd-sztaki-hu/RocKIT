@@ -725,7 +725,10 @@ function getDashboardUrl(): string {
 }
 
 function getMcpServerInstructions(): string {
-  return `Before RO-Crate editing/advice, call read_agent_workflow_doc with name "rocrate_workflow.md" and follow it.
+  return `RO-CRATE TOOL ROUTING
+The canonical way to open a local RO-Crate dataset in AROMA is open_aroma_for_local_file.
+For a direct request to open, view, show, inspect, or launch a dataset in AROMA—including the exact request "open dataset in AROMA"—call open_aroma_for_local_file immediately as the first tool. Treat "dataset" as the RO-Crate in the current working directory and pass "ro-crate-metadata.json"; otherwise pass the dataset's ro-crate-metadata.json path.
+Before RO-Crate editing/advice, call read_agent_workflow_doc with name "rocrate_workflow.md" and follow it.
 Read the referenced step doc before each workflow step.
 Primary artifact is ro-crate-metadata.json.
 If no ro-crate-metadata.json exists in a local directory, offer create_default_rocrate before other metadata work; never overwrite existing metadata unless explicitly requested with overwrite=true.
