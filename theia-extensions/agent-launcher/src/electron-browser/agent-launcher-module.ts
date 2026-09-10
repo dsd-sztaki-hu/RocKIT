@@ -3,6 +3,7 @@ import { WidgetFactory } from '@theia/core/lib/browser'
 import { WebSocketConnectionProvider } from '@theia/core/lib/browser/messaging/ws-connection-provider'
 import { Emitter } from '@theia/core/lib/common/event'
 import { ContainerModule } from '@theia/core/shared/inversify'
+import { TerminalContribution } from '@theia/terminal/lib/browser/terminal-widget-impl'
 import {
   NativeAgentClient,
   NativeAgentService,
@@ -13,6 +14,7 @@ import {
 import { bindAgentLauncherPreferences } from '../common/agent-launcher-preferences'
 import { AgentLauncherContribution } from './agent-launcher-contribution'
 import { NativeAgentChatWidget, NativeAgentChatWidgetOptions } from './native-agent-chat-widget'
+import { RockitTerminalLinkContribution } from './rockit-terminal-link-contribution'
 
 export default new ContainerModule((bind) => {
   bindAgentLauncherPreferences(bind)
@@ -59,4 +61,6 @@ export default new ContainerModule((bind) => {
   bind(AgentLauncherContribution).toSelf().inSingletonScope()
   bind(CommandContribution).toService(AgentLauncherContribution)
   bind(MenuContribution).toService(AgentLauncherContribution)
+  bind(RockitTerminalLinkContribution).toSelf().inSingletonScope()
+  bind(TerminalContribution).toService(RockitTerminalLinkContribution)
 })
