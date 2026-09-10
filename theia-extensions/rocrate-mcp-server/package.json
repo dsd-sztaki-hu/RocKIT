@@ -22,7 +22,8 @@
     "start": "node lib/server.js",
     "test": "yarn build && node test/test-core.js && node test/test-cli.js && node test/test-installer.js && node test/test-mcp-server.js",
     "test:dashboard": "yarn build && node test/test-dashboard-collector.js && node test/test-dashboard-http.js",
-    "test:socket": "yarn build && node test/test-socket-lifecycle.js"
+    "test:socket": "yarn build && node test/test-socket-lifecycle.js",
+    "test:standalone-package": "yarn build:standalone && node test/test-standalone-package.js"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

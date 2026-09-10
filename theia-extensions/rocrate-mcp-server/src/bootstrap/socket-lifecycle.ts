@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as net from 'node:net'
 import * as path from 'node:path'
+import { ROCRATE_MCP_SHUTDOWN_CONTROL_MESSAGE } from 'rockit-common/lib/common/rocrate-mcp-config'
 
 type SocketLifecycleOptions = {
   execPath: string
@@ -12,9 +13,10 @@ type SocketLifecycleOptions = {
   onSocketConnection: (socket: net.Socket, socketPath: string) => void
 }
 
-const SHUTDOWN_CONTROL_MESSAGE = 'ROCKIT_ROCRATE_MCP_SHUTDOWN\n'
-
-function parseSocketPathFromArgs(args: string[], flag: string): string | undefined {
+export function parseSocketPathFromArgs(
+  args: string[],
+  flag: string,
+): string | undefined {
   const index = args.indexOf(flag)
   if (index < 0) {
     return undefined
@@ -56,7 +58,10 @@ function isTransientSocketConnectError(error: unknown): boolean {
   return code === 'ENOENT' || code === 'ECONNREFUSED'
 }
 
-async function ensureDaemon(socketPath: string, options: SocketLifecycleOptions): Promise<void> {
+async function ensureDaemon(
+  socketPath: string,
+  options: SocketLifecycleOptions,
+): Promise<void> {
   const alreadyRunning = await canConnectToSocket(socketPath)
   if (alreadyRunning) {
     return
@@ -64,10 +69,14 @@ async function ensureDaemon(socketPath: string, options: SocketLifecycleOptions)
   if (!options.serverScriptPath) {
     throw new Error('Cannot resolve server script path for daemon startup.')
   }
-  const child = spawn(options.execPath, [options.serverScriptPath, '--listen', socketPath], {
-    detached: true,
-    stdio: 'ignore',
-  })
+  const child = spawn(
+    options.execPath,
+    [options.serverScriptPath, '--listen', socketPath],
+    {
+      detached: true,
+      stdio: 'ignore',
+    },
+  )
   child.unref()
 
   const maxAttempts = 20
@@ -106,8 +115,14 @@ async function startSocketDaemon(
       // stale socket cleanup is best effort
     }
   }
+  const activeSockets = new Set<net.Socket>()
+  let shutdownStarted = false
+  const shutdownControlMessage = Buffer.from(ROCRATE_MCP_SHUTDOWN_CONTROL_MESSAGE, 'utf8')
   const server = net.createServer((socket) => {
+    activeSockets.add(socket)
+    socket.once('close', () => activeSockets.delete(socket))
     let handedOff = false
+    let firstData = Buffer.alloc(0)
     const handOffToMcp = (chunk?: Buffer) => {
       if (handedOff) {
         return
@@ -121,18 +136,40 @@ async function startSocketDaemon(
       options.onSocketConnection(socket, socketPath)
     }
     const shutdown = () => {
-      socket.end('OK\n', () => {
-        server.close(() => {
-          process.exit(0)
-        })
+      if (shutdownStarted) {
+        return
+      }
+      shutdownStarted = true
+      const exitTimer = setTimeout(() => process.exit(0), 2000)
+      exitTimer.unref()
+      socket.end('OK\n')
+      for (const activeSocket of activeSockets) {
+        if (activeSocket !== socket) {
+          activeSocket.end()
+        }
+      }
+      server.close(() => {
+        clearTimeout(exitTimer)
+        process.exit(0)
       })
     }
     const onFirstData = (chunk: Buffer) => {
-      if (chunk.toString('utf8') === SHUTDOWN_CONTROL_MESSAGE) {
+      firstData = Buffer.concat([firstData, chunk])
+      if (
+        firstData.length < shutdownControlMessage.length &&
+        shutdownControlMessage.subarray(0, firstData.length).equals(firstData)
+      ) {
+        return
+      }
+      if (
+        firstData
+          .subarray(0, shutdownControlMessage.length)
+          .equals(shutdownControlMessage)
+      ) {
         shutdown()
         return
       }
-      handOffToMcp(chunk)
+      handOffToMcp(firstData)
     }
     const onProbeEnd = () => {
       socket.destroy()
