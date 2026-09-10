@@ -151,9 +151,10 @@
       "revealInFileExplorer": "Megjelenítés a Fájlkezelőben",
       "revealInFinder": "Megjelenítés a Finderben",
       "openContainingFolder": "Tartalmazó mappa megnyitása",
-      "includeMarked": "A mellőzési szabályok eltávolítva a memóriából. Mentse a módosításokat a .rockit/ignored.txt fájl frissítéséhez.",
-      "omitMarked": "A kijelölt fájlok vagy mappák mellőzésre jelölve a memóriában. Mentse a módosításokat a .rockit/ignored.txt fájl frissítéséhez.",
-      "descriptionsUpToDate": "A kijelölt fájlok vagy mappák mellőzésre jelölve a memóriában. Az RO-Crate-leírások már naprakészek voltak.",
+      "includeMarked": "A kijelölt fájlok vagy mappák bekerültek az RO-Crate-be.",
+      "omitMarked": "A kijelölt fájlok vagy mappák mellőzve az RO-Crate-ből.",
+      "descriptionsUpToDate": "A kijelölt fájlok vagy mappák mellőzve. Az RO-Crate-leírások már naprakészek voltak.",
+      "persistOmitFailed": "Az RO-Crate mellőzési/befoglalási módosításainak mentése sikertelen: {0}",
       "omittedAndRemoved": "{0} fájl vagy mappa mellőzve, és a hozzájuk tartozó RO-Crate-leírások eltávolítva."
     },
     "agentChat": {
