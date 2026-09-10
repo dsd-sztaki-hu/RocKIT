@@ -858,22 +858,6 @@ body {
   border-color: var(--color-primary);
 }
 
-.settings-table-wrap {
-  max-height: 260px;
-  overflow: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--border-radius);
-}
-
-.schema-registry-section .data-table {
-  min-width: 760px;
-}
-
-.schema-registry-section .number-input {
-  width: 100%;
-  text-align: left;
-}
-
 .number-input:focus {
   outline: none;
   border-color: var(--color-primary);

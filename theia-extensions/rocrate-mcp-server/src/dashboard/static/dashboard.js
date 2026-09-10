@@ -7,6 +7,7 @@
 const API_BASE = window.location.origin;
 
 let dashboardLocale = 'en';
+const MASKED_SECRET_PLACEHOLDER = '••••••••';
 
 const huTranslations = {
   'RO-Crate MCP Dashboard': 'RO-Crate MCP-vezérlőpult',
@@ -74,8 +75,6 @@ const huTranslations = {
   'Use environment/default value': 'Környezeti/alapértelmezett érték használata',
   'Use environment value': 'Környezeti érték használata',
   'Enter a new dashboard override': 'Új vezérlőpult-felülírás megadása',
-  'Leave blank to keep the current value': 'Hagyja üresen az aktuális érték megtartásához',
-  'Configured; click the eye to view or enter a replacement': 'Beállítva; a megtekintéshez kattintson a szem ikonra, vagy adjon meg új értéket',
   'Show API key': 'API-kulcs megjelenítése',
   'Hide API key': 'API-kulcs elrejtése',
   'Failed to reveal API key: {0}': 'Nem sikerült megjeleníteni az API-kulcsot: {0}',
@@ -91,15 +90,7 @@ const huTranslations = {
   'Keep generated ZIP files after successful Dataverse uploads': 'A létrehozott ZIP-fájlok megtartása sikeres Dataverse-feltöltés után',
   'Save Settings': 'Beállítások mentése',
   'Cancel': 'Mégse',
-  'Schema Registry': 'Sémaregiszter',
-  'Manage ontology schema sources used by MCP ontology suggestion tools.': 'Az MCP ontológiajavasló eszközei által használt ontológiaséma-források kezelése.',
   'Name': 'Név',
-  'Schema URL': 'Séma URL-címe',
-  'Matches Prefixes': 'Illeszkedő előtagok',
-  'Specs': 'Specifikációk',
-  'New Schema': 'Új séma',
-  'Create or replace a registry entry by ID.': 'Regiszterbejegyzés létrehozása vagy cseréje azonosító alapján.',
-  'Add / Replace': 'Hozzáadás / csere',
   'Reload': 'Újratöltés',
   'CEDAR Schema Profiles': 'CEDAR-sémaprofilok',
   'Browse remote CEDAR repositories and manage locally converted recrate profiles.': 'Távoli CEDAR-tárolók böngészése és a helyben átalakított ReCrate-profilok kezelése.',
@@ -137,11 +128,6 @@ const huTranslations = {
   '50 / page': '50 / oldal',
   '100 / page': '100 / oldal',
   'e.g., RO-Crate metadata specification': 'pl. RO-Crate metaadat-specifikáció',
-  'id (e.g. codemeta3)': 'azonosító (pl. codemeta3)',
-  'display name': 'megjelenítendő név',
-  'schema URL': 'séma URL-címe',
-  'matchesUrls (comma-separated)': 'matchesUrls (vesszővel elválasztva)',
-  'activeOnSpec (comma-separated, default: v1.1.3,v1.2.0)': 'activeOnSpec (vesszővel elválasztva, alapérték: v1.1.3,v1.2.0)',
   'Provider id': 'Szolgáltató azonosítója',
   'Display name': 'Megjelenítendő név',
   'API key (stored in keytar when available)': 'API-kulcs (ha elérhető, a keytar tárolja)',
@@ -203,10 +189,8 @@ const huTranslations = {
   'Retention hours must be between 1 and 168': 'A megőrzési időnek 1 és 168 óra között kell lennie',
   'Settings saved successfully!': 'A beállítások mentése sikerült!',
   'Failed to save settings: {0}': 'Nem sikerült menteni a beállításokat: {0}',
-  'No schemas registered': 'Nincsenek regisztrált sémák',
   'Edit': 'Szerkesztés',
   'Delete': 'Törlés',
-  'Failed to load schema registry: {0}': 'Nem sikerült betölteni a sémaregisztert: {0}',
   'Failed to load metadata profiles: {0}': 'Nem sikerült betölteni a metadataprofilokat: {0}',
   'No metadata profiles imported': 'Nincsenek importált metadataprofilok',
   'Ready': 'Kész',
@@ -417,15 +401,6 @@ const elements = {
   cedarBrowserSelectionText: document.getElementById('cedarBrowserSelectionText'),
   cancelCedarBrowserBtn: document.getElementById('cancelCedarBrowserBtn'),
   addCedarTemplateBtn: document.getElementById('addCedarTemplateBtn'),
-  schemaRegistryTableBody: document.querySelector('#schemaRegistryTable tbody'),
-  schemaIdInput: document.getElementById('schemaIdInput'),
-  schemaDisplayNameInput: document.getElementById('schemaDisplayNameInput'),
-  schemaUrlInput: document.getElementById('schemaUrlInput'),
-  schemaMatchesInput: document.getElementById('schemaMatchesInput'),
-  schemaSpecsInput: document.getElementById('schemaSpecsInput'),
-  addSchemaBtn: document.getElementById('addSchemaBtn'),
-  reloadSchemaBtn: document.getElementById('reloadSchemaBtn'),
-  schemaRegistryMessage: document.getElementById('schemaRegistryMessage'),
   tavilyTestForm: document.getElementById('tavilyTestForm'),
   tavilyQueryInput: document.getElementById('tavilyQueryInput'),
   tavilyMaxResults: document.getElementById('tavilyMaxResults'),
@@ -1117,7 +1092,7 @@ function renderDataverseSettings(dataverse) {
     : 'false';
   elements.dataverseApiKeyUseEnv.checked = apiKeySource !== 'dashboard';
   elements.dataverseApiKeyInput.placeholder = config.apiKeyPresent
-    ? t('Configured; click the eye to view or enter a replacement')
+    ? MASKED_SECRET_PLACEHOLDER
     : t('Enter a new dashboard override');
   elements.dataverseApiKeySource.textContent = formatRuntimeSource(
     apiKeySource,
@@ -1142,7 +1117,7 @@ function renderTavilySettings(tavily) {
     : 'false';
   elements.tavilyApiKeyUseEnv.checked = apiKeySource !== 'dashboard';
   elements.tavilyApiKeyInput.placeholder = config.apiKeyPresent
-    ? t('Configured; click the eye to view or enter a replacement')
+    ? MASKED_SECRET_PLACEHOLDER
     : t('Enter a new dashboard override');
   elements.tavilyApiKeySource.textContent = formatRuntimeSource(
     apiKeySource,
@@ -1259,16 +1234,6 @@ function bindRuntimeSettingInput(input, useEnvironment) {
   });
 }
 
-function showSchemaRegistryMessage(message, type) {
-  elements.schemaRegistryMessage.textContent = message;
-  elements.schemaRegistryMessage.className = `settings-message ${type}`;
-  elements.schemaRegistryMessage.classList.remove('hidden');
-
-  setTimeout(() => {
-    elements.schemaRegistryMessage.classList.add('hidden');
-  }, 3000);
-}
-
 function showMetadataProfilesMessage(message, type) {
   elements.metadataProfilesMessage.textContent = message;
   elements.metadataProfilesMessage.className = `settings-message ${type}`;
@@ -1277,40 +1242,6 @@ function showMetadataProfilesMessage(message, type) {
   setTimeout(() => {
     elements.metadataProfilesMessage.classList.add('hidden');
   }, 3000);
-}
-
-function splitCsv(input) {
-  return (input || '')
-    .split(',')
-    .map((v) => v.trim())
-    .filter((v) => v.length > 0);
-}
-
-async function loadSchemaRegistry() {
-  try {
-    const data = await fetchAPI('/schema-registry?mode=local');
-    const schemas = data.schemas || [];
-    if (schemas.length === 0) {
-      elements.schemaRegistryTableBody.innerHTML = `<tr><td colspan="6" class="empty">${t('No schemas registered')}</td></tr>`;
-      return;
-    }
-
-    elements.schemaRegistryTableBody.innerHTML = schemas.map((entry) => `
-      <tr>
-        <td><code>${escapeHtml(entry.id)}</code></td>
-        <td>${escapeHtml(entry.displayName)}</td>
-        <td><code>${escapeHtml(entry.schemaUrl)}</code></td>
-        <td>${escapeHtml((entry.matchesUrls || []).join(', '))}</td>
-        <td>${escapeHtml((entry.activeOnSpec || []).join(', '))}</td>
-        <td>
-          <button class="btn btn-sm" onclick='editSchema(${JSON.stringify(entry.id)})'>${t('Edit')}</button>
-          <button class="btn btn-sm" onclick='deleteSchema(${JSON.stringify(entry.id)})'>${t('Delete')}</button>
-        </td>
-      </tr>
-    `).join('');
-  } catch (err) {
-    elements.schemaRegistryTableBody.innerHTML = `<tr><td colspan="6" class="text-danger">${t('Failed to load schema registry: {0}', escapeHtml(err.message))}</td></tr>`;
-  }
 }
 
 async function loadMetadataProfiles() {
@@ -1895,79 +1826,8 @@ async function deleteMetadataProfile(id) {
   }
 }
 
-async function addOrReplaceSchema() {
-  const id = (elements.schemaIdInput.value || '').trim();
-  const displayName = (elements.schemaDisplayNameInput.value || '').trim();
-  const schemaUrl = (elements.schemaUrlInput.value || '').trim();
-  const matchesUrls = splitCsv(elements.schemaMatchesInput.value);
-  const activeOnSpec = splitCsv(elements.schemaSpecsInput.value);
-
-  if (!id || !displayName || !schemaUrl || matchesUrls.length === 0) {
-    showSchemaRegistryMessage(t('id, displayName, schemaUrl and matchesUrls are required.'), 'error');
-    return;
-  }
-
-  const payload = {
-    mode: 'local',
-    id,
-    displayName,
-    schemaUrl,
-    matchesUrls,
-  };
-  if (activeOnSpec.length > 0) {
-    payload.activeOnSpec = activeOnSpec;
-  }
-
-  try {
-    const existing = await fetchAPI('/schema-registry?mode=local');
-    const exists = (existing.schemas || []).some((entry) => entry.id === id);
-    if (exists) {
-      await putAPI(`/schema-registry/${encodeURIComponent(id)}`, payload);
-      showSchemaRegistryMessage(t('Schema updated.'), 'success');
-    } else {
-      await postAPI('/schema-registry', payload);
-      showSchemaRegistryMessage(t('Schema added.'), 'success');
-    }
-    await loadSchemaRegistry();
-  } catch (err) {
-    showSchemaRegistryMessage(t('Failed to save schema: {0}', err.message), 'error');
-  }
-}
-
-async function editSchema(id) {
-  try {
-    const data = await fetchAPI('/schema-registry?mode=local');
-    const entry = (data.schemas || []).find((item) => item.id === id);
-    if (!entry) {
-      showSchemaRegistryMessage(t('Schema not found: {0}', id), 'error');
-      return;
-    }
-    elements.schemaIdInput.value = entry.id || '';
-    elements.schemaDisplayNameInput.value = entry.displayName || '';
-    elements.schemaUrlInput.value = entry.schemaUrl || '';
-    elements.schemaMatchesInput.value = (entry.matchesUrls || []).join(', ');
-    elements.schemaSpecsInput.value = (entry.activeOnSpec || []).join(', ');
-  } catch (err) {
-    showSchemaRegistryMessage(t('Failed to load schema for edit: {0}', err.message), 'error');
-  }
-}
-
-async function deleteSchema(id) {
-  if (!window.confirm(t("Delete schema '{0}'?", id))) {
-    return;
-  }
-  try {
-    await deleteAPI(`/schema-registry/${encodeURIComponent(id)}?mode=local`);
-    showSchemaRegistryMessage(t('Schema deleted.'), 'success');
-    await loadSchemaRegistry();
-  } catch (err) {
-    showSchemaRegistryMessage(t('Failed to delete schema: {0}', err.message), 'error');
-  }
-}
-
 function openSettings() {
   loadSettings();
-  loadSchemaRegistry();
   elements.settingsModal.classList.remove('hidden');
   elements.settingsMessage.classList.add('hidden');
 }
@@ -2190,14 +2050,6 @@ if (elements.cedarBrowserModal) {
       closeCedarBrowser();
     }
   });
-}
-
-if (elements.addSchemaBtn) {
-  elements.addSchemaBtn.addEventListener('click', addOrReplaceSchema);
-}
-
-if (elements.reloadSchemaBtn) {
-  elements.reloadSchemaBtn.addEventListener('click', loadSchemaRegistry);
 }
 
 if (elements.importMetadataProfileBtn) {

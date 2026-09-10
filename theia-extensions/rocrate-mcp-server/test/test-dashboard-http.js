@@ -215,6 +215,24 @@ async function testHttpServer() {
     assert.strictEqual(healthData.status, 'ok')
     assert.strictEqual(typeof healthData.uptime, 'number')
 
+    // Verify the Settings modal exposes the current credential UX without the
+    // obsolete Schema Registry panel.
+    console.log('  Testing Settings dashboard UI...')
+    const dashboardPageResp = await get('/')
+    assert.strictEqual(dashboardPageResp.status, 200)
+    assert.strictEqual(dashboardPageResp.data.includes('Save Settings'), true)
+    assert.strictEqual(dashboardPageResp.data.includes('Schema Registry'), false)
+    const dashboardScriptResp = await get('/static/dashboard.js')
+    assert.strictEqual(dashboardScriptResp.status, 200)
+    assert.strictEqual(
+      dashboardScriptResp.data.includes("const MASKED_SECRET_PLACEHOLDER = '••••••••';"),
+      true,
+    )
+    assert.strictEqual(
+      dashboardScriptResp.data.includes('Configured; click the eye to view or enter a replacement'),
+      false,
+    )
+
     // Test the protected graceful-shutdown request endpoint without stopping
     // this test process; the injected handler records the request instead.
     console.log('  Testing /daemon/shutdown endpoint...')
