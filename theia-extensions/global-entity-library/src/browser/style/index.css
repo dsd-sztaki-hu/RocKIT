@@ -84,7 +84,7 @@
 
 .global-entity-library-table-container colgroup col:nth-child(6) {
     min-width: 116px !important;
-    width: auto !important;
+    width: var(--global-entity-actions-width) !important;
 }
 
 .global-entity-library-table-container th.global-entity-library-last-resizable-column::before {

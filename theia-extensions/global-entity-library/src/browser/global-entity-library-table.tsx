@@ -22,52 +22,81 @@ export interface GlobalEntityLibraryTableProps {
     onDeleteMany: (recordIds: string[]) => Promise<void>
 }
 
-type ResizableColumnKey = 'type' | 'name' | 'properties' | 'relationships'
+type ColumnKey = 'type' | 'name' | 'properties' | 'relationships' | 'actions'
+type ResizableColumnKey = Exclude<ColumnKey, 'actions'>
+type ColumnWidths = Record<ColumnKey, number>
+
+const COLUMN_KEYS: ColumnKey[] = ['type', 'name', 'properties', 'relationships', 'actions']
+const NEXT_COLUMN: Record<ResizableColumnKey, ColumnKey> = {
+    type: 'name',
+    name: 'properties',
+    properties: 'relationships',
+    relationships: 'actions',
+}
+const MIN_COLUMN_WIDTHS: ColumnWidths = {
+    type: 110,
+    name: 120,
+    properties: 160,
+    relationships: 160,
+    actions: 116,
+}
 
 interface ResizableHeaderCellProps extends React.ThHTMLAttributes<HTMLTableCellElement> {
     width?: number
     minWidth?: number
     columnKey?: ResizableColumnKey
-    tableWidth?: number
-    onResize?: (width: number) => void
+    onResize?: (widths: ColumnWidths) => void
 }
 
 const ResizableHeaderCell: React.FC<ResizableHeaderCellProps> = ({
     width,
     minWidth = 90,
     columnKey,
-    tableWidth,
     onResize,
     children,
     ...cellProps
 }) => {
     const startResize = (event: React.MouseEvent<HTMLSpanElement>): void => {
-        if (!width || !columnKey || !tableWidth || !onResize) return
+        if (!width || !columnKey || !onResize) return
         event.preventDefault()
         event.stopPropagation()
 
-        const startX = event.clientX
-        const startWidth = width
         const tableContainer = event.currentTarget.closest<HTMLElement>('.global-entity-library-table-container')
-        const maximumWidth = tableContainer
-            ? Math.max(minWidth, tableContainer.clientWidth - (tableWidth - startWidth))
-            : Number.POSITIVE_INFINITY
+        const headerCells = tableContainer?.querySelectorAll<HTMLElement>('.ant-table-thead > tr > th')
+        if (!tableContainer || !headerCells || headerCells.length < COLUMN_KEYS.length + 1) return
+
+        const renderedWidths = COLUMN_KEYS.reduce((widths, key, index) => {
+            widths[key] = headerCells[index + 1].getBoundingClientRect().width
+            tableContainer.style.setProperty(`--global-entity-${key}-width`, `${widths[key]}px`)
+            return widths
+        }, {} as ColumnWidths)
+        const nextColumnKey = NEXT_COLUMN[columnKey]
+        const startX = event.clientX
+        const startWidth = renderedWidths[columnKey]
+        const startNextWidth = renderedWidths[nextColumnKey]
+        const minimumNextWidth = MIN_COLUMN_WIDTHS[nextColumnKey]
+        const minimumDelta = minWidth - startWidth
+        const maximumDelta = startNextWidth - minimumNextWidth
         const previousCursor = document.body.style.cursor
         const previousUserSelect = document.body.style.userSelect
         let nextWidth = startWidth
+        let nextAdjacentWidth = startNextWidth
         let animationFrame: number | undefined
         document.body.style.cursor = 'col-resize'
         document.body.style.userSelect = 'none'
 
         const applyWidth = (): void => {
             tableContainer?.style.setProperty(`--global-entity-${columnKey}-width`, `${nextWidth}px`)
+            tableContainer?.style.setProperty(
+                `--global-entity-${nextColumnKey}-width`,
+                `${nextAdjacentWidth}px`,
+            )
             animationFrame = undefined
         }
         const handleMouseMove = (moveEvent: MouseEvent): void => {
-            nextWidth = Math.min(
-                maximumWidth,
-                Math.max(minWidth, startWidth + moveEvent.clientX - startX),
-            )
+            const delta = Math.min(maximumDelta, Math.max(minimumDelta, moveEvent.clientX - startX))
+            nextWidth = startWidth + delta
+            nextAdjacentWidth = startNextWidth - delta
             if (animationFrame === undefined) {
                 animationFrame = window.requestAnimationFrame(applyWidth)
             }
@@ -81,7 +110,11 @@ const ResizableHeaderCell: React.FC<ResizableHeaderCellProps> = ({
             applyWidth()
             document.body.style.cursor = previousCursor
             document.body.style.userSelect = previousUserSelect
-            onResize(nextWidth)
+            onResize({
+                ...renderedWidths,
+                [columnKey]: nextWidth,
+                [nextColumnKey]: nextAdjacentWidth,
+            })
         }
 
         window.addEventListener('mousemove', handleMouseMove)
@@ -100,11 +133,12 @@ const ResizableHeaderCell: React.FC<ResizableHeaderCellProps> = ({
     </th>
 }
 
-const DEFAULT_COLUMN_WIDTHS: Record<ResizableColumnKey, number> = {
+const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
     type: 150,
     name: 220,
     properties: 420,
     relationships: 300,
+    actions: 116,
 }
 
 const newRecordId = (): string => {
@@ -140,8 +174,6 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
     const [deleting, setDeleting] = React.useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = React.useState<React.Key[]>([])
     const [columnWidths, setColumnWidths] = React.useState(DEFAULT_COLUMN_WIDTHS)
-    const tableWidth = Object.values(columnWidths).reduce((total, width) => total + width, 156)
-
     const resizableColumn = (key: ResizableColumnKey, minWidth: number): {
         width: number
         onHeaderCell: () => ResizableHeaderCellProps
@@ -151,8 +183,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
             width: columnWidths[key],
             minWidth,
             columnKey: key,
-            tableWidth,
-            onResize: width => setColumnWidths(current => ({ ...current, [key]: width })),
+            onResize: setColumnWidths,
         }),
     })
 
@@ -473,6 +504,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
                     '--global-entity-name-width': `${columnWidths.name}px`,
                     '--global-entity-properties-width': `${columnWidths.properties}px`,
                     '--global-entity-relationships-width': `${columnWidths.relationships}px`,
+                    '--global-entity-actions-width': `${columnWidths.actions}px`,
                 } as React.CSSProperties}
             >
                 <Table
