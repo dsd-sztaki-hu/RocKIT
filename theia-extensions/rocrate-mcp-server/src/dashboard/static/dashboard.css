@@ -678,6 +678,57 @@ body {
   width: 100%;
 }
 
+.setting-input-with-action {
+  position: relative;
+  width: 100%;
+}
+
+.setting-input-with-action .text-input {
+  padding-right: 2.5rem;
+}
+
+.password-visibility-button {
+  position: absolute;
+  top: 50%;
+  right: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.password-visibility-button:hover {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+.password-visibility-button.is-visible {
+  color: var(--color-primary);
+}
+
+.password-visibility-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.password-visibility-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
 .setting-reset {
   display: inline-flex;
   align-items: center;

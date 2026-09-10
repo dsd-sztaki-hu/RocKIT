@@ -302,7 +302,15 @@
                 <span class="setting-description" id="dataverseApiKeySource">Loading...</span>
               </label>
               <div class="setting-control setting-credential-control">
-                <input type="password" id="dataverseApiKeyInput" class="text-input" autocomplete="new-password" placeholder="Enter a new dashboard override">
+                <div class="setting-input-with-action">
+                  <input type="password" id="dataverseApiKeyInput" class="text-input" autocomplete="new-password" placeholder="Enter a new dashboard override">
+                  <button type="button" class="password-visibility-button" id="dataverseApiKeyVisibilityBtn" title="Show API key" aria-label="Show API key">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+                      <circle cx="12" cy="12" r="2.5"></circle>
+                    </svg>
+                  </button>
+                </div>
                 <label class="setting-reset">
                   <input type="checkbox" id="dataverseApiKeyUseEnv">
                   Use environment value
@@ -322,7 +330,15 @@
                 <span class="setting-description" id="tavilyApiKeySource">Loading...</span>
               </label>
               <div class="setting-control setting-credential-control">
-                <input type="password" id="tavilyApiKeyInput" class="text-input" autocomplete="new-password" placeholder="Enter a new dashboard override">
+                <div class="setting-input-with-action">
+                  <input type="password" id="tavilyApiKeyInput" class="text-input" autocomplete="new-password" placeholder="Enter a new dashboard override">
+                  <button type="button" class="password-visibility-button" id="tavilyApiKeyVisibilityBtn" title="Show API key" aria-label="Show API key">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+                      <circle cx="12" cy="12" r="2.5"></circle>
+                    </svg>
+                  </button>
+                </div>
                 <label class="setting-reset">
                   <input type="checkbox" id="tavilyApiKeyUseEnv">
                   Use environment value
@@ -545,7 +561,15 @@
               <option value="apiKey">CEDAR API key</option>
             </select>
             <input type="text" id="remoteProviderProxyBaseUrlInput" class="text-input" placeholder="https://repo.researchdata.hu">
-            <input type="password" id="remoteProviderApiKeyInput" class="text-input provider-form-wide" placeholder="API key (stored in keytar when available)">
+            <div class="setting-input-with-action provider-form-wide" id="remoteProviderApiKeyControl">
+              <input type="password" id="remoteProviderApiKeyInput" class="text-input" placeholder="API key (stored in keytar when available)">
+              <button type="button" class="password-visibility-button" id="remoteProviderApiKeyVisibilityBtn" title="Show API key" aria-label="Show API key">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+                  <circle cx="12" cy="12" r="2.5"></circle>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="setting-actions">
             <button type="submit" class="btn btn-primary">Save Provider</button>

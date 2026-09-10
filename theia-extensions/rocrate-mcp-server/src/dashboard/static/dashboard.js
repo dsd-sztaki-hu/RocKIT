@@ -74,6 +74,8 @@ const huTranslations = {
   'Use environment value': 'Környezeti érték használata',
   'Enter a new dashboard override': 'Új vezérlőpult-felülírás megadása',
   'Leave blank to keep the current value': 'Hagyja üresen az aktuális érték megtartásához',
+  'Show API key': 'API-kulcs megjelenítése',
+  'Hide API key': 'API-kulcs elrejtése',
   'Web Search Tool': 'Webes keresőeszköz',
   'Configure the Tavily API key used by the': 'A Tavily API-kulcs beállítása, amelyet a',
   'tool.': 'eszköz.',
@@ -356,9 +358,11 @@ const elements = {
   dataverseBaseUrlUseEnv: document.getElementById('dataverseBaseUrlUseEnv'),
   dataverseBaseUrlSource: document.getElementById('dataverseBaseUrlSource'),
   dataverseApiKeyInput: document.getElementById('dataverseApiKeyInput'),
+  dataverseApiKeyVisibilityBtn: document.getElementById('dataverseApiKeyVisibilityBtn'),
   dataverseApiKeyUseEnv: document.getElementById('dataverseApiKeyUseEnv'),
   dataverseApiKeySource: document.getElementById('dataverseApiKeySource'),
   tavilyApiKeyInput: document.getElementById('tavilyApiKeyInput'),
+  tavilyApiKeyVisibilityBtn: document.getElementById('tavilyApiKeyVisibilityBtn'),
   tavilyApiKeyUseEnv: document.getElementById('tavilyApiKeyUseEnv'),
   tavilyApiKeySource: document.getElementById('tavilyApiKeySource'),
   metadataProfileStorageValue: document.getElementById('metadataProfileStorageValue'),
@@ -393,6 +397,8 @@ const elements = {
   remoteProviderAccessModeInput: document.getElementById('remoteProviderAccessModeInput'),
   remoteProviderProxyBaseUrlInput: document.getElementById('remoteProviderProxyBaseUrlInput'),
   remoteProviderApiKeyInput: document.getElementById('remoteProviderApiKeyInput'),
+  remoteProviderApiKeyControl: document.getElementById('remoteProviderApiKeyControl'),
+  remoteProviderApiKeyVisibilityBtn: document.getElementById('remoteProviderApiKeyVisibilityBtn'),
   cancelRemoteProviderFormBtn: document.getElementById('cancelRemoteProviderFormBtn'),
   remoteProviderManageMessage: document.getElementById('remoteProviderManageMessage'),
   cedarBrowserModal: document.getElementById('cedarBrowserModal'),
@@ -1024,6 +1030,29 @@ async function loadSettings() {
   }
 }
 
+function setSecretVisibility(input, button, visible) {
+  if (!input || !button) {
+    return;
+  }
+
+  input.type = visible ? 'text' : 'password';
+  const label = t(visible ? 'Hide API key' : 'Show API key');
+  button.setAttribute('title', label);
+  button.setAttribute('aria-label', label);
+  button.classList.toggle('is-visible', visible);
+}
+
+function bindSecretVisibility(input, button) {
+  if (!input || !button) {
+    return;
+  }
+
+  setSecretVisibility(input, button, false);
+  button.addEventListener('click', () => {
+    setSecretVisibility(input, button, input.type === 'password');
+  });
+}
+
 function renderDataverseSettings(dataverse) {
   const config = dataverse || {};
   const baseUrl = config.baseUrl || '';
@@ -1040,6 +1069,11 @@ function renderDataverseSettings(dataverse) {
     baseUrlSource,
     'DATAVERSE_BASE_URL',
     true,
+  );
+  setSecretVisibility(
+    elements.dataverseApiKeyInput,
+    elements.dataverseApiKeyVisibilityBtn,
+    false,
   );
   elements.dataverseApiKeyInput.value = '';
   elements.dataverseApiKeyUseEnv.checked = apiKeySource !== 'dashboard';
@@ -1058,6 +1092,11 @@ function renderTavilySettings(tavily) {
   const apiKeySource = config.apiKeySource || 'unset';
 
   serviceSettingsState.tavilyApiKeySource = apiKeySource;
+  setSecretVisibility(
+    elements.tavilyApiKeyInput,
+    elements.tavilyApiKeyVisibilityBtn,
+    false,
+  );
   elements.tavilyApiKeyInput.value = '';
   elements.tavilyApiKeyUseEnv.checked = apiKeySource !== 'dashboard';
   elements.tavilyApiKeyInput.placeholder = config.apiKeyPresent
@@ -1648,6 +1687,11 @@ function showRemoteProviderForm(provider = null) {
   elements.remoteProviderDomainInput.value = provider?.domainBase || '';
   elements.remoteProviderAccessModeInput.value = provider?.accessMode || (provider?.apiKeyPresent ? 'apiKey' : 'dataverseProxy');
   elements.remoteProviderProxyBaseUrlInput.value = provider?.dataverseProxyBaseUrl || deriveDataverseProxyBaseUrl(provider?.domainBase || provider?.displayUrl || provider?.baseUrl || '');
+  setSecretVisibility(
+    elements.remoteProviderApiKeyInput,
+    elements.remoteProviderApiKeyVisibilityBtn,
+    false,
+  );
   elements.remoteProviderApiKeyInput.value = '';
   updateRemoteProviderAccessFields();
   hideRemoteProviderManageMessage();
@@ -1660,7 +1704,7 @@ function hideRemoteProviderForm() {
 function updateRemoteProviderAccessFields() {
   const mode = elements.remoteProviderAccessModeInput.value || 'dataverseProxy';
   elements.remoteProviderProxyBaseUrlInput.classList.toggle('hidden', mode !== 'dataverseProxy');
-  elements.remoteProviderApiKeyInput.classList.toggle('hidden', mode !== 'apiKey');
+  elements.remoteProviderApiKeyControl.classList.toggle('hidden', mode !== 'apiKey');
   if (mode === 'dataverseProxy' && !elements.remoteProviderProxyBaseUrlInput.value) {
     elements.remoteProviderProxyBaseUrlInput.value = deriveDataverseProxyBaseUrl(
       elements.remoteProviderDomainInput.value || elements.remoteProviderBaseUrlInput.value,
@@ -2050,6 +2094,18 @@ bindRuntimeSettingInput(
 bindRuntimeSettingInput(
   elements.tavilyApiKeyInput,
   elements.tavilyApiKeyUseEnv,
+);
+bindSecretVisibility(
+  elements.dataverseApiKeyInput,
+  elements.dataverseApiKeyVisibilityBtn,
+);
+bindSecretVisibility(
+  elements.tavilyApiKeyInput,
+  elements.tavilyApiKeyVisibilityBtn,
+);
+bindSecretVisibility(
+  elements.remoteProviderApiKeyInput,
+  elements.remoteProviderApiKeyVisibilityBtn,
 );
 
 if (elements.settingsModal) {
