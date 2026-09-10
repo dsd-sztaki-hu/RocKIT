@@ -16,6 +16,11 @@ Node.js 18 or newer is required for installation:
 npm install -g @arpproject/rocrate-mcp-server
 ```
 
+When upgrading an existing global installation, the package first asks the
+shared RO-Crate MCP daemon to shut down gracefully through its socket (or
+Windows named pipe). This works on macOS, Linux, and Windows. Restart any AI
+assistant that already has an MCP connection after the upgrade.
+
 To configure it for a particular AI assistant, use the interactive installer:
 
 ```bash
@@ -53,6 +58,10 @@ The assistant will provide a URL that opens AROMA in a browser with the RO-Crate
 
 If you place the AI assistant and the AROMA browser window side by side, changes made to the RO-Crate through the assistant will immediately appear in AROMA, where they can be reviewed and also edited directly.
 
+The server also provides a local dashboard at `http://127.0.0.1:9393` for
+monitoring MCP activity. Its **Shut down MCP** button requests a graceful
+shutdown of the shared MCP daemon and closes active MCP connections.
+
 `rocrate-mcp-server` can also upload the dataset to ARP Dataverse; simply ask your assistant to do so. For uploads to work, set the `DATAVERSE_API_KEY` environment variable. You can get it from https://repo.researchdata.hu/dataverseuser.xhtml?selectTab=apiTokenTab. The assistant will also ask for this value if they have not been configured.
 
 ## Első lépések
@@ -66,6 +75,11 @@ A telepítéshez Node.js 18 vagy újabb szükséges:
 ```bash
 npm install -g @arpproject/rocrate-mcp-server
 ```
+
+Meglévő globális telepítés frissítésekor a csomag először szabályosan leállítja
+a közös RO-Crate MCP démont a socketen (Windowson named pipe-on) keresztül. Ez
+macOS-en, Linuxon és Windowson is működik. A frissítés után indítsa újra azt az
+AI-asszisztenst, amely már MCP-kapcsolatot használ.
 
 Egy adott AI-asszisztenshez való konfiguráláshoz használja az interaktív telepítőt:
 
@@ -105,5 +119,9 @@ A munkafolyamat végén az elkészült RO-Crate csomag (a `ro-crate-metadata.jso
 Ennek hatására az asszisztens ad egy URL-t, amelyre kattintva a böngészőben megnyílik az AROMA az éppen szerkesztett RO-Crate csomaggal.
 
 Ha az AI-asszisztenst és a megnyitott AROMA böngészőablakot egymás mellé helyezi, akkor az asszisztenssel végzett módosítások azonnal megjelennek az AROMA-ban is, ahol ellenőrizhetők, illetve közvetlenül szerkeszthetők.
+
+A szerver helyi vezérlőpultot is biztosít a MCP-tevékenység megfigyeléséhez a
+`http://127.0.0.1:9393` címen. A **MCP leállítása** gomb szabályosan leállítja a
+közös MCP démont, és bezárja az aktív MCP-kapcsolatokat.
 
 A `rocrate-mcp-server` használatával az adatcsomag az ARP Dataverse-be is feltölthető; ehhez csak kérje meg az asszisztenst. A feltöltéshez állítsa be a `DATAVERSE_API_KEY` környezeti változót. Ezt a https://repo.researchdata.hu/dataverseuser.xhtml?selectTab=apiTokenTab oldalon tudja beszerezbi. Ha nincs ez a környezeti változó beállítba asszisztens is bekérheti.

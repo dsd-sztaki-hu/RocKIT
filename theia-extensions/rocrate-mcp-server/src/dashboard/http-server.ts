@@ -1,46 +1,46 @@
 /**
  * HTTP server for the RO-Crate MCP Dashboard
- * Provides read-only APIs and static file serving for the dashboard UI
+ * Provides monitoring, configuration, lifecycle, and static file APIs for the dashboard UI
  */
 
+import * as fs from 'node:fs'
 import * as http from 'node:http'
 import * as path from 'node:path'
-import * as fs from 'node:fs'
-import type { TelemetryCollector } from './collector'
-import type { DashboardConfig } from './types'
+import {
+  type CedarProvider,
+  defaultCedarProvider,
+  deleteCedarProvider,
+  deleteMetadataProfile,
+  importCedarTemplateFromUrl,
+  importRemoteSchema,
+  listCedarFolder,
+  listLocalProfiles,
+  listRemoteSchemas,
+  loadCedarProviders,
+  resolveProfileRootPath,
+  resolveProfileStorage,
+  saveCedarProvider,
+} from 'metadata-profile-core'
+import { DEFAULT_DATAVERSE_BASE_URL } from '../server/dataverse-defaults'
 import type {
-  SchemaRegistryEntry,
   RegisterSchemaInput,
+  SchemaRegistryEntry,
   UpdateSchemaInput,
 } from '../server/schema-registry-store'
 import {
   calculateSummaryStats,
   calculateToolStats,
+  computeTimeSeries,
+  filterByTimeWindow,
   formatDuration,
   formatLatency,
-  formatRelativeTime,
   formatPercentage,
+  formatRelativeTime,
   summarizeDependencyUsage,
-  filterByTimeWindow,
-  computeTimeSeries,
 } from './aggregates'
+import type { TelemetryCollector } from './collector'
 import { handleLocalFileBridgeRequest } from './local-file-bridge'
-import {
-  defaultCedarProvider,
-  deleteMetadataProfile,
-  importCedarTemplateFromUrl,
-  importRemoteSchema,
-  loadCedarProviders,
-  listCedarFolder,
-  listLocalProfiles,
-  listRemoteSchemas,
-  resolveProfileRootPath,
-  resolveProfileStorage,
-  saveCedarProvider,
-  deleteCedarProvider,
-  type CedarProvider,
-} from 'metadata-profile-core'
-import { DEFAULT_DATAVERSE_BASE_URL } from '../server/dataverse-defaults'
+import type { DashboardConfig } from './types'
 
 declare const __dirname: string
 
@@ -58,6 +58,8 @@ function resolveStaticRoot(): string {
 
 const STATIC_DIR = resolveStaticRoot()
 type AccessMode = 'local' | 'remote'
+
+export type DashboardShutdownHandler = () => void | Promise<void>
 
 type SchemaRegistryStore = {
   list: (mode: AccessMode) => { storage: unknown; schemas: SchemaRegistryEntry[] }
@@ -284,6 +286,7 @@ class DashboardApiHandlers {
     private readonly collector: TelemetryCollector,
     private readonly config: DashboardConfig,
     private readonly schemaRegistry: SchemaRegistryStore,
+    private readonly shutdownHandler?: DashboardShutdownHandler,
   ) {}
 
   /**
@@ -294,6 +297,32 @@ class DashboardApiHandlers {
       status: 'ok',
       uptime: this.collector.getUptimeSeconds(),
       timestamp: new Date().toISOString(),
+    })
+  }
+
+  /**
+   * POST /daemon/shutdown - Request a graceful MCP daemon shutdown.
+   */
+  shutdown(_req: http.IncomingMessage, res: http.ServerResponse): void {
+    const shutdownHandler = this.shutdownHandler
+    if (!shutdownHandler) {
+      sendJson(res, { error: 'MCP shutdown is not available' }, 503)
+      return
+    }
+
+    sendJson(res, { success: true, status: 'shutting-down' }, 202)
+    setImmediate(() => {
+      try {
+        void Promise.resolve(shutdownHandler()).catch((error) => {
+          const message = error instanceof Error ? error.message : String(error)
+          process.stderr.write(
+            `Dashboard shutdown handler failed: ${message}\n`,
+          )
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        process.stderr.write(`Dashboard shutdown handler failed: ${message}\n`)
+      }
     })
   }
 
@@ -1128,12 +1157,18 @@ export class DashboardHttpServer {
     collector: TelemetryCollector,
     config: DashboardConfig,
     schemaRegistry: SchemaRegistryStore,
+    shutdownHandler?: DashboardShutdownHandler,
   ) {
     this.config = {
       ...config,
       keepDataverseUploadZips: config.keepDataverseUploadZips ?? false,
     }
-    this.apiHandlers = new DashboardApiHandlers(collector, this.config, schemaRegistry)
+    this.apiHandlers = new DashboardApiHandlers(
+      collector,
+      this.config,
+      schemaRegistry,
+      shutdownHandler,
+    )
   }
 
   /**
@@ -1197,6 +1232,17 @@ export class DashboardHttpServer {
     // Strip query string for routing
     const urlPath = url.split('?')[0]
     const method = req.method || 'GET'
+
+    // Daemon lifecycle endpoint requires an explicit POST and is protected by
+    // the authentication check in the HTTP server wrapper.
+    if (urlPath === '/daemon/shutdown') {
+      if (method === 'POST') {
+        this.apiHandlers.shutdown(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
 
     // Config endpoint allows POST
     if (urlPath === '/config') {
@@ -1436,6 +1482,7 @@ export function parseDashboardConfig(): DashboardConfig {
 export async function startDashboardIfNeeded(
   collector: TelemetryCollector,
   schemaRegistry: SchemaRegistryStore,
+  shutdownHandler?: DashboardShutdownHandler,
 ): Promise<DashboardHttpServer | null> {
   const config = parseDashboardConfig()
 
@@ -1448,7 +1495,12 @@ export async function startDashboardIfNeeded(
     return null
   }
 
-  const server = new DashboardHttpServer(collector, config, schemaRegistry)
+  const server = new DashboardHttpServer(
+    collector,
+    config,
+    schemaRegistry,
+    shutdownHandler,
+  )
 
   try {
     await server.start()

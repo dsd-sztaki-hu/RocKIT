@@ -17,6 +17,11 @@ const huTranslations = {
   'Refresh': 'Frissítés',
   'Metadata Profiles': 'Metadataprofilok',
   'Settings': 'Beállítások',
+  'Shut down MCP': 'MCP leállítása',
+  'Shut down the RO-Crate MCP server? Active MCP connections will be closed.': 'Leállítja a RO-Crate MCP-szervert? Az aktív MCP-kapcsolatok bezáródnak.',
+  'Shutting down MCP...': 'MCP leállítása…',
+  'MCP shutdown requested.': 'Az MCP leállítási kérése elküldve.',
+  'Failed to shut down MCP: {0}': 'Nem sikerült leállítani az MCP-t: {0}',
   'Total Calls': 'Összes hívás',
   'Error Rate': 'Hibaarány',
   'Active Sessions': 'Aktív munkamenetek',
@@ -307,6 +312,7 @@ const elements = {
   refreshBtn: document.getElementById('refreshBtn'),
   metadataProfilesBtn: document.getElementById('metadataProfilesBtn'),
   settingsBtn: document.getElementById('settingsBtn'),
+  shutdownBtn: document.getElementById('shutdownBtn'),
   errorBanner: document.getElementById('errorBanner'),
   sessionModal: document.getElementById('sessionModal'),
   sessionModalTitle: document.getElementById('sessionModalTitle'),
@@ -411,6 +417,30 @@ async function fetchAPI(endpoint, options = {}) {
   }
 
   return response.json();
+}
+
+async function shutdownMcp() {
+  if (!window.confirm(t('Shut down the RO-Crate MCP server? Active MCP connections will be closed.'))) {
+    return;
+  }
+
+  const button = elements.shutdownBtn;
+  if (!button) {
+    return;
+  }
+
+  const originalContent = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = `<span class="icon">…</span> ${t('Shutting down MCP...')}`;
+
+  try {
+    await fetchAPI('/daemon/shutdown', { method: 'POST' });
+    button.innerHTML = `<span class="icon">✓</span> ${t('MCP shutdown requested.')}`;
+  } catch (err) {
+    button.disabled = false;
+    button.innerHTML = originalContent;
+    showError(t('Failed to shut down MCP: {0}', err.message));
+  }
 }
 
 async function postAPI(endpoint, data) {
@@ -1862,6 +1892,10 @@ if (elements.settingsBtn) {
 
 if (elements.metadataProfilesBtn) {
   elements.metadataProfilesBtn.addEventListener('click', openMetadataProfiles);
+}
+
+if (elements.shutdownBtn) {
+  elements.shutdownBtn.addEventListener('click', shutdownMcp);
 }
 
 if (elements.closeSettingsModal) {

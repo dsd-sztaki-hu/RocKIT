@@ -100,6 +100,21 @@ body {
   background-color: var(--color-bg-secondary);
 }
 
+.btn-danger {
+  background-color: var(--color-danger-bg);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background-color: var(--color-danger);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .btn-sm {
   padding: var(--spacing-xs) var(--spacing-sm);
   font-size: 0.75rem;

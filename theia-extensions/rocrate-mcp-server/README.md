@@ -16,6 +16,12 @@ Node.js 18 or newer is required for installation:
 npm install -g @arpproject/rocrate-mcp-server
 ```
 
+When upgrading an existing global installation, the standalone package first
+asks the shared RO-Crate MCP daemon to shut down gracefully through its socket
+(or Windows named pipe). This prevents the installer from replacing a live
+daemon and works on macOS, Linux, and Windows. Agent processes that already
+have an MCP connection should still be restarted after the upgrade.
+
 To configure it for a particular AI assistant, use the interactive installer:
 
 ```bash
@@ -217,6 +223,9 @@ npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-serv
 rocrate-mcp-server
 ```
 
+Use a normal npm install when upgrading so the package lifecycle hook can stop
+the existing daemon; `--ignore-scripts` disables this safety check.
+
 For the current `1.0.3` package version, run this from the repository root:
 
 ```bash
@@ -349,10 +358,11 @@ The RO-Crate MCP server includes a built-in web dashboard for real-time monitori
 - **Error tracking**: Recent errors with timestamps and stack traces
 - **Dependency monitoring**: External service call tracking (Tavily, Dataverse)
 - **Runtime configuration**: Toggle detailed logging and adjust retention settings
+- **Daemon control**: Request a graceful MCP shutdown from the dashboard
 
 ### Accessing the Dashboard
 
-By default, the dashboard starts automatically at `http://127.0.0.1:9393`. Open this URL in your browser to view the dashboard.
+By default, the dashboard starts automatically at `http://127.0.0.1:9393`. Open this URL in your browser to view the dashboard. The **Shut down MCP** button requests a graceful shutdown of the MCP daemon and closes active MCP connections.
 
 Notes:
 - Sessions are connection-scoped: each active `--connect` client appears as a
@@ -372,7 +382,7 @@ Notes:
 
 ### Dashboard API Endpoints
 
-The dashboard exposes read-only monitoring APIs plus configuration, schema,
+The dashboard exposes monitoring APIs plus configuration, schema,
 profile, local-file bridge, and Tavily test endpoints:
 
 - `GET /` - Dashboard UI
@@ -388,6 +398,7 @@ profile, local-file bridge, and Tavily test endpoints:
 - `GET /tool-calls/:id` - Detailed tool call info
 - `GET /config` - Get current configuration
 - `POST /config` - Update configuration (detailed logging, retention)
+- `POST /daemon/shutdown` - Request a graceful MCP daemon shutdown
 - `POST /test/tavily-search` - Test Tavily search settings from the dashboard
 - `GET /schema-registry?mode=local|remote` - List schema registry entries
 - `POST /schema-registry` - Register/replace schema entry

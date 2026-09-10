@@ -758,12 +758,12 @@ async function startServer(): Promise<void> {
     asRecord,
     handleToolCall,
     getTelemetryCollector,
-    startDashboardIfNeeded: () => {
+    startDashboardIfNeeded: (onShutdown) => {
       const collector = getTelemetryCollector()
       if (!collector) {
         return
       }
-      void startDashboardIfNeeded(collector, schemaRegistryStore)
+      void startDashboardIfNeeded(collector, schemaRegistryStore, onShutdown)
         .then((dashboard) => {
           if (dashboard) {
             process.stderr.write('rocrate-mcp-server: dashboard enabled\n')

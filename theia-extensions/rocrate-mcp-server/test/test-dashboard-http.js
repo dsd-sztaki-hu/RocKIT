@@ -92,6 +92,8 @@ async function testHttpServer() {
   delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
   delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
 
+  let shutdownRequested = false
+
   // Create and start the HTTP server
   const dashboard = new DashboardHttpServer(collector, {
     enabled: true,
@@ -125,6 +127,8 @@ async function testHttpServer() {
       this._schemas = this._schemas.filter((entry) => entry.id !== id)
       return { storage: this._storage, schemas: [...this._schemas] }
     },
+  }, () => {
+    shutdownRequested = true
   })
 
   await dashboard.start()
@@ -201,6 +205,17 @@ async function testHttpServer() {
     const healthData = JSON.parse(healthResp.data)
     assert.strictEqual(healthData.status, 'ok')
     assert.strictEqual(typeof healthData.uptime, 'number')
+
+    // Test the protected graceful-shutdown request endpoint without stopping
+    // this test process; the injected handler records the request instead.
+    console.log('  Testing /daemon/shutdown endpoint...')
+    const shutdownResp = await requestWithBody('POST', '/daemon/shutdown', null)
+    assert.strictEqual(shutdownResp.status, 202)
+    const shutdownData = JSON.parse(shutdownResp.data)
+    assert.strictEqual(shutdownData.success, true)
+    assert.strictEqual(shutdownData.status, 'shutting-down')
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.strictEqual(shutdownRequested, true)
 
     // Test /metrics/summary endpoint
     console.log('  Testing /metrics/summary endpoint...')
