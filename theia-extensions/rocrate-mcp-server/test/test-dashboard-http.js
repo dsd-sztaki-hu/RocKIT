@@ -32,6 +32,16 @@ async function testHttpServer() {
   delete process.env.ROCRATE_DASHBOARD_ENABLED
   delete process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED
 
+  const profileRootPath = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'rocrate-dashboard-rockit-'),
+  )
+  process.env.ROCKIT_ROOT_PATH = profileRootPath
+  process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = 'remote-schema-providers.json'
+  process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteSchemaProvider'
+  delete process.env.AROMA_ROOT_PATH
+  delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+  delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
+
   // Import modules
   const { TelemetryCollector } = await import('../lib/dashboard/collector.js')
   const { DashboardHttpServer } = await import('../lib/dashboard/http-server.js')
@@ -40,6 +50,7 @@ async function testHttpServer() {
   const { createDataverseHandlers } = await import('../lib/server/dataverse.js')
   const {
     clearRuntimeEnvOverrides,
+    getRuntimeConfigFilePath,
     getRuntimeEnvValue,
   } = await import('../lib/server/runtime-config.js')
   clearRuntimeEnvOverrides()
@@ -91,15 +102,6 @@ async function testHttpServer() {
 
   const port = await getPort()
   process.env.ROCRATE_DASHBOARD_PORT = String(port)
-  const profileRootPath = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'rocrate-dashboard-rockit-'),
-  )
-  process.env.ROCKIT_ROOT_PATH = profileRootPath
-  process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = 'remote-schema-providers.json'
-  process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteSchemaProvider'
-  delete process.env.AROMA_ROOT_PATH
-  delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
-  delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
 
   let shutdownRequested = false
 
@@ -359,6 +361,38 @@ async function testHttpServer() {
     assert.strictEqual(getRuntimeEnvValue('TAVILY_API_KEY'), 'dashboard-tavily-key')
     assert.strictEqual(getRuntimeEnvValue('DATAVERSE_BASE_URL'), 'https://dashboard.example.test/')
     assert.strictEqual(getRuntimeEnvValue('DATAVERSE_API_KEY'), 'dashboard-dataverse-key')
+    const runtimeConfigPath = getRuntimeConfigFilePath()
+    assert.strictEqual(
+      runtimeConfigPath,
+      path.join(profileRootPath, 'rocrate-mcp-settings.json'),
+    )
+    const persistedRuntimeConfig = JSON.parse(
+      fs.readFileSync(runtimeConfigPath, 'utf8'),
+    )
+    assert.strictEqual(persistedRuntimeConfig.version, 1)
+    assert.deepStrictEqual(persistedRuntimeConfig.overrides, {
+      TAVILY_API_KEY: 'dashboard-tavily-key',
+      DATAVERSE_BASE_URL: 'https://dashboard.example.test/',
+      DATAVERSE_API_KEY: 'dashboard-dataverse-key',
+    })
+    if (process.platform !== 'win32') {
+      assert.strictEqual(fs.statSync(runtimeConfigPath).mode & 0o777, 0o600)
+    }
+    const restartedRuntimeConfig = await import(
+      `../lib/server/runtime-config.js?restart=${Date.now()}`,
+    )
+    assert.strictEqual(
+      restartedRuntimeConfig.getRuntimeEnvOverride('TAVILY_API_KEY'),
+      'dashboard-tavily-key',
+    )
+    assert.strictEqual(
+      restartedRuntimeConfig.getRuntimeEnvOverride('DATAVERSE_BASE_URL'),
+      'https://dashboard.example.test/',
+    )
+    assert.strictEqual(
+      restartedRuntimeConfig.getRuntimeEnvOverride('DATAVERSE_API_KEY'),
+      'dashboard-dataverse-key',
+    )
 
     // Secret values stay out of the normal /config response, but the dashboard
     // eye control needs an explicit endpoint to reveal a configured key.
@@ -454,6 +488,10 @@ async function testHttpServer() {
     assert.strictEqual(getRuntimeEnvValue('TAVILY_API_KEY'), 'test-tavily-key')
     assert.strictEqual(getRuntimeEnvValue('DATAVERSE_BASE_URL'), 'https://dataverse.example.test/')
     assert.strictEqual(getRuntimeEnvValue('DATAVERSE_API_KEY'), 'test-dataverse-key')
+    const clearedRuntimeConfig = JSON.parse(
+      fs.readFileSync(runtimeConfigPath, 'utf8'),
+    )
+    assert.deepStrictEqual(clearedRuntimeConfig.overrides, {})
 
     // Test metadata profile endpoints
     console.log('  Testing /metadata-profiles endpoints...')

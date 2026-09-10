@@ -69,7 +69,7 @@ const huTranslations = {
   'How long to keep telemetry data (hours)': 'A telemetriai adatok megőrzési ideje (óra)',
   'hours': 'óra',
   'Dataverse Upload Tool': 'Dataverse-feltöltő eszköz',
-  'Environment variables are used by default. Values entered here override them for the current MCP process only.': 'Alapértelmezés szerint a környezeti változók használatosak. Az itt megadott értékek csak a jelenlegi MCP-folyamatban írják felül ezeket.',
+  'Environment variables are used by default. Dashboard values are saved in the RocKIT storage root (default: ~/.rockit/rocrate-mcp-settings.json) and override them for this and future MCP processes.': 'Alapértelmezés szerint a környezeti változók használatosak. A vezérlőpult értékei a RocKIT tárolási gyökerében (alapértelmezés: ~/.rockit/rocrate-mcp-settings.json) kerülnek mentésre, és felülírják ezeket a jelenlegi és a későbbi MCP-folyamatokban.',
   'Select “Use environment/default value” to clear a dashboard override.': 'A vezérlőpult felülírásának törléséhez válassza a „Környezeti/alapértelmezett érték használata” lehetőséget.',
   'Saved API-key values stay masked; click the eye to view them after reload.': 'A mentett API-kulcsok rejtve maradnak; újratöltés után a megtekintésükhöz kattintson a szem ikonra.',
   'Use environment/default value': 'Környezeti/alapértelmezett érték használata',

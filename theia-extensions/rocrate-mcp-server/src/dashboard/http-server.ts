@@ -27,7 +27,7 @@ import {
   getRuntimeEnvValue,
   RUNTIME_ENV_KEYS,
   type RuntimeEnvKey,
-  setRuntimeEnvOverride,
+  setRuntimeEnvOverrides,
 } from '../server/runtime-config'
 import type {
   RegisterSchemaInput,
@@ -829,8 +829,15 @@ class DashboardApiHandlers {
       }
     }
 
+    try {
+      setRuntimeEnvOverrides(runtimeUpdates)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: `Failed to persist runtime settings: ${message}` }, 500)
+      return
+    }
+
     for (const { key, value } of runtimeUpdates) {
-      setRuntimeEnvOverride(key, value)
       changes[key] = value === null || value.trim() === '' ? 'fallback' : 'dashboard'
     }
 

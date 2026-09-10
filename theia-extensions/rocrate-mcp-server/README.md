@@ -368,10 +368,14 @@ The Settings page can override `TAVILY_API_KEY`, `DATAVERSE_BASE_URL`, and
 `DATAVERSE_API_KEY` for the running MCP process. Values from the dashboard take
 precedence over the corresponding environment variables. Leave the dashboard
 override cleared to use the environment value again. These overrides are held
-in memory and return to the environment defaults when the MCP process restarts;
-secret values are not included in the normal configuration response. The eye
-control beside an API-key field makes an explicit protected request to reveal
-that selected value for viewing.
+in `rocrate-mcp-settings.json` under the RocKIT storage root (by default
+`~/.rockit`) and survive MCP restarts. Selecting the environment/default option
+removes the persisted override. Secret values are not included in the normal
+configuration response. The eye control beside an API-key field makes an
+explicit protected request to reveal that selected value for viewing. The
+settings file contains configured API keys in plaintext and is written with
+user-only permissions where supported; protect the RocKIT storage root like a
+credentials directory.
 
 Notes:
 - Sessions are connection-scoped: each active `--connect` client appears as a
@@ -725,8 +729,11 @@ node /absolute/path/to/rocrate-mcp-server/lib/server.js --connect /Users/<you>/.
 
 `TAVILY_API_KEY`, `DATAVERSE_BASE_URL`, and `DATAVERSE_API_KEY` can also be
 changed at runtime from the dashboard Settings page. A dashboard value takes
-precedence over the environment variable for the current process only; clear
-the dashboard override to restore the environment fallback.
+precedence over the environment variable and is persisted in
+`~/.rockit/rocrate-mcp-settings.json` (or the configured `ROCKIT_ROOT_PATH`);
+clear the dashboard override to restore the environment fallback. The file
+contains these values in plaintext and is protected with user-only
+permissions where supported.
 
 ### Profile Resolution
 - `ROCKIT_ROOT_PATH` (optional): shared base directory for schema index/profile files (default `~/.rockit`).
