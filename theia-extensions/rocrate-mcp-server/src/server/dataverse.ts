@@ -110,6 +110,15 @@ type DataversePreflightValidationErrorOptions = {
   validationResponse: unknown
 }
 
+type DataverseAuthenticationErrorOptions = {
+  status: number
+  requestUrl: string
+  cratePath?: string
+  apiKeyProvided: boolean
+  dataverseResponse: unknown
+  dashboardUrl: string
+}
+
 /**
  * Represents a Dataverse validation rejection that should remain available to
  * the agent as a structured MCP tool error instead of becoming a generic
@@ -159,6 +168,107 @@ export class DataversePreflightValidationError extends Error {
         'Use validationIssues and validationResponse to correct the RO-Crate at cratePath, run validate_crate again, and retry upload_rocrate_to_dataverse. Do not retry unchanged metadata.',
     }
   }
+}
+
+/**
+ * Represents a Dataverse authentication rejection that should tell the agent
+ * exactly how to provide or replace the missing credential.
+ */
+export class DataverseAuthenticationError extends Error {
+  readonly status: number
+  readonly requestUrl: string
+  readonly cratePath?: string
+  readonly apiKeyProvided: boolean
+  readonly dataverseResponse: unknown
+  readonly dashboardUrl: string
+  private preservedZipPath?: string
+
+  constructor(options: DataverseAuthenticationErrorOptions) {
+    const credentialMessage = options.apiKeyProvided
+      ? 'the configured Dataverse API key was rejected or does not have permission'
+      : 'no DATAVERSE_API_KEY was provided'
+    super(
+      `Dataverse rejected the upload request (${options.status}) at ${options.requestUrl}: ${credentialMessage}.`,
+    )
+    this.name = 'DataverseAuthenticationError'
+    this.status = options.status
+    this.requestUrl = options.requestUrl
+    this.cratePath = options.cratePath
+    this.apiKeyProvided = options.apiKeyProvided
+    this.dataverseResponse = options.dataverseResponse
+    this.dashboardUrl = options.dashboardUrl
+    Object.setPrototypeOf(this, new.target.prototype)
+  }
+
+  /**
+   * Keeps the generated ZIP available when authentication fails after it was
+   * created, so the agent or user can inspect or retry it.
+   */
+  setPreservedZipPath(zipPath: string): void {
+    this.preservedZipPath = zipPath
+  }
+
+  /**
+   * Converts the authentication rejection into a model-readable MCP result.
+   */
+  toMcpPayload(): Record<string, unknown> {
+    const dashboardLocation =
+      'Settings → Dataverse Upload Tool → DATAVERSE_API_KEY'
+    const credentialAction = this.apiKeyProvided
+      ? 'Replace or correct the current Dataverse API key'
+      : 'Provide a Dataverse API key'
+    const zipNotice = this.preservedZipPath
+      ? ` The generated ZIP was preserved at ${this.preservedZipPath}.`
+      : ''
+    return {
+      ok: false,
+      errorCode: this.apiKeyProvided
+        ? 'DATAVERSE_AUTHENTICATION_FAILED'
+        : 'DATAVERSE_API_KEY_REQUIRED',
+      stage: 'dataverse_authentication',
+      message: this.message,
+      status: this.status,
+      requestUrl: this.requestUrl,
+      cratePath: this.cratePath,
+      apiKeyProvided: this.apiKeyProvided,
+      dataverseResponse: this.dataverseResponse,
+      dashboardUrl: this.dashboardUrl,
+      credential: {
+        name: 'DATAVERSE_API_KEY',
+        environmentVariable: 'DATAVERSE_API_KEY',
+        dashboardUrl: this.dashboardUrl,
+        dashboardLocation,
+        toolParameter: 'apiKey',
+      },
+      uploadPerformed: false,
+      retryable: true,
+      ...(this.preservedZipPath
+        ? { zipPath: this.preservedZipPath, zipPreserved: true }
+        : { zipPreserved: false }),
+      nextAction:
+        `${credentialAction} using one of these supported methods: set DATAVERSE_API_KEY in the MCP process environment; enter it in the MCP dashboard at ${this.dashboardUrl} under ${dashboardLocation}; or ask the user to provide it and pass it as the upload_rocrate_to_dataverse apiKey argument. Then retry upload_rocrate_to_dataverse.${zipNotice}`,
+    }
+  }
+}
+
+function isDataverseAuthenticationStatus(status: number): boolean {
+  return status === 401 || status === 403
+}
+
+function hasDataverseApiKey(apiKey: string | undefined): boolean {
+  return typeof apiKey === 'string' && apiKey.trim() !== ''
+}
+
+function getDashboardUrlForUser(): string {
+  const configuredHost = process.env.ROCRATE_DASHBOARD_HOST?.trim() || '127.0.0.1'
+  const host =
+    configuredHost === '0.0.0.0' || configuredHost === '::'
+      ? '127.0.0.1'
+      : configuredHost
+  const formattedHost =
+    host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
+  const port = process.env.ROCRATE_DASHBOARD_PORT?.trim() || '9393'
+  return `http://${formattedHost}:${port}`
 }
 
 /**
@@ -1308,6 +1418,15 @@ export function createDataverseHandlers(deps: DataverseDeps) {
 
       const error = record.error
       collectReportValue(error, 'Dataverse')
+
+      const data = record.data
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        const dataRecord = data as Record<string, unknown>
+        collectIssues(dataRecord)
+        collectReportValue(dataRecord.validation, 'Dataverse')
+        collectReportValue(dataRecord.details, 'Dataverse')
+        collectReportValue(dataRecord.message, 'Dataverse')
+      }
     }
 
     const seen = new Set<string>()
@@ -1489,6 +1608,16 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       params.timeoutMs,
     )
     if (!dataversePreflight.ok) {
+      if (isDataverseAuthenticationStatus(dataversePreflight.status)) {
+        throw new DataverseAuthenticationError({
+          status: dataversePreflight.status,
+          requestUrl: dataversePreflight.requestUrl,
+          cratePath: params.cratePath,
+          apiKeyProvided: hasDataverseApiKey(params.apiKey),
+          dataverseResponse: dataversePreflight.payload,
+          dashboardUrl: getDashboardUrlForUser(),
+        })
+      }
       throw new DataversePreflightValidationError({
         status: dataversePreflight.status,
         requestUrl: dataversePreflight.requestUrl,
@@ -1585,6 +1714,16 @@ export function createDataverseHandlers(deps: DataverseDeps) {
         // keep text payload
       }
       if (!response.ok) {
+        if (isDataverseAuthenticationStatus(response.status)) {
+          throw new DataverseAuthenticationError({
+            status: response.status,
+            requestUrl: response.url || endpointUrl.toString(),
+            cratePath: params.cratePath,
+            apiKeyProvided: hasDataverseApiKey(params.apiKey),
+            dataverseResponse: payload,
+            dashboardUrl: getDashboardUrlForUser(),
+          })
+        }
         const preview = typeof payload === 'string' ? payload : payloadText
         throw new Error(
           `Dataverse upload failed (${response.status}): ${String(preview).slice(0, 300)}`,
@@ -1635,6 +1774,12 @@ export function createDataverseHandlers(deps: DataverseDeps) {
             : undefined,
       }
     } catch (error) {
+      if (error instanceof DataverseAuthenticationError) {
+        if (zipPath) {
+          error.setPreservedZipPath(zipPath)
+        }
+        throw error
+      }
       if (zipPath) {
         const message = error instanceof Error ? error.message : String(error)
         throw new Error(`${message} ZIP preserved at ${zipPath}`)

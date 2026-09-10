@@ -275,7 +275,7 @@ export const tools: ToolDefinition[] = [
   {
     name: 'upload_rocrate_to_dataverse',
     description:
-      'Upload to Dataverse ARP API. New dataset (no pid) uploads ZIP (ro-crate-metadata.json + referenced files, local mode only). Existing dataset (pid) posts JSON metadata update. New-dataset uploads run Dataverse preflight validation first; if it fails, the tool returns structured validationErrors, validationIssues, and validationResponse without creating a dataset. Inspect those details, repair the local crate, validate again, and retry the upload.',
+      'Upload to Dataverse ARP API. New dataset (no pid) uploads ZIP (ro-crate-metadata.json + referenced files, local mode only). Existing dataset (pid) posts JSON metadata update. New-dataset uploads run Dataverse preflight validation first; if it fails, the tool returns structured validationErrors, validationIssues, and validationResponse without creating a dataset. If Dataverse rejects authentication with HTTP 401/403, the tool returns structured instructions identifying DATAVERSE_API_KEY, the dashboard location, and the apiKey override. Inspect those details, repair the local crate or credentials as indicated, validate again when needed, and retry the upload.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -295,7 +295,11 @@ export const tools: ToolDefinition[] = [
           description:
             'Optional ownerId for new uploads. Defaults to DATAVERSE_OWNER_ID or root.',
         },
-        apiKey: { type: 'string', description: 'Optional X-Dataverse-key override.' },
+        apiKey: {
+          type: 'string',
+          description:
+            'Optional X-Dataverse-key override. Takes precedence over DATAVERSE_API_KEY and the MCP dashboard setting; use it when the user provides a key in chat.',
+        },
         timeoutMs: { type: 'number' },
         write: { type: 'boolean', enum: [true] },
         profileContextId: { type: 'string' },
@@ -342,7 +346,11 @@ export const tools: ToolDefinition[] = [
           type: 'string',
           description: `Optional Dataverse base URL. Defaults to DATAVERSE_BASE_URL or ${DEFAULT_DATAVERSE_BASE_URL}.`,
         },
-        apiKey: { type: 'string', description: 'Optional X-Dataverse-key override.' },
+        apiKey: {
+          type: 'string',
+          description:
+            'Optional X-Dataverse-key override. Takes precedence over DATAVERSE_API_KEY and the MCP dashboard setting; use it when the user provides a key in chat.',
+        },
         timeoutMs: { type: 'number' },
         write: { type: 'boolean' },
         indent: { type: 'number' },

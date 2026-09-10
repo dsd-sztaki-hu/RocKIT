@@ -1,6 +1,9 @@
 import type { McpToolTextResult, TransportMode } from './types'
 import type { SchemaRegistryEntry } from './schema-registry-store'
-import { DataversePreflightValidationError } from './dataverse'
+import {
+  DataverseAuthenticationError,
+  DataversePreflightValidationError,
+} from './dataverse'
 import { readAgentWorkflowDoc } from './workflow-docs'
 import { registerLocalFileForAroma } from '../dashboard/local-file-bridge'
 import {
@@ -499,7 +502,10 @@ export function createToolDispatcher(deps: DispatcherDeps) {
           }
           return textResult(summarizeDataverseUploadPayload(payload))
         } catch (error) {
-          if (error instanceof DataversePreflightValidationError) {
+          if (
+            error instanceof DataversePreflightValidationError ||
+            error instanceof DataverseAuthenticationError
+          ) {
             if (collector && telemetryId) {
               collector.completeToolCallError(telemetryId, error)
             }
