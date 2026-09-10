@@ -70,23 +70,26 @@ const huTranslations = {
   'Dataverse Upload Tool': 'Dataverse-feltöltő eszköz',
   'Environment variables are used by default. Values entered here override them for the current MCP process only.': 'Alapértelmezés szerint a környezeti változók használatosak. Az itt megadott értékek csak a jelenlegi MCP-folyamatban írják felül ezeket.',
   'Select “Use environment/default value” to clear a dashboard override.': 'A vezérlőpult felülírásának törléséhez válassza a „Környezeti/alapértelmezett érték használata” lehetőséget.',
+  'Saved API-key values stay masked; click the eye to view them after reload.': 'A mentett API-kulcsok rejtve maradnak; újratöltés után a megtekintésükhöz kattintson a szem ikonra.',
   'Use environment/default value': 'Környezeti/alapértelmezett érték használata',
   'Use environment value': 'Környezeti érték használata',
   'Enter a new dashboard override': 'Új vezérlőpult-felülírás megadása',
   'Leave blank to keep the current value': 'Hagyja üresen az aktuális érték megtartásához',
+  'Configured; click the eye to view or enter a replacement': 'Beállítva; a megtekintéshez kattintson a szem ikonra, vagy adjon meg új értéket',
   'Show API key': 'API-kulcs megjelenítése',
   'Hide API key': 'API-kulcs elrejtése',
+  'Failed to reveal API key: {0}': 'Nem sikerült megjeleníteni az API-kulcsot: {0}',
   'Web Search Tool': 'Webes keresőeszköz',
   'Configure the Tavily API key used by the': 'A Tavily API-kulcs beállítása, amelyet a',
   'tool.': 'eszköz.',
-  'The value is never displayed after it is saved.': 'A mentés után az érték nem jelenik meg.',
+  'Saved values stay masked; click the eye to view them.': 'A mentett értékek rejtve maradnak; megtekintésükhöz kattintson a szem ikonra.',
   'Dashboard override active': 'Aktív vezérlőpult-felülírás',
   'Using environment variable: {0}': 'Környezeti változó használata: {0}',
   'Using built-in default': 'Beépített alapérték használata',
   'Not configured': 'Nincs beállítva',
   'Keep RO-Crate ZIPs': 'RO-Crate ZIP-fájlok megtartása',
   'Keep generated ZIP files after successful Dataverse uploads': 'A létrehozott ZIP-fájlok megtartása sikeres Dataverse-feltöltés után',
-  'Save Changes': 'Módosítások mentése',
+  'Save Settings': 'Beállítások mentése',
   'Cancel': 'Mégse',
   'Schema Registry': 'Sémaregiszter',
   'Manage ontology schema sources used by MCP ontology suggestion tools.': 'Az MCP ontológiajavasló eszközei által használt ontológiaséma-források kezelése.',
@@ -1042,14 +1045,47 @@ function setSecretVisibility(input, button, visible) {
   button.classList.toggle('is-visible', visible);
 }
 
-function bindSecretVisibility(input, button) {
+async function revealConfiguredSecret(input, button, environmentName) {
+  if (
+    input.value.trim() === '' &&
+    input.dataset.secretConfigured === 'true' &&
+    environmentName
+  ) {
+    button.disabled = true;
+    try {
+      const result = await fetchAPI(
+        '/config/secrets',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-RoCrate-Dashboard-Intent': 'reveal-secret',
+          },
+          body: JSON.stringify({ key: environmentName }),
+        },
+      );
+      if (typeof result.value === 'string' && result.value !== '') {
+        input.value = result.value;
+      }
+    } catch (err) {
+      showSettingsMessage(t('Failed to reveal API key: {0}', err.message), 'error');
+      return;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  setSecretVisibility(input, button, input.type === 'password');
+}
+
+function bindSecretVisibility(input, button, environmentName) {
   if (!input || !button) {
     return;
   }
 
   setSecretVisibility(input, button, false);
   button.addEventListener('click', () => {
-    setSecretVisibility(input, button, input.type === 'password');
+    void revealConfiguredSecret(input, button, environmentName);
   });
 }
 
@@ -1076,9 +1112,12 @@ function renderDataverseSettings(dataverse) {
     false,
   );
   elements.dataverseApiKeyInput.value = '';
+  elements.dataverseApiKeyInput.dataset.secretConfigured = config.apiKeyPresent
+    ? 'true'
+    : 'false';
   elements.dataverseApiKeyUseEnv.checked = apiKeySource !== 'dashboard';
   elements.dataverseApiKeyInput.placeholder = config.apiKeyPresent
-    ? t('Leave blank to keep the current value')
+    ? t('Configured; click the eye to view or enter a replacement')
     : t('Enter a new dashboard override');
   elements.dataverseApiKeySource.textContent = formatRuntimeSource(
     apiKeySource,
@@ -1098,9 +1137,12 @@ function renderTavilySettings(tavily) {
     false,
   );
   elements.tavilyApiKeyInput.value = '';
+  elements.tavilyApiKeyInput.dataset.secretConfigured = config.apiKeyPresent
+    ? 'true'
+    : 'false';
   elements.tavilyApiKeyUseEnv.checked = apiKeySource !== 'dashboard';
   elements.tavilyApiKeyInput.placeholder = config.apiKeyPresent
-    ? t('Leave blank to keep the current value')
+    ? t('Configured; click the eye to view or enter a replacement')
     : t('Enter a new dashboard override');
   elements.tavilyApiKeySource.textContent = formatRuntimeSource(
     apiKeySource,
@@ -2098,10 +2140,12 @@ bindRuntimeSettingInput(
 bindSecretVisibility(
   elements.dataverseApiKeyInput,
   elements.dataverseApiKeyVisibilityBtn,
+  'DATAVERSE_API_KEY',
 );
 bindSecretVisibility(
   elements.tavilyApiKeyInput,
   elements.tavilyApiKeyVisibilityBtn,
+  'TAVILY_API_KEY',
 );
 bindSecretVisibility(
   elements.remoteProviderApiKeyInput,

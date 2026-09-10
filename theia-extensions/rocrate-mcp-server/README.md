@@ -369,7 +369,9 @@ The Settings page can override `TAVILY_API_KEY`, `DATAVERSE_BASE_URL`, and
 precedence over the corresponding environment variables. Leave the dashboard
 override cleared to use the environment value again. These overrides are held
 in memory and return to the environment defaults when the MCP process restarts;
-secret values are never returned by the dashboard API.
+secret values are not included in the normal configuration response. The eye
+control beside an API-key field makes an explicit protected request to reveal
+that selected value for viewing.
 
 Notes:
 - Sessions are connection-scoped: each active `--connect` client appears as a

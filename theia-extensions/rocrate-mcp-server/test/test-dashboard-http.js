@@ -340,6 +340,47 @@ async function testHttpServer() {
     assert.strictEqual(getRuntimeEnvValue('DATAVERSE_BASE_URL'), 'https://dashboard.example.test/')
     assert.strictEqual(getRuntimeEnvValue('DATAVERSE_API_KEY'), 'dashboard-dataverse-key')
 
+    // Secret values stay out of the normal /config response, but the dashboard
+    // eye control needs an explicit endpoint to reveal a configured key.
+    const revealSecretHeaders = {
+      'X-RoCrate-Dashboard-Intent': 'reveal-secret',
+    }
+    const tavilySecretResp = await requestWithBody(
+      'POST',
+      '/config/secrets',
+      { key: 'TAVILY_API_KEY' },
+      revealSecretHeaders,
+    )
+    assert.strictEqual(tavilySecretResp.status, 200)
+    assert.deepStrictEqual(JSON.parse(tavilySecretResp.data), {
+      key: 'TAVILY_API_KEY',
+      value: 'dashboard-tavily-key',
+    })
+    const dataverseSecretResp = await requestWithBody(
+      'POST',
+      '/config/secrets',
+      { key: 'DATAVERSE_API_KEY' },
+      revealSecretHeaders,
+    )
+    assert.strictEqual(dataverseSecretResp.status, 200)
+    assert.deepStrictEqual(JSON.parse(dataverseSecretResp.data), {
+      key: 'DATAVERSE_API_KEY',
+      value: 'dashboard-dataverse-key',
+    })
+    const invalidSecretResp = await requestWithBody(
+      'POST',
+      '/config/secrets',
+      { key: 'DATAVERSE_BASE_URL' },
+      revealSecretHeaders,
+    )
+    assert.strictEqual(invalidSecretResp.status, 400)
+    const missingIntentResp = await requestWithBody(
+      'POST',
+      '/config/secrets',
+      { key: 'TAVILY_API_KEY' },
+    )
+    assert.strictEqual(missingIntentResp.status, 403)
+
     const webHandlers = createWebHandlers({ getTelemetryCollector: () => null })
     const originalFetch = global.fetch
     let tavilyRequestBody

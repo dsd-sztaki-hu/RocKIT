@@ -184,6 +184,13 @@ function getTavilyConfig(): {
   }
 }
 
+const RUNTIME_SECRET_KEYS = ['TAVILY_API_KEY', 'DATAVERSE_API_KEY'] as const
+type RuntimeSecretKey = (typeof RUNTIME_SECRET_KEYS)[number]
+
+function isRuntimeSecretKey(value: string): value is RuntimeSecretKey {
+  return (RUNTIME_SECRET_KEYS as readonly string[]).includes(value)
+}
+
 function getExternalServiceConfig(): {
   dataverse: ReturnType<typeof getDataverseUploadConfig>
   tavily: ReturnType<typeof getTavilyConfig>
@@ -610,6 +617,43 @@ class DashboardApiHandlers {
       retentionHours: this.config.retentionHours,
       enabled: this.config.enabled,
       ...getExternalServiceConfig(),
+    })
+  }
+
+  /**
+   * POST /config/secrets - Explicitly reveal one configured API key.
+   *
+   * The regular /config response intentionally contains only presence/source
+   * metadata. This endpoint is called only by the dashboard visibility control
+   * after the user explicitly asks to see a specific key.
+   */
+  async getConfigSecret(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    if (req.headers['x-rocrate-dashboard-intent'] !== 'reveal-secret') {
+      sendJson(res, { error: 'Dashboard reveal intent is required' }, 403)
+      return
+    }
+
+    let body: Record<string, unknown>
+    try {
+      body = await parseJsonObjectBody(req)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: message }, 400)
+      return
+    }
+
+    const key = typeof body.key === 'string' ? body.key : ''
+    if (!key || !isRuntimeSecretKey(key)) {
+      sendJson(res, { error: 'Unsupported secret key' }, 400)
+      return
+    }
+
+    sendJson(res, {
+      key,
+      value: getRuntimeEnvValue(key) ?? null,
     })
   }
 
@@ -1305,6 +1349,18 @@ export class DashboardHttpServer {
       }
       if (method === 'POST') {
         void this.apiHandlers.updateConfig(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    // Secret values are available only through an explicit dashboard request
+    // for a supported API-key field. The handler also requires a custom intent
+    // header, which prevents cross-origin browser requests from reading keys.
+    if (urlPath === '/config/secrets') {
+      if (method === 'POST') {
+        void this.apiHandlers.getConfigSecret(req, res)
         return
       }
       sendJson(res, { error: 'Method not allowed' }, 405)
