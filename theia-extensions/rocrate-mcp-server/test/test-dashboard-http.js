@@ -232,6 +232,8 @@ async function testHttpServer() {
       dashboardScriptResp.data.includes('Configured; click the eye to view or enter a replacement'),
       false,
     )
+    assert.strictEqual(dashboardScriptResp.data.includes('editSchema'), false)
+    assert.strictEqual(dashboardScriptResp.data.includes('deleteSchema'), false)
 
     // Test the protected graceful-shutdown request endpoint without stopping
     // this test process; the injected handler records the request instead.

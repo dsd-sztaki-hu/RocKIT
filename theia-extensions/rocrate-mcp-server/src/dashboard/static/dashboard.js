@@ -2214,8 +2214,6 @@ document.addEventListener('keydown', (e) => {
 // Make viewSession and viewToolCall available globally
 window.viewSession = viewSession;
 window.viewToolCall = viewToolCall;
-window.editSchema = editSchema;
-window.deleteSchema = deleteSchema;
 window.deleteMetadataProfile = deleteMetadataProfile;
 window.importKnownMetadataProfile = importKnownMetadataProfile;
 window.selectRemoteProvider = selectRemoteProvider;
