@@ -141,6 +141,27 @@ const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
     actions: 116,
 }
 
+const fitDefaultColumnWidths = (availableWidth: number): ColumnWidths => {
+    const widths = { ...DEFAULT_COLUMN_WIDTHS }
+    const defaultWidth = Object.values(widths).reduce((total, width) => total + width, 0)
+    let difference = availableWidth - defaultWidth
+
+    if (difference >= 0) {
+        widths.properties += difference * 0.65
+        widths.relationships += difference * 0.35
+        return widths
+    }
+
+    for (const key of ['properties', 'relationships', 'name', 'type'] as ColumnKey[]) {
+        const reducibleWidth = widths[key] - MIN_COLUMN_WIDTHS[key]
+        const reduction = Math.min(reducibleWidth, -difference)
+        widths[key] -= reduction
+        difference += reduction
+        if (difference >= 0) break
+    }
+    return widths
+}
+
 const newRecordId = (): string => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID()
@@ -162,6 +183,8 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
     onDeleteMany,
 }) => {
     const tableWrapperRef = React.useRef<HTMLDivElement>(null)
+    const tableContainerRef = React.useRef<HTMLDivElement>(null)
+    const initialWidthsSet = React.useRef(false)
     const [query, setQuery] = React.useState('')
     const [editorOpen, setEditorOpen] = React.useState(false)
     const [editingRecordId, setEditingRecordId] = React.useState<string>()
@@ -174,6 +197,16 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
     const [deleting, setDeleting] = React.useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = React.useState<React.Key[]>([])
     const [columnWidths, setColumnWidths] = React.useState(DEFAULT_COLUMN_WIDTHS)
+    const tableWidth = 40 + Object.values(columnWidths).reduce((total, width) => total + width, 0)
+
+    React.useLayoutEffect(() => {
+        if (initialWidthsSet.current || !tableContainerRef.current) return
+        const tableBody = tableContainerRef.current.querySelector<HTMLElement>('.ant-table-body')
+        const availableWidth = (tableBody?.clientWidth ?? tableContainerRef.current.clientWidth) - 40
+        if (availableWidth <= 0) return
+        initialWidthsSet.current = true
+        setColumnWidths(fitDefaultColumnWidths(availableWidth))
+    }, [])
     const resizableColumn = (key: ResizableColumnKey, minWidth: number): {
         width: number
         onHeaderCell: () => ResizableHeaderCellProps
@@ -372,6 +405,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
             key: 'actions',
             className: 'global-entity-library-actions-column',
             align: 'center',
+            width: columnWidths.actions,
             render: (_, record) => <Space size={4}>
                 <Button
                     size='small'
@@ -498,8 +532,10 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
                 </Space>
             </div>
             <div
+                ref={tableContainerRef}
                 className='global-entity-library-table-container'
                 style={{
+                    '--global-entity-table-width': `${tableWidth}px`,
                     '--global-entity-type-width': `${columnWidths.type}px`,
                     '--global-entity-name-width': `${columnWidths.name}px`,
                     '--global-entity-properties-width': `${columnWidths.properties}px`,
@@ -529,7 +565,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
                             'No global entities are available.',
                         ),
                     }}
-                    scroll={{ y: '100%' }}
+                    scroll={{ x: tableWidth, y: '100%' }}
                 />
             </div>
             <Modal

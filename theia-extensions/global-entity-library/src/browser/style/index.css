@@ -53,8 +53,8 @@
 .global-entity-library-table-container .ant-table-header > table,
 .global-entity-library-table-container .ant-table-body > table,
 .global-entity-library-table-container .ant-table-content > table {
-    width: 100% !important;
-    min-width: 100% !important;
+    width: var(--global-entity-table-width) !important;
+    min-width: var(--global-entity-table-width) !important;
 }
 
 .global-entity-library-table-container colgroup col:nth-child(1) {
