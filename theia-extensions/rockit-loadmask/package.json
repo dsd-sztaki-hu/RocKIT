@@ -5,7 +5,7 @@
   ],
   "version": "1.0.0",
   "license": "Apache-2.0",
-  "author": "HUN-REN SZTAKI, Department of Distributed Systems",
+  "author": "SZTAKI, Department of Distributed Systems",
   "description": "Global application load mask for RocKIT",
   "files": [
     "lib",

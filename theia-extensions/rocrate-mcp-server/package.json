@@ -3,7 +3,7 @@
   "version": "1.0.2",
   "description": "MCP server exposing RO-Crate editing and profile-aware validation tools",
   "license": "Apache-2.0",
-  "author": "HUN-REN SZTAKI, Department of Distributed Systems",
+  "author": "SZTAKI, Department of Distributed Systems",
   "files": [
     "lib",
     "src"
