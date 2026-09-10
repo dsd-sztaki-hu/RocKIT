@@ -98,57 +98,6 @@
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <h2>Test Tavily Search</h2>
-        </div>
-        <div class="panel-content">
-          <form id="tavilyTestForm" class="settings-form">
-            <div class="setting-row">
-              <label class="setting-label">
-                <strong>Search Query</strong>
-                <span class="setting-description">Enter a test query to verify Tavily search functionality</span>
-              </label>
-              <div class="setting-control">
-                <input type="text" id="tavilyQueryInput" class="number-input" style="width: 300px;" placeholder="e.g., RO-Crate metadata specification" required>
-              </div>
-            </div>
-
-            <div class="setting-row">
-              <label class="setting-label">
-                <strong>Max Results</strong>
-                <span class="setting-description">Number of results to return (1-10)</span>
-              </label>
-              <div class="setting-control">
-                <input type="number" id="tavilyMaxResults" class="number-input" min="1" max="10" value="3">
-              </div>
-            </div>
-
-            <div class="setting-row">
-              <label class="setting-label">
-                <strong>Search Depth</strong>
-                <span class="setting-description">Basic or advanced search</span>
-              </label>
-              <div class="setting-control">
-                <select id="tavilySearchDepth" class="time-range-select">
-                  <option value="basic">Basic</option>
-                  <option value="advanced">Advanced</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="setting-actions">
-              <button type="submit" class="btn btn-primary" id="tavilyTestBtn">
-                <span class="icon">🔍</span> Test Search
-              </button>
-              <button type="button" class="btn btn-secondary" id="tavilyClearBtn">Clear Results</button>
-            </div>
-
-            <div id="tavilyTestResult" class="hidden"></div>
-          </form>
-        </div>
-      </section>
-
       <section class="panel full-width">
         <div class="panel-header">
           <h2>Sessions</h2>
@@ -343,6 +292,9 @@
                   <input type="checkbox" id="tavilyApiKeyUseEnv">
                   Use environment value
                 </label>
+                <button type="button" class="btn btn-secondary btn-sm settings-inline-action" id="openTavilyTestBtn">
+                  <span class="icon">🔍</span> Test Tavily Search
+                </button>
               </div>
             </div>
           </section>
@@ -355,6 +307,62 @@
           <div id="settingsMessage" class="settings-message hidden"></div>
         </form>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- Tavily Search Test Modal -->
+  <div id="tavilyTestModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="tavilyTestModalTitle">
+    <div class="modal-content tavily-test-modal-content">
+      <div class="modal-header">
+        <h2 id="tavilyTestModalTitle">Test Tavily Search</h2>
+        <button type="button" class="modal-close" id="closeTavilyTestModal" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="settings-help">The test uses the currently saved Tavily configuration. Save Settings first if you changed the API key.</p>
+        <form id="tavilyTestForm" class="settings-form">
+          <div class="setting-row">
+            <label class="setting-label">
+              <strong>Search Query</strong>
+              <span class="setting-description">Enter a test query to verify Tavily search functionality</span>
+            </label>
+            <div class="setting-control">
+              <input type="text" id="tavilyQueryInput" class="text-input tavily-query-input" placeholder="e.g., RO-Crate metadata specification" required>
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <label class="setting-label">
+              <strong>Max Results</strong>
+              <span class="setting-description">Number of results to return (1-10)</span>
+            </label>
+            <div class="setting-control">
+              <input type="number" id="tavilyMaxResults" class="number-input" min="1" max="10" value="3">
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <label class="setting-label">
+              <strong>Search Depth</strong>
+              <span class="setting-description">Basic or advanced search</span>
+            </label>
+            <div class="setting-control">
+              <select id="tavilySearchDepth" class="time-range-select">
+                <option value="basic">Basic</option>
+                <option value="advanced">Advanced</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="setting-actions">
+            <button type="submit" class="btn btn-primary" id="tavilyTestBtn">
+              <span class="icon">🔍</span> Test Search
+            </button>
+            <button type="button" class="btn btn-secondary" id="tavilyClearBtn">Clear Results</button>
+          </div>
+
+          <div id="tavilyTestResult" class="hidden"></div>
+        </form>
       </div>
     </div>
   </div>

@@ -45,6 +45,7 @@ const huTranslations = {
   'Basic or advanced search': 'Alap- vagy speciális keresés',
   'Basic': 'Alap',
   'Advanced': 'Speciális',
+  'The test uses the currently saved Tavily configuration. Save Settings first if you changed the API key.': 'A teszt a jelenleg mentett Tavily-beállításokat használja. Ha módosította az API-kulcsot, először mentse a beállításokat.',
   'Test Search': 'Keresés tesztelése',
   'Clear Results': 'Találatok törlése',
   'Sessions': 'Munkamenetek',
@@ -333,6 +334,9 @@ const elements = {
   closeToolCallModal: document.getElementById('closeToolCallModal'),
   settingsModal: document.getElementById('settingsModal'),
   settingsForm: document.getElementById('settingsForm'),
+  tavilyTestModal: document.getElementById('tavilyTestModal'),
+  openTavilyTestBtn: document.getElementById('openTavilyTestBtn'),
+  closeTavilyTestModal: document.getElementById('closeTavilyTestModal'),
   detailedLoggingToggle: document.getElementById('detailedLoggingToggle'),
   keepDataverseUploadZipsToggle: document.getElementById('keepDataverseUploadZipsToggle'),
   retentionHoursInput: document.getElementById('retentionHoursInput'),
@@ -1836,6 +1840,16 @@ function closeSettings() {
   elements.settingsModal.classList.add('hidden');
 }
 
+function openTavilyTest() {
+  clearTavilyTestResult();
+  elements.tavilyTestModal.classList.remove('hidden');
+  elements.tavilyQueryInput.focus();
+}
+
+function closeTavilyTest() {
+  elements.tavilyTestModal.classList.add('hidden');
+}
+
 function openMetadataProfiles() {
   loadMetadataProfileProviders();
   loadMetadataProfiles();
@@ -1848,6 +1862,10 @@ function closeMetadataProfiles() {
 }
 
 function closeOpenModals() {
+  if (elements.tavilyTestModal && !elements.tavilyTestModal.classList.contains('hidden')) {
+    closeTavilyTest();
+    return;
+  }
   if (elements.sessionModal && !elements.sessionModal.classList.contains('hidden')) {
     elements.sessionModal.classList.add('hidden');
   }
@@ -1985,6 +2003,14 @@ if (elements.settingsForm) {
   elements.settingsForm.addEventListener('submit', saveSettings);
 }
 
+if (elements.openTavilyTestBtn) {
+  elements.openTavilyTestBtn.addEventListener('click', openTavilyTest);
+}
+
+if (elements.closeTavilyTestModal) {
+  elements.closeTavilyTestModal.addEventListener('click', closeTavilyTest);
+}
+
 bindRuntimeSettingInput(
   elements.dataverseBaseUrlInput,
   elements.dataverseBaseUrlUseEnv,
@@ -2016,6 +2042,14 @@ if (elements.settingsModal) {
   elements.settingsModal.addEventListener('click', (e) => {
     if (e.target === elements.settingsModal) {
       closeSettings();
+    }
+  });
+}
+
+if (elements.tavilyTestModal) {
+  elements.tavilyTestModal.addEventListener('click', (e) => {
+    if (e.target === elements.tavilyTestModal) {
+      closeTavilyTest();
     }
   });
 }

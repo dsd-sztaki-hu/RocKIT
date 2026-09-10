@@ -441,6 +441,10 @@ body {
   max-width: 720px;
 }
 
+.tavily-test-modal-content {
+  max-width: 720px;
+}
+
 .profiles-modal-content {
   max-width: 1120px;
 }
@@ -678,6 +682,10 @@ body {
   width: 100%;
 }
 
+.settings-inline-action {
+  align-self: flex-start;
+}
+
 .setting-input-with-action {
   position: relative;
   width: 100%;
@@ -861,6 +869,11 @@ body {
 .number-input:focus {
   outline: none;
   border-color: var(--color-primary);
+}
+
+.tavily-query-input {
+  width: min(420px, 100%);
+  min-width: 0;
 }
 
 .input-suffix {

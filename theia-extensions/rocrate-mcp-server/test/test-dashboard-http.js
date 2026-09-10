@@ -224,6 +224,21 @@ async function testHttpServer() {
     assert.strictEqual(dashboardPageResp.status, 200)
     assert.strictEqual(dashboardPageResp.data.includes('Save Settings'), true)
     assert.strictEqual(dashboardPageResp.data.includes('Schema Registry'), false)
+    assert.strictEqual(
+      dashboardPageResp.data.includes('id="openTavilyTestBtn"'),
+      true,
+    )
+    assert.strictEqual(
+      dashboardPageResp.data.includes(
+        'id="tavilyTestModal" class="modal hidden"',
+      ),
+      true,
+    )
+    assert.strictEqual(
+      dashboardPageResp.data.indexOf('id="tavilyTestModal"') <
+        dashboardPageResp.data.indexOf('id="tavilyTestForm"'),
+      true,
+    )
     const dashboardScriptResp = await get('/static/dashboard.js')
     assert.strictEqual(dashboardScriptResp.status, 200)
     assert.strictEqual(
