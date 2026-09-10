@@ -104,8 +104,8 @@ class AppSetup {
 
         // 2. Create Directories & Base Files
         try {
-            process.env.AROMA_METADATA_SCHEMA_INDEX_FILE = METADATA_SCHEMA_INDEX_FILENAME;
-            process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME;
+            process.env.ROCKIT_METADATA_SCHEMA_INDEX_FILE = METADATA_SCHEMA_INDEX_FILENAME;
+            process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME;
             ensureProfileStorage(paths.root);
 
             console.log('[AppSetup] Filesystem verified.');

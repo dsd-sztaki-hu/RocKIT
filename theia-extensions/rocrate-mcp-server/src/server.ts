@@ -65,7 +65,6 @@ import { createWebHandlers } from './server/web'
  */
 
 const ROCRATE_CONFORMS_TO_URL = 'https://w3id.org/ro/crate/1.1'
-const DEFAULT_SCHEMA_INDEX_FILENAME = 'metadata-schema-index.json'
 const DEFAULT_PROFILE_CONTEXT_TTL_SEC = 3600
 const DEFAULT_SUMMARY_ISSUE_LIMIT = 10
 const DEFAULT_SUMMARY_ENTITY_ID_LIMIT = 10
@@ -316,7 +315,6 @@ const {
   deleteProfileContext,
 } = createProfileResolutionHelpers({
   rocrateConformsToUrl: ROCRATE_CONFORMS_TO_URL,
-  defaultSchemaIndexFilename: DEFAULT_SCHEMA_INDEX_FILENAME,
   uniqueStrings,
   profileContext,
   loadCrateFromParams,

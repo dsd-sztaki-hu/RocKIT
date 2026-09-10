@@ -36,6 +36,11 @@ Supported IDs are `codex`, `claude`, `opencode`, `kilo`, `roo`, `gemini`, and
 `qwen`. The generated configuration launches the standalone server through the
 shared per-user RockIT socket (`~/.rockit/rocrate-mcp-server.sock`).
 
+The standalone server and RocKIT share the same per-user profile and schema
+storage by default: `~/.rockit`. Set `ROCKIT_ROOT_PATH` to use another shared
+root, and use the `ROCKIT_*` profile environment variables for filename and
+provider-storage overrides.
+
 You can verify that the installation was successful by starting the AI assistant and listing the configured MCP servers. This is typically done using the `/mcp` command (for example, in Codex and Claude Code) or `/mcps` (for example, in OpenCode). The list should contain an MCP server named `rocrate` that runs the `rocrate-mcp-server` command.
 
 To use `rocrate-mcp-server`, start your AI assistant in the directory where you want to create or edit the RO-Crate. Give the assistant the appropriate instructions for creating the RO-Crate package, and it will automatically start using `rocrate-mcp-server` and follow the workflows provided by the server.
@@ -82,6 +87,11 @@ Az elérhető azonosítók: `codex`, `claude`, `opencode`, `kilo`, `roo`, `gemin
 és `qwen`. A létrehozott konfiguráció a standalone szervert a közös,
 felhasználónkénti RockIT socketen (`~/.rockit/rocrate-mcp-server.sock`) keresztül
 indítja.
+
+A standalone szerver és a RocKIT alapértelmezés szerint ugyanazt a
+felhasználónkénti profil- és séma-tárolót használja: `~/.rockit`. Másik közös
+gyökérhez állítsa be a `ROCKIT_ROOT_PATH` változót; a fájlnév- és szolgáltató-
+felülírásokhoz használja a `ROCKIT_*` profil-környezeti változókat.
 
 A sikeres telepítést úgy ellenőrizheti, hogy elindítja az AI-asszisztenst, és listázza a beállított MCP-szervereket. Ehhez tipikusan az `/mcp` (például Codex és Claude Code esetében) vagy az `/mcps` (például OpenCode esetében) parancsot kell kiadni. A listában meg kell jelennie a `rocrate` nevű MCP-szervernek, amely a `rocrate-mcp-server` parancsot futtatja.
 

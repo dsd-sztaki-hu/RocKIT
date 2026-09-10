@@ -34,6 +34,7 @@ import {
   listCedarFolder,
   listLocalProfiles,
   listRemoteSchemas,
+  resolveProfileRootPath,
   resolveProfileStorage,
   saveCedarProvider,
   deleteCedarProvider,
@@ -737,7 +738,7 @@ class DashboardApiHandlers {
 
   metadataProfilesList(req: http.IncomingMessage, res: http.ServerResponse): void {
     try {
-      const listing = listLocalProfiles()
+      const listing = listLocalProfiles(resolveProfileRootPath())
       sendJson(res, {
         storage: listing.storage,
         count: listing.profiles.length,
@@ -750,7 +751,7 @@ class DashboardApiHandlers {
   }
 
   metadataProfileProviders(req: http.IncomingMessage, res: http.ServerResponse): void {
-    void loadCedarProviders()
+    void loadCedarProviders(resolveProfileRootPath())
       .then((result) => {
         sendJson(res, {
           storage: result.storage,
@@ -772,7 +773,10 @@ class DashboardApiHandlers {
   ): Promise<void> {
     try {
       const body = await parseJsonObjectBody(req)
-      const result = await saveCedarProvider(parseMetadataProviderBody(body))
+      const result = await saveCedarProvider(
+        parseMetadataProviderBody(body),
+        resolveProfileRootPath(),
+      )
       sendJson(res, {
         saved: redactMetadataProfileProvider(result.saved),
         storage: result.storage,
@@ -797,7 +801,10 @@ class DashboardApiHandlers {
       return
     }
     try {
-      const result = await deleteCedarProvider(decodeURIComponent(match[1]))
+      const result = await deleteCedarProvider(
+        decodeURIComponent(match[1]),
+        resolveProfileRootPath(),
+      )
       sendJson(res, {
         deleted: result.deleted,
         storage: result.storage,
@@ -814,7 +821,7 @@ class DashboardApiHandlers {
 
   metadataProfileStorageStatus(req: http.IncomingMessage, res: http.ServerResponse): void {
     sendJson(res, {
-      storage: resolveProfileStorage(),
+      storage: resolveProfileStorage(resolveProfileRootPath()),
     })
   }
 
@@ -825,7 +832,11 @@ class DashboardApiHandlers {
     try {
       const query = parseQuery(req.url || '')
       const provider = await this.resolveMetadataProfileProvider(query.providerId)
-      const result = await listRemoteSchemas(provider, query.query)
+      const result = await listRemoteSchemas(
+        provider,
+        query.query,
+        resolveProfileRootPath(),
+      )
       sendJson(res, {
         provider: redactMetadataProfileProvider(result.provider),
         storage: result.storage,
@@ -848,6 +859,7 @@ class DashboardApiHandlers {
       const result = await listCedarFolder({
         provider,
         folderId: readProviderId(query.folderId),
+        rootPath: resolveProfileRootPath(),
       })
       sendJson(res, {
         provider: redactMetadataProfileProvider(result.provider),
@@ -873,6 +885,7 @@ class DashboardApiHandlers {
       }
       const result = await importCedarTemplateFromUrl({
         url,
+        rootPath: resolveProfileRootPath(),
         provider:
           parseMetadataProfileProvider(body.provider) ??
           (await this.resolveMetadataProfileProvider(readProviderId(body.providerId))),
@@ -909,6 +922,7 @@ class DashboardApiHandlers {
       }
       const result = await importRemoteSchema({
         templateIdOrUrl,
+        rootPath: resolveProfileRootPath(),
         provider:
           parseMetadataProfileProvider(body.provider) ??
           (await this.resolveMetadataProfileProvider(readProviderId(body.providerId))),
@@ -938,7 +952,10 @@ class DashboardApiHandlers {
       return
     }
     try {
-      const result = await deleteMetadataProfile({ id: decodeURIComponent(match[1]) })
+      const result = await deleteMetadataProfile({
+        id: decodeURIComponent(match[1]),
+        rootPath: resolveProfileRootPath(),
+      })
       sendJson(res, {
         deleted: Boolean(result.removed),
         storage: result.storage,
@@ -951,7 +968,7 @@ class DashboardApiHandlers {
   }
 
   private async resolveMetadataProfileProvider(providerId?: string): Promise<CedarProvider> {
-    const listing = await loadCedarProviders()
+    const listing = await loadCedarProviders(resolveProfileRootPath())
     if (!providerId) {
       return listing.providers[0] ?? defaultCedarProvider()
     }
