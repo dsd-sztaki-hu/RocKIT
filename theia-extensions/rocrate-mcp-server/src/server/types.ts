@@ -125,6 +125,7 @@ export type DownloadUrlParams = {
 
 export type McpToolTextResult = {
   content: Array<{ type: 'text'; text: string }>
+  isError?: boolean
 }
 
 export type DataverseUploadParams = {

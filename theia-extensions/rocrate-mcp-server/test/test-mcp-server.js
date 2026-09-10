@@ -1280,6 +1280,65 @@ async function run() {
     assert.equal(searchPayload.results[0].url, 'https://example.org/mock')
 
     const crateBeforeDataverseUpload = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+
+    const preflightFailureCrate = JSON.parse(JSON.stringify(crateBeforeDataverseUpload))
+    const preflightMetadataEntity = preflightFailureCrate['@graph'].find(
+      (entity) => entity['@id'] === 'ro-crate-metadata.json',
+    )
+    preflightFailureCrate['@context'] = {
+      datasetContact: 'https://dataverse.org/schema/citation/datasetContact',
+      datasetContactName: 'https://dataverse.org/schema/citation/datasetContactName',
+      datasetContactEmail: 'https://dataverse.org/schema/citation/datasetContactEmail',
+    }
+    preflightMetadataEntity.creator = 'Dataverse-only creator'
+    fs.writeFileSync(
+      cratePath,
+      `${JSON.stringify(preflightFailureCrate, null, 2)}\n`,
+      'utf8',
+    )
+    const preflightValidationResponse = await request('tools/call', {
+      name: 'upload_rocrate_to_dataverse',
+      arguments: {
+        cratePath,
+        write: true,
+        baseUrl: webToolsMock.baseUrl,
+        ownerId: 'root',
+      },
+    })
+    assert.ok(
+      preflightValidationResponse.result,
+      `preflight validation should return an MCP tool result: ${JSON.stringify(preflightValidationResponse)}`,
+    )
+    assert.equal(preflightValidationResponse.result.isError, true)
+    const preflightValidationPayload = JSON.parse(
+      preflightValidationResponse.result.content[0].text,
+    )
+    assert.equal(preflightValidationPayload.ok, false)
+    assert.equal(
+      preflightValidationPayload.errorCode,
+      'DATAVERSE_PREFLIGHT_VALIDATION',
+    )
+    assert.equal(preflightValidationPayload.stage, 'dataverse_preflight')
+    assert.equal(preflightValidationPayload.status, 400)
+    assert.equal(preflightValidationPayload.uploadPerformed, false)
+    assert.equal(preflightValidationPayload.retryable, true)
+    assert.ok(
+      preflightValidationPayload.validationErrors.some((message) =>
+        message.includes('Missing mapping for term: creator'),
+      ),
+    )
+    assert.equal(preflightValidationPayload.validationIssues[0].field, '@context')
+    assert.equal(
+      preflightValidationPayload.validationResponse.details.errors[0].errors[0]
+        .errorMessage,
+      'Missing mapping for term: creator',
+    )
+    fs.writeFileSync(
+      cratePath,
+      `${JSON.stringify(crateBeforeDataverseUpload, null, 2)}\n`,
+      'utf8',
+    )
+
     const rootBeforeDataverseUpload = crateBeforeDataverseUpload['@graph'].find(
       (entity) => entity['@id'] === './',
     )

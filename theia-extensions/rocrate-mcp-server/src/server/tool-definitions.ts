@@ -275,7 +275,7 @@ export const tools: ToolDefinition[] = [
   {
     name: 'upload_rocrate_to_dataverse',
     description:
-      'Upload to Dataverse ARP API. New dataset (no pid) uploads ZIP (ro-crate-metadata.json + referenced files, local mode only). Existing dataset (pid) posts JSON metadata update.',
+      'Upload to Dataverse ARP API. New dataset (no pid) uploads ZIP (ro-crate-metadata.json + referenced files, local mode only). Existing dataset (pid) posts JSON metadata update. New-dataset uploads run Dataverse preflight validation first; if it fails, the tool returns structured validationErrors, validationIssues, and validationResponse without creating a dataset. Inspect those details, repair the local crate, validate again, and retry the upload.',
     inputSchema: {
       type: 'object',
       properties: {

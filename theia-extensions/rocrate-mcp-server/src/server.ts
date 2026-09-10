@@ -39,7 +39,11 @@ import { createSummaryHelpers } from './server/summary'
 import { CHANGE_SET_ALLOWED_KEYS, tools } from './server/tool-definitions'
 import { createToolDispatcher } from './server/tool-dispatcher'
 import { startServerWithTransports } from './server/transports'
-import type { AccessMode, ProfileResolutionInputs } from './server/types'
+import type {
+  AccessMode,
+  McpToolTextResult,
+  ProfileResolutionInputs,
+} from './server/types'
 import {
   formatStartupVersion,
   formatVersionInfo,
@@ -155,11 +159,10 @@ function asRecord(value: unknown): Record<string, unknown> {
 /**
  * Wraps payloads into MCP text content result shape.
  */
-function textResult(payload: unknown): {
-  content: Array<{ type: 'text'; text: string }>
-} {
+function textResult(payload: unknown, isError = false): McpToolTextResult {
   return {
     content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+    ...(isError ? { isError: true } : {}),
   }
 }
 
