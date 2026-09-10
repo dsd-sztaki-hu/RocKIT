@@ -66,11 +66,12 @@ shutdown of the shared MCP daemon and closes active MCP connections.
 
 The dashboard Settings page lets you enter or override the `TAVILY_API_KEY`,
 `DATAVERSE_BASE_URL`, and `DATAVERSE_API_KEY` values for the running MCP
-process. Environment variables remain the defaults; dashboard overrides are
-saved in `~/.rockit/rocrate-mcp-settings.json` and survive MCP restarts. They
-can be cleared from Settings to restore the environment fallback. The file
-contains configured API keys in plaintext and uses user-only permissions where
-supported.
+process, and controls whether successful Dataverse uploads keep their generated
+RO-Crate ZIP files. Environment variables remain the defaults; dashboard
+settings are saved in `~/.rockit/rocrate-mcp-settings.json` and survive MCP
+restarts. API-key overrides can be cleared from Settings to restore the
+environment fallback. The file contains configured API keys in plaintext and
+uses user-only permissions where supported.
 
 ## Első lépések
 
@@ -136,9 +137,11 @@ A `rocrate-mcp-server` használatával az adatcsomag az ARP Dataverse-be is felt
 
 A vezérlőpult Beállítások oldala lehetővé teszi a `TAVILY_API_KEY`,
 `DATAVERSE_BASE_URL` és `DATAVERSE_API_KEY` értékek megadását vagy felülírását
-az éppen futó MCP-folyamatban. Alapértelmezés szerint a környezeti változók
-használatosak; a vezérlőpult felülírásai a `~/.rockit/rocrate-mcp-settings.json`
-fájlba kerülnek, és az MCP újraindítása után is megmaradnak. A Beállítások
-oldalán törölhetők a környezeti változók visszaállításához. A fájl a beállított
-API-kulcsokat egyszerű szövegként tartalmazza, és ahol támogatott, csak a
-felhasználó számára engedélyezett hozzáféréssel rendelkezik.
+az éppen futó MCP-folyamatban, valamint a sikeres Dataverse-feltöltések során
+keletkező RO-Crate ZIP-fájlok megtartásának beállítását. Alapértelmezés szerint
+a környezeti változók használatosak; a vezérlőpult beállításai a
+`~/.rockit/rocrate-mcp-settings.json` fájlba kerülnek, és az MCP újraindítása
+után is megmaradnak. Az API-kulcsok felülírásai a Beállítások oldalán törölhetők
+a környezeti változók visszaállításához. A fájl a beállított API-kulcsokat
+egyszerű szövegként tartalmazza, és ahol támogatott, csak a felhasználó számára
+engedélyezett hozzáféréssel rendelkezik.

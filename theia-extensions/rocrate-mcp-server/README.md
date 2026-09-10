@@ -365,17 +365,18 @@ The RO-Crate MCP server includes a built-in web dashboard for real-time monitori
 By default, the dashboard starts automatically at `http://127.0.0.1:9393`. Open this URL in your browser to view the dashboard. The **Shut down MCP** button requests a graceful shutdown of the MCP daemon and closes active MCP connections.
 
 The Settings page can override `TAVILY_API_KEY`, `DATAVERSE_BASE_URL`, and
-`DATAVERSE_API_KEY` for the running MCP process. Values from the dashboard take
-precedence over the corresponding environment variables. Leave the dashboard
-override cleared to use the environment value again. These overrides are held
-in `rocrate-mcp-settings.json` under the RocKIT storage root (by default
-`~/.rockit`) and survive MCP restarts. Selecting the environment/default option
-removes the persisted override. Secret values are not included in the normal
-configuration response. The eye control beside an API-key field makes an
-explicit protected request to reveal that selected value for viewing. The
-settings file contains configured API keys in plaintext and is written with
-user-only permissions where supported; protect the RocKIT storage root like a
-credentials directory.
+`DATAVERSE_API_KEY` for the running MCP process, and controls whether successful
+Dataverse uploads keep their generated RO-Crate ZIP files. Values from the
+dashboard take precedence over the corresponding environment variables. Leave
+the dashboard override cleared to use the environment value again. These
+settings are held in `rocrate-mcp-settings.json` under the RocKIT storage root
+(by default `~/.rockit`) and survive MCP restarts. Selecting the
+environment/default option removes a persisted API-setting override. Secret
+values are not included in the normal configuration response. The eye control
+beside an API-key field makes an explicit protected request to reveal that
+selected value for viewing. The settings file contains configured API keys in
+plaintext and is written with user-only permissions where supported; protect
+the RocKIT storage root like a credentials directory.
 
 Notes:
 - Sessions are connection-scoped: each active `--connect` client appears as a
@@ -725,15 +726,16 @@ node /absolute/path/to/rocrate-mcp-server/lib/server.js --connect /Users/<you>/.
 - `DATAVERSE_BASE_URL` (optional): Dataverse/ARP base URL for upload/download tools. Workspace builds default to `http://localhost:8080`; the published standalone package defaults to `https://repo.researchdata.hu`.
 - `DATAVERSE_OWNER_ID` (optional): owner ID for new uploads (default `root`).
 - `DATAVERSE_API_KEY` (optional): API key used as `X-Dataverse-key` header.
-- `ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS` (optional): keep temporary Dataverse upload ZIPs for debugging.
+- `ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS` (optional): keep temporary Dataverse upload ZIPs for debugging. It can also be set from Dashboard Settings and is persisted with the other MCP runtime settings.
 
-`TAVILY_API_KEY`, `DATAVERSE_BASE_URL`, and `DATAVERSE_API_KEY` can also be
-changed at runtime from the dashboard Settings page. A dashboard value takes
-precedence over the environment variable and is persisted in
+`TAVILY_API_KEY`, `DATAVERSE_BASE_URL`, `DATAVERSE_API_KEY`, and
+`ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS` can also be changed at runtime from the
+dashboard Settings page. A dashboard value takes precedence over the
+environment variable and is persisted in
 `~/.rockit/rocrate-mcp-settings.json` (or the configured `ROCKIT_ROOT_PATH`);
-clear the dashboard override to restore the environment fallback. The file
-contains these values in plaintext and is protected with user-only
-permissions where supported.
+clear the dashboard override to restore the environment fallback where the
+setting provides that option. The file contains configured credentials in
+plaintext and is protected with user-only permissions where supported.
 
 ### Profile Resolution
 - `ROCKIT_ROOT_PATH` (optional): shared base directory for schema index/profile files (default `~/.rockit`).

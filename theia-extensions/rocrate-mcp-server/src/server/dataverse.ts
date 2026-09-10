@@ -757,7 +757,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
   }
 
   function shouldKeepDataverseUploadZip(): boolean {
-    return process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS === 'true'
+    return getRuntimeEnvValue('ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS') === 'true'
   }
 
   function createPendingDataverseCrate(

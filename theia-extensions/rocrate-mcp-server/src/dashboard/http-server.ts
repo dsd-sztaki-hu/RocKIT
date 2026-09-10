@@ -783,6 +783,9 @@ class DashboardApiHandlers {
     const updateRecord = updates as Record<string, unknown>
     const runtimeUpdates: Array<{ key: RuntimeEnvKey; value: string | null }> = []
     for (const key of RUNTIME_ENV_KEYS) {
+      if (key === 'ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS') {
+        continue
+      }
       if (!(key in updateRecord)) {
         continue
       }
@@ -795,6 +798,20 @@ class DashboardApiHandlers {
         return
       }
       runtimeUpdates.push({ key, value: value as string | null })
+    }
+
+    if ('keepDataverseUploadZips' in updateRecord) {
+      const value = updateRecord.keepDataverseUploadZips
+      if (typeof value !== 'boolean') {
+        sendJson(res, {
+          error: 'keepDataverseUploadZips must be a boolean',
+        }, 400)
+        return
+      }
+      runtimeUpdates.push({
+        key: 'ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS',
+        value: value ? 'true' : 'false',
+      })
     }
 
     const changes: Record<string, unknown> = {}
@@ -838,6 +855,9 @@ class DashboardApiHandlers {
     }
 
     for (const { key, value } of runtimeUpdates) {
+      if (key === 'ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS') {
+        continue
+      }
       changes[key] = value === null || value.trim() === '' ? 'fallback' : 'dashboard'
     }
 
@@ -1587,7 +1607,7 @@ export function parseDashboardConfig(): DashboardConfig {
     detailedToolCallLogging:
       process.env.ROCRATE_DASHBOARD_DETAILED_LOGGING !== 'false',
     keepDataverseUploadZips:
-      process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS === 'true',
+      getRuntimeEnvValue('ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS') === 'true',
   }
 }
 

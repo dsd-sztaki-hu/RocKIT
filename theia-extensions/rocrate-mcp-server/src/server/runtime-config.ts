@@ -14,6 +14,7 @@ export const RUNTIME_ENV_KEYS = [
   'TAVILY_API_KEY',
   'DATAVERSE_BASE_URL',
   'DATAVERSE_API_KEY',
+  'ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS',
 ] as const
 
 export type RuntimeEnvKey = (typeof RUNTIME_ENV_KEYS)[number]

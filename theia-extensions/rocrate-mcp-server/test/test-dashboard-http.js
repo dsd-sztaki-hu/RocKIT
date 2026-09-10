@@ -389,6 +389,7 @@ async function testHttpServer() {
       TAVILY_API_KEY: 'dashboard-tavily-key',
       DATAVERSE_BASE_URL: 'https://dashboard.example.test/',
       DATAVERSE_API_KEY: 'dashboard-dataverse-key',
+      ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS: 'true',
     })
     if (process.platform !== 'win32') {
       assert.strictEqual(fs.statSync(runtimeConfigPath).mode & 0o777, 0o600)
@@ -407,6 +408,18 @@ async function testHttpServer() {
     assert.strictEqual(
       restartedRuntimeConfig.getRuntimeEnvOverride('DATAVERSE_API_KEY'),
       'dashboard-dataverse-key',
+    )
+    assert.strictEqual(
+      restartedRuntimeConfig.getRuntimeEnvOverride(
+        'ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS',
+      ),
+      'true',
+    )
+    assert.strictEqual(
+      restartedRuntimeConfig.getRuntimeEnvValue(
+        'ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS',
+      ),
+      'true',
     )
 
     // Secret values stay out of the normal /config response, but the dashboard
@@ -506,7 +519,9 @@ async function testHttpServer() {
     const clearedRuntimeConfig = JSON.parse(
       fs.readFileSync(runtimeConfigPath, 'utf8'),
     )
-    assert.deepStrictEqual(clearedRuntimeConfig.overrides, {})
+    assert.deepStrictEqual(clearedRuntimeConfig.overrides, {
+      ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS: 'true',
+    })
 
     // Test metadata profile endpoints
     console.log('  Testing /metadata-profiles endpoints...')
