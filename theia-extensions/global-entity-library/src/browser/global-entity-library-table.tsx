@@ -49,6 +49,9 @@ const ResizableHeaderCell: React.FC<ResizableHeaderCellProps> = ({
         const startX = event.clientX
         const startWidth = width
         const tableContainer = event.currentTarget.closest<HTMLElement>('.global-entity-library-table-container')
+        const maximumWidth = tableContainer
+            ? Math.max(minWidth, tableContainer.clientWidth - (tableWidth - startWidth))
+            : Number.POSITIVE_INFINITY
         const previousCursor = document.body.style.cursor
         const previousUserSelect = document.body.style.userSelect
         let nextWidth = startWidth
@@ -58,14 +61,13 @@ const ResizableHeaderCell: React.FC<ResizableHeaderCellProps> = ({
 
         const applyWidth = (): void => {
             tableContainer?.style.setProperty(`--global-entity-${columnKey}-width`, `${nextWidth}px`)
-            tableContainer?.style.setProperty(
-                '--global-entity-table-width',
-                `${tableWidth + nextWidth - startWidth}px`,
-            )
             animationFrame = undefined
         }
         const handleMouseMove = (moveEvent: MouseEvent): void => {
-            nextWidth = Math.max(minWidth, startWidth + moveEvent.clientX - startX)
+            nextWidth = Math.min(
+                maximumWidth,
+                Math.max(minWidth, startWidth + moveEvent.clientX - startX),
+            )
             if (animationFrame === undefined) {
                 animationFrame = window.requestAnimationFrame(applyWidth)
             }
@@ -311,6 +313,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
         {
             title: nls.localize('rockit/globalEntities/relationships', 'Relationships'),
             key: 'relationships',
+            className: 'global-entity-library-last-resizable-column',
             ...resizableColumn('relationships', 160),
             ellipsis: true,
             render: (_, record) => {
@@ -334,17 +337,10 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
             },
         },
         {
-            title: '',
-            key: 'spacer',
-            className: 'global-entity-library-spacer-column',
-            render: () => null,
-        },
-        {
             title: nls.localize('rockit/globalEntities/actions', 'Actions'),
             key: 'actions',
+            className: 'global-entity-library-actions-column',
             align: 'center',
-            fixed: 'right',
-            width: 116,
             render: (_, record) => <Space size={4}>
                 <Button
                     size='small'
@@ -473,7 +469,6 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
             <div
                 className='global-entity-library-table-container'
                 style={{
-                    '--global-entity-table-width': `${tableWidth}px`,
                     '--global-entity-type-width': `${columnWidths.type}px`,
                     '--global-entity-name-width': `${columnWidths.name}px`,
                     '--global-entity-properties-width': `${columnWidths.properties}px`,
@@ -502,7 +497,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
                             'No global entities are available.',
                         ),
                     }}
-                    scroll={{ x: tableWidth, y: '100%' }}
+                    scroll={{ y: '100%' }}
                 />
             </div>
             <Modal

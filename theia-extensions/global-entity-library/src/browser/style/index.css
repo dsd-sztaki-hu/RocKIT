@@ -53,8 +53,8 @@
 .global-entity-library-table-container .ant-table-header > table,
 .global-entity-library-table-container .ant-table-body > table,
 .global-entity-library-table-container .ant-table-content > table {
-    width: max(100%, var(--global-entity-table-width)) !important;
-    min-width: max(100%, var(--global-entity-table-width)) !important;
+    width: 100% !important;
+    min-width: 100% !important;
 }
 
 .global-entity-library-table-container colgroup col:nth-child(1) {
@@ -83,24 +83,18 @@
 }
 
 .global-entity-library-table-container colgroup col:nth-child(6) {
-    min-width: 0 !important;
+    min-width: 116px !important;
     width: auto !important;
 }
 
-.global-entity-library-table-container colgroup col:nth-child(7) {
-    width: 116px !important;
-    min-width: 116px !important;
+.global-entity-library-table-container th.global-entity-library-last-resizable-column::before {
+    display: none !important;
 }
 
-.global-entity-library-table-container .global-entity-library-spacer-column {
-    min-width: 0 !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-}
-
-.global-entity-library-table-container .ant-table-tbody > tr > td.ant-table-cell-fix-right,
-.global-entity-library-table-container .ant-table-tbody > tr:hover > td.ant-table-cell-fix-right {
-    background-color: var(--theia-editor-background) !important;
+.global-entity-library-table-container th.global-entity-library-actions-column::before {
+    display: block !important;
+    left: 0 !important;
+    right: auto !important;
 }
 
 .global-entity-library-table-container .ant-table,
