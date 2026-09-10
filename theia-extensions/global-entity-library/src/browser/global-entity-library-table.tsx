@@ -1,11 +1,12 @@
 import { nls } from '@theia/core/lib/common/nls'
-import { Button, ConfigProvider, Input, Modal, Popconfirm, Space, Table, Tag, Typography } from 'antd'
+import { Button, ConfigProvider, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
 import * as React from 'react'
 import {
     getEntityName,
-    getEntityTypes,
     sanitizeGlobalEntity,
+    SUPPORTED_GLOBAL_ENTITY_TYPES,
+    type SupportedGlobalEntityType,
 } from './global-entity-library-store'
 import type {
     GlobalEntityCollection,
@@ -18,6 +19,90 @@ export interface GlobalEntityLibraryTableProps {
     loading: boolean
     onSave: (record: GlobalEntityRecord) => Promise<void>
     onDelete: (recordId: string) => Promise<void>
+    onDeleteMany: (recordIds: string[]) => Promise<void>
+}
+
+type ResizableColumnKey = 'type' | 'name' | 'properties' | 'relationships'
+
+interface ResizableHeaderCellProps extends React.ThHTMLAttributes<HTMLTableCellElement> {
+    width?: number
+    minWidth?: number
+    columnKey?: ResizableColumnKey
+    tableWidth?: number
+    onResize?: (width: number) => void
+}
+
+const ResizableHeaderCell: React.FC<ResizableHeaderCellProps> = ({
+    width,
+    minWidth = 90,
+    columnKey,
+    tableWidth,
+    onResize,
+    children,
+    ...cellProps
+}) => {
+    const startResize = (event: React.MouseEvent<HTMLSpanElement>): void => {
+        if (!width || !columnKey || !tableWidth || !onResize) return
+        event.preventDefault()
+        event.stopPropagation()
+
+        const startX = event.clientX
+        const startWidth = width
+        const tableContainer = event.currentTarget.closest<HTMLElement>('.global-entity-library-table-container')
+        const previousCursor = document.body.style.cursor
+        const previousUserSelect = document.body.style.userSelect
+        let nextWidth = startWidth
+        let animationFrame: number | undefined
+        document.body.style.cursor = 'col-resize'
+        document.body.style.userSelect = 'none'
+
+        const applyWidth = (): void => {
+            tableContainer?.style.setProperty(`--global-entity-${columnKey}-width`, `${nextWidth}px`)
+            tableContainer?.style.setProperty(
+                '--global-entity-table-width',
+                `${tableWidth + nextWidth - startWidth}px`,
+            )
+            animationFrame = undefined
+        }
+        const handleMouseMove = (moveEvent: MouseEvent): void => {
+            nextWidth = Math.max(minWidth, startWidth + moveEvent.clientX - startX)
+            if (animationFrame === undefined) {
+                animationFrame = window.requestAnimationFrame(applyWidth)
+            }
+        }
+        const stopResize = (): void => {
+            window.removeEventListener('mousemove', handleMouseMove)
+            window.removeEventListener('mouseup', stopResize)
+            if (animationFrame !== undefined) {
+                window.cancelAnimationFrame(animationFrame)
+            }
+            applyWidth()
+            document.body.style.cursor = previousCursor
+            document.body.style.userSelect = previousUserSelect
+            onResize(nextWidth)
+        }
+
+        window.addEventListener('mousemove', handleMouseMove)
+        window.addEventListener('mouseup', stopResize)
+    }
+
+    return <th {...cellProps} style={{ ...cellProps.style, width }}>
+        {children}
+        {onResize && <span
+            className='global-entity-library-resize-handle'
+            role='separator'
+            aria-orientation='vertical'
+            onClick={event => event.stopPropagation()}
+            onMouseDown={startResize}
+        />}
+    </th>
+}
+
+const DEFAULT_COLUMN_WIDTHS: Record<ResizableColumnKey, number> = {
+    type: 150,
+    name: 220,
+    properties: 420,
+    relationships: 300,
 }
 
 const newRecordId = (): string => {
@@ -38,17 +123,36 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
     loading,
     onSave,
     onDelete,
+    onDeleteMany,
 }) => {
     const tableWrapperRef = React.useRef<HTMLDivElement>(null)
     const [query, setQuery] = React.useState('')
     const [editorOpen, setEditorOpen] = React.useState(false)
     const [editingRecordId, setEditingRecordId] = React.useState<string>()
-    const [entityType, setEntityType] = React.useState('')
+    const [entityType, setEntityType] = React.useState<SupportedGlobalEntityType>('author')
     const [name, setName] = React.useState('')
     const [propertiesJson, setPropertiesJson] = React.useState('{}')
     const [relationshipsJson, setRelationshipsJson] = React.useState('{}')
     const [validationError, setValidationError] = React.useState('')
     const [saving, setSaving] = React.useState(false)
+    const [deleting, setDeleting] = React.useState(false)
+    const [selectedRowKeys, setSelectedRowKeys] = React.useState<React.Key[]>([])
+    const [columnWidths, setColumnWidths] = React.useState(DEFAULT_COLUMN_WIDTHS)
+    const tableWidth = Object.values(columnWidths).reduce((total, width) => total + width, 156)
+
+    const resizableColumn = (key: ResizableColumnKey, minWidth: number): {
+        width: number
+        onHeaderCell: () => ResizableHeaderCellProps
+    } => ({
+        width: columnWidths[key],
+        onHeaderCell: () => ({
+            width: columnWidths[key],
+            minWidth,
+            columnKey: key,
+            tableWidth,
+            onResize: width => setColumnWidths(current => ({ ...current, [key]: width })),
+        }),
+    })
 
     const rows = React.useMemo<GlobalEntityRow[]>(() => {
         const normalizedQuery = query.trim().toLocaleLowerCase()
@@ -70,7 +174,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
 
     const openAdd = (): void => {
         setEditingRecordId(undefined)
-        setEntityType('')
+        setEntityType('author')
         setName('')
         setPropertiesJson('{}')
         setRelationshipsJson('{}')
@@ -81,7 +185,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
     const openEdit = (record: GlobalEntityRow): void => {
         const { '@type': _type, name: _name, ...properties } = record.entity
         setEditingRecordId(record.recordId)
-        setEntityType(getEntityTypes(record.entity).join(', '))
+        setEntityType(record.entityType as SupportedGlobalEntityType)
         setName(getEntityName(record.entity))
         setPropertiesJson(JSON.stringify(properties, null, 2))
         setRelationshipsJson(JSON.stringify(record.relationships ?? {}, null, 2))
@@ -91,11 +195,6 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
 
     const saveRecord = async (): Promise<void> => {
         try {
-            const types = entityType.split(',').map(type => type.trim()).filter(Boolean)
-            if (!types.length) throw new Error(nls.localize(
-                'rockit/globalEntities/typeRequired',
-                'At least one entity type is required.',
-            ))
             if (!name.trim()) throw new Error(nls.localize(
                 'rockit/globalEntities/nameRequired',
                 'The entity name is required.',
@@ -126,7 +225,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
 
             const entity = sanitizeGlobalEntity({
                 ...(properties as Record<string, unknown>),
-                '@type': types,
+                '@type': [entityType],
                 name: name.trim(),
             })
             setSaving(true)
@@ -145,57 +244,106 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
         }
     }
 
+    const deleteRecord = async (recordId: string): Promise<void> => {
+        await onDelete(recordId)
+        setSelectedRowKeys(keys => keys.filter(key => key !== recordId))
+    }
+
+    const deleteSelectedRecords = async (): Promise<void> => {
+        if (!selectedRowKeys.length) return
+        setDeleting(true)
+        try {
+            await onDeleteMany(selectedRowKeys.map(String))
+            setSelectedRowKeys([])
+        } finally {
+            setDeleting(false)
+        }
+    }
+
     const columns: TableColumnsType<GlobalEntityRow> = [
         {
             title: nls.localize('rockit/globalEntities/type', 'Type'),
             dataIndex: 'entityType',
-            width: 180,
+            ...resizableColumn('type', 110),
+            ellipsis: true,
             sorter: (left, right) => left.entityType.localeCompare(right.entityType),
-            filters: Object.keys(collection).map(type => ({ text: type, value: type })),
+            filters: SUPPORTED_GLOBAL_ENTITY_TYPES.map(type => ({
+                text: type === 'author'
+                    ? nls.localize('rockit/globalEntities/author', 'Author')
+                    : nls.localize('rockit/globalEntities/pointOfContact', 'Point of Contact'),
+                value: type,
+            })),
             onFilter: (value, record) => record.entityType === value,
-            render: (type: string) => <Tag>{type}</Tag>,
+            render: (type: string) => <Tag>{type === 'author'
+                ? nls.localize('rockit/globalEntities/author', 'Author')
+                : nls.localize('rockit/globalEntities/pointOfContact', 'Point of Contact')}
+            </Tag>,
         },
         {
             title: nls.localize('rockit/globalEntities/name', 'Name'),
             key: 'name',
+            ...resizableColumn('name', 120),
+            ellipsis: true,
             sorter: (left, right) => getEntityName(left.entity).localeCompare(getEntityName(right.entity)),
             render: (_, record) => getEntityName(record.entity),
         },
         {
             title: nls.localize('rockit/globalEntities/properties', 'Properties'),
             key: 'properties',
+            ...resizableColumn('properties', 160),
+            ellipsis: true,
             render: (_, record) => {
                 const properties = Object.entries(record.entity)
                     .filter(([property]) => property !== '@type' && property !== 'name')
                 if (!properties.length) {
                     return <Typography.Text>—</Typography.Text>
                 }
-                return <Space size={[4, 4]} wrap>{properties.map(([property, value]) => (
-                    <Tag key={property}>{property}: {stringifyValue(value)}</Tag>
-                ))}</Space>
+                const label = properties
+                    .map(([property, value]) => `${property}: ${stringifyValue(value)}`)
+                    .join(', ')
+                return <div className='global-entity-library-cell-content' title={label}>
+                    {properties.map(([property, value]) => (
+                        <Tag key={property}>{property}: {stringifyValue(value)}</Tag>
+                    ))}
+                </div>
             },
         },
         {
             title: nls.localize('rockit/globalEntities/relationships', 'Relationships'),
             key: 'relationships',
+            ...resizableColumn('relationships', 160),
+            ellipsis: true,
             render: (_, record) => {
                 const relationships = Object.entries(record.relationships ?? {})
                 if (!relationships.length) {
                     return <Typography.Text>—</Typography.Text>
                 }
-                return <Space size={[4, 4]} wrap>{relationships.flatMap(([property, targets]) =>
+                const relationshipLabels = relationships.flatMap(([property, targets]) =>
                     targets.map(targetId => {
                         const target = recordsById.get(targetId)
                         const label = target ? getEntityName(target.entity) || targetId : targetId
-                        return <Tag key={`${property}:${targetId}`}>{property}: {label}</Tag>
+                        return { key: `${property}:${targetId}`, label: `${property}: ${label}` }
                     }),
-                )}</Space>
+                )
+                return <div
+                    className='global-entity-library-cell-content'
+                    title={relationshipLabels.map(item => item.label).join(', ')}
+                >
+                    {relationshipLabels.map(item => <Tag key={item.key}>{item.label}</Tag>)}
+                </div>
             },
+        },
+        {
+            title: '',
+            key: 'spacer',
+            className: 'global-entity-library-spacer-column',
+            render: () => null,
         },
         {
             title: nls.localize('rockit/globalEntities/actions', 'Actions'),
             key: 'actions',
             align: 'center',
+            fixed: 'right',
             width: 116,
             render: (_, record) => <Space size={4}>
                 <Button
@@ -214,7 +362,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
                     )}
                     okText={nls.localize('rockit/globalEntities/delete', 'Delete')}
                     cancelText={nls.localize('rockit/common/cancel', 'Cancel')}
-                    onConfirm={() => onDelete(record.recordId)}
+                    onConfirm={() => deleteRecord(record.recordId)}
                 >
                     <Button
                         size='small'
@@ -265,6 +413,12 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
                     colorText: 'var(--theia-input-foreground)',
                     colorBorder: 'var(--theia-input-border)',
                 },
+                Select: {
+                    selectorBg: 'var(--theia-input-background)',
+                    optionActiveBg: 'var(--theia-list-hoverBackground)',
+                    optionSelectedBg: 'var(--theia-list-inactiveSelectionBackground)',
+                    optionSelectedColor: 'var(--theia-foreground)',
+                },
                 Tag: {
                     defaultBg: 'transparent',
                     defaultColor: 'var(--theia-foreground)',
@@ -276,31 +430,79 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
             <div className='global-entity-library-toolbar'>
                 <Input.Search
                     id='global-entity-library-search'
+                    className='global-entity-library-search'
                     allowClear
+                    enterButton
                     placeholder={nls.localize('rockit/globalEntities/search', 'Search global entities')}
                     value={query}
                     onChange={(event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
                 />
-                <Button onClick={openAdd}>
-                    <i className='fa fa-plus' />
-                    {nls.localize('rockit/globalEntities/add', 'Add entity')}
-                </Button>
+                <Space size={8}>
+                    {!!selectedRowKeys.length && <Popconfirm
+                        title={nls.localize(
+                            'rockit/globalEntities/deleteSelectedQuestion',
+                            'Delete the selected global entities?',
+                        )}
+                        description={nls.localize(
+                            'rockit/globalEntities/deleteSelectedDescription',
+                            'References to the selected records will also be removed.',
+                        )}
+                        okText={nls.localize('rockit/globalEntities/delete', 'Delete')}
+                        cancelText={nls.localize('rockit/common/cancel', 'Cancel')}
+                        onConfirm={deleteSelectedRecords}
+                    >
+                        <Button danger loading={deleting}>
+                            <i className='fa fa-trash' />
+                            {nls.localize(
+                                'rockit/globalEntities/deleteCount',
+                                'Delete ({0})',
+                                selectedRowKeys.length,
+                            )}
+                        </Button>
+                    </Popconfirm>}
+                    <Button
+                        className='global-entity-library-add-button'
+                        type='primary'
+                        onClick={openAdd}
+                    >
+                        <i className='fa fa-plus' />
+                        {nls.localize('rockit/globalEntities/add', 'Add entity')}
+                    </Button>
+                </Space>
             </div>
-            <div className='global-entity-library-table-container'>
+            <div
+                className='global-entity-library-table-container'
+                style={{
+                    '--global-entity-table-width': `${tableWidth}px`,
+                    '--global-entity-type-width': `${columnWidths.type}px`,
+                    '--global-entity-name-width': `${columnWidths.name}px`,
+                    '--global-entity-properties-width': `${columnWidths.properties}px`,
+                    '--global-entity-relationships-width': `${columnWidths.relationships}px`,
+                } as React.CSSProperties}
+            >
                 <Table
+                    components={{ header: { cell: ResizableHeaderCell } }}
                     rowKey='recordId'
                     size='small'
-                    loading={loading}
+                    loading={loading || deleting}
                     columns={columns}
                     dataSource={rows}
+                    rowSelection={{
+                        type: 'checkbox',
+                        selectedRowKeys,
+                        preserveSelectedRowKeys: true,
+                        columnWidth: 40,
+                        onChange: setSelectedRowKeys,
+                    }}
                     pagination={{ defaultPageSize: 10, showSizeChanger: true, size: 'small' }}
+                    tableLayout='fixed'
                     locale={{
                         emptyText: nls.localize(
                             'rockit/globalEntities/empty',
                             'No global entities are available.',
                         ),
                     }}
-                    scroll={{ x: 850 }}
+                    scroll={{ x: tableWidth, y: '100%' }}
                 />
             </div>
             <Modal
@@ -318,13 +520,20 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
                 <div className='global-entity-library-form'>
                     <label>
                         <span>{nls.localize('rockit/globalEntities/type', 'Type')}</span>
-                        <Input
+                        <Select
+                            className='global-entity-library-type-select'
                             value={entityType}
-                            placeholder={nls.localize(
-                                'rockit/globalEntities/typePlaceholder',
-                                'Person, Organization',
-                            )}
-                            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setEntityType(event.target.value)}
+                            options={[
+                                {
+                                    value: 'author',
+                                    label: nls.localize('rockit/globalEntities/author', 'Author'),
+                                },
+                                {
+                                    value: 'datasetContact',
+                                    label: nls.localize('rockit/globalEntities/pointOfContact', 'Point of Contact'),
+                                },
+                            ]}
+                            onChange={setEntityType}
                         />
                     </label>
                     <label>

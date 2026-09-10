@@ -355,6 +355,11 @@
       "toggleHelpIcons": "Súgóikonok megjelenítése/elrejtése"
     },
     "globalEntities": {
+      "author": "Szerző",
+      "pointOfContact": "Kapcsolattartó",
+      "deleteSelectedQuestion": "Törli a kijelölt globális entitásokat?",
+      "deleteSelectedDescription": "A kijelölt rekordokra mutató hivatkozások is törlődnek.",
+      "deleteCount": "Törlés ({0})",
       "title": "Globális entitástár",
       "open": "Globális entitástár megnyitása",
       "type": "Típus",

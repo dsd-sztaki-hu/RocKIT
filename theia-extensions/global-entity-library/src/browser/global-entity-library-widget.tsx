@@ -4,7 +4,7 @@ import { ThemeService } from '@theia/core/lib/browser/theming'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
 import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
-import { GlobalEntityLibraryStore, getPrimaryEntityType, sortGlobalEntityCollection } from './global-entity-library-store'
+import { GlobalEntityLibraryService } from './global-entity-library-service'
 import { GlobalEntityLibraryTable } from './global-entity-library-table'
 import type { GlobalEntityCollection, GlobalEntityRecord } from './global-entity-library-types'
 
@@ -20,8 +20,8 @@ export class GlobalEntityLibraryWidget extends ReactWidget {
     @inject(ThemeService)
     protected readonly themeService: ThemeService
 
-    @inject(GlobalEntityLibraryStore)
-    protected readonly store: GlobalEntityLibraryStore
+    @inject(GlobalEntityLibraryService)
+    protected readonly libraryService: GlobalEntityLibraryService
 
     protected collection: GlobalEntityCollection = {}
     protected loading = true
@@ -34,6 +34,11 @@ export class GlobalEntityLibraryWidget extends ReactWidget {
         this.title.closable = true
         this.title.iconClass = 'fa fa-address-book'
         this.addClass('global-entity-library-widget')
+        this.toDispose.push(this.libraryService.onDidChangeCollection(collection => {
+            this.collection = collection
+            this.loading = false
+            this.update()
+        }))
         void this.loadCollection()
     }
 
@@ -41,7 +46,7 @@ export class GlobalEntityLibraryWidget extends ReactWidget {
         this.loading = true
         this.update()
         try {
-            this.collection = await this.store.load()
+            this.collection = await this.libraryService.getCollection()
         } catch (error) {
             console.error('[GlobalEntityLibrary] Failed to load global entities:', error)
             this.messageService.error(nls.localize(
@@ -56,16 +61,8 @@ export class GlobalEntityLibraryWidget extends ReactWidget {
     }
 
     protected readonly saveRecord = async (record: GlobalEntityRecord): Promise<void> => {
-        const next: GlobalEntityCollection = {}
-        for (const [type, records] of Object.entries(this.collection)) {
-            const remaining = records.filter(candidate => candidate.recordId !== record.recordId)
-            if (remaining.length) next[type] = remaining
-        }
-
-        const type = getPrimaryEntityType(record.entity)
-        next[type] = [...(next[type] ?? []), record]
         try {
-            this.collection = await this.store.save(sortGlobalEntityCollection(next))
+            this.collection = await this.libraryService.saveRecord(record)
             this.update()
         } catch (error) {
             this.messageService.error(nls.localize(
@@ -77,27 +74,10 @@ export class GlobalEntityLibraryWidget extends ReactWidget {
         }
     }
 
-    protected readonly deleteRecord = async (recordId: string): Promise<void> => {
-        const next: GlobalEntityCollection = {}
-        for (const [type, records] of Object.entries(this.collection)) {
-            const remaining = records
-                .filter(record => record.recordId !== recordId)
-                .map(record => {
-                    const relationships = Object.fromEntries(
-                        Object.entries(record.relationships ?? {})
-                            .map(([property, targets]) => [
-                                property,
-                                targets.filter(target => target !== recordId),
-                            ])
-                            .filter(([, targets]) => (targets as string[]).length),
-                    )
-                    return { ...record, relationships }
-                })
-            if (remaining.length) next[type] = remaining
-        }
-
+    protected readonly deleteRecords = async (recordIds: string[]): Promise<void> => {
+        if (!recordIds.length) return
         try {
-            this.collection = await this.store.save(next)
+            this.collection = await this.libraryService.deleteRecords(recordIds)
             this.update()
         } catch (error) {
             this.messageService.error(nls.localize(
@@ -109,6 +89,9 @@ export class GlobalEntityLibraryWidget extends ReactWidget {
         }
     }
 
+    protected readonly deleteRecord = async (recordId: string): Promise<void> =>
+        this.deleteRecords([recordId])
+
     protected render(): React.ReactNode {
         return <AntdThemeProvider themeService={this.themeService}>
             <GlobalEntityLibraryTable
@@ -116,6 +99,7 @@ export class GlobalEntityLibraryWidget extends ReactWidget {
                 loading={this.loading}
                 onSave={this.saveRecord}
                 onDelete={this.deleteRecord}
+                onDeleteMany={this.deleteRecords}
             />
         </AntdThemeProvider>
     }

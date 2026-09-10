@@ -7,6 +7,12 @@ import type { GlobalEntityCollection, GlobalEntityRecord } from './global-entity
 
 const GLOBAL_ENTITIES_FILE_NAME = 'global-entities.json'
 
+export const SUPPORTED_GLOBAL_ENTITY_TYPES = ['author', 'datasetContact'] as const
+export type SupportedGlobalEntityType = typeof SUPPORTED_GLOBAL_ENTITY_TYPES[number]
+
+export const isSupportedGlobalEntityType = (type: string): type is SupportedGlobalEntityType =>
+    SUPPORTED_GLOBAL_ENTITY_TYPES.includes(type as SupportedGlobalEntityType)
+
 const compareText = (left: string, right: string): number =>
     left.localeCompare(right, undefined, { sensitivity: 'base' })
 
@@ -45,7 +51,7 @@ export const sortGlobalEntityCollection = (
     collection: GlobalEntityCollection,
 ): GlobalEntityCollection => {
     const sorted: GlobalEntityCollection = {}
-    for (const type of Object.keys(collection).sort(compareText)) {
+    for (const type of Object.keys(collection).filter(isSupportedGlobalEntityType).sort(compareText)) {
         sorted[type] = [...collection[type]].sort((left, right) =>
             compareText(getEntityName(left.entity), getEntityName(right.entity)) ||
             compareText(left.recordId, right.recordId),
@@ -105,12 +111,15 @@ export class GlobalEntityLibraryStore {
 
         const collection: GlobalEntityCollection = {}
         for (const [type, rawRecords] of Object.entries(value)) {
-            if (!Array.isArray(rawRecords)) {
+            if (!isSupportedGlobalEntityType(type) || !Array.isArray(rawRecords)) {
                 continue
             }
             const records = rawRecords.filter(this.isRecord).map(record => ({
                 recordId: record.recordId,
-                entity: sanitizeGlobalEntity(record.entity),
+                entity: {
+                    ...sanitizeGlobalEntity(record.entity),
+                    '@type': [type],
+                },
                 relationships: this.normalizeRelationships(record.relationships),
             }))
             if (records.length) {

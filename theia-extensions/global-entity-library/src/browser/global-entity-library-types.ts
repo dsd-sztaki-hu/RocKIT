@@ -12,3 +12,12 @@ export interface GlobalEntityRow extends GlobalEntityRecord {
     entityType: string
 }
 
+export interface GlobalEntityMappingEntry {
+    entityIds: string[]
+    lastSyncedHash: string
+}
+
+export type GlobalEntityMapping = Record<
+    string,
+    Record<string, GlobalEntityMappingEntry>
+>
