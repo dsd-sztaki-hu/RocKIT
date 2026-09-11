@@ -19,6 +19,7 @@ import {
   sanitizeToolName,
   sanitizeAndMeasureArgs,
   createSanitizedErrorEvent,
+  redactSensitiveValues,
   truncateErrorMessage,
 } from './sanitize'
 
@@ -193,7 +194,9 @@ export class TelemetryCollector {
       durationMs: null,
       status: 'started',
       argsSizeBytes: argsSize,
-      params: this.config.detailedToolCallLogging ? this.truncateValue(args) : undefined,
+      params: this.config.detailedToolCallLogging
+        ? this.truncateValue(redactSensitiveValues(args))
+        : undefined,
     }
 
     this.toolCalls.set(toolCallId, toolCall)

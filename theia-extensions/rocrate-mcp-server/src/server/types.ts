@@ -2,6 +2,7 @@ import type { RoCrate } from '../core/types'
 
 export type ToolDefinition = {
   name: string
+  title?: string
   description: string
   inputSchema: Record<string, unknown>
 }
@@ -124,6 +125,7 @@ export type DownloadUrlParams = {
 
 export type McpToolTextResult = {
   content: Array<{ type: 'text'; text: string }>
+  isError?: boolean
 }
 
 export type DataverseUploadParams = {

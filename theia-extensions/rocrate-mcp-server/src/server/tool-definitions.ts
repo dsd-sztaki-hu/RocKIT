@@ -57,6 +57,29 @@ export const CHANGE_SET_INPUT_SCHEMA: Record<string, unknown> = {
 
 export const tools: ToolDefinition[] = [
   {
+    name: 'open_aroma_for_local_file',
+    title: 'Open dataset in AROMA',
+    description:
+      'Open a local RO-Crate dataset in AROMA. This is the canonical tool for requests such as "open dataset in AROMA", "open this dataset in AROMA", or "view the current dataset in AROMA"; call it immediately. For the current working directory, omit path or pass "ro-crate-metadata.json". It registers the file with the local bridge and returns the online AROMA URL that can read, save, and auto-refresh it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          default: 'ro-crate-metadata.json',
+          description:
+            'Optional local RO-Crate metadata file path, not a directory. If omitted, or if the user refers to the current dataset or current working directory, the server uses "ro-crate-metadata.json".',
+        },
+        aromaBaseUrl: {
+          type: 'string',
+          description:
+            'Optional online AROMA base URL. Defaults to https://repo.researchdata.hu/aroma.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'set_agent_session_context',
     description:
       'Set per-session agent launch context. Agents launched from AROMA should call this with launchContext="inside_aroma" before reading workflow docs.',
@@ -91,27 +114,6 @@ export const tools: ToolDefinition[] = [
             'Workflow doc name. Defaults to rocrate_workflow.md. Use returned availableDocs for valid names.',
         },
       },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'open_aroma_for_local_file',
-    description:
-      'Register a local ro-crate-metadata.json file with the local bridge and return an online AROMA URL that can read, save, and auto-refresh that file.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        path: {
-          type: 'string',
-          description: 'Absolute or relative path to a local ro-crate-metadata.json file.',
-        },
-        aromaBaseUrl: {
-          type: 'string',
-          description:
-            'Optional online AROMA base URL. Defaults to https://repo.researchdata.hu/aroma.',
-        },
-      },
-      required: ['path'],
       additionalProperties: false,
     },
   },
@@ -162,7 +164,8 @@ export const tools: ToolDefinition[] = [
         query: { type: 'string' },
         rootPath: {
           type: 'string',
-          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+          description:
+            'Optional RocKIT profile root override. Defaults to ROCKIT_ROOT_PATH or ~/.rockit.',
         },
         provider: { type: 'object' },
       },
@@ -177,7 +180,8 @@ export const tools: ToolDefinition[] = [
       properties: {
         query: {
           type: 'string',
-          description: 'Optional case-insensitive filter matched against folder/template paths.',
+          description:
+            'Optional case-insensitive filter matched against folder/template paths.',
         },
         maxDepth: {
           type: 'number',
@@ -189,7 +193,8 @@ export const tools: ToolDefinition[] = [
         },
         rootPath: {
           type: 'string',
-          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+          description:
+            'Optional RocKIT profile root override. Defaults to ROCKIT_ROOT_PATH or ~/.rockit.',
         },
         provider: { type: 'object' },
       },
@@ -208,7 +213,8 @@ export const tools: ToolDefinition[] = [
         conformsTo: { type: 'string' },
         rootPath: {
           type: 'string',
-          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+          description:
+            'Optional RocKIT profile root override. Defaults to ROCKIT_ROOT_PATH or ~/.rockit.',
         },
         provider: { type: 'object' },
       },
@@ -223,7 +229,8 @@ export const tools: ToolDefinition[] = [
       properties: {
         rootPath: {
           type: 'string',
-          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+          description:
+            'Optional RocKIT profile root override. Defaults to ROCKIT_ROOT_PATH or ~/.rockit.',
         },
       },
     },
@@ -240,7 +247,8 @@ export const tools: ToolDefinition[] = [
         conformsTo: { type: 'string' },
         rootPath: {
           type: 'string',
-          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+          description:
+            'Optional RocKIT profile root override. Defaults to ROCKIT_ROOT_PATH or ~/.rockit.',
         },
         provider: { type: 'object' },
       },
@@ -256,7 +264,8 @@ export const tools: ToolDefinition[] = [
         id: { type: 'string' },
         rootPath: {
           type: 'string',
-          description: 'Optional AROMA root override. Defaults to AROMA_ROOT_PATH or ~/.aroma.',
+          description:
+            'Optional RocKIT profile root override. Defaults to ROCKIT_ROOT_PATH or ~/.rockit.',
         },
         confirmDestructive: { type: 'boolean' },
       },
@@ -266,7 +275,7 @@ export const tools: ToolDefinition[] = [
   {
     name: 'upload_rocrate_to_dataverse',
     description:
-      'Upload to Dataverse ARP API. New dataset (no pid) uploads ZIP (ro-crate-metadata.json + referenced files, local mode only). Existing dataset (pid) posts JSON metadata update.',
+      'Upload to Dataverse ARP API. New dataset (no pid) uploads ZIP (ro-crate-metadata.json + referenced files, local mode only). Existing dataset (pid) posts JSON metadata update. New-dataset uploads run Dataverse preflight validation first; if it fails, the tool returns structured validationErrors, validationIssues, and validationResponse without creating a dataset. If Dataverse rejects authentication with HTTP 401/403, the tool returns structured instructions identifying DATAVERSE_API_KEY, the dashboard location, and the apiKey override. Inspect those details, repair the local crate or credentials as indicated, validate again when needed, and retry the upload.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -279,15 +288,18 @@ export const tools: ToolDefinition[] = [
         },
         baseUrl: {
           type: 'string',
-          description:
-            `Optional Dataverse base URL. Defaults to DATAVERSE_BASE_URL or ${DEFAULT_DATAVERSE_BASE_URL}.`,
+          description: `Optional Dataverse base URL. Defaults to DATAVERSE_BASE_URL or ${DEFAULT_DATAVERSE_BASE_URL}.`,
         },
         ownerId: {
           type: 'string',
           description:
             'Optional ownerId for new uploads. Defaults to DATAVERSE_OWNER_ID or root.',
         },
-        apiKey: { type: 'string', description: 'Optional X-Dataverse-key override.' },
+        apiKey: {
+          type: 'string',
+          description:
+            'Optional X-Dataverse-key override. Takes precedence over DATAVERSE_API_KEY and the MCP dashboard setting; use it when the user provides a key in chat.',
+        },
         timeoutMs: { type: 'number' },
         write: { type: 'boolean', enum: [true] },
         profileContextId: { type: 'string' },
@@ -309,7 +321,8 @@ export const tools: ToolDefinition[] = [
       properties: {
         pendingId: {
           type: 'string',
-          description: 'The pendingDataverseCrate.id returned by upload_rocrate_to_dataverse.',
+          description:
+            'The pendingDataverseCrate.id returned by upload_rocrate_to_dataverse.',
         },
         write: { type: 'boolean', enum: [true] },
         indent: { type: 'number' },
@@ -331,10 +344,13 @@ export const tools: ToolDefinition[] = [
         version: { type: 'string' },
         baseUrl: {
           type: 'string',
-          description:
-            `Optional Dataverse base URL. Defaults to DATAVERSE_BASE_URL or ${DEFAULT_DATAVERSE_BASE_URL}.`,
+          description: `Optional Dataverse base URL. Defaults to DATAVERSE_BASE_URL or ${DEFAULT_DATAVERSE_BASE_URL}.`,
         },
-        apiKey: { type: 'string', description: 'Optional X-Dataverse-key override.' },
+        apiKey: {
+          type: 'string',
+          description:
+            'Optional X-Dataverse-key override. Takes precedence over DATAVERSE_API_KEY and the MCP dashboard setting; use it when the user provides a key in chat.',
+        },
         timeoutMs: { type: 'number' },
         write: { type: 'boolean' },
         indent: { type: 'number' },
@@ -365,7 +381,7 @@ export const tools: ToolDefinition[] = [
   {
     name: 'create_default_rocrate',
     description:
-      'Create an initial ro-crate-metadata.json for a directory that does not yet have one. Scans files, bootstraps .aroma/ignored.txt, and writes metadata atomically.',
+      'Create an initial ro-crate-metadata.json for a directory that does not yet have one. Scans files, bootstraps .rockit/ignored.txt, and writes metadata atomically.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -385,8 +401,7 @@ export const tools: ToolDefinition[] = [
         },
         writeIgnoredFile: {
           type: 'boolean',
-          description:
-            'If false, skip writing .aroma/ignored.txt. Default true.',
+          description: 'If false, skip writing .rockit/ignored.txt. Default true.',
         },
         indent: { type: 'number' },
         responseMode: { type: 'string', enum: ['summary', 'full'] },
@@ -705,8 +720,7 @@ export const tools: ToolDefinition[] = [
   },
   {
     name: 'get_property_details',
-    description:
-      'Get details for one ontology property (label/comment/domain/range).',
+    description: 'Get details for one ontology property (label/comment/domain/range).',
     inputSchema: {
       type: 'object',
       properties: {

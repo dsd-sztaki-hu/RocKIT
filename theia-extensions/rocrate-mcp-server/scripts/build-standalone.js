@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const fs = require('fs')
-const path = require('path')
+const fs = require('node:fs')
+const path = require('node:path')
 const esbuild = require('esbuild')
 
 const packageRoot = path.resolve(__dirname, '..')
@@ -40,8 +40,11 @@ async function main() {
   fs.mkdirSync(outLib, { recursive: true })
 
   await esbuild.build({
-    entryPoints: [path.join(packageRoot, 'src', 'server.ts')],
-    outfile: path.join(outLib, 'server.js'),
+    entryPoints: {
+      server: path.join(packageRoot, 'src', 'server.ts'),
+      shutdown: path.join(packageRoot, 'src', 'cli', 'shutdown.ts'),
+    },
+    outdir: outLib,
     bundle: true,
     platform: 'node',
     target: 'node18',
@@ -59,6 +62,7 @@ async function main() {
   })
 
   fs.chmodSync(path.join(outLib, 'server.js'), 0o755)
+  fs.chmodSync(path.join(outLib, 'shutdown.js'), 0o755)
 
   copyRecursive(
     path.join(packageRoot, 'src', 'dashboard', 'static'),
@@ -82,10 +86,14 @@ async function main() {
     )}\n`,
     'utf8',
   )
-  copyRecursive(path.join(cedarWorkspace, 'dist'), path.join(cedarTarget, 'dist'), (source) => {
-    const name = path.basename(source)
-    return !name.includes('.test.')
-  })
+  copyRecursive(
+    path.join(cedarWorkspace, 'dist'),
+    path.join(cedarTarget, 'dist'),
+    (source) => {
+      const name = path.basename(source)
+      return !name.includes('.test.')
+    },
+  )
 
   const packageJson = readJson(path.join(packageRoot, 'package.json'))
   const buildDate = process.env.ROCRATE_MCP_BUILD_DATE || new Date().toISOString()
@@ -100,6 +108,12 @@ async function main() {
         main: 'lib/server.js',
         bin: {
           'rocrate-mcp-server': 'lib/server.js',
+        },
+        scripts: {
+          preinstall: 'node lib/shutdown.js',
+        },
+        dependencies: {
+          [cedarPackage.name]: cedarPackage.version,
         },
         files: ['lib', 'node_modules/cedar-template-converter'],
         bundledDependencies: ['cedar-template-converter'],

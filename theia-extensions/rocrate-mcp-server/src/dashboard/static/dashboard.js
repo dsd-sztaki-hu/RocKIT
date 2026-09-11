@@ -7,6 +7,7 @@
 const API_BASE = window.location.origin;
 
 let dashboardLocale = 'en';
+const MASKED_SECRET_PLACEHOLDER = '••••••••';
 
 const huTranslations = {
   'RO-Crate MCP Dashboard': 'RO-Crate MCP-vezérlőpult',
@@ -17,6 +18,11 @@ const huTranslations = {
   'Refresh': 'Frissítés',
   'Metadata Profiles': 'Metadataprofilok',
   'Settings': 'Beállítások',
+  'Shut down MCP': 'MCP leállítása',
+  'Shut down the RO-Crate MCP server? Active MCP connections will be closed.': 'Leállítja a RO-Crate MCP-szervert? Az aktív MCP-kapcsolatok bezáródnak.',
+  'Shutting down MCP...': 'MCP leállítása…',
+  'MCP shutdown requested.': 'Az MCP leállítási kérése elküldve.',
+  'Failed to shut down MCP: {0}': 'Nem sikerült leállítani az MCP-t: {0}',
   'Total Calls': 'Összes hívás',
   'Error Rate': 'Hibaarány',
   'Active Sessions': 'Aktív munkamenetek',
@@ -39,6 +45,7 @@ const huTranslations = {
   'Basic or advanced search': 'Alap- vagy speciális keresés',
   'Basic': 'Alap',
   'Advanced': 'Speciális',
+  'The test uses the currently saved Tavily configuration. Save Settings first if you changed the API key.': 'A teszt a jelenleg mentett Tavily-beállításokat használja. Ha módosította az API-kulcsot, először mentse a beállításokat.',
   'Test Search': 'Keresés tesztelése',
   'Clear Results': 'Találatok törlése',
   'Sessions': 'Munkamenetek',
@@ -63,19 +70,28 @@ const huTranslations = {
   'How long to keep telemetry data (hours)': 'A telemetriai adatok megőrzési ideje (óra)',
   'hours': 'óra',
   'Dataverse Upload Tool': 'Dataverse-feltöltő eszköz',
+  'Environment variables are used by default. Dashboard values are saved in the RocKIT storage root (default: ~/.rockit/rocrate-mcp-settings.json) and override them for this and future MCP processes.': 'Alapértelmezés szerint a környezeti változók használatosak. A vezérlőpult értékei a RocKIT tárolási gyökerében (alapértelmezés: ~/.rockit/rocrate-mcp-settings.json) kerülnek mentésre, és felülírják ezeket a jelenlegi és a későbbi MCP-folyamatokban.',
+  'Select “Use environment/default value” to clear a dashboard override.': 'A vezérlőpult felülírásának törléséhez válassza a „Környezeti/alapértelmezett érték használata” lehetőséget.',
+  'Saved API-key values stay masked; click the eye to view them after reload.': 'A mentett API-kulcsok rejtve maradnak; újratöltés után a megtekintésükhöz kattintson a szem ikonra.',
+  'Use environment/default value': 'Környezeti/alapértelmezett érték használata',
+  'Use environment value': 'Környezeti érték használata',
+  'Enter a new dashboard override': 'Új vezérlőpult-felülírás megadása',
+  'Show API key': 'API-kulcs megjelenítése',
+  'Hide API key': 'API-kulcs elrejtése',
+  'Failed to reveal API key: {0}': 'Nem sikerült megjeleníteni az API-kulcsot: {0}',
+  'Web Search Tool': 'Webes keresőeszköz',
+  'Configure the Tavily API key used by the': 'A Tavily API-kulcs beállítása, amelyet a',
+  'tool.': 'eszköz.',
+  'Saved values stay masked; click the eye to view them.': 'A mentett értékek rejtve maradnak; megtekintésükhöz kattintson a szem ikonra.',
+  'Dashboard override active': 'Aktív vezérlőpult-felülírás',
+  'Using environment variable: {0}': 'Környezeti változó használata: {0}',
+  'Using built-in default': 'Beépített alapérték használata',
+  'Not configured': 'Nincs beállítva',
   'Keep RO-Crate ZIPs': 'RO-Crate ZIP-fájlok megtartása',
   'Keep generated ZIP files after successful Dataverse uploads': 'A létrehozott ZIP-fájlok megtartása sikeres Dataverse-feltöltés után',
-  'Save Changes': 'Módosítások mentése',
+  'Save Settings': 'Beállítások mentése',
   'Cancel': 'Mégse',
-  'Schema Registry': 'Sémaregiszter',
-  'Manage ontology schema sources used by MCP ontology suggestion tools.': 'Az MCP ontológiajavasló eszközei által használt ontológiaséma-források kezelése.',
   'Name': 'Név',
-  'Schema URL': 'Séma URL-címe',
-  'Matches Prefixes': 'Illeszkedő előtagok',
-  'Specs': 'Specifikációk',
-  'New Schema': 'Új séma',
-  'Create or replace a registry entry by ID.': 'Regiszterbejegyzés létrehozása vagy cseréje azonosító alapján.',
-  'Add / Replace': 'Hozzáadás / csere',
   'Reload': 'Újratöltés',
   'CEDAR Schema Profiles': 'CEDAR-sémaprofilok',
   'Browse remote CEDAR repositories and manage locally converted recrate profiles.': 'Távoli CEDAR-tárolók böngészése és a helyben átalakított ReCrate-profilok kezelése.',
@@ -113,11 +129,6 @@ const huTranslations = {
   '50 / page': '50 / oldal',
   '100 / page': '100 / oldal',
   'e.g., RO-Crate metadata specification': 'pl. RO-Crate metaadat-specifikáció',
-  'id (e.g. codemeta3)': 'azonosító (pl. codemeta3)',
-  'display name': 'megjelenítendő név',
-  'schema URL': 'séma URL-címe',
-  'matchesUrls (comma-separated)': 'matchesUrls (vesszővel elválasztva)',
-  'activeOnSpec (comma-separated, default: v1.1.3,v1.2.0)': 'activeOnSpec (vesszővel elválasztva, alapérték: v1.1.3,v1.2.0)',
   'Provider id': 'Szolgáltató azonosítója',
   'Display name': 'Megjelenítendő név',
   'API key (stored in keytar when available)': 'API-kulcs (ha elérhető, a keytar tárolja)',
@@ -179,10 +190,8 @@ const huTranslations = {
   'Retention hours must be between 1 and 168': 'A megőrzési időnek 1 és 168 óra között kell lennie',
   'Settings saved successfully!': 'A beállítások mentése sikerült!',
   'Failed to save settings: {0}': 'Nem sikerült menteni a beállításokat: {0}',
-  'No schemas registered': 'Nincsenek regisztrált sémák',
   'Edit': 'Szerkesztés',
   'Delete': 'Törlés',
-  'Failed to load schema registry: {0}': 'Nem sikerült betölteni a sémaregisztert: {0}',
   'Failed to load metadata profiles: {0}': 'Nem sikerült betölteni a metadataprofilokat: {0}',
   'No metadata profiles imported': 'Nincsenek importált metadataprofilok',
   'Ready': 'Kész',
@@ -290,6 +299,12 @@ let cedarBrowserState = {
   loading: new Set(),
   query: '',
 };
+let serviceSettingsState = {
+  dataverseBaseUrl: '',
+  dataverseBaseUrlSource: 'default',
+  dataverseApiKeySource: 'unset',
+  tavilyApiKeySource: 'unset',
+};
 
 // DOM Elements
 const elements = {
@@ -307,6 +322,7 @@ const elements = {
   refreshBtn: document.getElementById('refreshBtn'),
   metadataProfilesBtn: document.getElementById('metadataProfilesBtn'),
   settingsBtn: document.getElementById('settingsBtn'),
+  shutdownBtn: document.getElementById('shutdownBtn'),
   errorBanner: document.getElementById('errorBanner'),
   sessionModal: document.getElementById('sessionModal'),
   sessionModalTitle: document.getElementById('sessionModalTitle'),
@@ -318,6 +334,9 @@ const elements = {
   closeToolCallModal: document.getElementById('closeToolCallModal'),
   settingsModal: document.getElementById('settingsModal'),
   settingsForm: document.getElementById('settingsForm'),
+  tavilyTestModal: document.getElementById('tavilyTestModal'),
+  openTavilyTestBtn: document.getElementById('openTavilyTestBtn'),
+  closeTavilyTestModal: document.getElementById('closeTavilyTestModal'),
   detailedLoggingToggle: document.getElementById('detailedLoggingToggle'),
   keepDataverseUploadZipsToggle: document.getElementById('keepDataverseUploadZipsToggle'),
   retentionHoursInput: document.getElementById('retentionHoursInput'),
@@ -326,10 +345,17 @@ const elements = {
   metadataProfilesModal: document.getElementById('metadataProfilesModal'),
   closeMetadataProfilesModal: document.getElementById('closeMetadataProfilesModal'),
   settingsMessage: document.getElementById('settingsMessage'),
-  dataverseBaseUrlValue: document.getElementById('dataverseBaseUrlValue'),
+  dataverseBaseUrlInput: document.getElementById('dataverseBaseUrlInput'),
+  dataverseBaseUrlUseEnv: document.getElementById('dataverseBaseUrlUseEnv'),
   dataverseBaseUrlSource: document.getElementById('dataverseBaseUrlSource'),
-  dataverseApiKeyValue: document.getElementById('dataverseApiKeyValue'),
+  dataverseApiKeyInput: document.getElementById('dataverseApiKeyInput'),
+  dataverseApiKeyVisibilityBtn: document.getElementById('dataverseApiKeyVisibilityBtn'),
+  dataverseApiKeyUseEnv: document.getElementById('dataverseApiKeyUseEnv'),
   dataverseApiKeySource: document.getElementById('dataverseApiKeySource'),
+  tavilyApiKeyInput: document.getElementById('tavilyApiKeyInput'),
+  tavilyApiKeyVisibilityBtn: document.getElementById('tavilyApiKeyVisibilityBtn'),
+  tavilyApiKeyUseEnv: document.getElementById('tavilyApiKeyUseEnv'),
+  tavilyApiKeySource: document.getElementById('tavilyApiKeySource'),
   metadataProfileStorageValue: document.getElementById('metadataProfileStorageValue'),
   metadataProfilesTableBody: document.querySelector('#metadataProfilesTable tbody'),
   metadataProfilesPagination: document.getElementById('metadataProfilesPagination'),
@@ -362,6 +388,8 @@ const elements = {
   remoteProviderAccessModeInput: document.getElementById('remoteProviderAccessModeInput'),
   remoteProviderProxyBaseUrlInput: document.getElementById('remoteProviderProxyBaseUrlInput'),
   remoteProviderApiKeyInput: document.getElementById('remoteProviderApiKeyInput'),
+  remoteProviderApiKeyControl: document.getElementById('remoteProviderApiKeyControl'),
+  remoteProviderApiKeyVisibilityBtn: document.getElementById('remoteProviderApiKeyVisibilityBtn'),
   cancelRemoteProviderFormBtn: document.getElementById('cancelRemoteProviderFormBtn'),
   remoteProviderManageMessage: document.getElementById('remoteProviderManageMessage'),
   cedarBrowserModal: document.getElementById('cedarBrowserModal'),
@@ -377,15 +405,6 @@ const elements = {
   cedarBrowserSelectionText: document.getElementById('cedarBrowserSelectionText'),
   cancelCedarBrowserBtn: document.getElementById('cancelCedarBrowserBtn'),
   addCedarTemplateBtn: document.getElementById('addCedarTemplateBtn'),
-  schemaRegistryTableBody: document.querySelector('#schemaRegistryTable tbody'),
-  schemaIdInput: document.getElementById('schemaIdInput'),
-  schemaDisplayNameInput: document.getElementById('schemaDisplayNameInput'),
-  schemaUrlInput: document.getElementById('schemaUrlInput'),
-  schemaMatchesInput: document.getElementById('schemaMatchesInput'),
-  schemaSpecsInput: document.getElementById('schemaSpecsInput'),
-  addSchemaBtn: document.getElementById('addSchemaBtn'),
-  reloadSchemaBtn: document.getElementById('reloadSchemaBtn'),
-  schemaRegistryMessage: document.getElementById('schemaRegistryMessage'),
   tavilyTestForm: document.getElementById('tavilyTestForm'),
   tavilyQueryInput: document.getElementById('tavilyQueryInput'),
   tavilyMaxResults: document.getElementById('tavilyMaxResults'),
@@ -411,6 +430,30 @@ async function fetchAPI(endpoint, options = {}) {
   }
 
   return response.json();
+}
+
+async function shutdownMcp() {
+  if (!window.confirm(t('Shut down the RO-Crate MCP server? Active MCP connections will be closed.'))) {
+    return;
+  }
+
+  const button = elements.shutdownBtn;
+  if (!button) {
+    return;
+  }
+
+  const originalContent = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = `<span class="icon">…</span> ${t('Shutting down MCP...')}`;
+
+  try {
+    await fetchAPI('/daemon/shutdown', { method: 'POST' });
+    button.innerHTML = `<span class="icon">✓</span> ${t('MCP shutdown requested.')}`;
+  } catch (err) {
+    button.disabled = false;
+    button.innerHTML = originalContent;
+    showError(t('Failed to shut down MCP: {0}', err.message));
+  }
 }
 
 async function postAPI(endpoint, data) {
@@ -963,26 +1006,159 @@ async function loadSettings() {
     elements.keepDataverseUploadZipsToggle.checked = config.keepDataverseUploadZips === true;
     elements.retentionHoursInput.value = config.retentionHours;
     renderDataverseSettings(config.dataverse);
+    renderTavilySettings(config.tavily);
   } catch (err) {
     showError(t('Failed to load settings: {0}', err.message));
   }
 }
 
+function setSecretVisibility(input, button, visible) {
+  if (!input || !button) {
+    return;
+  }
+
+  input.type = visible ? 'text' : 'password';
+  const label = t(visible ? 'Hide API key' : 'Show API key');
+  button.setAttribute('title', label);
+  button.setAttribute('aria-label', label);
+  button.classList.toggle('is-visible', visible);
+}
+
+async function revealConfiguredSecret(input, button, environmentName) {
+  if (
+    input.value.trim() === '' &&
+    input.dataset.secretConfigured === 'true' &&
+    environmentName
+  ) {
+    button.disabled = true;
+    try {
+      const result = await fetchAPI(
+        '/config/secrets',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-RoCrate-Dashboard-Intent': 'reveal-secret',
+          },
+          body: JSON.stringify({ key: environmentName }),
+        },
+      );
+      if (typeof result.value === 'string' && result.value !== '') {
+        input.value = result.value;
+      }
+    } catch (err) {
+      showSettingsMessage(t('Failed to reveal API key: {0}', err.message), 'error');
+      return;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  setSecretVisibility(input, button, input.type === 'password');
+}
+
+function bindSecretVisibility(input, button, environmentName) {
+  if (!input || !button) {
+    return;
+  }
+
+  setSecretVisibility(input, button, false);
+  button.addEventListener('click', () => {
+    void revealConfiguredSecret(input, button, environmentName);
+  });
+}
+
 function renderDataverseSettings(dataverse) {
   const config = dataverse || {};
-  const baseUrl = config.baseUrl || t('(not set)');
-  const apiKey = config.apiKey || t('(not set)');
-  const baseUrlSource = config.baseUrlSource === 'env'
-    ? t('Set from DATAVERSE_BASE_URL')
-    : t('Using upload tool default');
-  const apiKeySource = config.apiKeySource === 'env'
-    ? t('Set from DATAVERSE_API_KEY')
-    : t('DATAVERSE_API_KEY is not set');
+  const baseUrl = config.baseUrl || '';
+  const baseUrlSource = config.baseUrlSource || 'default';
+  const apiKeySource = config.apiKeySource || 'unset';
 
-  elements.dataverseBaseUrlValue.textContent = baseUrl;
-  elements.dataverseBaseUrlSource.textContent = baseUrlSource;
-  elements.dataverseApiKeyValue.textContent = apiKey;
-  elements.dataverseApiKeySource.textContent = apiKeySource;
+  serviceSettingsState.dataverseBaseUrl = baseUrl;
+  serviceSettingsState.dataverseBaseUrlSource = baseUrlSource;
+  serviceSettingsState.dataverseApiKeySource = apiKeySource;
+
+  elements.dataverseBaseUrlInput.value = baseUrl;
+  elements.dataverseBaseUrlUseEnv.checked = baseUrlSource !== 'dashboard';
+  elements.dataverseBaseUrlSource.textContent = formatRuntimeSource(
+    baseUrlSource,
+    'DATAVERSE_BASE_URL',
+    true,
+  );
+  setSecretVisibility(
+    elements.dataverseApiKeyInput,
+    elements.dataverseApiKeyVisibilityBtn,
+    false,
+  );
+  elements.dataverseApiKeyInput.value = '';
+  elements.dataverseApiKeyInput.dataset.secretConfigured = config.apiKeyPresent
+    ? 'true'
+    : 'false';
+  elements.dataverseApiKeyUseEnv.checked = apiKeySource !== 'dashboard';
+  elements.dataverseApiKeyInput.placeholder = config.apiKeyPresent
+    ? MASKED_SECRET_PLACEHOLDER
+    : t('Enter a new dashboard override');
+  elements.dataverseApiKeySource.textContent = formatRuntimeSource(
+    apiKeySource,
+    'DATAVERSE_API_KEY',
+    false,
+  );
+}
+
+function renderTavilySettings(tavily) {
+  const config = tavily || {};
+  const apiKeySource = config.apiKeySource || 'unset';
+
+  serviceSettingsState.tavilyApiKeySource = apiKeySource;
+  setSecretVisibility(
+    elements.tavilyApiKeyInput,
+    elements.tavilyApiKeyVisibilityBtn,
+    false,
+  );
+  elements.tavilyApiKeyInput.value = '';
+  elements.tavilyApiKeyInput.dataset.secretConfigured = config.apiKeyPresent
+    ? 'true'
+    : 'false';
+  elements.tavilyApiKeyUseEnv.checked = apiKeySource !== 'dashboard';
+  elements.tavilyApiKeyInput.placeholder = config.apiKeyPresent
+    ? MASKED_SECRET_PLACEHOLDER
+    : t('Enter a new dashboard override');
+  elements.tavilyApiKeySource.textContent = formatRuntimeSource(
+    apiKeySource,
+    'TAVILY_API_KEY',
+    false,
+  );
+}
+
+function formatRuntimeSource(source, environmentName, hasDefault) {
+  if (source === 'dashboard') {
+    return t('Dashboard override active');
+  }
+  if (source === 'env') {
+    return t('Using environment variable: {0}', environmentName);
+  }
+  return hasDefault ? t('Using built-in default') : t('Not configured');
+}
+
+function addRuntimeSettingUpdate(updates, key, input, useEnvironment, initialValue) {
+  if (useEnvironment.checked) {
+    updates[key] = null;
+    return;
+  }
+
+  const value = input.value.trim();
+  if (value === '') {
+    return;
+  }
+
+  if (key === 'DATAVERSE_BASE_URL') {
+    const normalizedValue = value.replace(/\/+$/, '');
+    if (normalizedValue === initialValue) {
+      return;
+    }
+  }
+
+  updates[key] = value;
 }
 
 async function saveSettings(e) {
@@ -997,12 +1173,39 @@ async function saveSettings(e) {
     return;
   }
 
+  const updates = {
+    detailedToolCallLogging: detailedLogging,
+    keepDataverseUploadZips: keepDataverseUploadZips,
+    retentionHours: retentionHours,
+  };
+  addRuntimeSettingUpdate(
+    updates,
+    'DATAVERSE_BASE_URL',
+    elements.dataverseBaseUrlInput,
+    elements.dataverseBaseUrlUseEnv,
+    serviceSettingsState.dataverseBaseUrl,
+  );
+  addRuntimeSettingUpdate(
+    updates,
+    'DATAVERSE_API_KEY',
+    elements.dataverseApiKeyInput,
+    elements.dataverseApiKeyUseEnv,
+    '',
+  );
+  addRuntimeSettingUpdate(
+    updates,
+    'TAVILY_API_KEY',
+    elements.tavilyApiKeyInput,
+    elements.tavilyApiKeyUseEnv,
+    '',
+  );
+
   try {
-    const result = await postAPI('/config', {
-      detailedToolCallLogging: detailedLogging,
-      keepDataverseUploadZips: keepDataverseUploadZips,
-      retentionHours: retentionHours,
-    });
+    const result = await postAPI('/config', updates);
+    if (result.config) {
+      renderDataverseSettings(result.config.dataverse);
+      renderTavilySettings(result.config.tavily);
+    }
 
     showSettingsMessage(t('Settings saved successfully!'), 'success');
 
@@ -1023,14 +1226,16 @@ function showSettingsMessage(message, type) {
   }, 3000);
 }
 
-function showSchemaRegistryMessage(message, type) {
-  elements.schemaRegistryMessage.textContent = message;
-  elements.schemaRegistryMessage.className = `settings-message ${type}`;
-  elements.schemaRegistryMessage.classList.remove('hidden');
+function bindRuntimeSettingInput(input, useEnvironment) {
+  if (!input || !useEnvironment) {
+    return;
+  }
 
-  setTimeout(() => {
-    elements.schemaRegistryMessage.classList.add('hidden');
-  }, 3000);
+  input.addEventListener('input', () => {
+    if (input.value.trim() !== '') {
+      useEnvironment.checked = false;
+    }
+  });
 }
 
 function showMetadataProfilesMessage(message, type) {
@@ -1041,40 +1246,6 @@ function showMetadataProfilesMessage(message, type) {
   setTimeout(() => {
     elements.metadataProfilesMessage.classList.add('hidden');
   }, 3000);
-}
-
-function splitCsv(input) {
-  return (input || '')
-    .split(',')
-    .map((v) => v.trim())
-    .filter((v) => v.length > 0);
-}
-
-async function loadSchemaRegistry() {
-  try {
-    const data = await fetchAPI('/schema-registry?mode=local');
-    const schemas = data.schemas || [];
-    if (schemas.length === 0) {
-      elements.schemaRegistryTableBody.innerHTML = `<tr><td colspan="6" class="empty">${t('No schemas registered')}</td></tr>`;
-      return;
-    }
-
-    elements.schemaRegistryTableBody.innerHTML = schemas.map((entry) => `
-      <tr>
-        <td><code>${escapeHtml(entry.id)}</code></td>
-        <td>${escapeHtml(entry.displayName)}</td>
-        <td><code>${escapeHtml(entry.schemaUrl)}</code></td>
-        <td>${escapeHtml((entry.matchesUrls || []).join(', '))}</td>
-        <td>${escapeHtml((entry.activeOnSpec || []).join(', '))}</td>
-        <td>
-          <button class="btn btn-sm" onclick='editSchema(${JSON.stringify(entry.id)})'>${t('Edit')}</button>
-          <button class="btn btn-sm" onclick='deleteSchema(${JSON.stringify(entry.id)})'>${t('Delete')}</button>
-        </td>
-      </tr>
-    `).join('');
-  } catch (err) {
-    elements.schemaRegistryTableBody.innerHTML = `<tr><td colspan="6" class="text-danger">${t('Failed to load schema registry: {0}', escapeHtml(err.message))}</td></tr>`;
-  }
 }
 
 async function loadMetadataProfiles() {
@@ -1493,6 +1664,11 @@ function showRemoteProviderForm(provider = null) {
   elements.remoteProviderDomainInput.value = provider?.domainBase || '';
   elements.remoteProviderAccessModeInput.value = provider?.accessMode || (provider?.apiKeyPresent ? 'apiKey' : 'dataverseProxy');
   elements.remoteProviderProxyBaseUrlInput.value = provider?.dataverseProxyBaseUrl || deriveDataverseProxyBaseUrl(provider?.domainBase || provider?.displayUrl || provider?.baseUrl || '');
+  setSecretVisibility(
+    elements.remoteProviderApiKeyInput,
+    elements.remoteProviderApiKeyVisibilityBtn,
+    false,
+  );
   elements.remoteProviderApiKeyInput.value = '';
   updateRemoteProviderAccessFields();
   hideRemoteProviderManageMessage();
@@ -1505,7 +1681,7 @@ function hideRemoteProviderForm() {
 function updateRemoteProviderAccessFields() {
   const mode = elements.remoteProviderAccessModeInput.value || 'dataverseProxy';
   elements.remoteProviderProxyBaseUrlInput.classList.toggle('hidden', mode !== 'dataverseProxy');
-  elements.remoteProviderApiKeyInput.classList.toggle('hidden', mode !== 'apiKey');
+  elements.remoteProviderApiKeyControl.classList.toggle('hidden', mode !== 'apiKey');
   if (mode === 'dataverseProxy' && !elements.remoteProviderProxyBaseUrlInput.value) {
     elements.remoteProviderProxyBaseUrlInput.value = deriveDataverseProxyBaseUrl(
       elements.remoteProviderDomainInput.value || elements.remoteProviderBaseUrlInput.value,
@@ -1654,85 +1830,24 @@ async function deleteMetadataProfile(id) {
   }
 }
 
-async function addOrReplaceSchema() {
-  const id = (elements.schemaIdInput.value || '').trim();
-  const displayName = (elements.schemaDisplayNameInput.value || '').trim();
-  const schemaUrl = (elements.schemaUrlInput.value || '').trim();
-  const matchesUrls = splitCsv(elements.schemaMatchesInput.value);
-  const activeOnSpec = splitCsv(elements.schemaSpecsInput.value);
-
-  if (!id || !displayName || !schemaUrl || matchesUrls.length === 0) {
-    showSchemaRegistryMessage(t('id, displayName, schemaUrl and matchesUrls are required.'), 'error');
-    return;
-  }
-
-  const payload = {
-    mode: 'local',
-    id,
-    displayName,
-    schemaUrl,
-    matchesUrls,
-  };
-  if (activeOnSpec.length > 0) {
-    payload.activeOnSpec = activeOnSpec;
-  }
-
-  try {
-    const existing = await fetchAPI('/schema-registry?mode=local');
-    const exists = (existing.schemas || []).some((entry) => entry.id === id);
-    if (exists) {
-      await putAPI(`/schema-registry/${encodeURIComponent(id)}`, payload);
-      showSchemaRegistryMessage(t('Schema updated.'), 'success');
-    } else {
-      await postAPI('/schema-registry', payload);
-      showSchemaRegistryMessage(t('Schema added.'), 'success');
-    }
-    await loadSchemaRegistry();
-  } catch (err) {
-    showSchemaRegistryMessage(t('Failed to save schema: {0}', err.message), 'error');
-  }
-}
-
-async function editSchema(id) {
-  try {
-    const data = await fetchAPI('/schema-registry?mode=local');
-    const entry = (data.schemas || []).find((item) => item.id === id);
-    if (!entry) {
-      showSchemaRegistryMessage(t('Schema not found: {0}', id), 'error');
-      return;
-    }
-    elements.schemaIdInput.value = entry.id || '';
-    elements.schemaDisplayNameInput.value = entry.displayName || '';
-    elements.schemaUrlInput.value = entry.schemaUrl || '';
-    elements.schemaMatchesInput.value = (entry.matchesUrls || []).join(', ');
-    elements.schemaSpecsInput.value = (entry.activeOnSpec || []).join(', ');
-  } catch (err) {
-    showSchemaRegistryMessage(t('Failed to load schema for edit: {0}', err.message), 'error');
-  }
-}
-
-async function deleteSchema(id) {
-  if (!window.confirm(t("Delete schema '{0}'?", id))) {
-    return;
-  }
-  try {
-    await deleteAPI(`/schema-registry/${encodeURIComponent(id)}?mode=local`);
-    showSchemaRegistryMessage(t('Schema deleted.'), 'success');
-    await loadSchemaRegistry();
-  } catch (err) {
-    showSchemaRegistryMessage(t('Failed to delete schema: {0}', err.message), 'error');
-  }
-}
-
 function openSettings() {
   loadSettings();
-  loadSchemaRegistry();
   elements.settingsModal.classList.remove('hidden');
   elements.settingsMessage.classList.add('hidden');
 }
 
 function closeSettings() {
   elements.settingsModal.classList.add('hidden');
+}
+
+function openTavilyTest() {
+  clearTavilyTestResult();
+  elements.tavilyTestModal.classList.remove('hidden');
+  elements.tavilyQueryInput.focus();
+}
+
+function closeTavilyTest() {
+  elements.tavilyTestModal.classList.add('hidden');
 }
 
 function openMetadataProfiles() {
@@ -1747,6 +1862,10 @@ function closeMetadataProfiles() {
 }
 
 function closeOpenModals() {
+  if (elements.tavilyTestModal && !elements.tavilyTestModal.classList.contains('hidden')) {
+    closeTavilyTest();
+    return;
+  }
   if (elements.sessionModal && !elements.sessionModal.classList.contains('hidden')) {
     elements.sessionModal.classList.add('hidden');
   }
@@ -1864,6 +1983,10 @@ if (elements.metadataProfilesBtn) {
   elements.metadataProfilesBtn.addEventListener('click', openMetadataProfiles);
 }
 
+if (elements.shutdownBtn) {
+  elements.shutdownBtn.addEventListener('click', shutdownMcp);
+}
+
 if (elements.closeSettingsModal) {
   elements.closeSettingsModal.addEventListener('click', closeSettings);
 }
@@ -1880,10 +2003,53 @@ if (elements.settingsForm) {
   elements.settingsForm.addEventListener('submit', saveSettings);
 }
 
+if (elements.openTavilyTestBtn) {
+  elements.openTavilyTestBtn.addEventListener('click', openTavilyTest);
+}
+
+if (elements.closeTavilyTestModal) {
+  elements.closeTavilyTestModal.addEventListener('click', closeTavilyTest);
+}
+
+bindRuntimeSettingInput(
+  elements.dataverseBaseUrlInput,
+  elements.dataverseBaseUrlUseEnv,
+);
+bindRuntimeSettingInput(
+  elements.dataverseApiKeyInput,
+  elements.dataverseApiKeyUseEnv,
+);
+bindRuntimeSettingInput(
+  elements.tavilyApiKeyInput,
+  elements.tavilyApiKeyUseEnv,
+);
+bindSecretVisibility(
+  elements.dataverseApiKeyInput,
+  elements.dataverseApiKeyVisibilityBtn,
+  'DATAVERSE_API_KEY',
+);
+bindSecretVisibility(
+  elements.tavilyApiKeyInput,
+  elements.tavilyApiKeyVisibilityBtn,
+  'TAVILY_API_KEY',
+);
+bindSecretVisibility(
+  elements.remoteProviderApiKeyInput,
+  elements.remoteProviderApiKeyVisibilityBtn,
+);
+
 if (elements.settingsModal) {
   elements.settingsModal.addEventListener('click', (e) => {
     if (e.target === elements.settingsModal) {
       closeSettings();
+    }
+  });
+}
+
+if (elements.tavilyTestModal) {
+  elements.tavilyTestModal.addEventListener('click', (e) => {
+    if (e.target === elements.tavilyTestModal) {
+      closeTavilyTest();
     }
   });
 }
@@ -1918,14 +2084,6 @@ if (elements.cedarBrowserModal) {
       closeCedarBrowser();
     }
   });
-}
-
-if (elements.addSchemaBtn) {
-  elements.addSchemaBtn.addEventListener('click', addOrReplaceSchema);
-}
-
-if (elements.reloadSchemaBtn) {
-  elements.reloadSchemaBtn.addEventListener('click', loadSchemaRegistry);
 }
 
 if (elements.importMetadataProfileBtn) {
@@ -2090,8 +2248,6 @@ document.addEventListener('keydown', (e) => {
 // Make viewSession and viewToolCall available globally
 window.viewSession = viewSession;
 window.viewToolCall = viewToolCall;
-window.editSchema = editSchema;
-window.deleteSchema = deleteSchema;
 window.deleteMetadataProfile = deleteMetadataProfile;
 window.importKnownMetadataProfile = importKnownMetadataProfile;
 window.selectRemoteProvider = selectRemoteProvider;

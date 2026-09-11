@@ -246,7 +246,7 @@ async function startMockWebToolsServer(profileUrl) {
             !defaultContextKnownTerms.has(term),
         )
         if (missing.length > 0) {
-          const details = {
+          const validation = {
             strict: true,
             warnings: [],
             errors: [
@@ -262,7 +262,15 @@ async function startMockWebToolsServer(profileUrl) {
           }
           res.statusCode = 400
           res.setHeader('content-type', 'application/json')
-          res.end(JSON.stringify({ status: 'ERROR', details, message: JSON.stringify(details) }))
+          res.end(
+            JSON.stringify({
+              status: 'ERROR',
+              data: {
+                message: 'RO-Crate validation failed',
+                validation,
+              },
+            }),
+          )
           return
         }
         res.statusCode = 200
@@ -274,6 +282,35 @@ async function startMockWebToolsServer(profileUrl) {
     if (parsedUrl.pathname === '/api/arp/uploadRoCrateZip' && req.method === 'POST') {
       req.on('data', () => {})
       req.on('end', () => {
+        const uploadApiKey =
+          typeof req.headers['x-dataverse-key'] === 'string'
+            ? req.headers['x-dataverse-key']
+            : null
+        if (parsedUrl.searchParams.get('ownerId') === 'auth-fail') {
+          res.statusCode = 403
+          res.setHeader('content-type', 'application/json')
+          res.end(
+            JSON.stringify({
+              status: 'ERROR',
+              data: { message: 'Authorized users only.' },
+            }),
+          )
+          return
+        }
+        if (
+          parsedUrl.searchParams.get('ownerId') === 'key-check' &&
+          uploadApiKey !== 'provided-key'
+        ) {
+          res.statusCode = 403
+          res.setHeader('content-type', 'application/json')
+          res.end(
+            JSON.stringify({
+              status: 'ERROR',
+              data: { message: 'Expected explicit API key.' },
+            }),
+          )
+          return
+        }
         if (parsedUrl.searchParams.get('ownerId') === 'fail-upload') {
           res.statusCode = 500
           res.setHeader('content-type', 'application/json')
@@ -548,7 +585,9 @@ async function run() {
       ...process.env,
       TAVILY_API_KEY: 'test-key',
       TAVILY_API_URL: `${webToolsMock.baseUrl}/search`,
+      DATAVERSE_API_KEY: '',
       ROCKIT_ROOT_PATH: rockitRoot,
+      ROCRATE_DASHBOARD_HOST: '127.0.0.1',
       ROCRATE_DASHBOARD_PORT: String(dashboardPort),
     },
   })
@@ -645,9 +684,36 @@ async function run() {
       toolNames.includes('open_aroma_for_local_file'),
       'open_aroma_for_local_file tool should exist',
     )
+    assert.equal(
+      toolNames[0],
+      'open_aroma_for_local_file',
+      'open_aroma_for_local_file should be listed first for direct AROMA requests',
+    )
+    const openAromaTool = (list.result.tools || []).find(
+      (tool) => tool.name === 'open_aroma_for_local_file',
+    )
+    assert.equal(openAromaTool?.title, 'Open dataset in AROMA')
+    assert.match(
+      openAromaTool?.description || '',
+      /canonical tool.*open dataset in AROMA.*call it immediately/i,
+      'open_aroma_for_local_file should advertise its AROMA request routing purpose',
+    )
+    assert.match(
+      openAromaTool?.inputSchema?.properties?.path?.description || '',
+      /current working directory/i,
+      'open_aroma_for_local_file should explain the current-directory path',
+    )
     assert.ok(
       toolNames.includes('upload_rocrate_to_dataverse'),
       'upload_rocrate_to_dataverse tool should exist',
+    )
+    const uploadTool = (list.result.tools || []).find(
+      (tool) => tool.name === 'upload_rocrate_to_dataverse',
+    )
+    assert.match(uploadTool?.description || '', /DATAVERSE_API_KEY/)
+    assert.match(
+      uploadTool?.inputSchema?.properties?.apiKey?.description || '',
+      /takes precedence.*dashboard setting/i,
     )
     assert.ok(
       toolNames.includes('adopt_pending_dataverse_rocrate'),
@@ -691,8 +757,30 @@ async function run() {
     )
     assert.match(
       initialize.result.instructions,
+      /canonical way to open a local RO-Crate dataset in AROMA is open_aroma_for_local_file[\s\S]*exact request "open dataset in AROMA"[\s\S]*first tool[\s\S]*current working directory/i,
+      'initialize instructions should route direct AROMA requests to the dedicated tool',
+    )
+    assert.match(
+      initialize.result.instructions,
       /offer create_default_rocrate/,
       'initialize instructions should offer default RO-Crate creation when metadata is missing',
+    )
+
+    const defaultProfileListingResponse = await request('tools/call', {
+      name: 'list_metadata_profiles',
+      arguments: {},
+    })
+    assert.ok(
+      defaultProfileListingResponse.result,
+      'list_metadata_profiles should use the configured RocKIT root by default',
+    )
+    const defaultProfileListingPayload = JSON.parse(
+      defaultProfileListingResponse.result.content[0].text,
+    )
+    assert.equal(defaultProfileListingPayload.storage.rootPath, rockitRoot)
+    assert.equal(
+      defaultProfileListingPayload.storage.indexPath,
+      path.join(rockitRoot, 'metadata-schema-index.json'),
     )
 
     const workflowDocResponse = await request('tools/call', {
@@ -812,7 +900,7 @@ async function run() {
     assert.ok(defaultCrateResponse.result, 'create_default_rocrate should succeed')
     const defaultCratePayload = JSON.parse(defaultCrateResponse.result.content[0].text)
     const defaultCratePath = path.join(defaultCrateRoot, 'ro-crate-metadata.json')
-    const defaultIgnoredPath = path.join(defaultCrateRoot, '.aroma', 'ignored.txt')
+    const defaultIgnoredPath = path.join(defaultCrateRoot, '.rockit', 'ignored.txt')
     assert.equal(defaultCratePayload.writeApplied, true)
     assert.equal(defaultCratePayload.cratePath, defaultCratePath)
     assert.equal(defaultCratePayload.ignoredFilePath, defaultIgnoredPath)
@@ -1239,6 +1327,136 @@ async function run() {
     assert.equal(searchPayload.results[0].url, 'https://example.org/mock')
 
     const crateBeforeDataverseUpload = JSON.parse(fs.readFileSync(cratePath, 'utf8'))
+
+    const preflightFailureCrate = JSON.parse(JSON.stringify(crateBeforeDataverseUpload))
+    const preflightMetadataEntity = preflightFailureCrate['@graph'].find(
+      (entity) => entity['@id'] === 'ro-crate-metadata.json',
+    )
+    preflightFailureCrate['@context'] = {
+      datasetContact: 'https://dataverse.org/schema/citation/datasetContact',
+      datasetContactName: 'https://dataverse.org/schema/citation/datasetContactName',
+      datasetContactEmail: 'https://dataverse.org/schema/citation/datasetContactEmail',
+    }
+    preflightMetadataEntity.creator = 'Dataverse-only creator'
+    fs.writeFileSync(
+      cratePath,
+      `${JSON.stringify(preflightFailureCrate, null, 2)}\n`,
+      'utf8',
+    )
+    const preflightValidationResponse = await request('tools/call', {
+      name: 'upload_rocrate_to_dataverse',
+      arguments: {
+        cratePath,
+        write: true,
+        baseUrl: webToolsMock.baseUrl,
+        ownerId: 'root',
+      },
+    })
+    assert.ok(
+      preflightValidationResponse.result,
+      `preflight validation should return an MCP tool result: ${JSON.stringify(preflightValidationResponse)}`,
+    )
+    assert.equal(preflightValidationResponse.result.isError, true)
+    const preflightValidationPayload = JSON.parse(
+      preflightValidationResponse.result.content[0].text,
+    )
+    assert.equal(preflightValidationPayload.ok, false)
+    assert.equal(
+      preflightValidationPayload.errorCode,
+      'DATAVERSE_PREFLIGHT_VALIDATION',
+    )
+    assert.equal(preflightValidationPayload.stage, 'dataverse_preflight')
+    assert.equal(preflightValidationPayload.status, 400)
+    assert.equal(preflightValidationPayload.uploadPerformed, false)
+    assert.equal(preflightValidationPayload.retryable, true)
+    assert.ok(
+      preflightValidationPayload.validationErrors.some((message) =>
+        message.includes('Missing mapping for term: creator'),
+      ),
+    )
+    assert.equal(preflightValidationPayload.validationIssues[0].field, '@context')
+    assert.equal(
+      preflightValidationPayload.validationResponse.data.validation.errors[0].errors[0]
+        .errorMessage,
+      'Missing mapping for term: creator',
+    )
+    fs.writeFileSync(
+      cratePath,
+      `${JSON.stringify(crateBeforeDataverseUpload, null, 2)}\n`,
+      'utf8',
+    )
+
+    const missingApiKeyResponse = await request('tools/call', {
+      name: 'upload_rocrate_to_dataverse',
+      arguments: {
+        cratePath,
+        write: true,
+        baseUrl: webToolsMock.baseUrl,
+        ownerId: 'auth-fail',
+      },
+    })
+    assert.ok(
+      missingApiKeyResponse.result,
+      `missing API key should return an MCP tool result: ${JSON.stringify(missingApiKeyResponse)}`,
+    )
+    assert.equal(missingApiKeyResponse.result.isError, true)
+    const missingApiKeyPayload = JSON.parse(
+      missingApiKeyResponse.result.content[0].text,
+    )
+    assert.equal(missingApiKeyPayload.ok, false)
+    assert.equal(missingApiKeyPayload.errorCode, 'DATAVERSE_API_KEY_REQUIRED')
+    assert.equal(missingApiKeyPayload.stage, 'dataverse_authentication')
+    assert.equal(missingApiKeyPayload.status, 403)
+    assert.equal(missingApiKeyPayload.apiKeyProvided, false)
+    assert.equal(missingApiKeyPayload.uploadPerformed, false)
+    assert.equal(missingApiKeyPayload.retryable, true)
+    assert.equal(missingApiKeyPayload.credential.name, 'DATAVERSE_API_KEY')
+    assert.equal(
+      missingApiKeyPayload.credential.environmentVariable,
+      'DATAVERSE_API_KEY',
+    )
+    assert.equal(missingApiKeyPayload.credential.toolParameter, 'apiKey')
+    assert.equal(
+      missingApiKeyPayload.credential.dashboardUrl,
+      `http://127.0.0.1:${dashboardPort}`,
+    )
+    assert.match(missingApiKeyPayload.credential.dashboardLocation, /Dataverse Upload Tool/)
+    assert.match(missingApiKeyPayload.message, /DATAVERSE_API_KEY/)
+    assert.match(missingApiKeyPayload.nextAction, /environment/i)
+    assert.match(missingApiKeyPayload.nextAction, /dashboard/i)
+    assert.match(missingApiKeyPayload.nextAction, /apiKey/)
+    assert.equal(missingApiKeyPayload.zipPreserved, true)
+    assert.ok(
+      missingApiKeyPayload.zipPath && fs.existsSync(missingApiKeyPayload.zipPath),
+      'missing API key error should preserve the generated ZIP',
+    )
+    fs.rmSync(path.dirname(missingApiKeyPayload.zipPath), { recursive: true, force: true })
+
+    const explicitApiKeyResponse = await request('tools/call', {
+      name: 'upload_rocrate_to_dataverse',
+      arguments: {
+        cratePath,
+        write: true,
+        baseUrl: webToolsMock.baseUrl,
+        ownerId: 'key-check',
+        apiKey: 'provided-key',
+      },
+    })
+    assert.ok(
+      explicitApiKeyResponse.result,
+      `explicit API key upload should return an MCP tool result: ${JSON.stringify(explicitApiKeyResponse)}`,
+    )
+    const explicitApiKeyPayload = JSON.parse(
+      explicitApiKeyResponse.result.content[0].text,
+    )
+    assert.equal(explicitApiKeyPayload.status, 200)
+    if (explicitApiKeyPayload.pendingDataverseCrate?.tempPath) {
+      fs.rmSync(
+        path.dirname(explicitApiKeyPayload.pendingDataverseCrate.tempPath),
+        { recursive: true, force: true },
+      )
+    }
+
     const rootBeforeDataverseUpload = crateBeforeDataverseUpload['@graph'].find(
       (entity) => entity['@id'] === './',
     )

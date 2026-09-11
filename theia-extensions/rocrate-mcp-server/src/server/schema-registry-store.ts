@@ -1,6 +1,6 @@
 import * as fs from 'node:fs'
-import * as os from 'node:os'
 import * as path from 'node:path'
+import { resolveProfileRootPath } from 'metadata-profile-core'
 import type { AccessMode } from './types'
 
 /**
@@ -123,9 +123,7 @@ function normalizeEntry(input: RegisterSchemaInput): SchemaRegistryEntry {
  * Builds the mode-specific filesystem location for schema persistence.
  */
 function resolveStorage(mode: AccessMode): SchemaRegistryStorageInfo {
-  const rockitRoot =
-    process.env.ROCKIT_ROOT_PATH?.trim() ||
-    path.join(os.homedir(), '.rockit')
+  const rockitRoot = resolveProfileRootPath()
 
   if (mode === 'local') {
     const localDir = path.join(rockitRoot, 'schema-registry')

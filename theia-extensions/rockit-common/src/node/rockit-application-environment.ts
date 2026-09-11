@@ -38,7 +38,8 @@ export function initializeRockitApplicationEnvironment(): string {
   setDefault('ROCKIT_DATA_REPOSITORY_CONFIG_FILE', DATA_REPOSITORY_CONFIG_FILENAME)
   setDefault('ROCKIT_DATA_REPOSITORY_KEYTAR_SERVICE', DATA_REPOSITORY_KEYTAR_SERVICE)
 
-  // Keep the standalone metadata-profile tools on the same storage root.
+  // Keep older metadata-profile consumers on the same storage root.
+  // These AROMA_* names are legacy compatibility aliases.
   setDefault('AROMA_ROOT_PATH', rootPath)
   setDefault('AROMA_METADATA_SCHEMA_INDEX_FILE', METADATA_SCHEMA_INDEX_FILENAME)
   setDefault('AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE', REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME)

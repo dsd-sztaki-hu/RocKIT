@@ -1,7 +1,10 @@
 import * as fs from 'node:fs'
-import * as os from 'node:os'
 import * as path from 'node:path'
-import { ensureProfileStorage } from 'metadata-profile-core'
+import {
+  ensureProfileStorage,
+  resolveProfileRootPath,
+  resolveProfileStorage,
+} from 'metadata-profile-core'
 import type {
   ContextMode,
   ProfileContextRecord,
@@ -34,7 +37,6 @@ type ProfileContextStoreLike = {
 
 type ProfileResolutionDeps = {
   rocrateConformsToUrl: string
-  defaultSchemaIndexFilename: string
   uniqueStrings: (values: string[]) => string[]
   profileContext: ProfileContextStoreLike
   loadCrateFromParams: (params: Record<string, unknown>) => {
@@ -51,30 +53,18 @@ type ProfileResolutionDeps = {
  */
 export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
   /**
-   * Handles RocKIT root path resolution.
+   * Resolves the shared RocKIT profile root through metadata-profile-core.
    */
   function resolveRockitRootPath(): string {
-    const configuredRoot = process.env.ROCKIT_ROOT_PATH
-    if (configuredRoot && configuredRoot.trim() !== '') {
-      return path.resolve(configuredRoot)
-    }
-    return path.join(os.homedir(), '.rockit')
+    return resolveProfileRootPath()
   }
 
   /**
-   * Handles resolve schema index path.
+   * Resolves the schema index path through the shared profile storage resolver.
    */
   function resolveSchemaIndexPath(): { rootPath: string; indexPath: string } {
-    const rootPath = resolveRockitRootPath()
-    const configuredIndex =
-      process.env.ROCKIT_METADATA_SCHEMA_INDEX_FILE
-    if (!configuredIndex || configuredIndex.trim() === '') {
-      return { rootPath, indexPath: path.join(rootPath, deps.defaultSchemaIndexFilename) }
-    }
-    if (path.isAbsolute(configuredIndex)) {
-      return { rootPath: path.dirname(configuredIndex), indexPath: configuredIndex }
-    }
-    return { rootPath, indexPath: path.join(rootPath, configuredIndex) }
+    const storage = resolveProfileStorage()
+    return { rootPath: storage.rootPath, indexPath: storage.indexPath }
   }
 
   /**

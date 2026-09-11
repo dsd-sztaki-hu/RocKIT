@@ -16,6 +16,12 @@ Node.js 18 or newer is required for installation:
 npm install -g @arpproject/rocrate-mcp-server
 ```
 
+When upgrading an existing global installation, the standalone package first
+asks the shared RO-Crate MCP daemon to shut down gracefully through its socket
+(or Windows named pipe). This prevents the installer from replacing a live
+daemon and works on macOS, Linux, and Windows. Agent processes that already
+have an MCP connection should still be restarted after the upgrade.
+
 To configure it for a particular AI assistant, use the interactive installer:
 
 ```bash
@@ -217,6 +223,9 @@ npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-serv
 rocrate-mcp-server
 ```
 
+Use a normal npm install when upgrading so the package lifecycle hook can stop
+the existing daemon; `--ignore-scripts` disables this safety check.
+
 For the current `1.0.3` package version, run this from the repository root:
 
 ```bash
@@ -291,7 +300,7 @@ dashboard instance.
 - `adopt_pending_dataverse_rocrate`: replace local metadata with the Dataverse-updated crate returned by upload.
 - `download_rocrate_from_dataverse`: download crate JSON by PID from Dataverse ARP API.
 - `read_crate`: read crate (`local` from disk or `remote` from provided `crate` payload).
-- `create_default_rocrate`: initialize a directory with `ro-crate-metadata.json` and `.aroma/ignored.txt`.
+- `create_default_rocrate`: initialize a directory with `ro-crate-metadata.json` and `.rockit/ignored.txt`.
 - `apply_changes`: apply compact changeset.
   - Local mode persists by default.
   - Use `dryRun: true` to preview without writing.
@@ -348,11 +357,26 @@ The RO-Crate MCP server includes a built-in web dashboard for real-time monitori
 - **Tool call details**: Inspect parameters and results (with detailed logging enabled)
 - **Error tracking**: Recent errors with timestamps and stack traces
 - **Dependency monitoring**: External service call tracking (Tavily, Dataverse)
-- **Runtime configuration**: Toggle detailed logging and adjust retention settings
+- **Runtime configuration**: Toggle detailed logging, adjust retention settings, and override external service settings
+- **Daemon control**: Request a graceful MCP shutdown from the dashboard
 
 ### Accessing the Dashboard
 
-By default, the dashboard starts automatically at `http://127.0.0.1:9393`. Open this URL in your browser to view the dashboard.
+By default, the dashboard starts automatically at `http://127.0.0.1:9393`. Open this URL in your browser to view the dashboard. The **Shut down MCP** button requests a graceful shutdown of the MCP daemon and closes active MCP connections.
+
+The Settings page can override `TAVILY_API_KEY`, `DATAVERSE_BASE_URL`, and
+`DATAVERSE_API_KEY` for the running MCP process, and controls whether successful
+Dataverse uploads keep their generated RO-Crate ZIP files. Values from the
+dashboard take precedence over the corresponding environment variables. Leave
+the dashboard override cleared to use the environment value again. These
+settings are held in `rocrate-mcp-settings.json` under the RocKIT storage root
+(by default `~/.rockit`) and survive MCP restarts. Selecting the
+environment/default option removes a persisted API-setting override. Secret
+values are not included in the normal configuration response. The eye control
+beside an API-key field makes an explicit protected request to reveal that
+selected value for viewing. The settings file contains configured API keys in
+plaintext and is written with user-only permissions where supported; protect
+the RocKIT storage root like a credentials directory.
 
 Notes:
 - Sessions are connection-scoped: each active `--connect` client appears as a
@@ -372,7 +396,7 @@ Notes:
 
 ### Dashboard API Endpoints
 
-The dashboard exposes read-only monitoring APIs plus configuration, schema,
+The dashboard exposes monitoring APIs plus configuration, schema,
 profile, local-file bridge, and Tavily test endpoints:
 
 - `GET /` - Dashboard UI
@@ -388,6 +412,7 @@ profile, local-file bridge, and Tavily test endpoints:
 - `GET /tool-calls/:id` - Detailed tool call info
 - `GET /config` - Get current configuration
 - `POST /config` - Update configuration (detailed logging, retention)
+- `POST /daemon/shutdown` - Request a graceful MCP daemon shutdown
 - `POST /test/tavily-search` - Test Tavily search settings from the dashboard
 - `GET /schema-registry?mode=local|remote` - List schema registry entries
 - `POST /schema-registry` - Register/replace schema entry
@@ -417,6 +442,11 @@ RO-Crate metadata file, exposes a short-lived HTTP session for that file, and
 returns an AROMA URL containing the bridge URL.
 
 ### When it is used
+
+For a direct request such as “open dataset in AROMA”, call
+`open_aroma_for_local_file` with the dataset's `ro-crate-metadata.json` path.
+When the dataset is the current working directory, use
+`ro-crate-metadata.json`.
 
 Agents should call `open_aroma_for_local_file` after successful local edits or
 validation when the user is working outside an already-open AROMA session and
@@ -696,12 +726,27 @@ node /absolute/path/to/rocrate-mcp-server/lib/server.js --connect /Users/<you>/.
 - `DATAVERSE_BASE_URL` (optional): Dataverse/ARP base URL for upload/download tools. Workspace builds default to `http://localhost:8080`; the published standalone package defaults to `https://repo.researchdata.hu`.
 - `DATAVERSE_OWNER_ID` (optional): owner ID for new uploads (default `root`).
 - `DATAVERSE_API_KEY` (optional): API key used as `X-Dataverse-key` header.
-- `ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS` (optional): keep temporary Dataverse upload ZIPs for debugging.
+- `ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS` (optional): keep temporary Dataverse upload ZIPs for debugging. It can also be set from Dashboard Settings and is persisted with the other MCP runtime settings.
+
+`TAVILY_API_KEY`, `DATAVERSE_BASE_URL`, `DATAVERSE_API_KEY`, and
+`ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS` can also be changed at runtime from the
+dashboard Settings page. A dashboard value takes precedence over the
+environment variable and is persisted in
+`~/.rockit/rocrate-mcp-settings.json` (or the configured `ROCKIT_ROOT_PATH`);
+clear the dashboard override to restore the environment fallback where the
+setting provides that option. The file contains configured credentials in
+plaintext and is protected with user-only permissions where supported.
 
 ### Profile Resolution
-- `AROMA_ROOT_PATH` (optional): base directory for schema index/profile files (default `~/.aroma`).
-- `AROMA_METADATA_SCHEMA_INDEX_FILE` (optional): schema index filename or absolute path.
-- `ROCRATE_REMOTE_SCHEMA_REGISTRY_DIR` (optional): remote-mode schema registry directory (default `~/.aroma/schema-registry-remote`).
+- `ROCKIT_ROOT_PATH` (optional): shared base directory for schema index/profile files (default `~/.rockit`).
+- `ROCKIT_METADATA_SCHEMA_INDEX_FILE` (optional): schema index filename or absolute path.
+- `ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE` (optional): remote CEDAR provider configuration filename or absolute path.
+- `ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE` (optional): keychain service used for remote CEDAR provider credentials.
+- `ROCKIT_CEDAR_API_KEY` (optional): fallback CEDAR API key; `CEDAR_API_KEY` is preferred.
+- `ROCRATE_REMOTE_SCHEMA_REGISTRY_DIR` (optional): remote-mode schema registry directory (default `~/.rockit/schema-registry-remote`).
+
+The older `AROMA_*` profile environment variables remain accepted as
+compatibility aliases, but `ROCKIT_*` variables and `~/.rockit` are canonical.
 
 ### Dashboard
 - `ROCRATE_DASHBOARD_ENABLED`: Enable/disable dashboard (default: `true`).

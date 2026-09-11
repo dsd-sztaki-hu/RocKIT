@@ -1,10 +1,17 @@
 import { randomUUID } from 'node:crypto'
-import { PassThrough } from 'node:stream'
 import type { Readable, Writable } from 'node:stream'
+import { PassThrough } from 'node:stream'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { handleSocketLifecycleArgs } from '../bootstrap/socket-lifecycle'
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js'
+import { shutdownRocrateMcpDaemon } from 'rockit-common/lib/node/rocrate-mcp-daemon-control'
+import {
+  handleSocketLifecycleArgs,
+  parseSocketPathFromArgs,
+} from '../bootstrap/socket-lifecycle'
 import { clearAgentSessionContext } from './agent-session-context'
 import type { McpToolTextResult, ToolDefinition, TransportMode } from './types'
 import { getBuildInfo } from './version'
@@ -16,7 +23,7 @@ type TelemetryCollector = {
 type StartServerOptions = {
   tools: ToolDefinition[]
   instructions: string
-  startDashboardIfNeeded: () => void
+  startDashboardIfNeeded: (onShutdown: () => void) => void
   asRecord: (value: unknown) => Record<string, unknown>
   handleToolCall: (
     toolName: string,
@@ -108,14 +115,35 @@ function createSdkInputStream(input: Readable): Readable {
 /**
  * Handles start server with transports.
  */
-export async function startServerWithTransports(options: StartServerOptions): Promise<void> {
+export async function startServerWithTransports(
+  options: StartServerOptions,
+): Promise<void> {
+  const args = process.argv.slice(2)
+  const listenSocketPath = parseSocketPathFromArgs(args, '--listen')
+  const requestDashboardShutdown = (): void => {
+    if (listenSocketPath) {
+      void shutdownRocrateMcpDaemon(listenSocketPath).then((result) => {
+        if (result.status === 'failed') {
+          process.stderr.write(
+            `rocrate-mcp-server: dashboard shutdown failed: ${result.reason}\n`,
+          )
+        }
+      })
+      return
+    }
+
+    // A stdio-only server has no socket lifecycle to notify. Delay briefly so
+    // the HTTP response can reach the dashboard client before exiting.
+    setTimeout(() => process.exit(0), 100)
+  }
+
   let dashboardStartAttempted = false
   const startDashboardOnce = (): void => {
     if (dashboardStartAttempted) {
       return
     }
     dashboardStartAttempted = true
-    options.startDashboardIfNeeded()
+    options.startDashboardIfNeeded(requestDashboardShutdown)
   }
 
   const startTransportServer = async (
@@ -133,6 +161,8 @@ export async function startServerWithTransports(options: StartServerOptions): Pr
       {
         name: 'rocrate-mcp-server',
         version: getBuildInfo().version,
+        description:
+          'RO-Crate metadata tools. The canonical way to open a local RO-Crate dataset in AROMA is open_aroma_for_local_file.',
       },
       {
         capabilities: {
@@ -176,7 +206,6 @@ export async function startServerWithTransports(options: StartServerOptions): Pr
     await mcpServer.connect(transport)
   }
 
-  const args = process.argv.slice(2)
   if (args.includes('--listen')) {
     startDashboardOnce()
   }
