@@ -68,7 +68,7 @@ export class RepositorySyncOptionsDialog extends AbstractDialog<RepositorySyncOp
           )}
           {this.renderOption(
             'remote-additions',
-            nls.localize('rockit/dataRepository/keepRemoteAdditions', 'Keep only the remote additions'),
+            nls.localize('rockit/dataRepository/keepRemoteAdditions', 'Download remote additions'),
             nls.localize('rockit/dataRepository/keepRemoteAdditionsDescription', 'Keep local entities and edits, and add entities that exist only in the remote crate with their relationships.'),
           )}
           {this.renderOption(

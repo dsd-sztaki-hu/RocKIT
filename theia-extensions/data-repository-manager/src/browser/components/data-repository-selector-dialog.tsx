@@ -379,7 +379,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
                                                     nls.localize('rockit/dataRepository/completeSync', 'Complete sync'),
                                                     nls.localize('rockit/dataRepository/completeSyncShort', 'Use remote metadata and structure'))}
                                                 {this.renderSyncMenuItem(repo, target, 'remote-additions',
-                                                    nls.localize('rockit/dataRepository/keepRemoteAdditions', 'Keep only remote additions'),
+                                                    nls.localize('rockit/dataRepository/keepRemoteAdditions', 'Download remote additions'),
                                                     nls.localize('rockit/dataRepository/keepRemoteAdditionsShort', 'Keep local edits, add remote entities'))}
                                                 {this.renderSyncMenuItem(repo, target, 'local-additions',
                                                     nls.localize('rockit/dataRepository/keepLocalAdditions', 'Keep only local additions'),
