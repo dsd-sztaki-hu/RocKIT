@@ -26,7 +26,7 @@ jest.mock('save-ro-crate/lib/browser/ro-crate-persistence-service', () => ({
   RoCratePersistenceService: class RoCratePersistenceService {},
 }))
 jest.mock('./recrate-wrapper', () => ({
-  DescriboCrateBuilderWrapper: jest.fn(),
+  RecrateCrateBuilderWrapper: jest.fn(),
 }))
 
 import { RoCrateEditorWidget } from './ro-crate-editor-widget'

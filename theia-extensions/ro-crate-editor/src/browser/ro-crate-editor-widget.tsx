@@ -35,7 +35,7 @@ import {
   type RoCrateApprovalFile,
 } from 'app-state/lib/browser/state/ro-crate-approval'
 
-import { DescriboCrateBuilderWrapper } from './recrate-wrapper'
+import { RecrateCrateBuilderWrapper } from './recrate-wrapper'
 
 interface RoCrateEditorWidgetOptions {
   instanceId?: string
@@ -1139,7 +1139,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                         boxSizing: 'border-box',
                     }}
                 >
-                    <DescriboCrateBuilderWrapper
+                    <RecrateCrateBuilderWrapper
                         crate={this.localCrate}
                         roCrateApproval={this.localRoCrateApproval}
                         profile={this.localProfile}
