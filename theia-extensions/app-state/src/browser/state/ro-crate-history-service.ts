@@ -1,4 +1,5 @@
 import { inject, injectable } from 'inversify'
+import { Emitter, type Event } from '@theia/core/lib/common'
 import { nls } from '@theia/core/lib/common/nls'
 import {
   applyPatch as applyRfc6902Patch,
@@ -32,7 +33,12 @@ export interface RoCrateChangeOptions {
 
 export type JsonPatchOperation = Operation
 export type JsonPatch = JsonPatchOperation[]
-export type RoCrateHistoryPatchTarget = 'roCrate' | 'roCrateApproval'
+export type RoCrateHistoryPatchTarget = 'roCrate' | 'roCrateApproval' | 'ignoreList'
+
+export interface RoCrateHistoryAppliedEvent {
+  mode: 'undo' | 'redo'
+  targets: ReadonlySet<RoCrateHistoryPatchTarget>
+}
 
 /**
  * One undoable RO-Crate operation represented as forward and backward JSON Patch.
@@ -142,6 +148,11 @@ export class RoCrateHistoryService {
   protected pendingMergeWithNext = false
   protected pendingMergeDeadline = 0
   protected readonly mergeWindowMs = 1000
+  protected applyingHistoryOperation = false
+  protected readonly onDidApplyHistoryOperationEmitter = new Emitter<RoCrateHistoryAppliedEvent>()
+
+  readonly onDidApplyHistoryOperation: Event<RoCrateHistoryAppliedEvent> =
+    this.onDidApplyHistoryOperationEmitter.event
 
   @inject(AppStateService)
   protected readonly appStateService: AppStateService
@@ -152,6 +163,10 @@ export class RoCrateHistoryService {
 
   canRedo(): boolean {
     return this.redoStack.length > 0
+  }
+
+  isApplyingHistory(): boolean {
+    return this.applyingHistoryOperation
   }
 
   getDebugSnapshot(maxOperations = 30): RoCrateHistoryDebugSnapshot {
@@ -266,6 +281,39 @@ export class RoCrateHistoryService {
     return true
   }
 
+  applyIgnoreListChange(
+    nextIgnoreList: string[] | undefined,
+    options: RoCrateChangeOptions = {},
+  ): boolean {
+    const previousIgnoreList = this.appStateService.ignoreList
+    const normalizedNext = Array.isArray(nextIgnoreList) ? [...nextIgnoreList] : undefined
+    const trackHistory = options.trackHistory ?? true
+
+    if (this.valuesEqual(previousIgnoreList, normalizedNext)) {
+      this.appStateService.ignoreList = normalizedNext
+      return false
+    }
+
+    this.appStateService.ignoreList = normalizedNext
+    if (!trackHistory) {
+      return true
+    }
+
+    const operation = this.createPatchOperation(
+      previousIgnoreList,
+      normalizedNext,
+      options.label ?? nls.localize(
+        'rockit/appState/history/editIgnoreList',
+        'Edit ignored resources',
+      ),
+      'ignoreList',
+    )
+    if (operation) {
+      this.pushOperation(operation, options)
+    }
+    return true
+  }
+
   async runInTransaction<T>(label: string, callback: () => Promise<T> | T): Promise<T> {
     const context: TransactionContext = { label, operations: [] }
     this.transactionStack.push(context)
@@ -296,9 +344,18 @@ export class RoCrateHistoryService {
       return
     }
 
-    this.applyHistoryOperation(operation, 'undo')
+    this.applyingHistoryOperation = true
+    try {
+      this.applyHistoryOperation(operation, 'undo')
+    } finally {
+      this.applyingHistoryOperation = false
+    }
     this.redoStack.push(operation)
     this.trimStack(this.redoStack)
+    this.onDidApplyHistoryOperationEmitter.fire({
+      mode: 'undo',
+      targets: this.collectOperationTargets(operation),
+    })
   }
 
   redo(): void {
@@ -307,9 +364,18 @@ export class RoCrateHistoryService {
       return
     }
 
-    this.applyHistoryOperation(operation, 'redo')
+    this.applyingHistoryOperation = true
+    try {
+      this.applyHistoryOperation(operation, 'redo')
+    } finally {
+      this.applyingHistoryOperation = false
+    }
     this.undoStack.push(operation)
     this.trimStack(this.undoStack)
+    this.onDidApplyHistoryOperationEmitter.fire({
+      mode: 'redo',
+      targets: this.collectOperationTargets(operation),
+    })
   }
 
   protected pushOperation(
@@ -520,9 +586,13 @@ export class RoCrateHistoryService {
   }
 
   protected getTargetValue(target: RoCrateHistoryPatchTarget): unknown {
-    return target === 'roCrate'
-      ? this.appStateService.roCrate
-      : this.appStateService.roCrateApproval
+    if (target === 'roCrate') {
+      return this.appStateService.roCrate
+    }
+    if (target === 'ignoreList') {
+      return this.appStateService.ignoreList
+    }
+    return this.appStateService.roCrateApproval
   }
 
   protected setTargetValue(target: RoCrateHistoryPatchTarget, value: unknown): void {
@@ -533,7 +603,27 @@ export class RoCrateHistoryService {
       return
     }
 
+    if (target === 'ignoreList') {
+      this.appStateService.ignoreList = value as string[] | undefined
+      return
+    }
+
     this.appStateService.roCrateApproval = value as RoCrateApprovalFile | undefined
+  }
+
+  protected collectOperationTargets(
+    operation: RoCrateHistoryOperation,
+  ): ReadonlySet<RoCrateHistoryPatchTarget> {
+    const targets = new Set<RoCrateHistoryPatchTarget>()
+    const visit = (candidate: RoCrateHistoryOperation): void => {
+      if (candidate.kind === 'patch') {
+        targets.add(candidate.target)
+        return
+      }
+      candidate.operations.forEach(visit)
+    }
+    visit(operation)
+    return targets
   }
 
   protected toPatchContainer(value: unknown): Record<string, unknown> {

@@ -1,30 +1,35 @@
-<div align='center'>
-
-<br />
-
-<img src='https://raw.githubusercontent.com/eclipse-theia/theia/master/logo/theia.svg?sanitize=true' alt='theia-ext-logo' width='100px' />
-
-<h2>ECLIPSE THEIA - NAVIGATOR EXTENSION</h2>
-
-<hr />
-
-</div>
+# @theia/navigator
 
 ## Description
 
-The `@theia/navigator` extension contributes the `file explorer` widget.\
-The `file explorer` can be used to easily view, open, and manage the files that correspond to a given workspace.
+RocKIT file explorer extension.
 
-## Additional Information
+This workspace package intentionally keeps the upstream package identity
+`@theia/navigator@1.65.2` so Theia's own transitive dependencies resolve to this
+local fork instead of installing a second upstream navigator extension.
 
-- [API documentation for `@theia/navigator`](https://eclipse-theia.github.io/theia/docs/next/modules/navigator.html)
-- [Theia - GitHub](https://github.com/eclipse-theia/theia)
-- [Theia - Website](https://theia-ide.org/)
+The RocKIT package identity for project documentation is `@rockit/file-explorer`
+version `1.0.0`.
+
+This package preserves the upstream navigator behavior and adds RocKIT-specific
+RO-Crate workspace features, including RO-Crate description include/omit commands,
+ignored-file handling, data source roots, and metadata-aware filtering.
+
+## Upstream
+
+- Package: `@theia/navigator`
+- Base version: `1.65.2`
+- RocKIT name: `@rockit/file-explorer`
+- RocKIT version: `1.0.0`
+- Repository: <https://github.com/eclipse-theia/theia>
 
 ## License
 
 - [Eclipse Public License 2.0](http://www.eclipse.org/legal/epl-2.0/)
-- [一 (Secondary) GNU General Public License, version 2 with the GNU Classpath Exception](https://projects.eclipse.org/license/secondary-gpl-2.0-cp)
+- [(Secondary) GNU General Public License, version 2 with the GNU Classpath Exception](https://projects.eclipse.org/license/secondary-gpl-2.0-cp)
+
+This package retains the upstream Eclipse Theia license for derived files.
+Individual source files carry their SPDX license headers.
 
 ## Trademark
 

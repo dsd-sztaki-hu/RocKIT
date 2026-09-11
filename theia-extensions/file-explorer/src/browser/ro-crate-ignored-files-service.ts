@@ -6,6 +6,7 @@ import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { minimatch, MinimatchOptions } from 'minimatch'
 import { Disposable } from '@theia/core/lib/common/disposable'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import {
   ROCKIT_IGNORE_DIR,
   ROCKIT_IGNORE_FILE,
@@ -19,6 +20,11 @@ interface IgnoreRule {
   isGlob: boolean
 }
 
+export interface IgnoredPathsChangeEvent {
+  paths: ReadonlySet<string>
+  source: 'action' | 'external'
+}
+
 @injectable()
 export class RoCrateIgnoredFilesService {
   static readonly IGNORE_DIR = ROCKIT_IGNORE_DIR
@@ -27,14 +33,14 @@ export class RoCrateIgnoredFilesService {
 
   protected ignoredEntries: string[] = []
   protected ignoredRules: IgnoreRule[] = []
-  protected readonly onDidChangeIgnoredPathsEmitter = new Emitter<ReadonlySet<string>>()
+  protected readonly onDidChangeIgnoredPathsEmitter = new Emitter<IgnoredPathsChangeEvent>()
   protected ignoreWatchDisposable?: Disposable
   protected ignoreChangeDisposable?: Disposable
   protected ignoreWatchRoot?: string
   protected ignoreFileUri?: URI
   protected pendingExternalReload?: number
 
-  readonly onDidChangeIgnoredPaths: Event<ReadonlySet<string>> =
+  readonly onDidChangeIgnoredPaths: Event<IgnoredPathsChangeEvent> =
     this.onDidChangeIgnoredPathsEmitter.event
 
   @inject(WorkspaceService)
@@ -46,11 +52,17 @@ export class RoCrateIgnoredFilesService {
   @inject(AppStateService)
   protected readonly appStateService: AppStateService
 
+  @inject(RoCrateHistoryService)
+  protected readonly roCrateHistoryService: RoCrateHistoryService
+
   @postConstruct()
   protected init(): void {
     this.appStateService.onDidChangeSelector((state) => state.ignoreList)(
       (entries) => {
-        this.setIgnoredEntries(Array.isArray(entries) ? entries : [])
+        this.setIgnoredEntries(
+          Array.isArray(entries) ? entries : [],
+          this.roCrateHistoryService.isApplyingHistory() ? 'action' : 'external',
+        )
       },
     )
   }
@@ -59,7 +71,7 @@ export class RoCrateIgnoredFilesService {
     const rootUri = this.getPrimaryWorkspaceRootUri()
     if (!rootUri) {
       this.disposeIgnoreWatch()
-      this.setIgnoredEntries([])
+      this.setIgnoredEntries([], 'external')
       return
     }
 
@@ -109,6 +121,21 @@ export class RoCrateIgnoredFilesService {
     await this.updateIgnoredPaths(paths, 'remove')
   }
 
+  async persistIgnoredEntries(): Promise<void> {
+    const rootUri = this.getPrimaryWorkspaceRootUri()
+    const entries = this.appStateService.ignoreList
+    if (!rootUri || !Array.isArray(entries)) {
+      return
+    }
+
+    const normalized = this.compactRedundantIncludeEntries(this.withDefaultEntries(entries))
+    const ignoredUri = await this.ensureIgnoreFile(rootUri)
+    await this.writeIgnoredEntries(ignoredUri, normalized)
+    this.setIgnoredEntries(normalized, 'action')
+    this.appStateService.ignoreList = normalized
+    this.appStateService.setIgnoreListSnapshot(normalized)
+  }
+
   protected async updateIgnoredPaths(
     paths: readonly string[],
     mode: 'add' | 'remove',
@@ -140,7 +167,10 @@ export class RoCrateIgnoredFilesService {
     }
     next = this.compactRedundantIncludeEntries(next)
 
-    this.applyIgnoredEntries(next)
+    this.setIgnoredEntries(next, 'action')
+    this.roCrateHistoryService.applyIgnoreListChange(next.length ? next : undefined, {
+      label: mode === 'add' ? 'Omit RO-Crate resources' : 'Include RO-Crate resources',
+    })
   }
 
   protected resolveIgnoreFileUri(rootUri: URI): URI {
@@ -447,18 +477,21 @@ export class RoCrateIgnoredFilesService {
     return true
   }
 
-  protected setIgnoredEntries(next: string[]): void {
+  protected setIgnoredEntries(next: string[], source: IgnoredPathsChangeEvent['source']): void {
     if (this.sameEntries(this.ignoredEntries, next)) {
       return
     }
     this.ignoredEntries = [...next]
     this.ignoredRules = this.toRules(next)
-    this.onDidChangeIgnoredPathsEmitter.fire(new Set(this.ignoredEntries))
+    this.onDidChangeIgnoredPathsEmitter.fire({
+      paths: new Set(this.ignoredEntries),
+      source,
+    })
   }
 
   protected applyIgnoredEntries(next: readonly string[]): void {
     const normalized = [...next]
-    this.setIgnoredEntries(normalized)
+    this.setIgnoredEntries(normalized, 'external')
 
     const currentStateEntries = this.appStateService.ignoreList ?? []
     if (this.sameEntries(currentStateEntries, normalized)) {

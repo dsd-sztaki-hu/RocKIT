@@ -1,4 +1,4 @@
-import DescriboCrateBuilder from '@arpproject/recrate'
+import RecrateCrateBuilder from '@arpproject/recrate'
 import { nls } from '@theia/core/lib/common'
 import * as React from 'react'
 
@@ -23,7 +23,7 @@ type SingleEntityDropPayload = {
 
 const ENTITIES_OVERVIEW_DND_MIME = 'application/x-rockit-entity-drag'
 
-export const DescriboCrateBuilderWrapper = ({
+export const RecrateCrateBuilderWrapper = ({
                                                 crate,
                                                 roCrateApproval,
                                                 profile,
@@ -306,7 +306,7 @@ export const DescriboCrateBuilderWrapper = ({
         [onOpenSchemaManager],
     )
 
-    const DescriboCrateBuilderComponent = DescriboCrateBuilder as React.ComponentType<any>
+    const RecrateCrateBuilderComponent = RecrateCrateBuilder as React.ComponentType<any>
 
     return (
         <div
@@ -326,7 +326,7 @@ export const DescriboCrateBuilderWrapper = ({
                 </div>
             )}
 
-            <DescriboCrateBuilderComponent
+            <RecrateCrateBuilderComponent
                 crate={crate}
                 roCrateApproval={roCrateApproval}
                 profile={profile}

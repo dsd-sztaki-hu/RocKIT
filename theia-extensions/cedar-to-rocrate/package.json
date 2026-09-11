@@ -4,7 +4,7 @@
   "description": "TypeScript implementation of CedarTemplateToDescriboProfileConverter",
   "private": true,
   "license": "Apache-2.0",
-  "author": "HUN-REN SZTAKI, Department of Distributed Systems",
+  "author": "SZTAKI, Department of Distributed Systems",
   "type": "module",
   "main": "dist/cedar-converter.js",
   "types": "dist/cedar-converter.d.ts",

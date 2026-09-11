@@ -4,6 +4,8 @@ import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { FileSearchService } from '@theia/file-search/lib/common/file-search-service'
 import { WorkspaceService } from '@theia/workspace/lib/browser'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
+import { RoCratePersistenceService } from 'save-ro-crate/lib/browser/ro-crate-persistence-service'
 import { RoCrateIgnoredFilesService } from './ro-crate-ignored-files-service'
 
 export interface RoCrateWorkspaceResource {
@@ -24,7 +26,7 @@ export interface RoCrateWorkspaceResource {
 
 export interface IncludeResourcesResult {
   /**
-   * Whether ignored rules changed in memory.
+   * Whether ignored rules changed.
    */
   updatedIgnoredRules: boolean
 }
@@ -32,7 +34,7 @@ export interface IncludeResourcesResult {
 export interface OmitResourcesResult {
   /**
    * Whether `appState.roCrate` was available and processed.
-   * `false` means only ignored-rule app state was updated.
+   * `false` means only ignored rules were updated.
    */
   metadataLoaded: boolean
   /**
@@ -73,7 +75,7 @@ export interface IgnoredDescriptionConsistencyOptions {
  *
  * This service is intended for reuse from multiple frontend components.
  * It updates ignored rules through {@link RoCrateIgnoredFilesService} and,
- * when metadata is loaded, updates `appState.roCrate` in-place.
+ * when metadata is loaded, records `appState.roCrate` changes in shared history.
  */
 @injectable()
 export class RoCrateDescriptionOperationsService {
@@ -92,6 +94,25 @@ export class RoCrateDescriptionOperationsService {
   @inject(RoCrateIgnoredFilesService)
   protected readonly roCrateIgnoredFilesService: RoCrateIgnoredFilesService
 
+  @inject(RoCrateHistoryService)
+  protected readonly roCrateHistoryService: RoCrateHistoryService
+
+  @inject(RoCratePersistenceService)
+  protected readonly roCratePersistenceService: RoCratePersistenceService
+
+  async persistCurrentState(persistMetadata: boolean): Promise<void> {
+    const rootUri = this.workspaceService.tryGetRoots()?.[0]?.resource
+    if (!rootUri) {
+      return
+    }
+
+    const crate = this.appStateService.roCrate
+    if (persistMetadata && crate) {
+      await this.roCratePersistenceService.write(rootUri, crate)
+    }
+    await this.roCrateIgnoredFilesService.persistIgnoredEntries()
+  }
+
   /**
    * Includes resources back into RO-Crate:
    * 1. Removes omit effect for selected resources from ignored-rule app state
@@ -107,14 +128,16 @@ export class RoCrateDescriptionOperationsService {
       return { updatedIgnoredRules: false }
     }
 
-    const before = JSON.stringify([...this.roCrateIgnoredFilesService.getIgnoredPaths()].sort())
-    const ignoreEntries = normalizedResources.map((resource) =>
-      resource.isDirectory ? `${resource.path}/` : resource.path,
-    )
-    await this.roCrateIgnoredFilesService.removeIgnoredPaths(ignoreEntries)
-    const after = JSON.stringify([...this.roCrateIgnoredFilesService.getIgnoredPaths()].sort())
+    return this.roCrateHistoryService.runInTransaction('Include RO-Crate resources', async () => {
+      const before = JSON.stringify([...this.roCrateIgnoredFilesService.getIgnoredPaths()].sort())
+      const ignoreEntries = normalizedResources.map((resource) =>
+        resource.isDirectory ? `${resource.path}/` : resource.path,
+      )
+      await this.roCrateIgnoredFilesService.removeIgnoredPaths(ignoreEntries)
+      const after = JSON.stringify([...this.roCrateIgnoredFilesService.getIgnoredPaths()].sort())
 
-    return { updatedIgnoredRules: before !== after }
+      return { updatedIgnoredRules: before !== after }
+    })
   }
 
   /**
@@ -157,41 +180,44 @@ export class RoCrateDescriptionOperationsService {
       }
     }
 
-    const ignoreEntries = normalizedResources.map((resource) =>
-      resource.isDirectory ? `${resource.path}/` : resource.path,
-    )
-    await this.roCrateIgnoredFilesService.addIgnoredPaths(ignoreEntries)
+    return this.roCrateHistoryService.runInTransaction('Omit RO-Crate resources', async () => {
+      const ignoreEntries = normalizedResources.map((resource) =>
+        resource.isDirectory ? `${resource.path}/` : resource.path,
+      )
+      await this.roCrateIgnoredFilesService.addIgnoredPaths(ignoreEntries)
 
-    const crate = this.appStateService.roCrate
-    if (!crate || !Array.isArray(crate['@graph'])) {
-      return {
-        metadataLoaded: false,
-        pairedDescriptionCount: 0,
-        removedDescriptionCount: 0,
+      const crate = this.appStateService.roCrate
+      if (!crate || !Array.isArray(crate['@graph'])) {
+        return {
+          metadataLoaded: false,
+          pairedDescriptionCount: 0,
+          removedDescriptionCount: 0,
+        }
       }
-    }
 
-    const graph = this.cloneValue(crate['@graph']) as Record<string, any>[]
-    const idsToRemove = this.collectEntityIdsForResources(graph, normalizedResources)
-    const pairedDescriptionCount = idsToRemove.size
-    if (!pairedDescriptionCount) {
+      const graph = this.cloneValue(crate['@graph']) as Record<string, any>[]
+      const idsToRemove = this.collectEntityIdsForResources(graph, normalizedResources)
+      const pairedDescriptionCount = idsToRemove.size
+      if (!pairedDescriptionCount) {
+        return {
+          metadataLoaded: true,
+          pairedDescriptionCount,
+          removedDescriptionCount: 0,
+        }
+      }
+
+      const updatedGraph = this.removeEntitiesAndReferences(graph, idsToRemove)
+      const updatedCrate = { ...crate, '@graph': updatedGraph }
+      this.roCrateHistoryService.applyRoCrateChange(updatedCrate, {
+        label: 'Omit RO-Crate resources',
+      })
+
       return {
         metadataLoaded: true,
         pairedDescriptionCount,
-        removedDescriptionCount: 0,
+        removedDescriptionCount: pairedDescriptionCount,
       }
-    }
-
-    const updatedGraph = this.removeEntitiesAndReferences(graph, idsToRemove)
-    const updatedCrate = { ...crate, '@graph': updatedGraph }
-    this.appStateService.roCrate = updatedCrate
-    this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
-
-    return {
-      metadataLoaded: true,
-      pairedDescriptionCount,
-      removedDescriptionCount: pairedDescriptionCount,
-    }
+    })
   }
 
   /**
