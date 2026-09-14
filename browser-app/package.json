@@ -16,7 +16,7 @@
     "@theia/workspace": "1.65.2",
     "@theia/navigator": "1.65.2",
     "ro-crate-preview": "1.0.0",
-    "file-preview": "0.0.0",
+    "file-preview": "1.0.0",
     "ro-crate-editor": "1.0.0",
     "react-grab-helper": "1.0.0",
     "app-state": "0.0.1",
