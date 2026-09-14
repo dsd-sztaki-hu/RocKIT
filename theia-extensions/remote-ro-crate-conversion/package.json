@@ -1,5 +1,6 @@
 {
   "name": "remote-ro-crate-conversion",
+  "description": "RocKIT command for converting remote ARP RO-Crate entity IDs back to local IDs.",
   "keywords": [
     "theia-extension"
   ],
@@ -34,7 +35,7 @@
   ],
   "contributors": [
     {
-      "name": "NKadosa",
+      "name": "Kadosa Nagy",
       "email": "nagykadosa@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     },
@@ -43,8 +44,8 @@
       "email": "csontos.hanga@gmail.com"
     },
     {
-      "name": "sac",
-      "email": "sac@sztaki.hu",
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     }
   ]

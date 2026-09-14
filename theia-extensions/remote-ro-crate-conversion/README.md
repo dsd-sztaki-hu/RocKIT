@@ -1,7 +1,27 @@
-# Hello World Example
+# Remote RO-Crate Conversion
 
-The example extension demonstrates how to register a command in Theia saying "Hello world" using the message service.
+Provides a RocKIT command for converting remote ARP RO-Crate entity IDs back to
+local workspace IDs.
 
-## How to use the Hello World example
+The extension contributes **Convert Remote RO-Crate IDs to Local IDs** to the
+Edit menu. It reads the open workspace's `ro-crate-metadata.json`, rewrites
+eligible ARP repository file and dataset IDs to local paths, updates references,
+and stores export mapping state in `.rockit`.
 
-In the running application, trigger the command "Say hello" via the command palette (F1 => "Say Hello"). A message dialog will pop up saying "Hello World".
+## Development
+
+```bash
+yarn build
+```
+
+## Authorship
+
+This package is maintained by SZTAKI, Department of Distributed Systems
+(<https://dsd.sztaki.hu>).
+
+Individual contributors are listed in `package.json`.
+
+## License
+
+This package is licensed under the Apache License, Version 2.0. See
+[LICENSE.md](../../LICENSE.md) for details.
