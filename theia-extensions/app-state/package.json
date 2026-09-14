@@ -2,6 +2,7 @@
   "name": "app-state",
   "version": "0.0.1",
   "private": true,
+  "description": "Shared RocKIT application state service and UI integration.",
   "license": "Apache-2.0",
   "author": {
     "name": "SZTAKI, Department of Distributed Systems",
@@ -42,7 +43,7 @@
       "url": "https://dsd.sztaki.hu"
     },
     {
-      "name": "NKadosa",
+      "name": "Kadosa Nagy",
       "email": "nagykadosa@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     },
@@ -51,12 +52,12 @@
       "email": "csontos.hanga@gmail.com"
     },
     {
-      "name": "sac",
-      "email": "sac@sztaki.hu",
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     },
     {
-      "name": "Tanacsi Roland",
+      "name": "Roland Tanacsi",
       "email": "tanacsi.roland@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     }
