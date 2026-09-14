@@ -10,13 +10,23 @@
   },
   "contributors": [
     {
+      "name": "Balazs E. Pataki",
+      "email": "balazs.pataki@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
       "name": "Norbert Finta",
       "email": "finta@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     },
     {
-      "name": "Balázs E. Pataki",
-      "email": "balazs.pataki@sztaki.hu",
+      "name": "sac",
+      "email": "sac@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Tanacsi Roland",
+      "email": "tanacsi.roland@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     }
   ],

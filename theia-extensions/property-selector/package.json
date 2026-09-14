@@ -36,5 +36,22 @@
     {
       "frontend": "lib/browser/property-selector-frontend-module"
     }
+  ],
+  "contributors": [
+    {
+      "name": "NKadosa",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "sac",
+      "email": "sac@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Tanacsi Roland",
+      "email": "tanacsi.roland@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    }
   ]
 }

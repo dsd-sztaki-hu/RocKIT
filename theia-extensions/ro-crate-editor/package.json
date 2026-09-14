@@ -21,7 +21,7 @@
     "save-ro-crate": "1.0.0",
     "rockit-common": "1.0.0",
     "rockit-loadmask": "1.0.0"
-  },  
+  },
   "devDependencies": {
     "rimraf": "^5.0.0",
     "typescript": "~5.4.5",
@@ -41,6 +41,32 @@
   "theiaExtensions": [
     {
       "frontend": "lib/browser/ro-crate-editor-frontend-module"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Balazs E. Pataki",
+      "email": "balazs.pataki@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "NKadosa",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontos.hanga@gmail.com"
+    },
+    {
+      "name": "sac",
+      "email": "sac@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Tanacsi Roland",
+      "email": "tanacsi.roland@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
     }
   ]
 }

@@ -31,5 +31,21 @@
     {
       "frontend": "lib/browser/remote-ro-crate-conversion-frontend-module"
     }
+  ],
+  "contributors": [
+    {
+      "name": "NKadosa",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontos.hanga@gmail.com"
+    },
+    {
+      "name": "sac",
+      "email": "sac@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    }
   ]
 }

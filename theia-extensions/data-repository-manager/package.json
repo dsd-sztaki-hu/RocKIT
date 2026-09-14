@@ -52,5 +52,26 @@
     "test": "jest --config configs/jest.config.ts",
     "crosswalk:generate": "python src/browser/metadata-crosswalks/scripts/validate_linkml.py --validate-only && node src/browser/metadata-crosswalks/scripts/generate-crosswalk.js",
     "crosswalk:check": "node src/browser/metadata-crosswalks/scripts/generate-crosswalk.js --check && python src/browser/metadata-crosswalks/scripts/validate_linkml.py && node src/browser/metadata-crosswalks/scripts/test-crosswalk.js"
-  }
+  },
+  "contributors": [
+    {
+      "name": "NKadosa",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontos.hanga@gmail.com"
+    },
+    {
+      "name": "sac",
+      "email": "sac@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Tanacsi Roland",
+      "email": "tanacsi.roland@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    }
+  ]
 }

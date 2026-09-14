@@ -34,5 +34,31 @@
     "mime-types": "^3.0.2",
     "rockit-common": "1.0.0",
     "rfc6902": "^5.2.0"
-  }
+  },
+  "contributors": [
+    {
+      "name": "Balazs E. Pataki",
+      "email": "balazs.pataki@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "NKadosa",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontos.hanga@gmail.com"
+    },
+    {
+      "name": "sac",
+      "email": "sac@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Tanacsi Roland",
+      "email": "tanacsi.roland@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    }
+  ]
 }

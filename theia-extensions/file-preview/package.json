@@ -13,11 +13,27 @@
   },
   "contributors": [
     {
+      "name": "Balazs E. Pataki",
+      "email": "balazs.pataki@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
       "name": "Eclipse Theia Authors",
       "url": "https://github.com/eclipse-theia/theia"
     },
     {
-      "name": "SZTAKI, Department of Distributed Systems"
+      "name": "Reka Csontos",
+      "email": "csontos.hanga@gmail.com"
+    },
+    {
+      "name": "sac",
+      "email": "sac@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Tanacsi Roland",
+      "email": "tanacsi.roland@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
     }
   ],
   "upstream": {

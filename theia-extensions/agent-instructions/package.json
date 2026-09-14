@@ -40,5 +40,22 @@
   },
   "nyc": {
     "extends": "../../configs/nyc.json"
-  }
+  },
+  "contributors": [
+    {
+      "name": "Balazs E. Pataki",
+      "email": "balazs.pataki@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "NKadosa",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "sac",
+      "email": "sac@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    }
+  ]
 }

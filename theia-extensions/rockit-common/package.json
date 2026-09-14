@@ -39,7 +39,28 @@
   "theiaExtensions": [
     {
       "frontend": "lib/browser/rockit-common-frontend-module",
-      "backend": "lib/node/rockit-common-backend-module" 
+      "backend": "lib/node/rockit-common-backend-module"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Balazs E. Pataki",
+      "email": "balazs.pataki@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "NKadosa",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontos.hanga@gmail.com"
+    },
+    {
+      "name": "sac",
+      "email": "sac@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
     }
   ]
 }

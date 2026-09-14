@@ -33,5 +33,17 @@
     {
       "frontend": "lib/browser/package-ro-crate-frontend-module"
     }
+  ],
+  "contributors": [
+    {
+      "name": "NKadosa",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "sac",
+      "email": "sac@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    }
   ]
 }
