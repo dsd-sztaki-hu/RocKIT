@@ -12,6 +12,7 @@ import {
   normalizeExportLogEntries,
   serializeExportLogEntries,
 } from './export-log'
+import { extendMappingWithMetadataEntities } from './ro-crate-metadata-entity-mapping'
 
 type RoCrate = Record<string, any>
 type RoCrateEntity = Record<string, any>
@@ -250,9 +251,10 @@ export class ArpRoCrateLinkService {
       }
     }
 
-    return Object.fromEntries(
+    const operationalMapping = Object.fromEntries(
       Object.entries(mapping).sort((a, b) => a[0].localeCompare(b[0])),
     )
+    return extendMappingWithMetadataEntities(localCrate, remoteCrate, operationalMapping)
   }
 
   protected datasetMatchKey(entity: RoCrateEntity): string | undefined {
