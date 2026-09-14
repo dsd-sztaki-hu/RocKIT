@@ -1,5 +1,6 @@
 {
   "name": "package-ro-crate",
+  "description": "RocKIT command and dialog for packaging RO-Crate workspaces as ZIP archives.",
   "keywords": [
     "theia-extension"
   ],
@@ -36,13 +37,13 @@
   ],
   "contributors": [
     {
-      "name": "NKadosa",
+      "name": "Kadosa Nagy",
       "email": "nagykadosa@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     },
     {
-      "name": "sac",
-      "email": "sac@sztaki.hu",
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     }
   ]
