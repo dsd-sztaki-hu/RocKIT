@@ -1,5 +1,6 @@
 {
   "name": "save-ro-crate",
+  "description": "RocKIT Theia extension for saving RO-Crate metadata, preview HTML, and ignored rules.",
   "keywords": [
     "theia-extension"
   ],
@@ -43,7 +44,7 @@
       "url": "https://dsd.sztaki.hu"
     },
     {
-      "name": "NKadosa",
+      "name": "Kadosa Nagy",
       "email": "nagykadosa@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     },
@@ -52,12 +53,12 @@
       "email": "csontos.hanga@gmail.com"
     },
     {
-      "name": "sac",
-      "email": "sac@sztaki.hu",
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     },
     {
-      "name": "Tanacsi Roland",
+      "name": "Roland Tanacsi",
       "email": "tanacsi.roland@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     }
