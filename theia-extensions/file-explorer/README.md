@@ -25,8 +25,8 @@ ignored-file handling, data source roots, and metadata-aware filtering.
 
 ## License
 
-- [Eclipse Public License 2.0](http://www.eclipse.org/legal/epl-2.0/)
-- [(Secondary) GNU General Public License, version 2 with the GNU Classpath Exception](https://projects.eclipse.org/license/secondary-gpl-2.0-cp)
+- [Eclipse Public License 2.0](./LICENSE-EPL.txt)
+- [(Secondary) GNU General Public License, version 2 with the GNU Classpath Exception](./LICENSE-GPL-2.0-ONLY-CLASSPATH-EXCEPTION)
 
 This package retains the upstream Eclipse Theia license for derived files.
 Individual source files carry their SPDX license headers.
