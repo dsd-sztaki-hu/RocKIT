@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import * as React from '@theia/core/shared/react'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { getThemeMode } from '@theia/core/lib/common/theme'

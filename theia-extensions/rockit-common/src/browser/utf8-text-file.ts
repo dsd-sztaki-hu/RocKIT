@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import { BinaryBuffer, type BinaryBufferReadable } from '@theia/core/lib/common/buffer'
 import type URI from '@theia/core/lib/common/uri'
 import type { FileService } from '@theia/filesystem/lib/browser/file-service'
