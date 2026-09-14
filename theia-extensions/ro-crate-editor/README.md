@@ -1,9 +1,28 @@
-# Example Widget
+# RO-Crate Editor
 
-The example extension demonstrates how to contribute a custom widget (i.e. a view or editor) to Eclipse Theia. Furthermore, the template contains an example unit test.
+Provides the RocKIT RO-Crate metadata editor view for the Theia workbench.
 
-## How to use the widget example
+The extension contributes commands for opening the RO-Crate Editor, initializing
+RO-Crate metadata in a workspace, opening an entity editor from a workspace
+resource, and linking the editor with RocKIT application state. It integrates the
+ReCrate editor UI with RocKIT persistence, validation, history, and load-mask
+services.
 
-In the running application, open the widget using the menu "View" => "RoCrateEditor Widget"
-To execute the test, run
-    npm test
+## Development
+
+```bash
+yarn build
+yarn test
+```
+
+## Authorship
+
+This package is maintained by SZTAKI, Department of Distributed Systems
+(<https://dsd.sztaki.hu>).
+
+Individual contributors are listed in `package.json`.
+
+## License
+
+This package is licensed under the Apache License, Version 2.0. See
+[LICENSE.md](../../LICENSE.md) for details.
