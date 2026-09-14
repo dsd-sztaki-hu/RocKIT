@@ -1,3 +1,26 @@
-# Empty Template Extension
+# RocKIT Theia Overrides
 
-This template extension does not contain any features, but provides an empty stub including a frontend module and a generic contribution. It can be used as a starting point to implement any custom extension.
+Provides RocKIT-specific workbench customizations for the Theia application.
+
+The extension contributes RocKIT menu structure, default layout behavior,
+localized display language handling, empty-workspace and splash UI behavior,
+preference view customizations, connection notifications, and Electron renderer
+failure handling.
+
+## Development
+
+```bash
+yarn build
+```
+
+## Authorship
+
+This package is maintained by SZTAKI, Department of Distributed Systems
+(<https://dsd.sztaki.hu>).
+
+Individual contributors are listed in `package.json`.
+
+## License
+
+This package is licensed under the Apache License, Version 2.0. See
+[LICENSE.md](../../LICENSE.md) for details.
