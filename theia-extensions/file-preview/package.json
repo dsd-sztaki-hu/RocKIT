@@ -7,7 +7,10 @@
     "theia-extension"
   ],
   "license": "EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0",
-  "author": "SZTAKI, Department of Distributed Systems",
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
+  },
   "contributors": [
     {
       "name": "Eclipse Theia Authors",

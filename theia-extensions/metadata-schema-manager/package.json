@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "A Theia extension to manage metadata schemas",
   "license": "Apache-2.0",
-  "author": "SZTAKI, Department of Distributed Systems",
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
+  },
   "keywords": [
     "theia-extension",
     "frontend"

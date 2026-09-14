@@ -2,7 +2,10 @@
   "name": "metadata-profile-core",
   "version": "1.0.0",
   "license": "Apache-2.0",
-  "author": "SZTAKI, Department of Distributed Systems",
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
+  },
   "description": "Node-safe CEDAR metadata profile storage and conversion utilities",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

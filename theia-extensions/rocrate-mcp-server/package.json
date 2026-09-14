@@ -3,7 +3,10 @@
   "version": "1.0.4",
   "description": "ARP RO-Crate MCP Server exposing RO-Crate editing and profile-aware validation tools for use in ARP",
   "license": "Apache-2.0",
-  "author": "SZTAKI, Department of Distributed Systems",
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
+  },
   "files": [
     "lib",
     "src"

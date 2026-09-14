@@ -3,7 +3,10 @@
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
-  "author": "SZTAKI, Department of Distributed Systems",
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
+  },
   "files": [
     "lib",
     "src"
