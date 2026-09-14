@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import * as React from 'react'
 import { nls } from '@theia/core/lib/common/nls'

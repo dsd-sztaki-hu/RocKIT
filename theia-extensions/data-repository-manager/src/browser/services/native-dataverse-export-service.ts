@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import { URI } from '@theia/core/lib/common/uri';
 import { FileUri } from '@theia/core/lib/common/file-uri';
 import { BinaryBuffer } from '@theia/core/lib/common/buffer';
