@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import 'reflect-metadata'
 import { StorageService } from '@theia/core/lib/browser/storage-service'
 import { Container } from 'inversify'
