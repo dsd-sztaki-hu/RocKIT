@@ -1,9 +1,28 @@
-# Example Widget
+# Schema Validator
 
-The example extension demonstrates how to contribute a custom widget (i.e. a view or editor) to Eclipse Theia. Furthermore, the template contains an example unit test.
+Provides RocKIT validation services and the Validation Errors view for RO-Crate
+metadata.
 
-## How to use the widget example
+The extension contributes validation logic for RO-Crate entities and profile
+rules, stores validation results in application state, and displays validation
+errors in a Theia view. Selecting a validation error can open the related
+RO-Crate entity in the editor.
 
-In the running application, open the widget using the menu "View" => "SchemaValidator Widget"
-To execute the test, run
-    npm test
+## Development
+
+```bash
+yarn build
+yarn test
+```
+
+## Authorship
+
+This package is maintained by SZTAKI, Department of Distributed Systems
+(<https://dsd.sztaki.hu>).
+
+Individual contributors are listed in `package.json`.
+
+## License
+
+This package is licensed under the Apache License, Version 2.0. See
+[LICENSE.md](../../LICENSE.md) for details.
