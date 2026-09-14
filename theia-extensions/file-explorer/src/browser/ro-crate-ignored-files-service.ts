@@ -1,3 +1,12 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import { Emitter, Event } from '@theia/core/lib/common/event'
 import URI from '@theia/core/lib/common/uri'
