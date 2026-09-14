@@ -3,6 +3,7 @@ import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
+import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
 import { GlobalEntityLibraryService } from './global-entity-library-service'
 import { GlobalEntityLibraryTable } from './global-entity-library-table'
@@ -23,7 +24,11 @@ export class GlobalEntityLibraryWidget extends ReactWidget {
     @inject(GlobalEntityLibraryService)
     protected readonly libraryService: GlobalEntityLibraryService
 
+    @inject(AppStateService)
+    protected readonly appStateService: AppStateService
+
     protected collection: GlobalEntityCollection = {}
+    protected profile?: Record<string, any>
     protected loading = true
 
     @postConstruct()
@@ -34,6 +39,12 @@ export class GlobalEntityLibraryWidget extends ReactWidget {
         this.title.closable = true
         this.title.iconClass = 'fa fa-address-book'
         this.addClass('global-entity-library-widget')
+        const updateProfile = (): void => {
+            this.profile = this.appStateService.completeProfile ?? this.appStateService.profile
+            this.update()
+        }
+        this.toDispose.push(this.appStateService.onDidChangeSelector(state => state.completeProfile)(updateProfile))
+        this.toDispose.push(this.appStateService.onDidChangeSelector(state => state.profile)(updateProfile))
         this.toDispose.push(this.libraryService.onDidChangeCollection(collection => {
             this.collection = collection
             this.loading = false
@@ -96,6 +107,7 @@ export class GlobalEntityLibraryWidget extends ReactWidget {
         return <AntdThemeProvider themeService={this.themeService}>
             <GlobalEntityLibraryTable
                 collection={this.collection}
+                profile={this.profile}
                 loading={this.loading}
                 onSave={this.saveRecord}
                 onDelete={this.deleteRecord}

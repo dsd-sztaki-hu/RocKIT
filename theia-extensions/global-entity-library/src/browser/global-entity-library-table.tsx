@@ -1,5 +1,5 @@
 import { nls } from '@theia/core/lib/common/nls'
-import { Button, ConfigProvider, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd'
+import { Button, ConfigProvider, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
 import * as React from 'react'
 import {
@@ -16,11 +16,120 @@ import type {
 
 export interface GlobalEntityLibraryTableProps {
     collection: GlobalEntityCollection
+    profile?: Record<string, any>
     loading: boolean
     onSave: (record: GlobalEntityRecord) => Promise<void>
     onDelete: (recordId: string) => Promise<void>
     onDeleteMany: (recordIds: string[]) => Promise<void>
 }
+
+type SchemaFieldKind = 'text' | 'url' | 'email' | 'number' | 'date' | 'boolean' | 'select'
+
+interface SchemaField {
+    name: string
+    label: string
+    help?: string
+    placeholder?: string
+    pattern?: string
+    kind: SchemaFieldKind
+    multiple: boolean
+    required: boolean
+    values: string[]
+}
+
+const FALLBACK_FIELDS: Record<SupportedGlobalEntityType, SchemaField[]> = {
+    author: [
+        { name: 'authorName', label: 'Author Name', kind: 'text', multiple: false, required: true, values: [] },
+        { name: 'authorAffiliation', label: 'Affiliation', kind: 'text', multiple: false, required: false, values: [] },
+        { name: 'authorIdentifierScheme', label: 'Identifier Scheme', kind: 'text', multiple: false, required: false, values: [] },
+        { name: 'authorIdentifier', label: 'Identifier', kind: 'text', multiple: false, required: false, values: [] },
+    ],
+    datasetContact: [
+        { name: 'datasetContactName', label: 'Contact Name', kind: 'text', multiple: false, required: true, values: [] },
+        { name: 'datasetContactAffiliation', label: 'Affiliation', kind: 'text', multiple: false, required: false, values: [] },
+        { name: 'datasetContactEmail', label: 'Email', kind: 'text', multiple: false, required: false, values: [] },
+    ],
+}
+
+const parseSchemaBoolean = (value: unknown): boolean =>
+    value === true || (typeof value === 'string' && value.trim().toLowerCase() === 'true')
+
+const typeTail = (value: unknown): string => {
+    const text = String(value ?? '').trim()
+    return text.split(/[\/#]/).pop() ?? text
+}
+
+const getRoleNameProperty = (type: SupportedGlobalEntityType): string =>
+    type === 'author' ? 'authorName' : 'datasetContactName'
+
+const schemaFieldKind = (input: Record<string, any>): SchemaFieldKind => {
+    if (Array.isArray(input.values) && input.values.length) return 'select'
+    if (String(input.name ?? '').toLowerCase().includes('email')) return 'email'
+    const types = (Array.isArray(input.type) ? input.type : [input.type])
+        .map(typeTail)
+        .map(type => type.toLowerCase())
+    if (types.some(type => type.includes('boolean'))) return 'boolean'
+    if (types.some(type => type.includes('date') || type.includes('time'))) return 'date'
+    if (types.some(type => /number|integer|float|double|decimal/.test(type))) return 'number'
+    if (types.some(type => /url|uri|iri/.test(type))) return 'url'
+    return 'text'
+}
+
+const getSchemaFields = (
+    profile: Record<string, any> | undefined,
+    type: SupportedGlobalEntityType,
+): SchemaField[] => {
+    const classes = profile?.classes && typeof profile.classes === 'object'
+        ? profile.classes as Record<string, any>
+        : {}
+    const className = Object.keys(classes).find(name =>
+        name === type || typeTail(name).toLowerCase() === type.toLowerCase(),
+    )
+    const inputs = className && Array.isArray(classes[className]?.inputs)
+        ? classes[className].inputs as Record<string, any>[]
+        : []
+    const fields = inputs.flatMap((input): SchemaField[] => {
+        const name = typeof input.name === 'string' ? input.name.trim() : ''
+        if (!name || name === '@id' || name === '@type' || name === '@reverse' || name === 'name') return []
+        const inputTypes = (Array.isArray(input.type) ? input.type : [input.type]).map(typeTail)
+        const isRelationship = inputTypes.some(inputType => {
+            const matchingClass = Object.keys(classes).find(name => typeTail(name) === inputType)
+            return matchingClass && Array.isArray(classes[matchingClass]?.inputs)
+        })
+        if (isRelationship) return []
+        return [{
+            name,
+            label: typeof input.label === 'string' && input.label.trim() ? input.label : name,
+            help: typeof input.help === 'string' && input.help.trim() ? input.help : undefined,
+            placeholder: typeof input.placeholder === 'string' ? input.placeholder : undefined,
+            pattern: typeof input.regex === 'string' ? input.regex : undefined,
+            kind: schemaFieldKind(input),
+            multiple: parseSchemaBoolean(input.multiple),
+            required: parseSchemaBoolean(input.required) || Number(input.minimum ?? input.minItems ?? 0) > 0,
+            values: Array.isArray(input.values) ? input.values.map(String) : [],
+        }]
+    })
+    const roleNameProperty = getRoleNameProperty(type)
+    if (!fields.some(field => field.name === roleNameProperty)) {
+        fields.unshift(FALLBACK_FIELDS[type][0])
+    }
+    return fields.length ? fields : FALLBACK_FIELDS[type]
+}
+
+const normalizeFormProperties = (values: Record<string, unknown>): Record<string, unknown> =>
+    Object.fromEntries(Object.entries(values).flatMap(([property, value]) => {
+        if (typeof value === 'string') {
+            const normalized = value.trim()
+            return normalized ? [[property, normalized]] : []
+        }
+        if (Array.isArray(value)) {
+            const normalized = value
+                .map(item => typeof item === 'string' ? item.trim() : item)
+                .filter(item => item !== '' && item !== undefined && item !== null)
+            return normalized.length ? [[property, normalized]] : []
+        }
+        return value === undefined || value === null ? [] : [[property, value]]
+    }))
 
 type ColumnKey = 'type' | 'name' | 'properties' | 'relationships' | 'actions'
 type ResizableColumnKey = Exclude<ColumnKey, 'actions'>
@@ -138,7 +247,7 @@ const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
     name: 220,
     properties: 420,
     relationships: 300,
-    actions: 116,
+    actions: 180,
 }
 
 const fitDefaultColumnWidths = (availableWidth: number): ColumnWidths => {
@@ -147,12 +256,32 @@ const fitDefaultColumnWidths = (availableWidth: number): ColumnWidths => {
     let difference = availableWidth - defaultWidth
 
     if (difference >= 0) {
-        widths.properties += difference * 0.65
-        widths.relationships += difference * 0.35
+        widths.properties += difference * 0.5
+        widths.relationships += difference * 0.3
+        widths.actions += difference * 0.2
         return widths
     }
 
     for (const key of ['properties', 'relationships', 'name', 'type'] as ColumnKey[]) {
+        const reducibleWidth = widths[key] - MIN_COLUMN_WIDTHS[key]
+        const reduction = Math.min(reducibleWidth, -difference)
+        widths[key] -= reduction
+        difference += reduction
+        if (difference >= 0) break
+    }
+    return widths
+}
+
+const fitCurrentColumnWidths = (current: ColumnWidths, availableWidth: number): ColumnWidths => {
+    const widths = { ...current }
+    const currentWidth = Object.values(widths).reduce((total, width) => total + width, 0)
+    let difference = availableWidth - currentWidth
+    if (Math.abs(difference) < 0.5) return current
+    if (difference > 0) {
+        widths.actions += difference
+        return widths
+    }
+    for (const key of ['actions', 'relationships', 'properties', 'name', 'type'] as ColumnKey[]) {
         const reducibleWidth = widths[key] - MIN_COLUMN_WIDTHS[key]
         const reduction = Math.min(reducibleWidth, -difference)
         widths[key] -= reduction
@@ -177,6 +306,7 @@ const stringifyValue = (value: unknown): string => {
 
 export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> = ({
     collection,
+    profile,
     loading,
     onSave,
     onDelete,
@@ -184,13 +314,12 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
 }) => {
     const tableWrapperRef = React.useRef<HTMLDivElement>(null)
     const tableContainerRef = React.useRef<HTMLDivElement>(null)
-    const initialWidthsSet = React.useRef(false)
+    const manuallyResizedColumns = React.useRef(false)
     const [query, setQuery] = React.useState('')
     const [editorOpen, setEditorOpen] = React.useState(false)
     const [editingRecordId, setEditingRecordId] = React.useState<string>()
     const [entityType, setEntityType] = React.useState<SupportedGlobalEntityType>('author')
-    const [name, setName] = React.useState('')
-    const [propertiesJson, setPropertiesJson] = React.useState('{}')
+    const [propertyValues, setPropertyValues] = React.useState<Record<string, unknown>>({})
     const [relationshipsJson, setRelationshipsJson] = React.useState('{}')
     const [validationError, setValidationError] = React.useState('')
     const [saving, setSaving] = React.useState(false)
@@ -198,14 +327,34 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
     const [selectedRowKeys, setSelectedRowKeys] = React.useState<React.Key[]>([])
     const [columnWidths, setColumnWidths] = React.useState(DEFAULT_COLUMN_WIDTHS)
     const tableWidth = 40 + Object.values(columnWidths).reduce((total, width) => total + width, 0)
+    const schemaFields = React.useMemo(
+        () => getSchemaFields(profile, entityType),
+        [profile, entityType],
+    )
 
     React.useLayoutEffect(() => {
-        if (initialWidthsSet.current || !tableContainerRef.current) return
-        const tableBody = tableContainerRef.current.querySelector<HTMLElement>('.ant-table-body')
-        const availableWidth = (tableBody?.clientWidth ?? tableContainerRef.current.clientWidth) - 40
-        if (availableWidth <= 0) return
-        initialWidthsSet.current = true
-        setColumnWidths(fitDefaultColumnWidths(availableWidth))
+        const container = tableContainerRef.current
+        if (!container) return
+        let animationFrame: number | undefined
+        const updateWidths = (): void => {
+            animationFrame = undefined
+            const availableWidth = container.clientWidth - 40
+            if (availableWidth <= 0) return
+            setColumnWidths(current => manuallyResizedColumns.current
+                ? fitCurrentColumnWidths(current, availableWidth)
+                : fitDefaultColumnWidths(availableWidth))
+        }
+        const observer = new ResizeObserver(() => {
+            if (animationFrame === undefined) {
+                animationFrame = window.requestAnimationFrame(updateWidths)
+            }
+        })
+        observer.observe(container)
+        updateWidths()
+        return () => {
+            observer.disconnect()
+            if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame)
+        }
     }, [])
     const resizableColumn = (key: ResizableColumnKey, minWidth: number): {
         width: number
@@ -216,7 +365,10 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
             width: columnWidths[key],
             minWidth,
             columnKey: key,
-            onResize: setColumnWidths,
+            onResize: widths => {
+                manuallyResizedColumns.current = true
+                setColumnWidths(widths)
+            },
         }),
     })
 
@@ -241,8 +393,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
     const openAdd = (): void => {
         setEditingRecordId(undefined)
         setEntityType('author')
-        setName('')
-        setPropertiesJson('{}')
+        setPropertyValues({})
         setRelationshipsJson('{}')
         setValidationError('')
         setEditorOpen(true)
@@ -250,10 +401,14 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
 
     const openEdit = (record: GlobalEntityRow): void => {
         const { '@type': _type, name: _name, ...properties } = record.entity
+        const type = record.entityType as SupportedGlobalEntityType
+        const roleNameProperty = getRoleNameProperty(type)
         setEditingRecordId(record.recordId)
-        setEntityType(record.entityType as SupportedGlobalEntityType)
-        setName(getEntityName(record.entity))
-        setPropertiesJson(JSON.stringify(properties, null, 2))
+        setEntityType(type)
+        setPropertyValues({
+            ...properties,
+            [roleNameProperty]: properties[roleNameProperty] ?? getEntityName(record.entity),
+        })
         setRelationshipsJson(JSON.stringify(record.relationships ?? {}, null, 2))
         setValidationError('')
         setEditorOpen(true)
@@ -261,19 +416,43 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
 
     const saveRecord = async (): Promise<void> => {
         try {
-            if (!name.trim()) throw new Error(nls.localize(
+            const normalizedProperties = normalizeFormProperties(propertyValues)
+            const roleNameProperty = getRoleNameProperty(entityType)
+            const displayName = String(normalizedProperties[roleNameProperty] ?? '').trim()
+            if (!displayName) throw new Error(nls.localize(
                 'rockit/globalEntities/nameRequired',
                 'The entity name is required.',
             ))
-
-            const properties: unknown = JSON.parse(propertiesJson)
-            const relationships: unknown = JSON.parse(relationshipsJson)
-            if (!properties || typeof properties !== 'object' || Array.isArray(properties)) {
-                throw new Error(nls.localize(
-                    'rockit/globalEntities/propertiesObjectRequired',
-                    'Additional properties must be a JSON object.',
-                ))
+            for (const field of schemaFields.filter(candidate => candidate.required)) {
+                const value = normalizedProperties[field.name]
+                if (value === undefined || value === '' || (Array.isArray(value) && !value.length)) {
+                    throw new Error(nls.localize(
+                        'rockit/globalEntities/fieldRequired',
+                        '{0} is required.',
+                        field.label,
+                    ))
+                }
             }
+            for (const field of schemaFields.filter(candidate => candidate.pattern)) {
+                const value = normalizedProperties[field.name]
+                if (typeof value === 'string' && field.pattern) {
+                    let matches = true
+                    try {
+                        matches = new RegExp(field.pattern).test(value)
+                    } catch (error) {
+                        console.warn(`Ignoring invalid validation pattern for ${field.name}:`, error)
+                    }
+                    if (!matches) {
+                        throw new Error(nls.localize(
+                            'rockit/globalEntities/fieldInvalid',
+                            '{0} has an invalid value.',
+                            field.label,
+                        ))
+                    }
+                }
+            }
+
+            const relationships: unknown = JSON.parse(relationshipsJson)
             if (!relationships || typeof relationships !== 'object' || Array.isArray(relationships)) {
                 throw new Error(nls.localize(
                     'rockit/globalEntities/relationshipsObjectRequired',
@@ -290,9 +469,9 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
             }
 
             const entity = sanitizeGlobalEntity({
-                ...(properties as Record<string, unknown>),
+                ...normalizedProperties,
                 '@type': [entityType],
-                name: name.trim(),
+                name: displayName,
             })
             setSaving(true)
             await onSave({
@@ -308,6 +487,64 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
         } finally {
             setSaving(false)
         }
+    }
+
+    const changeEntityType = (type: SupportedGlobalEntityType): void => {
+        const currentName = String(propertyValues[getRoleNameProperty(entityType)] ?? '').trim()
+        setEntityType(type)
+        setPropertyValues(currentName ? { [getRoleNameProperty(type)]: currentName } : {})
+    }
+
+    const setPropertyValue = (property: string, value: unknown): void => {
+        setPropertyValues(current => ({ ...current, [property]: value }))
+    }
+
+    const renderSchemaField = (field: SchemaField): React.ReactNode => {
+        const value = propertyValues[field.name]
+        if (field.multiple) {
+            const values = Array.isArray(value) ? value.map(String) : value ? [String(value)] : []
+            return <Select
+                mode='tags'
+                placeholder={field.placeholder}
+                value={values}
+                options={field.values.map(item => ({ value: item, label: item }))}
+                onChange={next => setPropertyValue(field.name, next)}
+            />
+        }
+        if (field.kind === 'select') {
+            return <Select
+                allowClear
+                showSearch
+                placeholder={field.placeholder}
+                value={value === undefined ? undefined : String(value)}
+                options={field.values.map(item => ({ value: item, label: item }))}
+                onChange={next => setPropertyValue(field.name, next)}
+            />
+        }
+        if (field.kind === 'boolean') {
+            return <Select
+                allowClear
+                value={typeof value === 'boolean' ? value : undefined}
+                options={[
+                    { value: true, label: nls.localize('rockit/common/yes', 'Yes') },
+                    { value: false, label: nls.localize('rockit/common/no', 'No') },
+                ]}
+                onChange={next => setPropertyValue(field.name, next)}
+            />
+        }
+        if (field.kind === 'number') {
+            return <InputNumber
+                value={typeof value === 'number' ? value : undefined}
+                onChange={next => setPropertyValue(field.name, next)}
+            />
+        }
+        return <Input
+            type={field.kind === 'date' ? 'date' : field.kind === 'url' ? 'url' : field.kind === 'email' ? 'email' : 'text'}
+            placeholder={field.placeholder}
+            value={value === undefined || value === null ? '' : String(value)}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                setPropertyValue(field.name, event.target.value)}
+        />
     }
 
     const deleteRecord = async (recordId: string): Promise<void> => {
@@ -578,56 +815,74 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
                 cancelText={nls.localize('rockit/common/cancel', 'Cancel')}
                 onOk={() => void saveRecord()}
                 onCancel={() => setEditorOpen(false)}
-                width={680}
+                width={760}
             >
                 <div className='global-entity-library-form'>
-                    <label>
-                        <span>{nls.localize('rockit/globalEntities/type', 'Type')}</span>
-                        <Select
-                            className='global-entity-library-type-select'
-                            value={entityType}
-                            options={[
-                                {
-                                    value: 'author',
-                                    label: nls.localize('rockit/globalEntities/author', 'Author'),
-                                },
-                                {
-                                    value: 'datasetContact',
-                                    label: nls.localize('rockit/globalEntities/pointOfContact', 'Point of Contact'),
-                                },
-                            ]}
-                            onChange={setEntityType}
-                        />
-                    </label>
-                    <label>
-                        <span>{nls.localize('rockit/globalEntities/name', 'Name')}</span>
-                        <Input value={name} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setName(event.target.value)} />
-                    </label>
-                    <label>
-                        <span>{nls.localize(
-                            'rockit/globalEntities/additionalProperties',
-                            'Additional properties (JSON)',
-                        )}</span>
-                        <Input.TextArea
-                            rows={7}
-                            spellCheck={false}
-                            value={propertiesJson}
-                            onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setPropertiesJson(event.target.value)}
-                        />
-                    </label>
-                    <label>
-                        <span>{nls.localize(
-                            'rockit/globalEntities/relationshipsJson',
-                            'Relationships by record ID (JSON)',
-                        )}</span>
-                        <Input.TextArea
-                            rows={4}
-                            spellCheck={false}
-                            value={relationshipsJson}
-                            onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setRelationshipsJson(event.target.value)}
-                        />
-                    </label>
-                    {validationError && <Typography.Text>{validationError}</Typography.Text>}
+                    <Form layout='vertical'>
+                        <section className='global-entity-library-form-section'>
+                            <div className='global-entity-library-form-section-heading'>
+                                <Typography.Title level={5}>{nls.localize(
+                                    'rockit/globalEntities/generalInformation',
+                                    'General information',
+                                )}</Typography.Title>
+                                <Typography.Text type='secondary'>{nls.localize(
+                                    'rockit/globalEntities/schemaFieldsHint',
+                                    'Fields are provided by the active metadata profile.',
+                                )}</Typography.Text>
+                            </div>
+                            <Form.Item label={nls.localize('rockit/globalEntities/type', 'Type')} required>
+                                <Select
+                                    className='global-entity-library-type-select'
+                                    value={entityType}
+                                    options={[
+                                        {
+                                            value: 'author',
+                                            label: nls.localize('rockit/globalEntities/author', 'Author'),
+                                        },
+                                        {
+                                            value: 'datasetContact',
+                                            label: nls.localize('rockit/globalEntities/pointOfContact', 'Point of Contact'),
+                                        },
+                                    ]}
+                                    onChange={changeEntityType}
+                                />
+                            </Form.Item>
+                            <div className='global-entity-library-property-grid'>
+                                {schemaFields.map(field => <Form.Item
+                                    key={field.name}
+                                    label={field.label}
+                                    required={field.required || field.name === getRoleNameProperty(entityType)}
+                                    extra={field.help}
+                                >
+                                    {renderSchemaField(field)}
+                                </Form.Item>)}
+                            </div>
+                        </section>
+                        <section className='global-entity-library-form-section'>
+                            <div className='global-entity-library-form-section-heading'>
+                                <Typography.Title level={5}>{nls.localize(
+                                    'rockit/globalEntities/relationships',
+                                    'Relationships',
+                                )}</Typography.Title>
+                                <Typography.Text type='secondary'>{nls.localize(
+                                    'rockit/globalEntities/relationshipsHint',
+                                    'Relationship editing will be replaced by a record selector in a later version.',
+                                )}</Typography.Text>
+                            </div>
+                            <Form.Item label={nls.localize(
+                                'rockit/globalEntities/relationshipsJson',
+                                'Relationships by record ID (JSON)',
+                            )}>
+                                <Input.TextArea
+                                    rows={4}
+                                    spellCheck={false}
+                                    value={relationshipsJson}
+                                    onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setRelationshipsJson(event.target.value)}
+                                />
+                            </Form.Item>
+                        </section>
+                    </Form>
+                    {validationError && <Typography.Text type='danger'>{validationError}</Typography.Text>}
                 </div>
             </Modal>
         </div>

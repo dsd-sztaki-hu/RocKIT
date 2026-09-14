@@ -237,20 +237,54 @@ body.hc-black .global-entity-library-search .ant-input-search-button:not(:disabl
 }
 
 .global-entity-library-form {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
+    max-height: min(68vh, 680px);
+    overflow-y: auto;
+    padding-right: 4px;
     padding-top: 8px;
 }
 
-.global-entity-library-form label {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+.global-entity-library-form-section {
+    border: 1px solid var(--theia-panel-border);
+    border-radius: 4px;
+    margin-bottom: 16px;
+    padding: 16px 16px 4px;
 }
 
-.global-entity-library-form label > span {
-    font-weight: 600;
+.global-entity-library-form-section-heading {
+    border-bottom: 1px solid var(--theia-panel-border);
+    margin: -2px 0 16px;
+    padding-bottom: 10px;
+}
+
+.global-entity-library-form-section-heading .ant-typography {
+    display: block;
+    margin: 0 !important;
+}
+
+.global-entity-library-form-section-heading .ant-typography-secondary {
+    margin-top: 3px !important;
+}
+
+.global-entity-library-property-grid {
+    display: grid;
+    gap: 0 16px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.global-entity-library-property-grid .ant-input-number {
+    width: 100%;
+}
+
+.global-entity-library-form .ant-form-item-extra {
+    color: var(--theia-descriptionForeground);
+    font-size: calc(var(--theia-ui-font-size1) - 1px);
+    line-height: 1.35;
+    margin-top: 4px;
+}
+
+.global-entity-library-form > .ant-typography {
+    display: block;
+    margin: 0 2px 12px;
 }
 
 .global-entity-library-type-select {
@@ -259,4 +293,10 @@ body.hc-black .global-entity-library-search .ant-input-search-button:not(:disabl
 
 .global-entity-library-table .ant-table-cell {
     vertical-align: top;
+}
+
+@media (max-width: 820px) {
+    .global-entity-library-property-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
