@@ -1,5 +1,6 @@
 {
   "name": "multi-edit",
+  "description": "RocKIT bulk metadata editing dialog for selected RO-Crate entities.",
   "keywords": [
     "theia-extension"
   ],
@@ -36,7 +37,7 @@
   ],
   "contributors": [
     {
-      "name": "NKadosa",
+      "name": "Kadosa Nagy",
       "email": "nagykadosa@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     },
@@ -45,8 +46,8 @@
       "email": "csontos.hanga@gmail.com"
     },
     {
-      "name": "sac",
-      "email": "sac@sztaki.hu",
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     }
   ]
