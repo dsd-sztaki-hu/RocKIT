@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import * as crypto from 'node:crypto'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -10,7 +16,7 @@ import {
 
 const DEFAULT_INDEX_FILENAME = 'metadata-schema-index.json'
 const DEFAULT_REMOTE_PROVIDER_CONFIG_FILENAME = 'remote-schema-providers.json'
-const DEFAULT_REMOTE_PROVIDER_KEYTAR_SERVICE = 'AROMA2.RemoteSchemaProvider'
+const DEFAULT_REMOTE_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteSchemaProvider'
 const DEFAULT_ARP_PROD_PREFIX = 'https://repo.schema.researchdata.hu/templates/'
 const DEFAULT_ARP_DEV_PREFIX = 'https://repo.cedardev.dsd.sztaki.hu/templates/'
 const DEFAULT_ARP_W3ID_PROD = 'https://w3id.org/arp/schema/'
@@ -125,17 +131,38 @@ type ConverterModule = {
   }
 }
 
+function readConfiguredEnv(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim()
+    if (value) {
+      return value
+    }
+  }
+  return undefined
+}
+
+/**
+ * Resolves the shared RocKIT profile root.
+ *
+ * The AROMA_* names remain accepted as legacy aliases for existing
+ * installations, but ROCKIT_* is canonical and the default is ~/.rockit.
+ */
 export function resolveProfileRootPath(rootPath?: string): string {
-  const configured = rootPath ?? process.env.AROMA_ROOT_PATH
+  const configured =
+    rootPath?.trim() ||
+    readConfiguredEnv('ROCKIT_ROOT_PATH', 'AROMA_ROOT_PATH')
   if (configured && configured.trim() !== '') {
     return path.resolve(configured)
   }
-  return path.join(os.homedir(), '.aroma')
+  return path.join(os.homedir(), '.rockit')
 }
 
 export function resolveProfileStorage(rootPath?: string): MetadataProfileStorage {
   const root = resolveProfileRootPath(rootPath)
-  const indexFile = process.env.AROMA_METADATA_SCHEMA_INDEX_FILE
+  const indexFile = readConfiguredEnv(
+    'ROCKIT_METADATA_SCHEMA_INDEX_FILE',
+    'AROMA_METADATA_SCHEMA_INDEX_FILE',
+  )
   const indexPath =
     indexFile && indexFile.trim() !== ''
       ? path.isAbsolute(indexFile)
@@ -516,10 +543,16 @@ export function defaultCedarProviders(): CedarProvider[] {
 export async function loadCedarProviders(rootPath?: string): Promise<CedarProviderListResult> {
   const storage = ensureProfileStorage(rootPath)
   const configFileName =
-    process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE ||
+    readConfiguredEnv(
+      'ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
+      'AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
+    ) ||
     DEFAULT_REMOTE_PROVIDER_CONFIG_FILENAME
   const keytarService =
-    process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE ||
+    readConfiguredEnv(
+      'ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE',
+      'AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE',
+    ) ||
     DEFAULT_REMOTE_PROVIDER_KEYTAR_SERVICE
   const configPath = path.isAbsolute(configFileName)
     ? configFileName
@@ -544,7 +577,10 @@ export async function loadCedarProviders(rootPath?: string): Promise<CedarProvid
   }
 
   const keytarCredentials = await loadKeytarCredentials(keytarService, warnings)
-  const envApiKey = readEnvSecret('CEDAR_API_KEY') ?? readEnvSecret('AROMA_CEDAR_API_KEY')
+  const envApiKey =
+    readEnvSecret('CEDAR_API_KEY') ??
+    readEnvSecret('ROCKIT_CEDAR_API_KEY') ??
+    readEnvSecret('AROMA_CEDAR_API_KEY')
   const providersByIdentity = new Map<string, CedarProvider>()
 
   for (const provider of configuredProviders) {
@@ -1015,7 +1051,10 @@ async function writeConfiguredCedarProviders(
 
 function ensureDefaultCedarProviderConfig(rootPath: string): string {
   const configFileName =
-    process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE ||
+    readConfiguredEnv(
+      'ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
+      'AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
+    ) ||
     DEFAULT_REMOTE_PROVIDER_CONFIG_FILENAME
   const configPath = path.isAbsolute(configFileName)
     ? configFileName

@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import URI from '@theia/core/lib/common/uri'
 import { nls } from '@theia/core/lib/common'
 import { inject, injectable } from '@theia/core/shared/inversify'

@@ -1,5 +1,12 @@
 #!/usr/bin/env node
 
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
+
 import { createHash, randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -9,6 +16,7 @@ import {
   type DefaultRoCrateWorkspaceAdapter,
 } from 'rockit-common/lib/common/default-ro-crate'
 import { DEFAULT_REGISTERED_SCHEMAS } from 'rocrate-context-core'
+import { parseInstallAgentId, runInteractiveInstall } from './cli/install'
 import {
   applyChangeSet,
   normalizeCrate,
@@ -38,15 +46,18 @@ import { createSummaryHelpers } from './server/summary'
 import { CHANGE_SET_ALLOWED_KEYS, tools } from './server/tool-definitions'
 import { createToolDispatcher } from './server/tool-dispatcher'
 import { startServerWithTransports } from './server/transports'
-import type { AccessMode, ProfileResolutionInputs } from './server/types'
-import { createWebHandlers } from './server/web'
-import { runInteractiveInstall } from './cli/install'
+import type {
+  AccessMode,
+  McpToolTextResult,
+  ProfileResolutionInputs,
+} from './server/types'
 import {
   formatStartupVersion,
   formatVersionInfo,
   getBuildInfo,
   isVersionRequest,
 } from './server/version'
+import { createWebHandlers } from './server/web'
 
 /**
  * rocrate-mcp-server architecture (single-file entrypoint)
@@ -65,7 +76,6 @@ import {
  */
 
 const ROCRATE_CONFORMS_TO_URL = 'https://w3id.org/ro/crate/1.1'
-const DEFAULT_SCHEMA_INDEX_FILENAME = 'metadata-schema-index.json'
 const DEFAULT_PROFILE_CONTEXT_TTL_SEC = 3600
 const DEFAULT_SUMMARY_ISSUE_LIMIT = 10
 const DEFAULT_SUMMARY_ENTITY_ID_LIMIT = 10
@@ -156,11 +166,10 @@ function asRecord(value: unknown): Record<string, unknown> {
 /**
  * Wraps payloads into MCP text content result shape.
  */
-function textResult(payload: unknown): {
-  content: Array<{ type: 'text'; text: string }>
-} {
+function textResult(payload: unknown, isError = false): McpToolTextResult {
   return {
     content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+    ...(isError ? { isError: true } : {}),
   }
 }
 
@@ -316,7 +325,6 @@ const {
   deleteProfileContext,
 } = createProfileResolutionHelpers({
   rocrateConformsToUrl: ROCRATE_CONFORMS_TO_URL,
-  defaultSchemaIndexFilename: DEFAULT_SCHEMA_INDEX_FILENAME,
   uniqueStrings,
   profileContext,
   loadCrateFromParams,
@@ -362,7 +370,10 @@ async function runCreateDefaultRoCrate(
 
   let ignoredFilePath: string | undefined
   if (result.ignoredFile) {
-    const ignoredDirectoryPath = path.join(directoryPath, result.ignoredFile.directoryPath)
+    const ignoredDirectoryPath = path.join(
+      directoryPath,
+      result.ignoredFile.directoryPath,
+    )
     ignoredFilePath = path.join(directoryPath, result.ignoredFile.filePath)
     fs.mkdirSync(ignoredDirectoryPath, { recursive: true })
     fs.writeFileSync(ignoredFilePath, result.ignoredFile.payload, 'utf8')
@@ -416,7 +427,9 @@ function assertExistingDirectory(directoryPath: string): string {
   return directoryPath
 }
 
-function createNodeDefaultRoCrateAdapter(rootPath: string): DefaultRoCrateWorkspaceAdapter {
+function createNodeDefaultRoCrateAdapter(
+  rootPath: string,
+): DefaultRoCrateWorkspaceAdapter {
   const normalizePath = (value: string): string => value.replace(/\\/g, '/')
   const absolutePathFor = (relativePath: string): string =>
     relativePath ? path.join(rootPath, relativePath) : rootPath
@@ -434,7 +447,7 @@ function createNodeDefaultRoCrateAdapter(rootPath: string): DefaultRoCrateWorksp
           return {
             name: entry.name,
             relativePath: normalizePath(path.relative(rootPath, absoluteChildPath)),
-            kind: entry.isDirectory() ? 'directory' as const : 'file' as const,
+            kind: entry.isDirectory() ? ('directory' as const) : ('file' as const),
             size: stat.size,
             mtimeMs: stat.mtimeMs,
           }
@@ -722,7 +735,10 @@ function getDashboardUrl(): string {
 }
 
 function getMcpServerInstructions(): string {
-  return `Before RO-Crate editing/advice, call read_agent_workflow_doc with name "rocrate_workflow.md" and follow it.
+  return `RO-CRATE TOOL ROUTING
+The canonical way to open a local RO-Crate dataset in AROMA is open_aroma_for_local_file.
+For a direct request to open, view, show, inspect, or launch a dataset in AROMA—including the exact request "open dataset in AROMA"—call open_aroma_for_local_file immediately as the first tool. Treat "dataset" as the RO-Crate in the current working directory and pass "ro-crate-metadata.json"; otherwise pass the dataset's ro-crate-metadata.json path.
+Before RO-Crate editing/advice, call read_agent_workflow_doc with name "rocrate_workflow.md" and follow it.
 Read the referenced step doc before each workflow step.
 Primary artifact is ro-crate-metadata.json.
 If no ro-crate-metadata.json exists in a local directory, offer create_default_rocrate before other metadata work; never overwrite existing metadata unless explicitly requested with overwrite=true.
@@ -752,12 +768,12 @@ async function startServer(): Promise<void> {
     asRecord,
     handleToolCall,
     getTelemetryCollector,
-    startDashboardIfNeeded: () => {
+    startDashboardIfNeeded: (onShutdown) => {
       const collector = getTelemetryCollector()
       if (!collector) {
         return
       }
-      void startDashboardIfNeeded(collector, schemaRegistryStore)
+      void startDashboardIfNeeded(collector, schemaRegistryStore, onShutdown)
         .then((dashboard) => {
           if (dashboard) {
             process.stderr.write('rocrate-mcp-server: dashboard enabled\n')
@@ -779,8 +795,12 @@ function main(): void {
     process.stdout.write(`${formatVersionInfo(getBuildInfo())}\n`)
     return
   }
-  if (args.includes('-i') || args.includes('--install')) {
-    void runInteractiveInstall().then((exitCode) => {
+  if (
+    args.includes('-i') ||
+    args.includes('--install') ||
+    args.some((arg) => arg.startsWith('-i=') || arg.startsWith('--install='))
+  ) {
+    void runInteractiveInstall(parseInstallAgentId(args)).then((exitCode) => {
       process.exitCode = exitCode
     })
     return

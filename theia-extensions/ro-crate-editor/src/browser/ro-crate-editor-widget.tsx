@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import type { Navigatable } from '@theia/core/lib/browser'
 import type { SaveOptions } from '@theia/core/lib/browser/saveable'
 import { SaveReason, setDirty } from '@theia/core/lib/browser/saveable'
@@ -35,7 +41,7 @@ import {
   type RoCrateApprovalFile,
 } from 'app-state/lib/browser/state/ro-crate-approval'
 
-import { DescriboCrateBuilderWrapper } from './recrate-wrapper'
+import { RecrateCrateBuilderWrapper } from './recrate-wrapper'
 
 interface RoCrateEditorWidgetOptions {
   instanceId?: string
@@ -1139,7 +1145,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                         boxSizing: 'border-box',
                     }}
                 >
-                    <DescriboCrateBuilderWrapper
+                    <RecrateCrateBuilderWrapper
                         crate={this.localCrate}
                         roCrateApproval={this.localRoCrateApproval}
                         profile={this.localProfile}

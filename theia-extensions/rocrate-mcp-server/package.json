@@ -1,9 +1,12 @@
 {
   "name": "@arpproject/rocrate-mcp-server",
-  "version": "1.0.2",
-  "description": "MCP server exposing RO-Crate editing and profile-aware validation tools",
+  "version": "1.0.4",
+  "description": "ARP RO-Crate MCP Server exposing RO-Crate editing and profile-aware validation tools for use in ARP",
   "license": "Apache-2.0",
-  "author": "HUN-REN SZTAKI, Department of Distributed Systems",
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
+  },
   "files": [
     "lib",
     "src"
@@ -22,7 +25,8 @@
     "start": "node lib/server.js",
     "test": "yarn build && node test/test-core.js && node test/test-cli.js && node test/test-installer.js && node test/test-mcp-server.js",
     "test:dashboard": "yarn build && node test/test-dashboard-collector.js && node test/test-dashboard-http.js",
-    "test:socket": "yarn build && node test/test-socket-lifecycle.js"
+    "test:socket": "yarn build && node test/test-socket-lifecycle.js",
+    "test:standalone-package": "yarn build:standalone && node test/test-standalone-package.js"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
@@ -39,5 +43,26 @@
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "contributors": [
+    {
+      "name": "Balazs E. Pataki",
+      "email": "balazs.pataki@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Kadosa Nagy",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontosreka@sztaki.hu"
+    },
+    {
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    }
+  ]
 }

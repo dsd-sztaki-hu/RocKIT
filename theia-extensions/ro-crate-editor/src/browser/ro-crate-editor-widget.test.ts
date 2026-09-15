@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import 'reflect-metadata'
 
 jest.mock('@theia/workspace/lib/browser', () => ({
@@ -26,7 +32,7 @@ jest.mock('save-ro-crate/lib/browser/ro-crate-persistence-service', () => ({
   RoCratePersistenceService: class RoCratePersistenceService {},
 }))
 jest.mock('./recrate-wrapper', () => ({
-  DescriboCrateBuilderWrapper: jest.fn(),
+  RecrateCrateBuilderWrapper: jest.fn(),
 }))
 
 import { RoCrateEditorWidget } from './ro-crate-editor-widget'

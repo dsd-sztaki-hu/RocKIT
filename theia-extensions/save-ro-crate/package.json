@@ -1,11 +1,15 @@
 {
   "name": "save-ro-crate",
+  "description": "RocKIT Theia extension for saving RO-Crate metadata, preview HTML, and ignored rules.",
   "keywords": [
     "theia-extension"
   ],
   "version": "1.0.0",
   "license": "Apache-2.0",
-  "author": "HUN-REN SZTAKI, Department of Distributed Systems",
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
+  },
   "main": "lib/browser/index.js",
   "types": "lib/browser/index.d.ts",
   "files": [
@@ -31,6 +35,32 @@
   "theiaExtensions": [
     {
       "frontend": "lib/browser/save-ro-crate-frontend-module"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Balazs E. Pataki",
+      "email": "balazs.pataki@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Kadosa Nagy",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontosreka@sztaki.hu"
+    },
+    {
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Roland Tanacsi",
+      "email": "tanacsi.roland@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
     }
   ]
 }

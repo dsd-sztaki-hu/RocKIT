@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 /**
  * Tests for the dashboard HTTP server
  */
@@ -13,24 +19,47 @@ async function testHttpServer() {
 
   const originalDataverseBaseUrl = process.env.DATAVERSE_BASE_URL
   const originalDataverseApiKey = process.env.DATAVERSE_API_KEY
+  const originalTavilyApiKey = process.env.TAVILY_API_KEY
   const originalKeepUploadZips = process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
   const originalDashboardPort = process.env.ROCRATE_DASHBOARD_PORT
   const originalDashboardEnabled = process.env.ROCRATE_DASHBOARD_ENABLED
   const originalBridgeEnabled = process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED
   const originalAllowedOrigins = process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS
+  const originalRockitRootPath = process.env.ROCKIT_ROOT_PATH
   const originalAromaRootPath = process.env.AROMA_ROOT_PATH
-  const originalProviderConfigFile = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
-  const originalProviderKeytarService = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
+  const originalRockitProviderConfigFile = process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+  const originalAromaProviderConfigFile = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+  const originalRockitProviderKeytarService = process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
+  const originalAromaProviderKeytarService = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
   process.env.DATAVERSE_BASE_URL = 'https://dataverse.example.test/'
   process.env.DATAVERSE_API_KEY = 'test-dataverse-key'
+  process.env.TAVILY_API_KEY = 'test-tavily-key'
   delete process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
   delete process.env.ROCRATE_DASHBOARD_ENABLED
   delete process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED
+
+  const profileRootPath = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'rocrate-dashboard-rockit-'),
+  )
+  process.env.ROCKIT_ROOT_PATH = profileRootPath
+  process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = 'remote-schema-providers.json'
+  process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteSchemaProvider'
+  delete process.env.AROMA_ROOT_PATH
+  delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+  delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
 
   // Import modules
   const { TelemetryCollector } = await import('../lib/dashboard/collector.js')
   const { DashboardHttpServer } = await import('../lib/dashboard/http-server.js')
   const { registerLocalFileForAroma } = await import('../lib/dashboard/local-file-bridge.js')
+  const { createWebHandlers } = await import('../lib/server/web.js')
+  const { createDataverseHandlers } = await import('../lib/server/dataverse.js')
+  const {
+    clearRuntimeEnvOverrides,
+    getRuntimeConfigFilePath,
+    getRuntimeEnvValue,
+  } = await import('../lib/server/runtime-config.js')
+  clearRuntimeEnvOverrides()
 
   // Create a collector with some test data
   const collector = new TelemetryCollector({
@@ -79,11 +108,8 @@ async function testHttpServer() {
 
   const port = await getPort()
   process.env.ROCRATE_DASHBOARD_PORT = String(port)
-  process.env.AROMA_ROOT_PATH = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'rocrate-dashboard-aroma-'),
-  )
-  process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = 'remote-schema-providers.json'
-  process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'AROMA2.RemoteSchemaProvider'
+
+  let shutdownRequested = false
 
   // Create and start the HTTP server
   const dashboard = new DashboardHttpServer(collector, {
@@ -118,6 +144,8 @@ async function testHttpServer() {
       this._schemas = this._schemas.filter((entry) => entry.id !== id)
       return { storage: this._storage, schemas: [...this._schemas] }
     },
+  }, () => {
+    shutdownRequested = true
   })
 
   await dashboard.start()
@@ -194,6 +222,52 @@ async function testHttpServer() {
     const healthData = JSON.parse(healthResp.data)
     assert.strictEqual(healthData.status, 'ok')
     assert.strictEqual(typeof healthData.uptime, 'number')
+
+    // Verify the Settings modal exposes the current credential UX without the
+    // obsolete Schema Registry panel.
+    console.log('  Testing Settings dashboard UI...')
+    const dashboardPageResp = await get('/')
+    assert.strictEqual(dashboardPageResp.status, 200)
+    assert.strictEqual(dashboardPageResp.data.includes('Save Settings'), true)
+    assert.strictEqual(dashboardPageResp.data.includes('Schema Registry'), false)
+    assert.strictEqual(
+      dashboardPageResp.data.includes('id="openTavilyTestBtn"'),
+      true,
+    )
+    assert.strictEqual(
+      dashboardPageResp.data.includes(
+        'id="tavilyTestModal" class="modal hidden"',
+      ),
+      true,
+    )
+    assert.strictEqual(
+      dashboardPageResp.data.indexOf('id="tavilyTestModal"') <
+        dashboardPageResp.data.indexOf('id="tavilyTestForm"'),
+      true,
+    )
+    const dashboardScriptResp = await get('/static/dashboard.js')
+    assert.strictEqual(dashboardScriptResp.status, 200)
+    assert.strictEqual(
+      dashboardScriptResp.data.includes("const MASKED_SECRET_PLACEHOLDER = '••••••••';"),
+      true,
+    )
+    assert.strictEqual(
+      dashboardScriptResp.data.includes('Configured; click the eye to view or enter a replacement'),
+      false,
+    )
+    assert.strictEqual(dashboardScriptResp.data.includes('editSchema'), false)
+    assert.strictEqual(dashboardScriptResp.data.includes('deleteSchema'), false)
+
+    // Test the protected graceful-shutdown request endpoint without stopping
+    // this test process; the injected handler records the request instead.
+    console.log('  Testing /daemon/shutdown endpoint...')
+    const shutdownResp = await requestWithBody('POST', '/daemon/shutdown', null)
+    assert.strictEqual(shutdownResp.status, 202)
+    const shutdownData = JSON.parse(shutdownResp.data)
+    assert.strictEqual(shutdownData.success, true)
+    assert.strictEqual(shutdownData.status, 'shutting-down')
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.strictEqual(shutdownRequested, true)
 
     // Test /metrics/summary endpoint
     console.log('  Testing /metrics/summary endpoint...')
@@ -279,25 +353,188 @@ async function testHttpServer() {
       'https://dataverse.example.test',
     )
     assert.strictEqual(configData.dataverse.baseUrlSource, 'env')
-    assert.strictEqual(configData.dataverse.apiKey, 'test-dataverse-key')
+    assert.strictEqual(configData.dataverse.apiKeyPresent, true)
+    assert.strictEqual(Object.hasOwn(configData.dataverse, 'apiKey'), false)
     assert.strictEqual(configData.dataverse.apiKeySource, 'env')
+    assert.strictEqual(configData.tavily.apiKeyPresent, true)
+    assert.strictEqual(configData.tavily.apiKeySource, 'env')
     assert.strictEqual(configData.keepDataverseUploadZips, false)
     const configUpdateResp = await requestWithBody('POST', '/config', {
       detailedToolCallLogging: true,
       keepDataverseUploadZips: true,
       retentionHours: 2,
+      TAVILY_API_KEY: 'dashboard-tavily-key',
+      DATAVERSE_BASE_URL: 'https://dashboard.example.test/',
+      DATAVERSE_API_KEY: 'dashboard-dataverse-key',
     })
     assert.strictEqual(configUpdateResp.status, 200)
     const configUpdateData = JSON.parse(configUpdateResp.data)
     assert.strictEqual(configUpdateData.config.keepDataverseUploadZips, true)
     assert.strictEqual(process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS, 'true')
+    assert.strictEqual(configUpdateData.config.dataverse.baseUrl, 'https://dashboard.example.test')
+    assert.strictEqual(configUpdateData.config.dataverse.baseUrlSource, 'dashboard')
+    assert.strictEqual(configUpdateData.config.dataverse.apiKeyPresent, true)
+    assert.strictEqual(configUpdateData.config.dataverse.apiKeySource, 'dashboard')
+    assert.strictEqual(configUpdateData.config.tavily.apiKeyPresent, true)
+    assert.strictEqual(configUpdateData.config.tavily.apiKeySource, 'dashboard')
+    assert.strictEqual(JSON.stringify(configUpdateData).includes('dashboard-tavily-key'), false)
+    assert.strictEqual(JSON.stringify(configUpdateData).includes('dashboard-dataverse-key'), false)
+    assert.strictEqual(getRuntimeEnvValue('TAVILY_API_KEY'), 'dashboard-tavily-key')
+    assert.strictEqual(getRuntimeEnvValue('DATAVERSE_BASE_URL'), 'https://dashboard.example.test/')
+    assert.strictEqual(getRuntimeEnvValue('DATAVERSE_API_KEY'), 'dashboard-dataverse-key')
+    const runtimeConfigPath = getRuntimeConfigFilePath()
+    assert.strictEqual(
+      runtimeConfigPath,
+      path.join(profileRootPath, 'rocrate-mcp-settings.json'),
+    )
+    const persistedRuntimeConfig = JSON.parse(
+      fs.readFileSync(runtimeConfigPath, 'utf8'),
+    )
+    assert.strictEqual(persistedRuntimeConfig.version, 1)
+    assert.deepStrictEqual(persistedRuntimeConfig.overrides, {
+      TAVILY_API_KEY: 'dashboard-tavily-key',
+      DATAVERSE_BASE_URL: 'https://dashboard.example.test/',
+      DATAVERSE_API_KEY: 'dashboard-dataverse-key',
+      ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS: 'true',
+    })
+    if (process.platform !== 'win32') {
+      assert.strictEqual(fs.statSync(runtimeConfigPath).mode & 0o777, 0o600)
+    }
+    const restartedRuntimeConfig = await import(
+      `../lib/server/runtime-config.js?restart=${Date.now()}`,
+    )
+    assert.strictEqual(
+      restartedRuntimeConfig.getRuntimeEnvOverride('TAVILY_API_KEY'),
+      'dashboard-tavily-key',
+    )
+    assert.strictEqual(
+      restartedRuntimeConfig.getRuntimeEnvOverride('DATAVERSE_BASE_URL'),
+      'https://dashboard.example.test/',
+    )
+    assert.strictEqual(
+      restartedRuntimeConfig.getRuntimeEnvOverride('DATAVERSE_API_KEY'),
+      'dashboard-dataverse-key',
+    )
+    assert.strictEqual(
+      restartedRuntimeConfig.getRuntimeEnvOverride(
+        'ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS',
+      ),
+      'true',
+    )
+    assert.strictEqual(
+      restartedRuntimeConfig.getRuntimeEnvValue(
+        'ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS',
+      ),
+      'true',
+    )
+
+    // Secret values stay out of the normal /config response, but the dashboard
+    // eye control needs an explicit endpoint to reveal a configured key.
+    const revealSecretHeaders = {
+      'X-RoCrate-Dashboard-Intent': 'reveal-secret',
+    }
+    const tavilySecretResp = await requestWithBody(
+      'POST',
+      '/config/secrets',
+      { key: 'TAVILY_API_KEY' },
+      revealSecretHeaders,
+    )
+    assert.strictEqual(tavilySecretResp.status, 200)
+    assert.deepStrictEqual(JSON.parse(tavilySecretResp.data), {
+      key: 'TAVILY_API_KEY',
+      value: 'dashboard-tavily-key',
+    })
+    const dataverseSecretResp = await requestWithBody(
+      'POST',
+      '/config/secrets',
+      { key: 'DATAVERSE_API_KEY' },
+      revealSecretHeaders,
+    )
+    assert.strictEqual(dataverseSecretResp.status, 200)
+    assert.deepStrictEqual(JSON.parse(dataverseSecretResp.data), {
+      key: 'DATAVERSE_API_KEY',
+      value: 'dashboard-dataverse-key',
+    })
+    const invalidSecretResp = await requestWithBody(
+      'POST',
+      '/config/secrets',
+      { key: 'DATAVERSE_BASE_URL' },
+      revealSecretHeaders,
+    )
+    assert.strictEqual(invalidSecretResp.status, 400)
+    const missingIntentResp = await requestWithBody(
+      'POST',
+      '/config/secrets',
+      { key: 'TAVILY_API_KEY' },
+    )
+    assert.strictEqual(missingIntentResp.status, 403)
+
+    const webHandlers = createWebHandlers({ getTelemetryCollector: () => null })
+    const originalFetch = global.fetch
+    let tavilyRequestBody
+    global.fetch = async (_url, init) => {
+      tavilyRequestBody = JSON.parse(init.body)
+      return new Response('{"results":[]}', { status: 200 })
+    }
+    try {
+      await webHandlers.runWebSearch({
+        query: 'dashboard override test',
+        maxResults: 1,
+        includeRawContent: false,
+        searchDepth: 'basic',
+      })
+    } finally {
+      global.fetch = originalFetch
+    }
+    assert.strictEqual(tavilyRequestBody.api_key, 'dashboard-tavily-key')
+
+    const dataverseHandlers = createDataverseHandlers({
+      defaultBaseUrl: 'https://default.example.test',
+      defaultOwnerId: 'root',
+      defaultValidatePath: '/tmp/validate.js',
+      rocrateConformsToUrl: 'https://w3id.org/ro/crate/1.1',
+      externalContextCoverageUrls: new Set(),
+      loadCrateFromParams: () => ({ mode: 'remote', crate: {} }),
+      parseAccessMode: () => 'remote',
+      ensureCratePath: () => '/tmp/ro-crate-metadata.json',
+      parseResponseMode: () => 'summary',
+      parseProfileResolutionInputs: () => ({}),
+      writeCrateAtomic: () => {},
+      ensureProfileConformanceOrThrow: () => ({}),
+      buildContextTermSuggestion: () => ({ missingTerms: [] }),
+      uniqueStrings: (values) => values,
+      getTelemetryCollector: () => null,
+    })
+    const parsedDataverse = dataverseHandlers.parseDataverseDownloadParams({ pid: 'doi:test' })
+    assert.strictEqual(parsedDataverse.baseUrl, 'https://dashboard.example.test')
+    assert.strictEqual(parsedDataverse.apiKey, 'dashboard-dataverse-key')
+
+    const clearCredentialOverridesResp = await requestWithBody('POST', '/config', {
+      TAVILY_API_KEY: null,
+      DATAVERSE_BASE_URL: null,
+      DATAVERSE_API_KEY: null,
+    })
+    assert.strictEqual(clearCredentialOverridesResp.status, 200)
+    const clearCredentialOverridesData = JSON.parse(clearCredentialOverridesResp.data)
+    assert.strictEqual(clearCredentialOverridesData.config.dataverse.baseUrlSource, 'env')
+    assert.strictEqual(clearCredentialOverridesData.config.dataverse.apiKeySource, 'env')
+    assert.strictEqual(clearCredentialOverridesData.config.tavily.apiKeySource, 'env')
+    assert.strictEqual(getRuntimeEnvValue('TAVILY_API_KEY'), 'test-tavily-key')
+    assert.strictEqual(getRuntimeEnvValue('DATAVERSE_BASE_URL'), 'https://dataverse.example.test/')
+    assert.strictEqual(getRuntimeEnvValue('DATAVERSE_API_KEY'), 'test-dataverse-key')
+    const clearedRuntimeConfig = JSON.parse(
+      fs.readFileSync(runtimeConfigPath, 'utf8'),
+    )
+    assert.deepStrictEqual(clearedRuntimeConfig.overrides, {
+      ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS: 'true',
+    })
 
     // Test metadata profile endpoints
     console.log('  Testing /metadata-profiles endpoints...')
     const profileStatusResp = await get('/metadata-profiles/storage-status')
     assert.strictEqual(profileStatusResp.status, 200)
     const profileStatus = JSON.parse(profileStatusResp.data)
-    assert.strictEqual(profileStatus.storage.rootPath, process.env.AROMA_ROOT_PATH)
+    assert.strictEqual(profileStatus.storage.rootPath, profileRootPath)
 
     const profilesResp = await get('/metadata-profiles')
     assert.strictEqual(profilesResp.status, 200)
@@ -310,12 +547,12 @@ async function testHttpServer() {
     assert.strictEqual(Array.isArray(providersData.providers), true)
     assert.strictEqual(providersData.providers[0].id, 'arp-prod')
     assert.strictEqual(
-      fs.existsSync(path.join(process.env.AROMA_ROOT_PATH, 'remote-schema-providers.json')),
+      fs.existsSync(path.join(profileRootPath, 'remote-schema-providers.json')),
       true,
     )
     assert.strictEqual(
       JSON.parse(
-        fs.readFileSync(path.join(process.env.AROMA_ROOT_PATH, 'remote-schema-providers.json'), 'utf8'),
+        fs.readFileSync(path.join(profileRootPath, 'remote-schema-providers.json'), 'utf8'),
       )[0].id,
       'arp-prod',
     )
@@ -410,6 +647,18 @@ async function testHttpServer() {
       true,
     )
 
+    const originalCwd = process.cwd()
+    let defaultRegistration
+    let expectedDefaultPath
+    try {
+      process.chdir(tmpDir)
+      expectedDefaultPath = path.join(process.cwd(), 'ro-crate-metadata.json')
+      defaultRegistration = registerLocalFileForAroma({})
+    } finally {
+      process.chdir(originalCwd)
+    }
+    assert.strictEqual(defaultRegistration.path, expectedDefaultPath)
+
     const bridgePath = new URL(registration.localFileUrl).pathname
       + new URL(registration.localFileUrl).search
     const getBridgeResp = await get(bridgePath)
@@ -486,6 +735,7 @@ async function testHttpServer() {
   } finally {
     // Stop the dashboard server
     await dashboard.stop()
+    clearRuntimeEnvOverrides()
     if (originalDataverseBaseUrl === undefined) {
       delete process.env.DATAVERSE_BASE_URL
     } else {
@@ -495,6 +745,11 @@ async function testHttpServer() {
       delete process.env.DATAVERSE_API_KEY
     } else {
       process.env.DATAVERSE_API_KEY = originalDataverseApiKey
+    }
+    if (originalTavilyApiKey === undefined) {
+      delete process.env.TAVILY_API_KEY
+    } else {
+      process.env.TAVILY_API_KEY = originalTavilyApiKey
     }
     if (originalKeepUploadZips === undefined) {
       delete process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS
@@ -521,20 +776,35 @@ async function testHttpServer() {
     } else {
       process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS = originalAllowedOrigins
     }
+    if (originalRockitRootPath === undefined) {
+      delete process.env.ROCKIT_ROOT_PATH
+    } else {
+      process.env.ROCKIT_ROOT_PATH = originalRockitRootPath
+    }
     if (originalAromaRootPath === undefined) {
       delete process.env.AROMA_ROOT_PATH
     } else {
       process.env.AROMA_ROOT_PATH = originalAromaRootPath
     }
-    if (originalProviderConfigFile === undefined) {
+    if (originalRockitProviderConfigFile === undefined) {
+      delete process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+    } else {
+      process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = originalRockitProviderConfigFile
+    }
+    if (originalAromaProviderConfigFile === undefined) {
       delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
     } else {
-      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = originalProviderConfigFile
+      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = originalAromaProviderConfigFile
     }
-    if (originalProviderKeytarService === undefined) {
+    if (originalRockitProviderKeytarService === undefined) {
+      delete process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
+    } else {
+      process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = originalRockitProviderKeytarService
+    }
+    if (originalAromaProviderKeytarService === undefined) {
       delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
     } else {
-      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = originalProviderKeytarService
+      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = originalAromaProviderKeytarService
     }
   }
 }

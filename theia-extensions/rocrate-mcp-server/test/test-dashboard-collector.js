@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 /**
  * Tests for the dashboard telemetry collector
  */
@@ -38,14 +44,17 @@ async function testCollector() {
 
   // Test tool call tracking
   console.log('  Testing tool call tracking...')
-  const toolCallId = collector.startToolCall('test_tool', { arg1: 'value1' })
+  const testArgs = { arg1: 'value1', apiKey: 'super-secret' }
+  const toolCallId = collector.startToolCall('test_tool', testArgs)
   assert.strictEqual(typeof toolCallId, 'string')
 
   const toolCalls = collector.getToolCalls()
   assert.strictEqual(toolCalls.length, 1)
   assert.strictEqual(toolCalls[0].toolName, 'test_tool')
   assert.strictEqual(toolCalls[0].status, 'started')
-  assert.strictEqual(toolCalls[0].argsSizeBytes, JSON.stringify({ arg1: 'value1' }).length)
+  assert.strictEqual(toolCalls[0].argsSizeBytes, JSON.stringify(testArgs).length)
+  assert.strictEqual(toolCalls[0].params.includes('super-secret'), false)
+  assert.strictEqual(toolCalls[0].params.includes('[REDACTED]'), true)
 
   // Test tool call completion - success
   console.log('  Testing tool call completion (success)...')
@@ -172,6 +181,7 @@ async function testSanitize() {
     sanitizeToolName,
     sanitizeErrorCode,
     createSanitizedErrorEvent,
+    redactSensitiveValues,
   } = await import('../lib/dashboard/sanitize.js')
 
   // Test truncateErrorMessage
@@ -202,6 +212,14 @@ async function testSanitize() {
   assert.strictEqual(sanitizeErrorCode('ERROR_CODE'), 'ERROR_CODE')
   assert.strictEqual(sanitizeErrorCode(404), 'ERR_404')
   assert.strictEqual(sanitizeErrorCode('test/code'), 'test_code')
+  assert.deepStrictEqual(
+    redactSensitiveValues({
+      apiKey: 'hidden',
+      apiKeyProvided: true,
+      nested: { token: 'also-hidden' },
+    }),
+    { apiKey: '[REDACTED]', apiKeyProvided: true, nested: { token: '[REDACTED]' } },
+  )
 
   // Test createSanitizedErrorEvent
   console.log('  Testing createSanitizedErrorEvent...')

@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 const LOCAL_DATAVERSE_BASE_URL = 'http://localhost:8080'
 const RELEASE_DATAVERSE_BASE_URL = 'https://repo.researchdata.hu'
 

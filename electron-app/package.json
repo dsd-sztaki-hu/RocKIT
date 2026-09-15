@@ -4,7 +4,7 @@
   "version": "1.0.8",
   "homepage": "https://repo.researchdata.hu/rockit/",
   "author": {
-    "name": "HUN-REN SZTAKI, Department of Distributed Systems",
+    "name": "SZTAKI, Department of Distributed Systems",
     "email": "zoltan.toth@sztaki.hun-ren.hu"
   },
   "license": "Apache-2.0",
@@ -26,7 +26,6 @@
     "agent-instructions": "1.0.0",
     "agent-launcher": "1.0.0",
     "app-state": "0.0.1",
-    "app-state-sample": "0.0.1",
     "rockit-common": "1.0.0",
     "rockit-loadmask": "1.0.0",
     "@arpproject/rocrate-mcp-server": "1.0.0",
@@ -35,7 +34,7 @@
     "entities-overview": "1.0.0",
     "package-ro-crate": "1.0.0",
     "@theia/navigator": "1.65.2",
-    "file-preview": "0.0.0",
+    "file-preview": "1.0.0",
     "metadata-schema-manager": "1.0.0",
     "open-editors": "1.0.0",
     "property-selector": "1.0.0",
@@ -122,7 +121,7 @@
         "deb"
       ],
       "category": "Development",
-      "maintainer": "HUN-REN SZTAKI, DSD <zoltan.toth@sztaki.hun-ren.hu>"
+      "maintainer": "SZTAKI, DSD <zoltan.toth@sztaki.hun-ren.hu>"
     }
   }
 }

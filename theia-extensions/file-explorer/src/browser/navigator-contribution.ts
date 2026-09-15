@@ -1,5 +1,6 @@
 // *****************************************************************************
 // Copyright (C) 2017-2018 TypeFox and others.
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
 //
 // This program and the accompanying materials are made available under the
 // terms of the Eclipse Public License v. 2.0 which is available at
@@ -77,6 +78,7 @@ import { FileNavigatorCommands } from './file-navigator-commands';
 import { WorkspacePreferences } from '@theia/workspace/lib/common';
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
+import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service';
 import { AddDataSourceCommand } from 'data-sources/lib/browser';
 import { RoCrateIgnoredFilesService } from './ro-crate-ignored-files-service';
 import {
@@ -201,6 +203,9 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
     @inject(RoCrateDescriptionOperationsService)
     protected readonly roCrateDescriptionOperationsService: RoCrateDescriptionOperationsService;
 
+    @inject(RoCrateHistoryService)
+    protected readonly roCrateHistoryService: RoCrateHistoryService;
+
     @inject(WorkspaceCommandContribution)
     protected readonly workspaceCommandContribution: WorkspaceCommandContribution;
 
@@ -248,8 +253,15 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             void this.checkStartupIgnoredConsistency();
         });
         void this.checkStartupIgnoredConsistency();
-        this.roCrateIgnoredFilesService.onDidChangeIgnoredPaths(() => {
-            void this.syncRoCrateDescriptionsFromIgnoredRules();
+        this.roCrateIgnoredFilesService.onDidChangeIgnoredPaths(event => {
+            if (event.source === 'external') {
+                void this.syncRoCrateDescriptionsFromIgnoredRules();
+            }
+        });
+        this.roCrateHistoryService.onDidApplyHistoryOperation(event => {
+            if (event.targets.has('ignoreList')) {
+                void this.persistRoCrateDescriptionState(event.targets.has('roCrate'));
+            }
         });
         this.shell.onDidChangeCurrentWidget(() => this.onCurrentWidgetChangedHandler());
 
@@ -333,6 +345,26 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             await this.roCrateDescriptionOperationsService.syncIgnoredDescriptionsFromRules();
         } finally {
             this.syncingIgnoredRulesToMetadata = false;
+        }
+    }
+
+    protected async persistRoCrateDescriptionState(
+        persistMetadata: boolean,
+        silent = false,
+    ): Promise<boolean> {
+        try {
+            await this.roCrateDescriptionOperationsService.persistCurrentState(persistMetadata);
+            return true;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (!silent) {
+                this.messageService.error(nls.localize(
+                    'rockit/fileExplorer/persistOmitFailed',
+                    'Failed to save RO-Crate omit/include changes: {0}',
+                    message,
+                ));
+            }
+            return false;
         }
     }
 
@@ -665,6 +697,12 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         }
 
         const result = await this.roCrateDescriptionOperationsService.includeResources(includeableResources);
+        if (result.updatedIgnoredRules) {
+            const persisted = await this.persistRoCrateDescriptionState(false, silent);
+            if (!persisted) {
+                return result;
+            }
+        }
         if (silent) {
             return result;
         }
@@ -679,7 +717,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
 
         this.messageService.info(nls.localize(
             'rockit/fileExplorer/includeMarked',
-            'Removed omit rules in memory. Save to persist changes to .rockit/ignored.txt.',
+            'Included the selected files/folders in the RO-Crate.',
         ));
         return result;
     }
@@ -699,6 +737,13 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
             return undefined;
         }
         const result = await this.roCrateDescriptionOperationsService.omitResources(selectedResources);
+        const persisted = await this.persistRoCrateDescriptionState(
+            result.removedDescriptionCount > 0,
+            silent,
+        );
+        if (!persisted) {
+            return result;
+        }
 
         if (silent) {
             return result;
@@ -707,7 +752,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         if (result.pairedDescriptionCount === 0) {
             this.messageService.info(nls.localize(
                 'rockit/fileExplorer/omitMarked',
-                'Marked selected files/folders as omitted in memory. Save to persist changes to .rockit/ignored.txt.',
+                'Omitted the selected files/folders from the RO-Crate.',
             ));
             return result;
         }
@@ -715,7 +760,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         if (!result.metadataLoaded) {
             this.messageService.info(nls.localize(
                 'rockit/fileExplorer/omitMarked',
-                'Marked selected files/folders as omitted in memory. Save to persist changes to .rockit/ignored.txt.',
+                'Omitted the selected files/folders from the RO-Crate.',
             ));
             return result;
         }
@@ -723,7 +768,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         if (result.removedDescriptionCount === 0) {
             this.messageService.info(nls.localize(
                 'rockit/fileExplorer/descriptionsUpToDate',
-                'Marked selected files/folders as omitted in memory. RO-Crate descriptions were already up to date.',
+                'Omitted the selected files/folders. RO-Crate descriptions were already up to date.',
             ));
             return result;
         }

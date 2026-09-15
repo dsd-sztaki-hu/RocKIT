@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 /**
  * Sanitization and redaction helpers for telemetry data
  * Ensures sensitive data is not stored and data size is bounded
@@ -23,6 +29,39 @@ const SENSITIVE_PATTERNS = [
   /session/i,
   /cookie/i,
 ]
+
+function isSensitiveFieldName(key: string): boolean {
+  const normalized = key.replace(/[-_]/g, '').toLowerCase()
+  return (
+    normalized === 'apikey' ||
+    normalized.endsWith('apikey') ||
+    normalized.endsWith('token') ||
+    normalized.endsWith('password') ||
+    normalized.endsWith('secret') ||
+    normalized.endsWith('authorization') ||
+    normalized.endsWith('cookie')
+  )
+}
+
+/**
+ * Redacts sensitive values in JSON-like tool arguments before detailed
+ * telemetry stores them. This keeps direct API-key overrides out of the
+ * dashboard while leaving the live request untouched.
+ */
+export function redactSensitiveValues(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactSensitiveValues(item))
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, nested]) => [
+        key,
+        isSensitiveFieldName(key) ? '[REDACTED]' : redactSensitiveValues(nested),
+      ]),
+    )
+  }
+  return value
+}
 
 /**
  * Truncates an error message to a maximum length

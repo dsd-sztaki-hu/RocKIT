@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import * as fs from 'node:fs'
 import {
   defaultCedarProvider,
@@ -11,6 +17,7 @@ import {
   loadCedarProviders,
   listRemoteSchemas,
   resolveMissingConformsToUrls,
+  resolveProfileRootPath,
   type RemoteCedarResource,
   type CedarProvider,
 } from 'metadata-profile-core'
@@ -48,7 +55,7 @@ function parseProvider(params: Record<string, unknown>): CedarProvider | undefin
 function parseRootPath(params: Record<string, unknown>): string | undefined {
   return typeof params.rootPath === 'string' && params.rootPath.trim() !== ''
     ? params.rootPath.trim()
-    : undefined
+    : resolveProfileRootPath()
 }
 
 function parseProviders(params: Record<string, unknown>): CedarProvider[] {

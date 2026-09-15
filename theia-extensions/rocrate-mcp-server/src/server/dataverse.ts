@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -5,6 +11,7 @@ import * as path from 'node:path'
 import { Readable } from 'node:stream'
 import { validateCrate } from '../core'
 import type { RoCrate, RoCrateEntity } from '../core/types'
+import { getRuntimeEnvValue } from './runtime-config'
 import type {
   DataverseDownloadParams,
   DataverseUploadParams,
@@ -91,6 +98,183 @@ type PendingDataverseCrate = {
   createdAt: string
   expiresAt: string
   indent: number
+}
+
+type DataverseValidationIssue = {
+  entity: string
+  field?: string
+  message: string
+  suggestion?: string
+}
+
+type DataversePreflightValidationErrorOptions = {
+  status: number
+  requestUrl: string
+  cratePath?: string
+  validationIssues: DataverseValidationIssue[]
+  validationErrors: string[]
+  validationResponse: unknown
+}
+
+type DataverseAuthenticationErrorOptions = {
+  status: number
+  requestUrl: string
+  cratePath?: string
+  apiKeyProvided: boolean
+  dataverseResponse: unknown
+  dashboardUrl: string
+}
+
+/**
+ * Represents a Dataverse validation rejection that should remain available to
+ * the agent as a structured MCP tool error instead of becoming a generic
+ * JSON-RPC exception.
+ */
+export class DataversePreflightValidationError extends Error {
+  readonly status: number
+  readonly requestUrl: string
+  readonly cratePath?: string
+  readonly validationIssues: DataverseValidationIssue[]
+  readonly validationErrors: string[]
+  readonly validationResponse: unknown
+
+  constructor(options: DataversePreflightValidationErrorOptions) {
+    const issuePreview = options.validationErrors.slice(0, 10).join(' | ')
+    super(
+      `Upload blocked by Dataverse preflight validation (${options.status}) at ${options.requestUrl}${issuePreview ? `: ${issuePreview}` : ''}`,
+    )
+    this.name = 'DataversePreflightValidationError'
+    this.status = options.status
+    this.requestUrl = options.requestUrl
+    this.cratePath = options.cratePath
+    this.validationIssues = options.validationIssues
+    this.validationErrors = options.validationErrors
+    this.validationResponse = options.validationResponse
+    Object.setPrototypeOf(this, new.target.prototype)
+  }
+
+  /**
+   * Converts the validation rejection into a model-readable MCP tool result.
+   */
+  toMcpPayload(): Record<string, unknown> {
+    return {
+      ok: false,
+      errorCode: 'DATAVERSE_PREFLIGHT_VALIDATION',
+      stage: 'dataverse_preflight',
+      message: this.message,
+      status: this.status,
+      requestUrl: this.requestUrl,
+      cratePath: this.cratePath,
+      validationErrors: this.validationErrors,
+      validationIssues: this.validationIssues,
+      validationResponse: this.validationResponse,
+      uploadPerformed: false,
+      retryable: true,
+      nextAction:
+        'Use validationIssues and validationResponse to correct the RO-Crate at cratePath, run validate_crate again, and retry upload_rocrate_to_dataverse. Do not retry unchanged metadata.',
+    }
+  }
+}
+
+/**
+ * Represents a Dataverse authentication rejection that should tell the agent
+ * exactly how to provide or replace the missing credential.
+ */
+export class DataverseAuthenticationError extends Error {
+  readonly status: number
+  readonly requestUrl: string
+  readonly cratePath?: string
+  readonly apiKeyProvided: boolean
+  readonly dataverseResponse: unknown
+  readonly dashboardUrl: string
+  private preservedZipPath?: string
+
+  constructor(options: DataverseAuthenticationErrorOptions) {
+    const credentialMessage = options.apiKeyProvided
+      ? 'the configured Dataverse API key was rejected or does not have permission'
+      : 'no DATAVERSE_API_KEY was provided'
+    super(
+      `Dataverse rejected the upload request (${options.status}) at ${options.requestUrl}: ${credentialMessage}.`,
+    )
+    this.name = 'DataverseAuthenticationError'
+    this.status = options.status
+    this.requestUrl = options.requestUrl
+    this.cratePath = options.cratePath
+    this.apiKeyProvided = options.apiKeyProvided
+    this.dataverseResponse = options.dataverseResponse
+    this.dashboardUrl = options.dashboardUrl
+    Object.setPrototypeOf(this, new.target.prototype)
+  }
+
+  /**
+   * Keeps the generated ZIP available when authentication fails after it was
+   * created, so the agent or user can inspect or retry it.
+   */
+  setPreservedZipPath(zipPath: string): void {
+    this.preservedZipPath = zipPath
+  }
+
+  /**
+   * Converts the authentication rejection into a model-readable MCP result.
+   */
+  toMcpPayload(): Record<string, unknown> {
+    const dashboardLocation =
+      'Settings → Dataverse Upload Tool → DATAVERSE_API_KEY'
+    const credentialAction = this.apiKeyProvided
+      ? 'Replace or correct the current Dataverse API key'
+      : 'Provide a Dataverse API key'
+    const zipNotice = this.preservedZipPath
+      ? ` The generated ZIP was preserved at ${this.preservedZipPath}.`
+      : ''
+    return {
+      ok: false,
+      errorCode: this.apiKeyProvided
+        ? 'DATAVERSE_AUTHENTICATION_FAILED'
+        : 'DATAVERSE_API_KEY_REQUIRED',
+      stage: 'dataverse_authentication',
+      message: this.message,
+      status: this.status,
+      requestUrl: this.requestUrl,
+      cratePath: this.cratePath,
+      apiKeyProvided: this.apiKeyProvided,
+      dataverseResponse: this.dataverseResponse,
+      dashboardUrl: this.dashboardUrl,
+      credential: {
+        name: 'DATAVERSE_API_KEY',
+        environmentVariable: 'DATAVERSE_API_KEY',
+        dashboardUrl: this.dashboardUrl,
+        dashboardLocation,
+        toolParameter: 'apiKey',
+      },
+      uploadPerformed: false,
+      retryable: true,
+      ...(this.preservedZipPath
+        ? { zipPath: this.preservedZipPath, zipPreserved: true }
+        : { zipPreserved: false }),
+      nextAction:
+        `${credentialAction} using one of these supported methods: set DATAVERSE_API_KEY in the MCP process environment; enter it in the MCP dashboard at ${this.dashboardUrl} under ${dashboardLocation}; or ask the user to provide it and pass it as the upload_rocrate_to_dataverse apiKey argument. Then retry upload_rocrate_to_dataverse.${zipNotice}`,
+    }
+  }
+}
+
+function isDataverseAuthenticationStatus(status: number): boolean {
+  return status === 401 || status === 403
+}
+
+function hasDataverseApiKey(apiKey: string | undefined): boolean {
+  return typeof apiKey === 'string' && apiKey.trim() !== ''
+}
+
+function getDashboardUrlForUser(): string {
+  const configuredHost = process.env.ROCRATE_DASHBOARD_HOST?.trim() || '127.0.0.1'
+  const host =
+    configuredHost === '0.0.0.0' || configuredHost === '::'
+      ? '127.0.0.1'
+      : configuredHost
+  const formattedHost =
+    host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
+  const port = process.env.ROCRATE_DASHBOARD_PORT?.trim() || '9393'
+  return `http://${formattedHost}:${port}`
 }
 
 /**
@@ -218,7 +402,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
   function resolveDataverseBaseUrl(value: unknown): string {
     const raw =
       readOptionalStringParam(value) ??
-      readOptionalStringParam(process.env.DATAVERSE_BASE_URL) ??
+      getRuntimeEnvValue('DATAVERSE_BASE_URL') ??
       deps.defaultBaseUrl
     return raw.replace(/\/+$/, '')
   }
@@ -240,7 +424,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
   function resolveDataverseApiKey(value: unknown): string | undefined {
     return (
       readOptionalStringParam(value) ??
-      readOptionalStringParam(process.env.DATAVERSE_API_KEY)
+      getRuntimeEnvValue('DATAVERSE_API_KEY')
     )
   }
 
@@ -579,7 +763,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
   }
 
   function shouldKeepDataverseUploadZip(): boolean {
-    return process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS === 'true'
+    return getRuntimeEnvValue('ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS') === 'true'
   }
 
   function createPendingDataverseCrate(
@@ -1156,80 +1340,138 @@ export function createDataverseHandlers(deps: DataverseDeps) {
   }
 
   /**
-   * Normalizes nested Dataverse validation structures into flat user-facing
-   * error messages (`entity.field: message`).
+   * Normalizes Dataverse validation structures into field-level issues while
+   * retaining the original response for agents that need more context.
    */
-  function extractDataverseValidationMessages(payload: unknown): string[] {
-    const messages: string[] = []
+  function extractDataverseValidationIssues(
+    payload: unknown,
+    includePlainMessages = true,
+  ): DataverseValidationIssue[] {
+    const issues: DataverseValidationIssue[] = []
+    const addIssue = (entity: string, value: unknown): void => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return
+      }
+      const issue = value as Record<string, unknown>
+      const field =
+        readOptionalStringParam(issue.errorField) ??
+        readOptionalStringParam(issue.field)
+      const message =
+        readOptionalStringParam(issue.errorMessage) ??
+        readOptionalStringParam(issue.message)
+      const suggestion =
+        readOptionalStringParam(issue.errorSuggestion) ??
+        readOptionalStringParam(issue.suggestion)
+      if (!field && !message && !suggestion) {
+        return
+      }
+      issues.push({
+        entity,
+        ...(field ? { field } : {}),
+        message: message ?? 'Dataverse validation error',
+        ...(suggestion ? { suggestion } : {}),
+      })
+    }
+
     const collectIssues = (report: Record<string, unknown>): void => {
       const errors = Array.isArray(report.errors) ? report.errors : []
       for (const entry of errors) {
         if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
           continue
         }
+        const entryRecord = entry as Record<string, unknown>
         const errorEntity =
-          typeof (entry as Record<string, unknown>).errorEntity === 'string'
-            ? ((entry as Record<string, unknown>).errorEntity as string)
-            : 'RO-Crate'
-        const nested = Array.isArray((entry as Record<string, unknown>).errors)
-          ? ((entry as Record<string, unknown>).errors as unknown[])
-          : []
-        if (nested.length === 0) {
-          continue
-        }
+          readOptionalStringParam(entryRecord.errorEntity) ?? 'RO-Crate'
+        const nested = Array.isArray(entryRecord.errors) ? entryRecord.errors : []
         for (const nestedIssue of nested) {
-          if (
-            !nestedIssue ||
-            typeof nestedIssue !== 'object' ||
-            Array.isArray(nestedIssue)
-          ) {
-            continue
-          }
-          const errorField =
-            typeof (nestedIssue as Record<string, unknown>).errorField === 'string'
-              ? ((nestedIssue as Record<string, unknown>).errorField as string)
-              : ''
-          const errorMessage =
-            typeof (nestedIssue as Record<string, unknown>).errorMessage === 'string'
-              ? ((nestedIssue as Record<string, unknown>).errorMessage as string)
-              : ''
-          const errorSuggestion =
-            typeof (nestedIssue as Record<string, unknown>).errorSuggestion === 'string'
-              ? ((nestedIssue as Record<string, unknown>).errorSuggestion as string)
-              : ''
-          const prefix = `${errorEntity}${errorField ? `.${errorField}` : ''}`
-          const body = [errorMessage, errorSuggestion]
-            .filter((part) => part !== '')
-            .join(' ')
-          messages.push(`${prefix}: ${body}`.trim())
+          addIssue(errorEntity, nestedIssue)
+        }
+        if (nested.length === 0) {
+          addIssue(errorEntity, entryRecord)
         }
       }
     }
 
-    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-      const record = payload as Record<string, unknown>
-      const details = record.details
-      if (details && typeof details === 'object' && !Array.isArray(details)) {
-        collectIssues(details as Record<string, unknown>)
-      } else if (typeof details === 'string') {
-        const parsedDetails = tryParseJsonObjectFromString(details)
-        if (parsedDetails) {
-          collectIssues(parsedDetails)
-        }
+    const collectReportValue = (value: unknown, fallbackEntity: string): void => {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        collectIssues(value as Record<string, unknown>)
+        return
       }
+      if (typeof value !== 'string') {
+        return
+      }
+      const parsed = tryParseJsonObjectFromString(value)
+      if (parsed) {
+        collectIssues(parsed)
+        return
+      }
+      const message = value.trim()
+      if (includePlainMessages && message !== '') {
+        issues.push({ entity: fallbackEntity, message })
+      }
+    }
+
+    if (typeof payload === 'string') {
+      collectReportValue(payload, 'Dataverse')
+    } else if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      const record = payload as Record<string, unknown>
+      collectIssues(record)
+      const details = record.details
+      collectReportValue(details, 'Dataverse')
 
       const message = record.message
-      if (typeof message === 'string') {
-        const parsedMessage = tryParseJsonObjectFromString(message)
-        if (parsedMessage) {
-          collectIssues(parsedMessage)
-        }
-      } else if (message && typeof message === 'object' && !Array.isArray(message)) {
-        collectIssues(message as Record<string, unknown>)
+      collectReportValue(message, 'Dataverse')
+
+      const error = record.error
+      collectReportValue(error, 'Dataverse')
+
+      const data = record.data
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        const dataRecord = data as Record<string, unknown>
+        collectIssues(dataRecord)
+        collectReportValue(dataRecord.validation, 'Dataverse')
+        collectReportValue(dataRecord.details, 'Dataverse')
+        collectReportValue(dataRecord.message, 'Dataverse')
       }
     }
 
-    return deps.uniqueStrings(messages.filter((item) => item.trim() !== ''))
+    const seen = new Set<string>()
+    return issues.filter((issue) => {
+      const key = JSON.stringify(issue)
+      if (seen.has(key)) {
+        return false
+      }
+      seen.add(key)
+      return true
+    })
+  }
+
+  /**
+   * Formats normalized Dataverse issues for concise error messages.
+   */
+  function formatDataverseValidationIssues(
+    issues: DataverseValidationIssue[],
+  ): string[] {
+    return deps.uniqueStrings(
+      issues.map((issue) => {
+        const prefix = `${issue.entity}${issue.field ? `.${issue.field}` : ''}`
+        return `${prefix}: ${[issue.message, issue.suggestion]
+          .filter((part) => part !== '')
+          .join(' ')}`.trim()
+      }),
+    )
+  }
+
+  /**
+   * Extracts concise Dataverse validation messages.
+   */
+  function extractDataverseValidationMessages(
+    payload: unknown,
+    includePlainMessages = true,
+  ): string[] {
+    return formatDataverseValidationIssues(
+      extractDataverseValidationIssues(payload, includePlainMessages),
+    )
   }
 
   /**
@@ -1269,6 +1511,7 @@ export function createDataverseHandlers(deps: DataverseDeps) {
     status: number
     requestUrl: string
     messages: string[]
+    issues: DataverseValidationIssue[]
     payload: unknown
   }> {
     const endpointUrl = new URL(deps.defaultValidatePath, `${baseUrl}/`)
@@ -1296,12 +1539,14 @@ export function createDataverseHandlers(deps: DataverseDeps) {
     } catch {
       // keep text payload
     }
-    const messages = extractDataverseValidationMessages(payload)
+    const issues = extractDataverseValidationIssues(payload, !response.ok)
+    const messages = extractDataverseValidationMessages(payload, !response.ok)
     return {
       ok: response.ok && messages.length === 0,
       status: response.status,
       requestUrl: response.url || endpointUrl.toString(),
       messages,
+      issues,
       payload,
     }
   }
@@ -1369,10 +1614,24 @@ export function createDataverseHandlers(deps: DataverseDeps) {
       params.timeoutMs,
     )
     if (!dataversePreflight.ok) {
-      const issuesPreview = dataversePreflight.messages.slice(0, 10).join(' | ')
-      throw new Error(
-        `Upload blocked by Dataverse preflight validation (${dataversePreflight.status}) at ${dataversePreflight.requestUrl}${issuesPreview ? `: ${issuesPreview}` : ''}`,
-      )
+      if (isDataverseAuthenticationStatus(dataversePreflight.status)) {
+        throw new DataverseAuthenticationError({
+          status: dataversePreflight.status,
+          requestUrl: dataversePreflight.requestUrl,
+          cratePath: params.cratePath,
+          apiKeyProvided: hasDataverseApiKey(params.apiKey),
+          dataverseResponse: dataversePreflight.payload,
+          dashboardUrl: getDashboardUrlForUser(),
+        })
+      }
+      throw new DataversePreflightValidationError({
+        status: dataversePreflight.status,
+        requestUrl: dataversePreflight.requestUrl,
+        cratePath: params.cratePath,
+        validationIssues: dataversePreflight.issues,
+        validationErrors: dataversePreflight.messages,
+        validationResponse: dataversePreflight.payload,
+      })
     }
     let endpoint: 'create' | 'update'
     let endpointUrl: URL
@@ -1461,6 +1720,16 @@ export function createDataverseHandlers(deps: DataverseDeps) {
         // keep text payload
       }
       if (!response.ok) {
+        if (isDataverseAuthenticationStatus(response.status)) {
+          throw new DataverseAuthenticationError({
+            status: response.status,
+            requestUrl: response.url || endpointUrl.toString(),
+            cratePath: params.cratePath,
+            apiKeyProvided: hasDataverseApiKey(params.apiKey),
+            dataverseResponse: payload,
+            dashboardUrl: getDashboardUrlForUser(),
+          })
+        }
         const preview = typeof payload === 'string' ? payload : payloadText
         throw new Error(
           `Dataverse upload failed (${response.status}): ${String(preview).slice(0, 300)}`,
@@ -1511,6 +1780,12 @@ export function createDataverseHandlers(deps: DataverseDeps) {
             : undefined,
       }
     } catch (error) {
+      if (error instanceof DataverseAuthenticationError) {
+        if (zipPath) {
+          error.setPreservedZipPath(zipPath)
+        }
+        throw error
+      }
       if (zipPath) {
         const message = error instanceof Error ? error.message : String(error)
         throw new Error(`${message} ZIP preserved at ${zipPath}`)

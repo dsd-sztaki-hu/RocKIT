@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import { ApplicationShell } from '@theia/core/lib/browser'
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import type { Command } from '@theia/core/lib/common/command'

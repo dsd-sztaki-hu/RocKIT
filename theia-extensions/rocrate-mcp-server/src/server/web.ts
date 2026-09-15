@@ -1,3 +1,10 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
+import { getRuntimeEnvValue } from './runtime-config'
 import type { DownloadUrlParams, WebSearchParams } from './types'
 import { getServerUserAgent } from './version'
 
@@ -112,11 +119,7 @@ export function createWebHandlers(deps: {
     const collector = deps.getTelemetryCollector()
     const startTime = Date.now()
 
-    const apiKey =
-      (typeof process.env.TAVILY_API_KEY === 'string' &&
-      process.env.TAVILY_API_KEY.trim() !== ''
-        ? process.env.TAVILY_API_KEY.trim()
-        : undefined) ?? params.apiKey
+    const apiKey = getRuntimeEnvValue('TAVILY_API_KEY') ?? params.apiKey
     if (!apiKey) {
       throw new Error(
         'search requires Tavily API key: set TAVILY_API_KEY on server or pass apiKey parameter.',

@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 /**
  * Telemetry types for the RO-Crate MCP Dashboard
  * All types are designed for bounded memory usage and safe defaults

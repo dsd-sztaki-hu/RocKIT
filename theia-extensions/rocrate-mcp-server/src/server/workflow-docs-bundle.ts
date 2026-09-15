@@ -25,7 +25,7 @@ editing and accepts the risk.
 If the user starts work in a local directory and \`ro-crate-metadata.json\` is not
 present, offer to initialize the directory with \`create_default_rocrate\` before
 other metadata work. Explain that it scans the directory, writes
-\`ro-crate-metadata.json\`, and bootstraps \`.aroma/ignored.txt\`. Do not overwrite
+\`ro-crate-metadata.json\`, and bootstraps \`.rockit/ignored.txt\`. Do not overwrite
 an existing metadata file unless the user explicitly asks and the tool call uses
 \`overwrite=true\`.
 
@@ -57,6 +57,11 @@ Operational guardrails and metadata-quality rules are defined in the step docs
 returned by \`read_agent_workflow_doc\` and must be followed at the relevant step.
 
 ## Online AROMA Review
+
+For a direct request to open, view, show, inspect, or launch a local RO-Crate
+dataset in AROMA, call \`open_aroma_for_local_file\` with the dataset's
+\`ro-crate-metadata.json\` path. If the dataset is the current working directory,
+use \`ro-crate-metadata.json\`.
 
 After completing and validating edits to \`ro-crate-metadata.json\`, call
 \`open_aroma_for_local_file\` with the local \`ro-crate-metadata.json\` path and

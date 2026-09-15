@@ -1,3 +1,9 @@
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 import { FrontendApplicationContribution } from '@theia/core/lib/browser/frontend-application-contribution'
 import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell'
 import { WidgetManager } from '@theia/core/lib/browser/widget-manager'
