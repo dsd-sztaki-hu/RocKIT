@@ -41,3 +41,32 @@ Electron, Chromium, Eclipse Theia, Monaco Editor, Node.js packages, and native
 helper binaries. Their license texts and notices are included in the packaged
 application through their corresponding package metadata or generated Electron
 license files.
+
+## Native and Binary Runtime Components
+
+The following runtime components are known to include native code, downloaded
+runtime binaries, or executable helper files in RocKIT Electron builds.
+
+| Component | Version used by this workspace | Purpose in RocKIT Electron builds | License | License or notice location |
+| --- | --- | --- | --- | --- |
+| `electron` | 37.2.1 | Electron/Chromium desktop runtime | MIT; Chromium third-party notices | `node_modules/electron/LICENSE`; packaged Electron builds also include generated Electron/Chromium license files such as `LICENSE.electron.txt` and `LICENSES.chromium.html` |
+| `@theia/ffmpeg` | 1.65.2 | Theia FFmpeg native helper used by media support | EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 | `node_modules/@theia/ffmpeg/package.json`; Eclipse Theia license files are included with Theia packages |
+| `@vscode/ripgrep` | 1.17.1 | Search backend binary used by Theia/VS Code search features | MIT | `node_modules/@vscode/ripgrep/LICENSE` |
+| `node-pty` | 1.1.0-beta27 | Pseudoterminal support for integrated terminals and agent processes | MIT | `node_modules/node-pty/LICENSE`; bundled `winpty` files also carry `node_modules/node-pty/deps/winpty/LICENSE` |
+| `keytar` | 7.9.0 | Native bindings for operating-system credential storage | MIT | `node_modules/keytar/LICENSE.md` |
+| `@anthropic-ai/claude-agent-sdk` | resolved from `^0.2.111` | Optional Claude agent SDK integration used by RocKIT agent launcher | See package license | `node_modules/@anthropic-ai/claude-agent-sdk/LICENSE.md` and `README.md` |
+| `@anthropic-ai/claude-agent-sdk-*` platform package | matching installed SDK version | Platform-specific Claude executable packaged with the SDK when installed for the target platform | See package license | `node_modules/@anthropic-ai/claude-agent-sdk-*/LICENSE.md` |
+
+RocKIT build scripts prepare some of these components before packaging:
+
+- `scripts/ensure-electron-runtime.js` checks or installs the Electron runtime,
+  the `@vscode/ripgrep` binary, and the Theia FFmpeg native helper;
+- `scripts/copy-node-pty-agent.js` stages `node-pty` helper binaries under
+  `electron-app/lib/build/Release/` so they can be executed from packaged
+  builds;
+- `scripts/fetch-darwin-native.js` prepares single-architecture macOS runtime
+  packages and may fetch platform-specific runtime binaries for macOS builds.
+
+The Electron package configuration keeps required native runtime files outside
+`app.asar` using `asarUnpack`, because executable helper files and native addons
+must be available as real files at runtime.
