@@ -1,8 +1,8 @@
-// *****************************************************************************
+// ******************************************************************************************
 // Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
 //
 // SPDX-License-Identifier: Apache-2.0
-// *****************************************************************************
+// ******************************************************************************************
 
 import { CompositeTreeNode, TreeImpl, TreeNode } from '@theia/core/lib/browser'
 // import { wait } from '@theia/core/lib/common/promise-util'
