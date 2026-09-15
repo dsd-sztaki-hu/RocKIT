@@ -250,6 +250,8 @@ const DEFAULT_COLUMN_WIDTHS: ColumnWidths = {
     actions: 180,
 }
 
+const MIN_TABLE_WIDTH = 800
+
 const fitDefaultColumnWidths = (availableWidth: number): ColumnWidths => {
     const widths = { ...DEFAULT_COLUMN_WIDTHS }
     const defaultWidth = Object.values(widths).reduce((total, width) => total + width, 0)
@@ -338,8 +340,10 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
         let animationFrame: number | undefined
         const updateWidths = (): void => {
             animationFrame = undefined
-            const availableWidth = container.clientWidth - 40
-            if (availableWidth <= 0) return
+            if (container.clientWidth <= 0) return
+            const body = container.querySelector<HTMLElement>('.ant-table-body')
+            const scrollbarWidth = body ? body.offsetWidth - body.clientWidth : 0
+            const availableWidth = Math.max(MIN_TABLE_WIDTH, container.clientWidth - scrollbarWidth) - 40
             setColumnWidths(current => manuallyResizedColumns.current
                 ? fitCurrentColumnWidths(current, availableWidth)
                 : fitDefaultColumnWidths(availableWidth))
@@ -350,6 +354,8 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
             }
         })
         observer.observe(container)
+        const body = container.querySelector<HTMLElement>('.ant-table-body')
+        if (body) observer.observe(body)
         updateWidths()
         return () => {
             observer.disconnect()
@@ -645,6 +651,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
             width: columnWidths.actions,
             render: (_, record) => <Space size={4}>
                 <Button
+                    className='global-entity-library-edit-button'
                     size='small'
                     aria-label={nls.localize('rockit/globalEntities/edit', 'Edit')}
                     title={nls.localize('rockit/globalEntities/edit', 'Edit')}
@@ -663,6 +670,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
                     onConfirm={() => deleteRecord(record.recordId)}
                 >
                     <Button
+                        className='global-entity-library-delete-button'
                         size='small'
                         danger
                         aria-label={nls.localize('rockit/globalEntities/delete', 'Delete')}

@@ -14,7 +14,7 @@
     flex-direction: column;
     gap: 8px;
     height: 100%;
-    min-width: 720px;
+    min-width: 0;
     padding: 8px 12px;
 }
 
@@ -25,6 +25,7 @@
     flex: 1;
     flex-direction: column;
     min-height: 0;
+    min-width: 0;
     overflow: hidden;
 }
 
@@ -187,6 +188,26 @@
     display: flex;
     gap: 12px;
     justify-content: space-between;
+}
+
+.global-entity-library-table .global-entity-library-edit-button.ant-btn:not(:disabled) {
+    background: transparent !important;
+    border-color: #1677ff !important;
+    color: #1677ff !important;
+}
+
+.global-entity-library-table .global-entity-library-edit-button.ant-btn:not(:disabled):hover,
+.global-entity-library-table .global-entity-library-edit-button.ant-btn:not(:disabled):focus-visible {
+    background: #1677ff !important;
+    border-color: #1677ff !important;
+    color: #ffffff !important;
+}
+
+.global-entity-library-table .global-entity-library-delete-button.ant-btn-dangerous:not(:disabled):hover,
+.global-entity-library-table .global-entity-library-delete-button.ant-btn-dangerous:not(:disabled):focus-visible {
+    background: #d9363e !important;
+    border-color: #d9363e !important;
+    color: #ffffff !important;
 }
 
 .global-entity-library-toolbar .ant-input-search {
