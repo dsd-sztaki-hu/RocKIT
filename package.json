@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "rockit",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "RocKIT - RO-Crate Kit desktop and browser application.",
   "homepage": "https://repo.researchdata.hu/rockit/",
   "license": "Apache-2.0",
