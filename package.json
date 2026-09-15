@@ -1,7 +1,49 @@
 {
   "private": true,
+  "name": "rockit",
+  "version": "1.0.8",
+  "description": "RocKIT - RO-Crate Kit desktop and browser application.",
+  "homepage": "https://repo.researchdata.hu/rockit/",
   "license": "Apache-2.0",
-  "author": "SZTAKI, Department of Distributed Systems",
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
+  },
+  "bugs": {
+    "email": "zoltan.toth@sztaki.hu"
+  },
+  "keywords": [
+    "ro-crate",
+    "research-data",
+    "metadata",
+    "theia",
+    "electron"
+  ],
+  "contributors": [
+    {
+      "name": "Balazs E. Pataki",
+      "email": "balazs.pataki@sztaki.hu",
+      "url": "https://orcid.org/0000-0003-3482-0325"
+    },
+    {
+      "name": "Kadosa Nagy",
+      "email": "nagykadosa@sztaki.hu"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontosreka@sztaki.hu"
+    },
+    {
+      "name": "Roland Tanacsi",
+      "email": "tanacsi.roland@sztaki.hu"
+    },
+    {
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
+      "url": "https://orcid.org/0000-0002-5688-9668"
+    }
+  ],
+  "packageManager": "yarn@1.22.22",
   "engines": {
     "node": ">=18",
     "npm": ">=8"

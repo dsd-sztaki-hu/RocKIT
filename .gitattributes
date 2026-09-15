@@ -4,3 +4,4 @@ theia-extensions/agent-instructions/src/electron-browser/agent-docs-bundle.ts te
 theia-extensions/agent-instructions/src/electron-browser/agents-template.ts text eol=lf
 theia-extensions/ro-crate-editor/src/browser/style/recrate-scoped.css text eol=lf
 theia-extensions/rocrate-mcp-server/src/server/workflow-docs-bundle.ts text eol=lf
+yarn.lock text eol=lf

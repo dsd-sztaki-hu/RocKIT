@@ -188,3 +188,6 @@ HTML selection. So, this is of minimal use for now.
 ## License
 
 RocKIT is licensed under the Apache License, Version 2.0. See [LICENSE.md](LICENSE.md) for details.
+
+Additional attribution and bundled third-party component information is available in
+[NOTICE](NOTICE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
