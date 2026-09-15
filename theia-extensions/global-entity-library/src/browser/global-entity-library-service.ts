@@ -126,8 +126,16 @@ export class GlobalEntityLibraryService implements FrontendApplicationContributi
     }
 
     async getCollection(): Promise<GlobalEntityCollection> {
-        await this.ensureInitialized()
-        return this.collection
+        return this.runSerialized(async () => {
+            await this.ensureInitialized()
+            if (this.reconcileTimer !== undefined) {
+                window.clearTimeout(this.reconcileTimer)
+                this.reconcileTimer = undefined
+            }
+            await this.ensureCurrentMapping()
+            await this.reconcileCurrentCrate()
+            return this.collection
+        })
     }
 
     async saveRecord(record: GlobalEntityRecord): Promise<GlobalEntityCollection> {
@@ -240,7 +248,12 @@ export class GlobalEntityLibraryService implements FrontendApplicationContributi
 
             const record = this.projectEntity(source, type)
             const hash = this.hashRecord(record)
-            const mapped = this.mappingByEntityId.get(entityId)
+            let mapped = this.mappingByEntityId.get(entityId)
+            if (mapped && !this.recordHashById.has(mapped.recordId)) {
+                this.unlinkEntityId(mapped, entityId)
+                mappingChanged = true
+                mapped = undefined
+            }
             if (mapped) {
                 const link = this.mapping[mapped.type]?.[mapped.recordId]
                 const globalRecordHash = this.recordHashById.get(mapped.recordId)

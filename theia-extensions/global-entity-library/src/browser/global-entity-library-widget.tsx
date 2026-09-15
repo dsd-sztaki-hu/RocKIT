@@ -3,6 +3,7 @@ import { ReactWidget } from '@theia/core/lib/browser/widgets/react-widget'
 import { ThemeService } from '@theia/core/lib/browser/theming'
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify'
 import * as React from '@theia/core/shared/react'
+import { Message } from '@lumino/messaging'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
 import { GlobalEntityLibraryService } from './global-entity-library-service'
@@ -118,5 +119,10 @@ export class GlobalEntityLibraryWidget extends ReactWidget {
 
     protected onActivateRequest(): void {
         this.node.querySelector<HTMLInputElement>('#global-entity-library-search')?.focus()
+    }
+
+    protected override onAfterShow(msg: Message): void {
+        super.onAfterShow(msg)
+        void this.loadCollection()
     }
 }
