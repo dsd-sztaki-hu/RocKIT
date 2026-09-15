@@ -4,12 +4,17 @@
   "version": "1.0.9",
   "description": "RocKIT - RO-Crate Kit desktop and browser application.",
   "homepage": "https://repo.researchdata.hu/rockit/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dsd-sztaki-hu/RocKIT.git"
+  },
   "license": "Apache-2.0",
   "author": {
     "name": "SZTAKI, Department of Distributed Systems",
     "url": "https://dsd.sztaki.hu"
   },
   "bugs": {
+    "url": "https://github.com/dsd-sztaki-hu/RocKIT/issues",
     "email": "zoltan.toth@sztaki.hu"
   },
   "keywords": [

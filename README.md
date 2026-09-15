@@ -1,3 +1,8 @@
+# RocKIT
+
+RocKIT source code is available at
+<https://github.com/dsd-sztaki-hu/RocKIT>.
+
 ## Getting started
 
 Please install all necessary [prerequisites](https://github.com/eclipse-theia/theia/blob/master/doc/Developing.md#prerequisites).

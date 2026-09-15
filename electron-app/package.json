@@ -3,11 +3,17 @@
   "name": "electron-app",
   "version": "1.0.9",
   "homepage": "https://repo.researchdata.hu/rockit/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dsd-sztaki-hu/RocKIT.git",
+    "directory": "electron-app"
+  },
   "author": {
     "name": "SZTAKI, Department of Distributed Systems",
     "url": "https://dsd.sztaki.hu"
   },
   "bugs": {
+    "url": "https://github.com/dsd-sztaki-hu/RocKIT/issues",
     "email": "zoltan.toth@sztaki.hu"
   },
   "license": "Apache-2.0",
