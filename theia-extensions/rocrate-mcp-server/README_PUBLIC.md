@@ -2,8 +2,6 @@
 
 `@arpproject/rocrate-mcp-server` is an [MCP server](https://www.dreamfactory.com/use-cases/mcp-server/) for [RO-Crate](https://www.researchobject.org/ro-crate/) editing, validation, and profile-aware constraints following the best practices of the ARP project (https://researchdata.hu/). It is designed to be used with MCP-compatible AI assistants such as Codex, Claude Code. It can be used with the schemas and profiles offered by the ARP Schema Registry (https://cedar.schema.researchdata.hu/)
 
-Copyright 2026, SZTAKI DSD, (https://dsd.sztaki.hu/). Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
-
 [Quick start](#quick-start) · [Első lépések](#első-lépések)
 
 ## Quick start
@@ -146,3 +144,15 @@ a környezeti változók használatosak; a vezérlőpult beállításai a
 a környezeti változók visszaállításához. A fájl a beállított API-kulcsokat
 egyszerű szövegként tartalmazza, és ahol támogatott, csak a felhasználó számára
 engedélyezett hozzáféréssel rendelkezik.
+
+## Authorship
+
+This package is maintained by SZTAKI, Department of Distributed Systems
+(<https://dsd.sztaki.hu>).
+
+Individual contributors are listed in `package.json`.
+
+## License
+
+This package is licensed under the Apache License, Version 2.0. See
+[LICENSE.md](./LICENSE.md) for details.

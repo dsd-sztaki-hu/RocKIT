@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// *****************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// *****************************************************************************
+
 const fs = require('node:fs')
 const path = require('node:path')
 const esbuild = require('esbuild')
@@ -80,6 +86,9 @@ async function main() {
         version: cedarPackage.version,
         type: cedarPackage.type,
         main: cedarPackage.main,
+        license: cedarPackage.license,
+        author: cedarPackage.author,
+        contributors: cedarPackage.contributors,
       },
       null,
       2,
@@ -94,6 +103,10 @@ async function main() {
       return !name.includes('.test.')
     },
   )
+  fs.copyFileSync(
+    path.join(cedarWorkspace, 'LICENSE.md'),
+    path.join(cedarTarget, 'LICENSE.md'),
+  )
 
   const packageJson = readJson(path.join(packageRoot, 'package.json'))
   const buildDate = process.env.ROCRATE_MCP_BUILD_DATE || new Date().toISOString()
@@ -105,6 +118,9 @@ async function main() {
         version: packageJson.version,
         buildDate,
         description: packageJson.description,
+        license: packageJson.license,
+        author: packageJson.author,
+        contributors: packageJson.contributors,
         main: 'lib/server.js',
         bin: {
           'rocrate-mcp-server': 'lib/server.js',
@@ -115,7 +131,7 @@ async function main() {
         dependencies: {
           [cedarPackage.name]: cedarPackage.version,
         },
-        files: ['lib', 'node_modules/cedar-template-converter'],
+        files: ['lib', 'node_modules/cedar-template-converter', 'LICENSE.md'],
         bundledDependencies: ['cedar-template-converter'],
         engines: packageJson.engines,
       },
@@ -129,6 +145,7 @@ async function main() {
     path.join(packageRoot, 'README_PUBLIC.md'),
     path.join(outRoot, 'README.md'),
   )
+  fs.copyFileSync(path.join(repoRoot, 'LICENSE.md'), path.join(outRoot, 'LICENSE.md'))
 }
 
 main().catch((error) => {
