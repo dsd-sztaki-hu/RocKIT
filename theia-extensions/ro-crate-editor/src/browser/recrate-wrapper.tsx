@@ -22,6 +22,7 @@ type SingleEntityDropPayload = {
 }
 
 const ENTITIES_OVERVIEW_DND_MIME = 'application/x-rockit-entity-drag'
+const DROP_ERROR_TIMEOUT_MS = 5000
 
 export const RecrateCrateBuilderWrapper = ({
                                                 crate,
@@ -66,6 +67,16 @@ export const RecrateCrateBuilderWrapper = ({
     const containerRef = React.useRef<HTMLDivElement>(null)
     const [dropState, setDropState] = React.useState<'idle' | 'valid' | 'invalid'>('idle')
     const [dropMessage, setDropMessage] = React.useState<string>('')
+    const dropErrorTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+    const cancelDropErrorTimeout = React.useCallback(() => {
+        if (dropErrorTimeoutRef.current !== undefined) {
+            clearTimeout(dropErrorTimeoutRef.current)
+            dropErrorTimeoutRef.current = undefined
+        }
+    }, [])
+
+    React.useEffect(() => cancelDropErrorTimeout, [cancelDropErrorTimeout])
 
     React.useEffect(() => {
         if (!lastNavTarget.current && entityId && entityId !== currentEntityId) {
@@ -138,11 +149,20 @@ export const RecrateCrateBuilderWrapper = ({
         if (!node) return
 
         const clearState = () => {
+            cancelDropErrorTimeout()
             setDropState('idle')
             setDropMessage('')
         }
 
+        const showDropError = (message: string) => {
+            cancelDropErrorTimeout()
+            setDropState('invalid')
+            setDropMessage(message)
+            dropErrorTimeoutRef.current = setTimeout(clearState, DROP_ERROR_TIMEOUT_MS)
+        }
+
         const onDragOver = (event: DragEvent) => {
+            cancelDropErrorTimeout()
             // 🔑 ALWAYS allow drop
             event.preventDefault()
 
@@ -190,8 +210,7 @@ export const RecrateCrateBuilderWrapper = ({
 
             const payload = parsePayload(event)
             if (!payload?.entityIds || payload.entityIds.length === 0) {
-                setDropState('invalid')
-                setDropMessage(nls.localize(
+                showDropError(nls.localize(
                     'rockit/roCrateEditor/dropPayloadUnavailable',
                     'Drop payload was not available. Please drag again.',
                 ))
@@ -200,8 +219,7 @@ export const RecrateCrateBuilderWrapper = ({
 
             const destinationEntityId = currentEntityId
             if (!destinationEntityId) {
-                setDropState('invalid')
-                setDropMessage(nls.localize(
+                showDropError(nls.localize(
                     'rockit/roCrateEditor/noDropDestination',
                     'No active destination entity',
                 ))
@@ -213,8 +231,7 @@ export const RecrateCrateBuilderWrapper = ({
             const targetValid = targetTypes.includes('dataset')
 
             if (!targetValid) {
-                setDropState('invalid')
-                setDropMessage(nls.localize(
+                showDropError(nls.localize(
                     'rockit/roCrateEditor/dropDisabled',
                     'Drop disabled: destination must be Dataset',
                 ))
@@ -223,8 +240,7 @@ export const RecrateCrateBuilderWrapper = ({
 
             try {
                 if (!payload.entityIds || !payload.entityNames || !payload.entityTypes) {
-                    setDropState('invalid')
-                    setDropMessage(nls.localize(
+                    showDropError(nls.localize(
                         'rockit/roCrateEditor/dropPayloadUnavailable',
                         'Drop payload was not available. Please drag again.',
                     ))
@@ -242,11 +258,9 @@ export const RecrateCrateBuilderWrapper = ({
                         destinationEntityId,
                     )
                 }
-                setDropState('idle')
-                setDropMessage('')
+                clearState()
             } catch (error: any) {
-                setDropState('invalid')
-                setDropMessage(error?.message || nls.localize(
+                showDropError(error?.message || nls.localize(
                     'rockit/roCrateEditor/dropFailed',
                     'Failed to add dropped entity to hasPart',
                 ))
@@ -265,6 +279,7 @@ export const RecrateCrateBuilderWrapper = ({
             node.removeEventListener('dragend', clearState)
         }
     }, [
+        cancelDropErrorTimeout,
         currentEntityId,
         getEntityById,
         getEntityTypeNames,
