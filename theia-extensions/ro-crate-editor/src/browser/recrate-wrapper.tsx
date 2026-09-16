@@ -3,6 +3,7 @@ import { nls } from '@theia/core/lib/common'
 import * as React from 'react'
 
 import { toRecrateLanguage } from './recrate-language'
+import type { GlobalEntityLibraryService } from 'global-entity-library/lib/browser/global-entity-library-service'
 
 import '../../src/browser/style/recrate-scoped.css'
 import '../../src/browser/style/recrate-dark-overrides.css'
@@ -25,6 +26,7 @@ const ENTITIES_OVERVIEW_DND_MIME = 'application/x-rockit-entity-drag'
 
 export const DescriboCrateBuilderWrapper = ({
                                                 crate,
+                                                globalEntityLibraryService,
                                                 roCrateApproval,
                                                 profile,
                                                 entityId,
@@ -39,6 +41,7 @@ export const DescriboCrateBuilderWrapper = ({
                                                 onDropEntityToHasPart,
                                             }: {
     crate: Record<string, any> | undefined
+    globalEntityLibraryService: GlobalEntityLibraryService
     roCrateApproval: Record<string, any> | Record<string, any>[] | undefined
     profile: Record<string, any> | undefined
     entityId: string | undefined
@@ -66,6 +69,12 @@ export const DescriboCrateBuilderWrapper = ({
     const containerRef = React.useRef<HTMLDivElement>(null)
     const [dropState, setDropState] = React.useState<'idle' | 'valid' | 'invalid'>('idle')
     const [dropMessage, setDropMessage] = React.useState<string>('')
+    const lookup = React.useMemo(() => ({
+        globalEntities: (params: { type?: string | string[]; queryString?: string }) =>
+            globalEntityLibraryService.findEntitiesForCrate(params),
+        onGlobalEntityAdded: (params: { recordId: string; entityId: string }) =>
+            globalEntityLibraryService.mapAddedEntity(params),
+    }), [globalEntityLibraryService])
 
     React.useEffect(() => {
         if (!lastNavTarget.current && entityId && entityId !== currentEntityId) {
@@ -327,6 +336,7 @@ export const DescriboCrateBuilderWrapper = ({
             )}
 
             <DescriboCrateBuilderComponent
+                lookup={lookup}
                 crate={crate}
                 roCrateApproval={roCrateApproval}
                 profile={profile}

@@ -138,6 +138,49 @@ export class GlobalEntityLibraryService implements FrontendApplicationContributi
         })
     }
 
+    async findEntitiesForCrate(params: {
+        type?: string | string[]
+        queryString?: string
+    }): Promise<{ documents: Record<string, unknown>[] }> {
+        const collection = await this.getCollection()
+        const graph = this.appStateService.roCrate?.['@graph'] ?? []
+        const entityIds = new Set<string>(graph.map((entity: Record<string, unknown>) => String(entity['@id'])))
+        const requestedTypes = Array.isArray(params.type) ? params.type : [params.type ?? 'ANY']
+        const query = (params.queryString ?? '').trim().toLocaleLowerCase()
+        const documents: Record<string, unknown>[] = []
+        for (const [type, records] of Object.entries(collection)) {
+            if (!requestedTypes.includes('ANY') && !requestedTypes.includes(type)) continue
+            for (const record of records) {
+                const mappedId = this.mapping[type]?.[record.recordId]?.entityIds.find(id => entityIds.has(id))
+                let entityId = mappedId ?? `#global-${record.recordId}`
+                if (!mappedId && entityIds.has(entityId)) entityId = `#global-${newRecordId()}`
+                const entity = structuredClone(record.entity)
+                const searchText = [record.recordId, mappedId ?? '', ...Object.values(entity)]
+                    .join(' ').toLocaleLowerCase()
+                if (query && !searchText.includes(query)) continue
+                documents.push({ ...entity, '@id': entityId, globalRecordId: record.recordId })
+            }
+        }
+        return { documents }
+    }
+
+    async mapAddedEntity(params: { recordId: string; entityId: string }): Promise<void> {
+        return this.runSerialized(async () => {
+            await this.ensureInitialized()
+            await this.ensureCurrentMapping()
+            const source = this.appStateService.roCrate?.['@graph']?.find(
+                (entity: Record<string, unknown>) => entity['@id'] === params.entityId,
+            )
+            if (!source) return
+            const type = this.getSupportedType(source)
+            if (!type || !this.collection[type]?.some(record => record.recordId === params.recordId)) return
+            const previous = this.mappingByEntityId.get(params.entityId)
+            if (previous) this.unlinkEntityId(previous, params.entityId)
+            this.addMapping(type, params.recordId, params.entityId, this.hashRecord(this.projectEntity(source, type)))
+            await this.mappingStore.save(this.mapping)
+        })
+    }
+
     async saveRecord(record: GlobalEntityRecord): Promise<GlobalEntityCollection> {
         return this.runSerialized(async () => {
             await this.ensureInitialized()

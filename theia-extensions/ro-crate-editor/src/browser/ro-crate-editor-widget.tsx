@@ -36,6 +36,7 @@ import {
 } from 'app-state/lib/browser/state/ro-crate-approval'
 
 import { DescriboCrateBuilderWrapper } from './recrate-wrapper'
+import { GlobalEntityLibraryService } from 'global-entity-library/lib/browser/global-entity-library-service'
 
 interface RoCrateEditorWidgetOptions {
   instanceId?: string
@@ -89,6 +90,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
   @inject(RoCratePersistenceService)
   protected readonly persistenceService: RoCratePersistenceService
+
+  @inject(GlobalEntityLibraryService)
+  protected readonly globalEntityLibraryService: GlobalEntityLibraryService
 
   protected readonly onDirtyChangedEmitter = new Emitter<void>()
   protected readonly onContentChangedEmitter = new Emitter<void>()
@@ -1140,6 +1144,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     }}
                 >
                     <DescriboCrateBuilderWrapper
+                        globalEntityLibraryService={this.globalEntityLibraryService}
                         crate={this.localCrate}
                         roCrateApproval={this.localRoCrateApproval}
                         profile={this.localProfile}
