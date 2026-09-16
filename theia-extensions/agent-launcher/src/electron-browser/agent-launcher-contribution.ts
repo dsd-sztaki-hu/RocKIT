@@ -438,12 +438,12 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         })
         menus.registerMenuAction(agentMenuPath, {
           commandId: agentChatCommandId(spec.id),
-          label: nls.localize('rockit/agentLauncher/inRockit', '... In RocKIT'),
+          label: nls.localize('rockit/agentLauncher/inRockit', 'In RocKIT'),
           order: 'a',
         })
         menus.registerMenuAction(agentMenuPath, {
           commandId: agentTerminalCommandId(spec.id),
-          label: nls.localize('rockit/agentLauncher/inTerminal', '... In terminal'),
+          label: nls.localize('rockit/agentLauncher/inTerminal', 'In terminal'),
           order: 'b',
         })
         continue
