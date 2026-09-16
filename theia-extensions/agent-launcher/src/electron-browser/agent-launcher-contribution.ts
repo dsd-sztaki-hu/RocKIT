@@ -497,8 +497,11 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       explicitUri instanceof URI
         ? explicitUri
         : UriSelection.getUri(this.selectionService.selection)
-    if (selectedUri && this.workspaceService.getWorkspaceRootUri(selectedUri)) {
-      return selectedUri
+    if (selectedUri) {
+      const rootUri = this.workspaceService.getWorkspaceRootUri(selectedUri)
+      if (rootUri) {
+        return rootUri
+      }
     }
     return this.workspaceService.tryGetRoots()[0]?.resource
   }
