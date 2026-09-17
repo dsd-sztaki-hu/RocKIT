@@ -278,6 +278,8 @@
       "chatInRockitWith": "Csevegés a RocKIT-ben ({0})",
       "openInTerminal": "Megnyitás terminálban",
       "openAgentInTerminal": "{0} megnyitása terminálban",
+      "inRockit": "RocKIT-ben",
+      "inTerminal": "Terminálban",
       "preparing": "Előkészítés…",
       "executableNotFound": "A futtatható program nem található",
       "checkingMcp": "MCP ellenőrzése…",

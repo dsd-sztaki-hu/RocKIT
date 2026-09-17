@@ -1,8 +1,8 @@
-// *****************************************************************************
+// ******************************************************************************************
 // Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
 //
 // SPDX-License-Identifier: Apache-2.0
-// *****************************************************************************
+// ******************************************************************************************
 
 import { DEFAULT_WORKFLOW_DOC, WORKFLOW_DOCS_BUNDLE } from './workflow-docs-bundle'
 import type { AgentSessionContext } from './agent-session-context'

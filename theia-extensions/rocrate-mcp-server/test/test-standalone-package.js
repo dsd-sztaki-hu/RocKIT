@@ -1,8 +1,8 @@
-// *****************************************************************************
+// ******************************************************************************************
 // Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
 //
 // SPDX-License-Identifier: Apache-2.0
-// *****************************************************************************
+// ******************************************************************************************
 
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
@@ -20,6 +20,17 @@ assert.ok(
 )
 
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
+assert.equal(packageJson.license, 'Apache-2.0')
+assert.equal(packageJson.author?.name, 'SZTAKI, Department of Distributed Systems')
+assert.equal(packageJson.author?.url, 'https://dsd.sztaki.hu')
+const balazsContributor = packageJson.contributors?.find(
+  (contributor) => contributor.name === 'Balazs E. Pataki',
+)
+assert.equal(balazsContributor?.email, 'pataki@sztaki.hu')
+assert.ok(
+  fs.existsSync(path.join(standaloneRoot, 'LICENSE.md')),
+  'The standalone package must include the Apache license text',
+)
 assert.equal(
   packageJson.dependencies?.['cedar-template-converter'],
   '1.0.0',
@@ -101,6 +112,10 @@ async function run() {
           file.path === 'node_modules/cedar-template-converter/dist/cedar-converter.js',
       ),
       'The npm tarball must include the converter implementation',
+    )
+    assert.ok(
+      packReport.files.some((file) => file.path === 'LICENSE.md'),
+      'The npm tarball must include the Apache license text',
     )
 
     const tarballPath = path.join(temporaryRoot, packReport.filename)

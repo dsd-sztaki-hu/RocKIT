@@ -1,6 +1,6 @@
 {
   "name": "@arpproject/rocrate-mcp-server",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "ARP RO-Crate MCP Server exposing RO-Crate editing and profile-aware validation tools for use in ARP",
   "license": "Apache-2.0",
   "author": {
@@ -47,7 +47,7 @@
   "contributors": [
     {
       "name": "Balazs E. Pataki",
-      "email": "balazs.pataki@sztaki.hu",
+      "email": "pataki@sztaki.hu",
       "url": "https://dsd.sztaki.hu"
     },
     {

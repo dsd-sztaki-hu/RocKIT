@@ -1,4 +1,4 @@
-// *****************************************************************************
+// ******************************************************************************************
 // Copyright (C) 2017 TypeFox and others.
 // Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
 //
@@ -13,7 +13,7 @@
 // https://www.gnu.org/software/classpath/license.html.
 //
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
-// *****************************************************************************
+// ******************************************************************************************
 
 import { environment, isOSX } from '@theia/core'
 import {

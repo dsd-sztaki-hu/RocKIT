@@ -1,8 +1,8 @@
-// *****************************************************************************
+// ******************************************************************************************
 // Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
 //
 // SPDX-License-Identifier: Apache-2.0
-// *****************************************************************************
+// ******************************************************************************************
 
 import {
   CommonMenus,
@@ -40,7 +40,7 @@ const DEFAULT_APP_INFO: ApplicationInfo = {
 }
 const RO_CRATE_DOCUMENTATION_URL = 'https://www.researchobject.org/ro-crate/'
 const DSD_URL = 'https://dsd.sztaki.hu/hu'
-const SUPPORT_EMAIL = 'rockit-support@example.org'
+const SUPPORT_EMAIL = 'zoltan.toth@sztaki.hu'
 
 export const ABOUT_ROCKIT_COMMAND: Command = {
   id: 'rockit.about',
