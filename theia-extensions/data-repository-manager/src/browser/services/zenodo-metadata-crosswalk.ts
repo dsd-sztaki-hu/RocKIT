@@ -571,6 +571,71 @@ function generatedEntityId(root: JsonObject, typeName: string, index: number): s
   return `#${typeName}-${index + 1}`
 }
 
+function normalizeComparableText(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+}
+
+function uniqueEntities(entities: JsonObject[]): JsonObject[] {
+  const result: JsonObject[] = []
+  const ids = new Set<string>()
+  for (const entity of entities) {
+    const id = strings(entity['@id'])[0]
+    if (id ? ids.has(id) : result.includes(entity)) {
+      continue
+    }
+    if (id) {
+      ids.add(id)
+    }
+    result.push(entity)
+  }
+  return result
+}
+
+function matchExistingEntities<T>(
+  incoming: T[],
+  existing: JsonObject[],
+  matches: (incomingValue: T, entity: JsonObject) => boolean,
+): Map<number, JsonObject> {
+  const assignments = new Map<number, JsonObject>()
+  const used = new Set<JsonObject>()
+
+  incoming.forEach((incomingValue, index) => {
+    const exact = existing.find((entity) => !used.has(entity) && matches(incomingValue, entity))
+    if (exact) {
+      assignments.set(index, exact)
+      used.add(exact)
+    }
+  })
+
+  const remainingExisting = existing.filter((entity) => !used.has(entity))
+  incoming.forEach((_incomingValue, index) => {
+    if (assignments.has(index)) {
+      return
+    }
+    const fallback = remainingExisting.shift()
+    if (fallback) {
+      assignments.set(index, fallback)
+      used.add(fallback)
+    }
+  })
+  return assignments
+}
+
+function availableGeneratedEntityId(
+  root: JsonObject,
+  graph: JsonObject[],
+  typeName: string,
+  preferredIndex: number,
+): string {
+  let index = preferredIndex
+  let id = generatedEntityId(root, typeName, index)
+  while (graph.some((entity) => entity['@id'] === id)) {
+    index += 1
+    id = generatedEntityId(root, typeName, index)
+  }
+  return id
+}
+
 function generatedKeywordEntityId(root: JsonObject, keyword: string, index: number): string {
   const arpPid = strings(root['@arpPid'])[0]
   if (arpPid) {
@@ -607,13 +672,24 @@ function updateDescriptionEntities(root: JsonObject, graph: JsonObject[], descri
     return false
   }
   const referencedIds = rootDescriptionIds(root)
-  const existingDescriptionEntities = graph.filter((entity) => entityTypes(entity).includes('dsDescription'))
+  const existingDescriptionEntities = uniqueEntities([
+    ...referencedIds
+      .map((id) => graph.find((entity) => entity['@id'] === id))
+      .filter((entity): entity is JsonObject => !!entity),
+    ...graph.filter((entity) => entityTypes(entity).includes('dsDescription')),
+  ])
+  const assignments = matchExistingEntities(
+    descriptions,
+    existingDescriptionEntities,
+    (description, entity) => normalizeComparableText(description) === normalizeComparableText(
+      strings(entity.dsDescriptionValue ?? entity.description ?? entity.name)[0] ?? '',
+    ),
+  )
   const refs: JsonObject[] = []
   descriptions.forEach((description, index) => {
     const id =
-      referencedIds[index] ??
-      strings(existingDescriptionEntities[index]?.['@id'])[0] ??
-      descriptionEntityId(root, index)
+      strings(assignments.get(index)?.['@id'])[0] ??
+      availableDescriptionEntityId(root, graph, index)
     let entity = graph.find((item) => item['@id'] === id)
     if (!entity) {
       entity = {
@@ -631,6 +707,16 @@ function updateDescriptionEntities(root: JsonObject, graph: JsonObject[], descri
   return true
 }
 
+function availableDescriptionEntityId(root: JsonObject, graph: JsonObject[], preferredIndex: number): string {
+  let index = preferredIndex
+  let id = descriptionEntityId(root, index)
+  while (graph.some((entity) => entity['@id'] === id)) {
+    index += 1
+    id = descriptionEntityId(root, index)
+  }
+  return id
+}
+
 function updateCreatorEntities(root: JsonObject, graph: JsonObject[], value: unknown): boolean {
   const creators = values(value)
     .filter(isObject)
@@ -645,13 +731,22 @@ function updateCreatorEntities(root: JsonObject, graph: JsonObject[], value: unk
   }
   const existingRefs = values(root.author)
     .flatMap((item) => isObject(item) ? strings(item['@id']) : strings(item))
-  const existingAuthors = graph.filter((entity) => entityTypes(entity).includes('author'))
+  const existingAuthors = uniqueEntities([
+    ...existingRefs
+      .map((id) => graph.find((entity) => entity['@id'] === id))
+      .filter((entity): entity is JsonObject => !!entity),
+    ...graph.filter((entity) => entityTypes(entity).includes('author')),
+  ])
+  const assignments = matchExistingEntities(
+    creators,
+    existingAuthors,
+    (creator, entity) => creatorMatchesEntity(creator, entity),
+  )
   const refs: JsonObject[] = []
   creators.forEach((creator, index) => {
     const id =
-      existingRefs[index] ??
-      strings(existingAuthors[index]?.['@id'])[0] ??
-      generatedEntityId(root, 'author', index)
+      strings(assignments.get(index)?.['@id'])[0] ??
+      availableGeneratedEntityId(root, graph, 'author', index)
     let entity = graph.find((item) => item['@id'] === id)
     if (!entity) {
       entity = {
@@ -678,6 +773,22 @@ function updateCreatorEntities(root: JsonObject, graph: JsonObject[], value: unk
   return true
 }
 
+function creatorMatchesEntity(
+  creator: { name: string | undefined; affiliation: string | undefined; orcid: string | undefined },
+  entity: JsonObject,
+): boolean {
+  const entityOrcid = strings(entity.authorIdentifier ?? entity.orcid ?? entity.identifier)[0]
+  if (creator.orcid && entityOrcid) {
+    return normalizeComparableText(creator.orcid) === normalizeComparableText(entityOrcid)
+  }
+  const entityName = strings(entity.authorName ?? entity.name)[0]
+  const entityAffiliation = strings(entity.authorAffiliation ?? entity.affiliation)[0]
+  return (
+    normalizeComparableText(creator.name ?? '') === normalizeComparableText(entityName ?? '') &&
+    normalizeComparableText(creator.affiliation ?? '') === normalizeComparableText(entityAffiliation ?? '')
+  )
+}
+
 function updateKeywordEntities(crate: JsonObject, root: JsonObject, graph: JsonObject[], value: unknown): boolean {
   const keywords = unique(strings(value).map(htmlToPlainText))
     .filter((item): item is string => typeof item === 'string' && item.length > 0)
@@ -685,14 +796,24 @@ function updateKeywordEntities(crate: JsonObject, root: JsonObject, graph: JsonO
     return false
   }
   ensureContextTerm(crate, 'keyword', 'https://dataverse.org/schema/citation/keyword')
-  const existingRefs = values(root.keyword)
-    .flatMap((item) => isObject(item) ? strings(item['@id']) : strings(item))
-  const existingKeywords = graph.filter((entity) => entityTypes(entity).includes('keyword'))
+  const existingKeywords = uniqueEntities([
+    ...values(root.keyword)
+      .flatMap((item) => isObject(item) ? strings(item['@id']) : strings(item))
+      .map((id) => graph.find((entity) => entity['@id'] === id))
+      .filter((entity): entity is JsonObject => !!entity),
+    ...graph.filter((entity) => entityTypes(entity).includes('keyword')),
+  ])
+  const assignments = matchExistingEntities(
+    keywords,
+    existingKeywords,
+    (keyword, entity) => normalizeComparableText(keyword) === normalizeComparableText(
+      strings(entity.keywordValue ?? entity.name)[0] ?? '',
+    ),
+  )
   const refs: JsonObject[] = []
   keywords.forEach((keyword, index) => {
     const id =
-      existingRefs[index] ??
-      strings(existingKeywords[index]?.['@id'])[0] ??
+      strings(assignments.get(index)?.['@id'])[0] ??
       generatedKeywordEntityId(root, keyword, index)
     let entity = graph.find((item) => item['@id'] === id)
     if (!entity) {

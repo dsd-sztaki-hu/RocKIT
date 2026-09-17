@@ -977,12 +977,15 @@ export class ZenodoExportService {
       remoteCrate,
       this.invertEntityIdMapping(mapping),
     )
+    const repositoryMetadataResult = applyZenodoMetadataToRoCrate(
+      localizedRemoteCrate,
+      metadata,
+    )
     const crateBase = mergeRoCratesForSync(
       this.rewriteCrateEntityIds(localCrate, relocatedLocalIds),
-      localizedRemoteCrate,
+      repositoryMetadataResult.crate,
       options.metadataMode,
     )
-    const metadataSource = options.metadataMode
     completedSteps += 1
 
     reportProgress?.({
@@ -990,9 +993,10 @@ export class ZenodoExportService {
       totalSteps,
       message: nls.localize('rockit/dataRepository/applyingRemoteMetadata', 'Applying remote repository metadata...'),
     })
-    const reverseResult = options.metadataMode === 'remote-additions'
-      ? { crate: crateBase, updatedFields: [] }
-      : applyZenodoMetadataToRoCrate(crateBase, metadata)
+    const reverseResult = {
+      crate: crateBase,
+      updatedFields: repositoryMetadataResult.updatedFields,
+    }
     await this.fileService.writeFile(
       metadataUri,
       BinaryBuffer.fromString(`${JSON.stringify(reverseResult.crate, null, 2)}\n`),
@@ -1021,7 +1025,7 @@ export class ZenodoExportService {
       downloadedFileCount: downloadPlan.filter((file) => file.kind === 'new').length,
       replacedFileCount: downloadPlan.filter((file) => file.kind === 'changed').length,
       keptLocalFileCount,
-      metadataSource,
+      metadataSource: options.metadataMode,
       updatedMetadataFields: reverseResult.updatedFields,
     }
   }
