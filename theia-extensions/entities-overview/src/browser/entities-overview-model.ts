@@ -264,12 +264,10 @@ export class EntitiesOverviewModel extends TreeModelImpl {
             return []
         }
         const unique = new Set<string>()
-        for (const node of new DepthFirstTreeIterator(root)) {
-            if (ExampleTreeLeaf.is(node)) {
-                const entityId = node.data.entityId
-                if (entityId) {
-                    unique.add(entityId)
-                }
+        for (const item of this.getFilteredEntityItems(root)) {
+            const entityId = item.entityId
+            if (entityId) {
+                unique.add(entityId)
             }
         }
         return Array.from(unique)
@@ -285,12 +283,10 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         const unique = new Set<string>()
         let processed = 0
         let sliceStarted = performance.now()
-        for (const node of new DepthFirstTreeIterator(root)) {
-            if (ExampleTreeLeaf.is(node)) {
-                const entityId = node.data.entityId
-                if (entityId) {
-                    unique.add(entityId)
-                }
+        for (const item of this.getFilteredEntityItems(root)) {
+            const entityId = item.entityId
+            if (entityId) {
+                unique.add(entityId)
             }
             processed += 1
             if (processed % 250 === 0 && performance.now() - sliceStarted >= 12) {
@@ -301,6 +297,36 @@ export class EntitiesOverviewModel extends TreeModelImpl {
         }
         onProgress?.(processed)
         return Array.from(unique)
+    }
+
+    /**
+     * Iterates the complete filtered business data rather than only materialized tree leaves.
+     * Collapsed groups deliberately have no rendered children, but their matching entities
+     * must still be included when an empty selection means "edit all displayed entities".
+     */
+    private *getFilteredEntityItems(root: TreeNode): IterableIterator<Item> {
+        if (!CompositeTreeNode.is(root)) {
+            return
+        }
+
+        const pending: Item[] = []
+        for (let index = root.children.length - 1; index >= 0; index -= 1) {
+            const node = root.children[index]
+            if (ExampleTreeNode.is(node) || ExampleTreeLeaf.is(node)) {
+                pending.push(node.data)
+            }
+        }
+
+        while (pending.length > 0) {
+            const item = pending.pop()!
+            if (item.children) {
+                for (let index = item.children.length - 1; index >= 0; index -= 1) {
+                    pending.push(item.children[index])
+                }
+                continue
+            }
+            yield item
+        }
     }
 
     clearSelection(): void {
