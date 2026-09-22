@@ -6,6 +6,7 @@ import {
     isSupportedGlobalEntityType,
     SUPPORTED_GLOBAL_ENTITY_TYPES,
 } from './global-entity-library-store'
+import { parseGlobalEntityMappingJson } from './global-entity-mapping-json'
 import type { GlobalEntityMapping, GlobalEntityMappingEntry } from './global-entity-library-types'
 
 const MAPPING_FILE_NAME = 'global-entity-mapping.json'
@@ -27,7 +28,8 @@ export class GlobalEntityMappingStore {
         const uri = root.resolve('.rockit').resolve(MAPPING_FILE_NAME)
         if (!await this.fileService.exists(uri)) return {}
 
-        const parsed: unknown = JSON.parse(await readUtf8TextFile(this.fileService, uri))
+        const content = await readUtf8TextFile(this.fileService, uri)
+        const parsed = parseGlobalEntityMappingJson(content)
         return this.normalize(parsed)
     }
 
