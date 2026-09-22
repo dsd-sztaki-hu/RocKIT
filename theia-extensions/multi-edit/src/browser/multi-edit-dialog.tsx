@@ -229,8 +229,9 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
 
     const { fields, schemas } = this.buildFieldCatalog(profile, entityTypes)
+    this.fieldsByKey.clear()
     for (const field of fields) {
-      this.fieldsByKey.set(field.key, field)
+      this.upsertFieldDefinition(this.fieldsByKey, field)
     }
     this.schemaOptions = this.mergeSchemaOptions(schemas)
     this.selectedSchemaIds = new Set()
