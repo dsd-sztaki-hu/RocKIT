@@ -195,6 +195,23 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   /**
+   * Lets expandable selectors consume Enter without accepting the entire dialog.
+   * @param event Keyboard event dispatched by Theia's dialog overlay.
+   * @returns False for select interactions; otherwise the base dialog result.
+   * @protected
+   */
+  protected handleEnter(event: KeyboardEvent): boolean | void {
+    const target = event.target
+    if (
+      target instanceof Element &&
+      (target.closest('.ant-select') || target.closest('.ant-select-dropdown'))
+    ) {
+      return false
+    }
+    return super.handleEnter(event)
+  }
+
+  /**
    * Initializes dialog state from current crate/profile data.
    * @param onProgress Optional callback for graph scan progress.
    * @returns Promise resolved when preparation is complete.
