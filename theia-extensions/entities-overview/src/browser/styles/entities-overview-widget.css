@@ -1613,6 +1613,16 @@ body.hc-black .entities-overview-advanced-modal-body .ant-alert-close-icon {
   line-height: 1.2 !important;
 }
 
+.entities-overview-edit-modal-body
+  .entities-overview-edit-modal-multi-text-row
+  .ant-input-affix-wrapper
+  > input.ant-input {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
 .entities-overview-edit-modal-multi-text-date-wrap {
   position: relative;
   width: 100%;
