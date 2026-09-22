@@ -102,6 +102,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected persistPromise?: Promise<void>
 
   protected crateSubscription?: Disposable
+  protected dirtySubscription?: Disposable
   protected approvalSubscription?: Disposable
   protected completeProfileSubscription?: Disposable
   protected profileListSubscription?: Disposable
@@ -491,7 +492,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         }
         console.log('baseProfile', this.baseProfile)
         console.log('localCompleteProfile', this.localCompleteProfile)
-        this.setDirtyState(false)
+        this.setDirtyState(Boolean(this.appStateService.dirty))
         this.lastSeenNonMissingProfileCount = Array.isArray(this.appStateService.profileList)
             ? this.appStateService.profileList.filter(
                 (p: any) => (p as any)?.flag !== 'missing',
@@ -530,6 +531,12 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always', 'targeted')
             },
         )
+
+      this.dirtySubscription = this.appStateService.onDidChangeSelector(
+          (s) => s.dirty,
+      )((dirty) => {
+          this.setDirtyState(Boolean(dirty))
+      })
 
       this.approvalSubscription = this.appStateService.onDidChangeSelector(
           (s) => s.roCrateApproval,
@@ -1238,7 +1245,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   ): void {
     this.baselineEntityId = entityId
     this.baselineEntitySnapshot = this.serializeEntitySnapshot(entityId, crate)
-    this.setDirtyState(false)
+    this.setDirtyState(Boolean(this.appStateService.dirty))
   }
 
   protected updateDirtyStateForCurrentEntity(
@@ -1246,7 +1253,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   ): void {
     const entityId = this.assignedEntityId ?? this.localSelectedEntityId
     if (!entityId) {
-      this.setDirtyState(false)
+      this.setDirtyState(Boolean(this.appStateService.dirty))
       return
     }
     if (this.baselineEntityId !== entityId) {
@@ -1255,7 +1262,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
     const currentSnapshot = this.serializeEntitySnapshot(entityId, crate)
     const isDirtyForEntity = currentSnapshot !== this.baselineEntitySnapshot
-    this.setDirtyState(isDirtyForEntity)
+    this.setDirtyState(Boolean(this.appStateService.dirty) || isDirtyForEntity)
   }
 
   public resetDirtyStateAfterRoCrateReload(
@@ -1266,7 +1273,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     if (entityId) {
       this.captureEntityBaseline(entityId, crate)
     } else {
-      this.setDirtyState(false)
+      this.setDirtyState(Boolean(this.appStateService.dirty))
     }
     this.updateTitleLabel()
     this.update()
@@ -2122,6 +2129,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   dispose(): void {
     this.unregisterFromAppState()
     this.crateSubscription?.dispose()
+    this.dirtySubscription?.dispose()
     this.approvalSubscription?.dispose()
     this.completeProfileSubscription?.dispose()
     this.profileListSubscription?.dispose()
