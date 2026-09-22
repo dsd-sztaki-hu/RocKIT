@@ -35,6 +35,7 @@ interface FieldDefinition {
   schemaGroupName: string
   schemaUrl?: string
   propertyName: string
+  propertyId?: string
   label: string
   help?: string
   multiple: boolean
@@ -433,6 +434,7 @@ export class MultiEditDialog extends ReactDialog<string> {
           schemaGroupName: groupName,
           schemaUrl: schemaMeta.url,
           propertyName,
+          propertyId: typeof input.id === 'string' ? input.id.trim() || undefined : undefined,
           label: String(input.label ?? propertyName),
           help: typeof input.help === 'string' ? input.help : undefined,
           multiple: this.parseBoolean(input.multiple),
@@ -540,6 +542,7 @@ export class MultiEditDialog extends ReactDialog<string> {
           schemaGroupName: schemaMeta.label || schemaLabel,
           schemaUrl,
           propertyName,
+          propertyId: typeof input.id === 'string' ? input.id.trim() || undefined : undefined,
           label: String(input.label ?? propertyName),
           help: typeof input.help === 'string' ? input.help : undefined,
           multiple: this.parseBoolean(input.multiple),
@@ -727,6 +730,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         schemaGroupName: schemaMeta.label || schemaLabel,
         schemaUrl,
         propertyName,
+        propertyId: typeof input.id === 'string' ? input.id.trim() || undefined : undefined,
         label: String(input.label ?? propertyName),
         help: typeof input.help === 'string' ? input.help : undefined,
         multiple: this.parseBoolean(input.multiple),
@@ -805,6 +809,9 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
     if (!existingField.schemaUrl && field.schemaUrl) {
       existingField.schemaUrl = field.schemaUrl
+    }
+    if (!existingField.propertyId && field.propertyId) {
+      existingField.propertyId = field.propertyId
     }
     if (field.selectValues.length > 0) {
       const mergedValues = new Set(existingField.selectValues)
@@ -2226,6 +2233,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       schemaLabel: ontologyLabel,
       schemaGroupName: ontologyLabel,
       propertyName,
+      propertyId: typeof input.id === 'string' ? input.id.trim() || undefined : undefined,
       label,
       help: typeof input.help === 'string' ? input.help : undefined,
       multiple: this.parseBoolean(input.multiple),
@@ -2473,6 +2481,71 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   /**
+   * Adds or updates a local JSON-LD context mapping for a property written by multi-edit.
+   * @param context Current RO-Crate context.
+   * @param propertyName Compact property name used in the entity.
+   * @param propertyId Full property IRI supplied by the metadata profile.
+   * @returns Updated context and whether it changed.
+   * @protected
+   */
+  protected ensurePropertyContextMapping(
+    context: unknown,
+    propertyName: string,
+    propertyId?: string,
+  ): { context: unknown; changed: boolean } {
+    const name = propertyName.trim()
+    const id = propertyId?.trim()
+    if (!name || !id) {
+      return { context, changed: false }
+    }
+
+    if (Array.isArray(context)) {
+      let targetIndex = -1
+      let fallbackIndex = -1
+      for (let index = context.length - 1; index >= 0; index -= 1) {
+        const entry = context[index]
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+          continue
+        }
+        if (fallbackIndex < 0) {
+          fallbackIndex = index
+        }
+        if (Object.prototype.hasOwnProperty.call(entry, name)) {
+          targetIndex = index
+          break
+        }
+      }
+
+      const index = targetIndex >= 0 ? targetIndex : fallbackIndex
+      if (index >= 0) {
+        const localContext = context[index] as Record<string, unknown>
+        if (localContext[name] === id) {
+          return { context, changed: false }
+        }
+        const nextContext = [...context]
+        nextContext[index] = { ...localContext, [name]: id }
+        return { context: nextContext, changed: true }
+      }
+
+      return { context: [...context, { [name]: id }], changed: true }
+    }
+
+    if (context && typeof context === 'object') {
+      const localContext = context as Record<string, unknown>
+      if (localContext[name] === id) {
+        return { context, changed: false }
+      }
+      return { context: { ...localContext, [name]: id }, changed: true }
+    }
+
+    if (typeof context === 'string' && context.trim().length > 0) {
+      return { context: [context, { [name]: id }], changed: true }
+    }
+
+    return { context: [{ [name]: id }], changed: true }
+  }
+
+  /**
    * Normalizes a value to array form.
    * @param value Source value.
    * @returns Array-wrapped value.
@@ -2664,6 +2737,8 @@ export class MultiEditDialog extends ReactDialog<string> {
       const selectedEntitySet = new Set(this.entityIds)
       const sourceGraph = currentCrate['@graph'] as Record<string, any>[]
       const graph = [...sourceGraph]
+      let updatedContext: unknown = currentCrate['@context']
+      let contextChanged = false
       const indexByEntityId = new Map<string, number>()
       let sliceStarted = this.nowMs()
       for (let index = 0; index < sourceGraph.length; index += 1) {
@@ -2798,6 +2873,18 @@ export class MultiEditDialog extends ReactDialog<string> {
               operation.operator,
               parsedValue,
             )
+            if (
+              (operation.operator === 'set' || operation.operator === 'add') &&
+              Object.prototype.hasOwnProperty.call(entity, field.propertyName)
+            ) {
+              const contextUpdate = this.ensurePropertyContextMapping(
+                updatedContext,
+                field.propertyName,
+                field.propertyId,
+              )
+              updatedContext = contextUpdate.context
+              contextChanged = contextChanged || contextUpdate.changed
+            }
             if (changedByOperation) {
               appliedOperations += 1
               changed = true
@@ -2829,9 +2916,10 @@ export class MultiEditDialog extends ReactDialog<string> {
       await this.yieldIfNeeded(0, abortController.signal)
       this.throwIfAborted(abortController.signal)
 
-      if (updatedEntities > 0) {
+      if (updatedEntities > 0 || contextChanged) {
         const updatedCrate = {
           ...currentCrate,
+          '@context': updatedContext,
           '@graph': graph,
         }
         if (this.roCrateHistoryService) {
