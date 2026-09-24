@@ -714,15 +714,6 @@ async function fetchTextWithAuthFallback(
       provider ? normalizeProvider(provider) : undefined,
     ),
   )
-  logSchemaResolve('start', {
-    inputUrl,
-    providers: rankSchemaResolveProviders(
-      inputUrl,
-      configuredProviders,
-      provider ? normalizeProvider(provider) : undefined,
-    ).map((candidateProvider) => schemaResolveProviderLabel(candidateProvider)),
-  })
-
   let lastError: unknown
   while (queue.length > 0) {
     const entry = queue.shift()!
@@ -731,17 +722,11 @@ async function fetchTextWithAuthFallback(
       continue
     }
     attempted.add(attemptKey)
-    logSchemaResolve('attempt', describeSchemaResolveEntry(entry))
-
     try {
       const response = await fetchWithOptionalAuth(entry.candidate, entry.provider)
       const content = await response.text()
       try {
         JSON.parse(content)
-        logSchemaResolve('success', {
-          ...describeSchemaResolveEntry(entry),
-          finalUrl: response.url,
-        })
         return { content, finalUrl: response.url }
       } catch {
         lastError = new Error(
@@ -753,19 +738,8 @@ async function fetchTextWithAuthFallback(
           entry.provider,
         )
         enqueueRedirectCandidates(queue, attempted, response.url, redirectProviders)
-        logSchemaResolve('non-json', {
-          ...describeSchemaResolveEntry(entry),
-          finalUrl: response.url,
-          nextProviders: redirectProviders.map((candidateProvider) =>
-            schemaResolveProviderLabel(candidateProvider),
-          ),
-        })
       }
     } catch (error) {
-      logSchemaResolve('error', {
-        ...describeSchemaResolveEntry(entry),
-        error: error instanceof Error ? error.message : String(error),
-      })
       lastError = error
     }
   }
@@ -862,32 +836,6 @@ function schemaResolveProviderKey(provider: CedarProvider): string {
     provider.resourceBaseUrl ||
     'provider'
   )
-}
-
-function schemaResolveProviderLabel(provider: CedarProvider): string {
-  return provider.title || provider.id || provider.domainBase || provider.baseUrl || 'provider'
-}
-
-function describeSchemaResolveEntry(entry: {
-  candidate: string
-  provider: CedarProvider
-}): Record<string, string> {
-  return {
-    candidate: entry.candidate,
-    provider: schemaResolveProviderLabel(entry.provider),
-    proxyUrl:
-      effectiveProviderAccessMode(entry.provider) === 'dataverseProxy'
-        ? effectiveCedarFetchUrl(entry.candidate, entry.provider)
-        : '',
-  }
-}
-
-function logSchemaResolve(message: string, details?: unknown): void {
-  if (details === undefined) {
-    console.info('[SchemaResolve]', message)
-    return
-  }
-  console.info('[SchemaResolve]', message, details)
 }
 
 async function fetchJsonWithAuthFallback(url: string, provider: CedarProvider): Promise<unknown> {

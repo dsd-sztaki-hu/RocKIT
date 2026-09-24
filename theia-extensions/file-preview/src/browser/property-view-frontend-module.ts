@@ -27,8 +27,6 @@ import { bindResourcePropertyView } from './resource-property-view'
 import '../../src/browser/style/property-view.css'
 
 export default new ContainerModule((bind) => {
-  console.log('✅ USING LOCAL PROPERTY-VIEW MODULE (1.65.2-custom)')
-
   bind(PropertyViewService).toSelf().inSingletonScope()
 
   bindContributionProvider(bind, PropertyDataService)

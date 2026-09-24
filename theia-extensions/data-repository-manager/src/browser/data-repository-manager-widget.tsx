@@ -470,7 +470,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             { timeout: 10000 },
           )
         }
-        console.log('Local dataset linked to remote ARP dataset:', result)
       } finally {
         progress.cancel()
       }
@@ -693,7 +692,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             syncResult.target,
             12000,
           )
-          console.log('Zenodo sync completed:', syncResult)
         } catch (error) {
           await this.zenodoExportService.markActiveExportFailed(error)
           console.error('Zenodo sync failed:', error)
@@ -804,7 +802,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             updateResult.target,
             12000,
           )
-          console.log('Zenodo deposition updated:', updateResult)
           return
         }
 
@@ -837,7 +834,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           ),
           { timeout: 12000 },
         )
-        console.log('RO-Crate files exported to Zenodo:', exportResult)
       } catch (error) {
         if (error instanceof ZenodoMetadataDialogCancelledError) {
           return
@@ -935,7 +931,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             { timeout: 10000 },
           )
         }
-        console.log('ARP sync completed:', syncResult)
       } catch (error) {
         await this.arpExportService.markActiveExportFailed(error)
         console.error('ARP sync failed:', error)
@@ -999,7 +994,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             syncResult.target,
             12000,
           )
-          console.log('Native Dataverse sync completed:', syncResult)
         }
       } catch (error) {
         await this.nativeExportService.markActiveExportFailed(error)
@@ -1063,7 +1057,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               { timeout: 10000 },
             )
           }
-          console.log('ARP file update completed:', updateResult)
           return
         }
       } catch (error) {
@@ -1122,7 +1115,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             updateResult.target,
             10000,
           )
-          console.log('Native Dataverse update completed:', updateResult)
           return
         }
       } catch (error) {
@@ -1256,7 +1248,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               { timeout: 10000 },
             )
           }
-          console.log('RO-Crate exported to ARP:', exportResult)
         } catch (error) {
           await this.arpExportService.markActiveExportFailed(error)
           console.error('RO-Crate export failed:', error)
@@ -1350,7 +1341,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             { timeout: 10000 },
           )
         }
-        console.log('Dataverse dataset created through native API:', creationResult)
       } catch (error) {
         await this.nativeExportService.markActiveExportFailed(error)
         console.error('Native Dataverse dataset creation failed:', error)

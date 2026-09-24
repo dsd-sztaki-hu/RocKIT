@@ -108,7 +108,6 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
             const entityId = ctx?.entityId ?? './';
 
             if (!ctx?.entityId) {
-                console.warn('MetadataSchemaSelector: missing schemaSelectorContext; defaulting to root entity', { entityId });
             }
 
             if (crate && graph.length > 0) {

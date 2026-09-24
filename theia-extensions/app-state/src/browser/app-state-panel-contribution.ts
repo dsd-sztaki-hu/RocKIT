@@ -42,8 +42,7 @@ export class AppStatePanelContribution
   protected readonly shell: ApplicationShell
 
   onStart(): void {
-    // Panel will be opened manually via command or menu
-    console.log('[AppStatePanelContribution] started')
+    // Panel is opened manually through its command or menu item.
   }
 
   registerCommands(commands: CommandRegistry): void {
