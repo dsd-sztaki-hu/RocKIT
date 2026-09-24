@@ -122,6 +122,7 @@ export type CedarTreeProps = {
   onFolderSelected: (folderId: string, folderName: string) => void
   schemaApi: SchemaApi,
   alreadySelectedSchemaIds?: string[]
+  selectedTemplateId?: string | null
 }
 
 const CedarTree: React.FC<CedarTreeProps> = (props) => {
@@ -394,14 +395,18 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
             '& .MuiTreeItem-content': {
                 padding: '0px 8px',
                 borderRadius: '3px',
-                '&.Mui-selected': {
-                    backgroundColor: 'transparent !important', // No background on selection
-                    color: 'var(--theia-foreground) !important', // Keep text color visible
+                '&.Mui-selected, &.Mui-selected.Mui-focused': {
+                    backgroundColor: 'rgba(24, 144, 255, 0.35) !important',
+                    border: '1px solid rgba(24, 144, 255, 0.65)',
+                    color: 'var(--theia-ui-font-color1) !important',
+                    boxShadow: 'none',
                 },
                 '&.Mui-selected:hover': {
-                    backgroundColor: 'transparent !important', // No background on hover+selected
+                    backgroundColor: 'rgba(24, 144, 255, 0.45) !important',
+                    border: '1px solid rgba(24, 144, 255, 0.65)',
+                    color: 'var(--theia-ui-font-color1) !important',
                 },
-                '&.Mui-focused': {
+                '&.Mui-focused:not(.Mui-selected)': {
                     backgroundColor: 'transparent !important', // No background on focus
                 },
                 '&:hover': {
@@ -523,6 +528,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                 defaultExpandIcon={<ChevronRightIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
                 expanded={expandedNodes}
                 onNodeToggle={handleToggle}
+                selected={props.selectedTemplateId ?? ''}
                 sx={{
                     flexGrow: 1,
                     outline: 'none',

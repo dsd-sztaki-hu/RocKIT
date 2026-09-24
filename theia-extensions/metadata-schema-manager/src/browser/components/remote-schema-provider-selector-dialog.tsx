@@ -40,6 +40,8 @@ export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemoteSch
         this.contentNode.style.width = '500px';
         this.contentNode.style.height = '400px';
         this.contentNode.style.padding = '0'; 
+        // Actions are rendered in the React footer, so the native Theia control row is unused.
+        this.controlPanel.style.display = 'none';
     }
 
     get value(): RemoteSchemaProviderConfig | undefined {

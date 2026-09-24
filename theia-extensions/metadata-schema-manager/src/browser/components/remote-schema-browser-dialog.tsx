@@ -14,9 +14,6 @@ import { Message } from '@lumino/messaging';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { nls } from '@theia/core/lib/common/nls';
-import { IconButton, Tooltip } from '@mui/material'; 
-import CenterFocusWeakIcon from '@mui/icons-material/CenterFocusWeak'; 
-import CancelIcon from '@mui/icons-material/Cancel'; 
 
 import { SchemaManagerService } from '../services/metadata-schema-manager-service';
 import { SchemaApi } from '../services/schema-api';
@@ -77,6 +74,8 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
         this.contentNode.style.width = '600px';
         this.contentNode.style.height = '550px';
         this.contentNode.style.padding = '0';
+        // Actions are rendered in the React footer, so the native Theia control row is unused.
+        this.controlPanel.style.display = 'none';
     }
 
     get value(): string | undefined {
@@ -139,7 +138,6 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
     const [schemaApi, setSchemaApi] = React.useState<SchemaApi | null>(null);
     const [existingIds, setExistingIds] = React.useState<string[]>([]);
     
-    const [selectedName, setSelectedName] = React.useState<string | null>(null);
     const [selectedId, setSelectedId] = React.useState<string | null>(null);
 
     React.useEffect(() => {
@@ -159,27 +157,12 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
         }
     }, [provider, schemaManagerService]);
 
-    const handleTemplateSelected = (id: string, name: string) => {
+    const handleTemplateSelected = (id: string) => {
         setSelectedId(id);
-        setSelectedName(name);
     };
 
-    const handleFolderSelected = (id: string, name: string) => {
+    const handleFolderSelected = () => {
         setSelectedId(null);
-        setSelectedName(null);
-    };
-
-    const handleGoTo = () => {
-        if (!selectedId) return;
-        const element = document.getElementById(`cedar-node-${selectedId}`);
-        if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    };
-
-    const handleDeselect = () => {
-        setSelectedId(null);
-        setSelectedName(null);
     };
 
     return (
@@ -190,6 +173,7 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                     <CedarTree
                         schemaApi={schemaApi}
                         alreadySelectedSchemaIds={existingIds}
+                        selectedTemplateId={selectedId}
                         onTemplateSelected={handleTemplateSelected}
                         onFolderSelected={handleFolderSelected}
                     />
@@ -201,34 +185,6 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
             </div>
 
             <div className="remote-browser-dialog__footer">
-                
-                <div className="remote-browser-dialog__selection-info">
-                    {selectedName ? (
-                        <>
-                            <div className="remote-browser-dialog__controls">
-                                <Tooltip title={nls.localize('rockit/schemaManager/locateInTree', 'Locate in Tree')} PopperProps={{ style: { zIndex: 99999 } }}>
-                                    <IconButton size="small" onClick={handleGoTo} style={{ padding: 2, color: 'var(--theia-icon-foreground)' }}>
-                                        <CenterFocusWeakIcon fontSize="small" />
-                                    </IconButton>
-                                </Tooltip>
-                                <Tooltip title={nls.localize('rockit/schemaManager/deselect', 'Deselect')} PopperProps={{ style: { zIndex: 99999 } }}>
-                                    <IconButton size="small" onClick={handleDeselect} style={{ padding: 2, color: 'var(--theia-errorForeground)' }}>
-                                        <CancelIcon fontSize="small" />
-                                    </IconButton>
-                                </Tooltip>
-                            </div>
-                            
-                            <span className="remote-browser-dialog__selected-name">
-                                {selectedName}
-                            </span>
-                        </>
-                    ) : (
-                        <span className="remote-browser-dialog__placeholder">
-                            {nls.localize('rockit/schemaManager/selectTemplate', 'Select a template to import...')}
-                        </span>
-                    )}
-                </div>
-
                 <div className="remote-browser-dialog__actions">
                     <button 
                         className="theia-button secondary remote-browser-dialog__btn-cancel"
