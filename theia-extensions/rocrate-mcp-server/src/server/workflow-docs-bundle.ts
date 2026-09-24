@@ -70,9 +70,10 @@ the user open the crate in the online AROMA SPA for visual inspection and manual
 refinement.
 
 Exception: if this workflow doc includes a "Current Session Context" section
-stating that AROMA is already open for this session, do not suggest opening
-AROMA and do not call \`open_aroma_for_local_file\` unless the user explicitly
-asks.
+stating that a RO-Crate editor is already open for this session, do not suggest
+opening AROMA and do not call \`open_aroma_for_local_file\` unless the user
+explicitly asks. Standalone agents outside RocKIT can still open the crate in
+AROMA after edits.
 
 When generating the review URL:
 

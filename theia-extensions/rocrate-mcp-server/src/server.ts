@@ -753,7 +753,7 @@ Detect profile URLs from conformsTo on Dataset/File entities, resolve them via m
 Every entity should have a human-friendly name and new entity IDs must be descriptive and unique.
 Do not invent factual metadata unless the user explicitly asks for examples.
 Destructive apply_changes operations require explicit user approval and confirmDestructive=true.
-After successful edits/validation outside AROMA, call open_aroma_for_local_file and include the returned aromaUrl in the final response as a plain URL. If the agent session context says AROMA is already open, do not generate the link unless the user asks.
+After successful edits/validation outside RocKIT, call open_aroma_for_local_file and include the returned aromaUrl in the final response as a plain URL so the user can review the crate in AROMA. If the agent session context says a RO-Crate editor is already open (for example, RocKIT), do not generate the link unless the user asks. A direct request to open AROMA still uses open_aroma_for_local_file.
 write_crate_atomic also supports contextMode auto context reconciliation (default auto_reconcile).`
 }
 
