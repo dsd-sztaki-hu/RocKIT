@@ -16,6 +16,9 @@ const outRoot = path.join(packageRoot, 'dist', 'npm')
 const outLib = path.join(outRoot, 'lib')
 const outNodeModules = path.join(outRoot, 'node_modules')
 const cedarWorkspace = path.join(repoRoot, 'theia-extensions', 'cedar-to-rocrate')
+const publicPackageName = '@arpproject/vibarp-mcp'
+const publicPackageDescription = 'VibeARP MCP Server'
+const publicCliName = 'rocrate-mcp-server'
 
 function removeIfExists(target) {
   fs.rmSync(target, { recursive: true, force: true })
@@ -114,16 +117,16 @@ async function main() {
     path.join(outRoot, 'package.json'),
     `${JSON.stringify(
       {
-        name: packageJson.name,
+        name: publicPackageName,
         version: packageJson.version,
         buildDate,
-        description: packageJson.description,
+        description: publicPackageDescription,
         license: packageJson.license,
         author: packageJson.author,
         contributors: packageJson.contributors,
         main: 'lib/server.js',
         bin: {
-          'rocrate-mcp-server': 'lib/server.js',
+          [publicCliName]: 'lib/server.js',
         },
         scripts: {
           preinstall: 'node lib/shutdown.js',
