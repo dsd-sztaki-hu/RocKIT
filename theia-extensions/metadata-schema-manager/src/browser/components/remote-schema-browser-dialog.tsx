@@ -38,29 +38,31 @@ export class RemoteSchemaBrowserContribution implements FrontendApplicationContr
             this.envVariablesServer
         );
 
-        const selectedTemplateId = await dialog.open();
+        const selectedTemplateIds = await dialog.open();
 
-        if (selectedTemplateId) {
-            this.handleDownload(selectedTemplateId, provider);
+        if (selectedTemplateIds?.length) {
+            this.handleDownloads(selectedTemplateIds, provider);
         }
     }
 
-    protected async handleDownload(templateId: string, provider: RemoteSchemaProviderConfig): Promise<void> {
-        try {
-            await this.schemaManagerService.downloadRemoteSchema(templateId, provider);
-        } catch (error: any) {
-            // Avoid logging if the user actively aborted the process.
-            if (error.message !== 'Aborted') {
-                console.error("Download failed", error);
+    protected async handleDownloads(templateIds: string[], provider: RemoteSchemaProviderConfig): Promise<void> {
+        await Promise.all(templateIds.map(async templateId => {
+            try {
+                await this.schemaManagerService.downloadRemoteSchema(templateId, provider);
+            } catch (error: any) {
+                // Avoid logging if the user actively aborted the process.
+                if (error.message !== 'Aborted') {
+                    console.error(`Download failed for schema ${templateId}`, error);
+                }
             }
-        }
+        }));
     }
 }
 
-export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined> {
+export class RemoteSchemaBrowserDialog extends AbstractDialog<string[] | undefined> {
 
     private reactRoot: Root | undefined;
-    private result: string | undefined;
+    private result: string[] | undefined;
 
     constructor(
         private readonly provider: RemoteSchemaProviderConfig,
@@ -78,11 +80,11 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
         this.controlPanel.style.display = 'none';
     }
 
-    get value(): string | undefined {
+    get value(): string[] | undefined {
         return this.result;
     }
 
-    protected handleAccept(value: string) {
+    protected handleAccept(value: string[]) {
         this.result = value;
         this.accept();
     }
@@ -101,7 +103,7 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
                 provider={this.provider}
                 schemaManagerService={this.schemaManagerService}
                 envVariablesServer={this.envVariablesServer}
-                onAccept={(id) => this.handleAccept(id)}
+                onAccept={(ids) => this.handleAccept(ids)}
                 onCancel={() => this.handleClose()}
             />
         );
@@ -125,7 +127,7 @@ interface BrowserContentProps {
     provider: RemoteSchemaProviderConfig;
     schemaManagerService: SchemaManagerService;
     envVariablesServer: EnvVariablesServer;
-    onAccept: (id: string) => void;
+    onAccept: (ids: string[]) => void;
     onCancel: () => void;
 }
 
@@ -138,7 +140,7 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
     const [schemaApi, setSchemaApi] = React.useState<SchemaApi | null>(null);
     const [existingIds, setExistingIds] = React.useState<string[]>([]);
     
-    const [selectedId, setSelectedId] = React.useState<string | null>(null);
+    const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
 
     React.useEffect(() => {
         if (provider) {
@@ -157,14 +159,6 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
         }
     }, [provider, schemaManagerService]);
 
-    const handleTemplateSelected = (id: string) => {
-        setSelectedId(id);
-    };
-
-    const handleFolderSelected = () => {
-        setSelectedId(null);
-    };
-
     return (
         <div className="remote-browser-dialog">
             
@@ -173,9 +167,8 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                     <CedarTree
                         schemaApi={schemaApi}
                         alreadySelectedSchemaIds={existingIds}
-                        selectedTemplateId={selectedId}
-                        onTemplateSelected={handleTemplateSelected}
-                        onFolderSelected={handleFolderSelected}
+                        selectedTemplateIds={selectedIds}
+                        onSelectionChange={setSelectedIds}
                     />
                 ) : (
                     <div className="remote-browser-dialog__loading">
@@ -194,8 +187,8 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                     </button>
                     <button 
                         className="theia-button main remote-browser-dialog__btn-add"
-                        onClick={() => selectedId && onAccept(selectedId)}
-                        disabled={!selectedId}
+                        onClick={() => selectedIds.length > 0 && onAccept(selectedIds)}
+                        disabled={selectedIds.length === 0}
                     >
                         {nls.localize('rockit/schemaManager/add', 'Add')}
                     </button>
