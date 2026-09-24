@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { URI } from '@theia/core/lib/common/uri';
 import { FileUri } from '@theia/core/lib/common/file-uri';
 import { BinaryBuffer } from '@theia/core/lib/common/buffer';
@@ -16,6 +22,7 @@ import {
   DataRepositoryConfig,
   DataRepositoryExportTarget,
   DataverseCollection,
+  RepositorySyncMode,
 } from '../types'
 import { DataverseMetadataMappingService } from './dataverse-metadata-mapping-service'
 import {
@@ -25,6 +32,7 @@ import {
   serializeExportLogEntries,
 } from './export-log'
 import { FileHashStoreService } from './file-hash-store-service'
+import { mergeRoCratesForSync } from './ro-crate-sync-merge'
 
 type RoCrateEntity = Record<string, unknown>
 type RoCrate = Record<string, unknown>
@@ -92,7 +100,7 @@ export interface NativeDataverseUpdateResult {
 }
 
 export interface NativeDataverseSyncOptions {
-  replaceLocalMetadataWithUploadedRoCrate: boolean
+  metadataMode: RepositorySyncMode
 }
 
 export interface NativeDataverseSyncResult {
@@ -102,7 +110,7 @@ export interface NativeDataverseSyncResult {
   downloadedFileCount: number
   replacedFileCount: number
   keptLocalFileCount: number
-  metadataSource: 'local' | 'uploaded'
+  metadataSource: RepositorySyncMode
   updatedMetadataFields: string[]
 }
 
@@ -821,8 +829,9 @@ export class NativeDataverseExportService {
    * File transfer remains Dataverse-specific: remote datafile IDs from the local
    * `.rockit` mapping and Dataverse version file records determine where files
    * are downloaded. Metadata conversion is handled separately by applying the
-   * Dataverse crosswalk in reverse to the local RO-Crate after the optional
-   * uploaded `ro-crate-metadata.json` base has been localized.
+   * Dataverse crosswalk in reverse after the uploaded `ro-crate-metadata.json`
+   * has been localized and combined with the local graph using the selected
+   * sync policy.
    */
   public async syncFromDataverse(
     repository: DataRepositoryConfig,
@@ -886,8 +895,22 @@ export class NativeDataverseExportService {
       remoteMetadataFiles,
       remoteFileReferences,
       remoteToLocalMapping,
+      options.metadataMode !== 'remote-additions',
     )
+    const relocatedLocalIds: RoCrateEntityIdMapping = {}
     for (const item of remoteItems) {
+      if (options.metadataMode !== 'remote-additions') {
+        const previousLocalId = Object.entries(exportTarget.mapping)
+          .find(([, remoteId]) => remoteId === item.remoteId)?.[0]
+        if (previousLocalId && previousLocalId !== item.localId) {
+          relocatedLocalIds[previousLocalId] = item.localId
+        }
+        for (const [localId, remoteId] of Object.entries(exportTarget.mapping)) {
+          if (remoteId === item.remoteId) {
+            delete exportTarget.mapping[localId]
+          }
+        }
+      }
       exportTarget.mapping[item.localId] = item.remoteId
     }
     const downloadPlan: Array<{
@@ -919,6 +942,8 @@ export class NativeDataverseExportService {
       )
       if (unchanged) {
         keptLocalFileCount += 1
+      } else if (options.metadataMode === 'remote-additions') {
+        keptLocalFileCount += 1
       } else {
         downloadPlan.push({ ...item, kind: 'changed' })
       }
@@ -926,7 +951,7 @@ export class NativeDataverseExportService {
 
     const totalSteps =
       downloadPlan.length +
-      (options.replaceLocalMetadataWithUploadedRoCrate ? 1 : 0) +
+      1 +
       2
     let completedSteps = 1
     reportProgress?.({
@@ -962,31 +987,34 @@ export class NativeDataverseExportService {
       completedSteps += 1
     }
 
-    let crateBase = localCrate
-    let metadataSource: NativeDataverseSyncResult['metadataSource'] = 'local'
-    if (options.replaceLocalMetadataWithUploadedRoCrate) {
-      reportProgress?.({
-        completedSteps,
-        totalSteps,
-        message: nls.localize(
-          'rockit/dataRepository/downloadingUploadedMetadata',
-          'Downloading uploaded ro-crate-metadata.json...',
-        ),
-      })
-      crateBase = this.rewriteCrateEntityIds(remoteMetadataCrate, remoteToLocalMapping)
-      metadataSource = 'uploaded'
-      completedSteps += 1
-    }
+    reportProgress?.({
+      completedSteps,
+      totalSteps,
+      message: nls.localize(
+        'rockit/dataRepository/mergingUploadedMetadata',
+        'Merging uploaded ro-crate-metadata.json...',
+      ),
+    })
+    const localizedRemoteCrate = this.rewriteCrateEntityIds(
+      remoteMetadataCrate,
+      this.invertEntityIdMapping(exportTarget.mapping),
+    )
+    const crateBase = mergeRoCratesForSync(
+      this.rewriteCrateEntityIds(localCrate, relocatedLocalIds),
+      localizedRemoteCrate,
+      options.metadataMode,
+    )
+    const metadataSource = options.metadataMode
+    completedSteps += 1
 
     reportProgress?.({
       completedSteps,
       totalSteps,
       message: nls.localize('rockit/dataRepository/applyingRemoteMetadata', 'Applying remote repository metadata...'),
     })
-    const reverseResult = this.metadataMappingService.applyMetadataBlocksToRoCrate(
-      crateBase,
-      datasetVersionData,
-    )
+    const reverseResult = options.metadataMode === 'remote-additions'
+      ? { crate: crateBase, updatedFields: [] }
+      : this.metadataMappingService.applyMetadataBlocksToRoCrate(crateBase, datasetVersionData)
     await this.fileService.writeFile(
       metadataUri,
       BinaryBuffer.fromString(`${JSON.stringify(reverseResult.crate, null, 2)}\n`),
@@ -2290,6 +2318,7 @@ export class NativeDataverseExportService {
       remoteMetadataFiles: RoCrateEntity[],
       remoteFileReferences: NativeDataverseRemoteFileReference[],
       remoteToLocalMapping: RoCrateEntityIdMapping,
+      preferRemotePath = false,
     ): Array<{
       remoteId: string
       localId: string
@@ -2313,11 +2342,15 @@ export class NativeDataverseExportService {
       for (const entity of remoteMetadataFiles) {
         const remoteId = this.requireEntityId(entity)
         const reference = this.findRemoteFileReference(remoteFileReferences, remoteId, entity)
+        const remotePath =
+          (reference ? this.localPathFromRemoteFileReference(reference) : undefined) ??
+          this.localPathFromRemoteFileEntity(entity)
+        const mappedPath = remoteToLocalMapping[remoteId]
+          ? this.localCratePathFromEntityId(remoteToLocalMapping[remoteId])
+          : undefined
         const localPath =
-          (remoteToLocalMapping[remoteId] ? this.localCratePathFromEntityId(remoteToLocalMapping[remoteId]) : undefined) ??
-          this.localCratePathFromEntityId(remoteId) ??
-          this.localPathFromRemoteFileEntity(entity) ??
-          (reference ? this.localPathFromRemoteFileReference(reference) : undefined)
+          (preferRemotePath ? remotePath ?? mappedPath : mappedPath ?? remotePath) ??
+          this.localCratePathFromEntityId(remoteId)
         const localId = remoteToLocalMapping[remoteId] ?? localPath ?? remoteId
         const dataFileId = reference?.remoteId ?? (/^\d+$/.test(remoteId) ? remoteId : undefined)
         if (localPath && dataFileId) {

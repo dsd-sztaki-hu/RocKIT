@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import * as os from 'node:os'
 import { resolveRocrateMcpSocketPath } from 'rockit-common/lib/common/rocrate-mcp-config'
 import { shutdownRocrateMcpDaemon } from 'rockit-common/lib/node/rocrate-mcp-daemon-control'

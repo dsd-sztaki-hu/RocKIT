@@ -1,11 +1,15 @@
 {
   "name": "entities-overview",
+  "description": "RocKIT RO-Crate entities overview tree and filtering view.",
   "keywords": [
     "theia-extension"
   ],
   "version": "1.0.0",
   "license": "Apache-2.0",
-  "author": "SZTAKI, Department of Distributed Systems",
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
+  },
   "files": [
     "lib",
     "src"
@@ -31,6 +35,27 @@
   "theiaExtensions": [
     {
       "frontend": "lib/browser/entities-overview-frontend-module"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Kadosa Nagy",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontosreka@sztaki.hu"
+    },
+    {
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Roland Tanacsi",
+      "email": "tanacsi.roland@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
     }
   ]
 }

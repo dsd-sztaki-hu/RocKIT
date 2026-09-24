@@ -1,11 +1,11 @@
-/********************************************************************************
+/********************************************************************************************
  * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  *
  * SPDX-License-Identifier: Apache-2.0
- ********************************************************************************/
+ *******************************************************************************************/
 
 .navigator-filter-panel {
   display: flex;
@@ -35,7 +35,7 @@
 }
 
 .navigator-filter-content.expanded {
-  padding: 0 5px 8px;
+  padding: 0 10px 8px;
   border-bottom-color: rgba(127, 127, 127, 0.35);
   background: var(--theia-sideBar-background);
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.06);
@@ -44,7 +44,7 @@
 .navigator-filter-content.collapsed {
   margin-top: 0;
   margin-bottom: 0;
-  padding: 0 5px;
+  padding: 0 10px;
   background: transparent;
   border-bottom-color: transparent;
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0);
@@ -102,7 +102,7 @@ body.navigator-search-visible
   display: flex;
   flex-direction: row;
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 10px;
 }
 
 .navigator-filter-actions .ant-btn {
@@ -135,6 +135,7 @@ body.navigator-search-visible
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .navigator-filter-label {
@@ -147,6 +148,8 @@ body.navigator-search-visible
 
 .navigator-filter-input {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 4px 6px;
   border-radius: 4px;
   border: 1px solid var(--theia-ui-border);
@@ -165,6 +168,7 @@ body.navigator-search-visible
 
 .navigator-rocrate-select {
   width: 100%;
+  min-width: 0;
 }
 
 .navigator-rocrate-select .ant-select-selector {

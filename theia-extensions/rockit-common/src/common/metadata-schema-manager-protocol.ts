@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 // theia-extensions/rockit-common/src/common/metadata-schema-manager-protocol.ts
 
 import type { Event } from '@theia/core/lib/common/event'

@@ -1,11 +1,15 @@
 {
   "name": "multi-edit",
+  "description": "RocKIT bulk metadata editing dialog for selected RO-Crate entities.",
   "keywords": [
     "theia-extension"
   ],
   "version": "1.0.0",
   "license": "Apache-2.0",
-  "author": "SZTAKI, Department of Distributed Systems",
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
+  },
   "files": [
     "lib",
     "src"
@@ -29,6 +33,22 @@
   "theiaExtensions": [
     {
       "frontend": "lib/browser/multi-edit-frontend-module"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Kadosa Nagy",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontosreka@sztaki.hu"
+    },
+    {
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
     }
   ]
 }

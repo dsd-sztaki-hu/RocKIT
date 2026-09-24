@@ -1,13 +1,29 @@
 {
   "private": true,
   "name": "electron-app",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "homepage": "https://repo.researchdata.hu/rockit/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dsd-sztaki-hu/RocKIT.git",
+    "directory": "electron-app"
+  },
   "author": {
     "name": "SZTAKI, Department of Distributed Systems",
-    "email": "zoltan.toth@sztaki.hun-ren.hu"
+    "url": "https://dsd.sztaki.hu"
+  },
+  "bugs": {
+    "url": "https://github.com/dsd-sztaki-hu/RocKIT/issues",
+    "email": "zoltan.toth@sztaki.hu"
   },
   "license": "Apache-2.0",
+  "contributors": [
+    {
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    }
+  ],
   "main": "lib/backend/electron-main.js",
   "dependencies": {
     "@theia/core": "1.65.2",
@@ -88,6 +104,18 @@
     "productName": "RocKIT - RO-Crate Kit",
     "extraResources": [
       {
+        "from": "../LICENSE.md",
+        "to": "LICENSE.md"
+      },
+      {
+        "from": "../NOTICE",
+        "to": "NOTICE"
+      },
+      {
+        "from": "../THIRD-PARTY-NOTICES.md",
+        "to": "THIRD-PARTY-NOTICES.md"
+      },
+      {
         "from": "../plugins",
         "to": "plugins",
         "filter": [
@@ -121,7 +149,7 @@
         "deb"
       ],
       "category": "Development",
-      "maintainer": "SZTAKI, DSD <zoltan.toth@sztaki.hun-ren.hu>"
+      "maintainer": "SZTAKI, DSD <zoltan.toth@sztaki.hu>"
     }
   }
 }

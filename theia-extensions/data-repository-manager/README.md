@@ -64,6 +64,14 @@ yarn watch
 yarn test
 ```
 
+## Authorship
+
+This package is maintained by SZTAKI, Department of Distributed Systems
+(<https://dsd.sztaki.hu>).
+
+Individual contributors are listed in `package.json`.
+
 ## License
 
-Part of the RocKIT project.
+This package is licensed under the Apache License, Version 2.0. See
+[LICENSE.md](../../LICENSE.md) for details.

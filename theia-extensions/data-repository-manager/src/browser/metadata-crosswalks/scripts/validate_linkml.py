@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+
+# *****************************************************************************
+# Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+#
+# SPDX-License-Identifier: Apache-2.0
+# *****************************************************************************
+
 """Validate and execute the repository metadata LinkML-Map transformation."""
 
 from __future__ import annotations

@@ -1,11 +1,15 @@
 {
   "name": "ro-crate-editor",
+  "description": "RocKIT Theia extension for editing RO-Crate metadata with the ReCrate editor.",
   "keywords": [
     "theia-extension"
   ],
   "version": "1.0.0",
   "license": "Apache-2.0",
-  "author": "SZTAKI, Department of Distributed Systems",
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
+  },
   "files": [
     "lib",
     "src"
@@ -18,7 +22,7 @@
     "save-ro-crate": "1.0.0",
     "rockit-common": "1.0.0",
     "rockit-loadmask": "1.0.0"
-  },  
+  },
   "devDependencies": {
     "rimraf": "^5.0.0",
     "typescript": "~5.4.5",
@@ -38,6 +42,32 @@
   "theiaExtensions": [
     {
       "frontend": "lib/browser/ro-crate-editor-frontend-module"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Balazs E. Pataki",
+      "email": "balazs.pataki@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Kadosa Nagy",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontosreka@sztaki.hu"
+    },
+    {
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Roland Tanacsi",
+      "email": "tanacsi.roland@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
     }
   ]
 }

@@ -1,9 +1,12 @@
 {
   "name": "@arpproject/rocrate-mcp-server",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "ARP RO-Crate MCP Server exposing RO-Crate editing and profile-aware validation tools for use in ARP",
   "license": "Apache-2.0",
-  "author": "SZTAKI, Department of Distributed Systems",
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
+  },
   "files": [
     "lib",
     "src"
@@ -40,5 +43,26 @@
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "contributors": [
+    {
+      "name": "Balazs E. Pataki",
+      "email": "pataki@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Kadosa Nagy",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontosreka@sztaki.hu"
+    },
+    {
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    }
+  ]
 }

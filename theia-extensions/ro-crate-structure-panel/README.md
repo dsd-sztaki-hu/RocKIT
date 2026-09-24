@@ -1,9 +1,28 @@
-# Example Widget
+# RO-Crate Structure Panel
 
-The example extension demonstrates how to contribute a custom widget (i.e. a view or editor) to Eclipse Theia. Furthermore, the template contains an example unit test.
+Provides the RocKIT RO-Crate Structure Panel for browsing and managing the
+entity tree of the active RO-Crate.
 
-## How to use the widget example
+The extension contributes the RO-Crate Structure Panel view, context-menu
+actions for editing and deleting selected entities, validation issue indicators,
+drag-and-drop support, and integration with the RO-Crate editor and multi-edit
+workflow.
 
-In the running application, open the widget using the menu "View" => "DatasetPanel Widget"
-To execute the test, run
-    npm test
+## Development
+
+```bash
+yarn build
+yarn test
+```
+
+## Authorship
+
+This package is maintained by SZTAKI, Department of Distributed Systems
+(<https://dsd.sztaki.hu>).
+
+Individual contributors are listed in `package.json`.
+
+## License
+
+This package is licensed under the Apache License, Version 2.0. See
+[LICENSE.md](../../LICENSE.md) for details.

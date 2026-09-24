@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 export * from '../common/save-ro-crate-protocol'; 
 export * from '../common/metadata-schema-manager-protocol';
 export * from '../common/application-reset-protocol';

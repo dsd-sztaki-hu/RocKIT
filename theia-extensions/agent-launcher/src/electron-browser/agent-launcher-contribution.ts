@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import {
   Command,
   CommandContribution,
@@ -220,12 +226,7 @@ const INSIDE_AROMA_AGENT_CONTEXT_PROMPT = [
   'Because AROMA is already open for this session, do not suggest opening AROMA after edits.',
 ].join('\n')
 
-const EDIT_WITH_AI_MENU_PATH = [
-  ...MAIN_MENU_BAR,
-  '4z_ro_crate',
-  '3_tools',
-  'edit_with_ai',
-]
+const RO_CRATE_AI_MENU_PATH = [...MAIN_MENU_BAR, '4z_ro_crate', '4_ai']
 
 function arraysEqual(a: string[] | undefined, b: string[] | undefined): boolean {
   if (!a || !b || a.length !== b.length) {
@@ -425,48 +426,32 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   }
 
   registerMenus(menus: MenuModelRegistry): void {
-    menus.registerSubmenu(
-      EDIT_WITH_AI_MENU_PATH,
-      nls.localize('rockit/agentLauncher/editWithAi', 'Edit With AI Tool'),
-      { sortString: 'a10' },
-    )
-
     for (const [index, spec] of AGENT_SPECS.entries()) {
-      const orderPrefix = String(index).padStart(2, '0')
+      const orderPrefix = `a${String(index).padStart(2, '0')}`
       if (supportsNativeChat(spec.id)) {
-        menus.registerMenuAction(EDIT_WITH_AI_MENU_PATH, {
-          commandId: agentChatCommandId(spec.id),
-          label:
-            spec.id === 'codex'
-              ? nls.localize('rockit/agentLauncher/chatInRockit', 'Chat in RocKIT')
-              : nls.localize(
-                  'rockit/agentLauncher/chatInRockitWith',
-                  'Chat in RocKIT with {0}',
-                  this.formatAgentName(spec.id),
-                ),
-          order: `${orderPrefix}.a`,
+        const agentMenuPath = [
+          ...RO_CRATE_AI_MENU_PATH,
+          `edit_with_${spec.id}`,
+        ]
+        menus.registerSubmenu(agentMenuPath, this.editWithAgentLabel(spec.id), {
+          sortString: orderPrefix,
         })
-        menus.registerMenuAction(EDIT_WITH_AI_MENU_PATH, {
+        menus.registerMenuAction(agentMenuPath, {
+          commandId: agentChatCommandId(spec.id),
+          label: nls.localize('rockit/agentLauncher/inRockit', 'In RocKIT'),
+          order: 'a',
+        })
+        menus.registerMenuAction(agentMenuPath, {
           commandId: agentTerminalCommandId(spec.id),
-          label:
-            spec.id === 'codex'
-              ? nls.localize(
-                  'rockit/agentLauncher/openInTerminal',
-                  'Open in Terminal',
-                )
-              : nls.localize(
-                  'rockit/agentLauncher/openAgentInTerminal',
-                  'Open {0} in Terminal',
-                  this.formatAgentName(spec.id),
-                ),
-          order: `${orderPrefix}.b`,
+          label: nls.localize('rockit/agentLauncher/inTerminal', 'In terminal'),
+          order: 'b',
         })
         continue
       }
-      menus.registerMenuAction(EDIT_WITH_AI_MENU_PATH, {
+      menus.registerMenuAction(RO_CRATE_AI_MENU_PATH, {
         commandId: agentCommandId(spec.id),
         label: this.editWithAgentLabel(spec.id),
-        order: `${orderPrefix}.a`,
+        order: orderPrefix,
       })
     }
   }
@@ -491,8 +476,11 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       explicitUri instanceof URI
         ? explicitUri
         : UriSelection.getUri(this.selectionService.selection)
-    if (selectedUri && this.workspaceService.getWorkspaceRootUri(selectedUri)) {
-      return selectedUri
+    if (selectedUri) {
+      const rootUri = this.workspaceService.getWorkspaceRootUri(selectedUri)
+      if (rootUri) {
+        return rootUri
+      }
     }
     return this.workspaceService.tryGetRoots()[0]?.resource
   }

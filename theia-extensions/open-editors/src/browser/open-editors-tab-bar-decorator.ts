@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { injectable } from '@theia/core/shared/inversify'
 import { Emitter, Event } from '@theia/core/lib/common/event'
 import { TabBarDecorator } from '@theia/core/lib/browser/shell/tab-bar-decorator'

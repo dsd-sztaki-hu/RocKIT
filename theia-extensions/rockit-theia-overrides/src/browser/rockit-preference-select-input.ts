@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { PreferenceUtils, nls } from '@theia/core'
 import { escapeInvisibleChars } from '@theia/core/lib/common/strings'
 import { SelectOption } from '@theia/core/lib/browser/widgets/select-component'

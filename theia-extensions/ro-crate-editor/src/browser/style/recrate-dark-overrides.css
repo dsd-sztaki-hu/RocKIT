@@ -1,3 +1,12 @@
+/********************************************************************************************
+ * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *******************************************************************************************/
+ 
 :is(.theia-dark, .theia-hc) .rocrate-editor .recrate-scope {
   --recrate-bg: transparent;
   --recrate-panel: rgba(255, 255, 255, 0.04);
@@ -3649,6 +3658,13 @@ body.hc-black .rocrate-editor .recrate-scope .focus\:border-green-600:focus {
 .theia-hc .rocrate-editor .recrate-scope .recrate-property-background:focus-within {
   background-color: transparent !important;
   border-color: var(--theia-focusBorder, #f38518) !important;
+}
+
+/* Core fields contain a second layout element with the same property class.
+ * Keep the data-bearing outer row as the sole highlight target everywhere. */
+.theia-hc .rocrate-editor .recrate-scope [data-recrate-property].recrate-property > .recrate-property,
+body.hc-black .rocrate-editor .recrate-scope [data-recrate-property].recrate-property > .recrate-property {
+  border-color: transparent !important;
 }
 
 .theia-hc .rocrate-editor .recrate-scope .recrate .ant-tabs-tab.ant-tabs-tab-active,

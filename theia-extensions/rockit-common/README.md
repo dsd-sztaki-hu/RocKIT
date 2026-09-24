@@ -69,3 +69,15 @@ export class MyServiceImpl implements IMySharedService {
 // my-feature-frontend-module.ts
 bind(IMySharedService).to(MyServiceImpl).inSingletonScope();
 ```
+
+## Authorship
+
+This package is maintained by SZTAKI, Department of Distributed Systems
+(<https://dsd.sztaki.hu>).
+
+Individual contributors are listed in `package.json`.
+
+## License
+
+This package is licensed under the Apache License, Version 2.0. See
+[LICENSE.md](../../LICENSE.md) for details.

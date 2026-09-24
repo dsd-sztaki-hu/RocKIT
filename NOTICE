@@ -1,0 +1,16 @@
+RocKIT
+Copyright 2025-2026 HUN-REN SZTAKI, Department of Distributed Systems
+
+This product is developed by HUN-REN SZTAKI, Department of Distributed
+Systems.
+
+This product includes software developed by the Eclipse Theia project
+(https://github.com/eclipse-theia/theia).
+
+Parts of this product are derived from Eclipse Theia components, including
+the file explorer and file preview extensions.
+
+Electron application distributions may bundle third-party runtime components,
+including Electron, Chromium, Theia, Monaco Editor, VS Code/OpenVSX extensions,
+native helper binaries, and Node.js packages. Their license texts and notices
+are included with the corresponding bundled components or package metadata.

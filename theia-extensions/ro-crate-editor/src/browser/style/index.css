@@ -1,3 +1,12 @@
+/********************************************************************************************
+ * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *******************************************************************************************/
+ 
 #widget-container h2 {
     color: var(--theia-ui-font-color1);
     font-size: 12px;

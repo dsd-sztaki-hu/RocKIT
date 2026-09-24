@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import type { MetadataSchemaManager } from "rockit-common/lib/browser";
 import { isMissingRoCrateEntityName } from "rockit-common/lib/common/ro-crate-entity-name";
 import type { AppState } from 'app-state/lib/browser/state/app-state';

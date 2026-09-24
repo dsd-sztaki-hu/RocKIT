@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { ContainerModule } from '@theia/core/shared/inversify'
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common'
 import { DataSourcesContribution } from './data-sources-contribution'

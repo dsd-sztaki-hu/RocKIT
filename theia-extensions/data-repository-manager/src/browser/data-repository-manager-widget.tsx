@@ -1,9 +1,16 @@
-import { BaseWidget, Message, StatefulWidget } from '@theia/core/lib/browser'
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
+import { BaseWidget, Message, OpenerService, StatefulWidget, open } from '@theia/core/lib/browser'
 import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
 import { ApplicationServer } from '@theia/core/lib/common/application-protocol'
 import { DisposableCollection } from '@theia/core/lib/common/disposable'
 import { MessageService } from '@theia/core/lib/common/message-service'
 import { nls } from '@theia/core/lib/common/nls'
+import URI from '@theia/core/lib/common/uri'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateLoaderContribution } from 'app-state/lib/browser/state/ro-crate-loader'
 import { inject, injectable } from 'inversify'
@@ -108,6 +115,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly appStateService: AppStateService,
     @inject(RoCrateLoaderContribution)
     protected readonly roCrateLoader: RoCrateLoaderContribution,
+    @inject(OpenerService)
+    protected readonly openerService: OpenerService,
     @inject(ApplicationServer)
     protected readonly applicationServer: ApplicationServer,
     @inject(WorkspaceService)
@@ -135,6 +144,40 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.isLoading = false
       this.update()
     }
+  }
+
+  protected showTargetNotification(message: string, target: string, timeout: number): void {
+    const targetUrl = this.externalTargetUrl(target)
+    if (!targetUrl) {
+      void this.messageService.info(message, { timeout })
+      return
+    }
+    const openDataset = nls.localize(
+      'rockit/dataRepository/openDataset',
+      'Open dataset',
+    )
+    void this.messageService.info(message, { timeout }, openDataset)
+      .then((action) => {
+        if (action === openDataset) {
+          return open(this.openerService, new URI(targetUrl), { openExternalApp: true })
+        }
+        return undefined
+      })
+      .catch((error) => console.error(`Failed to open dataset URL '${targetUrl}'.`, error))
+  }
+
+  protected externalTargetUrl(target: string): string | undefined {
+    const trimmed = target.trim()
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed
+    }
+    if (/^hdl:/i.test(trimmed)) {
+      return `https://hdl.handle.net/${trimmed.slice('hdl:'.length)}`
+    }
+    if (/^[^\s/:]+(?:\.[^\s/:]+)*\/\S+$/.test(trimmed)) {
+      return `https://hdl.handle.net/${trimmed}`
+    }
+    return undefined
   }
 
   protected handleSelectionChange = (keys: React.Key[]) => {
@@ -399,7 +442,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           selectedCapabilities,
           linkInput.datasetUrl,
         )
-        this.messageService.info(
+        this.showTargetNotification(
           nls.localize(
             'rockit/dataRepository/linkedLocalDataset',
             'Linked local dataset to {0}. Wrote {1} entity mapping(s) to .rockit/{2}.',
@@ -407,7 +450,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             result.mappedEntityCount,
             result.mappingFileName,
           ),
-          { timeout: 10000 },
+          result.target,
+          10000,
         )
         if (result.unmappedEntityIds.length) {
           const previewLimit = 15
@@ -608,7 +652,9 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     if (capabilities.supportsZenodoApi) {
       if (repositorySelection.action === 'sync' && selectedExportTarget) {
-        const syncOptions = await new RepositorySyncOptionsDialog().open()
+        const syncOptions = repositorySelection.syncMode
+          ? { metadataMode: repositorySelection.syncMode }
+          : await new RepositorySyncOptionsDialog().open()
         if (!syncOptions) {
           return
         }
@@ -635,7 +681,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           )
           await this.roCrateLoader.refresh()
           await this.loadData()
-          this.messageService.info(
+          this.showTargetNotification(
             nls.localize(
               'rockit/dataRepository/zenodoSyncCompleted',
               'Zenodo sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} unchanged file(s).',
@@ -644,7 +690,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               syncResult.replacedFileCount,
               syncResult.keptLocalFileCount,
             ),
-            { timeout: 12000 },
+            syncResult.target,
+            12000,
           )
           console.log('Zenodo sync completed:', syncResult)
         } catch (error) {
@@ -738,7 +785,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               }),
             preparedMetadata,
           )
-          this.messageService.info(
+          this.showTargetNotification(
             nls.localize(
               'rockit/dataRepository/zenodoUpdateCompleted',
               'Zenodo update completed for {0}. Uploaded {1} new file(s), replaced {2}, removed {3}, and kept {4} unchanged.{5}',
@@ -754,7 +801,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
                   )
                 : '',
             ),
-            { timeout: 12000 },
+            updateResult.target,
+            12000,
           )
           console.log('Zenodo deposition updated:', updateResult)
           return
@@ -772,14 +820,15 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             }),
           preparedMetadata,
         )
-        this.messageService.info(
+        this.showTargetNotification(
           nls.localize(
             'rockit/dataRepository/zenodoDraftCreated',
             'Zenodo draft deposition created: {0}. Uploaded {1} file(s).',
             exportResult.target,
             exportResult.uploadedFiles.length,
           ),
-          { timeout: 10000 },
+          exportResult.target,
+          10000,
         )
         this.messageService.info(
           nls.localize(
@@ -825,14 +874,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       capabilities.supportsArpRoCrateZipUpload &&
       selectedExportTarget
     ) {
-      const confirmed = await new ConfirmDialog({
-        title: nls.localize('rockit/dataRepository/syncFromRemote', 'Sync from remote'),
-        msg: nls.localize(
-          'rockit/dataRepository/syncFromRemoteWarning',
-          'By continuing, the local version of this dataset might be overwritten.\n\nThe local ro-crate-metadata.json will be replaced with the remote version, and changed remote files may overwrite matching local files. Local files removed remotely will stay in the workspace but may become orphaned.',
-        ),
-      }).open()
-      if (!confirmed) {
+      const syncOptions = repositorySelection.syncMode
+        ? { metadataMode: repositorySelection.syncMode }
+        : await new RepositorySyncOptionsDialog().open()
+      if (!syncOptions) {
         return
       }
       const progress = await this.loadMaskService.showProgress({
@@ -853,6 +898,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         const syncResult = await this.arpExportService.syncFromArp(
           selectedRepo,
           selectedExportTarget,
+          syncOptions,
           (update) =>
             progress.report({
               message: update.message,
@@ -865,7 +911,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         closeProgress()
         await this.roCrateLoader.refresh()
         await this.loadData()
-        this.messageService.info(
+        this.showTargetNotification(
           nls.localize(
             'rockit/dataRepository/arpSyncCompleted',
             'ARP sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} local-only file(s).',
@@ -874,7 +920,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             syncResult.replacedFileCount,
             syncResult.removedRemoteFileCount,
           ),
-          { timeout: 10000 },
+          syncResult.target,
+          10000,
         )
         if (syncResult.unmappedEntityIds.length && syncResult.mappingFileName) {
           const previewLimit = 15
@@ -910,7 +957,9 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       !capabilities.supportsArpRoCrateZipUpload &&
       selectedExportTarget
     ) {
-      const syncOptions = await new RepositorySyncOptionsDialog().open()
+      const syncOptions = repositorySelection.syncMode
+        ? { metadataMode: repositorySelection.syncMode }
+        : await new RepositorySyncOptionsDialog().open()
       if (!syncOptions) {
         return
       }
@@ -938,7 +987,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         if (syncResult) {
           await this.roCrateLoader.refresh()
           await this.loadData()
-          this.messageService.info(
+          this.showTargetNotification(
             nls.localize(
               'rockit/dataRepository/dataverseSyncCompleted',
               'Dataverse sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} unchanged file(s).',
@@ -947,7 +996,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               syncResult.replacedFileCount,
               syncResult.keptLocalFileCount,
             ),
-            { timeout: 12000 },
+            syncResult.target,
+            12000,
           )
           console.log('Native Dataverse sync completed:', syncResult)
         }
@@ -989,7 +1039,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             }),
         )
         if (updateResult) {
-          this.messageService.info(
+          this.showTargetNotification(
             nls.localize(
               'rockit/dataRepository/arpUpdateCompleted',
               'ARP update completed for {0}. Uploaded {1} new file(s), replaced {2} changed file(s), and removed {3} file(s).',
@@ -998,7 +1048,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               updateResult.changedFileCount,
               updateResult.removedFileCount,
             ),
-            { timeout: 10000 },
+            updateResult.target,
+            10000,
           )
           if (updateResult.unmappedEntityIds.length && updateResult.mappingFileName) {
             const previewLimit = 15
@@ -1059,7 +1110,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             }),
         )
         if (updateResult) {
-          this.messageService.info(
+          this.showTargetNotification(
             nls.localize(
               'rockit/dataRepository/dataverseUpdateCompleted',
               'Dataverse update completed for {0}. Uploaded {1} new file(s), replaced {2} changed file(s), and removed {3} file(s).',
@@ -1068,7 +1119,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               updateResult.replacedFileCount,
               updateResult.removedFileCount,
             ),
-            { timeout: 10000 },
+            updateResult.target,
+            10000,
           )
           console.log('Native Dataverse update completed:', updateResult)
           return
@@ -1183,15 +1235,14 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             exportResult.dataverseUrl ||
             exportResult.pid ||
             exportResult.requestUrl
-          this.messageService.info(
+          this.showTargetNotification(
             nls.localize(
               'rockit/dataRepository/zipExportCompleted',
               'RO-Crate ZIP export completed: {0}',
               target,
             ),
-            {
-              timeout: 8000,
-            },
+            target,
+            8000,
           )
           if (exportResult.unmappedEntityIds.length) {
             const previewLimit = 15
@@ -1277,14 +1328,15 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           creationResult.persistentId ||
           creationResult.datasetId ||
           creationResult.requestUrl
-        this.messageService.info(
+        this.showTargetNotification(
           nls.localize(
             'rockit/dataRepository/datasetCreated',
             'Dataverse dataset created: {0}. Uploaded {1} files.',
             creationResult.target || createdDataset,
             creationResult.uploadedFiles.length,
           ),
-          { timeout: 8000 },
+          String(creationResult.target || createdDataset),
+          8000,
         )
         if (creationResult.unmappedEntityIds.length) {
           const previewLimit = 15

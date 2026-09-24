@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
 import { nls } from '@theia/core/lib/common/nls'
 import { FileUri } from '@theia/core/lib/common/file-uri'
@@ -11,7 +17,12 @@ import {
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import { inject, injectable } from 'inversify'
 import { RoCratePersistenceService } from 'save-ro-crate/lib/browser/ro-crate-persistence-service'
-import { DataRepositoryConfig, DataRepositoryExportTarget, DataverseCollection } from '../types'
+import {
+  DataRepositoryConfig,
+  DataRepositoryExportTarget,
+  DataverseCollection,
+  RepositorySyncMode,
+} from '../types'
 import type { NativeDataverseDatasetMetadata } from './native-dataverse-export-service'
 import {
   appendExportLogEvent,
@@ -21,6 +32,8 @@ import {
 } from './export-log'
 import { DataverseMetadataMappingService } from './dataverse-metadata-mapping-service'
 import { FileHashStoreService } from './file-hash-store-service'
+import { mergeRoCratesForSync } from './ro-crate-sync-merge'
+import { extendMappingWithMetadataEntities } from './ro-crate-metadata-entity-mapping'
 
 type RoCrateEntity = Record<string, any>
 type RoCrate = Record<string, any>
@@ -299,15 +312,20 @@ export class ArpRoCrateExportService {
       ),
     })
     const metadataUpdateCrate = this.rewriteCrateEntityIds(uploadCrate, uploadIdMapping)
-    await this.updateRemoteRoCrate(
+    const processedRemoteCrate = await this.updateRemoteRoCrate(
       baseUrl,
       repository.apiKey,
       pid,
       metadataUpdateCrate,
     )
+    const completeUploadIdMapping = extendMappingWithMetadataEntities(
+      uploadCrate,
+      processedRemoteCrate,
+      uploadIdMapping,
+    )
     const metadataIdMapping = this.toMetadataEntityIdMapping(
       crate,
-      uploadIdMapping,
+      completeUploadIdMapping,
       localizedExternalFiles.originalToUploadIds,
     )
     await this.saveEntityIdMapping(rootUri, mappingFileName, metadataIdMapping)
@@ -410,9 +428,13 @@ export class ArpRoCrateExportService {
       exportTarget.pid,
     )
     const metadataMapping: RoCrateEntityIdMapping = { ...exportTarget.mapping }
-    const uploadMapping = this.toUploadEntityIdMapping(
-      metadataMapping,
-      localizedExternalFiles.originalToUploadIds,
+    const uploadMapping = extendMappingWithMetadataEntities(
+      uploadCrate,
+      remoteCrate,
+      this.toUploadEntityIdMapping(
+        metadataMapping,
+        localizedExternalFiles.originalToUploadIds,
+      ),
     )
     const diff = this.diffRoCrates(uploadCrate, remoteCrate, uploadMapping, {
       pid: exportTarget.pid,
@@ -669,13 +691,23 @@ export class ArpRoCrateExportService {
       message: nls.localize('rockit/dataRepository/synchronizingMetadata', 'Synchronizing RO-Crate metadata...'),
     })
     const metadataUpdateCrate = this.rewriteCrateEntityIds(uploadCrate, uploadMapping)
-    await this.updateRemoteRoCrate(
+    const processedRemoteCrate = await this.updateRemoteRoCrate(
       baseUrl,
       repository.apiKey,
       exportTarget.pid,
       metadataUpdateCrate,
     )
-    await this.saveEntityIdMapping(rootUri, mappingFileName, metadataMapping)
+    const completeUploadMapping = extendMappingWithMetadataEntities(
+      uploadCrate,
+      processedRemoteCrate,
+      uploadMapping,
+    )
+    const completeMetadataMapping = this.toMetadataEntityIdMapping(
+      metadataCrate,
+      completeUploadMapping,
+      localizedExternalFiles.originalToUploadIds,
+    )
+    await this.saveEntityIdMapping(rootUri, mappingFileName, completeMetadataMapping)
     await this.appendExportLog(rootUri, {
       target:
         this.buildDatasetPidTarget(exportTarget.pid) ||
@@ -689,7 +721,7 @@ export class ArpRoCrateExportService {
       lastSuccessfulActionAt: new Date().toISOString(),
       datasetName: this.getRootDatasetName(metadataCrate),
     })
-    const unmappedEntityIds = Object.entries(metadataMapping)
+    const unmappedEntityIds = Object.entries(completeMetadataMapping)
       .filter(([, remoteId]) => !remoteId)
       .map(([metadataId]) => metadataId)
 
@@ -974,6 +1006,7 @@ export class ArpRoCrateExportService {
   public async syncFromArp(
     repository: DataRepositoryConfig,
     exportTargetSelection: DataRepositoryExportTarget,
+    options: { metadataMode: RepositorySyncMode },
     reportProgress?: ArpRoCrateUpdateProgressReporter,
   ): Promise<ArpRoCrateSyncResult> {
     reportProgress?.({
@@ -1009,7 +1042,12 @@ export class ArpRoCrateExportService {
       repository.apiKey,
       exportTarget.pid,
     )
-    const remoteToLocalMapping = this.invertEntityIdMapping(exportTarget.mapping)
+    const metadataMapping = extendMappingWithMetadataEntities(
+      localCrate,
+      remoteCrate,
+      exportTarget.mapping,
+    )
+    const remoteToLocalMapping = this.invertEntityIdMapping(metadataMapping)
     const syncDiff = this.diffRoCrates(remoteCrate, localCrate, remoteToLocalMapping, {
       pid: exportTarget.pid,
       repository: baseUrl,
@@ -1021,7 +1059,7 @@ export class ArpRoCrateExportService {
         entity,
       ]),
     )
-    const metadataMapping: RoCrateEntityIdMapping = { ...exportTarget.mapping }
+    const relocatedLocalIds: RoCrateEntityIdMapping = {}
     const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri)
     const remoteFilesToDownload: Array<{
       remoteId: string
@@ -1038,7 +1076,20 @@ export class ArpRoCrateExportService {
       ) {
         continue
       }
-      const localTarget = this.localTargetForRemoteFile(remoteFile, metadataMapping)
+      const localTarget = this.localTargetForRemoteFile(
+        remoteFile,
+        metadataMapping,
+        options.metadataMode !== 'remote-additions',
+      )
+      if (options.metadataMode !== 'remote-additions') {
+        const previousLocalId = Object.entries(metadataMapping)
+          .find(([, mappedRemoteId]) => mappedRemoteId === remoteId)?.[0]
+        if (previousLocalId && previousLocalId !== localTarget.entityId) {
+          relocatedLocalIds[previousLocalId] = localTarget.entityId
+        }
+        this.removeMappingEntriesByRemoteId(metadataMapping, remoteId)
+        metadataMapping[localTarget.entityId] = remoteId
+      }
       const targetUri = rootUri.resolve(localTarget.path)
       const md5 = this.readOptionalEntityString(remoteFile, 'hash')
       if (!(await this.fileService.exists(targetUri))) {
@@ -1066,6 +1117,8 @@ export class ArpRoCrateExportService {
         },
       )
       if (unchanged) {
+        keptLocalFileCount += 1
+      } else if (options.metadataMode === 'remote-additions') {
         keptLocalFileCount += 1
       } else {
         remoteFilesToDownload.push({
@@ -1147,11 +1200,21 @@ export class ArpRoCrateExportService {
       remoteCrate,
       this.invertEntityIdMapping(metadataMapping),
     )
+    const synchronizedCrate = mergeRoCratesForSync(
+      this.rewriteCrateEntityIds(localCrate, relocatedLocalIds),
+      localizedRemoteCrate,
+      options.metadataMode,
+    )
+    const completeMetadataMapping = extendMappingWithMetadataEntities(
+      synchronizedCrate,
+      remoteCrate,
+      metadataMapping,
+    )
     await this.fileService.writeFile(
       rootUri.resolve('ro-crate-metadata.json'),
-      BinaryBuffer.fromString(`${JSON.stringify(localizedRemoteCrate, null, 2)}\n`),
+      BinaryBuffer.fromString(`${JSON.stringify(synchronizedCrate, null, 2)}\n`),
     )
-    await this.saveEntityIdMapping(rootUri, mappingFileName, metadataMapping)
+    await this.saveEntityIdMapping(rootUri, mappingFileName, completeMetadataMapping)
     await this.appendExportLog(rootUri, {
       target:
         this.buildDatasetPidTarget(exportTarget.pid) ||
@@ -1163,7 +1226,7 @@ export class ArpRoCrateExportService {
       syncType: 'sync',
       status: 'success',
       lastSuccessfulActionAt: new Date().toISOString(),
-      datasetName: this.getRootDatasetName(localizedRemoteCrate),
+      datasetName: this.getRootDatasetName(synchronizedCrate),
     })
 
     const target =
@@ -1182,7 +1245,7 @@ export class ArpRoCrateExportService {
       replacedFileCount: remoteFilesToDownload.filter((file) => file.kind === 'changed').length,
       removedRemoteFileCount: syncDiff.removedFiles.length,
       mappingFileName,
-      unmappedEntityIds: Object.entries(metadataMapping)
+      unmappedEntityIds: Object.entries(completeMetadataMapping)
         .filter(([, remoteId]) => !remoteId)
         .map(([metadataId]) => metadataId),
     }
@@ -1557,7 +1620,7 @@ export class ArpRoCrateExportService {
     apiKey: string | undefined,
     pid: string,
     crate: RoCrate,
-  ): Promise<void> {
+  ): Promise<RoCrate> {
     const requestUrl = `${baseUrl}/api/arp/rocrate/${pid}`
     const headers: Record<string, string> = {
       accept: 'application/json',
@@ -1583,6 +1646,14 @@ export class ArpRoCrateExportService {
         ),
       )
     }
+    const processedCrate = this.extractDataverseCrate(payload)
+    if (!processedCrate) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/arpMetadataUpdateResponseMissingGraph',
+        'ARP updated the RO-Crate metadata, but its response did not contain the stored @graph needed to map rewritten entity IDs.',
+      ))
+    }
+    return processedCrate
   }
 
   protected rewriteCrateEntityIds(
@@ -1756,8 +1827,13 @@ export class ArpRoCrateExportService {
   protected localTargetForRemoteFile(
     remoteFile: RoCrateEntity,
     metadataMapping: RoCrateEntityIdMapping,
+    preferRemotePath = false,
   ): { entityId: string; path: string } {
     const remoteId = this.requireEntityId(remoteFile)
+    const remotePath = this.dataverseFilePathFromEntity(remoteFile)
+    if (preferRemotePath && remotePath && this.isSafeRelativePath(remotePath)) {
+      return { entityId: remotePath, path: remotePath }
+    }
     const mappedEntityId = Object.entries(metadataMapping)
       .find(([, mappedRemoteId]) => mappedRemoteId === remoteId)?.[0]
     if (mappedEntityId) {
@@ -1772,7 +1848,6 @@ export class ArpRoCrateExportService {
         }
       }
     }
-    const remotePath = this.dataverseFilePathFromEntity(remoteFile)
     if (remotePath && this.isSafeRelativePath(remotePath)) {
       return { entityId: remotePath, path: remotePath }
     }
@@ -2552,9 +2627,10 @@ export class ArpRoCrateExportService {
       mapping.set(id, '')
     }
 
-    return Object.fromEntries(
+    const operationalMapping = Object.fromEntries(
       Array.from(mapping.entries()).sort((a, b) => a[0].localeCompare(b[0])),
     )
+    return extendMappingWithMetadataEntities(sourceCrate, ingestedCrate, operationalMapping)
   }
 
   protected mapFilesBySignatureAndParents(
@@ -2698,8 +2774,7 @@ export class ArpRoCrateExportService {
 
   protected shouldPersistEntityMapping(entity: RoCrateEntity): boolean {
     const id = this.requireEntityId(entity)
-    const types = this.entityTypes(entity)
-    return id !== './' && (types.includes('Dataset') || types.includes('File'))
+    return id !== './' && id !== 'ro-crate-metadata.json'
   }
 
   protected readEntityReferenceIds(value: unknown): string[] {
@@ -2874,7 +2949,7 @@ export class ArpRoCrateExportService {
     if (/^hdl:/i.test(trimmed)) {
       return `https://hdl.handle.net/${trimmed.slice('hdl:'.length)}`
     }
-    return trimmed
+    return `https://hdl.handle.net/${trimmed.replace(/^\/+/, '')}`
   }
 
   protected normalizePid(value: string): string {
