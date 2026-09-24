@@ -20,6 +20,10 @@ assert.ok(
 )
 
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
+assert.equal(packageJson.name, '@arpproject/vibarp-mcp')
+assert.equal(packageJson.version, '1.1.0')
+assert.equal(packageJson.description, 'VibeARP MCP Server')
+assert.deepEqual(packageJson.bin, { 'rocrate-mcp-server': 'lib/server.js' })
 assert.equal(packageJson.license, 'Apache-2.0')
 assert.equal(packageJson.author?.name, 'SZTAKI, Department of Distributed Systems')
 assert.equal(packageJson.author?.url, 'https://dsd.sztaki.hu')
@@ -152,7 +156,7 @@ async function run() {
       installRoot,
       'node_modules',
       '@arpproject',
-      'rocrate-mcp-server',
+      'vibarp-mcp',
     )
     const resolvedConverterPath = execFileSync(
       process.execPath,
