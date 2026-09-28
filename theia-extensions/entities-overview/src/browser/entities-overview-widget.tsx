@@ -905,7 +905,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
             const entityId = node.data.entityId
 
             if (!entityId) {
-                console.warn('EntitiesOverviewWidget: missing entityId for selection')
                 return
             }
 
@@ -941,7 +940,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
         const entityId = node.data.entityId
 
         if (!entityId) {
-            console.warn('EntitiesOverviewWidget: missing entityId for open')
             return
         }
 
@@ -971,7 +969,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
         options?: { forceNewWindow?: boolean },
     ): Promise<void> {
         if (!entityId) {
-            console.warn('EntitiesOverviewWidget: attempted to open editor without entityId')
             return
         }
 

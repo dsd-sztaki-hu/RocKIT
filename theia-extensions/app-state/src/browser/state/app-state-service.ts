@@ -178,7 +178,6 @@ export class AppStateService {
     }
 
     reset(): void {
-        console.log('AppStateService: Resetting state to defaults')
         this.store.setState(cloneDefaultAppState())
     }
 

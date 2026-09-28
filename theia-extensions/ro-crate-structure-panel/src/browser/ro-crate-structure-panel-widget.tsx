@@ -1424,7 +1424,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
 
         const crate = this.appStateService.roCrate
         if (!crate || !Array.isArray(crate['@graph'])) {
-            console.warn('No RO-Crate graph available for drop')
             return
         }
 
@@ -2035,7 +2034,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
     protected resolveDropTargetEntityId(event: React.DragEvent): string | undefined {
         const target = event.target as HTMLElement | null
         if (!target) {
-            console.warn('RO-Crate Structure: drop target missing')
             return undefined
         }
         const el = target.closest('[data-entity-id]') as HTMLElement | null
@@ -2164,7 +2162,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         }
 
         if (!indexById.has(targetEntityId) && !indexById.has('./')) {
-            console.warn('No target entity found for drop', targetEntityId)
             return crate
         }
 
@@ -2238,7 +2235,6 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             const effectiveTargetIndex =
                 targetIndex ?? (parentKey ? undefined : indexById.get('./'))
             if (effectiveTargetIndex === undefined) {
-                console.warn('No parent Dataset entity found for dropped entry', relPath)
                 continue
             }
 

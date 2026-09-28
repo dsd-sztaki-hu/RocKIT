@@ -71,7 +71,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
   private readonly onOpenRemoteBrowserEmitter = new Emitter<RemoteSchemaProviderConfig>();
   readonly onOpenRemoteBrowser: Event<RemoteSchemaProviderConfig> = this.onOpenRemoteBrowserEmitter.event;
-  private readonly schemaResolveLogPrefix = '[SchemaResolve]';
 
   @postConstruct()
   init() {
@@ -212,7 +211,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             const isIndexed = index.profiles.some(p => p.files.sourcePath === relativeCedarPath);
             
             if (!isIndexed) {
-              console.log(`[SchemaManager] Discovered unindexed schema file: ${file.name}`);
               try {
                 const content = await this.fileService.read(file.resource);
                 const parsedRaw = JSON.parse(content.value);
@@ -588,13 +586,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     const queue: Array<{ candidate: string; provider?: RemoteSchemaProviderConfig }> = [];
 
     this.enqueueSchemaResolveCandidates(queue, attempted, url, rankedProviders);
-    this.logSchemaResolve('start', {
-      inputUrl: url,
-      providers: rankedProviders.map((candidateProvider) =>
-        this.schemaResolveProviderLabel(candidateProvider),
-      ),
-    });
-
     while (queue.length > 0) {
       const entry = queue.shift()!;
       const attemptKey = this.schemaResolveAttemptKey(entry.candidate, entry.provider);
@@ -605,8 +596,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
       const effectiveKey = apiKey || this.providerApiKey(entry.provider);
       const proxyUrl = this.providerProxyUrl(entry.provider);
-      this.logSchemaResolve('attempt', this.describeSchemaResolveEntry(entry));
-
       try {
         const result = await this.fetchWithAuthFallback(
           entry.candidate,
@@ -616,10 +605,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         );
         try {
           JSON.parse(result.content);
-          this.logSchemaResolve('success', {
-            ...this.describeSchemaResolveEntry(entry),
-            finalUrl: result.finalUrl,
-          });
           return result;
         } catch {
           const redirectProviders = this.rankSchemaResolveProviders(
@@ -628,22 +613,11 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             entry.provider,
           );
           this.enqueueRedirectCandidates(queue, attempted, result.finalUrl, redirectProviders);
-          this.logSchemaResolve('non-json', {
-            ...this.describeSchemaResolveEntry(entry),
-            finalUrl: result.finalUrl,
-            nextProviders: redirectProviders.map((candidateProvider) =>
-              this.schemaResolveProviderLabel(candidateProvider),
-            ),
-          });
           lastError = new Error(
             `The URL ${entry.candidate} resolved to non-JSON content at ${result.finalUrl}.`,
           );
         }
       } catch (error) {
-        this.logSchemaResolve('error', {
-          ...this.describeSchemaResolveEntry(entry),
-          error: error instanceof Error ? error.message : String(error),
-        });
         lastError = error;
       }
     }
@@ -656,10 +630,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   private async loadSchemaResolveProviders(): Promise<RemoteSchemaProviderConfig[]> {
     try {
       return await this.providerStoreService.loadProviders();
-    } catch (error) {
-      this.logSchemaResolve('provider-load-error', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+    } catch {
       return [];
     }
   }
@@ -772,24 +743,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     );
   }
 
-  private schemaResolveProviderLabel(provider?: RemoteSchemaProviderConfig): string {
-    if (!provider) {
-      return 'direct';
-    }
-    return provider.title || provider.id || provider.domainBase || provider.baseUrl || 'provider';
-  }
-
-  private describeSchemaResolveEntry(entry: {
-    candidate: string
-    provider?: RemoteSchemaProviderConfig
-  }): Record<string, string> {
-    return {
-      candidate: entry.candidate,
-      provider: this.schemaResolveProviderLabel(entry.provider),
-      proxyUrl: this.providerProxyUrl(entry.provider) || '',
-    };
-  }
-
   private safeSchemaResolveHost(value?: string): string | undefined {
     if (!value) {
       return undefined;
@@ -799,14 +752,6 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     } catch {
       return undefined;
     }
-  }
-
-  private logSchemaResolve(message: string, details?: unknown): void {
-    if (details === undefined) {
-      console.info(this.schemaResolveLogPrefix, message);
-      return;
-    }
-    console.info(this.schemaResolveLogPrefix, message, details);
   }
 
   private async resolveConformanceUrl(url: string, apiKey?: string, signal?: AbortSignal): Promise<{ content: string, finalUrl: string }> {

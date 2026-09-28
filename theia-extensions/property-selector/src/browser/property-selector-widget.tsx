@@ -79,10 +79,8 @@ const PropertyListView = React.memo<{ properties: SchemaProperty[] }>(
           <li
             key={index}
             className={'propertySelectorPropertyListItem'}
-            onClick={() => console.log(prop.label)}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = '#e3f2fd'
-              e.currentTarget.style.cursor = 'pointer'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'transparent'

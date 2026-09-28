@@ -360,7 +360,7 @@ export const RecrateCrateBuilderWrapper = ({
                 onSaveRoCrateApproval={onSaveRoCrateApproval}
                 onNavigation={handleNavigationWrapper}
                 onWarning={onWarning}
-                onError={(e: any) => console.log('error', e)}
+                // onError={(e: any) => console.log('error', e)}
                 enableReverseLinkBrowser={true}
                 enableBrowseEntities={false}
                 enableContextEditor={false}

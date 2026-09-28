@@ -1,19 +1,19 @@
-# ARP RO-Crate MCP Server
+# VibeARP MCP Server
 
-`@arpproject/rocrate-mcp-server` is an [MCP server](https://www.dreamfactory.com/use-cases/mcp-server/) for [RO-Crate](https://www.researchobject.org/ro-crate/) editing, validation, and profile-aware constraints following the best practices of the ARP project (https://researchdata.hu/). It is designed to be used with MCP-compatible AI assistants such as Codex, Claude Code. It can be used with the schemas and profiles offered by the ARP Schema Registry (https://cedar.schema.researchdata.hu/)
+`@arpproject/vibarp-mcp` is an [MCP server](https://www.dreamfactory.com/use-cases/mcp-server/) for [RO-Crate](https://www.researchobject.org/ro-crate/) editing, validation, and profile-aware constraints following the best practices of the ARP project (https://researchdata.hu/). It is designed to be used with MCP-compatible AI assistants such as Codex, Claude Code. It can be used with the schemas and profiles offered by the ARP Schema Registry (https://cedar.schema.researchdata.hu/)
 
 [Quick start](#quick-start) · [Első lépések](#első-lépések)
 
 ## Quick start
 
-`@arpproject/rocrate-mcp-server` makes it easy to create RO-Crate packages using MCP-compatible AI assistants and subsequently upload them to the ARP system.
+`@arpproject/vibarp-mcp` makes it easy to create RO-Crate packages using MCP-compatible AI assistants and subsequently upload them to the ARP system.
 
 To use it, you need an MCP-compatible AI assistant, such as Codex, Claude Code, OpenCode, Kilo Code, Roo Code, Gemini CLI, or Qwen Code.
 
 Node.js 18 or newer is required for installation:
 
 ```bash
-npm install -g @arpproject/rocrate-mcp-server
+npm install -g @arpproject/vibarp-mcp
 ```
 
 Note: when upgrading an existing installation, the package first asks the
@@ -76,14 +76,14 @@ uses user-only permissions where supported.
 
 ## Első lépések
 
-Az `@arpproject/rocrate-mcp-server` segítségével MCP-kompatibilis AI-asszisztenseket használva egyszerűen hozhatók létre RO-Crate csomagok, amelyeket aztán az ARP rendszerébe is fel lehet tölteni.
+Az `@arpproject/vibarp-mcp` segítségével MCP-kompatibilis AI-asszisztenseket használva egyszerűen hozhatók létre RO-Crate csomagok, amelyeket aztán az ARP rendszerébe is fel lehet tölteni.
 
 A használatához szükség van egy MCP-kompatibilis AI-asszisztensre, például Codex, Claude Code, OpenCode, Kilo Code, Roo Code, Gemini CLI vagy Qwen Code.
 
 A telepítéshez Node.js 18 vagy újabb szükséges:
 
 ```bash
-npm install -g @arpproject/rocrate-mcp-server
+npm install -g @arpproject/vibarp-mcp
 ```
 
 Megjegyzés: meglévő telepítés frissítésekor a csomag először szabályosan

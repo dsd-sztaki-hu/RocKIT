@@ -461,14 +461,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
       if (trimmed) {
         this.localSelectedEntityId = trimmed
-        console.log('RoCrateEditorWidget: entityId loaded from app-state', {
-          widget: this.id,
-          entityId: trimmed,
-        })
-      } else {
-        console.warn('RoCrateEditorWidget: no entityId in app-state for widget', {
-          widget: this.id,
-        })
       }
     } catch (error) {
       console.error('RoCrateEditorWidget: failed to read entityId from app-state', {
@@ -489,8 +481,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
         if (this.baseProfile && this.localProfile) {
             this.fallbackProfileCloneCache.set(this.baseProfile, this.localProfile)
         }
-        console.log('baseProfile', this.baseProfile)
-        console.log('localCompleteProfile', this.localCompleteProfile)
         this.setDirtyState(false)
         this.lastSeenNonMissingProfileCount = Array.isArray(this.appStateService.profileList)
             ? this.appStateService.profileList.filter(
@@ -506,7 +496,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 if (selectorContext?.widgetId === this.id) {
                     this.updateDirtyStateForCurrentEntity(crate)
                 }
-                console.log('crate update')
                 this.updateTitleLabel()
                 if (!crate) {
                     this.localRoCrateApproval = undefined
@@ -637,18 +626,12 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
           return
         }
 
-        const prev = this.assignedEntityId
         this.assignedEntityId = trimmed
         this.localSelectedEntityId = trimmed
         this.captureEntityBaseline(
           trimmed,
           this.localCrate ?? this.appStateService.roCrate,
         )
-        console.log('RoCrateEditorWidget: entityId updated from app-state', {
-          widget: this.id,
-          prev,
-          next: trimmed,
-        })
         this.updateTitleLabel()
         if (this.baseProfile && this.localCrate) {
           void this.updateProfileWithEntitySchemas(this.baseProfile, trimmed, 'none')
@@ -936,7 +919,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     const raw = entity?.['@id']
     const nextId = typeof raw === 'string' ? raw : ''
     if (!nextId) {
-      console.warn('handleNavigation: missing entity id', { entity })
       return
     }
     if (nextId === this.assignedEntityId) {
@@ -947,7 +929,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       return
     }
     this.appStateService.registerEntityEditor(widgetId, nextId)
-    const prevId = this.assignedEntityId
     this.assignedEntityId = nextId
     this.localSelectedEntityId = nextId
     this.captureEntityBaseline(nextId, this.localCrate ?? this.appStateService.roCrate)
@@ -957,11 +938,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     } else {
       this.update()
     }
-    console.log('RoCrateEditorWidget: entityId set from navigation', {
-      widget: widgetId,
-      prev: prevId,
-      next: nextId,
-    })
   }
 
   protected handleSetProfile = (profile: any) => {
@@ -987,7 +963,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   }
 
   protected handleRemoveProfile = async (payload: any) => {
-    console.log('handleRemoveProfile', payload)
     const entityId = payload?.entityId ?? this.localSelectedEntityId
     const profileUrl = payload?.tab?.profileUrl
 
@@ -1210,12 +1185,10 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     if (!this.id) {
       return
     }
-    const prev = this.assignedEntityId
     this.assignedEntityId = entityId
     this.localSelectedEntityId = entityId
     this.captureEntityBaseline(entityId, this.localCrate ?? this.appStateService.roCrate)
     this.appStateService.registerEntityEditor(this.id, entityId)
-    console.log('Assigned entity to widget', { widget: this.id, prev, next: entityId })
     this.updateTitleLabel()
   }
 
@@ -1541,11 +1514,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     const sourceEntity = graph.find((entry) => String(entry?.['@id']) === sourceEntityId)
 
     if (!sourceEntity || !this.isFileOrDatasetEntity(sourceEntity)) {
-      console.warn('[DND][Widget] invalid source entity', {
-        sourceEntityId,
-        found: Boolean(sourceEntity),
-        sourceTypes: sourceEntity ? this.getEntityTypeNames(sourceEntity) : [],
-      })
       throw new Error(nls.localize(
         'rockit/roCrateEditor/dropUnsupportedType',
         'Only File and Dataset entities can be dropped.',
@@ -1566,10 +1534,6 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     const targetEntity = graph[targetIndex]
 
     if (!targetEntity || !this.isDatasetEntity(targetEntity)) {
-      console.warn('[DND][Widget] invalid destination entity', {
-        targetEntityId,
-        targetTypes: targetEntity ? this.getEntityTypeNames(targetEntity) : [],
-      })
       throw new Error(nls.localize(
         'rockit/roCrateEditor/dropTargetDataset',
         'Drop target must be a Dataset entity.',
