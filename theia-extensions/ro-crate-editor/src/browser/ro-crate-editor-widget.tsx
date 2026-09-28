@@ -515,8 +515,12 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     this.assignEntity(fallbackEntityId)
                     entityId = fallbackEntityId
                 }
-                this.nextProfileListValidationScope = 'targeted'
-                await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always', 'targeted')
+                // A Recrate save can mutate entities other than the one currently
+                // displayed (for example, creating an Author while editing the
+                // root Dataset). Let the validator diff the complete graph so new
+                // and changed linked entities are included in this run.
+                this.nextProfileListValidationScope = 'full'
+                await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always', 'full')
             },
         )
 
