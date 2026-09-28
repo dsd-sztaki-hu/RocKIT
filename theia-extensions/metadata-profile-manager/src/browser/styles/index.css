@@ -10,7 +10,7 @@
 /* src/browser/styles/index.css */
 
 /* --- Main Widget Container --- */
-.metadata-schema-manager-widget {
+.metadata-profile-manager-widget {
     background-color: var(--theia-editor-background);
     color: var(--theia-foreground);
     padding: 0;
@@ -44,37 +44,37 @@
     background-color: var(--theia-layout-color1);
 }
 
-.metadata-schema-manager-widget a {
+.metadata-profile-manager-widget a {
     color: var(--theia-textLink-foreground);
     text-decoration: none;
     cursor: pointer;
 }
 
-.metadata-schema-manager-widget a:hover {
+.metadata-profile-manager-widget a:hover {
     text-decoration: underline;
 }
 
-.metadata-schema-manager-widget .ant-btn-primary {
+.metadata-profile-manager-widget .ant-btn-primary {
     background-color: var(--theia-button-background) !important;
     color: var(--theia-button-foreground) !important;
     border: 1px solid var(--theia-contrastBorder, transparent) !important;
 }
 
-.metadata-schema-manager-widget .ant-btn-primary:hover,
-.metadata-schema-manager-widget .ant-btn-primary:focus {
+.metadata-profile-manager-widget .ant-btn-primary:hover,
+.metadata-profile-manager-widget .ant-btn-primary:focus {
     background-color: var(--theia-button-hoverBackground) !important;
     color: var(--theia-button-foreground) !important; 
     border: 1px solid var(--theia-contrastBorder, transparent) !important;
 }
 
-.metadata-schema-manager-widget .ant-btn-default {
+.metadata-profile-manager-widget .ant-btn-default {
     background-color: var(--theia-button-secondaryBackground) !important;
     color: var(--theia-button-secondaryForeground) !important;
     border: 1px solid var(--theia-contrastBorder, var(--theia-button-border, transparent)) !important;
 }
 
-.metadata-schema-manager-widget .ant-btn-default:hover,
-.metadata-schema-manager-widget .ant-btn-default:focus {
+.metadata-profile-manager-widget .ant-btn-default:hover,
+.metadata-profile-manager-widget .ant-btn-default:focus {
     background-color: var(--theia-button-secondaryHoverBackground) !important;
     color: var(--theia-button-secondaryForeground) !important; 
     border: 1px solid var(--theia-contrastBorder, var(--theia-button-border, transparent)) !important;

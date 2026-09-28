@@ -137,7 +137,7 @@ The extension uses environment variables to determine which template repository 
 │                    ┌──────────────────┐    ┌──────────────────┐   │
 │                    │   Service Layer  │    │   UI Components  │   │
 │                    │                  │    │                  │   │
-│                    │ - Schema Manager │    │ - Table          │   │
+│                    │ - Profile Manager│    │ - Table          │   │
 │                    │ - Index Sync     │    │ - Toolbar        │   │
 │                    │ - File Ops       │    │ - Selector Dialog│   │
 │                    │ - Remote API     │    │ - Import URL     │   │
@@ -191,16 +191,16 @@ All services and components use TypeScript decorators:
 
 ```typescript
 @injectable()
-export class MetadataSchemaManagerService {
-    @inject(MetadataSchemaManager)
-    protected readonly schemaManager: MetadataSchemaManager;
+export class MetadataProfileManagerService {
+    @inject(MetadataProfileManager)
+    protected readonly profileManager: MetadataProfileManager;
 }
 ```
 
 **Key Bindings**:
-- `MetadataSchemaManager` → `MetadataSchemaManagerServiceImpl`
+- `MetadataProfileManager` → `MetadataProfileManagerServiceImpl`
 - `RemoteSchemaProviderStoreService` → `RemoteSchemaProviderStoreServiceImpl`
-- `MetadataSchemaManagerWidget` → Widget factory binding
+- `MetadataProfileManagerWidget` → Widget factory binding
 
 #### 3. React Integration
 
@@ -208,7 +208,7 @@ The widget uses React 18 with `createRoot` for rendering within Theia:
 
 ```typescript
 const root = createRoot(containerRef.current!);
-root.render(<MetadataSchemaManagerWidget {...props} />);
+root.render(<MetadataProfileManagerWidget {...props} />);
 ```
 
 #### 4. State Synchronization
@@ -386,18 +386,18 @@ The main table displays:
 ### Extension Structure
 
 ```
-theia-extensions/metadata-schema-manager/
+theia-extensions/metadata-profile-manager/
 ├── package.json                    # Extension metadata & dependencies
 ├── tsconfig.json                   # TypeScript compiler options
 ├── README.md                       # This documentation file
 └── src/
     └── browser/
-        ├── metadata-schema-manager-contribution.ts   # Command/menu registration
-        ├── metadata-schema-manager-frontend-module.ts # DI container configuration
-        ├── metadata-schema-manager-widget.tsx        # Main React widget
+        ├── metadata-profile-manager-contribution.ts   # Command/menu registration
+        ├── metadata-profile-manager-frontend-module.ts # DI container configuration
+        ├── metadata-profile-manager-widget.tsx        # Main React widget
         ├── types.ts                              # TypeScript interfaces
         ├── services/
-        │   ├── metadata-schema-manager-service.ts    # Core service (38KB)
+        │   ├── metadata-profile-manager-service.ts    # Core service (38KB)
         │   └── remote-schema-provider-store-service.ts # Secure storage service
         └── components/
             ├── metadata-schema-table.tsx             # Data display component
@@ -416,14 +416,14 @@ theia-extensions/metadata-schema-manager/
 
 The extension exposes a service interface via `rockit-common` for other extensions to interact with schema management:
 
-#### MetadataSchemaManager Interface
+#### MetadataProfileManager Interface
 
-Defined in [`theia-extensions/rockit-common/src/common/metadata-schema-manager-protocol.ts`](../../rockit-common/src/common/metadata-schema-manager-protocol.ts):
+Defined in [`theia-extensions/rockit-common/src/common/metadata-profile-manager-protocol.ts`](../../rockit-common/src/common/metadata-profile-manager-protocol.ts):
 
 ```typescript
-export const MetadataSchemaManager = Symbol('MetadataSchemaManager');
+export const MetadataProfileManager = Symbol('MetadataProfileManager');
 
-export interface MetadataSchemaManager {
+export interface MetadataProfileManager {
     /**
      * Removes the "metadata" suffix from a schema name if present.
      * @param name The schema name to process
@@ -469,28 +469,28 @@ export interface MetadataSchemaManager {
 #### Usage Example
 
 ```typescript
-import { MetadataSchemaManager } from 'rockit-common/lib/browser';
+import { MetadataProfileManager } from 'rockit-common/lib/browser';
 
 @injectable()
 export class MyExtensionContribution {
-    @inject(MetadataSchemaManager)
-    protected readonly schemaManager: MetadataSchemaManager;
+    @inject(MetadataProfileManager)
+    protected readonly profileManager: MetadataProfileManager;
 
-    async loadSchemasForFormGeneration() {
-        const schemas = await this.schemaManager.loadAllSchemas();
+    async loadProfilesForFormGeneration() {
+        const profiles = await this.profileManager.loadAllProfiles();
         
-        for (const schema of schemas) {
-            if (schema.source === 'remote') {
-                const profileContent = await this.schemaManager.getConvertedProfileContent(
-                    schema.files.convertedPath
+        for (const profile of profiles) {
+            if (profile.source === 'remote') {
+                const profileContent = await this.profileManager.getConvertedProfileContent(
+                    profile.files.convertedPath
                 );
                 // Use profileContent for form generation...
             }
         }
 
-        // Listen for schema changes
-        this.schemaManager.onDidChangeSchemas(() => {
-            console.log('Schema collection changed, refresh UI');
+        // Listen for profile changes
+        this.profileManager.onDidChangeProfiles(() => {
+            console.log('Profile collection changed, refresh UI');
         });
     }
 }
@@ -503,7 +503,7 @@ export class MyExtensionContribution {
 To support additional template formats beyond Cedar:
 
 1. **Extend `SchemaInfo.type`** in [`types.ts`](src/browser/types.ts) to include new type values
-2. **Update conversion logic** in `metadata-schema-manager-service.ts`:
+2. **Update conversion logic** in `metadata-profile-manager-service.ts`:
    - Add case handling for new type in the conversion switch statement
    - Implement format-specific metadata extraction
 3. **Register converter service** in frontend module if using external converter library
@@ -511,13 +511,13 @@ To support additional template formats beyond Cedar:
 #### Adding New UI Components
 
 1. Create component file in `src/browser/components/`
-2. Import and bind in [`metadata-schema-manager-frontend-module.ts`](src/browser/metadata-schema-manager-frontend-module.ts):
+2. Import and bind in [`metadata-profile-manager-frontend-module.ts`](src/browser/metadata-profile-manager-frontend-module.ts):
    ```typescript
-   binding.bind(MetadataSchemaManagerWidget).toDynamicValue(ctx => 
+   binding.bind(MetadataProfileManagerWidget).toDynamicValue(ctx => 
        // Custom widget factory logic
    );
    ```
-3. Register command contribution in [`metadata-schema-manager-contribution.ts`](src/browser/metadata-schema-manager-contribution.ts)
+3. Register command contribution in [`metadata-profile-manager-contribution.ts`](src/browser/metadata-profile-manager-contribution.ts)
 
 #### Adding New Remote Provider Types
 
@@ -605,7 +605,7 @@ User Action: Click "Import from File"
 File Dialog Opens → User Selects JSON Files
     │
     ▼
-MetadataSchemaManagerService.importFromFile()
+MetadataProfileManagerService.importFromFile()
     │
     ├─▶ Validate file structure and required fields
     ├─▶ Extract schema:name, pav:version, @id
@@ -629,7 +629,7 @@ UI Table Refreshes → New schema appears in list
 User Action: Click "Import from URL" / Enter URL
     │
     ▼
-MetadataSchemaManagerService.importFromUrl()
+MetadataProfileManagerService.importFromUrl()
     │
     ├─▶ Resolve hostname against configured providers
     ├─▶ Attempt request with stored API key (if provider has one)
@@ -657,10 +657,10 @@ RoCrateLoaderContribution.watchSchemaChanges() detects change
 refreshCompleteProfile() triggered
     │
     ├─▶ Extract all conformsTo URLs from RO-Crate metadata
-    ├─▶ Match each URL against managed schemas
+    ├─▶ Match each URL against managed profiles
     ├─▶ For each match:
     │     └─▶ Load converted profile content
-    │          └─▶ Merge into completeProfile via schemaManager.getMergedProfile()
+    │          └─▶ Merge into completeProfile via profileManager.getMergedProfile()
     │
     ▼
 AppStateService.completeProfile updated → Form generation uses merged profile
@@ -706,7 +706,7 @@ AppStateService.completeProfile updated → Form generation uses merged profile
 3. Clear and re-enter API key via provider config dialog
 4. On Linux, verify keytar can access system credential store:
    ```bash
-   node -e "const keytar = require('keytar'); keytar.findPassword('rockit-metadata-schema-manager', 'cedar-production').then(console.log).catch(console.error)"
+   node -e "const keytar = require('keytar'); keytar.findPassword('RocKIT.RemoteProfileProvider', 'cedar-production').then(console.log).catch(console.error)"
    ```
 
 #### Issue: Index Contains Orphaned Entries
@@ -804,7 +804,7 @@ For large schema collections:
 
 When integrating with other RocKIT extensions:
 
-1. **Use the Protocol**: Always interact via `MetadataSchemaManager` interface, not direct service access
+1. **Use the Protocol**: Always interact via `MetadataProfileManager` interface, not direct service access
 2. **Listen for Events**: Subscribe to `onDidChangeSchemas` event for real-time updates
 3. **Handle Errors Gracefully**: Schema operations may fail—implement retry logic where appropriate
 4. **Respect Concurrency**: The service uses mutex locking for index access—don't bypass this mechanism

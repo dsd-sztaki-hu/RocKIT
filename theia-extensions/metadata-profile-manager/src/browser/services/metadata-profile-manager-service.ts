@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-// src/browser/services/metadata-schema-manager-service.ts
+// src/browser/services/metadata-profile-manager-service.ts
 
 import { injectable, inject, postConstruct } from 'inversify';
 import { FrontendApplicationContribution } from '@theia/core/lib/browser';
@@ -341,7 +341,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
     if (!profile || profile.status !== 'failed') return;
     if (!profile.downloadUrl) {
         profile.statusMessage = nls.localize(
-          'rockit/schemaManager/cannotRetryWithoutUrl',
+          'rockit/profileManager/cannotRetryWithoutUrl',
           'Cannot retry: No URL provided.',
         );
     this.onDidChangeProfilesEmitter.fire();
@@ -350,7 +350,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
 
     profile.status = 'downloading';
     profile.statusMessage = nls.localize(
-      'rockit/schemaManager/retryingConnection',
+      'rockit/profileManager/retryingConnection',
       'Retrying connection...',
     );
     
@@ -371,7 +371,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
       );
 
       profile.status = 'processing';
-      profile.statusMessage = nls.localize('rockit/schemaManager/converting', 'Converting to RO-Crate...');
+      profile.statusMessage = nls.localize('rockit/profileManager/converting', 'Converting to RO-Crate...');
     this.onDidChangeProfilesEmitter.fire();
       
       const schemaName = await this.processAndSaveProfile(content, 'remote', undefined, {
@@ -384,7 +384,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
     this.onDidChangeProfilesEmitter.fire();
       
       this.messageService.info(nls.localize(
-        'rockit/schemaManager/importedName',
+        'rockit/profileManager/importedName',
         'Successfully imported: {0}',
         schemaName,
       ), { timeout: MSG_TIMEOUT });
@@ -416,7 +416,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
 
     if (!provider) {
       throw new Error(nls.localize(
-        'rockit/schemaManager/noRemoteProvider',
+        'rockit/profileManager/noRemoteProvider',
         'No Remote Provider context available for download.',
       ));
     } else {
@@ -433,7 +433,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
 
     const isDuplicate = Array.from(this.pendingProfiles.values()).some(profile => profile.downloadUrl === url && profile.status !== 'failed');
     if (isDuplicate) throw new Error(nls.localize(
-      'rockit/schemaManager/downloadInProgress',
+      'rockit/profileManager/downloadInProgress',
       'Download already in progress.',
     ));
 
@@ -443,7 +443,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
 
     const pendingProfile: ProfileInfo = {
       id,
-      name: nls.localize('rockit/schemaManager/remoteTemplate', 'Remote Template'),
+      name: nls.localize('rockit/profileManager/remoteTemplate', 'Remote Template'),
       version: '...',
       source: 'remote',
       type: 'cedar',
@@ -454,7 +454,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
       createdAt: null, updatedAt: null, downloadedAt: new Date().toISOString(),
       status: 'downloading',
       statusMessage: nls.localize(
-        'rockit/schemaManager/connectingTo',
+        'rockit/profileManager/connectingTo',
         'Connecting to {0}...',
         provider.title,
       )
@@ -483,7 +483,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
         : JSON.stringify(schemaContent, null, 2);
 
       pendingProfile.status = 'processing';
-      pendingProfile.statusMessage = nls.localize('rockit/schemaManager/converting', 'Converting to RO-Crate...');
+      pendingProfile.statusMessage = nls.localize('rockit/profileManager/converting', 'Converting to RO-Crate...');
     this.onDidChangeProfilesEmitter.fire();
 
       const name = await this.processAndSaveProfile(rawString, 'remote', undefined, {
@@ -496,7 +496,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
     this.onDidChangeProfilesEmitter.fire();
 
       this.messageService.info(nls.localize(
-        'rockit/schemaManager/addedSchema',
+        'rockit/profileManager/addedSchema',
         'Successfully added schema: {0}',
         name,
       ), { timeout: MSG_TIMEOUT });
@@ -548,20 +548,20 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
         throw new Error(nls.localize(
-          'rockit/schemaManager/unauthorizedAccess',
+          'rockit/profileManager/unauthorizedAccess',
           'Unauthorized access to {0}. Please configure a Remote Provider.',
           url,
         ));
       }
       if (response.status === 404) {
         throw new Error(nls.localize(
-          'rockit/schemaManager/resourceNotFound',
+          'rockit/profileManager/resourceNotFound',
           'Resource not found at {0}.',
           url,
         ));
       }
       throw new Error(nls.localize(
-        'rockit/schemaManager/fetchFailed',
+        'rockit/profileManager/fetchFailed',
         'Fetch failed: {0} {1}',
         response.status,
         response.statusText,
@@ -823,7 +823,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
   public async importFromUrl(url: string, progress: TaskProgress): Promise<string> {
     const isDuplicate = Array.from(this.pendingProfiles.values()).some(profile => profile.downloadUrl === url && profile.status !== 'failed');
     if (isDuplicate) throw new Error(nls.localize(
-      'rockit/schemaManager/downloadInProgress',
+      'rockit/profileManager/downloadInProgress',
       'Download already in progress.',
     ));
 
@@ -844,7 +844,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
       createdAt: null, updatedAt: null, downloadedAt: new Date().toISOString(),
       status: 'downloading',
       statusMessage: nls.localize(
-        'rockit/schemaManager/resolvingAccess',
+        'rockit/profileManager/resolvingAccess',
         'Resolving access...',
       )
     };
@@ -855,7 +855,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
     try {
       progress.report({
         message: nls.localize(
-          'rockit/schemaManager/resolvingAccess',
+          'rockit/profileManager/resolvingAccess',
           'Resolving access...',
         ),
         work: { done: 10, total: 100 },
@@ -865,13 +865,13 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
       const proxyUrl = this.providerProxyUrl(provider);
       
       pendingSchema.statusMessage = nls.localize(
-        'rockit/schemaManager/downloadingSchema',
+        'rockit/profileManager/downloadingSchema',
         'Downloading schema...',
       );
     this.onDidChangeProfilesEmitter.fire();
       progress.report({
         message: nls.localize(
-          'rockit/schemaManager/downloadingEllipsis',
+          'rockit/profileManager/downloadingEllipsis',
           'Downloading...',
         ),
         work: { done: 30, total: 100 },
@@ -886,12 +886,12 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
 
       pendingSchema.status = 'processing';
       pendingSchema.statusMessage = nls.localize(
-        'rockit/schemaManager/converting',
+        'rockit/profileManager/converting',
         'Converting to RO-Crate...',
       );
     this.onDidChangeProfilesEmitter.fire();
       progress.report({
-        message: nls.localize('rockit/schemaManager/processing', 'Processing...'),
+        message: nls.localize('rockit/profileManager/processing', 'Processing...'),
         work: { done: 60, total: 100 },
       });
       
@@ -945,13 +945,13 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
       });
 
       await this.loadMaskService.showProgress({
-        text: nls.localize('rockit/schemaManager/resolvingMissing', 'Resolving Missing Profiles...'),
+        text: nls.localize('rockit/profileManager/resolvingMissing', 'Resolving Missing Profiles...'),
       })
         .then(async (progress: TaskProgress) => {
           try {
             const total = missingIds.length;
             progress.report({
-              message: nls.localize('rockit/schemaManager/starting', 'Starting...'),
+              message: nls.localize('rockit/profileManager/starting', 'Starting...'),
               work: { done: 0, total },
             });
 
@@ -976,7 +976,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
                 createdAt: null, updatedAt: null, downloadedAt: new Date().toISOString(),
                 status: 'downloading',
                 statusMessage: nls.localize(
-                  'rockit/schemaManager/autoResolvingDependency',
+                  'rockit/profileManager/autoResolvingDependency',
                   'Auto-resolving dependency...',
                 )
               };
@@ -988,7 +988,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
                 
                 pendingSchema.status = 'processing';
                 pendingSchema.statusMessage = nls.localize(
-                  'rockit/schemaManager/converting',
+                  'rockit/profileManager/converting',
                   'Converting to RO-Crate...',
                 );
       this.onDidChangeProfilesEmitter.fire();
@@ -1019,7 +1019,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
             }, (completed) => {
               progress.report({
                 message: nls.localize(
-                  'rockit/schemaManager/processedCount',
+                  'rockit/profileManager/processedCount',
                   'Processed ({0}/{1})...',
                   completed,
                   total,
@@ -1087,7 +1087,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
           status: 'failed',
           profileName: failedProfile.name,
           message: failedProfile.statusMessage || nls.localize(
-            'rockit/schemaManager/referencedProfileDownloadFailed',
+            'rockit/profileManager/referencedProfileDownloadFailed',
             'Referenced profile could not be downloaded.',
           )
         });
@@ -1100,7 +1100,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
           conformsTo,
           status: 'missing',
           message: nls.localize(
-            'rockit/schemaManager/referencedProfileUnavailable',
+            'rockit/profileManager/referencedProfileUnavailable',
             'Referenced profile is not available locally.',
           )
         });
@@ -1132,7 +1132,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
     let fail = 0;
     const total = fileUris.length;
     progress.report({
-      message: nls.localize('rockit/schemaManager/readingFiles', 'Reading Files...'),
+      message: nls.localize('rockit/profileManager/readingFiles', 'Reading Files...'),
       work: { done: 0, total },
     });
     
@@ -1160,7 +1160,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
     try {
       const root = await this.getRockitRootUri();
       if (!root) throw new Error(nls.localize(
-        'rockit/schemaManager/rootConfigurationMissing',
+        'rockit/profileManager/rootConfigurationMissing',
         'Root directory configuration missing',
       ));
 
@@ -1192,7 +1192,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
       const roCrateUri = root.resolve(convertedRelativePath);
       
       if (!await this.fileService.exists(roCrateUri)) throw new Error(nls.localize(
-        'rockit/schemaManager/convertedProfileNotFound',
+        'rockit/profileManager/convertedProfileNotFound',
         'Converted profile file not found.',
       ));
       const content = await this.fileService.read(roCrateUri);
@@ -1320,7 +1320,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
       parsedRaw = JSON.parse(rawContent); 
     } catch (e) { 
       throw new Error(nls.localize(
-        'rockit/schemaManager/invalidJson',
+        'rockit/profileManager/invalidJson',
         'Invalid JSON format',
       ));
     }
@@ -1335,7 +1335,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
     
     if (!schemaName) {
       throw new Error(nls.localize(
-        'rockit/schemaManager/missingRequiredField',
+        'rockit/profileManager/missingRequiredField',
         'Missing required field: {0}',
         SCHEMA_FIELD_NAME,
       ));
@@ -1358,7 +1358,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
       convertedHungarian = this.convertCedarTemplate(rawContent, 'hu');
     } catch (convErr) { 
       throw new Error(nls.localize(
-        'rockit/schemaManager/conversionFailed',
+        'rockit/profileManager/conversionFailed',
         'Conversion logic failed: {0}',
         String(convErr),
       ));
@@ -1366,7 +1366,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
 
     const root = await this.getRockitRootUri();
     if (!root) throw new Error(nls.localize(
-      'rockit/schemaManager/rootConfigurationMissing',
+      'rockit/profileManager/rootConfigurationMissing',
       'Root directory configuration missing',
     ));
 

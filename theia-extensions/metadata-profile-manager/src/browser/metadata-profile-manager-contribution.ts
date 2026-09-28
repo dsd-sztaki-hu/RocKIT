@@ -4,25 +4,25 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-// src/browser/metadata-schema-manager-contribution.ts
+// src/browser/metadata-profile-manager-contribution.ts
 import { injectable, inject } from 'inversify';
 import { Command, CommandContribution, CommandRegistry, MenuContribution, MenuModelRegistry } from '@theia/core/lib/common';
 import { FrontendApplicationContribution, WidgetManager, CommonMenus, ApplicationShell, OpenerService, codicon } from '@theia/core/lib/browser';
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { ApplicationServer } from '@theia/core/lib/common/application-protocol';
 import { openRockitDocumentationPage, ROCKIT_DOCUMENTATION_PAGES } from 'rockit-common/lib/browser';
-import { METADATA_PROFILE_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
+import { METADATA_PROFILE_MANAGER_WIDGET_ID } from './metadata-profile-manager-widget';
 import { nls } from '@theia/core/lib/common/nls';
 
 export namespace MetadataProfileManagerCommands {
     export const OPEN: Command = {
-        id: 'metadata-schema-manager:open',
-        label: nls.localize('rockit/schemaManager/open', 'Open Metadata Profile Manager')
+        id: 'metadata-profile-manager:open',
+        label: nls.localize('rockit/profileManager/open', 'Open Metadata Profile Manager')
     };
     export const OPEN_DOCUMENTATION: Command = {
-        id: 'metadata-schema-manager:open-documentation',
+        id: 'metadata-profile-manager:open-documentation',
         label: nls.localize(
-            'rockit/schemaManager/openDocumentation',
+            'rockit/profileManager/openDocumentation',
             'Open Metadata Profile Manager Documentation',
         ),
         iconClass: codicon('info')
@@ -64,7 +64,7 @@ export class MetadataProfileManagerContribution implements CommandContribution, 
             execute: () => openRockitDocumentationPage(
                 this.applicationServer,
                 this.openerService,
-                ROCKIT_DOCUMENTATION_PAGES.METADATA_SCHEMA_MANAGER,
+                ROCKIT_DOCUMENTATION_PAGES.METADATA_PROFILE_MANAGER,
             ),
             isEnabled: widget => this.isMetadataProfileManagerWidget(widget),
             isVisible: widget => this.isMetadataProfileManagerWidget(widget)
@@ -74,7 +74,7 @@ export class MetadataProfileManagerContribution implements CommandContribution, 
     registerMenus(menus: MenuModelRegistry): void {
         menus.registerMenuAction(CommonMenus.VIEW, {
             commandId: MetadataProfileManagerCommands.OPEN.id,
-            label: nls.localize('rockit/schemaManager/title', 'Metadata Profile Manager'),
+            label: nls.localize('rockit/profileManager/title', 'Metadata Profile Manager'),
             order: 'z50'
         });
     }

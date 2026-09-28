@@ -38,7 +38,7 @@ export class RemoteSchemaProviderStoreService {
 
         if (!rootPathEnv?.value || !configFileNameEnv?.value || !keytarServiceEnv?.value) {
             throw new Error(nls.localize(
-                'rockit/schemaManager/configEnvironmentMissing',
+                'rockit/profileManager/configEnvironmentMissing',
                 'Critical environment variables are missing. Check the app-setup.js configuration.'
             ));
         }

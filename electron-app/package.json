@@ -51,7 +51,7 @@
     "package-ro-crate": "1.0.0",
     "@theia/navigator": "1.65.2",
     "file-preview": "1.0.0",
-    "metadata-schema-manager": "1.0.0",
+    "metadata-profile-manager": "1.0.0",
     "open-editors": "1.0.0",
     "property-selector": "1.0.0",
     "react-grab-helper": "1.0.0",

@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-// theia-extensions/rockit-common/src/common/metadata-schema-manager-protocol.ts
+// theia-extensions/rockit-common/src/common/metadata-profile-manager-protocol.ts
 
 import type { Event } from '@theia/core/lib/common/event'
 

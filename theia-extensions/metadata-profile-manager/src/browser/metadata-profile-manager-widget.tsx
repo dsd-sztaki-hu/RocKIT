@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-// src/browser/metadata-schema-manager-widget.tsx
+// src/browser/metadata-profile-manager-widget.tsx
 
 import { BaseWidget } from '@theia/core/lib/browser'
 import { ApplicationShell } from '@theia/core/lib/browser'
@@ -20,7 +20,7 @@ import { inject, injectable } from 'inversify'
 import * as React from 'react'
 import { createRoot, Root } from 'react-dom/client'
 
-import { ProfileManagerService } from './services/metadata-schema-manager-service'
+import { ProfileManagerService } from './services/metadata-profile-manager-service'
 import { MetadataSchemaTable } from './components/metadata-schema-table'
 import { MetadataSchemaToolbar } from './components/metadata-schema-toolbar'
 import { RemoteSchemaProviderListDialog } from './components/remote-schema-provider-list-dialog'
@@ -33,9 +33,9 @@ import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
 
 import './styles/index.css'
 
-export const METADATA_PROFILE_MANAGER_WIDGET_ID = 'metadata-schema-manager'
+export const METADATA_PROFILE_MANAGER_WIDGET_ID = 'metadata-profile-manager'
 export const METADATA_PROFILE_MANAGER_LABEL = nls.localize(
-    'rockit/schemaManager/title',
+    'rockit/profileManager/title',
     'Metadata Profile Manager',
 )
 
@@ -87,7 +87,7 @@ export class MetadataProfileManagerWidget extends BaseWidget implements Stateful
         } catch (err) {
             this.messageService.error(
                 nls.localize(
-                    'rockit/schemaManager/loadFailed',
+                    'rockit/profileManager/loadFailed',
                     'Error loading profiles: {0}',
                     err instanceof Error ? err.message : String(err),
                 ),
@@ -125,12 +125,12 @@ export class MetadataProfileManagerWidget extends BaseWidget implements Stateful
             if (deletedCount > 0) {
                 const message = hasPersistedItems
                     ? nls.localize(
-                        'rockit/schemaManager/deletedCount',
+                        'rockit/profileManager/deletedCount',
                         'Deleted {0} profile(s).',
                         deletedCount,
                     )
                     : nls.localize(
-                        'rockit/schemaManager/abortedCount',
+                        'rockit/profileManager/abortedCount',
                         'Aborted {0} task(s).',
                         deletedCount,
                     );
@@ -139,7 +139,7 @@ export class MetadataProfileManagerWidget extends BaseWidget implements Stateful
         } catch (err) {
             console.error('Failed to delete profiles:', err)
             this.messageService.error(
-                nls.localize('rockit/schemaManager/deleteFailed', 'Failed to delete profiles.'),
+                nls.localize('rockit/profileManager/deleteFailed', 'Failed to delete profiles.'),
                 { timeout: MSG_TIMEOUT },
             )
         } finally {
@@ -150,7 +150,7 @@ export class MetadataProfileManagerWidget extends BaseWidget implements Stateful
 
     protected async importProfileFromFile(): Promise<void> {
         const fileUriOrUris = await this.fileDialogService.showOpenDialog({
-            title: nls.localize('rockit/schemaManager/importSchema', 'Import Profile'),
+            title: nls.localize('rockit/profileManager/importSchema', 'Import Profile'),
             filters: { JSON: ['json'] },
             canSelectFiles: true,
             canSelectMany: true,
@@ -161,7 +161,7 @@ export class MetadataProfileManagerWidget extends BaseWidget implements Stateful
 
         this.loadMaskService
             .showProgress({
-                text: nls.localize('rockit/schemaManager/importingSchemas', 'Importing Profiles...'),
+                text: nls.localize('rockit/profileManager/importingSchemas', 'Importing Profiles...'),
             })
             .then(async (progress) => {
                 try {
@@ -169,7 +169,7 @@ export class MetadataProfileManagerWidget extends BaseWidget implements Stateful
 
                     if (results.success > 0) {
                         this.messageService.info(nls.localize(
-                            'rockit/schemaManager/importedCount',
+                            'rockit/profileManager/importedCount',
                             'Successfully imported {0} profile(s).',
                             results.success,
                         ), {
@@ -178,7 +178,7 @@ export class MetadataProfileManagerWidget extends BaseWidget implements Stateful
                     }
                     if (results.fail > 0) {
                         this.messageService.warn(nls.localize(
-                            'rockit/schemaManager/importFailedCount',
+                            'rockit/profileManager/importFailedCount',
                             'Failed to import {0} profile(s).',
                             results.fail,
                         ), {
@@ -189,7 +189,7 @@ export class MetadataProfileManagerWidget extends BaseWidget implements Stateful
                     console.error(err)
                     this.messageService.error(
                         nls.localize(
-                            'rockit/schemaManager/unexpectedImportError',
+                            'rockit/profileManager/unexpectedImportError',
                             'Unexpected error during import.',
                         ),
                         { timeout: MSG_TIMEOUT },
@@ -211,13 +211,13 @@ export class MetadataProfileManagerWidget extends BaseWidget implements Stateful
     protected async handleImportUrl(url: string): Promise<void> {
         this.loadMaskService
             .showProgress({
-                text: nls.localize('rockit/schemaManager/importingFromUrl', 'Importing from URL...'),
+                text: nls.localize('rockit/profileManager/importingFromUrl', 'Importing from URL...'),
             })
             .then(async (progress) => {
                 try {
                     const profileName = await this.profileManagerService.importFromUrl(url, progress)
                     this.messageService.info(nls.localize(
-                        'rockit/schemaManager/importedName',
+                        'rockit/profileManager/importedName',
                         'Successfully imported: {0}',
                         profileName,
                     ), { timeout: MSG_TIMEOUT })
@@ -225,7 +225,7 @@ export class MetadataProfileManagerWidget extends BaseWidget implements Stateful
                     if (error.message !== 'Aborted') {
                         this.messageService.error(
                             nls.localize(
-                                'rockit/schemaManager/importFailed',
+                                'rockit/profileManager/importFailed',
                                 'Import failed: {0}',
                                 error instanceof Error ? error.message : String(error),
                             ),
@@ -277,7 +277,7 @@ export class MetadataProfileManagerWidget extends BaseWidget implements Stateful
     protected render(): void {
         if (!this.isAttached) return
 
-        this.node.classList.add('metadata-schema-manager-widget')
+        this.node.classList.add('metadata-profile-manager-widget')
 
         if (!this.reactRoot) {
             this.reactRoot = createRoot(this.node)

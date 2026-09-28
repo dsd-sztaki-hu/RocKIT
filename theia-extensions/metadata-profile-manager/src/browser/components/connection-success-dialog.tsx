@@ -26,7 +26,7 @@ export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
         private schemaNames: string[]
     ) {
         super({
-            title: nls.localize('rockit/schemaManager/connectionSuccessful', 'Connection Successful')
+            title: nls.localize('rockit/profileManager/connectionSuccessful', 'Connection Successful')
         });
         
         this.contentNode.style.width = '500px';
@@ -64,11 +64,11 @@ export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
                         </div>
                         <div>
                             <div className="connection-success__title">
-                                {nls.localize('rockit/schemaManager/connectionEstablished', 'Connection Established')}
+                                {nls.localize('rockit/profileManager/connectionEstablished', 'Connection Established')}
                             </div>
                             <div className="connection-success__message">
                                 {nls.localize(
-                                    'rockit/schemaManager/authenticatedWith',
+                                    'rockit/profileManager/authenticatedWith',
                                     'Successfully authenticated with {0}.',
                                     this.providerName,
                                 )}
@@ -80,7 +80,7 @@ export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
                     <div className="connection-success__list-label">
                         <FolderOpenIcon style={{ fontSize: '16px', color: 'var(--theia-textLink-foreground)' }} />
                         <span>{nls.localize(
-                            'rockit/schemaManager/availableTemplates',
+                            'rockit/profileManager/availableTemplates',
                             'Available Templates ({0})',
                             this.schemaNames.length,
                         )}</span>
@@ -102,7 +102,7 @@ export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
                         ) : (
                             <div className="connection-success__empty">
                                 {nls.localize(
-                                    'rockit/schemaManager/noRootTemplates',
+                                    'rockit/profileManager/noRootTemplates',
                                     'No templates found in the root folder.',
                                 )}
                             </div>
@@ -122,7 +122,7 @@ export class ConnectionSuccessDialog extends AbstractDialog<boolean> {
                         className="theia-button main connection-success__btn-save"
                         onClick={() => this.handleSave()}
                     >
-                        {nls.localize('rockit/schemaManager/save', 'Save')}
+                        {nls.localize('rockit/profileManager/save', 'Save')}
                     </button>
                 </div>
             </div>

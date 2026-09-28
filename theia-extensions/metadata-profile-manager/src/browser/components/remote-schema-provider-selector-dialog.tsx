@@ -34,7 +34,7 @@ export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemotePro
         protected readonly providerStore: RemoteSchemaProviderStoreService
     ) {
         super({
-            title: nls.localize('rockit/schemaManager/selectRemoteProvider', 'Select Remote Provider')
+            title: nls.localize('rockit/profileManager/selectRemoteProvider', 'Select Remote Provider')
         });
         
         this.contentNode.style.width = '500px';
@@ -88,11 +88,11 @@ export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemotePro
                         </div>
                         <div>
                             <div className="remote-provider-selector__title">
-                                {nls.localize('rockit/schemaManager/chooseRepository', 'Choose Repository')}
+                                {nls.localize('rockit/profileManager/chooseRepository', 'Choose Repository')}
                             </div>
                             <div className="remote-provider-selector__description">
                                 {nls.localize(
-                                    'rockit/schemaManager/chooseRepositoryDescription',
+                                    'rockit/profileManager/chooseRepositoryDescription',
                                     'Select a remote provider to browse schemas.',
                                 )}
                             </div>
@@ -105,18 +105,18 @@ export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemotePro
                         {this.isLoading ? (
                             <div className="remote-provider-selector__state-msg">
                                 <i className="codicon codicon-loading codicon-modifier-spin" />
-                                {nls.localize('rockit/schemaManager/loadingProviders', 'Loading providers...')}
+                                {nls.localize('rockit/profileManager/loadingProviders', 'Loading providers...')}
                             </div>
                         ) : this.providers.length === 0 ? (
                             <div className="remote-provider-selector__state-msg">
                                 <div className="remote-provider-selector__empty-box">
                                     <StorageIcon className="remote-provider-selector__empty-icon" />
                                     <div className="remote-provider-selector__empty-title">
-                                        {nls.localize('rockit/schemaManager/noProvidersFound', 'No Providers Found')}
+                                        {nls.localize('rockit/profileManager/noProvidersFound', 'No Providers Found')}
                                     </div>
                                     <p className="remote-provider-selector__empty-desc">
                                         {nls.localize(
-                                            'rockit/schemaManager/noProvidersDescription',
+                                            'rockit/profileManager/noProvidersDescription',
                                             'No remote repositories have been configured yet.',
                                         )}
                                     </p>
@@ -125,7 +125,7 @@ export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemotePro
                                         onClick={() => this.handleConfigure()}
                                         style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                                     >
-                                        <AddLinkIcon fontSize="small" /> {nls.localize('rockit/schemaManager/configureProviders', 'Configure Providers')}
+                                        <AddLinkIcon fontSize="small" /> {nls.localize('rockit/profileManager/configureProviders', 'Configure Providers')}
                                     </button>
                                 </div>
                             </div>
@@ -168,7 +168,7 @@ export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemotePro
                             onClick={() => this.handleConfigure()}
                         >
                             <SettingsIcon style={{ fontSize: '14px', marginRight: '6px' }} />
-                            {nls.localize('rockit/schemaManager/manageProviders', 'Manage Providers...')}
+                            {nls.localize('rockit/profileManager/manageProviders', 'Manage Providers...')}
                         </button>
                     ) : (
                         <div /> 

@@ -56,7 +56,7 @@ export const MetadataSchemaTable: React.FC<ProfileTableProps> = React.memo(({
                 <Input
                     ref={searchInput}
                     placeholder={nls.localize(
-                        'rockit/schemaManager/searchField',
+                        'rockit/profileManager/searchField',
                         'Search {0}',
                         Array.isArray(dataIndex) ? dataIndex.join('.') : dataIndex,
                     )}
@@ -74,14 +74,14 @@ export const MetadataSchemaTable: React.FC<ProfileTableProps> = React.memo(({
                         size="small" 
                         className="schema-table__filter-btn"
                     >
-                        {nls.localize('rockit/schemaManager/search', 'Search')}
+                        {nls.localize('rockit/profileManager/search', 'Search')}
                     </Button>
                     <Button 
                         onClick={() => clearFilters && handleReset(clearFilters)} 
                         size="small" 
                         className="schema-table__filter-btn"
                     >
-                        {nls.localize('rockit/schemaManager/resetFilter', 'Reset')}
+                        {nls.localize('rockit/profileManager/resetFilter', 'Reset')}
                     </Button>
                 </div>
             </div>
@@ -102,7 +102,7 @@ export const MetadataSchemaTable: React.FC<ProfileTableProps> = React.memo(({
 
     const columns: TableColumnsType<ProfileInfo> = [
         {
-            title: nls.localize('rockit/schemaManager/name', 'Name'),
+            title: nls.localize('rockit/profileManager/name', 'Name'),
             dataIndex: 'name',
             width: 220,
             ellipsis: true,
@@ -115,7 +115,7 @@ export const MetadataSchemaTable: React.FC<ProfileTableProps> = React.memo(({
             ...getColumnSearchProps('name'),
         },
         {
-            title: nls.localize('rockit/schemaManager/status', 'Status'),
+            title: nls.localize('rockit/profileManager/status', 'Status'),
             dataIndex: 'status',
             width: 130,
             sorter: (a, b) => {
@@ -126,23 +126,23 @@ export const MetadataSchemaTable: React.FC<ProfileTableProps> = React.memo(({
                 const status = text || 'ok';
                 if (status === 'downloading' || status === 'processing') {
                     return (
-                        <Tooltip title={record.statusMessage || nls.localize('rockit/schemaManager/processing', 'Processing...')} placement="right">
+                        <Tooltip title={record.statusMessage || nls.localize('rockit/profileManager/processing', 'Processing...')} placement="right">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--theia-focusBorder)' }}>
                                 <CircularProgress size={14} color="inherit" />
                                 <span style={{ fontSize: '12px' }}>
                                     {status === 'downloading'
-                                        ? nls.localize('rockit/schemaManager/downloading', 'Downloading')
-                                        : nls.localize('rockit/schemaManager/processingLabel', 'Processing')}
+                                        ? nls.localize('rockit/profileManager/downloading', 'Downloading')
+                                        : nls.localize('rockit/profileManager/processingLabel', 'Processing')}
                                 </span>
                             </div>
                         </Tooltip>
                     );
                 } else if (status === 'failed') {
                     return (
-                        <Tooltip title={record.statusMessage || nls.localize('rockit/schemaManager/failed', 'Failed')} placement="right">
+                        <Tooltip title={record.statusMessage || nls.localize('rockit/profileManager/failed', 'Failed')} placement="right">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--theia-errorForeground)' }}>
                                 <ErrorOutlineIcon style={{ fontSize: '16px' }} />
-                                <span style={{ fontSize: '12px' }}>{nls.localize('rockit/schemaManager/failed', 'Failed')}</span>
+                                <span style={{ fontSize: '12px' }}>{nls.localize('rockit/profileManager/failed', 'Failed')}</span>
                             </div>
                         </Tooltip>
                     );
@@ -150,25 +150,25 @@ export const MetadataSchemaTable: React.FC<ProfileTableProps> = React.memo(({
                     return (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4caf50' }}>
                             <CheckCircleIcon style={{ fontSize: '16px' }} />
-                            <span style={{ fontSize: '12px' }}>{nls.localize('rockit/schemaManager/ready', 'Ready')}</span>
+                            <span style={{ fontSize: '12px' }}>{nls.localize('rockit/profileManager/ready', 'Ready')}</span>
                         </div>
                     );
                 }
             }
         },
         {
-            title: nls.localize('rockit/schemaManager/version', 'Version'),
+            title: nls.localize('rockit/profileManager/version', 'Version'),
             dataIndex: 'version',
             width: 90,
             sorter: (a, b) => a.version.localeCompare(b.version),
         },
         {
-            title: nls.localize('rockit/schemaManager/source', 'Source'),
+            title: nls.localize('rockit/profileManager/source', 'Source'),
             dataIndex: 'source',
             width: 100,
             filters: [
-                { text: nls.localize('rockit/schemaManager/local', 'Local'), value: 'local' },
-                { text: nls.localize('rockit/schemaManager/remote', 'Remote'), value: 'remote' },
+                { text: nls.localize('rockit/profileManager/local', 'Local'), value: 'local' },
+                { text: nls.localize('rockit/profileManager/remote', 'Remote'), value: 'remote' },
             ],
             onFilter: (value, record) => record.source === value,
             filterIcon: (filtered: boolean) => (
@@ -177,13 +177,13 @@ export const MetadataSchemaTable: React.FC<ProfileTableProps> = React.memo(({
             render: (text: string) => (
                 <span className={`schema-table__badge ${text === 'remote' ? 'schema-table__badge--remote' : 'schema-table__badge--local'}`}>
                     {text === 'remote'
-                        ? nls.localize('rockit/schemaManager/remote', 'Remote')
-                        : nls.localize('rockit/schemaManager/local', 'Local')}
+                        ? nls.localize('rockit/profileManager/remote', 'Remote')
+                        : nls.localize('rockit/profileManager/local', 'Local')}
                 </span>
             )
         },
         {
-            title: nls.localize('rockit/schemaManager/referenceId', 'Ref (@id)'),
+            title: nls.localize('rockit/profileManager/referenceId', 'Ref (@id)'),
             dataIndex: ['aux', 'reference'],
             width: 240,
             ellipsis: true,
@@ -191,7 +191,7 @@ export const MetadataSchemaTable: React.FC<ProfileTableProps> = React.memo(({
             render: (text: string) => text ? <a href={text} target="_blank" rel="noreferrer" className="schema-table__link" onClick={e => e.stopPropagation()}>{text}</a> : ''
         },
         {
-            title: nls.localize('rockit/schemaManager/conformsTo', 'Conforms To'),
+            title: nls.localize('rockit/profileManager/conformsTo', 'Conforms To'),
             dataIndex: 'conformsTo',
             width: 240,
             ellipsis: true,
@@ -202,7 +202,7 @@ export const MetadataSchemaTable: React.FC<ProfileTableProps> = React.memo(({
 
     if (onDelete || onRetry) {
         columns.push({
-            title: nls.localize('rockit/schemaManager/action', 'Action'),
+            title: nls.localize('rockit/profileManager/action', 'Action'),
             key: 'action',
             width: 90,
             align: 'center',
@@ -217,7 +217,7 @@ export const MetadataSchemaTable: React.FC<ProfileTableProps> = React.memo(({
                 return (
                     <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                         {record.status === 'failed' && onRetry && (
-                            <Tooltip title={nls.localize('rockit/schemaManager/retry', 'Retry')} classes={{ tooltip: 'schema-table__tooltip' }} placement="top">
+                            <Tooltip title={nls.localize('rockit/profileManager/retry', 'Retry')} classes={{ tooltip: 'schema-table__tooltip' }} placement="top">
                                 <IconButton 
                                     size="small" 
                                     onClick={(e) => {
@@ -239,8 +239,8 @@ export const MetadataSchemaTable: React.FC<ProfileTableProps> = React.memo(({
                                 }}
                                 className="schema-table__action-btn schema-table__delete-btn"
                                 aria-label={isTransient
-                                    ? nls.localize('rockit/schemaManager/abortTask', 'Abort or remove profile task')
-                                    : nls.localize('rockit/schemaManager/deleteSchema', 'Delete profile')}
+                                    ? nls.localize('rockit/profileManager/abortTask', 'Abort or remove profile task')
+                                    : nls.localize('rockit/profileManager/deleteSchema', 'Delete profile')}
                             >
                                 <DeleteOutlineIcon className="schema-table__delete-icon" />
                             </IconButton>
@@ -257,11 +257,11 @@ export const MetadataSchemaTable: React.FC<ProfileTableProps> = React.memo(({
         <div className="schema-table__empty-state">
             <AccountTreeIcon className="schema-table__empty-icon" />
             <div className="schema-table__empty-title">
-                {nls.localize('rockit/schemaManager/noSchemas', 'No Metadata Profiles')}
+                {nls.localize('rockit/profileManager/noSchemas', 'No Metadata Profiles')}
             </div>
             <div className="schema-table__empty-desc">
                 {nls.localize(
-                    'rockit/schemaManager/noSchemasDescription',
+                    'rockit/profileManager/noSchemasDescription',
                     'Use Import File, Import URL, or Browse Remote to add profiles.',
                 )}
             </div>

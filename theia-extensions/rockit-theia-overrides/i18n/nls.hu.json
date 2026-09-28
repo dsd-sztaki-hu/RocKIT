@@ -359,7 +359,7 @@
       "roCrateEditor": "RO-Crate-szerkesztő",
       "entities": "Entitások",
       "validationErrors": "Validációs hibák",
-      "metadataSchemaManager": "Metadataprofil-kezelő",
+      "metadataProfileManager": "Metadataprofil-kezelő",
       "dataRepositoryManager": "Adatrepozitórium-kezelő",
       "roCratePreview": "RO-Crate előnézete",
       "remoteToLocalConversion": "Távoli azonosítók helyivé alakítása",
@@ -497,7 +497,7 @@
       "noErrors": "Nincsenek validációs hibák",
       "widgetCreated": "A „Validációs hibák” nézet sikeresen létrejött."
     },
-    "schemaManager": {
+    "profileManager": {
       "title": "Metadataprofil-kezelő",
       "open": "Metadataprofil-kezelő megnyitása",
       "openDocumentation": "A Metadataprofil-kezelő dokumentációjának megnyitása",

@@ -18,7 +18,7 @@ import { IconButton, Tooltip } from '@mui/material';
 import CenterFocusWeakIcon from '@mui/icons-material/CenterFocusWeak'; 
 import CancelIcon from '@mui/icons-material/Cancel'; 
 
-import { ProfileManagerService } from '../services/metadata-schema-manager-service';
+import { ProfileManagerService } from '../services/metadata-profile-manager-service';
 import { SchemaApi } from '../services/schema-api';
 import CedarTree from './cedar-tree';
 import { RemoteProfileProviderConfig } from '../types';
@@ -71,7 +71,7 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
         private readonly envVariablesServer: EnvVariablesServer
     ) {
         super({
-            title: nls.localize('rockit/schemaManager/browseProvider', 'Browse {0}', provider.title)
+            title: nls.localize('rockit/profileManager/browseProvider', 'Browse {0}', provider.title)
         });
 
         this.contentNode.style.width = '600px';
@@ -195,7 +195,7 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                     />
                 ) : (
                     <div className="remote-browser-dialog__loading">
-                        {nls.localize('rockit/schemaManager/initializingConnection', 'Initializing connection...')}
+                        {nls.localize('rockit/profileManager/initializingConnection', 'Initializing connection...')}
                     </div>
                 )}
             </div>
@@ -206,12 +206,12 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                     {selectedName ? (
                         <>
                             <div className="remote-browser-dialog__controls">
-                                <Tooltip title={nls.localize('rockit/schemaManager/locateInTree', 'Locate in Tree')} PopperProps={{ style: { zIndex: 99999 } }}>
+                                <Tooltip title={nls.localize('rockit/profileManager/locateInTree', 'Locate in Tree')} PopperProps={{ style: { zIndex: 99999 } }}>
                                     <IconButton size="small" onClick={handleGoTo} style={{ padding: 2, color: 'var(--theia-icon-foreground)' }}>
                                         <CenterFocusWeakIcon fontSize="small" />
                                     </IconButton>
                                 </Tooltip>
-                                <Tooltip title={nls.localize('rockit/schemaManager/deselect', 'Deselect')} PopperProps={{ style: { zIndex: 99999 } }}>
+                                <Tooltip title={nls.localize('rockit/profileManager/deselect', 'Deselect')} PopperProps={{ style: { zIndex: 99999 } }}>
                                     <IconButton size="small" onClick={handleDeselect} style={{ padding: 2, color: 'var(--theia-errorForeground)' }}>
                                         <CancelIcon fontSize="small" />
                                     </IconButton>
@@ -224,7 +224,7 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                         </>
                     ) : (
                         <span className="remote-browser-dialog__placeholder">
-                            {nls.localize('rockit/schemaManager/selectTemplate', 'Select a template to import...')}
+                            {nls.localize('rockit/profileManager/selectTemplate', 'Select a template to import...')}
                         </span>
                     )}
                 </div>
@@ -241,7 +241,7 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                         onClick={() => selectedId && onAccept(selectedId)}
                         disabled={!selectedId}
                     >
-                        {nls.localize('rockit/schemaManager/add', 'Add')}
+                        {nls.localize('rockit/profileManager/add', 'Add')}
                     </button>
                 </div>
             </div>

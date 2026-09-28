@@ -50,8 +50,8 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
     ) {
         super({
             title: providerToEdit
-                ? nls.localize('rockit/schemaManager/editProvider', 'Edit Provider')
-                : nls.localize('rockit/schemaManager/addProvider', 'Add Provider')
+                ? nls.localize('rockit/profileManager/editProvider', 'Edit Provider')
+                : nls.localize('rockit/profileManager/addProvider', 'Add Provider')
         });
         
         this.contentNode.style.width = '500px';
@@ -87,7 +87,7 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
     private async handleSaveAttempt() {
         if (!this.titleValue || !this.baseUrlValue) {
             this.errorMsg = nls.localize(
-                'rockit/schemaManager/titleAndUrlRequired',
+                'rockit/profileManager/titleAndUrlRequired',
                 'Title and Base URL are required.',
             );
             this.render();
@@ -129,7 +129,7 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
             }
         } catch (err: any) {
             this.errorMsg = nls.localize(
-                'rockit/schemaManager/connectionFailed',
+                'rockit/profileManager/connectionFailed',
                 'Connection failed: {0}',
                 err.message || nls.localize('rockit/validation/unknownError', 'Unknown error'),
             );
@@ -214,12 +214,12 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
                         <div>
                             <div className="remote-provider-config__title">
                                 {this.providerToEdit
-                                    ? nls.localize('rockit/schemaManager/editConnection', 'Edit Connection')
-                                    : nls.localize('rockit/schemaManager/newConnection', 'New Connection')}
+                                    ? nls.localize('rockit/profileManager/editConnection', 'Edit Connection')
+                                    : nls.localize('rockit/profileManager/newConnection', 'New Connection')}
                             </div>
                             <div className="remote-provider-config__description">
                                 {nls.localize(
-                                    'rockit/schemaManager/configureConnectionDescription',
+                                    'rockit/profileManager/configureConnectionDescription',
                                     'Configure connection details for a remote metadata repository.',
                                 )}
                             </div>
@@ -228,7 +228,7 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
 
                     {this.errorMsg && (
                         <div className="remote-provider-config__error">
-                            <strong>{nls.localize('rockit/schemaManager/error', 'Error')}:</strong> {this.errorMsg}
+                            <strong>{nls.localize('rockit/profileManager/error', 'Error')}:</strong> {this.errorMsg}
                         </div>
                     )}
 
@@ -238,7 +238,7 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
                         {/* Title */}
                         <div>
                             <label className="remote-provider-config__label">
-                                {nls.localize('rockit/schemaManager/displayName', 'Name (Display)')}
+                                {nls.localize('rockit/profileManager/displayName', 'Name (Display)')}
                             </label>
                             <input 
                                 className="theia-input remote-provider-config__input" 
@@ -246,7 +246,7 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
                                 onChange={(e) => { this.titleValue = e.target.value; this.render(); }}
                                 disabled={this.isTesting}
                                 placeholder={nls.localize(
-                                    'rockit/schemaManager/displayNamePlaceholder',
+                                    'rockit/profileManager/displayNamePlaceholder',
                                     'e.g. ARP Production',
                                 )}
                                 autoFocus
@@ -256,7 +256,7 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
                         {/* Base URL */}
                         <div>
                             <label className="remote-provider-config__label">
-                                <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/schemaManager/baseUrl', 'Base URL')}
+                                <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/profileManager/baseUrl', 'Base URL')}
                             </label>
                             <input 
                                 className="theia-input remote-provider-config__input" 
@@ -276,7 +276,7 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
                         {/* Type Dropdown */}
                         <div>
                             <label className="remote-provider-config__label">
-                                <CategoryIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/schemaManager/type', 'Type')}
+                                <CategoryIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/profileManager/type', 'Type')}
                             </label>
                             <select 
                                 className="theia-select remote-provider-config__select" 
@@ -291,7 +291,7 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
                         {/* Access Mode */}
                         <div>
                             <label className="remote-provider-config__label">
-                                <SecurityIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/schemaManager/access', 'Access')}
+                                <SecurityIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/profileManager/access', 'Access')}
                             </label>
                             <select
                                 className="theia-select remote-provider-config__select"
@@ -305,15 +305,15 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
                                 }}
                                 disabled={this.isTesting}
                             >
-                                <option value="dataverseProxy">{nls.localize('rockit/schemaManager/dataverseProxy', 'Dataverse proxy (read-only)')}</option>
-                                <option value="apiKey">{nls.localize('rockit/schemaManager/cedarApiKey', 'CEDAR API key')}</option>
+                                <option value="dataverseProxy">{nls.localize('rockit/profileManager/dataverseProxy', 'Dataverse proxy (read-only)')}</option>
+                                <option value="apiKey">{nls.localize('rockit/profileManager/cedarApiKey', 'CEDAR API key')}</option>
                             </select>
                         </div>
 
                         {this.accessModeValue === 'dataverseProxy' && (
                             <div>
                                 <label className="remote-provider-config__label">
-                                    <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/schemaManager/dataverseProxyUrl', 'Dataverse Proxy Base URL')}
+                                    <LinkIcon style={{ fontSize: '16px', opacity: 0.7 }}/> {nls.localize('rockit/profileManager/dataverseProxyUrl', 'Dataverse Proxy Base URL')}
                                 </label>
                                 <input
                                     className="theia-input remote-provider-config__input"
@@ -339,8 +339,8 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
                                     onChange={(e) => { this.apiKeyValue = e.target.value; this.render(); }}
                                     disabled={!this.isEditingKey || this.isTesting}
                                     placeholder={this.isEditingKey
-                                        ? nls.localize('rockit/schemaManager/pasteApiKey', 'Paste API Key here')
-                                        : nls.localize('rockit/schemaManager/storedSecurely', 'Stored securely')}
+                                        ? nls.localize('rockit/profileManager/pasteApiKey', 'Paste API Key here')
+                                        : nls.localize('rockit/profileManager/storedSecurely', 'Stored securely')}
                                 />
                                 {this.isEditingKey ? (
                                     <div className="remote-provider-config__visibility-toggle">
@@ -349,8 +349,8 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
                                             onClick={() => { this.showKey = !this.showKey; this.render(); }}
                                             style={{ color: 'var(--theia-foreground)', opacity: 0.7 }}
                                             title={this.showKey
-                                                ? nls.localize('rockit/schemaManager/hideApiKey', 'Hide API Key')
-                                                : nls.localize('rockit/schemaManager/showApiKey', 'Show API Key')}
+                                                ? nls.localize('rockit/profileManager/hideApiKey', 'Hide API Key')
+                                                : nls.localize('rockit/profileManager/showApiKey', 'Show API Key')}
                                         >
                                             {this.showKey ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                                         </IconButton>
@@ -364,7 +364,7 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
                                             this.render(); 
                                         }}
                                     >
-                                        {nls.localize('rockit/schemaManager/change', 'Change')}
+                                        {nls.localize('rockit/profileManager/change', 'Change')}
                                     </button>
                                 )}
                             </div>
@@ -381,7 +381,7 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
                             onClick={() => this.handlePrefillDefaults()}
                             disabled={this.isTesting}
                         >
-                            {nls.localize('rockit/schemaManager/useArpDefaults', 'Use ARP Production defaults')}
+                            {nls.localize('rockit/profileManager/useArpDefaults', 'Use ARP Production defaults')}
                         </button>
                     )}
                     <div className="remote-provider-config__footer-spacer" />
@@ -399,8 +399,8 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
                     >
                         {this.isTesting && <i className="codicon codicon-loading codicon-modifier-spin" />}
                         {this.isTesting
-                            ? nls.localize('rockit/schemaManager/verifying', 'Verifying...')
-                            : nls.localize('rockit/schemaManager/save', 'Save')}
+                            ? nls.localize('rockit/profileManager/verifying', 'Verifying...')
+                            : nls.localize('rockit/profileManager/save', 'Save')}
                     </button>
                 </div>
             </div>

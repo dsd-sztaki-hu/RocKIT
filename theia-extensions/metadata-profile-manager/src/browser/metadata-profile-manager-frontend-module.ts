@@ -9,9 +9,9 @@ import { CommandContribution, MenuContribution } from '@theia/core/lib/common';
 import { WidgetFactory, FrontendApplicationContribution, WebSocketConnectionProvider } from '@theia/core/lib/browser';
 import { TabBarToolbarContribution } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 
-import { MetadataProfileManagerWidget, METADATA_PROFILE_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
-import { MetadataProfileManagerContribution } from './metadata-schema-manager-contribution';
-import { ProfileManagerService } from './services/metadata-schema-manager-service';
+import { MetadataProfileManagerWidget, METADATA_PROFILE_MANAGER_WIDGET_ID } from './metadata-profile-manager-widget';
+import { MetadataProfileManagerContribution } from './metadata-profile-manager-contribution';
+import { ProfileManagerService } from './services/metadata-profile-manager-service';
 import { RemoteSchemaProviderStoreService } from './services/remote-schema-provider-store-service';
 import { MetadataSchemaSelectorContribution } from './components/metadata-schema-selector'; 
 import { RemoteSchemaBrowserContribution } from './components/remote-schema-browser-dialog';

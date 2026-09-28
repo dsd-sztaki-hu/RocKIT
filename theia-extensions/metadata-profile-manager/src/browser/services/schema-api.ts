@@ -48,7 +48,7 @@ export class SchemaApi {
     }
     if (!axios || !axios.get) {
         throw new Error(nls.localize(
-          'rockit/schemaManager/axiosNotInitialized',
+          'rockit/profileManager/axiosNotInitialized',
           'Axios library was not initialized correctly.',
         ));
     }
@@ -119,7 +119,7 @@ export class SchemaApi {
       if (!id || id.length == 0) {
         console.warn("Could not find public folder ID in response", res.data);
         throw Error(nls.localize(
-          'rockit/schemaManager/publicFolderIdMissing',
+          'rockit/profileManager/publicFolderIdMissing',
           "Public folder's ID is missing at '/resources/0/@id'.",
         ));
       }
@@ -137,7 +137,7 @@ export class SchemaApi {
   async listUserFolder(userId?: string) {
     const actualUserId = userId ?? this.userId
     if (!actualUserId) throw Error(nls.localize(
-      'rockit/schemaManager/userIdMissing',
+      'rockit/profileManager/userIdMissing',
       'No user ID was specified.',
     ))
     

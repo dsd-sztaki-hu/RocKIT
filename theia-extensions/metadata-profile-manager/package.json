@@ -1,5 +1,5 @@
 {
-  "name": "metadata-schema-manager",
+  "name": "metadata-profile-manager",
   "version": "1.0.0",
   "description": "A Theia extension to manage metadata profiles",
   "license": "Apache-2.0",
@@ -13,8 +13,8 @@
   ],
   "theiaExtensions": [
     {
-      "frontend": "lib/browser/metadata-schema-manager-frontend-module.js",
-      "backend": "lib/node/metadata-schema-manager-backend-module.js"
+      "frontend": "lib/browser/metadata-profile-manager-frontend-module.js",
+      "backend": "lib/node/metadata-profile-manager-backend-module.js"
     }
   ],
   "dependencies": {

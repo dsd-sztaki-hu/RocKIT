@@ -22,7 +22,7 @@ export class DeleteConfirmationDialog extends AbstractDialog<boolean> {
 
     constructor(private readonly count: number) {
         super({
-            title: nls.localize('rockit/schemaManager/confirmDeletion', 'Confirm Deletion')
+            title: nls.localize('rockit/profileManager/confirmDeletion', 'Confirm Deletion')
         });
 
         this.contentNode.style.width = '400px';
@@ -88,11 +88,11 @@ const DeleteContent: React.FC<DeleteContentProps> = ({ count, onConfirm, onCance
                 
                 <div className="delete-confirmation__text-container">
                     <h3 className="delete-confirmation__title">
-                        {nls.localize('rockit/schemaManager/deleteSchemasQuestion', 'Delete {0} profile(s)?', count)}
+                        {nls.localize('rockit/profileManager/deleteSchemasQuestion', 'Delete {0} profile(s)?', count)}
                     </h3>
                     <p className="delete-confirmation__message">
                         {nls.localize(
-                            'rockit/schemaManager/deleteSchemasWarning',
+                            'rockit/profileManager/deleteSchemasWarning',
                             'Are you sure you want to delete the selected profiles? This action cannot be undone.',
                         )}
                     </p>
@@ -111,7 +111,7 @@ const DeleteContent: React.FC<DeleteContentProps> = ({ count, onConfirm, onCance
                     className="theia-button delete-confirmation__btn-delete"
                     onClick={onConfirm}
                 >
-                    {nls.localize('rockit/schemaManager/delete', 'Delete')}
+                    {nls.localize('rockit/profileManager/delete', 'Delete')}
                 </button>
             </div>
         </div>

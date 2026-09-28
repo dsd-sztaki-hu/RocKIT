@@ -60,18 +60,18 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
         <div className="schema-toolbar">
             {/* Group 1: Local Imports */}
             {renderActionButton(
-                nls.localize('rockit/schemaManager/importFile', 'Import File'),
+                nls.localize('rockit/profileManager/importFile', 'Import File'),
                 <NoteAddIcon className="schema-toolbar__icon-svg" />, 
                 onImportFile, 
-                nls.localize('rockit/schemaManager/importFileTooltip', 'Import a profile from a local JSON file'),
+                nls.localize('rockit/profileManager/importFileTooltip', 'Import a profile from a local JSON file'),
                 true 
             )}
             
             {renderActionButton(
-                nls.localize('rockit/schemaManager/importUrl', 'Import URL'),
+                nls.localize('rockit/profileManager/importUrl', 'Import URL'),
                 <LinkIcon className="schema-toolbar__icon-svg" />, 
                 onImportUrl, 
-                nls.localize('rockit/schemaManager/importUrlTooltip', 'Import a profile from a URL'),
+                nls.localize('rockit/profileManager/importUrlTooltip', 'Import a profile from a URL'),
                 true 
             )}
 
@@ -79,15 +79,15 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
 
             {/* Group 2: Remote / Cloud */}
             {onBrowse && renderActionButton(
-                nls.localize('rockit/schemaManager/browseRemote', 'Browse Remote'),
+                nls.localize('rockit/profileManager/browseRemote', 'Browse Remote'),
                 <CloudDownloadIcon className="schema-toolbar__icon-svg" />, 
                 onBrowse, 
-                nls.localize('rockit/schemaManager/browseRemoteTooltip', 'Browse profiles from a remote provider'),
+                nls.localize('rockit/profileManager/browseRemoteTooltip', 'Browse profiles from a remote provider'),
                 true 
             )}
 
             {onConfigureProviders && (
-                <Tooltip title={nls.localize('rockit/schemaManager/configureProviders', 'Configure Providers')} PopperProps={{ style: { zIndex: 99999 } }}>
+                <Tooltip title={nls.localize('rockit/profileManager/configureProviders', 'Configure Providers')} PopperProps={{ style: { zIndex: 99999 } }}>
                     <IconButton 
                         size="small" 
                         onClick={onConfigureProviders}
@@ -101,7 +101,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
             <div className="schema-toolbar__spacer" /> 
 
             {/* Group 3: Global Actions */}
-            <Tooltip title={nls.localize('rockit/schemaManager/refreshList', 'Refresh List')} PopperProps={{ style: { zIndex: 99999 } }}>
+            <Tooltip title={nls.localize('rockit/profileManager/refreshList', 'Refresh List')} PopperProps={{ style: { zIndex: 99999 } }}>
                 <IconButton 
                     size="small"
                     onClick={onRefresh}
@@ -117,13 +117,13 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                     <button 
                         className="schema-toolbar__btn schema-toolbar__btn--delete" 
                         onClick={onDelete} 
-                        title={nls.localize('rockit/schemaManager/deleteSelected', 'Delete selected profiles')}
+                        title={nls.localize('rockit/profileManager/deleteSelected', 'Delete selected profiles')}
                     >
                         <span className="schema-toolbar__btn-icon">
                             <DeleteOutlineIcon className="schema-toolbar__icon-svg" />
                         </span>
                         <span className="schema-toolbar__btn-label">
-                            {nls.localize('rockit/schemaManager/deleteCount', 'Delete ({0})', selectedCount)}
+                            {nls.localize('rockit/profileManager/deleteCount', 'Delete ({0})', selectedCount)}
                         </span>
                     </button>
                 </div>

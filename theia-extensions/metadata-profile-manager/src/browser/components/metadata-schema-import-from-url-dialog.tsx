@@ -23,7 +23,7 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
 
     constructor() {
         super({
-            title: nls.localize('rockit/schemaManager/importFromUrlTitle', 'Import Profile from URL')
+            title: nls.localize('rockit/profileManager/importFromUrlTitle', 'Import Profile from URL')
         });
 
         this.contentNode.style.width = '500px';
@@ -60,11 +60,11 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
                         
                         <div className="metadata-schema-import-url__text-wrapper">
                             <div className="metadata-schema-import-url__title">
-                                {nls.localize('rockit/schemaManager/enterSchemaUrl', 'Enter Metadata Profile URL')}
+                                {nls.localize('rockit/profileManager/enterSchemaUrl', 'Enter Metadata Profile URL')}
                             </div>
                             <div className="metadata-schema-import-url__description">
                                 {nls.localize(
-                                    'rockit/schemaManager/schemaUrlDescription',
+                                    'rockit/profileManager/schemaUrlDescription',
                                     'Paste the direct link to the JSON schema file. Authentication will be handled when a provider matches.',
                                 )}
                             </div>
@@ -104,7 +104,7 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
                         className="theia-button main metadata-schema-import-url__button metadata-schema-import-url__button--main"
                         onClick={() => this.handleImport()}
                     >
-                        {nls.localize('rockit/schemaManager/import', 'Import')}
+                        {nls.localize('rockit/profileManager/import', 'Import')}
                     </button>
                 </div>
             </div>

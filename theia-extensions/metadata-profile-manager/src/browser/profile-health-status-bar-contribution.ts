@@ -11,11 +11,11 @@ import { nls } from '@theia/core/lib/common/nls';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { inject, injectable } from 'inversify';
 
-import { MetadataProfileManagerCommands } from './metadata-schema-manager-contribution';
-import { ProfileManagerService } from './services/metadata-schema-manager-service';
+import { MetadataProfileManagerCommands } from './metadata-profile-manager-contribution';
+import { ProfileManagerService } from './services/metadata-profile-manager-service';
 import type { ProfileHealthIssue, ProfileHealthStatus } from './types';
 
-const PROFILE_HEALTH_STATUS_BAR_ID = 'metadata-schema-manager.profile-health';
+const PROFILE_HEALTH_STATUS_BAR_ID = 'metadata-profile-manager.profile-health';
 
 @injectable()
 export class ProfileHealthStatusBarContribution implements FrontendApplicationContribution {
@@ -68,7 +68,7 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
 
       await this.statusBar.setElement(PROFILE_HEALTH_STATUS_BAR_ID, {
         text: `$(error) ${nls.localize(
-          'rockit/schemaManager/profileIssue',
+          'rockit/profileManager/profileIssue',
           'RO-Crate profile issue: {0}',
           this.describeIssueCounts(health),
         )}`,
@@ -81,7 +81,7 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
         command: MetadataProfileManagerCommands.OPEN.id,
         accessibilityInformation: {
           label: nls.localize(
-            'rockit/schemaManager/profileIssueAccessible',
+            'rockit/profileManager/profileIssueAccessible',
             'RO-Crate profile issue: {0}. Click to open Metadata Profile Manager.',
             this.describeIssueCounts(health),
           ),
@@ -96,7 +96,7 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
       const message = error instanceof Error ? error.message : String(error);
       await this.statusBar.setElement(PROFILE_HEALTH_STATUS_BAR_ID, {
         text: `$(error) ${nls.localize(
-          'rockit/schemaManager/profileUnavailable',
+          'rockit/profileManager/profileUnavailable',
           'RO-Crate profile status unavailable',
         )}`,
         alignment: StatusBarAlignment.LEFT,
@@ -105,14 +105,14 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
         color: 'var(--theia-statusBarItem-errorForeground)',
         backgroundColor: 'var(--theia-statusBarItem-errorBackground)',
         tooltip: nls.localize(
-          'rockit/schemaManager/profileCheckFailed',
+          'rockit/profileManager/profileCheckFailed',
           'Unable to check referenced metadata profiles.\n\n{0}',
           message,
         ),
         command: MetadataProfileManagerCommands.OPEN.id,
         accessibilityInformation: {
           label: nls.localize(
-            'rockit/schemaManager/profileUnavailableAccessible',
+            'rockit/profileManager/profileUnavailableAccessible',
             'RO-Crate profile status unavailable. Click to open Metadata Profile Manager.',
           ),
           role: 'button'
@@ -127,10 +127,10 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
     const parts: string[] = [];
 
     if (failedCount > 0) {
-      parts.push(nls.localize('rockit/schemaManager/failedCount', '{0} failed', failedCount));
+      parts.push(nls.localize('rockit/profileManager/failedCount', '{0} failed', failedCount));
     }
     if (missingCount > 0) {
-      parts.push(nls.localize('rockit/schemaManager/missingCount', '{0} missing', missingCount));
+      parts.push(nls.localize('rockit/profileManager/missingCount', '{0} missing', missingCount));
     }
 
     return parts.join(', ');
@@ -143,7 +143,7 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
       .join('\n');
     const remaining = health.issues.length > 5
       ? `\n${nls.localize(
-          'rockit/schemaManager/andMore',
+          'rockit/profileManager/andMore',
           '...and {0} more.',
           health.issues.length - 5,
         )}`
@@ -151,14 +151,14 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
 
     return [
       nls.localize(
-        'rockit/schemaManager/editingMayBeIncomplete',
+        'rockit/profileManager/editingMayBeIncomplete',
         'Editing may be incomplete because referenced metadata profiles are unavailable.',
       ),
       '',
       details + remaining,
       '',
       nls.localize(
-        'rockit/schemaManager/clickToOpen',
+        'rockit/profileManager/clickToOpen',
         'Click to open Metadata Profile Manager.',
       )
     ].join('\n');
@@ -168,8 +168,8 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
     const label = issue.profileName || issue.conformsTo;
     const message = issue.message ? `: ${issue.message}` : '';
     const status = issue.status === 'failed'
-      ? nls.localize('rockit/schemaManager/failedUpper', 'FAILED')
-      : nls.localize('rockit/schemaManager/missingUpper', 'MISSING');
+      ? nls.localize('rockit/profileManager/failedUpper', 'FAILED')
+      : nls.localize('rockit/profileManager/missingUpper', 'MISSING');
     return `${status} ${label}${message}`;
   }
 }
