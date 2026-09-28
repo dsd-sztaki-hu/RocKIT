@@ -229,7 +229,7 @@ export const tools: ToolDefinition[] = [
   {
     name: 'list_metadata_profiles',
     description:
-      'List persisted CEDAR/recrate metadata profiles from the shared metadata-schema-index.json store.',
+      'List persisted CEDAR/recrate metadata profiles from the shared metadata-profile-index.json store.',
     inputSchema: {
       type: 'object',
       properties: {

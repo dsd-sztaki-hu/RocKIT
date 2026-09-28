@@ -436,9 +436,9 @@ async function run() {
   const webToolsMock = await startMockWebToolsServer(profileUrl)
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'rocrate-mcp-test-'))
   const rockitRoot = path.join(tempRoot, 'rockit-root')
-  fs.mkdirSync(path.join(rockitRoot, 'metadata-schemas', 'ro-crate'), { recursive: true })
+  fs.mkdirSync(path.join(rockitRoot, 'metadata-profiles', 'ro-crate'), { recursive: true })
   const extraProfileUrl = 'https://w3id.org/arp/schema/example-profile'
-  const convertedRelativePath = 'metadata-schemas/ro-crate/citation_profile.json'
+  const convertedRelativePath = 'metadata-profiles/ro-crate/citation_profile.json'
   fs.writeFileSync(
     path.join(rockitRoot, convertedRelativePath),
     JSON.stringify(
@@ -498,7 +498,7 @@ async function run() {
     'utf8',
   )
   fs.writeFileSync(
-    path.join(rockitRoot, 'metadata-schema-index.json'),
+    path.join(rockitRoot, 'metadata-profile-index.json'),
     JSON.stringify(
       {
         profiles: [
@@ -509,7 +509,7 @@ async function run() {
             source: 'remote',
             type: 'cedar',
             files: {
-              sourcePath: 'metadata-schemas/cedar/citation_metadata.json',
+              sourcePath: 'metadata-profiles/cedar/citation_metadata.json',
               convertedPath: convertedRelativePath,
             },
             conformsTo: profileUrl,
@@ -521,7 +521,7 @@ async function run() {
             source: 'remote',
             type: 'cedar',
             files: {
-              sourcePath: 'metadata-schemas/cedar/example_profile.json',
+              sourcePath: 'metadata-profiles/cedar/example_profile.json',
               convertedPath: convertedRelativePath,
             },
             conformsTo: extraProfileUrl,
@@ -786,7 +786,7 @@ async function run() {
     assert.equal(defaultProfileListingPayload.storage.rootPath, rockitRoot)
     assert.equal(
       defaultProfileListingPayload.storage.indexPath,
-      path.join(rockitRoot, 'metadata-schema-index.json'),
+      path.join(rockitRoot, 'metadata-profile-index.json'),
     )
 
     const workflowDocResponse = await request('tools/call', {

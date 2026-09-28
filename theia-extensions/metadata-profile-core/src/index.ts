@@ -14,9 +14,9 @@ import {
   deriveResourceBaseUrl,
 } from 'rockit-common/lib/common/schema-url-resolution'
 
-const DEFAULT_INDEX_FILENAME = 'metadata-schema-index.json'
-const DEFAULT_REMOTE_PROVIDER_CONFIG_FILENAME = 'remote-schema-providers.json'
-const DEFAULT_REMOTE_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteSchemaProvider'
+const DEFAULT_INDEX_FILENAME = 'metadata-profile-index.json'
+const DEFAULT_REMOTE_PROVIDER_CONFIG_FILENAME = 'remote-profile-providers.json'
+const DEFAULT_REMOTE_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteProfileProvider'
 const DEFAULT_ARP_PROD_PREFIX = 'https://repo.schema.researchdata.hu/templates/'
 const DEFAULT_ARP_DEV_PREFIX = 'https://repo.cedardev.dsd.sztaki.hu/templates/'
 const DEFAULT_ARP_W3ID_PROD = 'https://w3id.org/arp/schema/'
@@ -145,13 +145,12 @@ function readConfiguredEnv(...names: string[]): string | undefined {
 /**
  * Resolves the shared RocKIT profile root.
  *
- * The AROMA_* names remain accepted as legacy aliases for existing
- * installations, but ROCKIT_* is canonical and the default is ~/.rockit.
+ * ROCKIT_ROOT_PATH is canonical and the default is ~/.rockit.
  */
 export function resolveProfileRootPath(rootPath?: string): string {
   const configured =
     rootPath?.trim() ||
-    readConfiguredEnv('ROCKIT_ROOT_PATH', 'AROMA_ROOT_PATH')
+    readConfiguredEnv('ROCKIT_ROOT_PATH')
   if (configured && configured.trim() !== '') {
     return path.resolve(configured)
   }
@@ -160,10 +159,7 @@ export function resolveProfileRootPath(rootPath?: string): string {
 
 export function resolveProfileStorage(rootPath?: string): MetadataProfileStorage {
   const root = resolveProfileRootPath(rootPath)
-  const indexFile = readConfiguredEnv(
-    'ROCKIT_METADATA_SCHEMA_INDEX_FILE',
-    'AROMA_METADATA_SCHEMA_INDEX_FILE',
-  )
+  const indexFile = readConfiguredEnv('ROCKIT_METADATA_PROFILE_INDEX_FILE')
   const indexPath =
     indexFile && indexFile.trim() !== ''
       ? path.isAbsolute(indexFile)
@@ -172,8 +168,8 @@ export function resolveProfileStorage(rootPath?: string): MetadataProfileStorage
       : path.join(root, DEFAULT_INDEX_FILENAME)
   return {
     rootPath: root,
-    cedarDir: path.join(root, 'metadata-schemas', 'cedar'),
-    roCrateDir: path.join(root, 'metadata-schemas', 'ro-crate'),
+    cedarDir: path.join(root, 'metadata-profiles', 'cedar'),
+    roCrateDir: path.join(root, 'metadata-profiles', 'ro-crate'),
     indexPath,
   }
 }
@@ -285,9 +281,9 @@ export async function importCedarTemplateContent(args: {
   const hash = createShortHash(`${schemaId}:${source}`)
   const safeName = schemaName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
   const fileName = `${safeName || 'cedar_schema'}_v${schemaVersion}_${source}_${hash}.json`
-  const sourcePath = `metadata-schemas/cedar/${fileName}`
-  const convertedPath = `metadata-schemas/ro-crate/${fileName}`
-  const hungarianConvertedPath = `metadata-schemas/ro-crate/hu/${fileName}`
+  const sourcePath = `metadata-profiles/cedar/${fileName}`
+  const convertedPath = `metadata-profiles/ro-crate/${fileName}`
+  const hungarianConvertedPath = `metadata-profiles/ro-crate/hu/${fileName}`
   const absoluteSourcePath = path.join(storage.rootPath, sourcePath)
   const absoluteConvertedPath = path.join(storage.rootPath, convertedPath)
   const absoluteHungarianConvertedPath = path.join(
@@ -549,16 +545,10 @@ export function defaultCedarProviders(): CedarProvider[] {
 export async function loadCedarProviders(rootPath?: string): Promise<CedarProviderListResult> {
   const storage = ensureProfileStorage(rootPath)
   const configFileName =
-    readConfiguredEnv(
-      'ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
-      'AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
-    ) ||
+    readConfiguredEnv('ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE') ||
     DEFAULT_REMOTE_PROVIDER_CONFIG_FILENAME
   const keytarService =
-    readConfiguredEnv(
-      'ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE',
-      'AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE',
-    ) ||
+    readConfiguredEnv('ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE') ||
     DEFAULT_REMOTE_PROVIDER_KEYTAR_SERVICE
   const configPath = path.isAbsolute(configFileName)
     ? configFileName
@@ -1005,10 +995,7 @@ async function writeConfiguredCedarProviders(
 
 function ensureDefaultCedarProviderConfig(rootPath: string): string {
   const configFileName =
-    readConfiguredEnv(
-      'ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
-      'AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
-    ) ||
+    readConfiguredEnv('ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE') ||
     DEFAULT_REMOTE_PROVIDER_CONFIG_FILENAME
   const configPath = path.isAbsolute(configFileName)
     ? configFileName

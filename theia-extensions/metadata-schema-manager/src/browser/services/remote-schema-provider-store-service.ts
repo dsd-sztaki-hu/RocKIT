@@ -30,10 +30,10 @@ export class RemoteSchemaProviderStoreService {
             (await this.envVariablesServer.getValue('ROCKIT_ROOT_PATH')) ||
             undefined;
         const configFileNameEnv =
-            (await this.envVariablesServer.getValue('ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE')) ||
+            (await this.envVariablesServer.getValue('ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE')) ||
             undefined;
         const keytarServiceEnv =
-            (await this.envVariablesServer.getValue('ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE')) ||
+            (await this.envVariablesServer.getValue('ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE')) ||
             undefined;
 
         if (!rootPathEnv?.value || !configFileNameEnv?.value || !keytarServiceEnv?.value) {

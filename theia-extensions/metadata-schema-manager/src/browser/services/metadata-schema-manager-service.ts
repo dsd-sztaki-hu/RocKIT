@@ -199,14 +199,14 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
 
       index.profiles = validProfiles;
 
-      const cedarDir = root.resolve('metadata-schemas/cedar');
+      const cedarDir = root.resolve('metadata-profiles/cedar');
       if (await this.fileService.exists(cedarDir)) {
         const stat = await this.fileService.resolve(cedarDir);
         if (stat && stat.children) {
           for (const file of stat.children) {
             if (!file.name.endsWith('.json')) continue;
             
-            const relativeCedarPath = `metadata-schemas/cedar/${file.name}`;
+            const relativeCedarPath = `metadata-profiles/cedar/${file.name}`;
             const isIndexed = index.profiles.some(p => p.files.sourcePath === relativeCedarPath);
             
             if (!isIndexed) {
@@ -233,7 +233,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
                   continue; 
                 }
                 
-                const relativeRoCratePath = `metadata-schemas/ro-crate/${file.name}`;
+                const relativeRoCratePath = `metadata-profiles/ro-crate/${file.name}`;
                 const relativeHungarianPath = toLocalizedConvertedProfilePath(
                   relativeRoCratePath,
                   'hu',
@@ -1165,8 +1165,8 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
       ));
 
       let convertedRelativePath = sourceRelativePath.replace(
-        'metadata-schemas/cedar/',
-        'metadata-schemas/ro-crate/',
+        'metadata-profiles/cedar/',
+        'metadata-profiles/ro-crate/',
       );
       const language = this.getConversionLanguage();
 
@@ -1255,9 +1255,9 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
     if (!root) return null;
     
     const envVar =
-      (await this.envVariablesServer.getValue('ROCKIT_METADATA_SCHEMA_INDEX_FILE')) ||
+      (await this.envVariablesServer.getValue('ROCKIT_METADATA_PROFILE_INDEX_FILE')) ||
       undefined;
-    const fileName = envVar?.value || 'metadata-schema-index.json';
+    const fileName = envVar?.value || 'metadata-profile-index.json';
     
     return root.resolve(fileName);
   }
@@ -1279,7 +1279,7 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
         
         return parsed as ProfileIndex;
       } catch (e) {
-        console.error('Failed to parse schema index', e);
+        console.error('Failed to parse profile index', e);
         return defaultIndex;
       }
     }
@@ -1370,8 +1370,8 @@ export class ProfileManagerService implements FrontendApplicationContribution, M
       'Root directory configuration missing',
     ));
 
-    const relativeCedarPath = `metadata-schemas/cedar/${fileName}`;
-    const relativeRoCratePath = `metadata-schemas/ro-crate/${fileName}`;
+    const relativeCedarPath = `metadata-profiles/cedar/${fileName}`;
+    const relativeRoCratePath = `metadata-profiles/ro-crate/${fileName}`;
     const relativeHungarianPath = toLocalizedConvertedProfilePath(
       relativeRoCratePath,
       'hu',

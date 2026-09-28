@@ -81,27 +81,27 @@ Configure the following environment variables before starting the application:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ROCKIT_ROOT_PATH` | *Required* | Root directory path for schema storage (`metadata-schemas/cedar/`, `metadata-schemas/ro-crate/`) |
-| `ROCKIT_METADATA_SCHEMA_INDEX_FILE` | `metadata-schema-index.json` | Filename for the master index file within ROCKIT_ROOT_PATH |
-| `ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE` | `remote-schema-providers-config.json` | Filename for remote provider configurations |
-| `ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE` | `rockit-metadata-schema-manager` | Keytar service identifier for secure credential storage |
+| `ROCKIT_ROOT_PATH` | *Required* | Root directory path for profile storage (`metadata-profiles/cedar/`, `metadata-profiles/ro-crate/`) |
+| `ROCKIT_METADATA_PROFILE_INDEX_FILE` | `metadata-profile-index.json` | Filename for the master index file within ROCKIT_ROOT_PATH |
+| `ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE` | `remote-profile-providers.json` | Filename for remote provider configurations |
+| `ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE` | `RocKIT.RemoteProfileProvider` | Keytar service identifier for secure credential storage |
 
 #### Example Configuration (Linux/macOS)
 
 ```bash
-export ROCKIT_ROOT_PATH="$HOME/.rockit/schemas"
-export ROCKIT_METADATA_SCHEMA_INDEX_FILE="metadata-schema-index.json"
-export ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE="remote-providers.json"
-export ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE="rockit-metadata-schema-manager"
+export ROCKIT_ROOT_PATH="$HOME/.rockit/profiles"
+export ROCKIT_METADATA_PROFILE_INDEX_FILE="metadata-profile-index.json"
+export ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE="remote-profile-providers.json"
+export ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE="RocKIT.RemoteProfileProvider"
 ```
 
 #### Example Configuration (Windows)
 
 ```cmd
-set ROCKIT_ROOT_PATH=%USERPROFILE%\.rockit\schemas
-set ROCKIT_METADATA_SCHEMA_INDEX_FILE=metadata-schema-index.json
-set ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE=remote-providers.json
-set ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE=rockit-metadata-schema-manager
+set ROCKIT_ROOT_PATH=%USERPROFILE%\.rockit\profiles
+set ROCKIT_METADATA_PROFILE_INDEX_FILE=metadata-profile-index.json
+set ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE=remote-profile-providers.json
+set ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE=RocKIT.RemoteProfileProvider
 ```
 
 ### URL Prefix Configuration
@@ -166,13 +166,12 @@ The extension uses environment variables to determine which template repository 
 ├─────────────────────────────────────────────────────────────────────┤
 │                          File System                                │
 │  ┌──────────────────────────────────────────────────────────────┐   │
-│  │  metadata-schemas/cedar/          metadata-schemas/ro-crate/ │   │
+│  │  metadata-profiles/cedar/          metadata-profiles/ro-crate/ │   │
 │  │  (Raw templates)                  (Converted profiles)       │   │
 │  └──────────────────────────────────────────────────────────────┘   │
 │                                                                     │
-│  metadata-schema-index.json              remote-schema-providers-    │
-│  (Master index with schema metadata)     config.json               │
-│                                         (Provider configurations)  │
+│  metadata-profile-index.json             remote-profile-providers.json │
+│  (Master index with profile metadata)    (Provider configurations)    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -532,14 +531,14 @@ To support additional template formats beyond Cedar:
 
 | Variable | Required | Default | Example Value |
 |----------|----------|---------|---------------|
-| `ROCKIT_ROOT_PATH` | Yes | *None* | `/home/user/.rockit/schemas` |
-| `ROCKIT_METADATA_SCHEMA_INDEX_FILE` | No | `metadata-schema-index.json` | `custom-index.json` |
-| `ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE` | No | `remote-schema-providers-config.json` | `my-providers.json` |
-| `ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE` | No | `rockit-metadata-schema-manager` | `rockit-schemas-v2` |
+| `ROCKIT_ROOT_PATH` | Yes | *None* | `/home/user/.rockit/profiles` |
+| `ROCKIT_METADATA_PROFILE_INDEX_FILE` | No | `metadata-profile-index.json` | `custom-index.json` |
+| `ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE` | No | `remote-profile-providers.json` | `my-providers.json` |
+| `ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE` | No | `RocKIT.RemoteProfileProvider` | `rockit-profiles-v2` |
 
 ### Index File Structure
 
-The master index file (`metadata-schema-index.json`) contains:
+The master index file (`metadata-profile-index.json`) contains:
 
 ```json
 {
@@ -551,8 +550,8 @@ The master index file (`metadata-schema-index.json`) contains:
       "source": "remote",
       "type": "cedar",
       "files": {
-        "sourcePath": "metadata-schemas/cedar/researcher-profile.json",
-        "convertedPath": "metadata-schemas/ro-crate/researcher-profile-rocrate.json"
+        "sourcePath": "metadata-profiles/cedar/researcher-profile.json",
+        "convertedPath": "metadata-profiles/ro-crate/researcher-profile-rocrate.json"
       },
       "aux": {
         "templateUuid": "cedar-uuid-456",
@@ -570,7 +569,7 @@ The master index file (`metadata-schema-index.json`) contains:
 
 ### Provider Configuration File Structure
 
-The remote provider configuration file (`remote-schema-providers-config.json`) contains:
+The remote provider configuration file (`remote-profile-providers.json`) contains:
 
 ```json
 {
@@ -593,7 +592,7 @@ The remote provider configuration file (`remote-schema-providers-config.json`) c
 }
 ```
 
-**Note**: API keys are NOT stored in this file—they are securely stored using keytar with the service identifier specified by `ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE`.
+**Note**: API keys are NOT stored in this file—they are securely stored using keytar with the service identifier specified by `ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE`.
 
 ## Data Flow
 
@@ -610,12 +609,12 @@ MetadataSchemaManagerService.importFromFile()
     │
     ├─▶ Validate file structure and required fields
     ├─▶ Extract schema:name, pav:version, @id
-    ├─▶ Generate unique UUID for schema id
+    ├─▶ Generate unique UUID for profile id
     ├─▶ Convert Cedar template to RO-Crate profile
     │     (using cedar-template-converter library)
-    ├─▶ Save source file to metadata-schemas/cedar/
-    ├─▶ Save converted file to metadata-schemas/ro-crate/
-    └─▶ Update index with new schema entry
+    ├─▶ Save source file to metadata-profiles/cedar/
+    ├─▶ Save converted file to metadata-profiles/ro-crate/
+    └─▶ Update index with new profile entry
     │
     ▼
 Index Synchronization Check → onDidChangeSchemas event emitted
@@ -678,9 +677,9 @@ AppStateService.completeProfile updated → Form generation uses merged profile
 **Solutions**:
 1. Click the **Refresh** button to force index reload
 2. Check `ROCKIT_ROOT_PATH` environment variable points to correct directory
-3. Verify `metadata-schema-index.json` exists and is valid JSON:
+3. Verify `metadata-profile-index.json` exists and is valid JSON:
    ```bash
-   cat $ROCKIT_ROOT_PATH/metadata-schema-index.json | jq .
+   cat $ROCKIT_ROOT_PATH/metadata-profile-index.json | jq .
    ```
 4. If corrupted, delete the index file—the extension will regenerate it on next import
 
@@ -703,7 +702,7 @@ AppStateService.completeProfile updated → Form generation uses merged profile
 
 **Solutions**:
 1. Verify provider configuration has `apiKey` field populated (stored in keytar)
-2. Check `ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE` matches the service identifier used during setup
+2. Check `ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE` matches the service identifier used during setup
 3. Clear and re-enter API key via provider config dialog
 4. On Linux, verify keytar can access system credential store:
    ```bash
@@ -717,9 +716,9 @@ AppStateService.completeProfile updated → Form generation uses merged profile
 **Solutions**:
 1. The extension performs automatic self-healing on startup via `synchronizeIndex()`
 2. Manually trigger sync by clicking **Refresh** button
-3. For persistent issues, delete the index file and re-import all schemas:
+3. For persistent issues, delete the index file and re-import all profiles:
    ```bash
-   rm $ROCKIT_ROOT_PATH/metadata-schema-index.json
+   rm $ROCKIT_ROOT_PATH/metadata-profile-index.json
    # Restart application - index will be regenerated
    ```
 
@@ -780,9 +779,9 @@ Follow these conventions for consistent schema management:
 For optimal performance and reliability:
 
 1. **Regular Refreshes**: Click the Refresh button periodically to ensure index consistency
-2. **Backup Index File**: Before major operations, copy `metadata-schema-index.json`:
+2. **Backup Index File**: Before major operations, copy `metadata-profile-index.json`:
    ```bash
-   cp $ROCKIT_ROOT_PATH/metadata-schema-index.json metadata-schema-index.backup.json
+   cp $ROCKIT_ROOT_PATH/metadata-profile-index.json metadata-profile-index.backup.json
    ```
 3. **Monitor Disk Space**: The extension stores both source and converted files—ensure adequate storage
 

@@ -27,13 +27,13 @@ describe('toCedarProfileLanguage', () => {
 
 describe('toLocalizedConvertedProfilePath', () => {
   it('preserves the historic path for the canonical English profile', () => {
-    expect(toLocalizedConvertedProfilePath('metadata-schemas/ro-crate/profile.json', 'en'))
-      .toBe('metadata-schemas/ro-crate/profile.json');
+    expect(toLocalizedConvertedProfilePath('metadata-profiles/ro-crate/profile.json', 'en'))
+      .toBe('metadata-profiles/ro-crate/profile.json');
   });
 
   it('places Hungarian profiles in a sibling language directory', () => {
-    expect(toLocalizedConvertedProfilePath('metadata-schemas/ro-crate/profile.json', 'hu'))
-      .toBe('metadata-schemas/ro-crate/hu/profile.json');
+    expect(toLocalizedConvertedProfilePath('metadata-profiles/ro-crate/profile.json', 'hu'))
+      .toBe('metadata-profiles/ro-crate/hu/profile.json');
   });
 
   it('supports a file name without a directory', () => {

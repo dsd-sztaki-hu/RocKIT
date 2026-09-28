@@ -327,7 +327,7 @@ dashboard instance.
 - `list_properties_for_type`: list properties for one type (optional inherited expansion).
 - `suggest_properties`: suggest matching properties for query + selected type(s).
 - `get_property_details`: fetch details for one property (domain/range/comment).
-- `resolve_metadata_profile`: resolve one profile URL via schema index/profile inputs.
+- `resolve_metadata_profile`: resolve one profile URL via profile index/profile inputs.
 - `prepare_remote_profile_payload`: build `schemaIndex` + `profileContents` payload for remote calls.
 - `create_profile_context`: cache profile payload server-side; returns `profileContextId`.
 - `get_profile_context_info`: inspect cached profile context metadata.
@@ -635,7 +635,7 @@ Use `responseMode: "full"` only when caller explicitly needs full crate or full 
 Profile resolution can come from:
 
 - Local mode:
-  - `~/.rockit/metadata-schema-index.json` (or env overrides)
+  - `~/.rockit/metadata-profile-index.json` (or env overrides)
   - converted profile files referenced by index entries
 - Remote mode:
   - caller-supplied `schemaIndex`
@@ -736,10 +736,10 @@ setting provides that option. The file contains configured credentials in
 plaintext and is protected with user-only permissions where supported.
 
 ### Profile Resolution
-- `ROCKIT_ROOT_PATH` (optional): shared base directory for schema index/profile files (default `~/.rockit`).
-- `ROCKIT_METADATA_SCHEMA_INDEX_FILE` (optional): schema index filename or absolute path.
-- `ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE` (optional): remote CEDAR provider configuration filename or absolute path.
-- `ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE` (optional): keychain service used for remote CEDAR provider credentials.
+- `ROCKIT_ROOT_PATH` (optional): shared base directory for profile index/profile files (default `~/.rockit`).
+- `ROCKIT_METADATA_PROFILE_INDEX_FILE` (optional): profile index filename or absolute path.
+- `ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE` (optional): remote CEDAR provider configuration filename or absolute path.
+- `ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE` (optional): keychain service used for remote CEDAR provider credentials.
 - `ROCKIT_CEDAR_API_KEY` (optional): fallback CEDAR API key; `CEDAR_API_KEY` is preferred.
 - `ROCRATE_REMOTE_SCHEMA_REGISTRY_DIR` (optional): remote-mode schema registry directory (default `~/.rockit/schema-registry-remote`).
 

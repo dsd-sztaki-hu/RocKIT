@@ -66,7 +66,7 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
   }
 
   /**
-   * Resolves the schema index path through the shared profile storage resolver.
+   * Resolves the profile index path through the shared profile storage resolver.
    */
   function resolveSchemaIndexPath(): { rootPath: string; indexPath: string } {
     const storage = resolveProfileStorage()
@@ -74,7 +74,7 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
   }
 
   /**
-   * Handles as schema index.
+   * Handles as a profile index.
    */
   function asSchemaIndex(value: unknown): SchemaIndexDocument {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -232,7 +232,7 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
   }
 
   /**
-   * Loads schema index JSON from disk.
+   * Loads profile index JSON from disk.
    *
    * Returns an empty index plus warning when missing/invalid instead of throwing,
    * so callers can decide whether to fail hard or degrade gracefully.
@@ -250,7 +250,7 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
         index: { profiles: [], conformsToIndex: {} },
         indexPath,
         rootPath,
-        warning: `Schema index file not found: ${indexPath}`,
+        warning: `Profile index file not found: ${indexPath}`,
       }
     }
     try {
@@ -267,7 +267,7 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
         index: { profiles: [], conformsToIndex: {} },
         indexPath,
         rootPath,
-        warning: `Failed to parse schema index: ${message}`,
+        warning: `Failed to parse profile index: ${message}`,
       }
     }
   }
@@ -301,7 +301,7 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
       loaded: false,
     }
     if (!absoluteConvertedPath) {
-      resolved.loadError = 'Missing files.convertedPath in schema index profile.'
+      resolved.loadError = 'Missing files.convertedPath in profile index entry.'
       return resolved
     }
     if (!fs.existsSync(absoluteConvertedPath)) {
@@ -330,7 +330,7 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
   /**
    * Resolves `conformsTo` URLs to concrete profile rule documents.
    *
-   * - Local mode: uses schema index + converted profile files from disk.
+   * - Local mode: uses the profile index and converted profile files from disk.
    * - Remote mode: requires caller-provided profile-index and profile-content payloads.
    *
    * Always returns unresolved URLs and non-fatal warnings for partial resolution.
@@ -353,7 +353,7 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
         warnings:
           profileUrls.length > 0
             ? [
-                'Remote mode profile resolution requires caller-supplied schema index/profile content.',
+                'Remote mode profile resolution requires caller-supplied profile index/profile content.',
               ]
             : [],
       }
