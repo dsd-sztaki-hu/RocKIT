@@ -22,13 +22,13 @@ import { IconButton, Tooltip } from '@mui/material';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service';
 import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service';
-import { SchemaManagerService } from '../services/metadata-schema-manager-service';
+import { ProfileManagerService } from '../services/metadata-schema-manager-service';
 import { MetadataSchemaTable } from './metadata-schema-table';
 import { MetadataSchemaToolbar } from './metadata-schema-toolbar';
 import { RemoteSchemaProviderListDialog } from './remote-schema-provider-list-dialog';
 import { RemoteSchemaProviderSelectorDialog } from './remote-schema-provider-selector-dialog';
 import { MetadataSchemaImportFromUrlDialog } from './metadata-schema-import-from-url-dialog';
-import type { SchemaInfo } from '../types';
+import type { ProfileInfo } from '../types';
 import '../styles/metadata-schema-selector.css';
 
 const MSG_TIMEOUT = 5000;
@@ -37,7 +37,7 @@ const MSG_TIMEOUT = 5000;
 export class MetadataSchemaSelectorContribution implements FrontendApplicationContribution {
     @inject(AppStateService) protected readonly appStateService!: AppStateService;
     @inject(RoCrateHistoryService) protected readonly roCrateHistoryService!: RoCrateHistoryService;
-    @inject(SchemaManagerService) protected readonly schemaManagerService!: SchemaManagerService;
+    @inject(ProfileManagerService) protected readonly profileManagerService!: ProfileManagerService;
     @inject(FileDialogService) protected readonly fileDialogService!: FileDialogService;
     @inject(MessageService) protected readonly messageService!: MessageService;
     @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
@@ -66,7 +66,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
         this.isDialogVisible = true;
         try {
             const dialog = new MetadataSchemaSelectorDialog(
-                this.schemaManagerService,
+                this.profileManagerService,
                 this.fileDialogService,
                 this.messageService,
                 this.loadMaskService,
@@ -92,7 +92,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
         }
     }
 
-    protected async handleAssociate(schemas: SchemaInfo[]): Promise<void> {
+    protected async handleAssociate(schemas: ProfileInfo[]): Promise<void> {
         const crate = this.appStateService.roCrate;
         const graph = crate && Array.isArray(crate['@graph']) ? crate['@graph'] as any[] : [];
         const isLargeCrate = graph.length >= 1_000;
@@ -112,7 +112,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
 
             if (crate && graph.length > 0) {
                 const w3ids = schemas
-                    .map(schema => schema.conformsTo?.trim() || this.schemaManagerService.deriveConformsToFromId(schema.aux.reference))
+                    .map(schema => schema.conformsTo?.trim() || this.profileManagerService.deriveConformsToFromId(schema.aux.reference))
                     .filter((w3id): w3id is string => Boolean(w3id));
                 
                 if (w3ids.length) {
@@ -193,13 +193,13 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
     }
 }
 
-export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo[] | undefined> {
+export class MetadataSchemaSelectorDialog extends AbstractDialog<ProfileInfo[] | undefined> {
 
-    protected selectedSchemas: SchemaInfo[] | undefined;
+    protected selectedSchemas: ProfileInfo[] | undefined;
     private reactRoot: Root | undefined;
 
     constructor(
-        protected readonly schemaManager: SchemaManagerService,
+        protected readonly profileManager: ProfileManagerService,
         protected readonly fileDialog: FileDialogService,
         protected readonly msgService: MessageService,
         protected readonly loadMaskService: LoadMaskService,
@@ -217,11 +217,11 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo[] | 
         this.contentNode.style.flexDirection = 'column';
     }
 
-    get value(): SchemaInfo[] | undefined {
+    get value(): ProfileInfo[] | undefined {
         return this.selectedSchemas;
     }
 
-    protected handleAccept(schemas: SchemaInfo[]) {
+    protected handleAccept(schemas: ProfileInfo[]) {
         this.selectedSchemas = schemas;
         this.accept();
     }
@@ -240,7 +240,7 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo[] | 
 
         this.reactRoot.render(
             <SelectorContent 
-                service={this.schemaManager}
+                service={this.profileManager}
                 fileDialog={this.fileDialog}
                 msg={this.msgService}
                 loadMask={this.loadMaskService}
@@ -265,18 +265,18 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo[] | 
 }
 
 interface ContentProps {
-    service: SchemaManagerService;
+    service: ProfileManagerService;
     fileDialog: FileDialogService;
     msg: MessageService;
     loadMask: LoadMaskService;
-    onAccept: (schemas: SchemaInfo[]) => void;
+    onAccept: (schemas: ProfileInfo[]) => void;
     onCancel: () => void;
 }
 
 const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, loadMask, onAccept, onCancel }) => {
-    const [schemas, setSchemas] = React.useState<SchemaInfo[]>([]);
+    const [schemas, setSchemas] = React.useState<ProfileInfo[]>([]);
     const [isLoading, setIsLoading] = React.useState(false);
-    const [selectedSchemas, setSelectedSchemas] = React.useState<SchemaInfo[]>([]);
+    const [selectedProfiles, setSelectedProfiles] = React.useState<ProfileInfo[]>([]);
 
     const isTextEditingTarget = (target: EventTarget | null): boolean => {
         if (!(target instanceof HTMLElement)) {
@@ -298,10 +298,10 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, loa
 
     const loadData = React.useCallback(() => {
         setIsLoading(true);
-        service.loadAllSchemas()
+        service.loadAllProfiles()
             .then(res => {
                 setSchemas(res);
-                setSelectedSchemas([]);
+                setSelectedProfiles([]);
             })
             .catch(err => console.error(err))
             .finally(() => setIsLoading(false));
@@ -312,24 +312,24 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, loa
     }, [loadData]);
 
     React.useEffect(() => {
-        const listener = service.onDidChangeSchemas(() => loadData());
+        const listener = service.onDidChangeProfiles(() => loadData());
         return () => listener.dispose();
     }, [service, loadData]);
 
     const handleSelectionChange = (keys: React.Key[]) => {
         const selected = keys
             .map(key => schemas.find(schema => schema.id === key))
-            .filter((schema): schema is SchemaInfo => Boolean(schema));
-        setSelectedSchemas(selected);
+            .filter((schema): schema is ProfileInfo => Boolean(schema));
+        setSelectedProfiles(selected);
     };
 
-    const handleRowDoubleClick = (schema: SchemaInfo) => {
+    const handleRowDoubleClick = (schema: ProfileInfo) => {
         onAccept([schema]);
     };
 
     React.useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key !== 'Enter' || event.defaultPrevented || !selectedSchemas.length) {
+            if (event.key !== 'Enter' || event.defaultPrevented || !selectedProfiles.length) {
                 return;
             }
 
@@ -339,15 +339,15 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, loa
 
             event.preventDefault();
             event.stopPropagation();
-            onAccept(selectedSchemas);
+            onAccept(selectedProfiles);
         };
 
         window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
-    }, [onAccept, selectedSchemas]);
+    }, [onAccept, selectedProfiles]);
 
     const handleTableKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-        if (event.key !== 'Enter' || event.defaultPrevented || !selectedSchemas.length) {
+        if (event.key !== 'Enter' || event.defaultPrevented || !selectedProfiles.length) {
             return;
         }
 
@@ -357,17 +357,17 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, loa
 
         event.preventDefault();
         event.stopPropagation();
-        onAccept(selectedSchemas);
+        onAccept(selectedProfiles);
     };
 
     const handleRefresh = () => {
-        service.clearFailedPendingSchemas();
+        service.clearFailedPendingProfiles();
         loadData();
     };
 
     const handleDeleteTransient = async (ids: string[]) => {
         try {
-            const count = await service.deleteSchemas(ids);
+            const count = await service.deleteProfiles(ids);
             if (count > 0) msg.info(nls.localize(
                 'rockit/schemaManager/removedTasks',
                 'Aborted/removed {0} task(s).',
@@ -423,7 +423,7 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, loa
     const handleBrowseRemote = async () => {
         const dialog = new RemoteSchemaProviderSelectorDialog(service.providerStoreService);
         const provider = await dialog.open();
-        if (provider) service.browseRemoteSchemas(provider);
+        if (provider) service.browseRemoteProfiles(provider);
     };
 
     return (
@@ -439,16 +439,16 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, loa
             
             <div className="metadata-schema-table-wrapper">
                 <MetadataSchemaTable
-                    schemas={schemas}
+                    profiles={schemas}
                     isLoading={isLoading}
                     selectionType="checkbox"
-                    selectedKeys={selectedSchemas.map(schema => schema.id)}
+                    selectedKeys={selectedProfiles.map(profile => profile.id)}
                     onSelectionChange={handleSelectionChange}
                     onRowDoubleClick={handleRowDoubleClick}
                     allowDeleteValidSchemas={false}
                     disableInvalidRows={true}
                     onDelete={handleDeleteTransient}
-                    onRetry={(id) => service.retrySchema(id)}
+                    onRetry={(id) => service.retryProfile(id)}
                 />
             </div>
             
@@ -456,21 +456,21 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, loa
             <div className="schema-selector__footer">
                 {/* Left: Selection Info */}
                 <div className="schema-selector__info">
-                    {selectedSchemas.length ? (
+                    {selectedProfiles.length ? (
                         <>
                             <Tooltip title={nls.localize('rockit/schemaManager/deselect', 'Deselect')} placement="top" classes={{ tooltip: 'schema-table__tooltip' }}>
                                 <IconButton 
                                     size="small" 
-                                    onClick={() => setSelectedSchemas([])} 
+                                    onClick={() => setSelectedProfiles([])}
                                     className="schema-selector__deselect-btn"
                                 >
                                     <CancelIcon fontSize="small" />
                                 </IconButton>
                             </Tooltip>
                             <span className="schema-selector__selected-text">
-                                {selectedSchemas.length === 1
-                                    ? nls.localize('rockit/schemaManager/selectedName', 'Selected: {0}', selectedSchemas[0].name)
-                                    : nls.localize('rockit/schemaManager/selectedCount', 'Selected: {0} profiles', selectedSchemas.length)}
+                                {selectedProfiles.length === 1
+                                    ? nls.localize('rockit/schemaManager/selectedName', 'Selected: {0}', selectedProfiles[0].name)
+                                    : nls.localize('rockit/schemaManager/selectedCount', 'Selected: {0} profiles', selectedProfiles.length)}
                             </span>
                         </>
                     ) : (
@@ -493,8 +493,8 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, loa
                     </button>
                     <button 
                         className="theia-button main schema-selector__btn-associate"
-                        onClick={() => selectedSchemas.length && onAccept(selectedSchemas)}
-                        disabled={!selectedSchemas.length}
+                        onClick={() => selectedProfiles.length && onAccept(selectedProfiles)}
+                        disabled={!selectedProfiles.length}
                     >
                         {nls.localize('rockit/schemaManager/associate', 'Associate')}
                     </button>

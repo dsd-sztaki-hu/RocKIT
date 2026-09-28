@@ -8,29 +8,29 @@
 
 import type { Event } from '@theia/core/lib/common/event'
 
-export const MetadataSchemaManager = Symbol('MetadataSchemaManager')
+export const MetadataProfileManager = Symbol('MetadataProfileManager')
 
-export interface SchemaFiles {
+export interface ProfileFiles {
     sourcePath: string;
     convertedPath: string;
     convertedPaths?: Partial<Record<'en' | 'hu', string>>;
 }
 
-export interface SchemaAux {
+export interface ProfileAux {
     templateUuid?: string;
     reference: string;
     /** @deprecated Converted profiles are now stored once per language. */
     conversionLanguage?: 'en' | 'hu';
 }
 
-export interface SchemaInfo {
+export interface ProfileInfo {
     id: string; // Truly unique generated ID
     name: string;
     version: string;
     source: 'local' | 'remote';
     type: string;
-    files: SchemaFiles;
-    aux: SchemaAux;
+    files: ProfileFiles;
+    aux: ProfileAux;
     conformsTo?: string; 
     downloadUrl?: string;
     createdAt: string | null;
@@ -38,11 +38,11 @@ export interface SchemaInfo {
     downloadedAt: string;
 }
 
-export interface MetadataSchemaManager {
+export interface MetadataProfileManager {
   // convertW3idUrlsToCedarTemplateUrls(w3idUrls: string[]): string[]
   // convertCedarTemplateUrlToW3idUrl(cedarTemplateUrl: string): string
   nameWithoutMetadataSuffix(name: string): string | null
-  loadAllSchemas(): Promise<SchemaInfo[]>
+  loadAllProfiles(): Promise<ProfileInfo[]>
   getConvertedProfileContent(sourcePath: string): Promise<any>
   getMergedProfile(
     crate: Record<string, any>,
@@ -56,5 +56,5 @@ export interface MetadataSchemaManager {
     className: string,
     profileUrl?: string
   ): Promise<Record<string, any>>
-  readonly onDidChangeSchemas: Event<void>
+  readonly onDidChangeProfiles: Event<void>
 }

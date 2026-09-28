@@ -42,7 +42,7 @@ export interface MetadataProfileCoreService {
     conformsTo?: string
     provider?: CedarProvider
   }): Promise<ImportResult>
-  importRemoteSchema(args: {
+  importRemoteTemplate(args: {
     templateIdOrUrl: string
     conformsTo?: string
     provider?: CedarProvider

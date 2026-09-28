@@ -9,14 +9,14 @@ import { CommandContribution, MenuContribution } from '@theia/core/lib/common';
 import { WidgetFactory, FrontendApplicationContribution, WebSocketConnectionProvider } from '@theia/core/lib/browser';
 import { TabBarToolbarContribution } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 
-import { MetadataSchemaManagerWidget, METADATA_SCHEMA_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
-import { MetadataSchemaManagerContribution } from './metadata-schema-manager-contribution';
-import { SchemaManagerService } from './services/metadata-schema-manager-service';
+import { MetadataProfileManagerWidget, METADATA_PROFILE_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
+import { MetadataProfileManagerContribution } from './metadata-schema-manager-contribution';
+import { ProfileManagerService } from './services/metadata-schema-manager-service';
 import { RemoteSchemaProviderStoreService } from './services/remote-schema-provider-store-service';
 import { MetadataSchemaSelectorContribution } from './components/metadata-schema-selector'; 
 import { RemoteSchemaBrowserContribution } from './components/remote-schema-browser-dialog';
 import { ProfileHealthStatusBarContribution } from './profile-health-status-bar-contribution';
-import { MetadataSchemaManager as MetadataSchemaManagerToken } from 'rockit-common/lib/browser';
+import { MetadataProfileManager as MetadataProfileManagerToken } from 'rockit-common/lib/browser';
 import {
     METADATA_PROFILE_CORE_PATH,
     MetadataProfileCoreService
@@ -26,10 +26,10 @@ import './styles/index.css';
 
 export default new ContainerModule(bind => {
     // 1. Widget
-    bind(MetadataSchemaManagerWidget).toSelf().inTransientScope();
+    bind(MetadataProfileManagerWidget).toSelf().inTransientScope();
     bind(WidgetFactory).toDynamicValue(ctx => ({
-        id: METADATA_SCHEMA_MANAGER_WIDGET_ID,
-        createWidget: () => ctx.container.get(MetadataSchemaManagerWidget)
+        id: METADATA_PROFILE_MANAGER_WIDGET_ID,
+        createWidget: () => ctx.container.get(MetadataProfileManagerWidget)
     })).inSingletonScope();
 
     // 2. Services
@@ -38,18 +38,18 @@ export default new ContainerModule(bind => {
         return connectionProvider.createProxy<MetadataProfileCoreService>(METADATA_PROFILE_CORE_PATH);
     }).inSingletonScope();
     bind(RemoteSchemaProviderStoreService).toSelf().inSingletonScope();
-    bind(SchemaManagerService).toSelf().inSingletonScope();
-    bind(FrontendApplicationContribution).toService(SchemaManagerService);
-    bind(MetadataSchemaManagerToken).toService(SchemaManagerService);
+    bind(ProfileManagerService).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(ProfileManagerService);
+    bind(MetadataProfileManagerToken).toService(ProfileManagerService);
     bind(ProfileHealthStatusBarContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(ProfileHealthStatusBarContribution);
 
     // 3. Manager Contribution
-    bind(MetadataSchemaManagerContribution).toSelf().inSingletonScope();
-    bind(CommandContribution).toService(MetadataSchemaManagerContribution);
-    bind(MenuContribution).toService(MetadataSchemaManagerContribution);
-    bind(FrontendApplicationContribution).toService(MetadataSchemaManagerContribution);
-    bind(TabBarToolbarContribution).toService(MetadataSchemaManagerContribution);
+    bind(MetadataProfileManagerContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(MetadataProfileManagerContribution);
+    bind(MenuContribution).toService(MetadataProfileManagerContribution);
+    bind(FrontendApplicationContribution).toService(MetadataProfileManagerContribution);
+    bind(TabBarToolbarContribution).toService(MetadataProfileManagerContribution);
 
     // 4. Schema Selector Dialog
     bind(MetadataSchemaSelectorContribution).toSelf().inSingletonScope();

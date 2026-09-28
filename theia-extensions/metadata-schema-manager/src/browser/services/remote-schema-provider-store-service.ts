@@ -12,7 +12,7 @@ import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { URI } from '@theia/core/lib/common/uri';
 import { nls } from '@theia/core/lib/common/nls';
 
-import { createDefaultArpProductionProvider, RemoteSchemaProviderConfig } from '../types';
+import { createDefaultArpProductionProvider, RemoteProfileProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
 import { SecureStorageService } from 'rockit-common/lib/common/secure-storage-protocol';
 
@@ -60,7 +60,7 @@ export class RemoteSchemaProviderStoreService {
         return baseUri.resolve(configFileName);
     }
 
-    public async loadProviders(): Promise<RemoteSchemaProviderConfig[]> {
+    public async loadProviders(): Promise<RemoteProfileProviderConfig[]> {
         let uri: URI;
         let keytarService: string;
 
@@ -73,7 +73,7 @@ export class RemoteSchemaProviderStoreService {
             return [];
         }
         
-        let configs: RemoteSchemaProviderConfig[] = [];
+        let configs: RemoteProfileProviderConfig[] = [];
 
         try {
             if (await this.fileService.exists(uri)) {
@@ -130,7 +130,7 @@ export class RemoteSchemaProviderStoreService {
         return hydratedConfigs;
     }
 
-    public async saveProviders(providers: RemoteSchemaProviderConfig[]): Promise<void> {
+    public async saveProviders(providers: RemoteProfileProviderConfig[]): Promise<void> {
         const uri = await this.getConfigUri();
         const { keytarService } = await this.getEnvConfig();
 
@@ -152,7 +152,7 @@ export class RemoteSchemaProviderStoreService {
         }
     }
 
-    protected async writeProviderConfigs(uri: URI, providers: RemoteSchemaProviderConfig[]): Promise<void> {
+    protected async writeProviderConfigs(uri: URI, providers: RemoteProfileProviderConfig[]): Promise<void> {
         const cleanConfigs = providers.map(p => {
             const { apiKey, ...safeConfig } = p;
             return safeConfig;
@@ -164,12 +164,12 @@ export class RemoteSchemaProviderStoreService {
         await this.fileService.write(uri, JSON.stringify(cleanConfigs, null, 4));
     }
 
-    protected isProviderConfig(value: unknown): value is RemoteSchemaProviderConfig {
+    protected isProviderConfig(value: unknown): value is RemoteProfileProviderConfig {
         if (!value || typeof value !== 'object' || Array.isArray(value)) {
             return false;
         }
 
-        const provider = value as Partial<RemoteSchemaProviderConfig>;
+        const provider = value as Partial<RemoteProfileProviderConfig>;
         return typeof provider.id === 'string'
             && typeof provider.title === 'string'
             && typeof provider.baseUrl === 'string'

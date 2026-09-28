@@ -20,21 +20,21 @@ import { inject, injectable } from 'inversify'
 import * as React from 'react'
 import { createRoot, Root } from 'react-dom/client'
 
-import { SchemaManagerService } from './services/metadata-schema-manager-service'
+import { ProfileManagerService } from './services/metadata-schema-manager-service'
 import { MetadataSchemaTable } from './components/metadata-schema-table'
 import { MetadataSchemaToolbar } from './components/metadata-schema-toolbar'
 import { RemoteSchemaProviderListDialog } from './components/remote-schema-provider-list-dialog'
 import { RemoteSchemaProviderSelectorDialog } from './components/remote-schema-provider-selector-dialog'
 import { MetadataSchemaImportFromUrlDialog } from './components/metadata-schema-import-from-url-dialog'
 import { DeleteConfirmationDialog } from './components/delete-confirmation-dialog'
-import type { SchemaInfo } from './types'
+import type { ProfileInfo } from './types'
 import { AntdThemeProvider } from 'rockit-common/lib/browser/antd-theme-provider'
 import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
 
 import './styles/index.css'
 
-export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager'
-export const METADATA_SCHEMA_MANAGER_LABEL = nls.localize(
+export const METADATA_PROFILE_MANAGER_WIDGET_ID = 'metadata-schema-manager'
+export const METADATA_PROFILE_MANAGER_LABEL = nls.localize(
     'rockit/schemaManager/title',
     'Metadata Profile Manager',
 )
@@ -42,11 +42,11 @@ export const METADATA_SCHEMA_MANAGER_LABEL = nls.localize(
 const MSG_TIMEOUT = 5000
 
 @injectable()
-export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulWidget {
-    static readonly ID = METADATA_SCHEMA_MANAGER_WIDGET_ID
-    static readonly LABEL = METADATA_SCHEMA_MANAGER_LABEL
+export class MetadataProfileManagerWidget extends BaseWidget implements StatefulWidget {
+    static readonly ID = METADATA_PROFILE_MANAGER_WIDGET_ID
+    static readonly LABEL = METADATA_PROFILE_MANAGER_LABEL
 
-    protected schemas: SchemaInfo[] = []
+    protected profiles: ProfileInfo[] = []
     protected isLoading = true
     protected selectedSchemaKeys: Key[] = []
 
@@ -57,32 +57,32 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         @inject(FileDialogService) protected readonly fileDialogService: FileDialogService,
         @inject(MessageService) protected readonly messageService: MessageService,
         @inject(EnvVariablesServer) protected readonly envVariablesServer: EnvVariablesServer,
-        @inject(SchemaManagerService) protected readonly schemaManagerService: SchemaManagerService,
+        @inject(ProfileManagerService) protected readonly profileManagerService: ProfileManagerService,
         @inject(ThemeService) protected readonly themeService: ThemeService,
         @inject(ApplicationShell) protected readonly shell: ApplicationShell,
         @inject(LoadMaskService) protected readonly loadMaskService: LoadMaskService,
     ) {
         super()
 
-        this.id = METADATA_SCHEMA_MANAGER_WIDGET_ID
-        this.title.label = METADATA_SCHEMA_MANAGER_LABEL
-        this.title.caption = METADATA_SCHEMA_MANAGER_LABEL
+        this.id = METADATA_PROFILE_MANAGER_WIDGET_ID
+        this.title.label = METADATA_PROFILE_MANAGER_LABEL
+        this.title.caption = METADATA_PROFILE_MANAGER_LABEL
         this.title.closable = true
         this.title.iconClass = 'fa fa-table'
         this.node.tabIndex = 0
 
-        this.toDispose.push(this.schemaManagerService.onDidChangeSchemas(() => this.loadSchemas()))
+        this.toDispose.push(this.profileManagerService.onDidChangeProfiles(() => this.loadProfiles()))
     }
 
-    protected async loadSchemas(): Promise<void> {
+    protected async loadProfiles(): Promise<void> {
         this.isLoading = true
         const currentSelection = [...this.selectedSchemaKeys];
         this.update()
 
         try {
-            this.schemas = await this.schemaManagerService.loadAllSchemas()
+            this.profiles = await this.profileManagerService.loadAllProfiles()
             this.selectedSchemaKeys = currentSelection.filter(key => 
-                this.schemas.some(s => s.id === key)
+                this.profiles.some(profile => profile.id === key)
             );
         } catch (err) {
             this.messageService.error(
@@ -104,10 +104,10 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.update()
     }
 
-    protected async deleteSchemas(ids: string[]): Promise<void> {
+    protected async deleteProfiles(ids: string[]): Promise<void> {
         if (ids.length === 0) return
 
-        const hasPersistedItems = this.schemas
+        const hasPersistedItems = this.profiles
             .filter(s => ids.includes(s.id))
             .some(s => s.status === 'ok');
 
@@ -121,7 +121,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.update()
 
         try {
-            const deletedCount = await this.schemaManagerService.deleteSchemas(ids)
+            const deletedCount = await this.profileManagerService.deleteProfiles(ids)
             if (deletedCount > 0) {
                 const message = hasPersistedItems
                     ? nls.localize(
@@ -148,7 +148,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         }
     }
 
-    protected async importSchemaFromFile(): Promise<void> {
+    protected async importProfileFromFile(): Promise<void> {
         const fileUriOrUris = await this.fileDialogService.showOpenDialog({
             title: nls.localize('rockit/schemaManager/importSchema', 'Import Profile'),
             filters: { JSON: ['json'] },
@@ -165,7 +165,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             })
             .then(async (progress) => {
                 try {
-                    const results = await this.schemaManagerService.importFiles(fileUris, progress)
+                    const results = await this.profileManagerService.importFiles(fileUris, progress)
 
                     if (results.success > 0) {
                         this.messageService.info(nls.localize(
@@ -200,7 +200,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             })
     }
 
-    protected async importSchemaFromUrl(): Promise<void> {
+    protected async importProfileFromUrl(): Promise<void> {
         const dialog = new MetadataSchemaImportFromUrlDialog()
         const url = await dialog.open()
         if (url) {
@@ -215,11 +215,11 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             })
             .then(async (progress) => {
                 try {
-                    const schemaName = await this.schemaManagerService.importFromUrl(url, progress)
+                    const profileName = await this.profileManagerService.importFromUrl(url, progress)
                     this.messageService.info(nls.localize(
                         'rockit/schemaManager/importedName',
                         'Successfully imported: {0}',
-                        schemaName,
+                        profileName,
                     ), { timeout: MSG_TIMEOUT })
                 } catch (error: any) {
                     if (error.message !== 'Aborted') {
@@ -238,25 +238,25 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             })
     }
 
-    protected async refreshSchemas(): Promise<void> {
-        this.schemaManagerService.clearFailedPendingSchemas();
-        await this.loadSchemas()
+    protected async refreshProfiles(): Promise<void> {
+        this.profileManagerService.clearFailedPendingProfiles();
+        await this.loadProfiles()
     }
 
     protected async openProviderList(): Promise<void> {
         const dialog = new RemoteSchemaProviderListDialog(
-            this.schemaManagerService.providerStoreService,
+            this.profileManagerService.providerStoreService,
         )
         await dialog.open()
     }
 
-    protected async browseRemoteSchemas(): Promise<void> {
+    protected async browseRemoteProfiles(): Promise<void> {
         const dialog = new RemoteSchemaProviderSelectorDialog(
-            this.schemaManagerService.providerStoreService,
+            this.profileManagerService.providerStoreService,
         )
         const provider = await dialog.open()
         if (provider) {
-            await this.schemaManagerService.browseRemoteSchemas(provider)
+            await this.profileManagerService.browseRemoteProfiles(provider)
         }
     }
 
@@ -266,7 +266,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
         this.node.addEventListener('mousedown', this.handleMouseDown, true)
         this.node.innerHTML = ''
         this.render()
-        this.loadSchemas()
+        this.loadProfiles()
     }
 
     protected onUpdateRequest(msg: Message): void {
@@ -289,25 +289,25 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             <AntdThemeProvider themeService={this.themeService}>
                 <div className="metadata-schema-layout-container">
                     <MetadataSchemaToolbar
-                        onImportFile={() => this.importSchemaFromFile()}
-                        onImportUrl={() => this.importSchemaFromUrl()}
-                        onBrowse={() => this.browseRemoteSchemas()}
-                        onRefresh={() => this.refreshSchemas()}
-                        onDelete={() => this.deleteSchemas(selectedSchemaIds)}
+                        onImportFile={() => this.importProfileFromFile()}
+                        onImportUrl={() => this.importProfileFromUrl()}
+                        onBrowse={() => this.browseRemoteProfiles()}
+                        onRefresh={() => this.refreshProfiles()}
+                        onDelete={() => this.deleteProfiles(selectedSchemaIds)}
                         onConfigureProviders={() => this.openProviderList()}
                         selectedCount={this.selectedSchemaKeys.length}
                     />
 
                     <div className="metadata-schema-table-wrapper">
                         <MetadataSchemaTable
-                            schemas={this.schemas}
+                            profiles={this.profiles}
                             isLoading={this.isLoading}
                             selectionType="checkbox"
                             selectedKeys={this.selectedSchemaKeys}
                             allowDeleteValidSchemas={true}
                             onSelectionChange={this.onSelectionChange}
-                            onDelete={(ids) => this.deleteSchemas(ids)}
-                            onRetry={(id) => this.schemaManagerService.retrySchema(id)}
+                            onDelete={(ids) => this.deleteProfiles(ids)}
+                            onRetry={(id) => this.profileManagerService.retryProfile(id)}
                         />
                     </div>
 

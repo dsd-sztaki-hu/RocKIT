@@ -18,26 +18,26 @@ import { IconButton, Tooltip } from '@mui/material';
 import CenterFocusWeakIcon from '@mui/icons-material/CenterFocusWeak'; 
 import CancelIcon from '@mui/icons-material/Cancel'; 
 
-import { SchemaManagerService } from '../services/metadata-schema-manager-service';
+import { ProfileManagerService } from '../services/metadata-schema-manager-service';
 import { SchemaApi } from '../services/schema-api';
 import CedarTree from './cedar-tree';
-import { RemoteSchemaProviderConfig } from '../types';
+import { RemoteProfileProviderConfig } from '../types';
 import '../styles/remote-schema-browser-dialog.css';
 
 @injectable()
 export class RemoteSchemaBrowserContribution implements FrontendApplicationContribution {
-    @inject(SchemaManagerService) protected readonly schemaManagerService!: SchemaManagerService;
+    @inject(ProfileManagerService) protected readonly profileManagerService!: ProfileManagerService;
     @inject(MessageService) protected readonly messageService!: MessageService;
     @inject(EnvVariablesServer) protected readonly envVariablesServer!: EnvVariablesServer;
 
     onStart(): void {
-        this.schemaManagerService.onOpenRemoteBrowser((provider) => this.openDialog(provider));
+        this.profileManagerService.onOpenRemoteBrowser((provider) => this.openDialog(provider));
     }
 
-    protected async openDialog(provider: RemoteSchemaProviderConfig): Promise<void> {
+    protected async openDialog(provider: RemoteProfileProviderConfig): Promise<void> {
         const dialog = new RemoteSchemaBrowserDialog(
             provider,
-            this.schemaManagerService,
+            this.profileManagerService,
             this.envVariablesServer
         );
 
@@ -48,9 +48,9 @@ export class RemoteSchemaBrowserContribution implements FrontendApplicationContr
         }
     }
 
-    protected async handleDownload(templateId: string, provider: RemoteSchemaProviderConfig): Promise<void> {
+    protected async handleDownload(templateId: string, provider: RemoteProfileProviderConfig): Promise<void> {
         try {
-            await this.schemaManagerService.downloadRemoteSchema(templateId, provider);
+            await this.profileManagerService.downloadRemoteProfile(templateId, provider);
         } catch (error: any) {
             // Avoid logging if the user actively aborted the process.
             if (error.message !== 'Aborted') {
@@ -66,8 +66,8 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
     private result: string | undefined;
 
     constructor(
-        private readonly provider: RemoteSchemaProviderConfig,
-        private readonly schemaManagerService: SchemaManagerService,
+        private readonly provider: RemoteProfileProviderConfig,
+        private readonly profileManagerService: ProfileManagerService,
         private readonly envVariablesServer: EnvVariablesServer
     ) {
         super({
@@ -100,7 +100,7 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
         this.reactRoot.render(
             <BrowserContent
                 provider={this.provider}
-                schemaManagerService={this.schemaManagerService}
+                profileManagerService={this.profileManagerService}
                 envVariablesServer={this.envVariablesServer}
                 onAccept={(id) => this.handleAccept(id)}
                 onCancel={() => this.handleClose()}
@@ -123,8 +123,8 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
 }
 
 interface BrowserContentProps {
-    provider: RemoteSchemaProviderConfig;
-    schemaManagerService: SchemaManagerService;
+    provider: RemoteProfileProviderConfig;
+    profileManagerService: ProfileManagerService;
     envVariablesServer: EnvVariablesServer;
     onAccept: (id: string) => void;
     onCancel: () => void;
@@ -132,7 +132,7 @@ interface BrowserContentProps {
 
 const BrowserContent: React.FC<BrowserContentProps> = ({ 
     provider, 
-    schemaManagerService, 
+    profileManagerService,
     onAccept, 
     onCancel 
 }) => {
@@ -152,12 +152,12 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
                 proxyUrl: providerProxyUrl(provider)
             }));
 
-            schemaManagerService.loadAllSchemas().then(schemas => {
-                const ids = schemas.map(s => s.aux.reference);
+            profileManagerService.loadAllProfiles().then(profiles => {
+                const ids = profiles.map(profile => profile.aux.reference);
                 setExistingIds(ids);
             });
         }
-    }, [provider, schemaManagerService]);
+    }, [provider, profileManagerService]);
 
     const handleTemplateSelected = (id: string, name: string) => {
         setSelectedId(id);
@@ -249,12 +249,12 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
     );
 };
 
-function providerApiKey(provider: RemoteSchemaProviderConfig): string | undefined {
+function providerApiKey(provider: RemoteProfileProviderConfig): string | undefined {
     const accessMode = provider.accessMode || (provider.apiKey ? 'apiKey' : 'dataverseProxy');
     return accessMode === 'apiKey' ? provider.apiKey : undefined;
 }
 
-function providerProxyUrl(provider: RemoteSchemaProviderConfig): string | undefined {
+function providerProxyUrl(provider: RemoteProfileProviderConfig): string | undefined {
     const accessMode = provider.accessMode || (provider.apiKey ? 'apiKey' : 'dataverseProxy');
     if (accessMode !== 'dataverseProxy') return undefined;
     const baseUrl = provider.dataverseProxyBaseUrl || deriveDataverseProxyBaseUrl(provider.domainBase || provider.baseUrl || '');

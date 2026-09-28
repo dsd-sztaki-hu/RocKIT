@@ -11,10 +11,10 @@ import { FrontendApplicationContribution, WidgetManager, CommonMenus, Applicatio
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { ApplicationServer } from '@theia/core/lib/common/application-protocol';
 import { openRockitDocumentationPage, ROCKIT_DOCUMENTATION_PAGES } from 'rockit-common/lib/browser';
-import { METADATA_SCHEMA_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
+import { METADATA_PROFILE_MANAGER_WIDGET_ID } from './metadata-schema-manager-widget';
 import { nls } from '@theia/core/lib/common/nls';
 
-export namespace MetadataSchemaManagerCommands {
+export namespace MetadataProfileManagerCommands {
     export const OPEN: Command = {
         id: 'metadata-schema-manager:open',
         label: nls.localize('rockit/schemaManager/open', 'Open Metadata Profile Manager')
@@ -30,7 +30,7 @@ export namespace MetadataSchemaManagerCommands {
 }
 
 @injectable()
-export class MetadataSchemaManagerContribution implements CommandContribution, MenuContribution, FrontendApplicationContribution, TabBarToolbarContribution {
+export class MetadataProfileManagerContribution implements CommandContribution, MenuContribution, FrontendApplicationContribution, TabBarToolbarContribution {
     
     // Clean, standard Inversify constructor injection. Avoids double-initialization.
     constructor(
@@ -45,35 +45,35 @@ export class MetadataSchemaManagerContribution implements CommandContribution, M
     }
 
     registerCommands(commands: CommandRegistry): void {
-        commands.registerCommand(MetadataSchemaManagerCommands.OPEN, {
+        commands.registerCommand(MetadataProfileManagerCommands.OPEN, {
             execute: async () => {
                 try {
-                    const widget = await this.widgetManager.getOrCreateWidget(METADATA_SCHEMA_MANAGER_WIDGET_ID);
+                    const widget = await this.widgetManager.getOrCreateWidget(METADATA_PROFILE_MANAGER_WIDGET_ID);
                     if (widget) {
                         this.shell.addWidget(widget, { area: 'main' });
                         this.shell.activateWidget(widget.id);
                     } else {
-                        console.error("Failed to create or retrieve widget:", METADATA_SCHEMA_MANAGER_WIDGET_ID);
+                        console.error("Failed to create or retrieve widget:", METADATA_PROFILE_MANAGER_WIDGET_ID);
                     }
                 } catch (error) {
                     console.error("Error opening Metadata Profile Manager widget:", error);
                 }
             }
         });
-        commands.registerCommand(MetadataSchemaManagerCommands.OPEN_DOCUMENTATION, {
+        commands.registerCommand(MetadataProfileManagerCommands.OPEN_DOCUMENTATION, {
             execute: () => openRockitDocumentationPage(
                 this.applicationServer,
                 this.openerService,
                 ROCKIT_DOCUMENTATION_PAGES.METADATA_SCHEMA_MANAGER,
             ),
-            isEnabled: widget => this.isMetadataSchemaManagerWidget(widget),
-            isVisible: widget => this.isMetadataSchemaManagerWidget(widget)
+            isEnabled: widget => this.isMetadataProfileManagerWidget(widget),
+            isVisible: widget => this.isMetadataProfileManagerWidget(widget)
         });
     }
 
     registerMenus(menus: MenuModelRegistry): void {
         menus.registerMenuAction(CommonMenus.VIEW, {
-            commandId: MetadataSchemaManagerCommands.OPEN.id,
+            commandId: MetadataProfileManagerCommands.OPEN.id,
             label: nls.localize('rockit/schemaManager/title', 'Metadata Profile Manager'),
             order: 'z50'
         });
@@ -81,14 +81,14 @@ export class MetadataSchemaManagerContribution implements CommandContribution, M
 
     async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {
         toolbarRegistry.registerItem({
-            id: MetadataSchemaManagerCommands.OPEN_DOCUMENTATION.id,
-            command: MetadataSchemaManagerCommands.OPEN_DOCUMENTATION.id,
-            tooltip: MetadataSchemaManagerCommands.OPEN_DOCUMENTATION.label,
+            id: MetadataProfileManagerCommands.OPEN_DOCUMENTATION.id,
+            command: MetadataProfileManagerCommands.OPEN_DOCUMENTATION.id,
+            tooltip: MetadataProfileManagerCommands.OPEN_DOCUMENTATION.label,
             priority: -100
         });
     }
 
-    protected isMetadataSchemaManagerWidget(widget: unknown): boolean {
-        return Boolean(widget && typeof widget === 'object' && (widget as { id?: string }).id === METADATA_SCHEMA_MANAGER_WIDGET_ID);
+    protected isMetadataProfileManagerWidget(widget: unknown): boolean {
+        return Boolean(widget && typeof widget === 'object' && (widget as { id?: string }).id === METADATA_PROFILE_MANAGER_WIDGET_ID);
     }
 }

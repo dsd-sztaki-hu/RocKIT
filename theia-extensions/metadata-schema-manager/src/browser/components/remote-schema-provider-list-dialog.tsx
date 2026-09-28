@@ -19,15 +19,15 @@ import SettingsInputComponentIcon from '@mui/icons-material/SettingsInputCompone
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { nls } from '@theia/core/lib/common/nls';
 
-import { RemoteSchemaProviderConfigDialog } from './remote-schema-provider-config-dialog';
+import { RemoteProfileProviderConfigDialog } from './remote-schema-provider-config-dialog';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
-import type { RemoteSchemaProviderConfig } from '../types';
+import type { RemoteProfileProviderConfig } from '../types';
 import '../styles/remote-schema-provider-list-dialog.css';
 
 export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
 
     private reactRoot: Root | undefined;
-    private providers: RemoteSchemaProviderConfig[] = [];
+    private providers: RemoteProfileProviderConfig[] = [];
     private isLoading = false;
 
     constructor(
@@ -58,7 +58,7 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
     }
 
     protected async handleAdd() {
-        const dialog = new RemoteSchemaProviderConfigDialog(this.providerStore);
+        const dialog = new RemoteProfileProviderConfigDialog(this.providerStore);
         const newConfig = await dialog.open();
         
         if (newConfig) {
@@ -66,8 +66,8 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
         }
     }
 
-    protected async handleEdit(provider: RemoteSchemaProviderConfig) {
-        const dialog = new RemoteSchemaProviderConfigDialog(this.providerStore, provider);
+    protected async handleEdit(provider: RemoteProfileProviderConfig) {
+        const dialog = new RemoteProfileProviderConfigDialog(this.providerStore, provider);
         const updatedConfig = await dialog.open();
         
         if (updatedConfig) {
@@ -75,7 +75,7 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
         }
     }
 
-    protected async saveProvider(config: RemoteSchemaProviderConfig) {
+    protected async saveProvider(config: RemoteProfileProviderConfig) {
         const current = await this.providerStore.loadProviders();
         const index = current.findIndex(p => p.id === config.id);
         

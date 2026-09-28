@@ -22,10 +22,10 @@ import { nls } from '@theia/core/lib/common/nls';
 
 import { ConnectionSuccessDialog } from './connection-success-dialog';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
-import { createDefaultArpProductionProvider, type RemoteSchemaProviderConfig } from '../types';
+import { createDefaultArpProductionProvider, type RemoteProfileProviderConfig } from '../types';
 import '../styles/remote-schema-provider-config-dialog.css';
 
-export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchemaProviderConfig | undefined> {
+export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProfileProviderConfig | undefined> {
 
     private reactRoot: Root | undefined;
     
@@ -41,12 +41,12 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
     private isTesting = false;
     private showKey = false; 
     private errorMsg: string | null = null;
-    private result: RemoteSchemaProviderConfig | undefined;
-    private newProviderDefaults: RemoteSchemaProviderConfig | undefined;
+    private result: RemoteProfileProviderConfig | undefined;
+    private newProviderDefaults: RemoteProfileProviderConfig | undefined;
 
     constructor(
         private readonly providerStore: RemoteSchemaProviderStoreService,
-        private readonly providerToEdit?: RemoteSchemaProviderConfig
+        private readonly providerToEdit?: RemoteProfileProviderConfig
     ) {
         super({
             title: providerToEdit
@@ -67,7 +67,7 @@ export class RemoteSchemaProviderConfigDialog extends AbstractDialog<RemoteSchem
         }
     }
 
-    get value(): RemoteSchemaProviderConfig | undefined {
+    get value(): RemoteProfileProviderConfig | undefined {
         return this.result;
     }
 

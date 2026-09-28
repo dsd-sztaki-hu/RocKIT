@@ -11,11 +11,11 @@ import {
   deleteMetadataProfile,
   importCedarTemplateContent,
   importCedarTemplateFromUrl,
-  importRemoteSchema,
+  importRemoteTemplate,
   listCedarFolder,
   listLocalProfiles,
   loadCedarProviders,
-  listRemoteSchemas,
+  listRemoteTemplates,
   resolveMissingConformsToUrls,
   resolveProfileRootPath,
   type RemoteCedarResource,
@@ -122,12 +122,12 @@ export function createMetadataProfileHandlers(deps: MetadataProfilesDeps) {
   async function listWellKnownSchemas(params: Record<string, unknown>): Promise<Record<string, unknown>> {
     const provider = await resolveProvider(params)
     const query = typeof params.query === 'string' ? params.query : undefined
-    const result = await listRemoteSchemas(provider, query, parseRootPath(params))
+    const result = await listRemoteTemplates(provider, query, parseRootPath(params))
     return {
       provider: result.provider,
       storage: result.storage,
-      count: result.schemas.length,
-      schemas: result.schemas,
+      count: result.templates.length,
+      schemas: result.templates,
     }
   }
 
@@ -247,18 +247,18 @@ export function createMetadataProfileHandlers(deps: MetadataProfilesDeps) {
     if (templateIdOrUrl === '' && typeof params.name === 'string') {
       const query = params.name.trim()
       if (query !== '') {
-        const remote = await listRemoteSchemas(provider, query, parseRootPath(params))
+        const remote = await listRemoteTemplates(provider, query, parseRootPath(params))
         const lower = query.toLowerCase()
         const match =
-          remote.schemas.find((schema) => schema.name.toLowerCase() === lower) ??
-          remote.schemas[0]
+          remote.templates.find((template) => template.name.toLowerCase() === lower) ??
+          remote.templates[0]
         templateIdOrUrl = match?.templateUrl ?? ''
       }
     }
     if (templateIdOrUrl === '') {
       throw new Error('import_well_known_schema requires name, templateIdOrUrl, url, or conformsTo.')
     }
-    const result = await importRemoteSchema({
+    const result = await importRemoteTemplate({
       provider,
       templateIdOrUrl,
       rootPath: parseRootPath(params),

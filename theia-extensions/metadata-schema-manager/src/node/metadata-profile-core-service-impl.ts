@@ -10,10 +10,10 @@ import {
   deleteMetadataProfile,
   importCedarTemplateContent,
   importCedarTemplateFromUrl,
-  importRemoteSchema,
+  importRemoteTemplate,
   listCedarFolder,
   listLocalProfiles,
-  listRemoteSchemas,
+  listRemoteTemplates,
   loadCedarProviders,
   resolveMissingConformsToUrls,
   saveCedarProvider,
@@ -48,12 +48,12 @@ export class MetadataProfileCoreServiceImpl implements MetadataProfileCoreServic
     return importCedarTemplateFromUrl(args)
   }
 
-  async importRemoteSchema(args: {
+  async importRemoteTemplate(args: {
     templateIdOrUrl: string
     conformsTo?: string
     provider?: CedarProvider
   }) {
-    return importRemoteSchema(args)
+    return importRemoteTemplate(args)
   }
 
   async resolveMissingConformsToUrls(urls: string[]) {
@@ -89,8 +89,8 @@ export class MetadataProfileCoreServiceImpl implements MetadataProfileCoreServic
 
   async testProviderConnection(provider: CedarProvider): Promise<string[]> {
     const hydrated = await this.hydrateProvider(provider)
-    const result = await listRemoteSchemas(hydrated)
-    return result.schemas.map((schema) => schema.name).slice(0, 10)
+    const result = await listRemoteTemplates(hydrated)
+    return result.templates.map((template) => template.name).slice(0, 10)
   }
 
   private async providerList(): Promise<MetadataProfileCoreProviderListResult> {
@@ -113,4 +113,5 @@ export class MetadataProfileCoreServiceImpl implements MetadataProfileCoreServic
     const providers = (await loadCedarProviders()).providers
     return providers.find((candidate) => candidate.id === provider.id) ?? provider
   }
+
 }

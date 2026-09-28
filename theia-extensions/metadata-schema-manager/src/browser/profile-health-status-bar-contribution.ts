@@ -11,8 +11,8 @@ import { nls } from '@theia/core/lib/common/nls';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { inject, injectable } from 'inversify';
 
-import { MetadataSchemaManagerCommands } from './metadata-schema-manager-contribution';
-import { SchemaManagerService } from './services/metadata-schema-manager-service';
+import { MetadataProfileManagerCommands } from './metadata-schema-manager-contribution';
+import { ProfileManagerService } from './services/metadata-schema-manager-service';
 import type { ProfileHealthIssue, ProfileHealthStatus } from './types';
 
 const PROFILE_HEALTH_STATUS_BAR_ID = 'metadata-schema-manager.profile-health';
@@ -21,7 +21,7 @@ const PROFILE_HEALTH_STATUS_BAR_ID = 'metadata-schema-manager.profile-health';
 export class ProfileHealthStatusBarContribution implements FrontendApplicationContribution {
   @inject(StatusBar) protected readonly statusBar!: StatusBar;
   @inject(AppStateService) protected readonly appStateService!: AppStateService;
-  @inject(SchemaManagerService) protected readonly profileManagerService!: SchemaManagerService;
+  @inject(ProfileManagerService) protected readonly profileManagerService!: ProfileManagerService;
 
   protected readonly toDispose = new DisposableCollection();
   protected updateTimer: number | undefined;
@@ -31,7 +31,7 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
     await this.appStateService.ready;
 
     this.toDispose.push(this.appStateService.onDidChangeSelector(state => state.roCrate)(() => this.scheduleUpdate()));
-    this.toDispose.push(this.profileManagerService.onDidChangeSchemas(() => this.scheduleUpdate()));
+    this.toDispose.push(this.profileManagerService.onDidChangeProfiles(() => this.scheduleUpdate()));
 
     this.scheduleUpdate();
   }
@@ -78,7 +78,7 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
         color: 'var(--theia-statusBarItem-errorForeground)',
         backgroundColor: 'var(--theia-statusBarItem-errorBackground)',
         tooltip: this.createTooltip(health),
-        command: MetadataSchemaManagerCommands.OPEN.id,
+        command: MetadataProfileManagerCommands.OPEN.id,
         accessibilityInformation: {
           label: nls.localize(
             'rockit/schemaManager/profileIssueAccessible',
@@ -109,7 +109,7 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
           'Unable to check referenced metadata profiles.\n\n{0}',
           message,
         ),
-        command: MetadataSchemaManagerCommands.OPEN.id,
+        command: MetadataProfileManagerCommands.OPEN.id,
         accessibilityInformation: {
           label: nls.localize(
             'rockit/schemaManager/profileUnavailableAccessible',

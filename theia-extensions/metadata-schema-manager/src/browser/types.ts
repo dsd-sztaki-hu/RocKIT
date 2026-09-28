@@ -8,26 +8,26 @@
 
 import type { Key } from 'antd/es/table/interface';
 
-export interface SchemaFiles {
+export interface ProfileFiles {
   sourcePath: string;
   convertedPath: string;
   convertedPaths?: Partial<Record<'en' | 'hu', string>>;
 }
 
-export interface SchemaAux {
+export interface ProfileAux {
   templateUuid?: string;
   reference: string;
   conversionLanguage?: 'en' | 'hu';
 }
 
-export interface SchemaInfo {
+export interface ProfileInfo {
   id: string; // Truly unique generated ID
   name: string;
   version: string;
   source: 'local' | 'remote';
   type: string;
-  files: SchemaFiles;
-  aux: SchemaAux;
+  files: ProfileFiles;
+  aux: ProfileAux;
   conformsTo?: string; 
   downloadUrl?: string;
   createdAt: string | null;
@@ -54,25 +54,25 @@ export interface ProfileHealthStatus {
   issues: ProfileHealthIssue[];
 }
 
-export interface SchemaIndex {
-  profiles: SchemaInfo[];
+export interface ProfileIndex {
+  profiles: ProfileInfo[];
   conformsToIndex: Record<string, string[]>;
 }
 
-export interface SchemaTableProps {
-  schemas: SchemaInfo[];
+export interface ProfileTableProps {
+  profiles: ProfileInfo[];
   isLoading: boolean;
   selectionType?: 'checkbox' | 'radio' | 'row'; 
   selectedKeys?: Key[]; 
   allowDeleteValidSchemas?: boolean; // Controls whether 'ok' schemas show the delete bin
   disableInvalidRows?: boolean;      // Controls whether transient/failed schemas can be selected
   onSelectionChange: (selectedRowKeys: Key[]) => void;
-  onRowDoubleClick?: (schema: SchemaInfo) => void;
-  onDelete?: (schemaIds: string[]) => void;
-  onRetry?: (schemaId: string) => void;
+  onRowDoubleClick?: (profile: ProfileInfo) => void;
+  onDelete?: (profileIds: string[]) => void;
+  onRetry?: (profileId: string) => void;
 }
 
-export interface RemoteSchemaProviderConfig {
+export interface RemoteProfileProviderConfig {
   id: string;
   title: string;
   baseUrl: string;
@@ -85,7 +85,7 @@ export interface RemoteSchemaProviderConfig {
   apiKey?: string;
 }
 
-export const DEFAULT_ARP_PRODUCTION_PROVIDER: Readonly<RemoteSchemaProviderConfig> = {
+export const DEFAULT_ARP_PRODUCTION_PROVIDER: Readonly<RemoteProfileProviderConfig> = {
   id: 'arp-prod',
   title: 'ARP Production',
   baseUrl: 'https://cedar.schema.researchdata.hu/',
@@ -97,6 +97,6 @@ export const DEFAULT_ARP_PRODUCTION_PROVIDER: Readonly<RemoteSchemaProviderConfi
   dataverseProxyBaseUrl: 'https://repo.researchdata.hu'
 };
 
-export function createDefaultArpProductionProvider(): RemoteSchemaProviderConfig {
+export function createDefaultArpProductionProvider(): RemoteProfileProviderConfig {
   return { ...DEFAULT_ARP_PRODUCTION_PROVIDER };
 }

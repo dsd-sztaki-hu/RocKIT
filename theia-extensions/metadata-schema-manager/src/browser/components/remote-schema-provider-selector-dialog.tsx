@@ -19,16 +19,16 @@ import { nls } from '@theia/core/lib/common/nls';
 
 import { RemoteSchemaProviderListDialog } from './remote-schema-provider-list-dialog';
 import { RemoteSchemaProviderStoreService } from '../services/remote-schema-provider-store-service';
-import type { RemoteSchemaProviderConfig } from '../types';
+import type { RemoteProfileProviderConfig } from '../types';
 import '../styles/remote-schema-provider-selector-dialog.css';
 
-export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemoteSchemaProviderConfig | undefined> {
+export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemoteProfileProviderConfig | undefined> {
 
     private reactRoot: Root | undefined;
-    private providers: RemoteSchemaProviderConfig[] = [];
+    private providers: RemoteProfileProviderConfig[] = [];
     private isLoading = true;
     
-    private result: RemoteSchemaProviderConfig | undefined;
+    private result: RemoteProfileProviderConfig | undefined;
 
     constructor(
         protected readonly providerStore: RemoteSchemaProviderStoreService
@@ -42,7 +42,7 @@ export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemoteSch
         this.contentNode.style.padding = '0'; 
     }
 
-    get value(): RemoteSchemaProviderConfig | undefined {
+    get value(): RemoteProfileProviderConfig | undefined {
         return this.result;
     }
 
@@ -59,7 +59,7 @@ export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemoteSch
         }
     }
 
-    protected handleSelect(provider: RemoteSchemaProviderConfig) {
+    protected handleSelect(provider: RemoteProfileProviderConfig) {
         this.result = provider;
         this.accept(); 
     }

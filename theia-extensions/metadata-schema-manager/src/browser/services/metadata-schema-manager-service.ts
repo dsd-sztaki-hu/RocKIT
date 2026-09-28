@@ -17,9 +17,9 @@ import { nls } from '@theia/core/lib/common';
 
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
 import { CedarTemplateToDescriboProfileConverter } from 'cedar-template-converter';
-import type { ProfileHealthIssue, ProfileHealthStatus, SchemaInfo, SchemaIndex, RemoteSchemaProviderConfig } from '../types';
+import type { ProfileHealthIssue, ProfileHealthStatus, ProfileInfo, ProfileIndex, RemoteProfileProviderConfig } from '../types';
 import { SchemaApi } from './schema-api';
-import type { MetadataSchemaManager as MetadataSchemaManagerContract } from 'rockit-common/lib/browser';
+import type { MetadataProfileManager as MetadataProfileManagerContract } from 'rockit-common/lib/browser';
 import {
   buildRedirectDerivedCandidates,
   buildSchemaFetchCandidates,
@@ -46,7 +46,7 @@ export interface TaskProgress {
 }
 
 @injectable()
-export class SchemaManagerService implements FrontendApplicationContribution, MetadataSchemaManagerContract {
+export class ProfileManagerService implements FrontendApplicationContribution, MetadataProfileManagerContract {
   
   @inject(AppStateService) protected readonly appStateService!: AppStateService;
   @inject(FileService) protected readonly fileService!: FileService;
@@ -58,7 +58,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   private isChecking = false;
   private indexMutex: Promise<void> = Promise.resolve();
 
-  private pendingSchemas = new Map<string, SchemaInfo>();
+  private pendingProfiles = new Map<string, ProfileInfo>();
   private abortControllers = new Map<string, AbortController>();
 
   private arpProdPrefix = 'https://repo.schema.researchdata.hu/templates/';
@@ -66,11 +66,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   private arpW3idProd = 'https://w3id.org/arp/schema/';
   private arpW3idDev = 'https://w3id.org/arp/dev/schema/';
 
-  private readonly onDidChangeSchemasEmitter = new Emitter<void>();
-  readonly onDidChangeSchemas: Event<void> = this.onDidChangeSchemasEmitter.event;
-
-  private readonly onOpenRemoteBrowserEmitter = new Emitter<RemoteSchemaProviderConfig>();
-  readonly onOpenRemoteBrowser: Event<RemoteSchemaProviderConfig> = this.onOpenRemoteBrowserEmitter.event;
+  private readonly onDidChangeProfilesEmitter = new Emitter<void>();
+  readonly onDidChangeProfiles: Event<void> = this.onDidChangeProfilesEmitter.event;
+  private readonly onOpenRemoteBrowserEmitter = new Emitter<RemoteProfileProviderConfig>();
+  readonly onOpenRemoteBrowser: Event<RemoteProfileProviderConfig> = this.onOpenRemoteBrowserEmitter.event;
 
   @postConstruct()
   init() {
@@ -78,7 +77,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     this.appStateService.onDidChangeSelector(state => state.roCrate)(
       (newCrate) => {
-        if (newCrate) this.checkAndDownloadSchemas(newCrate);
+        if (newCrate) this.checkAndDownloadProfiles(newCrate);
       }
     );
 
@@ -88,7 +87,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       }
     );
 
-    this.onDidChangeSchemas(() => {
+    this.onDidChangeProfiles(() => {
       const state = this.appStateService.getState() as any;
       if (state.profileList) {
         this.syncProfileListFlags(state.profileList);
@@ -99,13 +98,13 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   private async syncProfileListFlags(profileList: any[]): Promise<void> {
     if (!Array.isArray(profileList) || profileList.length === 0) return;
 
-    const schemas = await this.loadAllSchemas();
+    const profiles = await this.loadAllProfiles();
     let isChanged = false;
     let hasMissingSchemas = false;
 
     const updatedProfileList = profileList.map(profile => {
-      const matchedSchema = schemas.find(s => s.conformsTo === profile.id || s.aux.reference === profile.id);
-      const newFlag = matchedSchema ? (matchedSchema.status || 'ok') : 'missing';
+      const matchedProfile = profiles.find(candidate => candidate.conformsTo === profile.id || candidate.aux.reference === profile.id);
+      const newFlag = matchedProfile ? (matchedProfile.status || 'ok') : 'missing';
 
       if (newFlag === 'missing') {
         hasMissingSchemas = true;
@@ -125,7 +124,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     if (hasMissingSchemas && !this.isChecking) {
       const currentCrate = this.appStateService.roCrate;
       if (currentCrate) {
-        this.checkAndDownloadSchemas(currentCrate).catch(err => {
+        this.checkAndDownloadProfiles(currentCrate).catch(err => {
           console.error('[SchemaManager] Background schema recovery failed:', err);
         });
       }
@@ -152,7 +151,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     await this.synchronizeIndex();
 
     const currentCrate = this.appStateService.roCrate;
-    if (currentCrate) this.checkAndDownloadSchemas(currentCrate);
+    if (currentCrate) this.checkAndDownloadProfiles(currentCrate);
   }
 
   private async synchronizeIndex(): Promise<void> {
@@ -161,7 +160,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       if (!root) return;
 
       const index = await this.loadIndex();
-      const validProfiles: SchemaInfo[] = [];
+      const validProfiles: ProfileInfo[] = [];
       let indexChanged = false;
       for (const profile of index.profiles) {
         const sourceUri = root.resolve(profile.files.sourcePath);
@@ -258,7 +257,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                 const sourceMatch = file.name.match(/_(local|remote)_/);
                 const source = sourceMatch ? sourceMatch[1] as 'local' | 'remote' : 'local';
 
-                const newSchemaInfo: SchemaInfo = {
+                const newProfileInfo: ProfileInfo = {
                   id: this.generateUniqueId(),
                   name: schemaName,
                   version: schemaVersion,
@@ -284,7 +283,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                   status: 'ok'
                 };
 
-                index.profiles.push(newSchemaInfo);
+                index.profiles.push(newProfileInfo);
                 indexChanged = true;
               } catch (e) {
                 console.warn(`[SchemaManager] Failed to recover file ${file.name}`, e);
@@ -297,7 +296,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       if (indexChanged) {
         this.rebuildConformsToIndex(index);
         await this.saveIndex(index);
-        this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
       }
     }).catch(err => {
       console.error("[SchemaManager] Synchronization failed", err);
@@ -327,30 +326,30 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     }
   }
 
-  public clearFailedPendingSchemas(): void {
-    for (const [id, schema] of this.pendingSchemas.entries()) {
-      if (schema.status === 'failed') {
-        this.pendingSchemas.delete(id);
+  public clearFailedPendingProfiles(): void {
+    for (const [id, profile] of this.pendingProfiles.entries()) {
+      if (profile.status === 'failed') {
+        this.pendingProfiles.delete(id);
         this.abortControllers.delete(id);
       }
     }
-    this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
   }
 
-  public async retrySchema(id: string): Promise<void> {
-    const schema = this.pendingSchemas.get(id);
-    if (!schema || schema.status !== 'failed') return;
-    if (!schema.downloadUrl) {
-        schema.statusMessage = nls.localize(
+  public async retryProfile(id: string): Promise<void> {
+    const profile = this.pendingProfiles.get(id);
+    if (!profile || profile.status !== 'failed') return;
+    if (!profile.downloadUrl) {
+        profile.statusMessage = nls.localize(
           'rockit/schemaManager/cannotRetryWithoutUrl',
           'Cannot retry: No URL provided.',
         );
-        this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
         return;
     }
 
-    schema.status = 'downloading';
-    schema.statusMessage = nls.localize(
+    profile.status = 'downloading';
+    profile.statusMessage = nls.localize(
       'rockit/schemaManager/retryingConnection',
       'Retrying connection...',
     );
@@ -358,31 +357,31 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     const controller = new AbortController();
     this.abortControllers.set(id, controller);
     
-    this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
 
     try {
-      const provider = await this.determineProviderForUrl(schema.downloadUrl);
+      const provider = await this.determineProviderForUrl(profile.downloadUrl);
       const apiKey = this.providerApiKey(provider);
       const proxyUrl = this.providerProxyUrl(provider);
       const { content, finalUrl } = await this.resolveJsonProfileUrl(
-        schema.downloadUrl,
+        profile.downloadUrl,
         provider,
         apiKey,
         controller.signal,
       );
 
-      schema.status = 'processing';
-      schema.statusMessage = nls.localize('rockit/schemaManager/converting', 'Converting to RO-Crate...');
-      this.onDidChangeSchemasEmitter.fire();
+      profile.status = 'processing';
+      profile.statusMessage = nls.localize('rockit/schemaManager/converting', 'Converting to RO-Crate...');
+    this.onDidChangeProfilesEmitter.fire();
       
-      const schemaName = await this.processAndSaveSchema(content, 'remote', undefined, {
+      const schemaName = await this.processAndSaveProfile(content, 'remote', undefined, {
         downloadUrl: finalUrl,
-        conformsTo: schema.conformsTo || ''
+        conformsTo: profile.conformsTo || ''
       });
       
-      this.pendingSchemas.delete(id);
+      this.pendingProfiles.delete(id);
       this.abortControllers.delete(id);
-      this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
       
       this.messageService.info(nls.localize(
         'rockit/schemaManager/importedName',
@@ -392,26 +391,26 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     } catch (error: any) {
       if (error.name === 'AbortError' || error.message === 'Aborted') {
-        this.pendingSchemas.delete(id);
+        this.pendingProfiles.delete(id);
         this.abortControllers.delete(id);
-        this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
       } else {
-        schema.status = 'failed';
-        schema.statusMessage = error.message || nls.localize(
+        profile.status = 'failed';
+        profile.statusMessage = error.message || nls.localize(
           'rockit/validation/unknownError',
           'Unknown error',
         );
         this.abortControllers.delete(id);
-        this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
       }
     }
   }
 
-  public async browseRemoteSchemas(provider: RemoteSchemaProviderConfig): Promise<void> {
+  public async browseRemoteProfiles(provider: RemoteProfileProviderConfig): Promise<void> {
     this.onOpenRemoteBrowserEmitter.fire(provider);
   }
 
-  public async downloadRemoteSchema(templateId: string, provider?: RemoteSchemaProviderConfig): Promise<void> {
+  public async downloadRemoteProfile(templateId: string, provider?: RemoteProfileProviderConfig): Promise<void> {
     let apiKey = provider?.accessMode === 'apiKey' ? provider?.apiKey : undefined;
     let domainBase = provider?.domainBase || provider?.baseUrl;
 
@@ -432,7 +431,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     const url = `https://resource.${domainBase}/templates/${encodeURIComponent(templateId)}`;
 
-    const isDuplicate = Array.from(this.pendingSchemas.values()).some(s => s.downloadUrl === url && s.status !== 'failed');
+    const isDuplicate = Array.from(this.pendingProfiles.values()).some(profile => profile.downloadUrl === url && profile.status !== 'failed');
     if (isDuplicate) throw new Error(nls.localize(
       'rockit/schemaManager/downloadInProgress',
       'Download already in progress.',
@@ -442,7 +441,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     const controller = new AbortController();
     this.abortControllers.set(id, controller);
 
-    const pendingSchema: SchemaInfo = {
+    const pendingProfile: ProfileInfo = {
       id,
       name: nls.localize('rockit/schemaManager/remoteTemplate', 'Remote Template'),
       version: '...',
@@ -460,8 +459,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         provider.title,
       )
     };
-    this.pendingSchemas.set(id, pendingSchema);
-    this.onDidChangeSchemasEmitter.fire();
+    this.pendingProfiles.set(id, pendingProfile);
+    this.onDidChangeProfilesEmitter.fire();
 
     try {
       const schemaContent = await new Promise<any>((resolve, reject) => {
@@ -483,18 +482,18 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         ? schemaContent 
         : JSON.stringify(schemaContent, null, 2);
 
-      pendingSchema.status = 'processing';
-      pendingSchema.statusMessage = nls.localize('rockit/schemaManager/converting', 'Converting to RO-Crate...');
-      this.onDidChangeSchemasEmitter.fire();
+      pendingProfile.status = 'processing';
+      pendingProfile.statusMessage = nls.localize('rockit/schemaManager/converting', 'Converting to RO-Crate...');
+    this.onDidChangeProfilesEmitter.fire();
 
-      const name = await this.processAndSaveSchema(rawString, 'remote', undefined, {
+      const name = await this.processAndSaveProfile(rawString, 'remote', undefined, {
         downloadUrl: url, 
         conformsTo: '' 
       });
       
-      this.pendingSchemas.delete(id);
+      this.pendingProfiles.delete(id);
       this.abortControllers.delete(id);
-      this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
 
       this.messageService.info(nls.localize(
         'rockit/schemaManager/addedSchema',
@@ -504,18 +503,18 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
     } catch (error: any) {
       if (error.message === 'Aborted' || error.name === 'AbortError') {
-        this.pendingSchemas.delete(id);
+        this.pendingProfiles.delete(id);
         this.abortControllers.delete(id);
-        this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
         throw new Error('Aborted');
       } else {
-        pendingSchema.status = 'failed';
-        pendingSchema.statusMessage = error.message || nls.localize(
+        pendingProfile.status = 'failed';
+        pendingProfile.statusMessage = error.message || nls.localize(
           'rockit/validation/unknownError',
           'Unknown error',
         );
         this.abortControllers.delete(id);
-        this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
         throw error;
       }
     }
@@ -575,7 +574,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
   private async resolveJsonProfileUrl(
     url: string,
-    provider?: RemoteSchemaProviderConfig,
+    provider?: RemoteProfileProviderConfig,
     apiKey?: string,
     signal?: AbortSignal,
   ): Promise<{ content: string, finalUrl: string }> {
@@ -583,7 +582,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     const rankedProviders = this.rankSchemaResolveProviders(url, configuredProviders, provider);
     let lastError: unknown;
     const attempted = new Set<string>();
-    const queue: Array<{ candidate: string; provider?: RemoteSchemaProviderConfig }> = [];
+    const queue: Array<{ candidate: string; provider?: RemoteProfileProviderConfig }> = [];
 
     this.enqueueSchemaResolveCandidates(queue, attempted, url, rankedProviders);
     while (queue.length > 0) {
@@ -627,7 +626,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       : new Error(`The URL ${url} could not be resolved to a JSON schema endpoint.`);
   }
 
-  private async loadSchemaResolveProviders(): Promise<RemoteSchemaProviderConfig[]> {
+  private async loadSchemaResolveProviders(): Promise<RemoteProfileProviderConfig[]> {
     try {
       return await this.providerStoreService.loadProviders();
     } catch {
@@ -637,12 +636,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
   private rankSchemaResolveProviders(
     url: string,
-    providers: RemoteSchemaProviderConfig[],
-    preferred?: RemoteSchemaProviderConfig,
-  ): Array<RemoteSchemaProviderConfig | undefined> {
-    const ranked: Array<RemoteSchemaProviderConfig | undefined> = [undefined];
+    providers: RemoteProfileProviderConfig[],
+    preferred?: RemoteProfileProviderConfig,
+  ): Array<RemoteProfileProviderConfig | undefined> {
+    const ranked: Array<RemoteProfileProviderConfig | undefined> = [undefined];
     const seen = new Set<string>();
-    const push = (candidate?: RemoteSchemaProviderConfig) => {
+    const push = (candidate?: RemoteProfileProviderConfig) => {
       if (!candidate) {
         return;
       }
@@ -682,10 +681,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   }
 
   private enqueueSchemaResolveCandidates(
-    queue: Array<{ candidate: string; provider?: RemoteSchemaProviderConfig }>,
+    queue: Array<{ candidate: string; provider?: RemoteProfileProviderConfig }>,
     attempted: Set<string>,
     url: string,
-    providers: Array<RemoteSchemaProviderConfig | undefined>,
+    providers: Array<RemoteProfileProviderConfig | undefined>,
   ): void {
     for (const candidateProvider of providers) {
       for (const candidate of buildSchemaFetchCandidates(url, candidateProvider)) {
@@ -703,10 +702,10 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   }
 
   private enqueueRedirectCandidates(
-    queue: Array<{ candidate: string; provider?: RemoteSchemaProviderConfig }>,
+    queue: Array<{ candidate: string; provider?: RemoteProfileProviderConfig }>,
     attempted: Set<string>,
     finalUrl: string,
-    providers: Array<RemoteSchemaProviderConfig | undefined>,
+    providers: Array<RemoteProfileProviderConfig | undefined>,
   ): void {
     for (const candidateProvider of providers) {
       for (const candidate of buildRedirectDerivedCandidates(finalUrl, candidateProvider)) {
@@ -725,12 +724,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
 
   private schemaResolveAttemptKey(
     candidate: string,
-    provider?: RemoteSchemaProviderConfig,
+    provider?: RemoteProfileProviderConfig,
   ): string {
     return `${this.schemaResolveProviderKey(provider)}::${candidate}`;
   }
 
-  private schemaResolveProviderKey(provider?: RemoteSchemaProviderConfig): string {
+  private schemaResolveProviderKey(provider?: RemoteProfileProviderConfig): string {
     if (!provider) {
       return 'direct';
     }
@@ -759,7 +758,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     return this.resolveJsonProfileUrl(url, provider, apiKey, signal);
   }
 
-  private async determineProviderForUrl(url: string): Promise<RemoteSchemaProviderConfig | undefined> {
+  private async determineProviderForUrl(url: string): Promise<RemoteProfileProviderConfig | undefined> {
     try {
       const providers = await this.providerStoreService.loadProviders();
       const targetHost = new URL(url).hostname.toLowerCase();
@@ -780,12 +779,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     return undefined;
   }
 
-  private providerApiKey(provider?: RemoteSchemaProviderConfig): string | undefined {
+  private providerApiKey(provider?: RemoteProfileProviderConfig): string | undefined {
     const accessMode = provider?.accessMode || (provider?.apiKey ? 'apiKey' : 'dataverseProxy');
     return accessMode === 'apiKey' ? provider?.apiKey : undefined;
   }
 
-  private providerProxyUrl(provider?: RemoteSchemaProviderConfig): string | undefined {
+  private providerProxyUrl(provider?: RemoteProfileProviderConfig): string | undefined {
     const accessMode = provider?.accessMode || (provider?.apiKey ? 'apiKey' : 'dataverseProxy');
     if (accessMode !== 'dataverseProxy') return undefined;
     const baseUrl = provider?.dataverseProxyBaseUrl || this.deriveDataverseProxyBaseUrl(provider?.domainBase || provider?.baseUrl || '');
@@ -822,7 +821,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   }
 
   public async importFromUrl(url: string, progress: TaskProgress): Promise<string> {
-    const isDuplicate = Array.from(this.pendingSchemas.values()).some(s => s.downloadUrl === url && s.status !== 'failed');
+    const isDuplicate = Array.from(this.pendingProfiles.values()).some(profile => profile.downloadUrl === url && profile.status !== 'failed');
     if (isDuplicate) throw new Error(nls.localize(
       'rockit/schemaManager/downloadInProgress',
       'Download already in progress.',
@@ -832,7 +831,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     const controller = new AbortController();
     this.abortControllers.set(id, controller);
 
-    const pendingSchema: SchemaInfo = {
+    const pendingSchema: ProfileInfo = {
       id,
       name: url,
       version: '...',
@@ -850,8 +849,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       )
     };
     
-    this.pendingSchemas.set(id, pendingSchema);
-    this.onDidChangeSchemasEmitter.fire();
+    this.pendingProfiles.set(id, pendingSchema);
+    this.onDidChangeProfilesEmitter.fire();
     
     try {
       progress.report({
@@ -869,7 +868,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         'rockit/schemaManager/downloadingSchema',
         'Downloading schema...',
       );
-      this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
       progress.report({
         message: nls.localize(
           'rockit/schemaManager/downloadingEllipsis',
@@ -890,29 +889,29 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         'rockit/schemaManager/converting',
         'Converting to RO-Crate...',
       );
-      this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
       progress.report({
         message: nls.localize('rockit/schemaManager/processing', 'Processing...'),
         work: { done: 60, total: 100 },
       });
       
-      const schemaName = await this.processAndSaveSchema(content, 'remote', undefined, {
+      const schemaName = await this.processAndSaveProfile(content, 'remote', undefined, {
         downloadUrl: finalUrl,
         conformsTo: '' 
       });
       
-      this.pendingSchemas.delete(id);
+      this.pendingProfiles.delete(id);
       this.abortControllers.delete(id);
-      this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
       progress.report({ work: { done: 100, total: 100 } });
       
       return schemaName;
 
     } catch (error: any) {
       if (error.name === 'AbortError' || error.message === 'Aborted') {
-        this.pendingSchemas.delete(id);
+        this.pendingProfiles.delete(id);
         this.abortControllers.delete(id);
-        this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
         throw new Error('Aborted');
       } else {
         pendingSchema.status = 'failed';
@@ -921,23 +920,23 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
           'Unknown error',
         );
         this.abortControllers.delete(id);
-        this.onDidChangeSchemasEmitter.fire();
+    this.onDidChangeProfilesEmitter.fire();
         throw error;
       }
     }
   }
 
-  protected async checkAndDownloadSchemas(roCrate: any): Promise<void> {
+  protected async checkAndDownloadProfiles(roCrate: any): Promise<void> {
     if (this.isChecking || !roCrate || !roCrate['@graph']) return;
     this.isChecking = true;
     
     try {
       if (!navigator.onLine) return;
-      const requiredIds = this.extractSchemaIds(roCrate);
+      const requiredIds = this.extractProfileIds(roCrate);
       
       if (requiredIds.size === 0) return;
       
-      const missingIds = await this.filterMissingSchemas(Array.from(requiredIds));
+      const missingIds = await this.filterMissingProfiles(Array.from(requiredIds));
       if (missingIds.length === 0) return;
 
       await new Promise<void>((resolve) => {
@@ -957,14 +956,14 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             });
 
             await this.processInChunks(missingIds, 5, async (conformsToUrl) => {
-              const isDuplicate = Array.from(this.pendingSchemas.values()).some(s => s.downloadUrl === conformsToUrl && s.status !== 'failed');
+              const isDuplicate = Array.from(this.pendingProfiles.values()).some(profile => profile.downloadUrl === conformsToUrl && profile.status !== 'failed');
               if (isDuplicate) return;
 
               const id = this.generateUniqueId();
               const controller = new AbortController();
               this.abortControllers.set(id, controller);
 
-              const pendingSchema: SchemaInfo = {
+              const pendingSchema: ProfileInfo = {
                 id,
                 name: conformsToUrl,
                 version: '...',
@@ -981,8 +980,8 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                   'Auto-resolving dependency...',
                 )
               };
-              this.pendingSchemas.set(id, pendingSchema);
-              this.onDidChangeSchemasEmitter.fire();
+              this.pendingProfiles.set(id, pendingSchema);
+    this.onDidChangeProfilesEmitter.fire();
 
               try { 
                 const { content, finalUrl } = await this.resolveConformanceUrl(conformsToUrl, undefined, controller.signal);
@@ -992,18 +991,18 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                   'rockit/schemaManager/converting',
                   'Converting to RO-Crate...',
                 );
-                this.onDidChangeSchemasEmitter.fire();
+      this.onDidChangeProfilesEmitter.fire();
 
-                await this.processAndSaveSchema(content, 'remote', undefined, {
+                await this.processAndSaveProfile(content, 'remote', undefined, {
                   conformsTo: conformsToUrl,
                   downloadUrl: finalUrl
                 });
                 
-                this.pendingSchemas.delete(id);
+                this.pendingProfiles.delete(id);
                 this.abortControllers.delete(id);
               } catch (e: any) { 
                 if (e.message === 'Aborted' || e.name === 'AbortError') {
-                  this.pendingSchemas.delete(id);
+                  this.pendingProfiles.delete(id);
                   this.abortControllers.delete(id);
                 } else {
                   pendingSchema.status = 'failed';
@@ -1015,7 +1014,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
                   console.error(`Failed to resolve schema ${conformsToUrl}`, e); 
                 }
               } finally {
-                this.onDidChangeSchemasEmitter.fire();
+      this.onDidChangeProfilesEmitter.fire();
               }
             }, (completed) => {
               progress.report({
@@ -1032,7 +1031,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
           } finally { progress.cancel(); }
         });
       
-      this.onDidChangeSchemasEmitter.fire();
+      this.onDidChangeProfilesEmitter.fire();
     } catch (error) {
       console.error('[SchemaManager] Error verifying schemas:', error);
     } finally {
@@ -1040,7 +1039,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     }
   }
 
-  private extractSchemaIds(roCrate: any): Set<string> {
+  private extractProfileIds(roCrate: any): Set<string> {
     const requiredIds = new Set<string>();
     const graph = Array.isArray(roCrate['@graph']) ? roCrate['@graph'] : [roCrate];
     
@@ -1059,12 +1058,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
   }
 
   public async getProfileHealthForCrate(roCrate: any): Promise<ProfileHealthStatus> {
-    const requiredIds = this.extractSchemaIds(roCrate);
+    const requiredIds = this.extractProfileIds(roCrate);
     if (requiredIds.size === 0) {
       return { requiredCount: 0, okCount: 0, issues: [] };
     }
 
-    const profiles = await this.loadAllSchemas();
+    const profiles = await this.loadAllProfiles();
     const issues: ProfileHealthIssue[] = [];
     let okCount = 0;
 
@@ -1112,15 +1111,15 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     return { requiredCount: requiredIds.size, okCount, issues };
   }
 
-  public async getSchemaByConformsTo(conformsToUrl: string): Promise<SchemaInfo | undefined> {
-    const all = await this.loadAllSchemas();
-    return all.find(s => s.conformsTo === conformsToUrl || s.aux.reference === conformsToUrl);
+  public async getProfileByConformsTo(conformsToUrl: string): Promise<ProfileInfo | undefined> {
+    const all = await this.loadAllProfiles();
+    return all.find(profile => profile.conformsTo === conformsToUrl || profile.aux.reference === conformsToUrl);
   }
 
-  protected async filterMissingSchemas(ids: string[]): Promise<string[]> {
-    const localSchemas = await this.loadAllSchemas();
+  protected async filterMissingProfiles(ids: string[]): Promise<string[]> {
+    const localProfiles = await this.loadAllProfiles();
     return ids.filter(reqId => {
-      const exists = localSchemas.some(local => 
+      const exists = localProfiles.some(local =>
         local.aux.reference === reqId || 
         local.conformsTo === reqId
       );
@@ -1142,7 +1141,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       const fileName = fileUri.path.base;
       try {
         const content = await this.fileService.read(fileUri);
-        await this.processAndSaveSchema(content.value, 'local', fileName, {
+        await this.processAndSaveProfile(content.value, 'local', fileName, {
           downloadUrl: '',
           conformsTo: ''
         });
@@ -1153,7 +1152,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       }
       progress.report({ work: { done: i + 1, total } });
     }
-    if (success > 0) this.onDidChangeSchemasEmitter.fire();
+    if (success > 0) this.onDidChangeProfilesEmitter.fire();
     return { success, fail };
   }
 
@@ -1263,9 +1262,9 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     return root.resolve(fileName);
   }
 
-  protected async loadIndex(): Promise<SchemaIndex> {
+  protected async loadIndex(): Promise<ProfileIndex> {
     const uri = await this.getIndexUri();
-    const defaultIndex: SchemaIndex = { profiles: [], conformsToIndex: {} };
+    const defaultIndex: ProfileIndex = { profiles: [], conformsToIndex: {} };
     if (!uri) return defaultIndex;
     if (await this.fileService.exists(uri)) {
       try {
@@ -1273,12 +1272,12 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
         const parsed = JSON.parse(content.value);
         
         if (Array.isArray(parsed)) {
-          const migratedIndex: SchemaIndex = { profiles: parsed, conformsToIndex: {} };
+          const migratedIndex: ProfileIndex = { profiles: parsed, conformsToIndex: {} };
           this.rebuildConformsToIndex(migratedIndex);
           return migratedIndex;
         }
         
-        return parsed as SchemaIndex;
+        return parsed as ProfileIndex;
       } catch (e) {
         console.error('Failed to parse schema index', e);
         return defaultIndex;
@@ -1287,7 +1286,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     return defaultIndex;
   }
 
-  protected async saveIndex(index: SchemaIndex): Promise<void> {
+  protected async saveIndex(index: ProfileIndex): Promise<void> {
     const uri = await this.getIndexUri();
     if (!uri) return;
     if (!await this.fileService.exists(uri.parent)) {
@@ -1296,7 +1295,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     await this.fileService.write(uri, JSON.stringify(index, null, 4));
   }
 
-  private rebuildConformsToIndex(index: SchemaIndex): void {
+  private rebuildConformsToIndex(index: ProfileIndex): void {
     index.conformsToIndex = {};
     for (const profile of index.profiles) {
       if (profile.conformsTo) {
@@ -1310,7 +1309,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     }
   }
 
-  private async processAndSaveSchema(
+  private async processAndSaveProfile(
     rawContent: string, 
     type: 'local' | 'remote', 
     originalFileName?: string,
@@ -1395,7 +1394,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     const idMatch = schemaId.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
     const uuidId = idMatch ? idMatch[1] : schemaId;
 
-    const newSchemaInfo: SchemaInfo = {
+    const newProfileInfo: ProfileInfo = {
       id: this.generateUniqueId(),
       name: schemaName,
       version: schemaVersion,
@@ -1424,13 +1423,13 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     await (this.indexMutex = this.indexMutex.then(async () => {
       const index = await this.loadIndex();
       
-      const existingSchema = index.profiles.find(s => s.aux.reference === schemaId && s.source === type);
-      if (existingSchema && existingSchema.createdAt && !newSchemaInfo.createdAt) {
-        newSchemaInfo.createdAt = existingSchema.createdAt;
+      const existingProfile = index.profiles.find(profile => profile.aux.reference === schemaId && profile.source === type);
+      if (existingProfile && existingProfile.createdAt && !newProfileInfo.createdAt) {
+        newProfileInfo.createdAt = existingProfile.createdAt;
       }
 
       index.profiles = index.profiles.filter(s => !(s.aux.reference === schemaId && s.source === type));
-      index.profiles.push(newSchemaInfo);
+      index.profiles.push(newProfileInfo);
       
       this.rebuildConformsToIndex(index);
       await this.saveIndex(index);
@@ -1456,7 +1455,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       .processCedarTemplate(rawContent);
   }
 
-  private getConvertedProfilePaths(profile: SchemaInfo): Record<CedarProfileLanguage, string> {
+  private getConvertedProfilePaths(profile: ProfileInfo): Record<CedarProfileLanguage, string> {
     const canonicalPath = profile.files.convertedPath;
     return {
       en: canonicalPath,
@@ -1473,7 +1472,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
    */
   private async ensureCedarConvertedProfiles(
     root: URI,
-    profile: SchemaInfo,
+    profile: ProfileInfo,
   ): Promise<boolean> {
     const paths = this.getConvertedProfilePaths(profile);
     const previousLanguage = profile.aux.conversionLanguage;
@@ -1521,25 +1520,25 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     return pathsChanged || previousLanguage !== undefined || regenerateEnglish || regenerateHungarian;
   }
 
-  public async loadAllSchemas(): Promise<SchemaInfo[]> {
+  public async loadAllProfiles(): Promise<ProfileInfo[]> {
     const index = await this.loadIndex();
     
-    const pending = Array.from(this.pendingSchemas.values()).reverse();
+    const pending = Array.from(this.pendingProfiles.values()).reverse();
     const persisted = index.profiles.map(p => ({ ...p, status: p.status || 'ok' as const }));
     
     return [...pending, ...persisted];
   }
 
-  public async deleteSchemas(schemaIds: string[]): Promise<number> {
+  public async deleteProfiles(profileIds: string[]): Promise<number> {
     let count = 0;
-    const idsToDelete = new Set(schemaIds);
-    let schemasToDelete: SchemaInfo[] = [];
+    const idsToDelete = new Set(profileIds);
+    let profilesToDelete: ProfileInfo[] = [];
 
-    for (const id of schemaIds) {
-      if (this.pendingSchemas.has(id)) {
+    for (const id of profileIds) {
+      if (this.pendingProfiles.has(id)) {
         this.abortControllers.get(id)?.abort();
         this.abortControllers.delete(id);
-        this.pendingSchemas.delete(id);
+        this.pendingProfiles.delete(id);
         idsToDelete.delete(id);
         count++;
       }
@@ -1548,22 +1547,22 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
     if (idsToDelete.size > 0) {
       await (this.indexMutex = this.indexMutex.then(async () => {
         const index = await this.loadIndex();
-        schemasToDelete = index.profiles.filter(s => idsToDelete.has(s.id));
+        profilesToDelete = index.profiles.filter(profile => idsToDelete.has(profile.id));
       }));
 
       const root = await this.getRockitRootUri();
 
       if (root) {
-        for (const schema of schemasToDelete) {
+        for (const profile of profilesToDelete) {
           try {
-            const sourceUri = root.resolve(schema.files.sourcePath);
+            const sourceUri = root.resolve(profile.files.sourcePath);
             if (await this.fileService.exists(sourceUri)) {
               await this.fileService.delete(sourceUri);
             }
 
             const convertedPaths = new Set([
-              schema.files.convertedPath,
-              ...Object.values(schema.files.convertedPaths ?? {}),
+              profile.files.convertedPath,
+              ...Object.values(profile.files.convertedPaths ?? {}),
             ].filter((path): path is string => Boolean(path)));
             for (const convertedPath of convertedPaths) {
               const convertedUri = root.resolve(convertedPath);
@@ -1573,7 +1572,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
             }
             count++;
           } catch (err) { 
-            console.error(`Failed to delete files for schema ${schema.id}`, err); 
+            console.error(`Failed to delete files for profile ${profile.id}`, err);
           }
         }
       }
@@ -1586,7 +1585,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       }));
     }
 
-    if (count > 0) this.onDidChangeSchemasEmitter.fire();
+    if (count > 0) this.onDidChangeProfilesEmitter.fire();
     return count;
   }
 

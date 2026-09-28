@@ -90,7 +90,7 @@ export type CedarProviderSaveResult = CedarProviderListResult & {
   saved: CedarProvider
 }
 
-export type RemoteSchemaSummary = {
+export type RemoteTemplateSummary = {
   providerId: string
   providerTitle: string
   id: string
@@ -101,6 +101,7 @@ export type RemoteSchemaSummary = {
   conformsTo: string
   alreadyImported: boolean
 }
+
 
 export type RemoteCedarResource = {
   id: string
@@ -391,13 +392,13 @@ export async function resolveMissingConformsToUrls(args: {
   return { storage, imported, unresolvedUrls, warnings }
 }
 
-export async function listRemoteSchemas(
+export async function listRemoteTemplates(
   provider: CedarProvider = defaultCedarProvider(),
   query?: string,
   rootPath?: string,
 ): Promise<{
   provider: CedarProvider
-  schemas: RemoteSchemaSummary[]
+  templates: RemoteTemplateSummary[]
   storage: MetadataProfileStorage
 }> {
   const normalizedProvider = normalizeProvider(provider)
@@ -409,7 +410,7 @@ export async function listRemoteSchemas(
     : []
   const local = listLocalProfiles(rootPath)
   const needle = query?.trim().toLowerCase()
-  const schemas = resources
+  const templates = resources
     .filter((item): item is Record<string, unknown> => {
       return Boolean(item) && typeof item === 'object' && !Array.isArray(item)
     })
@@ -425,7 +426,11 @@ export async function listRemoteSchemas(
         item.conformsTo.toLowerCase().includes(needle)
       )
     })
-  return { provider: normalizedProvider, schemas, storage: local.storage }
+  return {
+    provider: normalizedProvider,
+    templates,
+    storage: local.storage,
+  }
 }
 
 export async function getCedarPublicFolderId(
@@ -479,7 +484,7 @@ export async function listCedarFolder(args: {
   }
 }
 
-export async function importRemoteSchema(args: {
+export async function importRemoteTemplate(args: {
   provider?: CedarProvider
   templateIdOrUrl: string
   rootPath?: string
@@ -493,6 +498,7 @@ export async function importRemoteSchema(args: {
     conformsTo: args.conformsTo,
   })
 }
+
 
 export async function deleteMetadataProfile(args: {
   id: string
@@ -1190,7 +1196,7 @@ function remoteSchemaSummary(
   item: Record<string, unknown>,
   provider: CedarProvider,
   localProfiles: MetadataProfileInfo[],
-): RemoteSchemaSummary {
+): RemoteTemplateSummary {
   const id = readString(item['@id']) ?? readString(item.id) ?? ''
   const name = readString(item['schema:name']) ?? readString(item.name) ?? id
   const version = readString(item['pav:version']) ?? readString(item.version)

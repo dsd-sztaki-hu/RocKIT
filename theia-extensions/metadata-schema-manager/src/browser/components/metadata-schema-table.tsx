@@ -24,11 +24,11 @@ import { IconButton, Tooltip } from '@mui/material';
 import { nls } from '@theia/core/lib/common/nls';
 import { isHungarianLocale } from 'rockit-common/lib/browser';
 
-import type { SchemaInfo, SchemaTableProps } from '../types';
+import type { ProfileInfo, ProfileTableProps } from '../types';
 import '../styles/metadata-schema-table.css';
 
-export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({ 
-    schemas, 
+export const MetadataSchemaTable: React.FC<ProfileTableProps> = React.memo(({
+    profiles,
     isLoading, 
     onSelectionChange, 
     onRowDoubleClick,
@@ -100,7 +100,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
         },
     });
 
-    const columns: TableColumnsType<SchemaInfo> = [
+    const columns: TableColumnsType<ProfileInfo> = [
         {
             title: nls.localize('rockit/schemaManager/name', 'Name'),
             dataIndex: 'name',
@@ -122,7 +122,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                 const getVal = (s: string) => s === 'failed' ? 2 : (s === 'ok' || !s) ? 3 : 1; 
                 return getVal(a.status || 'ok') - getVal(b.status || 'ok');
             },
-            render: (text: string, record: SchemaInfo) => {
+            render: (text: string, record: ProfileInfo) => {
                 const status = text || 'ok';
                 if (status === 'downloading' || status === 'processing') {
                     return (
@@ -312,7 +312,7 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
             >
                 <div className="schema-table-container">
                     <Table
-                        dataSource={schemas}
+                        dataSource={profiles}
                         columns={columns}
                         rowKey="id"
                         locale={{ emptyText: emptyState }}

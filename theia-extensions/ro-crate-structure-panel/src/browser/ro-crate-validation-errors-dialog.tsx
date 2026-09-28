@@ -172,7 +172,7 @@ export class RoCrateValidationErrorsDialog extends ReactDialog<string> {
           >
             {nls.localize(
               'rockit/structurePanel/openSchemaValidator',
-              'Open Schema Validator',
+              'Open Validation Errors',
             )}
           </button>
         </div>

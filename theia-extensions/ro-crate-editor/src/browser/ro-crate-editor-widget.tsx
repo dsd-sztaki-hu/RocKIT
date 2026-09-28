@@ -15,7 +15,7 @@ import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import {
-  MetadataSchemaManager,
+  MetadataProfileManager,
   SchemaValidator,
   SchemaValidatorManager,
   type ValidationError,
@@ -63,8 +63,8 @@ type EntityOverviewDropPayload = {
 export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   static readonly ID = 'rocrate-editor-widget'
 
-  @inject(MetadataSchemaManager)
-  protected readonly schemaManagerService: MetadataSchemaManager
+  @inject(MetadataProfileManager)
+  protected readonly profileManagerService: MetadataProfileManager
 
   @inject(SchemaValidatorManager)
   protected readonly schemaValidator: SchemaValidator
@@ -641,7 +641,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       },
     )
 
-    this.schemasSubscription = this.schemaManagerService.onDidChangeSchemas(async () => {
+    this.schemasSubscription = this.profileManagerService.onDidChangeProfiles(async () => {
       if (this.isRefreshingProfile) {
         this.pendingSchemasRefresh = true
         this.pendingSchemasRefreshValidationMode = 'always'
@@ -1025,7 +1025,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       this.appStateService.roCrate = updatedCrate
       this.localCrate = updatedCrate
 
-      const schemaName = this.schemaManagerService.nameWithoutMetadataSuffix(
+      const schemaName = this.profileManagerService.nameWithoutMetadataSuffix(
         payload?.tab?.name,
       )
       const profile = this.localProfile
@@ -1704,18 +1704,18 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 if (convertedContent) {
                     foundMatchingProfile = true
                     if (this.localCrate) {
-                        const targetedMerge = (this.schemaManagerService as any)
+                        const targetedMerge = (this.profileManagerService as any)
                             .getMergedProfileForClass
                         const merged =
                             typeof targetedMerge === 'function' && typeof entityType === 'string'
                                 ? await targetedMerge.call(
-                                      this.schemaManagerService,
+                                      this.profileManagerService,
                                       convertedContent,
                                       updateProfile,
                                       entityType,
                                       conformsToUrl,
                                   )
-                                : await this.schemaManagerService.getMergedProfile(
+                                : await this.profileManagerService.getMergedProfile(
                                       this.localCrate,
                                       convertedContent,
                                       updateProfile,
