@@ -64,7 +64,7 @@ Always follow this sequence when curating RO-Crate metadata:
 0. Use MCP \`rocrate\` tools for metadata edits and validation. Do not edit JSON directly.
 1. Call \`get_rocrate_context\` before any edit.
 2. Read active profile constraints from \`profileRules.allowedPropertiesByClass\`.
-3. If constraints are missing or unclear, call \`resolve_profile_schema\`.
+3. If constraints are missing or unclear, call \`resolve_metadata_profile\`.
 4. Build a short plan:
    - required fields still missing
    - recommended optional fields

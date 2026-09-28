@@ -161,7 +161,7 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'list_well_known_schemas',
+    name: 'list_remote_templates',
     description:
       'Browse/search configured profile providers for well-known Dataverse metadata profiles.',
     inputSchema: {
@@ -178,7 +178,7 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'list_remote_schema_tree',
+    name: 'list_remote_template_tree',
     description:
       'Browse configured CEDAR providers as a folder tree and list only unimported template leaves for profile selection.',
     inputSchema: {
@@ -207,7 +207,7 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'import_well_known_schema',
+    name: 'import_remote_template',
     description:
       'Import a well-known metadata profile by name/template URL/conformsTo into the shared metadata profile store.',
     inputSchema: {
@@ -742,7 +742,7 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'resolve_profile_schema',
+    name: 'resolve_metadata_profile',
     description:
       'Resolve profile URL to profile records and converted profile file paths via metadata-schema-index.',
     inputSchema: {

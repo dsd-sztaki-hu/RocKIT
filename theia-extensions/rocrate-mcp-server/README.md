@@ -286,9 +286,9 @@ dashboard instance.
 - `open_aroma_for_local_file`: register a local `ro-crate-metadata.json` through the local file bridge and return an AROMA URL.
 - `search`: Tavily-backed web search (`TAVILY_API_KEY`, optional per-call `apiKey` fallback).
 - `download_url`: download and extract text/raw HTML from one URL.
-- `list_well_known_schemas`: browse/search configured profile providers for known Dataverse metadata profiles.
-- `list_remote_schema_tree`: browse configured CEDAR providers as a folder tree.
-- `import_well_known_schema`: import a known metadata profile into the shared profile store.
+- `list_remote_templates`: browse/search configured profile providers for remote CEDAR templates.
+- `list_remote_template_tree`: browse configured CEDAR providers as a folder tree.
+- `import_remote_template`: import a remote CEDAR template into the shared profile store.
 - `list_metadata_profiles`: list persisted CEDAR/recrate metadata profiles.
 - `import_metadata_profile`: import a CEDAR metadata profile from URL or local source path.
 - `delete_metadata_profile`: delete one persisted profile and its source/converted files.
@@ -327,7 +327,7 @@ dashboard instance.
 - `list_properties_for_type`: list properties for one type (optional inherited expansion).
 - `suggest_properties`: suggest matching properties for query + selected type(s).
 - `get_property_details`: fetch details for one property (domain/range/comment).
-- `resolve_profile_schema`: resolve one profile URL via schema index/profile inputs.
+- `resolve_metadata_profile`: resolve one profile URL via schema index/profile inputs.
 - `prepare_remote_profile_payload`: build `schemaIndex` + `profileContents` payload for remote calls.
 - `create_profile_context`: cache profile payload server-side; returns `profileContextId`.
 - `get_profile_context_info`: inspect cached profile context metadata.

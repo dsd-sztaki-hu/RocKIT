@@ -91,8 +91,8 @@ When generating the review URL:
    metadata work until it is addressed.
 5. When no active `conformsTo` profile exists, offer available local metadata
    profiles first, then browse configured remote CEDAR providers with
-   `list_remote_schema_tree` and offer unimported leaf templates in a simplified
+   `list_remote_template_tree` and offer unimported leaf templates in a simplified
    folder tree. After the user selects a remote template, import it with
-   `import_well_known_schema` using `templateIdOrUrl=<selected templateId>`,
+   `import_remote_template` using `templateIdOrUrl=<selected templateId>`,
    then associate the returned `profile.conformsTo` with the crate using
    `update_profile_conforms_to(write=true)`.

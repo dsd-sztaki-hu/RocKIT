@@ -45,9 +45,9 @@ Operational guardrails and metadata-quality rules are defined in the step docs i
    because they guide FAIR metadata creation for both users and agents.
 4. When no active `conformsTo` profile exists, offer available local metadata
    profiles first, then browse configured remote CEDAR providers with
-   `list_remote_schema_tree` and offer unimported leaf templates in a simplified
+   `list_remote_template_tree` and offer unimported leaf templates in a simplified
    folder tree. After the user selects a remote template, import it with
-   `import_well_known_schema` using `templateIdOrUrl=<selected templateId>`,
+   `import_remote_template` using `templateIdOrUrl=<selected templateId>`,
    then associate the returned `profile.conformsTo` with the crate using
    `update_profile_conforms_to(write=true)`.
 

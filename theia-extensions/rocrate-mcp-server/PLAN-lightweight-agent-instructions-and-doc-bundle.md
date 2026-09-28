@@ -58,7 +58,7 @@ Create a managed docs subtree (name can be finalized during implementation):
 `profile-first-workflow.md` must make this mandatory sequence explicit:
 
 1. `get_rocrate_context`
-2. Resolve profile constraints (`profileRules` and/or `resolve_profile_schema`)
+2. Resolve profile constraints (`profileRules` and/or `resolve_metadata_profile`)
 3. Build required/optional metadata plan
 4. Search only for missing planned values
 5. Apply minimal changes with MCP write tools

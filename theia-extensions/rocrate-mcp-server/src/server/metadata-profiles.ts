@@ -230,7 +230,7 @@ export function createMetadataProfileHandlers(deps: MetadataProfilesDeps) {
       skippedImported,
       count: visited,
       tree: tree.nodes,
-      note: 'Only unimported template leaves are listed. Import a selected template by calling import_well_known_schema with templateIdOrUrl=<templateId>, then associate profile.conformsTo with update_profile_conforms_to(write=true).',
+      note: 'Only unimported template leaves are listed. Import a selected template by calling import_remote_template with templateIdOrUrl=<templateId>, then associate profile.conformsTo with update_profile_conforms_to(write=true).',
     }
   }
 
@@ -256,7 +256,7 @@ export function createMetadataProfileHandlers(deps: MetadataProfilesDeps) {
       }
     }
     if (templateIdOrUrl === '') {
-      throw new Error('import_well_known_schema requires name, templateIdOrUrl, url, or conformsTo.')
+      throw new Error('import_remote_template requires name, templateIdOrUrl, url, or conformsTo.')
     }
     const result = await importRemoteTemplate({
       provider,

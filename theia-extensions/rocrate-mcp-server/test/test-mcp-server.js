@@ -655,16 +655,16 @@ async function run() {
     assert.ok(toolNames.includes('search'), 'search tool should exist')
     assert.ok(toolNames.includes('download_url'), 'download_url tool should exist')
     assert.ok(
-      toolNames.includes('list_well_known_schemas'),
-      'list_well_known_schemas tool should exist',
+      toolNames.includes('list_remote_templates'),
+      'list_remote_templates tool should exist',
     )
     assert.ok(
-      toolNames.includes('list_remote_schema_tree'),
-      'list_remote_schema_tree tool should exist',
+      toolNames.includes('list_remote_template_tree'),
+      'list_remote_template_tree tool should exist',
     )
     assert.ok(
-      toolNames.includes('import_well_known_schema'),
-      'import_well_known_schema tool should exist',
+      toolNames.includes('import_remote_template'),
+      'import_remote_template tool should exist',
     )
     assert.ok(
       toolNames.includes('list_metadata_profiles'),
@@ -735,7 +735,7 @@ async function run() {
     )
     assert.ok(toolNames.includes('get_rocrate_context'), 'get_rocrate_context tool should exist')
     assert.ok(toolNames.includes('suggest_context_terms'), 'suggest_context_terms tool should exist')
-    assert.ok(toolNames.includes('resolve_profile_schema'), 'resolve_profile_schema tool should exist')
+    assert.ok(toolNames.includes('resolve_metadata_profile'), 'resolve_metadata_profile tool should exist')
     assert.ok(
       toolNames.includes('prepare_remote_profile_payload'),
       'prepare_remote_profile_payload tool should exist',
@@ -1697,7 +1697,7 @@ async function run() {
     assert.equal(rootAfterDownload.name, 'Downloaded hdl:21.T15999/DSDDEV/DOWNLOADED')
 
     const localResolveProfileResponse = await request('tools/call', {
-      name: 'resolve_profile_schema',
+      name: 'resolve_metadata_profile',
       arguments: {
         profileUrl,
       },
@@ -2321,7 +2321,7 @@ async function run() {
     assert.ok(profileContextInfoPayload.profileCount >= 1)
 
     const resolveProfileResponse = await request('tools/call', {
-      name: 'resolve_profile_schema',
+      name: 'resolve_metadata_profile',
       arguments: {
         mode: 'remote',
         profileUrl,
@@ -2334,7 +2334,7 @@ async function run() {
     assert.equal(resolveProfilePayload.profiles.length, 0)
 
     const resolveProfileWithInlineResponse = await request('tools/call', {
-      name: 'resolve_profile_schema',
+      name: 'resolve_metadata_profile',
       arguments: {
         mode: 'remote',
         profileUrl,

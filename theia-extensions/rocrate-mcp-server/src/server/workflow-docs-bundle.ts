@@ -97,9 +97,9 @@ When generating the review URL:
    metadata work until it is addressed.
 5. When no active \`conformsTo\` profile exists, offer available local metadata
    profiles first, then browse configured remote CEDAR providers with
-   \`list_remote_schema_tree\` and offer unimported leaf templates in a simplified
+   \`list_remote_template_tree\` and offer unimported leaf templates in a simplified
    folder tree. After the user selects a remote template, import it with
-   \`import_well_known_schema\` using \`templateIdOrUrl=<selected templateId>\`,
+   \`import_remote_template\` using \`templateIdOrUrl=<selected templateId>\`,
    then associate the returned \`profile.conformsTo\` with the crate using
    \`update_profile_conforms_to(write=true)\`.
 `,
@@ -186,7 +186,7 @@ Always follow this sequence when curating RO-Crate metadata:
 3. For RO-Crate metadata authoring, always check and offer metadata profiles because they guide FAIR metadata creation for both users and agents.
 4. If no active profile is present:
    - call \`list_metadata_profiles\` to show locally available metadata profiles,
-   - call \`list_remote_schema_tree\` to browse configured remote CEDAR providers
+   - call \`list_remote_template_tree\` to browse configured remote CEDAR providers
      when local profiles are empty, insufficient, or the user may want a remote
      profile,
    - present every available local profile returned by \`list_metadata_profiles\` by name, version, and \`conformsTo\` URL,
@@ -199,14 +199,14 @@ Always follow this sequence when curating RO-Crate metadata:
    - stop and wait for the user's choice before planning fields, searching the web, or writing metadata,
    - for an already-downloaded local profile, call \`update_profile_conforms_to\`
      with its \`conformsTo\` URL after the user chooses it,
-   - for a remote CEDAR leaf template, call \`import_well_known_schema\` with
+   - for a remote CEDAR leaf template, call \`import_remote_template\` with
      \`templateIdOrUrl=<selected templateId>\`, then call
      \`update_profile_conforms_to(write=true)\` with the returned
      \`profile.conformsTo\`,
    - if no profiles/schemas can be listed because of an error, report the error and still offer the user a chance to provide a schema URL.
 5. Do not silently continue without a profile after listing available profiles. Continuing without a profile requires the user's explicit choice.
 6. Read active profile constraints from \`profileRules.allowedPropertiesByClass\`.
-7. If constraints are missing or unclear, call \`resolve_profile_schema\`.
+7. If constraints are missing or unclear, call \`resolve_metadata_profile\`.
    Do not continue to field planning or metadata edits while active \`conformsTo\` URLs remain unresolved.
 8. Build a short plan:
    - required fields still missing
