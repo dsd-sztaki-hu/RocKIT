@@ -460,7 +460,7 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
    * Reports:
    * - profile resolution/load failures
    * - disallowed classes
-   * - custom properties outside active profile/schema rules (warnings)
+   * - custom properties outside active profile rules (warnings)
    * - missing required properties (mode-dependent)
    * - missing/unknown @context term issues (via reconciliation suggestions)
    */
@@ -765,7 +765,7 @@ export function createProfileValidationHelpers(deps: ProfileValidationDeps) {
           continue
         }
         warnings.push(
-          `Entity ${entityId} contains custom property outside active profile/schema rules: ${key}. ` +
+          `Entity ${entityId} contains custom property outside active profile rules: ${key}. ` +
             'Keep it if the user wants this metadata; do not remove it automatically.',
         )
       }

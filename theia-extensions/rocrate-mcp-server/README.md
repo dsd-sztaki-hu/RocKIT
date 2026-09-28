@@ -1,6 +1,6 @@
 # RO-Crate MCP Server 
 
-`@arpproject/rocrate-mcp-server` is an [MCP server](https://www.dreamfactory.com/use-cases/mcp-server/) for [RO-Crate](https://www.researchobject.org/ro-crate/) editing, validation, and profile-aware constraints following the best practices of the ARP project (https://researchdata.hu/). It is designed to be used with MCP-compatible AI assistants such as Codex, Claude Code. It can be used with the schemas and profiles offered by the ARP Schema Registry (https://cedar.schema.researchdata.hu/)
+`@arpproject/rocrate-mcp-server` is an [MCP server](https://www.dreamfactory.com/use-cases/mcp-server/) for [RO-Crate](https://www.researchobject.org/ro-crate/) editing, validation, and profile-aware constraints following the best practices of the ARP project (https://researchdata.hu/). It is designed for MCP-compatible AI assistants such as Codex and Claude Code. It can use metadata profiles and remote CEDAR templates offered by the ARP profile repository (https://cedar.schema.researchdata.hu/).
 
 ## Quick start
 

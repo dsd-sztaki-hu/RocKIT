@@ -168,7 +168,7 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
   }
 
   /**
-   * Collects schema/profile inputs from params.
+   * Collects profile-resolution inputs from params.
    *
    * Resolution precedence:
    * 1. `profileContextId` payload
@@ -331,7 +331,7 @@ export function createProfileResolutionHelpers(deps: ProfileResolutionDeps) {
    * Resolves `conformsTo` URLs to concrete profile rule documents.
    *
    * - Local mode: uses schema index + converted profile files from disk.
-   * - Remote mode: requires caller-provided schema/profile payloads.
+   * - Remote mode: requires caller-provided profile-index and profile-content payloads.
    *
    * Always returns unresolved URLs and non-fatal warnings for partial resolution.
    */
