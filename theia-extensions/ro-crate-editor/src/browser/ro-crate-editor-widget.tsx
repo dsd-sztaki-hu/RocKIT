@@ -971,7 +971,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     const loadMask = this.loadMaskService.show({
-      message: nls.localize('rockit/roCrateEditor/removingSchema', 'Removing schema…'),
+      message: nls.localize('rockit/roCrateEditor/removingSchema', 'Removing profile…'),
       delay: 0,
     })
 

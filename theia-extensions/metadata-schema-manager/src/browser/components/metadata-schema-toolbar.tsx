@@ -63,7 +63,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                 nls.localize('rockit/schemaManager/importFile', 'Import File'),
                 <NoteAddIcon className="schema-toolbar__icon-svg" />, 
                 onImportFile, 
-                nls.localize('rockit/schemaManager/importFileTooltip', 'Import a schema from a local JSON file'),
+                nls.localize('rockit/schemaManager/importFileTooltip', 'Import a profile from a local JSON file'),
                 true 
             )}
             
@@ -71,7 +71,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                 nls.localize('rockit/schemaManager/importUrl', 'Import URL'),
                 <LinkIcon className="schema-toolbar__icon-svg" />, 
                 onImportUrl, 
-                nls.localize('rockit/schemaManager/importUrlTooltip', 'Import a schema from a URL'),
+                nls.localize('rockit/schemaManager/importUrlTooltip', 'Import a profile from a URL'),
                 true 
             )}
 
@@ -82,7 +82,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                 nls.localize('rockit/schemaManager/browseRemote', 'Browse Remote'),
                 <CloudDownloadIcon className="schema-toolbar__icon-svg" />, 
                 onBrowse, 
-                nls.localize('rockit/schemaManager/browseRemoteTooltip', 'Browse remote schemas via API'),
+                nls.localize('rockit/schemaManager/browseRemoteTooltip', 'Browse profiles from a remote provider'),
                 true 
             )}
 
@@ -117,7 +117,7 @@ export const MetadataSchemaToolbar: React.FC<SchemaToolbarProps> = React.memo(({
                     <button 
                         className="schema-toolbar__btn schema-toolbar__btn--delete" 
                         onClick={onDelete} 
-                        title={nls.localize('rockit/schemaManager/deleteSelected', 'Delete selected schemas')}
+                        title={nls.localize('rockit/schemaManager/deleteSelected', 'Delete selected profiles')}
                     >
                         <span className="schema-toolbar__btn-icon">
                             <DeleteOutlineIcon className="schema-toolbar__icon-svg" />

@@ -946,7 +946,7 @@ export class SchemaManagerService implements FrontendApplicationContribution, Me
       });
 
       await this.loadMaskService.showProgress({
-        text: nls.localize('rockit/schemaManager/resolvingMissing', 'Resolving Missing Schemas...'),
+        text: nls.localize('rockit/schemaManager/resolvingMissing', 'Resolving Missing Profiles...'),
       })
         .then(async (progress: TaskProgress) => {
           try {

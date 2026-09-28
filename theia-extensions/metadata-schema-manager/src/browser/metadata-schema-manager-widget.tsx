@@ -36,7 +36,7 @@ import './styles/index.css'
 export const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager'
 export const METADATA_SCHEMA_MANAGER_LABEL = nls.localize(
     'rockit/schemaManager/title',
-    'Metadata Schema Manager',
+    'Metadata Profile Manager',
 )
 
 const MSG_TIMEOUT = 5000
@@ -88,7 +88,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
             this.messageService.error(
                 nls.localize(
                     'rockit/schemaManager/loadFailed',
-                    'Error loading schemas: {0}',
+                    'Error loading profiles: {0}',
                     err instanceof Error ? err.message : String(err),
                 ),
                 { timeout: MSG_TIMEOUT },
@@ -126,7 +126,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                 const message = hasPersistedItems
                     ? nls.localize(
                         'rockit/schemaManager/deletedCount',
-                        'Deleted {0} schema(s).',
+                        'Deleted {0} profile(s).',
                         deletedCount,
                     )
                     : nls.localize(
@@ -137,9 +137,9 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                 this.messageService.info(message, { timeout: MSG_TIMEOUT })
             }
         } catch (err) {
-            console.error('Failed to delete schemas:', err)
+            console.error('Failed to delete profiles:', err)
             this.messageService.error(
-                nls.localize('rockit/schemaManager/deleteFailed', 'Failed to delete schemas.'),
+                nls.localize('rockit/schemaManager/deleteFailed', 'Failed to delete profiles.'),
                 { timeout: MSG_TIMEOUT },
             )
         } finally {
@@ -150,7 +150,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
     protected async importSchemaFromFile(): Promise<void> {
         const fileUriOrUris = await this.fileDialogService.showOpenDialog({
-            title: nls.localize('rockit/schemaManager/importSchema', 'Import Schema'),
+            title: nls.localize('rockit/schemaManager/importSchema', 'Import Profile'),
             filters: { JSON: ['json'] },
             canSelectFiles: true,
             canSelectMany: true,
@@ -161,7 +161,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
 
         this.loadMaskService
             .showProgress({
-                text: nls.localize('rockit/schemaManager/importingSchemas', 'Importing Schemas...'),
+                text: nls.localize('rockit/schemaManager/importingSchemas', 'Importing Profiles...'),
             })
             .then(async (progress) => {
                 try {
@@ -170,7 +170,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     if (results.success > 0) {
                         this.messageService.info(nls.localize(
                             'rockit/schemaManager/importedCount',
-                            'Successfully imported {0} schema(s).',
+                            'Successfully imported {0} profile(s).',
                             results.success,
                         ), {
                             timeout: MSG_TIMEOUT,
@@ -179,7 +179,7 @@ export class MetadataSchemaManagerWidget extends BaseWidget implements StatefulW
                     if (results.fail > 0) {
                         this.messageService.warn(nls.localize(
                             'rockit/schemaManager/importFailedCount',
-                            'Failed to import {0} schema(s).',
+                            'Failed to import {0} profile(s).',
                             results.fail,
                         ), {
                             timeout: MSG_TIMEOUT,

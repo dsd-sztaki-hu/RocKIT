@@ -17,13 +17,13 @@ import { nls } from '@theia/core/lib/common/nls';
 export namespace MetadataSchemaManagerCommands {
     export const OPEN: Command = {
         id: 'metadata-schema-manager:open',
-        label: nls.localize('rockit/schemaManager/open', 'Open Metadata Schema Manager')
+        label: nls.localize('rockit/schemaManager/open', 'Open Metadata Profile Manager')
     };
     export const OPEN_DOCUMENTATION: Command = {
         id: 'metadata-schema-manager:open-documentation',
         label: nls.localize(
             'rockit/schemaManager/openDocumentation',
-            'Open Metadata Schema Manager Documentation',
+            'Open Metadata Profile Manager Documentation',
         ),
         iconClass: codicon('info')
     };
@@ -56,7 +56,7 @@ export class MetadataSchemaManagerContribution implements CommandContribution, M
                         console.error("Failed to create or retrieve widget:", METADATA_SCHEMA_MANAGER_WIDGET_ID);
                     }
                 } catch (error) {
-                    console.error("Error opening Metadata Schema Manager widget:", error);
+                    console.error("Error opening Metadata Profile Manager widget:", error);
                 }
             }
         });
@@ -74,7 +74,7 @@ export class MetadataSchemaManagerContribution implements CommandContribution, M
     registerMenus(menus: MenuModelRegistry): void {
         menus.registerMenuAction(CommonMenus.VIEW, {
             commandId: MetadataSchemaManagerCommands.OPEN.id,
-            label: nls.localize('rockit/schemaManager/title', 'Metadata Schema Manager'),
+            label: nls.localize('rockit/schemaManager/title', 'Metadata Profile Manager'),
             order: 'z50'
         });
     }

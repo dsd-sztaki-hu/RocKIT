@@ -80,7 +80,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
         } catch (err) {
             console.error("Failed to open selector dialog:", err);
             this.messageService.error(
-                nls.localize('rockit/schemaManager/openSelectorFailed', 'Failed to open schema selector dialog.'),
+                nls.localize('rockit/schemaManager/openSelectorFailed', 'Failed to open profile selector dialog.'),
                 { timeout: MSG_TIMEOUT },
             );
         } finally {
@@ -97,7 +97,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
         const graph = crate && Array.isArray(crate['@graph']) ? crate['@graph'] as any[] : [];
         const isLargeCrate = graph.length >= 1_000;
         const loadMask = this.loadMaskService.show({
-            message: nls.localize('rockit/schemaManager/associatingSchema', 'Associating metadata schema...'),
+            message: nls.localize('rockit/schemaManager/associatingSchema', 'Associating metadata profile...'),
             delay: isLargeCrate ? 0 : undefined,
         });
         try {
@@ -145,24 +145,24 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
                     }
 
                     loadMask.update({
-                        message: nls.localize('rockit/schemaManager/finalizingAssociation', 'Finalizing schema association...'),
+                        message: nls.localize('rockit/schemaManager/finalizingAssociation', 'Finalizing profile association...'),
                         progress: { worked: graph.length, total: graph.length },
                     });
                     await new Promise<void>(resolve => setTimeout(resolve, 0));
                     
                     this.roCrateHistoryService.applyRoCrateChange(
                         { ...crate, '@graph': updatedGraph } as any,
-                        { label: nls.localize('rockit/schemaManager/associateHistory', 'Associate schema with entity') }
+                        { label: nls.localize('rockit/schemaManager/associateHistory', 'Associate profile with entity') }
                     );
                 }
             }
 
             const schemaNames = schemas.map(schema => schema.name).join(', ');
             const message = schemas.length === 1
-                ? nls.localize('rockit/schemaManager/associatedSchema', 'Associated schema: {0}', schemaNames)
+                ? nls.localize('rockit/schemaManager/associatedSchema', 'Associated profile: {0}', schemaNames)
                 : nls.localize(
                     'rockit/schemaManager/associatedSchemas',
-                    'Associated {0} schemas: {1}',
+                    'Associated {0} profiles: {1}',
                     schemas.length,
                     schemaNames,
                 );
@@ -171,7 +171,7 @@ export class MetadataSchemaSelectorContribution implements FrontendApplicationCo
         } catch (e) {
             console.error(e);
             this.messageService.error(
-                nls.localize('rockit/schemaManager/associateFailed', 'Failed to associate schema.'),
+                nls.localize('rockit/schemaManager/associateFailed', 'Failed to associate profile.'),
                 { timeout: MSG_TIMEOUT },
             );
         } finally {
@@ -205,7 +205,7 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<SchemaInfo[] | 
         protected readonly loadMaskService: LoadMaskService,
     ) {
         super({
-            title: nls.localize('rockit/schemaManager/selectSchema', 'Select Metadata Schema')
+            title: nls.localize('rockit/schemaManager/selectSchema', 'Select Metadata Profile')
         });
         
         this.contentNode.style.width = '1000px';
@@ -388,8 +388,8 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, loa
         loadMask.showProgress({ text: nls.localize('rockit/schemaManager/importing', 'Importing...') }).then(async p => {
             try {
                 const res = await service.importFiles(fileUris, p);
-                if (res.success > 0) msg.info(nls.localize('rockit/schemaManager/importedCount', 'Successfully imported {0} schema(s).', res.success), { timeout: MSG_TIMEOUT });
-                if (res.fail > 0) msg.warn(nls.localize('rockit/schemaManager/importFailedCount', 'Failed to import {0} schema(s).', res.fail), { timeout: MSG_TIMEOUT });
+                if (res.success > 0) msg.info(nls.localize('rockit/schemaManager/importedCount', 'Successfully imported {0} profile(s).', res.success), { timeout: MSG_TIMEOUT });
+                if (res.fail > 0) msg.warn(nls.localize('rockit/schemaManager/importFailedCount', 'Failed to import {0} profile(s).', res.fail), { timeout: MSG_TIMEOUT });
             } catch (e) {
                 msg.error(nls.localize('rockit/schemaManager/unexpectedImportError', 'Unexpected error during import.'), { timeout: MSG_TIMEOUT });
             } finally { p.cancel(); }
@@ -470,14 +470,14 @@ const SelectorContent: React.FC<ContentProps> = ({ service, fileDialog, msg, loa
                             <span className="schema-selector__selected-text">
                                 {selectedSchemas.length === 1
                                     ? nls.localize('rockit/schemaManager/selectedName', 'Selected: {0}', selectedSchemas[0].name)
-                                    : nls.localize('rockit/schemaManager/selectedCount', 'Selected: {0} schemas', selectedSchemas.length)}
+                                    : nls.localize('rockit/schemaManager/selectedCount', 'Selected: {0} profiles', selectedSchemas.length)}
                             </span>
                         </>
                     ) : (
                         <span className="schema-selector__placeholder">
                             {nls.localize(
                                 'rockit/schemaManager/selectSchemaHint',
-                                'Select one or more valid schemas, or double-click a valid row to associate it.',
+                                    'Select one or more valid profiles, or double-click a valid row to associate it.',
                             )}
                         </span>
                     )}

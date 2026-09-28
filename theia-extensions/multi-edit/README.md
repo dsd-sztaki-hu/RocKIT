@@ -4,7 +4,7 @@ Provides RocKIT bulk metadata editing for selected RO-Crate entities.
 
 The extension contributes a command and dialog that can apply add, remove, set,
 and unset operations across multiple selected entities. It integrates with the
-shared application state, RO-Crate history service, metadata schema manager, and
+shared application state, RO-Crate history service, metadata profile manager, and
 RocKIT load mask.
 
 ## Development

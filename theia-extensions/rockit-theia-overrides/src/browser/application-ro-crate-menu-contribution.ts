@@ -54,7 +54,7 @@ export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
   {
     commandId: 'metadata-schema-manager:open',
     labelKey: 'rockit/menu/metadataSchemaManager',
-    label: 'Metadata Schema Manager',
+    label: 'Metadata Profile Manager',
     order: 'a06',
   },
   {

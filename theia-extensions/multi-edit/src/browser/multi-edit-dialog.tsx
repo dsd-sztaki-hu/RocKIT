@@ -1856,7 +1856,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
 
     if (this.selectedSchemaIds.size === 0 && !this.schemaOrgEnabled) {
-      errors.push(nls.localize('rockit/multiEdit/schemaRequired', 'Select a schema or enable properties from other ontologies.'))
+      errors.push(nls.localize('rockit/multiEdit/schemaRequired', 'Select a profile or enable properties from other ontologies.'))
       return errors
     }
 
@@ -1876,7 +1876,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         !schemaOrgFieldActive &&
         !(field.appliesToAll && this.schemaOrgEnabled)
       ) {
-        errors.push(nls.localize('rockit/multiEdit/rowInactiveProperty', 'Row {0}: selected property is not part of active schemas.', index + 1))
+        errors.push(nls.localize('rockit/multiEdit/rowInactiveProperty', 'Row {0}: selected property is not part of the active profiles.', index + 1))
         continue
       }
 
@@ -3854,7 +3854,7 @@ export class MultiEditDialog extends ReactDialog<string> {
           })()}
 
         <div className="entities-overview-edit-modal-section">
-          <span className="entities-overview-edit-modal-label">{nls.localize('rockit/multiEdit/selectSchemas', 'Select schemas')}</span>
+          <span className="entities-overview-edit-modal-label">{nls.localize('rockit/multiEdit/selectSchemas', 'Select profiles')}</span>
           <Select
             mode="multiple"
             value={Array.from(this.selectedSchemaIds.values())}
@@ -3863,7 +3863,7 @@ export class MultiEditDialog extends ReactDialog<string> {
               label: schema.label,
             }))}
             onChange={this.onSchemaSelectionChange}
-            placeholder={nls.localize('rockit/multiEdit/selectSchemas', 'Select schemas')}
+            placeholder={nls.localize('rockit/multiEdit/selectSchemas', 'Select profiles')}
             getPopupContainer={() => document.body}
             classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
             styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
@@ -3895,8 +3895,8 @@ export class MultiEditDialog extends ReactDialog<string> {
               showIcon
               message={
                 this.schemaOrgEnabled
-                  ? nls.localize('rockit/multiEdit/noPropertiesWithOntologies', 'No properties are available for the selected schemas or other ontologies.')
-                  : nls.localize('rockit/multiEdit/noProperties', 'No properties are available for the selected schemas.')
+                  ? nls.localize('rockit/multiEdit/noPropertiesWithOntologies', 'No properties are available for the selected profiles or other ontologies.')
+                  : nls.localize('rockit/multiEdit/noProperties', 'No properties are available for the selected profiles.')
               }
             />
           ) : (
@@ -3913,7 +3913,7 @@ export class MultiEditDialog extends ReactDialog<string> {
             onClose={this.dismissSetupWarning}
             description={
               <ol className="entities-overview-edit-modal-errors">
-                <li>{nls.localize('rockit/multiEdit/setupSchemaInstruction', 'Select a schema or enable properties from other ontologies.')}</li>
+                <li>{nls.localize('rockit/multiEdit/setupSchemaInstruction', 'Select a profile or enable properties from other ontologies.')}</li>
                 <li>{nls.localize('rockit/multiEdit/setupOperationInstruction', 'Select a property, choose an operator, and enter a value.')}</li>
               </ol>
             }

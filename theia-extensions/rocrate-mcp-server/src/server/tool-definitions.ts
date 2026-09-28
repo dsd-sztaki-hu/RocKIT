@@ -163,7 +163,7 @@ export const tools: ToolDefinition[] = [
   {
     name: 'list_well_known_schemas',
     description:
-      'Browse/search configured CEDAR registry providers for well-known Dataverse metadata schemas.',
+      'Browse/search configured profile providers for well-known Dataverse metadata profiles.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -209,7 +209,7 @@ export const tools: ToolDefinition[] = [
   {
     name: 'import_well_known_schema',
     description:
-      'Import a well-known CEDAR schema by name/template URL/conformsTo into the shared metadata profile store.',
+      'Import a well-known metadata profile by name/template URL/conformsTo into the shared metadata profile store.',
     inputSchema: {
       type: 'object',
       properties: {

@@ -95,7 +95,7 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
             nls.localize('rockit/schemaManager/confirmDeletion', 'Confirm Deletion'),
             nls.localize(
                 'rockit/schemaManager/deleteProviderWarning',
-                'Are you sure you want to delete this remote schema provider configuration?',
+                'Are you sure you want to delete this remote profile provider configuration?',
             )
         );
         
@@ -132,7 +132,7 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
                                 <div className="remote-provider-list__description">
                                     {nls.localize(
                                         'rockit/schemaManager/manageConnectionsDescription',
-                                        'Manage connections to remote schema repositories.',
+                                        'Manage connections to remote profile providers.',
                                     )}
                                 </div>
                             </div>

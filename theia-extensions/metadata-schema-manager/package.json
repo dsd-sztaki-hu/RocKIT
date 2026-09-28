@@ -1,7 +1,7 @@
 {
   "name": "metadata-schema-manager",
   "version": "1.0.0",
-  "description": "A Theia extension to manage metadata schemas",
+  "description": "A Theia extension to manage metadata profiles",
   "license": "Apache-2.0",
   "author": {
     "name": "SZTAKI, Department of Distributed Systems",

@@ -88,12 +88,12 @@ const DeleteContent: React.FC<DeleteContentProps> = ({ count, onConfirm, onCance
                 
                 <div className="delete-confirmation__text-container">
                     <h3 className="delete-confirmation__title">
-                        {nls.localize('rockit/schemaManager/deleteSchemasQuestion', 'Delete {0} schema(s)?', count)}
+                        {nls.localize('rockit/schemaManager/deleteSchemasQuestion', 'Delete {0} profile(s)?', count)}
                     </h3>
                     <p className="delete-confirmation__message">
                         {nls.localize(
                             'rockit/schemaManager/deleteSchemasWarning',
-                            'Are you sure you want to delete the selected schemas? This action cannot be undone.',
+                            'Are you sure you want to delete the selected profiles? This action cannot be undone.',
                         )}
                     </p>
                 </div>

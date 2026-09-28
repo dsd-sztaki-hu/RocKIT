@@ -1,18 +1,18 @@
-﻿# Metadata Schema Manager Extension
-A comprehensive schema management system for the RocKIT application, enabling users to import, manage, and associate metadata schemas (Cedar templates converted to RO-Crate profiles) with their research data packages.
+﻿# Metadata Profile Manager Extension
+A comprehensive profile management system for the RocKIT application, enabling users to import, manage, and associate metadata profiles (including profiles converted from CEDAR templates) with their research data packages.
 
 ## Overview
 
-The **Metadata Schema Manager** is a frontend-only Eclipse Theia extension that provides:
+The **Metadata Profile Manager** is a frontend-only Eclipse Theia extension that provides:
 
-- **Schema Import**: Import metadata schemas from local files or remote URLs
-- **Remote Repository Browsing**: Browse and import schemas from configured Cedar template repositories
-- **Schema Management**: View, search, filter, sort, and delete managed schemas
-- **Automatic Conversion**: Convert Cedar templates to RO-Crate profiles automatically
+- **Profile Import**: Import metadata profiles from local files or remote URLs
+- **Remote Repository Browsing**: Browse and import profiles from configured providers
+- **Profile Management**: View, search, filter, sort, and delete managed profiles
+- **Automatic Conversion**: Convert supported templates to RO-Crate profiles automatically
 - **Self-Healing Index**: Automatically detect and repair index inconsistencies
-- **RO-Crate Integration**: Seamlessly associate schemas with entities in RO-Crate metadata
+- **RO-Crate Integration**: Seamlessly associate profiles with entities in RO-Crate metadata
 
-This extension is critical for RocKIT's schema-driven form generation and validation workflow, enabling researchers to define custom data collection templates that can be applied consistently across research projects.
+This extension is critical for RocKIT's profile-driven form generation and validation workflow, enabling researchers to define custom metadata requirements that can be applied consistently across research projects.
 
 ## Table of Contents
 
@@ -20,9 +20,9 @@ This extension is critical for RocKIT's schema-driven form generation and valida
 - [Installation & Setup](#installation--setup)
 - [Architecture Overview](#architecture-overview)
 - [User Guide](#user-guide)
-  - [Importing Schemas](#importing-schemas)
+  - [Importing Profiles](#importing-profiles)
   - [Browsing Remote Repositories](#browsing-remote-repositories)
-  - [Managing Schemas](#managing-schemas)
+  - [Managing Profiles](#managing-profiles)
   - [Remote Provider Management](#remote-provider-management)
 - [Developer Guide](#developer-guide)
   - [Extension Structure](#extension-structure)
@@ -40,9 +40,9 @@ This extension is critical for RocKIT's schema-driven form generation and valida
 | Feature | Description |
 |---------|-------------|
 | **File Import** | Import Cedar template JSON files from local filesystem |
-| **URL Import** | Import schemas directly from remote URLs with authentication support |
+| **URL Import** | Import profiles directly from remote URLs with authentication support |
 | **Remote Browsing** | Browse and search Cedar template repositories via configured providers |
-| **Schema Association** | Associate schemas with RO-Crate entities for form generation |
+| **Profile Association** | Associate profiles with RO-Crate entities for form generation |
 | **Auto-Conversion** | Automatically convert Cedar templates to RO-Crate profiles |
 | **Self-Healing Index** | Detect orphaned entries and discover unindexed files automatically |
 | **Secure Storage** | API keys stored securely using keytar (not in configuration files) |
@@ -52,7 +52,7 @@ This extension is critical for RocKIT's schema-driven form generation and valida
 - **Searchable Table**: Search across name, version, reference ID, conformance URLs, and download URLs
 - **Filtering**: Filter by source type (local/remote), search terms, and custom criteria
 - **Sorting**: Sort columns alphabetically or by date
-- **Pagination**: Navigate large schema collections with pagination controls
+- **Pagination**: Navigate large profile collections with pagination controls
 - **Selection Modes**: Checkbox or radio button selection for batch operations
 
 ## Installation & Setup
@@ -121,7 +121,7 @@ The extension uses environment variables to determine which template repository 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     Metadata Schema Manager                         │
+│                     Metadata Profile Manager                        │
 │                        (Frontend Extension)                         │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
@@ -182,7 +182,7 @@ The extension uses environment variables to determine which template repository 
 
 The extension follows Eclipse Theia's widget and contribution model:
 
-- **Contribution**: Registers commands and menu entries (`View → Metadata Schema Manager`)
+- **Contribution**: Registers commands and menu entries (`View → Metadata Profile Manager`)
 - **Frontend Module**: Configures Inversify DI container with service bindings
 - **Widget**: StatefulWidget-based React component for the main UI
 
@@ -215,7 +215,7 @@ root.render(<MetadataSchemaManagerWidget {...props} />);
 #### 4. State Synchronization
 
 Integration with **AppStateService** enables:
-- Schema association with RO-Crate entities via selector dialog
+- Profile association with RO-Crate entities via selector dialog
 - Automatic profile merging when schemas are added/removed
 - Real-time updates to form generation based on schema changes
 
@@ -268,10 +268,10 @@ interface RemoteSchemaProviderConfig {
 ### Accessing the Extension
 
 1. Open RocKIT application
-2. Navigate to **View → Metadata Schema Manager** from the menu bar
-3. The Metadata Schema Manager panel will open as a dockable widget
+2. Navigate to **View → Metadata Profile Manager** from the menu bar
+3. The Metadata Profile Manager panel will open as a dockable widget
 
-### Importing Schemas
+### Importing Profiles
 
 #### From Local File
 
@@ -302,13 +302,13 @@ interface RemoteSchemaProviderConfig {
 5. Click on a template to select it for import
 6. Confirm import to download and convert
 
-### Managing Schemas
+### Managing Profiles
 
-#### Viewing Schema Details
+#### Viewing Profile Details
 
 The main table displays:
-- **Name**: Schema display name (from schema:name)
-- **Version**: Schema version (from pav:version)
+- **Name**: Profile display name (from schema:name)
+- **Version**: Profile version (from pav:version)
 - **Source**: Whether local or remote
 - **Ref**: The `@id` reference identifier
 - **Conforms To**: W3ID URL for conformance
@@ -325,31 +325,31 @@ The main table displays:
 
 2. Click column headers to sort alphabetically or by date
 
-3. Use the source dropdown to filter between local and remote schemas
+3. Use the source dropdown to filter between local and remote profiles
 
-#### Deleting Schemas
+#### Deleting Profiles
 
-**Single Schema**:
-1. Select the schema row (checkbox or radio mode)
+**Single Profile**:
+1. Select the profile row (checkbox or radio mode)
 2. Click the trash icon in the row, OR
 3. Right-click and select "Delete" from context menu
 
-**Multiple Schemas**:
+**Multiple Profiles**:
 1. Hold Ctrl/Cmd to select multiple rows
 2. Click the **"Delete"** button in the toolbar
 
 **Confirmation Dialog**:
-- Shows count of selected schemas
-- Lists schema names for verification
+- Shows count of selected profiles
+- Lists profile names for verification
 - Requires explicit confirmation before deletion
 
-#### Schema Association with RO-Crate Entities
+#### Profile Association with RO-Crate Entities
 
-1. Select one or more schemas from the table
+1. Select one or more profiles from the table
 2. Click the **"Associate with Entity"** button (link icon)
 3. The selector dialog opens showing available entities in your RO-Crate
 4. Choose an entity type and confirm association
-5. The schema's W3ID URL is added to the entity's `conformsTo` field
+5. The profile's W3ID URL is added to the entity's `conformsTo` field
 
 ### Remote Provider Management
 
@@ -380,7 +380,7 @@ The main table displays:
 2. Select the provider from the list
 3. Click **"Delete"** and confirm removal
 
-**Note**: Deleting a provider does NOT remove schemas imported from that repository—it only removes the configuration for future browsing.
+**Note**: Deleting a provider does NOT remove profiles imported from that repository—it only removes the configuration for future browsing.
 
 ## Developer Guide
 
@@ -646,7 +646,7 @@ UI Refreshes with new remote schema entry
 ### RO-Crate Profile Merging Workflow
 
 ```
-User Action: Associate schema with RO-Crate entity
+User Action: Associate profile with RO-Crate entity
     │
     ▼
 AppStateService.roCrate updated with conformsTo URL
@@ -814,7 +814,7 @@ When integrating with other RocKIT extensions:
 
 ## Contributing
 
-Contributions to the Metadata Schema Manager extension are welcome! Please follow these guidelines:
+Contributions to the Metadata Profile Manager extension are welcome! Please follow these guidelines:
 
 1. **Code Style**: Follow TypeScript best practices and existing code conventions
 2. **Testing**: Add unit tests for new functionality in `src/browser/services/*.spec.ts`

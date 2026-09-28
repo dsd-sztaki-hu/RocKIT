@@ -239,8 +239,8 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
                                 }}
                                 className="schema-table__action-btn schema-table__delete-btn"
                                 aria-label={isTransient
-                                    ? nls.localize('rockit/schemaManager/abortTask', 'Abort or remove schema task')
-                                    : nls.localize('rockit/schemaManager/deleteSchema', 'Delete schema')}
+                                    ? nls.localize('rockit/schemaManager/abortTask', 'Abort or remove profile task')
+                                    : nls.localize('rockit/schemaManager/deleteSchema', 'Delete profile')}
                             >
                                 <DeleteOutlineIcon className="schema-table__delete-icon" />
                             </IconButton>
@@ -257,12 +257,12 @@ export const MetadataSchemaTable: React.FC<SchemaTableProps> = React.memo(({
         <div className="schema-table__empty-state">
             <AccountTreeIcon className="schema-table__empty-icon" />
             <div className="schema-table__empty-title">
-                {nls.localize('rockit/schemaManager/noSchemas', 'No Metadata Schemas')}
+                {nls.localize('rockit/schemaManager/noSchemas', 'No Metadata Profiles')}
             </div>
             <div className="schema-table__empty-desc">
                 {nls.localize(
                     'rockit/schemaManager/noSchemasDescription',
-                    'Use Import File, Import URL, or Browse Remote to add schemas.',
+                    'Use Import File, Import URL, or Browse Remote to add profiles.',
                 )}
             </div>
         </div>

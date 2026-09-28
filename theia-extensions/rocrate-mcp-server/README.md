@@ -286,9 +286,9 @@ dashboard instance.
 - `open_aroma_for_local_file`: register a local `ro-crate-metadata.json` through the local file bridge and return an AROMA URL.
 - `search`: Tavily-backed web search (`TAVILY_API_KEY`, optional per-call `apiKey` fallback).
 - `download_url`: download and extract text/raw HTML from one URL.
-- `list_well_known_schemas`: browse/search configured CEDAR registry providers for known Dataverse metadata schemas.
+- `list_well_known_schemas`: browse/search configured profile providers for known Dataverse metadata profiles.
 - `list_remote_schema_tree`: browse configured CEDAR providers as a folder tree.
-- `import_well_known_schema`: import a known CEDAR schema/profile into the shared profile store.
+- `import_well_known_schema`: import a known metadata profile into the shared profile store.
 - `list_metadata_profiles`: list persisted CEDAR/recrate metadata profiles.
 - `import_metadata_profile`: import a CEDAR metadata profile from URL or local source path.
 - `delete_metadata_profile`: delete one persisted profile and its source/converted files.
@@ -419,11 +419,11 @@ profile, local-file bridge, and Tavily test endpoints:
 - `GET /metadata-profiles` - List stored metadata profiles
 - `POST /metadata-profiles/import-url` - Import a profile by URL
 - `POST /metadata-profiles/import-known` - Import a well-known profile
-- `GET /metadata-profiles/providers` - List remote schema providers
-- `POST /metadata-profiles/providers` - Add a remote schema provider
-- `PUT /metadata-profiles/providers` - Update a remote schema provider
-- `DELETE /metadata-profiles/providers/:id` - Remove a remote schema provider
-- `GET /metadata-profiles/remote-schemas` - Browse remote schemas
+- `GET /metadata-profiles/providers` - List remote profile providers
+- `POST /metadata-profiles/providers` - Add a remote profile provider
+- `PUT /metadata-profiles/providers` - Update a remote profile provider
+- `DELETE /metadata-profiles/providers/:id` - Remove a remote profile provider
+- `GET /metadata-profiles/remote-schemas` - Browse remote profile templates
 - `GET /metadata-profiles/remote-folder` - Browse a remote provider folder
 - `GET /metadata-profiles/storage-status` - Inspect profile storage state
 - `DELETE /metadata-profiles/:id` - Delete a metadata profile

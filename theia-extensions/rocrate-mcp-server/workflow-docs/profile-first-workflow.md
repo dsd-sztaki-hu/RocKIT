@@ -6,7 +6,7 @@ Always follow this sequence when curating RO-Crate metadata:
 1. Call `get_rocrate_context` before any edit.
    In local mode this must be treated as a profile-resolution step as well as a context read.
    If the crate already contains `conformsTo` URLs, do not proceed until the corresponding
-   schemas/profiles have been downloaded into the local profile store or the resolution failure
+   profiles have been downloaded into the local profile store or the resolution failure
    has been reported clearly to the user.
 2. Identify whether the crate already has active `conformsTo` profile URLs.
    If active `conformsTo` URLs are present, the user has already selected the
@@ -14,7 +14,7 @@ Always follow this sequence when curating RO-Crate metadata:
    profile choices unless the user asks to change them.
    If `get_rocrate_context`, `validate_crate`, or another profile-aware MCP call reports
    unresolved profile URLs, stop normal metadata work and resolve/download those profiles first.
-3. For RO-Crate metadata authoring, always check and offer schemas/profiles because they guide FAIR metadata creation for both users and agents.
+3. For RO-Crate metadata authoring, always check and offer metadata profiles because they guide FAIR metadata creation for both users and agents.
 4. If no active profile is present:
    - call `list_metadata_profiles` to show locally available metadata profiles,
    - call `list_remote_schema_tree` to browse configured remote CEDAR providers

@@ -23,7 +23,7 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
 
     constructor() {
         super({
-            title: nls.localize('rockit/schemaManager/importFromUrlTitle', 'Import Schema from URL')
+            title: nls.localize('rockit/schemaManager/importFromUrlTitle', 'Import Profile from URL')
         });
 
         this.contentNode.style.width = '500px';
@@ -60,7 +60,7 @@ export class MetadataSchemaImportFromUrlDialog extends AbstractDialog<string> {
                         
                         <div className="metadata-schema-import-url__text-wrapper">
                             <div className="metadata-schema-import-url__title">
-                                {nls.localize('rockit/schemaManager/enterSchemaUrl', 'Enter Metadata Schema URL')}
+                                {nls.localize('rockit/schemaManager/enterSchemaUrl', 'Enter Metadata Profile URL')}
                             </div>
                             <div className="metadata-schema-import-url__description">
                                 {nls.localize(

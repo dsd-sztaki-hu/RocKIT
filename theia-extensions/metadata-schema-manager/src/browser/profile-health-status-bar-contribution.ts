@@ -82,7 +82,7 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
         accessibilityInformation: {
           label: nls.localize(
             'rockit/schemaManager/profileIssueAccessible',
-            'RO-Crate profile issue: {0}. Click to open Metadata Schema Manager.',
+            'RO-Crate profile issue: {0}. Click to open Metadata Profile Manager.',
             this.describeIssueCounts(health),
           ),
           role: 'button'
@@ -113,7 +113,7 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
         accessibilityInformation: {
           label: nls.localize(
             'rockit/schemaManager/profileUnavailableAccessible',
-            'RO-Crate profile status unavailable. Click to open Metadata Schema Manager.',
+            'RO-Crate profile status unavailable. Click to open Metadata Profile Manager.',
           ),
           role: 'button'
         }
@@ -159,7 +159,7 @@ export class ProfileHealthStatusBarContribution implements FrontendApplicationCo
       '',
       nls.localize(
         'rockit/schemaManager/clickToOpen',
-        'Click to open Metadata Schema Manager.',
+        'Click to open Metadata Profile Manager.',
       )
     ].join('\n');
   }

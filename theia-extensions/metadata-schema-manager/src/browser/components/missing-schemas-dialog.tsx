@@ -21,7 +21,7 @@ export class MissingSchemasDialog extends AbstractDialog<void> {
 
     constructor(private readonly count: number) {
         super({
-            title: nls.localize('rockit/schemaManager/missingSchemas', 'Missing Metadata Schemas')
+            title: nls.localize('rockit/schemaManager/missingSchemas', 'Missing Metadata Profiles')
         });
 
         this.contentNode.style.width = '450px';
@@ -79,12 +79,12 @@ const InfoContent: React.FC<InfoContentProps> = ({ count, onConfirm }) => {
                 
                 <div className="missing-schemas__text-container">
                     <h3 className="missing-schemas__title">
-                        {nls.localize('rockit/schemaManager/missingSchemas', 'Missing Metadata Schemas')}
+                        {nls.localize('rockit/schemaManager/missingSchemas', 'Missing Metadata Profiles')}
                     </h3>
                     <p className="missing-schemas__message">
                         {nls.localize(
                             'rockit/schemaManager/missingSchemasMessage',
-                            'The RO-Crate references {0} missing schema(s). Downloading now...',
+                            'The RO-Crate references {0} missing profile(s). Downloading now...',
                             count,
                         )}
                     </p>

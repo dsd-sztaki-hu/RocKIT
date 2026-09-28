@@ -8,7 +8,7 @@ Always follow this sequence when curating RO-Crate metadata:
    If active `conformsTo` URLs are present, the user has already selected the
    profile context; work with those profiles instead of offering replacement
    profile choices unless the user asks to change them.
-3. For RO-Crate metadata authoring, always check and offer schemas/profiles because they guide FAIR metadata creation for both users and agents.
+3. For RO-Crate metadata authoring, always check and offer metadata profiles because they guide FAIR metadata creation for both users and agents.
 4. If no active profile is present:
    - call `list_metadata_profiles` to show locally available metadata profiles,
    - call `list_remote_schema_tree` to browse configured remote CEDAR providers

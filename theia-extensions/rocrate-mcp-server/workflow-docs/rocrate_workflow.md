@@ -81,7 +81,7 @@ When generating the review URL:
 
 1. Try to solve the user's task in one coherent pass.
 2. If you need a decision from the user, provide a short menu they can choose from.
-3. For RO-Crate metadata authoring, always check and offer schemas/profiles
+3. For RO-Crate metadata authoring, always check and offer metadata profiles
    because they guide FAIR metadata creation for both users and agents.
 4. If the crate already contains active `conformsTo` profile URLs, resolve and
    download those profiles before proceeding with planning or edits. In local

@@ -211,7 +211,7 @@ export class ApplicationEditMenuOverrides
         id.startsWith(METADATA_SCHEMA_MANAGER_WIDGET_ID),
       ) ||
       this.getWidgetLabelsForContextCheck().some((label) =>
-        label.includes('Metadata Schema Manager'),
+        label.includes('Metadata Profile Manager') || label.includes('Metadata Schema Manager'),
       )
     )
   }
