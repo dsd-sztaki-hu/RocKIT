@@ -37,6 +37,11 @@ export class ApplicationViewMenuOverrides
     'debug',
     'test-view-container',
   ]
+  protected readonly hiddenViewCommandIds: readonly string[] = [
+    'search-in-workspace.toggle',
+    'scmView:toggle',
+    'debug:toggle',
+  ]
   protected readonly outlineCommandIds: readonly string[] = [
     'outlineView:toggle',
     'outlineView.collapse.all',
@@ -63,6 +68,9 @@ export class ApplicationViewMenuOverrides
   @inject(MenuModelRegistry)
   protected readonly menuRegistry: MenuModelRegistry
 
+  @inject(ApplicationShell)
+  protected readonly shell: ApplicationShell
+
   protected readonly topViewItems: readonly ViewMenuItem[] = [
     {
       commandId: 'property-view:toggle',
@@ -78,9 +86,15 @@ export class ApplicationViewMenuOverrides
 
   onStart(): void {
     this.removeOutlineFromViewMenuAndCommands()
+    this.removeHiddenViewCommands()
     this.reorderMenuItems()
     window.setTimeout(() => this.removeOutlineFromViewMenuAndCommands(), 0)
+    window.setTimeout(() => this.removeHiddenViewCommands(), 0)
     window.setTimeout(() => this.reorderMenuItems(), 0)
+    const cleanup = window.setInterval(() => {
+      void this.closeHiddenViewWidgets()
+    }, 100)
+    window.setTimeout(() => window.clearInterval(cleanup), 10000)
   }
 
   transformLayoutOnRestore(layoutData: ApplicationShell.LayoutData): void {
@@ -142,6 +156,24 @@ export class ApplicationViewMenuOverrides
     }
   }
 
+  protected async closeHiddenViewWidgets(): Promise<void> {
+    for (const widgetId of this.hiddenViewContainerIds) {
+      const widget = this.shell.getWidgetById(widgetId)
+      if (widget) {
+        await this.shell.closeWidget(widget.id, { save: false })
+      }
+    }
+  }
+
+  protected removeHiddenViewCommands(): void {
+    for (const commandId of this.hiddenViewCommandIds) {
+      this.menuRegistry.unregisterMenuAction(commandId, CommonMenus.VIEW_PRIMARY)
+      this.menuRegistry.unregisterMenuAction(commandId, CommonMenus.VIEW_VIEWS)
+      this.menuRegistry.unregisterMenuAction(commandId, CommonMenus.VIEW)
+      this.menuRegistry.unregisterMenuAction(commandId, this.viewWidgetsMenuPath)
+    }
+  }
+
   protected disableOutlineDefaultLayoutContribution(): void {
     for (const contribution of this.frontendContributions.getContributions()) {
       if (contribution === this) {
@@ -170,9 +202,11 @@ export class ApplicationViewMenuOverrides
       }
       const candidate = contribution as FrontendApplicationContribution & {
         viewId?: string
+        widgetId?: string
         options?: { widgetId?: string }
       }
-      const viewId = candidate.viewId ?? candidate.options?.widgetId
+      const viewId =
+        candidate.viewId ?? candidate.widgetId ?? candidate.options?.widgetId
       if (
         !viewId ||
         !this.hiddenViewContainerIds.includes(viewId) ||
