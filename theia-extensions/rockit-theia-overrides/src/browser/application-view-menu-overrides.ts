@@ -31,6 +31,12 @@ export class ApplicationViewMenuOverrides
   implements FrontendApplicationContribution, ShellLayoutTransformer
 {
   protected readonly outlineWidgetId = 'outline-view'
+  protected readonly hiddenViewContainerIds: readonly string[] = [
+    'search-view-container',
+    'scm-view-container',
+    'debug',
+    'test-view-container',
+  ]
   protected readonly outlineCommandIds: readonly string[] = [
     'outlineView:toggle',
     'outlineView.collapse.all',
@@ -67,6 +73,7 @@ export class ApplicationViewMenuOverrides
 
   configure(_app: FrontendApplication): void {
     this.disableOutlineDefaultLayoutContribution()
+    this.disableHiddenViewContainerLayoutContributions()
   }
 
   onStart(): void {
@@ -79,8 +86,12 @@ export class ApplicationViewMenuOverrides
   transformLayoutOnRestore(layoutData: ApplicationShell.LayoutData): void {
     this.stripOutlineFromSidePanel(layoutData.leftPanel)
     this.stripOutlineFromSidePanel(layoutData.rightPanel)
+    this.stripHiddenViewContainersFromSidePanel(layoutData.leftPanel)
+    this.stripHiddenViewContainersFromSidePanel(layoutData.rightPanel)
     this.stripOutlineFromDockLayout(layoutData.mainPanel as unknown)
     this.stripOutlineFromDockLayout(layoutData.bottomPanel?.config as unknown)
+    this.stripHiddenViewContainersFromDockLayout(layoutData.mainPanel as unknown)
+    this.stripHiddenViewContainersFromDockLayout(layoutData.bottomPanel?.config as unknown)
     if (layoutData.activeWidgetId === this.outlineWidgetId) {
       layoutData.activeWidgetId = undefined
     }
@@ -152,6 +163,27 @@ export class ApplicationViewMenuOverrides
     }
   }
 
+  protected disableHiddenViewContainerLayoutContributions(): void {
+    for (const contribution of this.frontendContributions.getContributions()) {
+      if (contribution === this) {
+        continue
+      }
+      const candidate = contribution as FrontendApplicationContribution & {
+        viewId?: string
+        options?: { widgetId?: string }
+      }
+      const viewId = candidate.viewId ?? candidate.options?.widgetId
+      if (
+        !viewId ||
+        !this.hiddenViewContainerIds.includes(viewId) ||
+        typeof candidate.initializeLayout !== 'function'
+      ) {
+        continue
+      }
+      candidate.initializeLayout = async () => undefined
+    }
+  }
+
   protected stripOutlineFromSidePanel(panel: unknown): void {
     if (!panel || typeof panel !== 'object') {
       return
@@ -161,6 +193,17 @@ export class ApplicationViewMenuOverrides
       return
     }
     data.items = data.items.filter((item) => !this.isOutlineWidget(item?.widget))
+  }
+
+  protected stripHiddenViewContainersFromSidePanel(panel: unknown): void {
+    if (!panel || typeof panel !== 'object') {
+      return
+    }
+    const data = panel as { items?: Array<{ widget?: unknown }> }
+    if (!Array.isArray(data.items)) {
+      return
+    }
+    data.items = data.items.filter((item) => !this.isHiddenViewContainer(item?.widget))
   }
 
   protected stripOutlineFromDockLayout(config: unknown): void {
@@ -187,6 +230,32 @@ export class ApplicationViewMenuOverrides
     }
   }
 
+  protected stripHiddenViewContainersFromDockLayout(config: unknown): void {
+    if (!config || typeof config !== 'object') {
+      return
+    }
+    const node = config as Record<string, unknown>
+    if (Array.isArray(node.widgets)) {
+      const filtered = node.widgets.filter(
+        (widget) => !this.isHiddenViewContainer(widget),
+      )
+      node.widgets = filtered
+      if (typeof node.currentIndex === 'number' && filtered.length > 0) {
+        node.currentIndex = Math.min(Math.max(node.currentIndex, 0), filtered.length - 1)
+      } else if (typeof node.currentIndex === 'number') {
+        node.currentIndex = 0
+      }
+    }
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) {
+        this.stripHiddenViewContainersFromDockLayout(child)
+      }
+    }
+    if ('widget' in node && this.isHiddenViewContainer(node.widget)) {
+      delete node.widget
+    }
+  }
+
   protected isOutlineWidget(widget: unknown): boolean {
     if (!widget || typeof widget !== 'object') {
       return false
@@ -198,6 +267,19 @@ export class ApplicationViewMenuOverrides
     return (
       record.id === this.outlineWidgetId ||
       record.constructionOptions?.factoryId === this.outlineWidgetId
+    )
+  }
+
+  protected isHiddenViewContainer(widget: unknown): boolean {
+    if (!widget || typeof widget !== 'object') {
+      return false
+    }
+    const record = widget as {
+      id?: string
+      constructionOptions?: { factoryId?: string }
+    }
+    return this.hiddenViewContainerIds.includes(
+      record.id ?? record.constructionOptions?.factoryId ?? '',
     )
   }
 }
