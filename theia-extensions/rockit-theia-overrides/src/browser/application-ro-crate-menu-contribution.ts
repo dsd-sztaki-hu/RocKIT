@@ -30,13 +30,13 @@ export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
   {
     commandId: 'dataset-panel:command',
     labelKey: 'rockit/menu/structurePanel',
-    label: 'Structure Panel',
+    label: 'Structure',
     order: 'a02',
   },
   {
     commandId: 'rocrate.openEditor',
     labelKey: 'rockit/menu/roCrateEditor',
-    label: 'RO-Crate Editor',
+    label: 'Metadata Editor',
     order: 'a03',
   },
   {
@@ -66,7 +66,7 @@ export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
   {
     commandId: 'RO-Crate Preview',
     labelKey: 'rockit/menu/roCratePreview',
-    label: 'RO-Crate Preview',
+    label: 'Preview',
     order: 'a08',
   },
   {
