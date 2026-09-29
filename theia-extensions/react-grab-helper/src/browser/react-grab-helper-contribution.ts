@@ -65,14 +65,12 @@ export class GrabHelperContribution implements FrontendApplicationContribution {
     }
 
     this.grabApi = init()
-    console.log('[grab-helper] React Grab initialized.')
   }
 
   protected disableReactGrab(): void {
     if (this.grabApi) {
       this.grabApi.dispose()
       this.grabApi = undefined
-      console.log('[grab-helper] React Grab disabled.')
     }
   }
 }

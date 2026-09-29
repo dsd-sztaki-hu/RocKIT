@@ -23,7 +23,7 @@ import {
 } from '@theia/core/lib/common'
 import { inject, injectable, optional } from '@theia/core/shared/inversify'
 
-const METADATA_SCHEMA_MANAGER_WIDGET_ID = 'metadata-schema-manager'
+const METADATA_PROFILE_MANAGER_WIDGET_ID = 'metadata-profile-manager'
 const FILE_NAVIGATOR_WIDGET_ID = 'files'
 const FILE_NAVIGATOR_VIEW_CONTAINER_ID = 'explorer-view-container'
 const RO_CRATE_EDITOR_WIDGET_ID_PREFIX = 'rocrate-editor-widget'
@@ -202,16 +202,16 @@ export class ApplicationEditMenuOverrides
   }
 
   protected isEditBlockedEverywhereForCurrentWidget(): boolean {
-    return this.isMetadataSchemaManagerFocused() || this.isFileExplorerFocused()
+    return this.isMetadataProfileManagerFocused() || this.isFileExplorerFocused()
   }
 
-  protected isMetadataSchemaManagerFocused(): boolean {
+  protected isMetadataProfileManagerFocused(): boolean {
     return (
       this.getWidgetIdsForContextCheck().some((id) =>
-        id.startsWith(METADATA_SCHEMA_MANAGER_WIDGET_ID),
+        id.startsWith(METADATA_PROFILE_MANAGER_WIDGET_ID),
       ) ||
       this.getWidgetLabelsForContextCheck().some((label) =>
-        label.includes('Metadata Schema Manager'),
+        label.includes('Metadata Profile Manager'),
       )
     )
   }
@@ -292,8 +292,8 @@ export class ApplicationEditMenuOverrides
     if (widgetElement?.id) {
       return widgetElement.id
     }
-    if (target.closest('.metadata-schema-manager-widget')) {
-      return METADATA_SCHEMA_MANAGER_WIDGET_ID
+    if (target.closest('.metadata-profile-manager-widget')) {
+      return METADATA_PROFILE_MANAGER_WIDGET_ID
     }
     if (target.closest('.rocrate-editor')) {
       return `${RO_CRATE_EDITOR_WIDGET_ID_PREFIX}:dom`

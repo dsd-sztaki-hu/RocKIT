@@ -21,7 +21,7 @@ body.rockit-help-icons-hidden
   .item:has(> [id="rocrate.openEditorDocumentation"]),
 body.rockit-help-icons-hidden
   .lm-TabBar-toolbar
-  .item:has(> [id="metadata-schema-manager:open-documentation"]),
+  .item:has(> [id="metadata-profile-manager:open-documentation"]),
 body.rockit-help-icons-hidden
   .lm-TabBar-toolbar
   .item:has(> [id="data-repository-manager:open-documentation"]),

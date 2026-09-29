@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-import type { MetadataSchemaManager } from "rockit-common/lib/browser";
+import type { MetadataProfileManager } from "rockit-common/lib/browser";
 import { isMissingRoCrateEntityName } from "rockit-common/lib/common/ro-crate-entity-name";
 import type { AppState } from 'app-state/lib/browser/state/app-state';
 
@@ -391,7 +391,7 @@ export async function validateEntities(
   crate: Record<string, any>,
   baseProfile: Record<string, any>,
   profileList: AppState['profileList'],
-  schemaManagerService: MetadataSchemaManager,
+  profileManagerService: MetadataProfileManager,
   options: ValidationRunOptions = {},
 ) {
   throwIfAborted(options.signal);
@@ -484,7 +484,7 @@ export async function validateEntities(
               continue;
             }
             try {
-              updatedProfile = await schemaManagerService.getMergedProfile(
+              updatedProfile = await profileManagerService.getMergedProfile(
                 crate,
                 convertedContent,
                 updatedProfile,

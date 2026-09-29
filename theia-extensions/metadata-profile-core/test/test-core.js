@@ -14,13 +14,9 @@ async function main() {
 
   const profileEnvNames = [
     'ROCKIT_ROOT_PATH',
-    'AROMA_ROOT_PATH',
-    'ROCKIT_METADATA_SCHEMA_INDEX_FILE',
-    'AROMA_METADATA_SCHEMA_INDEX_FILE',
-    'ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
-    'AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
-    'ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE',
-    'AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE',
+    'ROCKIT_METADATA_PROFILE_INDEX_FILE',
+    'ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE',
+    'ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE',
   ]
   const originalProfileEnv = Object.fromEntries(
     profileEnvNames.map((name) => [name, process.env[name]]),
@@ -36,24 +32,16 @@ async function main() {
     )
 
     const rockitRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metadata-profile-rockit-'))
-    const legacyRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metadata-profile-aroma-'))
     process.env.ROCKIT_ROOT_PATH = rockitRoot
-    process.env.AROMA_ROOT_PATH = legacyRoot
-    process.env.ROCKIT_METADATA_SCHEMA_INDEX_FILE = 'rockit-index.json'
-    process.env.AROMA_METADATA_SCHEMA_INDEX_FILE = 'aroma-index.json'
+    process.env.ROCKIT_METADATA_PROFILE_INDEX_FILE = 'rockit-index.json'
     const configuredStorage = core.ensureProfileStorage()
     assert.equal(configuredStorage.rootPath, rockitRoot)
     assert.equal(
       configuredStorage.indexPath,
       path.join(rockitRoot, 'rockit-index.json'),
-      'ROCKIT_* settings should take precedence over legacy AROMA_* settings',
+      'ROCKIT_* settings should select the configured profile storage',
     )
     assert.ok(fs.existsSync(configuredStorage.indexPath))
-    assert.equal(
-      fs.existsSync(path.join(legacyRoot, 'aroma-index.json')),
-      false,
-      'legacy AROMA root should not be selected when ROCKIT_ROOT_PATH is configured',
-    )
   } finally {
     for (const [name, value] of Object.entries(originalProfileEnv)) {
       if (value === undefined) {
@@ -69,9 +57,9 @@ async function main() {
   const storage = core.ensureProfileStorage(root)
   assert.ok(fs.existsSync(storage.cedarDir), 'cedar directory should exist')
   assert.ok(fs.existsSync(storage.roCrateDir), 'ro-crate directory should exist')
-  assert.ok(fs.existsSync(storage.indexPath), 'schema index should exist')
-  const providerConfigPath = path.join(root, 'remote-schema-providers.json')
-  assert.ok(fs.existsSync(providerConfigPath), 'remote schema provider config should exist')
+  assert.ok(fs.existsSync(storage.indexPath), 'profile index should exist')
+  const providerConfigPath = path.join(root, 'remote-profile-providers.json')
+  assert.ok(fs.existsSync(providerConfigPath), 'remote profile provider config should exist')
   const seededProviders = JSON.parse(fs.readFileSync(providerConfigPath, 'utf8'))
   assert.equal(seededProviders.length, 1)
   assert.equal(seededProviders[0].id, 'arp-prod')

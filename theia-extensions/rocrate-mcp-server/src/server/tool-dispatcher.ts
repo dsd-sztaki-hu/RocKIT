@@ -443,7 +443,7 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         return textResult(result)
       }
 
-      if (toolName === 'list_well_known_schemas') {
+      if (toolName === 'list_remote_templates') {
         const result = await runInTelemetryContext(async () => listWellKnownSchemas(params))
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, result)
@@ -451,7 +451,7 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         return textResult(result)
       }
 
-      if (toolName === 'list_remote_schema_tree') {
+      if (toolName === 'list_remote_template_tree') {
         const result = await runInTelemetryContext(async () => listRemoteSchemaTree(params))
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, result)
@@ -459,7 +459,7 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         return textResult(result)
       }
 
-      if (toolName === 'import_well_known_schema') {
+      if (toolName === 'import_remote_template') {
         const result = await runInTelemetryContext(async () => importWellKnownSchema(params))
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, result)
@@ -1058,11 +1058,11 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         return textResult(payload)
       }
 
-      if (toolName === 'resolve_profile_schema') {
+      if (toolName === 'resolve_metadata_profile') {
         const profileUrl =
           typeof params.profileUrl === 'string' ? params.profileUrl.trim() : ''
         if (profileUrl === '') {
-          throw new Error('resolve_profile_schema requires profileUrl.')
+          throw new Error('resolve_metadata_profile requires profileUrl.')
         }
         const mode = parseAccessMode(params)
         const includeProfileContent = params.includeProfileContent === true

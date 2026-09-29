@@ -593,7 +593,7 @@ function getRegisteredSchemasForMode(mode: AccessMode): SchemaRegistryEntry[] {
 }
 
 /**
- * Resolves base RocKIT directory for schema index/profile artifacts.
+ * Resolves the base RocKIT directory for profile index and profile artifacts.
  */
 function buildRoCrateContext(
   crate: RoCrate,
