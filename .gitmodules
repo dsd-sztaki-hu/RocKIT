@@ -1,4 +1,4 @@
 [submodule "dev-packages/recrate"]
 	path = dev-packages/recrate
-	url = git@git.sztaki.hu:dsd/test-projects/recrate.git
+	url = git@github.com:dsd-sztaki-hu/recrate.git
 	branch = main

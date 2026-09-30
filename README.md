@@ -50,12 +50,12 @@ To create the npm tarball:
 
 The tarball is written to:
 
-    theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-<version>.tgz
+    theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-<version>.tgz
 
-For example, if the MCP package version is `1.0.3`, install the local tarball
+For example, if the MCP package version is `1.2.0`, install the local tarball
 from the repo root with:
 
-    npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-1.0.3.tgz
+    npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-1.2.0.tgz
 
 To publish the standalone MCP server to npm, publish the generated package
 directory, not the raw workspace package:
@@ -65,7 +65,7 @@ directory, not the raw workspace package:
 
 After publishing, users can install and run it with:
 
-    npm install -g @arpproject/rocrate-mcp-server
+    npm install -g @arpproject/vibearp-mcp
     rocrate-mcp-server
 
 To install the MCP server into a detected coding agent, run:
@@ -179,7 +179,7 @@ Then these are the steps to create a new extension:
 4. The generator will ask you a few other questions about overwriting certain files (package.json, README, etc.), press "n" for all of them.
 5. The generator will create a new folder with the extension name and add some files inside.
 6. Move this folder to the `theia-extensions` folder where we keep all our custom extensions.
-7. Because we skipped the overwrites (it would mess up our package.json and other files), we need to add the new extension to the correct places. Open the electron-app's package.json and add the extension to the `dependencies` section by typing the extension name and version number (it can be checked in the extension's package.json, but it is generally 0.0.0 so the inserted part would look like "<extension-name>": "0.0.0"). (The nex extension does NOT have to be added to the root package.json file, because it is in the theia-extensions folder folder, and that is already added to the workspace)
+7. Because we skipped the overwrites (it would mess up our package.json and other files), we need to add the new extension to the correct places. Open the electron-app's package.json and add the extension to the `dependencies` section by typing the extension name and version number (it can be checked in the extension's package.json, but it is generally 1.0.0 so the inserted part would look like "<extension-name>": "1.0.0"). (The nex extension does NOT have to be added to the root package.json file, because it is in the theia-extensions folder folder, and that is already added to the workspace)
 8. Run `yarn` to install all dependencies.
 
 ### react-grab support

@@ -88,19 +88,25 @@ export const tools: ToolDefinition[] = [
   {
     name: 'set_agent_session_context',
     description:
-      'Set per-session agent launch context. Agents launched from AROMA should call this with launchContext="inside_aroma" before reading workflow docs.',
+      'Set per-session agent launch context. Agents launched from RocKIT should call this with launchContext="inside_rockit" and editorAlreadyOpen=true before reading workflow docs. Standalone agents should use launchContext="external". The inside_aroma value is accepted for compatibility with older clients.',
     inputSchema: {
       type: 'object',
       properties: {
         launchContext: {
           type: 'string',
-          enum: ['inside_aroma', 'external'],
-          description: 'Where the agent session was launched from.',
+          enum: ['inside_rockit', 'inside_aroma', 'external'],
+          description:
+            'Where the agent session was launched from. Use inside_rockit for RocKIT and external for standalone agents; inside_aroma remains accepted for older clients.',
+        },
+        editorAlreadyOpen: {
+          type: 'boolean',
+          description:
+            'Whether a RO-Crate editing application is already open for this workflow. Defaults to true for inside_rockit and inside_aroma, and false for external.',
         },
         aromaAlreadyOpen: {
           type: 'boolean',
           description:
-            'Whether AROMA is already open for this editing workflow. Defaults to true for inside_aroma.',
+            'Deprecated compatibility alias for editorAlreadyOpen. Use editorAlreadyOpen for new clients.',
         },
       },
       required: ['launchContext'],
@@ -161,9 +167,9 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'list_well_known_schemas',
+    name: 'list_remote_templates',
     description:
-      'Browse/search configured CEDAR registry providers for well-known Dataverse metadata schemas.',
+      'Browse/search configured profile providers for well-known Dataverse metadata profiles.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -178,7 +184,7 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'list_remote_schema_tree',
+    name: 'list_remote_template_tree',
     description:
       'Browse configured CEDAR providers as a folder tree and list only unimported template leaves for profile selection.',
     inputSchema: {
@@ -207,9 +213,9 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'import_well_known_schema',
+    name: 'import_remote_template',
     description:
-      'Import a well-known CEDAR schema by name/template URL/conformsTo into the shared metadata profile store.',
+      'Import a well-known metadata profile by name/template URL/conformsTo into the shared metadata profile store.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -229,7 +235,7 @@ export const tools: ToolDefinition[] = [
   {
     name: 'list_metadata_profiles',
     description:
-      'List persisted CEDAR/recrate metadata profiles from the shared metadata-schema-index.json store.',
+      'List persisted CEDAR/recrate metadata profiles from the shared metadata-profile-index.json store.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -742,7 +748,7 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'resolve_profile_schema',
+    name: 'resolve_metadata_profile',
     description:
       'Resolve profile URL to profile records and converted profile file paths via metadata-schema-index.',
     inputSchema: {

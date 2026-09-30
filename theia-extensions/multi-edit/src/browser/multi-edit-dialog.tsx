@@ -10,7 +10,8 @@ import * as React from '@theia/core/shared/react'
 import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
-import type { MetadataSchemaManager, SchemaInfo } from 'rockit-common/lib/browser'
+import type { GlobalEntityLibraryService } from 'global-entity-library/lib/browser/global-entity-library-service'
+import type { MetadataProfileManager, ProfileInfo } from 'rockit-common/lib/browser'
 import {
   type LoadMaskHandle,
   LoadMaskService,
@@ -116,7 +117,10 @@ const SCHEMA_TYPE_DEFINITIONS = schemaTypeDefinitions as Record<
 >
 const SCHEMA_ORG_SCHEMA_ID = '__schemaorg__'
 const SCHEMA_ORG_LABEL = 'schema.org'
-const OTHER_ONTOLOGIES_LABEL = nls.localize('rockit/multiEdit/otherOntologies', 'Other ontologies')
+const OTHER_ONTOLOGIES_LABEL = nls.localize(
+  'rockit/multiEdit/otherOntologies',
+  'Other ontologies',
+)
 const ENTITY_LIST_RENDER_LIMIT = 1_000
 const MAIN_THREAD_SLICE_MS = 12
 const YIELD_CHECK_INTERVAL = 250
@@ -180,16 +184,22 @@ export class MultiEditDialog extends ReactDialog<string> {
     string,
     { start: number; end: number }
   >()
+  protected globalEntityDocuments: Record<string, any>[] = []
+  protected readonly pendingGlobalEntityMappings = new Map<string, string>()
 
   constructor(
     private readonly entityIds: string[],
     private readonly appStateService: AppStateService,
-    private readonly schemaManagerService?: MetadataSchemaManager,
+    private readonly profileManagerService?: MetadataProfileManager,
     private readonly roCrateHistoryService?: RoCrateHistoryService,
     private readonly loadMaskService?: LoadMaskService,
+    private readonly globalEntityLibraryService?: GlobalEntityLibraryService,
   ) {
     super({ title: nls.localize('rockit/multiEdit/title', 'Multi Edit') })
-    this.startButton = this.appendButton(nls.localize('rockit/multiEdit/start', 'Start multi-edit'), true)
+    this.startButton = this.appendButton(
+      nls.localize('rockit/multiEdit/start', 'Start multi-edit'),
+      true,
+    )
     this.startButton.addEventListener('click', () => void this.runOperations())
     this.appendCloseButton(nls.localize('rockit/multiEdit/close', 'Close'))
   }
@@ -222,26 +232,46 @@ export class MultiEditDialog extends ReactDialog<string> {
     this.profileData = profile
 
     if (!crate || !Array.isArray(crate['@graph'])) {
-      this.configurationError = nls.localize('rockit/multiEdit/crateUnavailable', 'RO-Crate data is not available.')
+      this.configurationError = nls.localize(
+        'rockit/multiEdit/crateUnavailable',
+        'RO-Crate data is not available.',
+      )
       this.update()
       return
     }
 
     if (!profile?.classes) {
-      this.configurationError = nls.localize('rockit/multiEdit/profileUnavailable', 'Profile data is not available.')
+      this.configurationError = nls.localize(
+        'rockit/multiEdit/profileUnavailable',
+        'Profile data is not available.',
+      )
       this.update()
       return
     }
 
     await this.ensureAssociatedSchemaProfiles()
 
+    if (this.globalEntityLibraryService) {
+      try {
+        const result = await this.globalEntityLibraryService.findEntitiesForCrate({
+          type: 'ANY',
+        })
+        this.globalEntityDocuments = result.documents
+      } catch (error) {
+        console.warn('Failed to load global entities for multi-edit.', error)
+        this.globalEntityDocuments = []
+      }
+    }
+
     const selection = await this.collectSelectionContext(crate, onProgress)
     this.selectedEntities = selection.selectedEntities
 
     const entityTypes = selection.entityTypes
     if (entityTypes.length === 0) {
-      this.configurationError =
-        nls.localize('rockit/multiEdit/noEditableEntities', 'No editable entities were found in the current selection.')
+      this.configurationError = nls.localize(
+        'rockit/multiEdit/noEditableEntities',
+        'No editable entities were found in the current selection.',
+      )
       this.update()
       return
     }
@@ -316,7 +346,11 @@ export class MultiEditDialog extends ReactDialog<string> {
       const entityId = this.entityIds[index]
       const entity = entitiesById.get(entityId)
       if (!entity) {
-        result.push({ id: entityId, name: entityId, type: nls.localize('rockit/multiEdit/unknown', 'Unknown') })
+        result.push({
+          id: entityId,
+          name: entityId,
+          type: nls.localize('rockit/multiEdit/unknown', 'Unknown'),
+        })
       } else {
         const typeNames = this.getEntityTypeNames(entity)
         const localizedTypes = typeNames.length
@@ -580,7 +614,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   protected async ensureAssociatedSchemaProfiles(): Promise<void> {
-    if (!this.schemaManagerService) {
+    if (!this.profileManagerService) {
       return
     }
 
@@ -602,9 +636,9 @@ export class MultiEditDialog extends ReactDialog<string> {
       return
     }
 
-    const allSchemas = await this.schemaManagerService.loadAllSchemas()
+    const allProfiles = await this.profileManagerService.loadAllProfiles()
     const schemasByConformsTo = new Map(
-      allSchemas
+      allProfiles
         .filter((schema) => Boolean(schema.conformsTo?.trim()))
         .map((schema) => [schema.conformsTo!.trim(), schema]),
     )
@@ -615,7 +649,7 @@ export class MultiEditDialog extends ReactDialog<string> {
           return undefined
         }
         try {
-          const content = await this.schemaManagerService!.getConvertedProfileContent(
+          const content = await this.profileManagerService!.getConvertedProfileContent(
             schema.files.convertedPath,
           )
           return content ? { id: url, content, flag: '' } : undefined
@@ -644,27 +678,27 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected async loadDownloadedSchemaProfiles(): Promise<void> {
-    if (this.downloadedSchemasLoaded || !this.schemaManagerService) {
+    if (this.downloadedSchemasLoaded || !this.profileManagerService) {
       return
     }
     this.downloadedSchemasLoaded = true
 
-    let schemas: SchemaInfo[] = []
+    let profiles: ProfileInfo[] = []
     try {
-      schemas = await this.schemaManagerService.loadAllSchemas()
+      profiles = await this.profileManagerService.loadAllProfiles()
     } catch (error) {
       console.warn('Failed to load downloaded schemas for multi-edit.', error)
       return
     }
 
     let changed = false
-    for (const schema of schemas) {
-      const schemaStatus = (schema as SchemaInfo & { status?: string }).status
+    for (const schema of profiles) {
+      const schemaStatus = (schema as ProfileInfo & { status?: string }).status
       if (!schema?.files?.sourcePath || schemaStatus === 'downloading') {
         continue
       }
       try {
-        const schemaProfile = await this.schemaManagerService.getConvertedProfileContent(
+        const schemaProfile = await this.profileManagerService.getConvertedProfileContent(
           schema.files.sourcePath,
         )
         if (this.addDownloadedSchemaProfileFields(schema, schemaProfile)) {
@@ -689,7 +723,7 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected addDownloadedSchemaProfileFields(
-    schema: SchemaInfo,
+    schema: ProfileInfo,
     schemaProfile: Record<string, any>,
   ): boolean {
     if (!schemaProfile || typeof schemaProfile !== 'object') {
@@ -774,7 +808,7 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected resolveDownloadedSchemaLabel(
-    schema: SchemaInfo,
+    schema: ProfileInfo,
     schemaProfile: Record<string, any>,
   ): string {
     const rawName =
@@ -782,7 +816,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       schemaProfile.metadata.name.trim().length > 0
         ? schemaProfile.metadata.name.trim()
         : schema.name
-    const normalized = this.schemaManagerService?.nameWithoutMetadataSuffix(rawName)
+    const normalized = this.profileManagerService?.nameWithoutMetadataSuffix(rawName)
     return normalized?.trim() || rawName
   }
 
@@ -1012,8 +1046,8 @@ export class MultiEditDialog extends ReactDialog<string> {
         : ''
 
     if (rawName.length > 0) {
-      if (this.schemaManagerService) {
-        const normalized = this.schemaManagerService.nameWithoutMetadataSuffix(rawName)
+      if (this.profileManagerService) {
+        const normalized = this.profileManagerService.nameWithoutMetadataSuffix(rawName)
         if (normalized && normalized.trim().length > 0) {
           return normalized.trim()
         }
@@ -1542,7 +1576,10 @@ export class MultiEditDialog extends ReactDialog<string> {
       const profile = this.profileData
       if (crate && profile) {
         const loadMask = this.loadMaskService?.show({
-          message: nls.localize('rockit/multiEdit/preparingSelectedEntities', 'Preparing selected entities…'),
+          message: nls.localize(
+            'rockit/multiEdit/preparingSelectedEntities',
+            'Preparing selected entities…',
+          ),
         })
         try {
           this.entitySummaries = await this.buildEntitySummaries(
@@ -1858,9 +1895,11 @@ export class MultiEditDialog extends ReactDialog<string> {
         onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
           this.setOperationMultiTextValueFromEvent(row.id, valueIndex, event)
         }
-        placeholder={valueKind === 'url'
-          ? nls.localize('rockit/multiEdit/enterUrl', 'Enter URL')
-          : nls.localize('rockit/multiEdit/enterValue', 'Enter value')}
+        placeholder={
+          valueKind === 'url'
+            ? nls.localize('rockit/multiEdit/enterUrl', 'Enter URL')
+            : nls.localize('rockit/multiEdit/enterValue', 'Enter value')
+        }
         type={valueKind === 'number' ? 'number' : valueKind === 'url' ? 'url' : 'text'}
         suffix={removeButton}
       />
@@ -1876,12 +1915,22 @@ export class MultiEditDialog extends ReactDialog<string> {
     const errors: string[] = []
 
     if (this.operations.length === 0) {
-      errors.push(nls.localize('rockit/multiEdit/addOperationRequired', 'Add at least one edit operation.'))
+      errors.push(
+        nls.localize(
+          'rockit/multiEdit/addOperationRequired',
+          'Add at least one edit operation.',
+        ),
+      )
       return errors
     }
 
     if (this.selectedSchemaIds.size === 0 && !this.schemaOrgEnabled) {
-      errors.push(nls.localize('rockit/multiEdit/schemaRequired', 'Select a schema or enable properties from other ontologies.'))
+      errors.push(
+        nls.localize(
+          'rockit/multiEdit/schemaRequired',
+          'Select a profile or enable properties from other ontologies.',
+        ),
+      )
       return errors
     }
 
@@ -1889,7 +1938,13 @@ export class MultiEditDialog extends ReactDialog<string> {
       const row = this.operations[index]
       const field = this.getFieldByKey(row.fieldKey)
       if (!field) {
-        errors.push(nls.localize('rockit/multiEdit/rowSelectProperty', 'Row {0}: select a property.', index + 1))
+        errors.push(
+          nls.localize(
+            'rockit/multiEdit/rowSelectProperty',
+            'Row {0}: select a property.',
+            index + 1,
+          ),
+        )
         continue
       }
       const valueKind = this.getEffectiveValueKind(row, field)
@@ -1901,25 +1956,50 @@ export class MultiEditDialog extends ReactDialog<string> {
         !schemaOrgFieldActive &&
         !(field.appliesToAll && this.schemaOrgEnabled)
       ) {
-        errors.push(nls.localize('rockit/multiEdit/rowInactiveProperty', 'Row {0}: selected property is not part of active schemas.', index + 1))
+        errors.push(
+          nls.localize(
+            'rockit/multiEdit/rowInactiveProperty',
+            'Row {0}: selected property is not part of the active profiles.',
+            index + 1,
+          ),
+        )
         continue
       }
 
       const allowedOperators = this.getAllowedOperators(field)
       if (!allowedOperators.includes(row.operator)) {
         errors.push(
-          nls.localize('rockit/multiEdit/rowInvalidOperator', 'Row {0}: operator "{1}" is not valid for {2}.', index + 1, OPERATOR_LABELS[row.operator], field.label),
+          nls.localize(
+            'rockit/multiEdit/rowInvalidOperator',
+            'Row {0}: operator "{1}" is not valid for {2}.',
+            index + 1,
+            OPERATOR_LABELS[row.operator],
+            field.label,
+          ),
         )
       }
 
       if (row.operator !== 'unset' && row.value.trim().length === 0) {
-        errors.push(nls.localize('rockit/multiEdit/rowEnterValue', 'Row {0}: enter a value.', index + 1))
+        errors.push(
+          nls.localize(
+            'rockit/multiEdit/rowEnterValue',
+            'Row {0}: enter a value.',
+            index + 1,
+          ),
+        )
       }
 
       if (row.operator !== 'unset' && row.value.trim().length > 0) {
         const parseError = this.validateValue(field, row.value, valueKind)
         if (parseError) {
-          errors.push(nls.localize('rockit/multiEdit/rowError', 'Row {0}: {1}', index + 1, parseError))
+          errors.push(
+            nls.localize(
+              'rockit/multiEdit/rowError',
+              'Row {0}: {1}',
+              index + 1,
+              parseError,
+            ),
+          )
         }
       }
     }
@@ -1941,21 +2021,48 @@ export class MultiEditDialog extends ReactDialog<string> {
   ): string | undefined {
     const tokens = this.splitMultiValue(rawValue, field, valueKind)
     if (tokens.length === 0) {
-      return nls.localize('rockit/multiEdit/valueRequiredFor', 'A value must be selected for {0}.', field.label)
+      return nls.localize(
+        'rockit/multiEdit/valueRequiredFor',
+        'A value must be selected for {0}.',
+        field.label,
+      )
     }
 
     if (valueKind === 'entity') {
       const graph = this.getGraph()
       for (const token of tokens) {
         if (!token) {
-          return nls.localize('rockit/multiEdit/valueRequiredFor', 'A value must be selected for {0}.', field.label)
+          return nls.localize(
+            'rockit/multiEdit/valueRequiredFor',
+            'A value must be selected for {0}.',
+            field.label,
+          )
         }
         if (this.isCreateToken(token)) {
           continue
         }
+        const globalToken = this.parseGlobalEntityToken(token)
+        if (globalToken) {
+          const exists = this.globalEntityDocuments.some(
+            (entry) =>
+              String(entry.globalRecordId ?? '') === globalToken.recordId &&
+              String(entry['@id'] ?? '') === globalToken.entityId,
+          )
+          if (exists) {
+            continue
+          }
+          return nls.localize(
+            'rockit/multiEdit/globalEntityUnavailable',
+            'The selected global entity is no longer available.',
+          )
+        }
         const exists = graph.some((entry) => entry && String(entry['@id']) === token)
         if (!exists) {
-          return nls.localize('rockit/multiEdit/entityMissingFor', 'The selected entity does not exist for {0}.', field.label)
+          return nls.localize(
+            'rockit/multiEdit/entityMissingFor',
+            'The selected entity does not exist for {0}.',
+            field.label,
+          )
         }
       }
       return undefined
@@ -1965,7 +2072,11 @@ export class MultiEditDialog extends ReactDialog<string> {
       for (const token of tokens) {
         const numberValue = Number(token)
         if (!Number.isFinite(numberValue)) {
-          return nls.localize('rockit/multiEdit/numberRequiredFor', 'The value must be a number for {0}.', field.label)
+          return nls.localize(
+            'rockit/multiEdit/numberRequiredFor',
+            'The value must be a number for {0}.',
+            field.label,
+          )
         }
       }
     }
@@ -1974,10 +2085,18 @@ export class MultiEditDialog extends ReactDialog<string> {
       try {
         const parsed = JSON.parse(rawValue)
         if (field.multiple && !Array.isArray(parsed)) {
-          return nls.localize('rockit/multiEdit/jsonArrayRequiredFor', 'The value must be a JSON array for {0}.', field.label)
+          return nls.localize(
+            'rockit/multiEdit/jsonArrayRequiredFor',
+            'The value must be a JSON array for {0}.',
+            field.label,
+          )
         }
       } catch {
-        return nls.localize('rockit/multiEdit/validJsonRequiredFor', 'The value must be valid JSON for {0}.', field.label)
+        return nls.localize(
+          'rockit/multiEdit/validJsonRequiredFor',
+          'The value must be valid JSON for {0}.',
+          field.label,
+        )
       }
     }
 
@@ -1985,7 +2104,11 @@ export class MultiEditDialog extends ReactDialog<string> {
       const allowed = new Set(field.selectValues.map((value) => value.trim()))
       for (const token of tokens) {
         if (!allowed.has(token)) {
-          return nls.localize('rockit/multiEdit/allowedOptionRequiredFor', 'The value must be one of the allowed options for {0}.', field.label)
+          return nls.localize(
+            'rockit/multiEdit/allowedOptionRequiredFor',
+            'The value must be one of the allowed options for {0}.',
+            field.label,
+          )
         }
       }
     }
@@ -2692,7 +2815,9 @@ export class MultiEditDialog extends ReactDialog<string> {
     if (!signal?.aborted) {
       return
     }
-    const error = new Error(nls.localize('rockit/multiEdit/cancelled', 'Multi-edit cancelled.'))
+    const error = new Error(
+      nls.localize('rockit/multiEdit/cancelled', 'Multi-edit cancelled.'),
+    )
     error.name = 'AbortError'
     throw error
   }
@@ -2727,7 +2852,12 @@ export class MultiEditDialog extends ReactDialog<string> {
         updatedEntities: 0,
         appliedOperations: 0,
         skippedOperations: 0,
-        errors: [nls.localize('rockit/multiEdit/crateUnavailable', 'RO-Crate data is not available.')],
+        errors: [
+          nls.localize(
+            'rockit/multiEdit/crateUnavailable',
+            'RO-Crate data is not available.',
+          ),
+        ],
       }
       this.update()
       return
@@ -2735,11 +2865,15 @@ export class MultiEditDialog extends ReactDialog<string> {
 
     this.isExecuting = true
     this.executionSummary = undefined
+    this.pendingGlobalEntityMappings.clear()
     this.update()
 
     const abortController = new AbortController()
     const loadMask: LoadMaskHandle | undefined = this.loadMaskService?.show({
-      message: nls.localize('rockit/multiEdit/preparingChanges', 'Preparing multi-edit changes…'),
+      message: nls.localize(
+        'rockit/multiEdit/preparingChanges',
+        'Preparing multi-edit changes…',
+      ),
       onCancel: () => abortController.abort(),
     })
     let processedEntities = 0
@@ -2808,7 +2942,10 @@ export class MultiEditDialog extends ReactDialog<string> {
 
       const selectedEntityIds = Array.from(selectedEntitySet)
       loadMask?.update({
-        message: nls.localize('rockit/multiEdit/applyingChanges', 'Applying multi-edit changes…'),
+        message: nls.localize(
+          'rockit/multiEdit/applyingChanges',
+          'Applying multi-edit changes…',
+        ),
         progress: { worked: 0, total: selectedEntityIds.length },
       })
 
@@ -2831,13 +2968,25 @@ export class MultiEditDialog extends ReactDialog<string> {
         const entityId = selectedEntityIds[selectionIndex]
         const index = indexByEntityId.get(entityId)
         if (index === undefined) {
-          errors.push(nls.localize('rockit/multiEdit/entityNotFound', 'Entity not found: {0}', entityId))
+          errors.push(
+            nls.localize(
+              'rockit/multiEdit/entityNotFound',
+              'Entity not found: {0}',
+              entityId,
+            ),
+          )
           continue
         }
 
         const sourceEntity = graph[index]
         if (!sourceEntity || typeof sourceEntity !== 'object') {
-          errors.push(nls.localize('rockit/multiEdit/entityNotFound', 'Entity not found: {0}', entityId))
+          errors.push(
+            nls.localize(
+              'rockit/multiEdit/entityNotFound',
+              'Entity not found: {0}',
+              entityId,
+            ),
+          )
           continue
         }
 
@@ -2912,8 +3061,19 @@ export class MultiEditDialog extends ReactDialog<string> {
             const message =
               error instanceof Error
                 ? error.message
-                : nls.localize('rockit/multiEdit/unknownExecutionError', 'Unknown execution error.')
-            errors.push(nls.localize('rockit/multiEdit/entityRowError', 'Entity {0}, row {1}: {2}', entityId, rowIndex + 1, message))
+                : nls.localize(
+                    'rockit/multiEdit/unknownExecutionError',
+                    'Unknown execution error.',
+                  )
+            errors.push(
+              nls.localize(
+                'rockit/multiEdit/entityRowError',
+                'Entity {0}, row {1}: {2}',
+                entityId,
+                rowIndex + 1,
+                message,
+              ),
+            )
           }
         }
 
@@ -2924,7 +3084,10 @@ export class MultiEditDialog extends ReactDialog<string> {
       }
 
       loadMask?.update({
-        message: nls.localize('rockit/multiEdit/finalizingChanges', 'Finalizing multi-edit changes…'),
+        message: nls.localize(
+          'rockit/multiEdit/finalizingChanges',
+          'Finalizing multi-edit changes…',
+        ),
         progress: {
           worked: selectedEntityIds.length,
           total: selectedEntityIds.length,
@@ -2941,11 +3104,30 @@ export class MultiEditDialog extends ReactDialog<string> {
         }
         if (this.roCrateHistoryService) {
           this.roCrateHistoryService.applyRoCrateChange(updatedCrate, {
-            label: nls.localize('rockit/multiEdit/historyLabel', 'Apply multi-edit changes'),
+            label: nls.localize(
+              'rockit/multiEdit/historyLabel',
+              'Apply multi-edit changes',
+            ),
           })
         } else {
           this.appStateService.roCrate = updatedCrate
           this.appStateService.dirty = this.appStateService.isRoCrateDirty(updatedCrate)
+        }
+        if (this.globalEntityLibraryService) {
+          for (const [recordId, entityId] of this.pendingGlobalEntityMappings) {
+            try {
+              await this.globalEntityLibraryService.mapAddedEntity({ recordId, entityId })
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error)
+              errors.push(
+                nls.localize(
+                  'rockit/multiEdit/globalEntityMappingFailed',
+                  'The global entity was added, but its library mapping could not be saved: {0}',
+                  message,
+                ),
+              )
+            }
+          }
         }
       }
 
@@ -2959,7 +3141,10 @@ export class MultiEditDialog extends ReactDialog<string> {
     } catch (error) {
       const message =
         error instanceof Error && error.name === 'AbortError'
-          ? nls.localize('rockit/multiEdit/cancelledNoChanges', 'Multi-edit cancelled. No changes were applied.')
+          ? nls.localize(
+              'rockit/multiEdit/cancelledNoChanges',
+              'Multi-edit cancelled. No changes were applied.',
+            )
           : error instanceof Error
             ? error.message
             : nls.localize('rockit/multiEdit/unknownError', 'Unknown multi-edit error.')
@@ -2975,7 +3160,10 @@ export class MultiEditDialog extends ReactDialog<string> {
       this.update()
       if (loadMask) {
         loadMask.update({
-          message: nls.localize('rockit/multiEdit/preparingResults', 'Preparing results...'),
+          message: nls.localize(
+            'rockit/multiEdit/preparingResults',
+            'Preparing results...',
+          ),
           onCancel: null,
         })
         await this.waitForPostCommitRender()
@@ -3065,11 +3253,23 @@ export class MultiEditDialog extends ReactDialog<string> {
     field: FieldDefinition | undefined,
   ): React.ReactNode {
     if (row.operator === 'unset') {
-      return <span className="entities-overview-edit-modal-no-value">{nls.localize('rockit/multiEdit/noValue', 'No value')}</span>
+      return (
+        <span className="entities-overview-edit-modal-no-value">
+          {nls.localize('rockit/multiEdit/noValue', 'No value')}
+        </span>
+      )
     }
 
     if (!field) {
-      return <Input disabled placeholder={nls.localize('rockit/multiEdit/selectPropertyFirst', 'Select property first')} />
+      return (
+        <Input
+          disabled
+          placeholder={nls.localize(
+            'rockit/multiEdit/selectPropertyFirst',
+            'Select property first',
+          )}
+        />
+      )
     }
 
     const valueKind = this.getEffectiveValueKind(row, field)
@@ -3101,9 +3301,11 @@ export class MultiEditDialog extends ReactDialog<string> {
           }))}
           showSearch
           allowClear
-          placeholder={isMulti
-            ? nls.localize('rockit/multiEdit/selectValues', 'Select one or more values')
-            : nls.localize('rockit/multiEdit/selectValue', 'Select value')}
+          placeholder={
+            isMulti
+              ? nls.localize('rockit/multiEdit/selectValues', 'Select one or more values')
+              : nls.localize('rockit/multiEdit/selectValue', 'Select value')
+          }
           style={{ width: '100%' }}
         />
       )
@@ -3117,7 +3319,10 @@ export class MultiEditDialog extends ReactDialog<string> {
             this.setOperationValue(row.id, event.target.value)
           }
           autoSize={{ minRows: 1, maxRows: 4 }}
-          placeholder={nls.localize('rockit/multiEdit/enterJson', 'Enter JSON value, e.g. {"@id":"./file.txt"}')}
+          placeholder={nls.localize(
+            'rockit/multiEdit/enterJson',
+            'Enter JSON value, e.g. {"@id":"./file.txt"}',
+          )}
         />
       )
     } else if (valueKind === 'date') {
@@ -3166,7 +3371,8 @@ export class MultiEditDialog extends ReactDialog<string> {
             className="entities-overview-edit-modal-multi-text-add"
             onClick={() => this.addOperationMultiTextValue(row.id)}
           >
-            <span className="codicon codicon-add" aria-hidden="true" /> {nls.localize('rockit/multiEdit/addValue', 'Add value')}
+            <span className="codicon codicon-add" aria-hidden="true" />{' '}
+            {nls.localize('rockit/multiEdit/addValue', 'Add value')}
           </button>
         </div>
       )
@@ -3177,9 +3383,11 @@ export class MultiEditDialog extends ReactDialog<string> {
           onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
             this.setOperationValue(row.id, event.target.value)
           }
-          placeholder={valueKind === 'url'
-            ? nls.localize('rockit/multiEdit/enterUrl', 'Enter URL')
-            : nls.localize('rockit/multiEdit/enterValue', 'Enter value')}
+          placeholder={
+            valueKind === 'url'
+              ? nls.localize('rockit/multiEdit/enterUrl', 'Enter URL')
+              : nls.localize('rockit/multiEdit/enterValue', 'Enter value')
+          }
           type={valueKind === 'number' ? 'number' : valueKind === 'url' ? 'url' : 'text'}
         />
       )
@@ -3221,17 +3429,17 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
 
     const lookup = new Map<string, string>()
-    if (!this.schemaManagerService) {
+    if (!this.profileManagerService) {
       return lookup
     }
-    let schemas: SchemaInfo[] = []
+    let profiles: ProfileInfo[] = []
     try {
-      schemas = await this.schemaManagerService.loadAllSchemas()
+      profiles = await this.profileManagerService.loadAllProfiles()
     } catch (error) {
       console.warn('Failed to load schemas for multi-edit lookup.', error)
       return lookup
     }
-    for (const schema of schemas) {
+    for (const schema of profiles) {
       const conformsTo = schema.conformsTo?.trim()
       const reference = schema.aux?.reference?.trim()
       if (reference && conformsTo) {
@@ -3240,7 +3448,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       if (conformsTo) {
         lookup.set(conformsTo, conformsTo)
       }
-      const normalizedName = this.schemaManagerService.nameWithoutMetadataSuffix(
+      const normalizedName = this.profileManagerService.nameWithoutMetadataSuffix(
         schema.name,
       )
       const key = this.normalizeSchemaId(normalizedName ?? schema.name)
@@ -3294,12 +3502,13 @@ export class MultiEditDialog extends ReactDialog<string> {
   ): React.ReactNode {
     const searchText = this.operationSearch.get(row.id) ?? ''
     const allowCreate = row.operator === 'set' || row.operator === 'add'
-    const options = this.getEntityOptions(field, searchText, allowCreate)
+    const options = this.getEntityOptions(row, field, searchText, allowCreate)
     const isMulti = field.multiple
     return (
       <Select
         value={this.getEntityValueInputValue(row, field, isMulti)}
         onChange={(value) => {
+          this.operationSearch.delete(row.id)
           if (Array.isArray(value)) {
             this.setOperationValue(row.id, value.join(', '))
             return
@@ -3310,17 +3519,31 @@ export class MultiEditDialog extends ReactDialog<string> {
         onSearch={(value: string) => this.setOperationSearch(row.id, value)}
         filterOption={false}
         allowClear
-        placeholder={isMulti
-          ? nls.localize('rockit/multiEdit/selectOrCreateEntities', 'Select or create entities')
-          : nls.localize('rockit/multiEdit/selectOrCreateEntity', 'Select or create entity')}
+        placeholder={
+          isMulti
+            ? nls.localize(
+                'rockit/multiEdit/selectOrCreateEntities',
+                'Select or create entities',
+              )
+            : nls.localize(
+                'rockit/multiEdit/selectOrCreateEntity',
+                'Select or create entity',
+              )
+        }
         getPopupContainer={() => document.body}
         classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
         styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
         mode={isMulti ? 'multiple' : undefined}
+        maxTagCount={isMulti ? 'responsive' : undefined}
+        maxTagPlaceholder={(omittedValues) => (
+          <span className="multi-edit-entity-overflow-trigger">+{omittedValues.length}</span>
+        )}
         tagRender={(props) => this.renderEntityTag(props)}
         options={options}
         notFoundContent={
-          <span className="entities-overview-entity-no-data">{nls.localize('rockit/multiEdit/noMatches', 'No matches')}</span>
+          <span className="entities-overview-entity-no-data">
+            {nls.localize('rockit/multiEdit/noMatches', 'No matches')}
+          </span>
         }
       />
     )
@@ -3347,6 +3570,7 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected getEntityOptions(
+    row: OperationRow,
     field: FieldDefinition,
     searchText: string,
     allowCreate: boolean,
@@ -3362,7 +3586,10 @@ export class MultiEditDialog extends ReactDialog<string> {
     const existingOptionsWithLabel = candidates.map((entry) => {
       const id = String(entry['@id'])
       const name = this.getEntityDisplayName(entry)
-      const rawType = this.getEntityTypeName(entry) ?? field.entityTypes[0] ?? nls.localize('rockit/multiEdit/entity', 'Entity')
+      const rawType =
+        this.getEntityTypeName(entry) ??
+        field.entityTypes[0] ??
+        nls.localize('rockit/multiEdit/entity', 'Entity')
       const typeLabel = this.getEntityTypeLabel(rawType)
       return {
         value: id,
@@ -3381,6 +3608,64 @@ export class MultiEditDialog extends ReactDialog<string> {
         normalizedSearch.length === 0 ? true : option.rawLabel.includes(normalizedSearch),
       )
       .map(({ rawLabel, ...rest }) => rest)
+    const globalOptionsWithLabel = this.globalEntityDocuments
+      .filter((entry) => this.entityMatchesTypes(entry, field.entityTypes))
+      .map((entry) => {
+        const recordId = String(entry.globalRecordId ?? '')
+        const entityId = String(entry['@id'] ?? '')
+        const name = this.getEntityDisplayName(entry)
+        const rawType =
+          this.getEntityTypeName(entry) ??
+          field.entityTypes[0] ??
+          nls.localize('rockit/multiEdit/entity', 'Entity')
+        const typeLabel = this.getEntityTypeLabel(rawType)
+        return {
+          value: this.buildGlobalEntityToken(recordId, entityId),
+          label: (
+            <span className="entities-overview-entity-option">
+              <span className="entities-overview-entity-option-type">{typeLabel}</span>
+              <span className="entities-overview-entity-option-name">{name}</span>
+            </span>
+          ),
+          title: entityId,
+          rawLabel: String(name ?? '').toLowerCase(),
+        }
+      })
+      .filter((option) => Boolean(this.parseGlobalEntityToken(option.value)))
+    const globalOptions = globalOptionsWithLabel
+      .filter((option) =>
+        normalizedSearch.length === 0 ? true : option.rawLabel.includes(normalizedSearch),
+      )
+      .map(({ rawLabel, ...rest }) => rest)
+
+    const selectedValues = this.getEntityValueInputValue(row, field, true)
+    const selectedCreateOptions = (Array.isArray(selectedValues) ? selectedValues : [])
+      .map((value) => ({ value, token: this.parseCreateToken(value) }))
+      .filter(
+        (entry): entry is {
+          value: string
+          token: { entityType: string; label: string }
+        } => Boolean(entry.token),
+      )
+      .map(({ value, token }) => {
+        const typeLabel = this.getEntityTypeLabel(token.entityType)
+        const title = nls.localize(
+          'rockit/multiEdit/createNewTypedEntity',
+          'Create new {0}: {1}',
+          typeLabel,
+          token.label,
+        )
+        return {
+          value,
+          label: (
+            <span className="entities-overview-entity-create-option">
+              <span className="entities-overview-entity-create-plus">+</span>
+              <span>{title}</span>
+            </span>
+          ),
+          title,
+        }
+      })
 
     const groups: {
       label: React.ReactNode
@@ -3390,42 +3675,75 @@ export class MultiEditDialog extends ReactDialog<string> {
     groups.push({
       label: (
         <span className="entities-overview-entity-option-group">
-          {nls.localize('rockit/multiEdit/associateExisting', 'Associate an entity already defined in this crate')}
+          {nls.localize(
+            'rockit/multiEdit/associateExisting',
+            'Associate an entity already defined in this crate',
+          )}
         </span>
       ),
       options: existingOptions,
     })
 
+    const createOptions = [...selectedCreateOptions]
     if (allowCreate && normalizedSearch.length > 0) {
-      const hasExactMatch = existingOptionsWithLabel.some(
-        (option) => option.rawLabel === normalizedSearch,
-      )
+      const hasExactMatch =
+        existingOptionsWithLabel.some((option) => option.rawLabel === normalizedSearch) ||
+        globalOptionsWithLabel.some((option) => option.rawLabel === normalizedSearch)
       if (!hasExactMatch) {
-        const targetType = field.entityTypes[0] ?? nls.localize('rockit/multiEdit/entity', 'Entity')
+        const targetType =
+          field.entityTypes[0] ?? nls.localize('rockit/multiEdit/entity', 'Entity')
         const typeLabel = this.getEntityTypeLabel(targetType)
         const createLabel = searchText.trim()
-        groups.push({
-          label: (
-            <span className="entities-overview-entity-option-group">
-              {nls.localize('rockit/multiEdit/createNewEntity', 'Create new entity')}
-            </span>
-          ),
-          options: [
+        const createValue = this.buildCreateToken(targetType, createLabel)
+        if (!createOptions.some((option) => option.value === createValue)) {
+          createOptions.push(
             {
-              value: this.buildCreateToken(targetType, createLabel),
+              value: createValue,
               label: (
                 <span className="entities-overview-entity-create-option">
                   <span className="entities-overview-entity-create-plus">+</span>
                   <span>
-                    {nls.localize('rockit/multiEdit/createNewTypedEntity', 'Create new {0}: {1}', typeLabel, createLabel)}
+                    {nls.localize(
+                      'rockit/multiEdit/createNewTypedEntity',
+                      'Create new {0}: {1}',
+                      typeLabel,
+                      createLabel,
+                    )}
                   </span>
                 </span>
               ),
-              title: nls.localize('rockit/multiEdit/createNewTypedEntity', 'Create new {0}: {1}', typeLabel, createLabel),
+              title: nls.localize(
+                'rockit/multiEdit/createNewTypedEntity',
+                'Create new {0}: {1}',
+                typeLabel,
+                createLabel,
+              ),
             },
-          ],
-        })
+          )
+        }
       }
+    }
+
+    if (createOptions.length > 0) {
+      groups.push({
+        label: (
+          <span className="entities-overview-entity-option-group">
+            {nls.localize('rockit/multiEdit/createNewEntity', 'Create new entity')}
+          </span>
+        ),
+        options: createOptions,
+      })
+    }
+
+    if (globalOptions.length > 0) {
+      groups.push({
+        label: (
+          <span className="entities-overview-entity-option-group">
+            {nls.localize('rockit/multiEdit/globalEntities', 'Global entities')}
+          </span>
+        ),
+        options: globalOptions,
+      })
     }
 
     return groups
@@ -3517,6 +3835,27 @@ export class MultiEditDialog extends ReactDialog<string> {
     return value.startsWith('__create__::')
   }
 
+  /** Encodes a global-library selection without confusing it with a crate entity ID. */
+  protected buildGlobalEntityToken(recordId: string, entityId: string): string {
+    return `__global__::${encodeURIComponent(recordId)}::${encodeURIComponent(entityId)}`
+  }
+
+  /** Decodes a global-library selection token. */
+  protected parseGlobalEntityToken(
+    token: string,
+  ): { recordId: string; entityId: string } | undefined {
+    if (!token.startsWith('__global__::')) {
+      return undefined
+    }
+    const parts = token.split('::')
+    if (parts.length < 3) {
+      return undefined
+    }
+    const recordId = decodeURIComponent(parts[1] ?? '')
+    const entityId = decodeURIComponent(parts.slice(2).join('::'))
+    return recordId && entityId ? { recordId, entityId } : undefined
+  }
+
   /**
    * Resolves relation value to an existing or newly created entity reference.
    * @param field Field definition.
@@ -3530,12 +3869,43 @@ export class MultiEditDialog extends ReactDialog<string> {
     rawValue: string,
     graph: Record<string, any>[],
   ): unknown {
+    const globalToken = this.parseGlobalEntityToken(rawValue)
+    if (globalToken) {
+      return { '@id': this.addGlobalEntityToGraph(globalToken, graph) }
+    }
     const createToken = this.parseCreateToken(rawValue)
     if (!createToken) {
       return { '@id': rawValue }
     }
     const createdId = this.createEntityFromToken(field, createToken, graph)
     return { '@id': createdId }
+  }
+
+  /** Copies a selected global entity into the working graph and records its mapping. */
+  protected addGlobalEntityToGraph(
+    token: { recordId: string; entityId: string },
+    graph: Record<string, any>[],
+  ): string {
+    const existing = graph.find(
+      (entry) => String(entry?.['@id'] ?? '') === token.entityId,
+    )
+    if (!existing) {
+      const source = this.globalEntityDocuments.find(
+        (entry) => String(entry.globalRecordId ?? '') === token.recordId,
+      )
+      if (!source) {
+        throw new Error(
+          nls.localize(
+            'rockit/multiEdit/globalEntityUnavailable',
+            'The selected global entity is no longer available.',
+          ),
+        )
+      }
+      const { globalRecordId: _globalRecordId, ...entity } = structuredClone(source)
+      graph.push(entity)
+    }
+    this.pendingGlobalEntityMappings.set(token.recordId, token.entityId)
+    return token.entityId
   }
 
   protected resolveEntityValues(
@@ -3564,9 +3934,16 @@ export class MultiEditDialog extends ReactDialog<string> {
     const stringValue = String(value ?? '')
     const isCreate = this.isCreateToken(stringValue)
     const createToken = isCreate ? this.parseCreateToken(stringValue) : undefined
-    const renderedLabel = createToken
-      ? `Create new ${createToken.entityType}: ${createToken.label}`
-      : label
+    const renderedLabel = createToken ? (
+      <span className="entities-overview-entity-option">
+        <span className="entities-overview-entity-option-type">
+          {this.getEntityTypeLabel(createToken.entityType)}
+        </span>
+        <span className="entities-overview-entity-option-name">{createToken.label}</span>
+      </span>
+    ) : (
+      label
+    )
     return (
       <span
         className={`entities-overview-entity-tag${isCreate ? ' is-create' : ''}`}
@@ -3750,7 +4127,10 @@ export class MultiEditDialog extends ReactDialog<string> {
               <Select
                 value={row.fieldKey}
                 onChange={(value) => this.setOperationField(row.id, String(value))}
-                placeholder={nls.localize('rockit/multiEdit/selectProperty', 'Select property')}
+                placeholder={nls.localize(
+                  'rockit/multiEdit/selectProperty',
+                  'Select property',
+                )}
                 getPopupContainer={() => document.body}
                 classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
                 styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
@@ -3817,25 +4197,32 @@ export class MultiEditDialog extends ReactDialog<string> {
           showIcon
           message={
             hasErrors
-              ? nls.localize('rockit/multiEdit/finishedWithWarnings', 'Multi-edit finished with warnings.')
-              : nls.localize('rockit/multiEdit/finishedSuccessfully', 'Multi-edit finished successfully.')
+              ? nls.localize(
+                  'rockit/multiEdit/finishedWithWarnings',
+                  'Multi-edit finished with warnings.',
+                )
+              : nls.localize(
+                  'rockit/multiEdit/finishedSuccessfully',
+                  'Multi-edit finished successfully.',
+                )
           }
           description={
             <div>
               <div>
-                {nls.localize('rockit/multiEdit/processedEntities', 'Processed entities')}:{' '}
-                <strong>{this.executionSummary.processedEntities}</strong>
+                {nls.localize('rockit/multiEdit/processedEntities', 'Processed entities')}
+                : <strong>{this.executionSummary.processedEntities}</strong>
               </div>
               <div>
-                {nls.localize('rockit/multiEdit/updatedEntities', 'Updated entities')}: <strong>{this.executionSummary.updatedEntities}</strong>
+                {nls.localize('rockit/multiEdit/updatedEntities', 'Updated entities')}:{' '}
+                <strong>{this.executionSummary.updatedEntities}</strong>
               </div>
               <div>
-                {nls.localize('rockit/multiEdit/appliedOperations', 'Applied operations')}:{' '}
-                <strong>{this.executionSummary.appliedOperations}</strong>
+                {nls.localize('rockit/multiEdit/appliedOperations', 'Applied operations')}
+                : <strong>{this.executionSummary.appliedOperations}</strong>
               </div>
               <div>
-                {nls.localize('rockit/multiEdit/skippedOperations', 'Skipped operations')}:{' '}
-                <strong>{this.executionSummary.skippedOperations}</strong>
+                {nls.localize('rockit/multiEdit/skippedOperations', 'Skipped operations')}
+                : <strong>{this.executionSummary.skippedOperations}</strong>
               </div>
             </div>
           }
@@ -3881,7 +4268,11 @@ export class MultiEditDialog extends ReactDialog<string> {
       <div className="entities-overview-edit-modal-body">
         <div className="entities-overview-edit-modal-header">
           <p className="entities-overview-edit-modal-title">
-            {nls.localize('rockit/multiEdit/entitiesSelected', '{0} entities selected', this.entityIds.length)}
+            {nls.localize(
+              'rockit/multiEdit/entitiesSelected',
+              '{0} entities selected',
+              this.entityIds.length,
+            )}
           </p>
           <Button onClick={this.toggleEntityList}>
             {this.showEntityList
@@ -3903,12 +4294,20 @@ export class MultiEditDialog extends ReactDialog<string> {
             return (
               <div className="entities-overview-edit-modal-entity-window">
                 <div className="entities-overview-edit-modal-entity-window-header">
-                  <span>{nls.localize('rockit/multiEdit/selectedEntities', 'Selected entities')}</span>
+                  <span>
+                    {nls.localize(
+                      'rockit/multiEdit/selectedEntities',
+                      'Selected entities',
+                    )}
+                  </span>
                   <button
                     type="button"
                     className="entities-overview-edit-modal-entity-window-close"
                     onClick={this.toggleEntityList}
-                    aria-label={nls.localize('rockit/multiEdit/closeEntityList', 'Close entity list')}
+                    aria-label={nls.localize(
+                      'rockit/multiEdit/closeEntityList',
+                      'Close entity list',
+                    )}
                   >
                     <span className="codicon codicon-close" aria-hidden="true" />
                   </button>
@@ -3920,7 +4319,10 @@ export class MultiEditDialog extends ReactDialog<string> {
                       this.entitySearch = event.target.value
                       this.update()
                     }}
-                    placeholder={nls.localize('rockit/multiEdit/searchEntityNames', 'Search entity names')}
+                    placeholder={nls.localize(
+                      'rockit/multiEdit/searchEntityNames',
+                      'Search entity names',
+                    )}
                     allowClear
                   />
                   <span className="entities-overview-edit-modal-entity-window-count">
@@ -3960,7 +4362,9 @@ export class MultiEditDialog extends ReactDialog<string> {
           })()}
 
         <div className="entities-overview-edit-modal-section">
-          <span className="entities-overview-edit-modal-label">{nls.localize('rockit/multiEdit/selectSchemas', 'Select schemas')}</span>
+          <span className="entities-overview-edit-modal-label">
+            {nls.localize('rockit/multiEdit/selectSchemas', 'Select profiles')}
+          </span>
           <Select
             mode="multiple"
             value={Array.from(this.selectedSchemaIds.values())}
@@ -3969,7 +4373,7 @@ export class MultiEditDialog extends ReactDialog<string> {
               label: schema.label,
             }))}
             onChange={this.onSchemaSelectionChange}
-            placeholder={nls.localize('rockit/multiEdit/selectSchemas', 'Select schemas')}
+            placeholder={nls.localize('rockit/multiEdit/selectSchemas', 'Select profiles')}
             getPopupContainer={() => document.body}
             classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
             styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
@@ -3978,7 +4382,10 @@ export class MultiEditDialog extends ReactDialog<string> {
           />
           <div className="entities-overview-edit-modal-schema-org-toggle">
             <span className="entities-overview-edit-modal-label">
-              {nls.localize('rockit/multiEdit/enableOtherOntologies', 'Enable properties from other ontologies')}
+              {nls.localize(
+                'rockit/multiEdit/enableOtherOntologies',
+                'Enable properties from other ontologies',
+              )}
             </span>
             <Switch checked={this.schemaOrgEnabled} onChange={this.toggleSchemaOrg} />
           </div>
@@ -3986,7 +4393,9 @@ export class MultiEditDialog extends ReactDialog<string> {
 
         <div className="entities-overview-edit-modal-section">
           <div className="entities-overview-edit-modal-row-header">
-            <span className="entities-overview-edit-modal-label">{nls.localize('rockit/multiEdit/editOperations', 'Edit operations')}</span>
+            <span className="entities-overview-edit-modal-label">
+              {nls.localize('rockit/multiEdit/editOperations', 'Edit operations')}
+            </span>
             <Button
               onClick={this.addOperation}
               type="dashed"
@@ -4001,8 +4410,14 @@ export class MultiEditDialog extends ReactDialog<string> {
               showIcon
               message={
                 this.schemaOrgEnabled
-                  ? nls.localize('rockit/multiEdit/noPropertiesWithOntologies', 'No properties are available for the selected schemas or other ontologies.')
-                  : nls.localize('rockit/multiEdit/noProperties', 'No properties are available for the selected schemas.')
+                  ? nls.localize(
+                      'rockit/multiEdit/noPropertiesWithOntologies',
+                      'No properties are available for the selected profiles or other ontologies.',
+                    )
+                  : nls.localize(
+                      'rockit/multiEdit/noProperties',
+                      'No properties are available for the selected profiles.',
+                    )
               }
             />
           ) : (
@@ -4019,8 +4434,18 @@ export class MultiEditDialog extends ReactDialog<string> {
             onClose={this.dismissSetupWarning}
             description={
               <ol className="entities-overview-edit-modal-errors">
-                <li>{nls.localize('rockit/multiEdit/setupSchemaInstruction', 'Select a schema or enable properties from other ontologies.')}</li>
-                <li>{nls.localize('rockit/multiEdit/setupOperationInstruction', 'Select a property, choose an operator, and enter a value.')}</li>
+                <li>
+                  {nls.localize(
+                    'rockit/multiEdit/setupSchemaInstruction',
+                    'Select a profile or enable properties from other ontologies.',
+                  )}
+                </li>
+                <li>
+                  {nls.localize(
+                    'rockit/multiEdit/setupOperationInstruction',
+                    'Select a property, choose an operator, and enter a value.',
+                  )}
+                </li>
               </ol>
             }
           />

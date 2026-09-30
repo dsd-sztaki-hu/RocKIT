@@ -159,7 +159,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
           />
         </div>
         <div className="entities-overview-edit-modal-section">
-          <span className="entities-overview-edit-modal-label">{nls.localize('rockit/entitiesOverview/selectSchemas', 'Select schemas')}</span>
+          <span className="entities-overview-edit-modal-label">{nls.localize('rockit/entitiesOverview/selectSchemas', 'Select profiles')}</span>
           <Select
             mode="multiple"
             value={this.draft.selectedSchemaIds}
@@ -168,7 +168,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
               label: schema.label,
             }))}
             onChange={(values) => this.onSchemaSelectionChange(values as string[])}
-            placeholder={nls.localize('rockit/entitiesOverview/selectSchemas', 'Select schemas')}
+            placeholder={nls.localize('rockit/entitiesOverview/selectSchemas', 'Select profiles')}
             getPopupContainer={() => document.body}
             classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
             styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
@@ -192,8 +192,8 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
             showIcon
             message={
               this.draft.schemaOrgEnabled
-                ? nls.localize('rockit/entitiesOverview/noPropertiesWithOntologies', 'No properties are available for the selected schemas or other ontologies.')
-                : nls.localize('rockit/entitiesOverview/noProperties', 'No properties are available for the selected schemas.')
+                ? nls.localize('rockit/entitiesOverview/noPropertiesWithOntologies', 'No properties are available for the selected profiles or other ontologies.')
+                : nls.localize('rockit/entitiesOverview/noProperties', 'No properties are available for the selected profiles.')
             }
           />
         ) : (
@@ -289,7 +289,7 @@ export class AdvancedFiltersDialog extends ReactDialog<AdvancedFilterState> {
     ) {
       fieldOptions.unshift({
         value: selectedField.key,
-        label: nls.localize('rockit/entitiesOverview/hiddenBySchemaSelection', '{0} - {1} (hidden by schema selection)', selectedField.label, selectedField.schemaLabel),
+        label: nls.localize('rockit/entitiesOverview/hiddenBySchemaSelection', '{0} - {1} (hidden by profile selection)', selectedField.label, selectedField.schemaLabel),
         title: selectedField.help ?? selectedField.label,
       })
     }

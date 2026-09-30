@@ -34,7 +34,7 @@
     }
   },
   "provenance": {
-    "arpAndRoCrate": "Runtime schemas from ROCKIT_ROOT_PATH/metadata-schemas on 2026-07-15.",
+    "arpAndRoCrate": "Runtime profiles from ROCKIT_ROOT_PATH/metadata-profiles on 2026-07-15.",
     "dataverse": "Cached Dataverse metadata blocks returned by /api/metadatablocks?returnDatasetFieldTypes=true.",
     "zenodoDocumentation": "https://developers.zenodo.org/#deposit-metadata",
     "zenodoUpdateEndpoint": "https://developers.zenodo.org/#update-deposition",
@@ -312,7 +312,7 @@
           "version": "1",
           "cedar": {
             "source": {
-              "path": "metadata-schemas/cedar/3d_objects_metadata_v0.0.1_remote_80560ef7.json",
+              "path": "metadata-profiles/cedar/3d_objects_metadata_v0.0.1_remote_80560ef7.json",
               "sha256": "e9657e196444d31e110699dcdfc99fc974573868d306af7cbdd0515e4413277e"
             },
             "schema": {
@@ -2345,7 +2345,7 @@
           },
           "roCrate": {
             "source": {
-              "path": "metadata-schemas/ro-crate/3d_objects_metadata_v0.0.1_remote_80560ef7.json",
+              "path": "metadata-profiles/ro-crate/3d_objects_metadata_v0.0.1_remote_80560ef7.json",
               "sha256": "b2e7414e82e434997e2a5242fd7dc2e350430e5d96570eefaa580eece928b29d"
             },
             "profile": {
@@ -2605,7 +2605,7 @@
           "version": "1",
           "cedar": {
             "source": {
-              "path": "metadata-schemas/cedar/astronomy_and_astrophysics_metadata_v0.0.1_remote_6136b83d.json",
+              "path": "metadata-profiles/cedar/astronomy_and_astrophysics_metadata_v0.0.1_remote_6136b83d.json",
               "sha256": "d1cd013613ed716c02ff953552713347e6a46a5e47e17a9a5c0735a33acc7585"
             },
             "schema": {
@@ -5729,7 +5729,7 @@
           },
           "roCrate": {
             "source": {
-              "path": "metadata-schemas/ro-crate/astronomy_and_astrophysics_metadata_v0.0.1_remote_6136b83d.json",
+              "path": "metadata-profiles/ro-crate/astronomy_and_astrophysics_metadata_v0.0.1_remote_6136b83d.json",
               "sha256": "07678e8d192914410c3486ad748a395409500c459740ab675a8a440bf4c3ebd3"
             },
             "profile": {
@@ -6175,7 +6175,7 @@
           "version": "1",
           "cedar": {
             "source": {
-              "path": "metadata-schemas/cedar/life_sciences_metadata_v0.0.1_remote_a3406fef.json",
+              "path": "metadata-profiles/cedar/life_sciences_metadata_v0.0.1_remote_a3406fef.json",
               "sha256": "21e21c3018eca7b6e0e7997df230b94ce7efe3a1c946b50046dbc7e928ef3685"
             },
             "schema": {
@@ -8775,7 +8775,7 @@
           },
           "roCrate": {
             "source": {
-              "path": "metadata-schemas/ro-crate/life_sciences_metadata_v0.0.1_remote_a3406fef.json",
+              "path": "metadata-profiles/ro-crate/life_sciences_metadata_v0.0.1_remote_a3406fef.json",
               "sha256": "c449822d3c0751aadce127b210be58ba7a0e369050377fa72f2b8384e6a20daf"
             },
             "profile": {
@@ -9261,7 +9261,7 @@
           "version": "1",
           "cedar": {
             "source": {
-              "path": "metadata-schemas/cedar/citation_metadata_v0.0.1_remote_dd754b3d.json",
+              "path": "metadata-profiles/cedar/citation_metadata_v0.0.1_remote_dd754b3d.json",
               "sha256": "0019044cf6817f2523649c543f717c591f33dd830b0c8944918f1e61805b0ec6"
             },
             "schema": {
@@ -42800,7 +42800,7 @@
           },
           "roCrate": {
             "source": {
-              "path": "metadata-schemas/ro-crate/citation_metadata_v0.0.1_remote_dd754b3d.json",
+              "path": "metadata-profiles/ro-crate/citation_metadata_v0.0.1_remote_dd754b3d.json",
               "sha256": "5aee29e4e87dac82fc7020450d1fd057fa13b7c8b7de7297150bbb84d0f9b08f"
             },
             "profile": {
@@ -52051,7 +52051,7 @@
           "version": "1",
           "cedar": {
             "source": {
-              "path": "metadata-schemas/cedar/geospatial_metadata_v0.0.1_remote_321c2aae.json",
+              "path": "metadata-profiles/cedar/geospatial_metadata_v0.0.1_remote_321c2aae.json",
               "sha256": "bbfd2f5b48bb18758ca2fae5a94b7d11febad14bbe532d215632020633e8c44e"
             },
             "schema": {
@@ -54531,7 +54531,7 @@
           },
           "roCrate": {
             "source": {
-              "path": "metadata-schemas/ro-crate/geospatial_metadata_v0.0.1_remote_321c2aae.json",
+              "path": "metadata-profiles/ro-crate/geospatial_metadata_v0.0.1_remote_321c2aae.json",
               "sha256": "eac1714763a263dc86ec16ab6baedbb7d09e8825c371634a8952df2ab60da884"
             },
             "profile": {
@@ -54994,7 +54994,7 @@
           "version": "1",
           "cedar": {
             "source": {
-              "path": "metadata-schemas/cedar/journal_metadata_v0.0.1_remote_e81aaed0.json",
+              "path": "metadata-profiles/cedar/journal_metadata_v0.0.1_remote_e81aaed0.json",
               "sha256": "aa8565b6ad32a9bd35fbb27e7b570072e64d4dc9dd5dfba41702fe267d88e5c5"
             },
             "schema": {
@@ -55956,7 +55956,7 @@
           },
           "roCrate": {
             "source": {
-              "path": "metadata-schemas/ro-crate/journal_metadata_v0.0.1_remote_e81aaed0.json",
+              "path": "metadata-profiles/ro-crate/journal_metadata_v0.0.1_remote_e81aaed0.json",
               "sha256": "ebca42039310e930c67a0b18c9fd422bfbd9c99526298b5a8e25e41274471834"
             },
             "profile": {
@@ -56097,7 +56097,7 @@
           "version": "1",
           "cedar": {
             "source": {
-              "path": "metadata-schemas/cedar/social_science_and_humanities_metadata_v0.0.1_remote_c15584d5.json",
+              "path": "metadata-profiles/cedar/social_science_and_humanities_metadata_v0.0.1_remote_c15584d5.json",
               "sha256": "306539f8b249fa345f3a567561ea66c09be74ab8318fe6117abd1fdf0c2fe538"
             },
             "schema": {
@@ -59197,7 +59197,7 @@
           },
           "roCrate": {
             "source": {
-              "path": "metadata-schemas/ro-crate/social_science_and_humanities_metadata_v0.0.1_remote_c15584d5.json",
+              "path": "metadata-profiles/ro-crate/social_science_and_humanities_metadata_v0.0.1_remote_c15584d5.json",
               "sha256": "91e9ef0e7c476ec8ee621436a3e67fdba612cd9ad886b323d1c8f4e509134764"
             },
             "profile": {

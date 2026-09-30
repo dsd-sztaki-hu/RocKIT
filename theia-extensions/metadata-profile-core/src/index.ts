@@ -14,9 +14,9 @@ import {
   deriveResourceBaseUrl,
 } from 'rockit-common/lib/common/schema-url-resolution'
 
-const DEFAULT_INDEX_FILENAME = 'metadata-schema-index.json'
-const DEFAULT_REMOTE_PROVIDER_CONFIG_FILENAME = 'remote-schema-providers.json'
-const DEFAULT_REMOTE_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteSchemaProvider'
+const DEFAULT_INDEX_FILENAME = 'metadata-profile-index.json'
+const DEFAULT_REMOTE_PROVIDER_CONFIG_FILENAME = 'remote-profile-providers.json'
+const DEFAULT_REMOTE_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteProfileProvider'
 const DEFAULT_ARP_PROD_PREFIX = 'https://repo.schema.researchdata.hu/templates/'
 const DEFAULT_ARP_DEV_PREFIX = 'https://repo.cedardev.dsd.sztaki.hu/templates/'
 const DEFAULT_ARP_W3ID_PROD = 'https://w3id.org/arp/schema/'
@@ -90,7 +90,7 @@ export type CedarProviderSaveResult = CedarProviderListResult & {
   saved: CedarProvider
 }
 
-export type RemoteSchemaSummary = {
+export type RemoteTemplateSummary = {
   providerId: string
   providerTitle: string
   id: string
@@ -101,6 +101,7 @@ export type RemoteSchemaSummary = {
   conformsTo: string
   alreadyImported: boolean
 }
+
 
 export type RemoteCedarResource = {
   id: string
@@ -144,13 +145,12 @@ function readConfiguredEnv(...names: string[]): string | undefined {
 /**
  * Resolves the shared RocKIT profile root.
  *
- * The AROMA_* names remain accepted as legacy aliases for existing
- * installations, but ROCKIT_* is canonical and the default is ~/.rockit.
+ * ROCKIT_ROOT_PATH is canonical and the default is ~/.rockit.
  */
 export function resolveProfileRootPath(rootPath?: string): string {
   const configured =
     rootPath?.trim() ||
-    readConfiguredEnv('ROCKIT_ROOT_PATH', 'AROMA_ROOT_PATH')
+    readConfiguredEnv('ROCKIT_ROOT_PATH')
   if (configured && configured.trim() !== '') {
     return path.resolve(configured)
   }
@@ -159,10 +159,7 @@ export function resolveProfileRootPath(rootPath?: string): string {
 
 export function resolveProfileStorage(rootPath?: string): MetadataProfileStorage {
   const root = resolveProfileRootPath(rootPath)
-  const indexFile = readConfiguredEnv(
-    'ROCKIT_METADATA_SCHEMA_INDEX_FILE',
-    'AROMA_METADATA_SCHEMA_INDEX_FILE',
-  )
+  const indexFile = readConfiguredEnv('ROCKIT_METADATA_PROFILE_INDEX_FILE')
   const indexPath =
     indexFile && indexFile.trim() !== ''
       ? path.isAbsolute(indexFile)
@@ -171,8 +168,8 @@ export function resolveProfileStorage(rootPath?: string): MetadataProfileStorage
       : path.join(root, DEFAULT_INDEX_FILENAME)
   return {
     rootPath: root,
-    cedarDir: path.join(root, 'metadata-schemas', 'cedar'),
-    roCrateDir: path.join(root, 'metadata-schemas', 'ro-crate'),
+    cedarDir: path.join(root, 'metadata-profiles', 'cedar'),
+    roCrateDir: path.join(root, 'metadata-profiles', 'ro-crate'),
     indexPath,
   }
 }
@@ -284,9 +281,9 @@ export async function importCedarTemplateContent(args: {
   const hash = createShortHash(`${schemaId}:${source}`)
   const safeName = schemaName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
   const fileName = `${safeName || 'cedar_schema'}_v${schemaVersion}_${source}_${hash}.json`
-  const sourcePath = `metadata-schemas/cedar/${fileName}`
-  const convertedPath = `metadata-schemas/ro-crate/${fileName}`
-  const hungarianConvertedPath = `metadata-schemas/ro-crate/hu/${fileName}`
+  const sourcePath = `metadata-profiles/cedar/${fileName}`
+  const convertedPath = `metadata-profiles/ro-crate/${fileName}`
+  const hungarianConvertedPath = `metadata-profiles/ro-crate/hu/${fileName}`
   const absoluteSourcePath = path.join(storage.rootPath, sourcePath)
   const absoluteConvertedPath = path.join(storage.rootPath, convertedPath)
   const absoluteHungarianConvertedPath = path.join(
@@ -391,13 +388,13 @@ export async function resolveMissingConformsToUrls(args: {
   return { storage, imported, unresolvedUrls, warnings }
 }
 
-export async function listRemoteSchemas(
+export async function listRemoteTemplates(
   provider: CedarProvider = defaultCedarProvider(),
   query?: string,
   rootPath?: string,
 ): Promise<{
   provider: CedarProvider
-  schemas: RemoteSchemaSummary[]
+  templates: RemoteTemplateSummary[]
   storage: MetadataProfileStorage
 }> {
   const normalizedProvider = normalizeProvider(provider)
@@ -409,7 +406,7 @@ export async function listRemoteSchemas(
     : []
   const local = listLocalProfiles(rootPath)
   const needle = query?.trim().toLowerCase()
-  const schemas = resources
+  const templates = resources
     .filter((item): item is Record<string, unknown> => {
       return Boolean(item) && typeof item === 'object' && !Array.isArray(item)
     })
@@ -425,7 +422,11 @@ export async function listRemoteSchemas(
         item.conformsTo.toLowerCase().includes(needle)
       )
     })
-  return { provider: normalizedProvider, schemas, storage: local.storage }
+  return {
+    provider: normalizedProvider,
+    templates,
+    storage: local.storage,
+  }
 }
 
 export async function getCedarPublicFolderId(
@@ -479,7 +480,7 @@ export async function listCedarFolder(args: {
   }
 }
 
-export async function importRemoteSchema(args: {
+export async function importRemoteTemplate(args: {
   provider?: CedarProvider
   templateIdOrUrl: string
   rootPath?: string
@@ -493,6 +494,7 @@ export async function importRemoteSchema(args: {
     conformsTo: args.conformsTo,
   })
 }
+
 
 export async function deleteMetadataProfile(args: {
   id: string
@@ -543,16 +545,10 @@ export function defaultCedarProviders(): CedarProvider[] {
 export async function loadCedarProviders(rootPath?: string): Promise<CedarProviderListResult> {
   const storage = ensureProfileStorage(rootPath)
   const configFileName =
-    readConfiguredEnv(
-      'ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
-      'AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
-    ) ||
+    readConfiguredEnv('ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE') ||
     DEFAULT_REMOTE_PROVIDER_CONFIG_FILENAME
   const keytarService =
-    readConfiguredEnv(
-      'ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE',
-      'AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE',
-    ) ||
+    readConfiguredEnv('ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE') ||
     DEFAULT_REMOTE_PROVIDER_KEYTAR_SERVICE
   const configPath = path.isAbsolute(configFileName)
     ? configFileName
@@ -714,15 +710,6 @@ async function fetchTextWithAuthFallback(
       provider ? normalizeProvider(provider) : undefined,
     ),
   )
-  logSchemaResolve('start', {
-    inputUrl,
-    providers: rankSchemaResolveProviders(
-      inputUrl,
-      configuredProviders,
-      provider ? normalizeProvider(provider) : undefined,
-    ).map((candidateProvider) => schemaResolveProviderLabel(candidateProvider)),
-  })
-
   let lastError: unknown
   while (queue.length > 0) {
     const entry = queue.shift()!
@@ -731,17 +718,11 @@ async function fetchTextWithAuthFallback(
       continue
     }
     attempted.add(attemptKey)
-    logSchemaResolve('attempt', describeSchemaResolveEntry(entry))
-
     try {
       const response = await fetchWithOptionalAuth(entry.candidate, entry.provider)
       const content = await response.text()
       try {
         JSON.parse(content)
-        logSchemaResolve('success', {
-          ...describeSchemaResolveEntry(entry),
-          finalUrl: response.url,
-        })
         return { content, finalUrl: response.url }
       } catch {
         lastError = new Error(
@@ -753,19 +734,8 @@ async function fetchTextWithAuthFallback(
           entry.provider,
         )
         enqueueRedirectCandidates(queue, attempted, response.url, redirectProviders)
-        logSchemaResolve('non-json', {
-          ...describeSchemaResolveEntry(entry),
-          finalUrl: response.url,
-          nextProviders: redirectProviders.map((candidateProvider) =>
-            schemaResolveProviderLabel(candidateProvider),
-          ),
-        })
       }
     } catch (error) {
-      logSchemaResolve('error', {
-        ...describeSchemaResolveEntry(entry),
-        error: error instanceof Error ? error.message : String(error),
-      })
       lastError = error
     }
   }
@@ -862,32 +832,6 @@ function schemaResolveProviderKey(provider: CedarProvider): string {
     provider.resourceBaseUrl ||
     'provider'
   )
-}
-
-function schemaResolveProviderLabel(provider: CedarProvider): string {
-  return provider.title || provider.id || provider.domainBase || provider.baseUrl || 'provider'
-}
-
-function describeSchemaResolveEntry(entry: {
-  candidate: string
-  provider: CedarProvider
-}): Record<string, string> {
-  return {
-    candidate: entry.candidate,
-    provider: schemaResolveProviderLabel(entry.provider),
-    proxyUrl:
-      effectiveProviderAccessMode(entry.provider) === 'dataverseProxy'
-        ? effectiveCedarFetchUrl(entry.candidate, entry.provider)
-        : '',
-  }
-}
-
-function logSchemaResolve(message: string, details?: unknown): void {
-  if (details === undefined) {
-    console.info('[SchemaResolve]', message)
-    return
-  }
-  console.info('[SchemaResolve]', message, details)
 }
 
 async function fetchJsonWithAuthFallback(url: string, provider: CedarProvider): Promise<unknown> {
@@ -1051,10 +995,7 @@ async function writeConfiguredCedarProviders(
 
 function ensureDefaultCedarProviderConfig(rootPath: string): string {
   const configFileName =
-    readConfiguredEnv(
-      'ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
-      'AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE',
-    ) ||
+    readConfiguredEnv('ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE') ||
     DEFAULT_REMOTE_PROVIDER_CONFIG_FILENAME
   const configPath = path.isAbsolute(configFileName)
     ? configFileName
@@ -1242,7 +1183,7 @@ function remoteSchemaSummary(
   item: Record<string, unknown>,
   provider: CedarProvider,
   localProfiles: MetadataProfileInfo[],
-): RemoteSchemaSummary {
+): RemoteTemplateSummary {
   const id = readString(item['@id']) ?? readString(item.id) ?? ''
   const name = readString(item['schema:name']) ?? readString(item.name) ?? id
   const version = readString(item['pav:version']) ?? readString(item.version)

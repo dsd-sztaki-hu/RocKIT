@@ -5,7 +5,7 @@
 // ******************************************************************************************
 
 jest.mock('rockit-common/lib/browser', () => ({
-  MetadataSchemaManager: Symbol('MetadataSchemaManager'),
+  MetadataProfileManager: Symbol('MetadataProfileManager'),
   SchemaValidatorManager: Symbol('SchemaValidatorManager'),
 }))
 

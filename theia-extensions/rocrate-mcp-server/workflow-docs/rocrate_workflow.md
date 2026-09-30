@@ -64,9 +64,10 @@ the user open the crate in the online AROMA SPA for visual inspection and manual
 refinement.
 
 Exception: if this workflow doc includes a "Current Session Context" section
-stating that AROMA is already open for this session, do not suggest opening
-AROMA and do not call `open_aroma_for_local_file` unless the user explicitly
-asks.
+stating that a RO-Crate editor is already open for this session, do not suggest
+opening AROMA and do not call `open_aroma_for_local_file` unless the user
+explicitly asks. Standalone agents outside RocKIT can still open the crate in
+AROMA after edits.
 
 When generating the review URL:
 
@@ -81,7 +82,7 @@ When generating the review URL:
 
 1. Try to solve the user's task in one coherent pass.
 2. If you need a decision from the user, provide a short menu they can choose from.
-3. For RO-Crate metadata authoring, always check and offer schemas/profiles
+3. For RO-Crate metadata authoring, always check and offer metadata profiles
    because they guide FAIR metadata creation for both users and agents.
 4. If the crate already contains active `conformsTo` profile URLs, resolve and
    download those profiles before proceeding with planning or edits. In local
@@ -91,8 +92,8 @@ When generating the review URL:
    metadata work until it is addressed.
 5. When no active `conformsTo` profile exists, offer available local metadata
    profiles first, then browse configured remote CEDAR providers with
-   `list_remote_schema_tree` and offer unimported leaf templates in a simplified
+   `list_remote_template_tree` and offer unimported leaf templates in a simplified
    folder tree. After the user selects a remote template, import it with
-   `import_well_known_schema` using `templateIdOrUrl=<selected templateId>`,
+   `import_remote_template` using `templateIdOrUrl=<selected templateId>`,
    then associate the returned `profile.conformsTo` with the crate using
    `update_profile_conforms_to(write=true)`.

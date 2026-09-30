@@ -36,7 +36,7 @@ export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
   {
     commandId: 'rocrate.openEditor',
     labelKey: 'rockit/menu/roCrateEditor',
-    label: 'RO-Crate Editor',
+    label: 'Metadata Editor',
     order: 'a03',
   },
   {
@@ -52,9 +52,9 @@ export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
     order: 'a05',
   },
   {
-    commandId: 'metadata-schema-manager:open',
-    labelKey: 'rockit/menu/metadataSchemaManager',
-    label: 'Metadata Schema Manager',
+    commandId: 'metadata-profile-manager:open',
+    labelKey: 'rockit/menu/metadataProfileManager',
+    label: 'Metadata Profile Manager',
     order: 'a06',
   },
   {
@@ -64,16 +64,22 @@ export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
     order: 'a07',
   },
   {
+    commandId: 'global-entity-library:open',
+    labelKey: 'rockit/menu/globalEntityLibrary',
+    label: 'Global Entity Library',
+    order: 'a08',
+  },
+  {
     commandId: 'RO-Crate Preview',
     labelKey: 'rockit/menu/roCratePreview',
-    label: 'RO-Crate Preview',
-    order: 'a08',
+    label: 'Preview',
+    order: 'a09',
   },
   {
     commandId: 'RemoteRoCrateConversion.command',
     labelKey: 'rockit/menu/remoteToLocalConversion',
     label: 'Remote to Local Conversion',
-    order: 'a09',
+    order: 'a10',
   },
 ]
 
@@ -85,8 +91,8 @@ export class ApplicationRoCrateMenuContribution implements MenuContribution {
       nls.localize('rockit/menu/roCrate', 'RO-Crate'),
     )
     this.registerMenuGroup(menus, RO_CRATE_WIDGETS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(0, 5))
-    this.registerMenuGroup(menus, RO_CRATE_MANAGERS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(5, 7))
-    this.registerMenuGroup(menus, RO_CRATE_TOOLS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(7))
+    this.registerMenuGroup(menus, RO_CRATE_MANAGERS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(5, 8))
+    this.registerMenuGroup(menus, RO_CRATE_TOOLS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(8))
   }
 
   protected registerMenuGroup(

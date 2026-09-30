@@ -1,6 +1,6 @@
 # RO-Crate MCP Server 
 
-`@arpproject/rocrate-mcp-server` is an [MCP server](https://www.dreamfactory.com/use-cases/mcp-server/) for [RO-Crate](https://www.researchobject.org/ro-crate/) editing, validation, and profile-aware constraints following the best practices of the ARP project (https://researchdata.hu/). It is designed to be used with MCP-compatible AI assistants such as Codex, Claude Code. It can be used with the schemas and profiles offered by the ARP Schema Registry (https://cedar.schema.researchdata.hu/)
+`@arpproject/rocrate-mcp-server` is an [MCP server](https://www.dreamfactory.com/use-cases/mcp-server/) for [RO-Crate](https://www.researchobject.org/ro-crate/) editing, validation, and profile-aware constraints following the best practices of the ARP project (https://researchdata.hu/). It is designed for MCP-compatible AI assistants such as Codex and Claude Code. It can use metadata profiles and remote CEDAR templates offered by the ARP profile repository (https://cedar.schema.researchdata.hu/).
 
 ## Quick start
 
@@ -211,23 +211,23 @@ yarn pack:rocrate-mcp-standalone
 This writes:
 
 ```text
-theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-<version>.tgz
+    theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-<version>.tgz
 ```
 
 To test the tarball locally:
 
 ```bash
-npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-<version>.tgz
+npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-<version>.tgz
 rocrate-mcp-server
 ```
 
 Use a normal npm install when upgrading so the package lifecycle hook can stop
 the existing daemon; `--ignore-scripts` disables this safety check.
 
-For the current `1.0.3` package version, run this from the repository root:
+For the current `1.2.0` package version, run this from the repository root:
 
 ```bash
-npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-1.0.3.tgz
+npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-1.2.0.tgz
 ```
 
 To publish to npm, publish the generated package directory:
@@ -281,14 +281,14 @@ dashboard instance.
 
 ## Tools
 
-- `set_agent_session_context`: record whether the agent was launched inside AROMA or externally.
+- `set_agent_session_context`: record whether the agent was launched inside RocKIT, inside AROMA, or externally, and whether an RO-Crate editor is already open.
 - `read_agent_workflow_doc`: read bundled RO-Crate editing workflow guidance.
 - `open_aroma_for_local_file`: register a local `ro-crate-metadata.json` through the local file bridge and return an AROMA URL.
 - `search`: Tavily-backed web search (`TAVILY_API_KEY`, optional per-call `apiKey` fallback).
 - `download_url`: download and extract text/raw HTML from one URL.
-- `list_well_known_schemas`: browse/search configured CEDAR registry providers for known Dataverse metadata schemas.
-- `list_remote_schema_tree`: browse configured CEDAR providers as a folder tree.
-- `import_well_known_schema`: import a known CEDAR schema/profile into the shared profile store.
+- `list_remote_templates`: browse/search configured profile providers for remote CEDAR templates.
+- `list_remote_template_tree`: browse configured CEDAR providers as a folder tree.
+- `import_remote_template`: import a remote CEDAR template into the shared profile store.
 - `list_metadata_profiles`: list persisted CEDAR/recrate metadata profiles.
 - `import_metadata_profile`: import a CEDAR metadata profile from URL or local source path.
 - `delete_metadata_profile`: delete one persisted profile and its source/converted files.
@@ -327,7 +327,7 @@ dashboard instance.
 - `list_properties_for_type`: list properties for one type (optional inherited expansion).
 - `suggest_properties`: suggest matching properties for query + selected type(s).
 - `get_property_details`: fetch details for one property (domain/range/comment).
-- `resolve_profile_schema`: resolve one profile URL via schema index/profile inputs.
+- `resolve_metadata_profile`: resolve one profile URL via profile index/profile inputs.
 - `prepare_remote_profile_payload`: build `schemaIndex` + `profileContents` payload for remote calls.
 - `create_profile_context`: cache profile payload server-side; returns `profileContextId`.
 - `get_profile_context_info`: inspect cached profile context metadata.
@@ -419,11 +419,11 @@ profile, local-file bridge, and Tavily test endpoints:
 - `GET /metadata-profiles` - List stored metadata profiles
 - `POST /metadata-profiles/import-url` - Import a profile by URL
 - `POST /metadata-profiles/import-known` - Import a well-known profile
-- `GET /metadata-profiles/providers` - List remote schema providers
-- `POST /metadata-profiles/providers` - Add a remote schema provider
-- `PUT /metadata-profiles/providers` - Update a remote schema provider
-- `DELETE /metadata-profiles/providers/:id` - Remove a remote schema provider
-- `GET /metadata-profiles/remote-schemas` - Browse remote schemas
+- `GET /metadata-profiles/providers` - List remote profile providers
+- `POST /metadata-profiles/providers` - Add a remote profile provider
+- `PUT /metadata-profiles/providers` - Update a remote profile provider
+- `DELETE /metadata-profiles/providers/:id` - Remove a remote profile provider
+- `GET /metadata-profiles/remote-schemas` - Browse remote profile templates
 - `GET /metadata-profiles/remote-folder` - Browse a remote provider folder
 - `GET /metadata-profiles/storage-status` - Inspect profile storage state
 - `DELETE /metadata-profiles/:id` - Delete a metadata profile
@@ -447,11 +447,12 @@ When the dataset is the current working directory, use
 `ro-crate-metadata.json`.
 
 Agents should call `open_aroma_for_local_file` after successful local edits or
-validation when the user is working outside an already-open AROMA session and
-would benefit from opening the result in the AROMA UI. Agents launched from
-inside AROMA should call `set_agent_session_context` with
-`launchContext: "inside_aroma"` and should not generate a bridge URL unless the
-user explicitly asks.
+validation when the user is working outside RocKIT and would benefit from
+opening the result in the AROMA UI. Agents launched from inside RocKIT should
+call `set_agent_session_context` with `launchContext: "inside_rockit"` and
+`editorAlreadyOpen: true`; they should not generate a bridge URL unless the user
+explicitly asks. The legacy `inside_aroma` context remains accepted for older
+clients.
 
 ### Registration flow
 
@@ -635,7 +636,7 @@ Use `responseMode: "full"` only when caller explicitly needs full crate or full 
 Profile resolution can come from:
 
 - Local mode:
-  - `~/.rockit/metadata-schema-index.json` (or env overrides)
+  - `~/.rockit/metadata-profile-index.json` (or env overrides)
   - converted profile files referenced by index entries
 - Remote mode:
   - caller-supplied `schemaIndex`
@@ -736,10 +737,10 @@ setting provides that option. The file contains configured credentials in
 plaintext and is protected with user-only permissions where supported.
 
 ### Profile Resolution
-- `ROCKIT_ROOT_PATH` (optional): shared base directory for schema index/profile files (default `~/.rockit`).
-- `ROCKIT_METADATA_SCHEMA_INDEX_FILE` (optional): schema index filename or absolute path.
-- `ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE` (optional): remote CEDAR provider configuration filename or absolute path.
-- `ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE` (optional): keychain service used for remote CEDAR provider credentials.
+- `ROCKIT_ROOT_PATH` (optional): shared base directory for profile index/profile files (default `~/.rockit`).
+- `ROCKIT_METADATA_PROFILE_INDEX_FILE` (optional): profile index filename or absolute path.
+- `ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE` (optional): remote CEDAR provider configuration filename or absolute path.
+- `ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE` (optional): keychain service used for remote CEDAR provider credentials.
 - `ROCKIT_CEDAR_API_KEY` (optional): fallback CEDAR API key; `CEDAR_API_KEY` is preferred.
 - `ROCRATE_REMOTE_SCHEMA_REGISTRY_DIR` (optional): remote-mode schema registry directory (default `~/.rockit/schema-registry-remote`).
 
