@@ -231,7 +231,7 @@ export class ApplicationEditMenuOverrides
         id.startsWith(RO_CRATE_EDITOR_WIDGET_ID_PREFIX),
       ) ||
       this.getWidgetLabelsForContextCheck().some((label) =>
-        label.startsWith('RO-Crate Editor'),
+        label.startsWith('Metadata Editor'),
       )
     )
   }

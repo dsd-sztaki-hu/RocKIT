@@ -217,13 +217,13 @@ const AGENT_SPECS: AgentSpec[] = [
 
 const sharedAvailableAgents = new Map<string, string>()
 const AGENT_TERMINAL_ICON_CLASS = 'codicon codicon-hubot'
-const INSIDE_AROMA_AGENT_CONTEXT_PROMPT = [
-  'You are launched from inside AROMA.',
+const INSIDE_ROCKIT_AGENT_CONTEXT_PROMPT = [
+  'You are launched from inside RocKIT.',
   '',
   'Before doing RO-Crate work, call the RO-Crate MCP tool `set_agent_session_context` with:',
-  '{"launchContext":"inside_aroma","aromaAlreadyOpen":true}',
+  '{"launchContext":"inside_rockit","editorAlreadyOpen":true}',
   '',
-  'Because AROMA is already open for this session, do not suggest opening AROMA after edits.',
+  'Because RocKIT is already open for this session, do not suggest opening AROMA after edits.',
 ].join('\n')
 
 const RO_CRATE_AI_MENU_PATH = [...MAIN_MENU_BAR, '4z_ro_crate', '4_ai']
@@ -630,11 +630,11 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       return [
         executable,
         '-c',
-        `developer_instructions=${toTomlBasicString(INSIDE_AROMA_AGENT_CONTEXT_PROMPT)}`,
+        `developer_instructions=${toTomlBasicString(INSIDE_ROCKIT_AGENT_CONTEXT_PROMPT)}`,
       ]
     }
     if (agentId === 'claude') {
-      return [executable, '--append-system-prompt', INSIDE_AROMA_AGENT_CONTEXT_PROMPT]
+      return [executable, '--append-system-prompt', INSIDE_ROCKIT_AGENT_CONTEXT_PROMPT]
     }
     return [executable]
   }
