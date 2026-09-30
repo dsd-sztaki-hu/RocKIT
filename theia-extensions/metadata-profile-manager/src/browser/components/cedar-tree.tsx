@@ -447,20 +447,14 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
         sx={{
             color: 'var(--theia-foreground)',
             '& .MuiTreeItem-content': {
-                padding: '0px 8px',
-                borderRadius: '3px',
+                padding: 0,
                 width: 'fit-content !important',
                 maxWidth: '100%',
                 '&.Mui-selected, &.Mui-selected.Mui-focused': {
-                    backgroundColor: 'rgba(24, 144, 255, 0.35) !important',
-                    border: '1px solid rgba(24, 144, 255, 0.65)',
-                    color: 'var(--theia-ui-font-color1) !important',
-                    boxShadow: 'none',
+                    backgroundColor: 'transparent !important',
                 },
                 '&.Mui-selected:hover': {
-                    backgroundColor: 'rgba(24, 144, 255, 0.45) !important',
-                    border: '1px solid rgba(24, 144, 255, 0.65)',
-                    color: 'var(--theia-ui-font-color1) !important',
+                    backgroundColor: 'transparent !important',
                 },
                 '&.Mui-focused:not(.Mui-selected)': {
                     backgroundColor: 'transparent !important', // No background on focus
@@ -474,8 +468,20 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                 fontFamily: 'inherit',
                 width: 'auto',
                 flexGrow: 0,
-                maxWidth: '100%'
-            }
+                maxWidth: '100%',
+                padding: '0px 8px',
+                borderRadius: '3px',
+                boxSizing: 'border-box',
+            },
+            '& .MuiTreeItem-content.Mui-selected > .MuiTreeItem-label, & .MuiTreeItem-content.Mui-selected.Mui-focused > .MuiTreeItem-label': {
+                backgroundColor: 'rgba(24, 144, 255, 0.35) !important',
+                border: '1px solid rgba(24, 144, 255, 0.65)',
+                color: 'var(--theia-ui-font-color1) !important',
+                boxShadow: 'none',
+            },
+            '& .MuiTreeItem-content.Mui-selected:hover > .MuiTreeItem-label': {
+                backgroundColor: 'rgba(24, 144, 255, 0.45) !important',
+            },
         }}
       >
         {Array.isArray(node.children) && node.children.length > 0 
