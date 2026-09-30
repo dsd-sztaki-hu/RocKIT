@@ -124,11 +124,9 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
             `${RoCrateStructurePanelWidget.ID}:${Math.random().toString(36).substring(2)}`
 
         this.id = this.instanceId
-        this.title.label = nls.localize(
-            'rockit/structurePanel/instanceTitle',
-            'RO-Crate Structure ({0})',
-            this.instanceId,
-        )
+        const title = nls.localize('rockit/structurePanel/title', 'Structure')
+        this.title.label = title
+        this.title.caption = title
 
         this.crateSubscription = this.appStateService.onDidChangeSelector((s) => s.roCrate)(
             (_) => {

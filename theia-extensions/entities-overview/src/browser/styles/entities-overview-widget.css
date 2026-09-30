@@ -1562,6 +1562,15 @@ body.hc-black .entities-overview-advanced-modal-body .ant-alert-warning {
   color: var(--entities-overview-modal-field-fg) !important;
 }
 
+body.vs-dark .entities-overview-edit-modal-body .ant-alert-success,
+body.vs-dark .entities-overview-advanced-modal-body .ant-alert-success,
+body.hc-black .entities-overview-edit-modal-body .ant-alert-success,
+body.hc-black .entities-overview-advanced-modal-body .ant-alert-success {
+  background: rgba(63, 185, 80, 0.12) !important;
+  border-color: rgba(63, 185, 80, 0.42) !important;
+  color: var(--entities-overview-modal-field-fg) !important;
+}
+
 body.vs-dark .entities-overview-edit-modal-body .ant-alert-message,
 body.vs-dark .entities-overview-edit-modal-body .ant-alert-description,
 body.vs-dark .entities-overview-advanced-modal-body .ant-alert-message,
@@ -1602,6 +1611,16 @@ body.hc-black .entities-overview-advanced-modal-body .ant-alert-close-icon {
   height: auto !important;
   min-height: 0 !important;
   line-height: 1.2 !important;
+}
+
+.entities-overview-edit-modal-body
+  .entities-overview-edit-modal-multi-text-row
+  .ant-input-affix-wrapper
+  > input.ant-input {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 .entities-overview-edit-modal-multi-text-date-wrap {
