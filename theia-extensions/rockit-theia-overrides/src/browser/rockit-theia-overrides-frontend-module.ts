@@ -14,6 +14,7 @@ import { bindRockitSplashPreferences } from '../common/rockit-splash-preferences
 import { RoCrateDefaultLayoutContribution } from './application-default-layout-contribution'
 import { ApplicationEditMenuOverrides } from './application-edit-menu-overrides'
 import { ApplicationFileMenuOverrides } from './application-file-menu-overrides'
+import { ApplicationMainMenuOverrides } from './application-main-menu-overrides'
 import { ApplicationManageMenuOverrides } from './application-manage-menu-overrides'
 import { ApplicationRoCrateMenuContribution } from './application-ro-crate-menu-contribution'
 import { ApplicationViewMenuOverrides } from './application-view-menu-overrides'
@@ -59,6 +60,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
   bind(FrontendApplicationContribution).toService(ApplicationFileMenuOverrides)
   bind(CommandContribution).toService(ApplicationFileMenuOverrides)
   bind(MenuContribution).toService(ApplicationFileMenuOverrides)
+  bind(ApplicationMainMenuOverrides).toSelf().inSingletonScope()
+  bind(FrontendApplicationContribution).toService(ApplicationMainMenuOverrides)
+  bind(MenuContribution).toService(ApplicationMainMenuOverrides)
   bind(ApplicationManageMenuOverrides).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(ApplicationManageMenuOverrides)
   bind(MenuContribution).toService(ApplicationManageMenuOverrides)

@@ -34,10 +34,16 @@ export function readAgentWorkflowDoc(
       `Unknown workflow doc: ${name}. Available docs: ${availableDocs.join(', ')}`,
     )
   }
-  const sessionNote =
-    name === DEFAULT_WORKFLOW_DOC && sessionContext?.launchContext === 'inside_aroma'
-      ? '\n\n## Current Session Context\n\nThis agent session was launched from inside AROMA. AROMA is already open for this RO-Crate workflow. Do not suggest opening AROMA after edits, and do not call `open_aroma_for_local_file` unless the user explicitly asks.\n'
-      : ''
+  let sessionNote = ''
+  if (name === DEFAULT_WORKFLOW_DOC && sessionContext?.editorAlreadyOpen) {
+    const contextDescription =
+      sessionContext.launchContext === 'inside_rockit'
+        ? 'This agent session was launched from inside RocKIT. RocKIT is already open for this RO-Crate workflow.'
+        : sessionContext.launchContext === 'inside_aroma'
+          ? 'This agent session was launched from inside AROMA. AROMA is already open for this RO-Crate workflow.'
+          : 'A RO-Crate editing application is already open for this session.'
+    sessionNote = `\n\n## Current Session Context\n\n${contextDescription} Do not suggest opening AROMA after edits, and do not call \`open_aroma_for_local_file\` unless the user explicitly asks.\n`
+  }
   return {
     name,
     content: `${content}${sessionNote}`,

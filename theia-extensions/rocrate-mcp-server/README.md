@@ -211,23 +211,23 @@ yarn pack:rocrate-mcp-standalone
 This writes:
 
 ```text
-theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-<version>.tgz
+    theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-<version>.tgz
 ```
 
 To test the tarball locally:
 
 ```bash
-npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-<version>.tgz
+npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-<version>.tgz
 rocrate-mcp-server
 ```
 
 Use a normal npm install when upgrading so the package lifecycle hook can stop
 the existing daemon; `--ignore-scripts` disables this safety check.
 
-For the current `1.0.3` package version, run this from the repository root:
+For the current `1.2.0` package version, run this from the repository root:
 
 ```bash
-npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-1.0.3.tgz
+npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-1.2.0.tgz
 ```
 
 To publish to npm, publish the generated package directory:
@@ -281,7 +281,7 @@ dashboard instance.
 
 ## Tools
 
-- `set_agent_session_context`: record whether the agent was launched inside AROMA or externally.
+- `set_agent_session_context`: record whether the agent was launched inside RocKIT, inside AROMA, or externally, and whether an RO-Crate editor is already open.
 - `read_agent_workflow_doc`: read bundled RO-Crate editing workflow guidance.
 - `open_aroma_for_local_file`: register a local `ro-crate-metadata.json` through the local file bridge and return an AROMA URL.
 - `search`: Tavily-backed web search (`TAVILY_API_KEY`, optional per-call `apiKey` fallback).
@@ -447,11 +447,12 @@ When the dataset is the current working directory, use
 `ro-crate-metadata.json`.
 
 Agents should call `open_aroma_for_local_file` after successful local edits or
-validation when the user is working outside an already-open AROMA session and
-would benefit from opening the result in the AROMA UI. Agents launched from
-inside AROMA should call `set_agent_session_context` with
-`launchContext: "inside_aroma"` and should not generate a bridge URL unless the
-user explicitly asks.
+validation when the user is working outside RocKIT and would benefit from
+opening the result in the AROMA UI. Agents launched from inside RocKIT should
+call `set_agent_session_context` with `launchContext: "inside_rockit"` and
+`editorAlreadyOpen: true`; they should not generate a bridge URL unless the user
+explicitly asks. The legacy `inside_aroma` context remains accepted for older
+clients.
 
 ### Registration flow
 

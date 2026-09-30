@@ -758,8 +758,8 @@ async function run() {
     )
     assert.match(
       initialize.result.instructions,
-      /outside AROMA, call open_aroma_for_local_file and include the returned aromaUrl/,
-      'initialize instructions should require AROMA URL generation outside AROMA',
+      /outside RocKIT, call open_aroma_for_local_file and include the returned aromaUrl/,
+      'initialize instructions should require an AROMA URL outside RocKIT',
     )
     assert.match(
       initialize.result.instructions,
