@@ -1345,7 +1345,11 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected updateTitleLabel(): void {
     const entityId = this.assignedEntityId ?? './'
     const entityDisplay = this.getEntityDisplayName(entityId)
-    this.title.label = `ROC-edit:${entityDisplay}`
+    this.title.label = nls.localize(
+      'rockit/roCrateEditor/tabTitle',
+      'Metadata: {0}',
+      entityDisplay,
+    )
     this.updateOpenEditorsLabel()
   }
 

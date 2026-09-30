@@ -319,6 +319,7 @@
       "initialize": "RO-Crate inicializálása",
       "openDocumentation": "A metaadat-szerkesztő dokumentációjának megnyitása",
       "title": "Metaadat-szerkesztő",
+      "tabTitle": "Metaadat: {0}",
       "validating": "RO-Crate validálása…",
       "addingProfile": "Profil hozzáadása…",
       "profileAdded": "A profil hozzáadva.",
@@ -355,7 +356,7 @@
     "menu": {
       "roCrate": "RO-Crate",
       "workspace": "Munkaterület",
-      "structurePanel": "Struktúra",
+      "structurePanel": "Struktúrapanel",
       "roCrateEditor": "Metaadat-szerkesztő",
       "entities": "Entitások",
       "validationErrors": "Validációs hibák",
@@ -478,8 +479,7 @@
       "tableTruncated": "Az első 100 adatsor látható."
     },
     "structurePanel": {
-      "title": "RO-Crate-struktúra",
-      "instanceTitle": "RO-Crate-struktúra ({0})",
+      "title": "Struktúra",
       "openNew": "Új RO-Crate-struktúra megnyitása",
       "edit": "Szerkesztés",
       "openDocumentation": "A RO-Crate-struktúra dokumentációjának megnyitása",

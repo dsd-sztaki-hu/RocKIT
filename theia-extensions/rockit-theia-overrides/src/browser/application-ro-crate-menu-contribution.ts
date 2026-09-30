@@ -30,7 +30,7 @@ export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
   {
     commandId: 'dataset-panel:command',
     labelKey: 'rockit/menu/structurePanel',
-    label: 'Structure',
+    label: 'Structure Panel',
     order: 'a02',
   },
   {
