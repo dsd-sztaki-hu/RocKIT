@@ -11,7 +11,7 @@ jest.mock('@theia/workspace/lib/browser', () => ({
   WorkspaceService: class WorkspaceService {},
 }))
 jest.mock('rockit-common/lib/browser', () => ({
-  MetadataSchemaManager: class MetadataSchemaManager {},
+  MetadataProfileManager: class MetadataProfileManager {},
   SchemaValidatorManager: class SchemaValidatorManager {},
   writeUtf8TextFile: jest.fn(),
 }))
@@ -115,8 +115,8 @@ describe('RoCrateEditorWidget entity fallback', () => {
     widget.updateTitleLabel = jest.fn()
     widget.validateCurrentCrate = jest.fn().mockResolvedValue(undefined)
     widget.updateProfileWithEntitySchemas = jest.fn().mockResolvedValue(undefined)
-    widget.schemaManagerService = {
-      onDidChangeSchemas: jest.fn().mockReturnValue(disposable),
+    widget.profileManagerService = {
+      onDidChangeProfiles: jest.fn().mockReturnValue(disposable),
     }
     widget.messageService = {
       info: jest.fn(),
@@ -202,8 +202,8 @@ describe('RoCrateEditorWidget entity fallback', () => {
     widget.updateTitleLabel = jest.fn()
     widget.validateCurrentCrate = jest.fn().mockResolvedValue(undefined)
     widget.updateProfileWithEntitySchemas = jest.fn().mockResolvedValue(undefined)
-    widget.schemaManagerService = {
-      onDidChangeSchemas: jest.fn().mockReturnValue(disposable),
+    widget.profileManagerService = {
+      onDidChangeProfiles: jest.fn().mockReturnValue(disposable),
     }
     widget.messageService = {
       info: jest.fn(),
@@ -242,5 +242,73 @@ describe('RoCrateEditorWidget entity fallback', () => {
       './',
     )
     expect(appStateService.roCrate).toBe(rejectedCrate)
+  })
+})
+
+describe('RoCrateEditorWidget validation scope', () => {
+  it('validates all changed entities when a save adds a non-root entity', async () => {
+    const initialCrate = crateWithFileId('dino.jpg')
+    const crateWithAuthor = {
+      ...initialCrate,
+      '@graph': [
+        ...initialCrate['@graph'].map((entity: Record<string, any>) =>
+          entity['@id'] === './'
+            ? { ...entity, author: [{ '@id': '#author' }] }
+            : entity,
+        ),
+        {
+          '@id': '#author',
+          '@type': 'author',
+          name: 'Ada Example',
+        },
+      ],
+    }
+    const subscriptions: Array<(value: any) => unknown> = []
+    const disposable = { dispose: jest.fn() }
+    const baseProfile = { classes: {} }
+    const widget = new RoCrateEditorWidget() as any
+
+    widget.update = jest.fn()
+    widget.updateTitleLabel = jest.fn()
+    widget.validateCurrentCrate = jest.fn().mockResolvedValue(undefined)
+    widget.updateProfileWithEntitySchemas = jest.fn().mockResolvedValue(undefined)
+    widget.schemaManagerService = {
+      onDidChangeSchemas: jest.fn().mockReturnValue(disposable),
+    }
+    widget.messageService = {
+      info: jest.fn(),
+      error: jest.fn(),
+    }
+    widget.appStateService = {
+      EIRCEIA: { 'validation-test-editor': './' },
+      roCrate: initialCrate,
+      roCrateApproval: undefined,
+      completeProfile: undefined,
+      profileList: [],
+      schemaSelectorContext: undefined,
+      getInitialProfileTemplate: jest.fn().mockReturnValue(baseProfile),
+      registerEntityEditor: jest.fn(),
+      onDidChangeSelector: jest.fn(
+        () => (listener: (value: any) => unknown) => {
+          subscriptions.push(listener)
+          return disposable
+        },
+      ),
+    }
+
+    await widget.initialize({
+      instanceId: 'validation-test-editor',
+      entityId: './',
+    })
+    widget.updateProfileWithEntitySchemas.mockClear()
+
+    await subscriptions[0](crateWithAuthor)
+
+    expect(widget.updateProfileWithEntitySchemas).toHaveBeenCalledWith(
+      baseProfile,
+      './',
+      'always',
+      'full',
+    )
   })
 })

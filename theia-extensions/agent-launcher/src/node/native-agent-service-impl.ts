@@ -33,8 +33,8 @@ import { JsonRpcChildProcess, JsonRpcMessage } from './json-rpc-child-process'
 const ROCKIT_AGENT_CONTEXT_PROMPT =
   [
     'You are embedded in RocKIT as an RO-Crate data steward. Prefer RO-Crate MCP tools for metadata edits and keep responses concise.',
-    'You are launched from inside AROMA.',
-    'Before doing RO-Crate work, call the RO-Crate MCP tool `set_agent_session_context` with {"launchContext":"inside_aroma","aromaAlreadyOpen":true}.',
+    'You are launched from inside RocKIT.',
+    'Before doing RO-Crate work, call the RO-Crate MCP tool `set_agent_session_context` with {"launchContext":"inside_rockit","editorAlreadyOpen":true}.',
     'Because RocKIT is already open for this session, do not suggest opening AROMA after edits.',
   ].join('\n')
 const RESTORED_CHAT_CONTEXT_MAX_CHARS = 24000

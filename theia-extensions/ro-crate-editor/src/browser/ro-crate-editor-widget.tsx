@@ -15,7 +15,7 @@ import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import {
-  MetadataSchemaManager,
+  MetadataProfileManager,
   SchemaValidator,
   SchemaValidatorManager,
   type ValidationError,
@@ -41,6 +41,7 @@ import {
   type RoCrateApprovalFile,
 } from 'app-state/lib/browser/state/ro-crate-approval'
 
+import { GlobalEntityLibraryService } from 'global-entity-library/lib/browser/global-entity-library-service'
 import { RecrateCrateBuilderWrapper } from './recrate-wrapper'
 
 interface RoCrateEditorWidgetOptions {
@@ -63,8 +64,8 @@ type EntityOverviewDropPayload = {
 export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   static readonly ID = 'rocrate-editor-widget'
 
-  @inject(MetadataSchemaManager)
-  protected readonly schemaManagerService: MetadataSchemaManager
+  @inject(MetadataProfileManager)
+  protected readonly profileManagerService: MetadataProfileManager
 
   @inject(SchemaValidatorManager)
   protected readonly schemaValidator: SchemaValidator
@@ -95,6 +96,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
   @inject(RoCratePersistenceService)
   protected readonly persistenceService: RoCratePersistenceService
+
+  @inject(GlobalEntityLibraryService)
+  protected readonly globalEntityLibraryService: GlobalEntityLibraryService
 
   protected readonly onDirtyChangedEmitter = new Emitter<void>()
   protected readonly onContentChangedEmitter = new Emitter<void>()
@@ -515,8 +519,12 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     this.assignEntity(fallbackEntityId)
                     entityId = fallbackEntityId
                 }
-                this.nextProfileListValidationScope = 'targeted'
-                await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always', 'targeted')
+                // A Recrate save can mutate entities other than the one currently
+                // displayed (for example, creating an Author while editing the
+                // root Dataset). Let the validator diff the complete graph so new
+                // and changed linked entities are included in this run.
+                this.nextProfileListValidationScope = 'full'
+                await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always', 'full')
             },
         )
 
@@ -641,7 +649,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       },
     )
 
-    this.schemasSubscription = this.schemaManagerService.onDidChangeSchemas(async () => {
+    this.schemasSubscription = this.profileManagerService.onDidChangeProfiles(async () => {
       if (this.isRefreshingProfile) {
         this.pendingSchemasRefresh = true
         this.pendingSchemasRefreshValidationMode = 'always'
@@ -971,7 +979,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
     }
 
     const loadMask = this.loadMaskService.show({
-      message: nls.localize('rockit/roCrateEditor/removingSchema', 'Removing schema…'),
+      message: nls.localize('rockit/roCrateEditor/removingSchema', 'Removing profile…'),
       delay: 0,
     })
 
@@ -1025,7 +1033,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
       this.appStateService.roCrate = updatedCrate
       this.localCrate = updatedCrate
 
-      const schemaName = this.schemaManagerService.nameWithoutMetadataSuffix(
+      const schemaName = this.profileManagerService.nameWithoutMetadataSuffix(
         payload?.tab?.name,
       )
       const profile = this.localProfile
@@ -1121,6 +1129,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     }}
                 >
                     <RecrateCrateBuilderWrapper
+                        globalEntityLibraryService={this.globalEntityLibraryService}
                         crate={this.localCrate}
                         roCrateApproval={this.localRoCrateApproval}
                         profile={this.localProfile}
@@ -1336,7 +1345,11 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected updateTitleLabel(): void {
     const entityId = this.assignedEntityId ?? './'
     const entityDisplay = this.getEntityDisplayName(entityId)
-    this.title.label = `ROC-edit:${entityDisplay}`
+    this.title.label = nls.localize(
+      'rockit/roCrateEditor/tabTitle',
+      'Metadata: {0}',
+      entityDisplay,
+    )
     this.updateOpenEditorsLabel()
   }
 
@@ -1704,18 +1717,18 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                 if (convertedContent) {
                     foundMatchingProfile = true
                     if (this.localCrate) {
-                        const targetedMerge = (this.schemaManagerService as any)
+                        const targetedMerge = (this.profileManagerService as any)
                             .getMergedProfileForClass
                         const merged =
                             typeof targetedMerge === 'function' && typeof entityType === 'string'
                                 ? await targetedMerge.call(
-                                      this.schemaManagerService,
+                                      this.profileManagerService,
                                       convertedContent,
                                       updateProfile,
                                       entityType,
                                       conformsToUrl,
                                   )
-                                : await this.schemaManagerService.getMergedProfile(
+                                : await this.profileManagerService.getMergedProfile(
                                       this.localCrate,
                                       convertedContent,
                                       updateProfile,

@@ -44,13 +44,13 @@ Operational guardrails and metadata-quality rules are defined in the step docs i
 
 1. Try to solve the task the use gives you in one go.
 2. If you need a decision from the user, provide a menu they can choose from with easy selection.
-3. For RO-Crate metadata authoring, always check and offer schemas/profiles
+3. For RO-Crate metadata authoring, always check and offer metadata profiles
    because they guide FAIR metadata creation for both users and agents.
 4. When no active \`conformsTo\` profile exists, offer available local metadata
    profiles first, then browse configured remote CEDAR providers with
-   \`list_remote_schema_tree\` and offer unimported leaf templates in a simplified
+   \`list_remote_template_tree\` and offer unimported leaf templates in a simplified
    folder tree. After the user selects a remote template, import it with
-   \`import_well_known_schema\` using \`templateIdOrUrl=<selected templateId>\`,
+   \`import_remote_template\` using \`templateIdOrUrl=<selected templateId>\`,
    then associate the returned \`profile.conformsTo\` with the crate using
    \`update_profile_conforms_to(write=true)\`.
 

@@ -9,6 +9,7 @@ import { nls } from '@theia/core/lib/common'
 import * as React from 'react'
 
 import { toRecrateLanguage } from './recrate-language'
+import type { GlobalEntityLibraryService } from 'global-entity-library/lib/browser/global-entity-library-service'
 
 import '../../src/browser/style/recrate-scoped.css'
 import '../../src/browser/style/recrate-dark-overrides.css'
@@ -32,6 +33,7 @@ const DROP_ERROR_TIMEOUT_MS = 5000
 
 export const RecrateCrateBuilderWrapper = ({
                                                 crate,
+                                                globalEntityLibraryService,
                                                 roCrateApproval,
                                                 profile,
                                                 entityId,
@@ -46,6 +48,7 @@ export const RecrateCrateBuilderWrapper = ({
                                                 onDropEntityToHasPart,
                                             }: {
     crate: Record<string, any> | undefined
+    globalEntityLibraryService: GlobalEntityLibraryService
     roCrateApproval: Record<string, any> | Record<string, any>[] | undefined
     profile: Record<string, any> | undefined
     entityId: string | undefined
@@ -73,6 +76,12 @@ export const RecrateCrateBuilderWrapper = ({
     const containerRef = React.useRef<HTMLDivElement>(null)
     const [dropState, setDropState] = React.useState<'idle' | 'valid' | 'invalid'>('idle')
     const [dropMessage, setDropMessage] = React.useState<string>('')
+    const lookup = React.useMemo(() => ({
+        globalEntities: (params: { type?: string | string[]; queryString?: string }) =>
+            globalEntityLibraryService.findEntitiesForCrate(params),
+        onGlobalEntityAdded: (params: { recordId: string; entityId: string }) =>
+            globalEntityLibraryService.mapAddedEntity(params),
+    }), [globalEntityLibraryService])
     const dropErrorTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
     const cancelDropErrorTimeout = React.useCallback(() => {
@@ -348,6 +357,7 @@ export const RecrateCrateBuilderWrapper = ({
             )}
 
             <RecrateCrateBuilderComponent
+                lookup={lookup}
                 crate={crate}
                 roCrateApproval={roCrateApproval}
                 profile={profile}

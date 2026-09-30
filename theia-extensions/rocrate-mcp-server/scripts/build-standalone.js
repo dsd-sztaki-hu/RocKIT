@@ -16,7 +16,7 @@ const outRoot = path.join(packageRoot, 'dist', 'npm')
 const outLib = path.join(outRoot, 'lib')
 const outNodeModules = path.join(outRoot, 'node_modules')
 const cedarWorkspace = path.join(repoRoot, 'theia-extensions', 'cedar-to-rocrate')
-const publicPackageName = '@arpproject/vibarp-mcp'
+const publicPackageName = '@arpproject/vibearp-mcp'
 const publicPackageDescription = 'VibeARP MCP Server'
 const publicCliName = 'rocrate-mcp-server'
 

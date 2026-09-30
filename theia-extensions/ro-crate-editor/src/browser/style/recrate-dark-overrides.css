@@ -3366,6 +3366,346 @@ body.hc-black
   box-shadow: 0 0 0 1px rgba(255, 143, 143, 0.45) !important;
 }
 
+/* Keep the AI context review usable in Theia's high-contrast dark themes. */
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-context-review-drawer
+  .ant-drawer-content,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-context-review-drawer
+  .ant-drawer-header,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-context-review-drawer
+  .ant-drawer-body {
+  background-color: #000000 !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-context-review-drawer
+  :is(.ant-drawer-title, .ant-drawer-close, .ant-typography) {
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-context-review-summary {
+  background: #000000 !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow: inset 4px 0 0 var(--theia-focusBorder, #f38518) !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-context-review-spark {
+  background: #000000 !important;
+  border: 1px solid var(--theia-focusBorder, #f38518) !important;
+  box-shadow: none !important;
+  color: var(--theia-focusBorder, #f38518) !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-context-review-description.ant-typography {
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff {
+  background: #000000 !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+  border-left-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff-head {
+  background: #000000 !important;
+  border-bottom-color: var(--theia-focusBorder, #f38518) !important;
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff-body,
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  :is(
+    .recrate-ai-context-diff-line-context,
+    .recrate-ai-context-diff-line-removed,
+    .recrate-ai-context-diff-line-added,
+    .recrate-ai-context-diff-line-omitted
+  ) {
+  background: #000000 !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff-line {
+  border-bottom-color: rgba(255, 255, 255, 0.62) !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff-gutter {
+  background: #000000 !important;
+  border-right-color: rgba(255, 255, 255, 0.62) !important;
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff-marker {
+  background: #000000 !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.62) !important;
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff-line-removed
+  .recrate-ai-context-diff-marker {
+  color: #ff8f8f !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff-line-added
+  .recrate-ai-context-diff-marker {
+  color: #7ee787 !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  :is(.recrate-ai-context-diff-value, .recrate-ai-context-diff-omitted-label) {
+  color: #ffffff !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  button.recrate-ai-context-diff-omitted-button:hover:not(:disabled),
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  button.recrate-ai-context-diff-omitted-button:hover:not(:disabled)
+  :is(.recrate-ai-context-diff-gutter, .recrate-ai-context-diff-marker) {
+  background: rgba(243, 133, 24, 0.16) !important;
+  border-color: var(--theia-focusBorder, #f38518) !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff-omitted-button:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--theia-focusBorder, #f38518) !important;
+}
+
+:is(.theia-hc, body.hc-black)
+  .rocrate-editor
+  .recrate-scope
+  .recrate-context-review-actions {
+  background: #000000 !important;
+  border-top-color: var(--theia-focusBorder, #f38518) !important;
+  box-shadow: none !important;
+}
+
+/* AI context review drawer. Its responsive width does not match the legacy
+ * 600px context-editor drawer selectors above, so keep its complete surface
+ * in the dark palette through its dedicated root class. */
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .recrate-context-review-drawer
+  .ant-drawer-content {
+  background-color: var(--theia-editor-background, #1e1e1e) !important;
+  color: var(--recrate-text, #d4d4d4) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .recrate-context-review-drawer
+  .ant-drawer-header,
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .recrate-context-review-drawer
+  .ant-drawer-body {
+  background-color: transparent !important;
+  border-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .recrate-context-review-drawer
+  :is(.ant-drawer-title, .ant-drawer-close, .ant-typography) {
+  color: var(--recrate-text, #d4d4d4) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-context-review-summary {
+  background: linear-gradient(
+    90deg,
+    rgba(24, 86, 62, 0.54),
+    rgba(37, 37, 38, 0.96)
+  ) !important;
+  border-color: rgba(87, 216, 163, 0.32) !important;
+  box-shadow:
+    inset 4px 0 0 rgba(87, 216, 163, 0.72),
+    0 2px 8px rgba(0, 0, 0, 0.28) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-context-review-spark {
+  background: rgba(87, 216, 163, 0.2) !important;
+  border: 1px solid rgba(87, 216, 163, 0.42) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.32) !important;
+  color: #b9f3d3 !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .recrate-context-review-description.ant-typography {
+  color: var(--recrate-text, #d4d4d4) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-ai-context-diff {
+  background: var(--recrate-input-bg, #1f1f1f) !important;
+  border-color: rgba(87, 216, 163, 0.58) !important;
+  border-left-color: rgba(87, 216, 163, 0.82) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(87, 216, 163, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.28) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-ai-context-diff-head {
+  background: rgba(24, 86, 62, 0.44) !important;
+  border-bottom-color: rgba(87, 216, 163, 0.24) !important;
+  color: #b9f3d3 !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-ai-context-diff-body {
+  background: var(--recrate-input-bg, #1f1f1f) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-ai-context-diff-line {
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-ai-context-diff-gutter {
+  background: rgba(255, 255, 255, 0.035) !important;
+  border-right-color: rgba(255, 255, 255, 0.06) !important;
+  color: var(--recrate-muted, #a6a6a6) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-ai-context-diff-value {
+  color: var(--recrate-text, #d4d4d4) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-ai-context-diff-line-context {
+  background: rgba(255, 255, 255, 0.035) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-ai-context-diff-line-removed {
+  background: rgba(98, 34, 39, 0.24) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff-line-removed
+  .recrate-ai-context-diff-marker {
+  background: rgba(255, 123, 114, 0.18) !important;
+  color: #ff9b94 !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-ai-context-diff-line-added {
+  background: rgba(24, 86, 62, 0.24) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff-line-added
+  .recrate-ai-context-diff-marker {
+  background: rgba(87, 216, 163, 0.18) !important;
+  color: #7ee0ae !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-ai-context-diff-line-omitted {
+  background: rgba(255, 255, 255, 0.025) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff-line-omitted
+  .recrate-ai-context-diff-marker,
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff-line-omitted
+  .recrate-ai-context-diff-gutter {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: var(--recrate-muted, #a6a6a6) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-ai-context-diff-omitted-label {
+  color: var(--recrate-muted, #a6a6a6) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  button.recrate-ai-context-diff-omitted-button:hover:not(:disabled),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  button.recrate-ai-context-diff-omitted-button:hover:not(:disabled)
+  :is(.recrate-ai-context-diff-gutter, .recrate-ai-context-diff-marker) {
+  background: rgba(87, 216, 163, 0.12) !important;
+  border-color: rgba(87, 216, 163, 0.32) !important;
+}
+
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .recrate-ai-context-diff-omitted-button:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(87, 216, 163, 0.62) !important;
+}
+
+.theia-dark .rocrate-editor .recrate-scope .recrate-context-review-actions {
+  background: var(--theia-editor-background, #1e1e1e) !important;
+  border-top-color: var(--recrate-border, rgba(127, 127, 127, 0.42)) !important;
+  box-shadow: 0 -6px 14px rgba(0, 0, 0, 0.24) !important;
+}
+
 .theia-dark
   .rocrate-editor
   .recrate-scope

@@ -436,9 +436,9 @@ async function run() {
   const webToolsMock = await startMockWebToolsServer(profileUrl)
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'rocrate-mcp-test-'))
   const rockitRoot = path.join(tempRoot, 'rockit-root')
-  fs.mkdirSync(path.join(rockitRoot, 'metadata-schemas', 'ro-crate'), { recursive: true })
+  fs.mkdirSync(path.join(rockitRoot, 'metadata-profiles', 'ro-crate'), { recursive: true })
   const extraProfileUrl = 'https://w3id.org/arp/schema/example-profile'
-  const convertedRelativePath = 'metadata-schemas/ro-crate/citation_profile.json'
+  const convertedRelativePath = 'metadata-profiles/ro-crate/citation_profile.json'
   fs.writeFileSync(
     path.join(rockitRoot, convertedRelativePath),
     JSON.stringify(
@@ -498,7 +498,7 @@ async function run() {
     'utf8',
   )
   fs.writeFileSync(
-    path.join(rockitRoot, 'metadata-schema-index.json'),
+    path.join(rockitRoot, 'metadata-profile-index.json'),
     JSON.stringify(
       {
         profiles: [
@@ -509,7 +509,7 @@ async function run() {
             source: 'remote',
             type: 'cedar',
             files: {
-              sourcePath: 'metadata-schemas/cedar/citation_metadata.json',
+              sourcePath: 'metadata-profiles/cedar/citation_metadata.json',
               convertedPath: convertedRelativePath,
             },
             conformsTo: profileUrl,
@@ -521,7 +521,7 @@ async function run() {
             source: 'remote',
             type: 'cedar',
             files: {
-              sourcePath: 'metadata-schemas/cedar/example_profile.json',
+              sourcePath: 'metadata-profiles/cedar/example_profile.json',
               convertedPath: convertedRelativePath,
             },
             conformsTo: extraProfileUrl,
@@ -655,16 +655,16 @@ async function run() {
     assert.ok(toolNames.includes('search'), 'search tool should exist')
     assert.ok(toolNames.includes('download_url'), 'download_url tool should exist')
     assert.ok(
-      toolNames.includes('list_well_known_schemas'),
-      'list_well_known_schemas tool should exist',
+      toolNames.includes('list_remote_templates'),
+      'list_remote_templates tool should exist',
     )
     assert.ok(
-      toolNames.includes('list_remote_schema_tree'),
-      'list_remote_schema_tree tool should exist',
+      toolNames.includes('list_remote_template_tree'),
+      'list_remote_template_tree tool should exist',
     )
     assert.ok(
-      toolNames.includes('import_well_known_schema'),
-      'import_well_known_schema tool should exist',
+      toolNames.includes('import_remote_template'),
+      'import_remote_template tool should exist',
     )
     assert.ok(
       toolNames.includes('list_metadata_profiles'),
@@ -735,7 +735,7 @@ async function run() {
     )
     assert.ok(toolNames.includes('get_rocrate_context'), 'get_rocrate_context tool should exist')
     assert.ok(toolNames.includes('suggest_context_terms'), 'suggest_context_terms tool should exist')
-    assert.ok(toolNames.includes('resolve_profile_schema'), 'resolve_profile_schema tool should exist')
+    assert.ok(toolNames.includes('resolve_metadata_profile'), 'resolve_metadata_profile tool should exist')
     assert.ok(
       toolNames.includes('prepare_remote_profile_payload'),
       'prepare_remote_profile_payload tool should exist',
@@ -758,8 +758,8 @@ async function run() {
     )
     assert.match(
       initialize.result.instructions,
-      /outside AROMA, call open_aroma_for_local_file and include the returned aromaUrl/,
-      'initialize instructions should require AROMA URL generation outside AROMA',
+      /outside RocKIT, call open_aroma_for_local_file and include the returned aromaUrl/,
+      'initialize instructions should require an AROMA URL outside RocKIT',
     )
     assert.match(
       initialize.result.instructions,
@@ -786,7 +786,7 @@ async function run() {
     assert.equal(defaultProfileListingPayload.storage.rootPath, rockitRoot)
     assert.equal(
       defaultProfileListingPayload.storage.indexPath,
-      path.join(rockitRoot, 'metadata-schema-index.json'),
+      path.join(rockitRoot, 'metadata-profile-index.json'),
     )
 
     const workflowDocResponse = await request('tools/call', {
@@ -1697,7 +1697,7 @@ async function run() {
     assert.equal(rootAfterDownload.name, 'Downloaded hdl:21.T15999/DSDDEV/DOWNLOADED')
 
     const localResolveProfileResponse = await request('tools/call', {
-      name: 'resolve_profile_schema',
+      name: 'resolve_metadata_profile',
       arguments: {
         profileUrl,
       },
@@ -2321,7 +2321,7 @@ async function run() {
     assert.ok(profileContextInfoPayload.profileCount >= 1)
 
     const resolveProfileResponse = await request('tools/call', {
-      name: 'resolve_profile_schema',
+      name: 'resolve_metadata_profile',
       arguments: {
         mode: 'remote',
         profileUrl,
@@ -2334,7 +2334,7 @@ async function run() {
     assert.equal(resolveProfilePayload.profiles.length, 0)
 
     const resolveProfileWithInlineResponse = await request('tools/call', {
-      name: 'resolve_profile_schema',
+      name: 'resolve_metadata_profile',
       arguments: {
         mode: 'remote',
         profileUrl,

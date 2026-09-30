@@ -52,7 +52,7 @@ These rules are mandatory for RO-Crate metadata quality.
 1. Profile conformance is a hard constraint for required fields, value sets, and entity types on profiled \`Dataset\`/\`File\` entities.
 2. Prefer properties explicitly allowed by active profile rules for curated metadata.
 3. Start setting values for required fields first, then recommended optional fields, then any remaining allowed fields.
-4. Custom properties outside the active profile/schema are allowed when they have JSON-LD context mappings.
+4. Custom properties outside the active profile are allowed when they have JSON-LD context mappings.
    - Treat validation messages about custom properties as advisory notes.
    - Do not delete, rename, or migrate custom properties unless the user explicitly asks.
    - If useful, mention an allowed alternative field or profile update, but keep the user's custom metadata intact.
@@ -75,34 +75,34 @@ Always follow this sequence when curating RO-Crate metadata:
    If active \`conformsTo\` URLs are present, the user has already selected the
    profile context; work with those profiles instead of offering replacement
    profile choices unless the user asks to change them.
-3. For RO-Crate metadata authoring, always check and offer schemas/profiles because they guide FAIR metadata creation for both users and agents.
+3. For RO-Crate metadata authoring, always check and offer metadata profiles because they guide FAIR metadata creation for both users and agents.
 4. If no active profile is present:
    - call \`list_metadata_profiles\` to show locally available metadata profiles,
-   - call \`list_remote_schema_tree\` to browse configured remote CEDAR providers
+   - call \`list_remote_template_tree\` to browse configured remote CEDAR providers
      when local profiles are empty, insufficient, or the user may want a remote
      profile,
    - present every available local profile returned by \`list_metadata_profiles\` by name, version, and \`conformsTo\` URL,
-   - present remote CEDAR schemas separately as a simplified folder tree with
+   - present remote CEDAR templates separately as a simplified folder tree with
      only selectable leaf templates; do not list templates already imported
      locally,
    - do not collapse the list to only the profile you recommend,
    - if one profile seems best, mark it as recommended while still listing the other available profiles,
-   - offer a numbered menu in this order: all listed profiles/schemas first, then "provide another schema/profile URL", then "continue without a profile",
+   - offer a numbered menu in this order: all listed local profiles and remote templates first, then "provide another metadata profile URL", then "continue without a profile",
    - stop and wait for the user's choice before planning fields, searching the web, or writing metadata,
    - for an already-downloaded local profile, call \`update_profile_conforms_to\`
      with its \`conformsTo\` URL after the user chooses it,
-   - for a remote CEDAR leaf template, call \`import_well_known_schema\` with
+   - for a remote CEDAR leaf template, call \`import_remote_template\` with
      \`templateIdOrUrl=<selected templateId>\`, then call
      \`update_profile_conforms_to(write=true)\` with the returned
      \`profile.conformsTo\`,
-   - if no profiles/schemas can be listed because of an error, report the error and still offer the user a chance to provide a schema URL.
+   - if no profiles or templates can be listed because of an error, report the error and still offer the user a chance to provide a metadata profile URL.
 5. Do not silently continue without a profile after listing available profiles. Continuing without a profile requires the user's explicit choice.
 6. Read active profile constraints from \`profileRules.allowedPropertiesByClass\`.
-7. If constraints are missing or unclear, call \`resolve_profile_schema\`.
+7. If constraints are missing or unclear, call \`resolve_metadata_profile\`.
 8. Build a short plan:
    - required fields still missing
    - recommended optional fields
-   - custom fields outside the active profile/schema, if relevant
+   - custom fields outside the active profile, if relevant
 9. Only after planning, run web \`search\` if needed for missing values.
 10. Only then start metadata writes with \`apply_changes\` (default persists in local mode).
    - Use \`dryRun=true\` when you want preview-only execution.

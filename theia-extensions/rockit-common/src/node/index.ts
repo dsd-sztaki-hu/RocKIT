@@ -6,7 +6,7 @@
 
 export * from '../common/application-reset-protocol'
 export * from '../common/default-ro-crate'
-export * from '../common/metadata-schema-manager-protocol'
+export * from '../common/metadata-profile-manager-protocol'
 export * from '../common/ro-crate-export-file-references'
 export * from '../common/rocrate-mcp-config'
 export * from '../common/save-ro-crate-protocol'
