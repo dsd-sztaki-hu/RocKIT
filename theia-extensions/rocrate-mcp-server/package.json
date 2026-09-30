@@ -1,6 +1,6 @@
 {
   "name": "@arpproject/rocrate-mcp-server",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "ARP RO-Crate MCP Server exposing RO-Crate editing and profile-aware validation tools for use in ARP",
   "license": "Apache-2.0",
   "author": {

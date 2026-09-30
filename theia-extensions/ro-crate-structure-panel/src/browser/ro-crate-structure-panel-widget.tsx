@@ -126,7 +126,7 @@ export class RoCrateStructurePanelWidget extends ReactWidget {
         this.id = this.instanceId
         this.title.label = nls.localize(
             'rockit/structurePanel/instanceTitle',
-            'RO-Crate Structure Panel ({0})',
+            'RO-Crate Structure ({0})',
             this.instanceId,
         )
 

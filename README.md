@@ -50,12 +50,12 @@ To create the npm tarball:
 
 The tarball is written to:
 
-    theia-extensions/rocrate-mcp-server/arpproject-vibarp-mcp-<version>.tgz
+    theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-<version>.tgz
 
-For example, if the MCP package version is `1.1.0`, install the local tarball
+For example, if the MCP package version is `1.2.0`, install the local tarball
 from the repo root with:
 
-    npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-vibarp-mcp-1.1.0.tgz
+    npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-1.2.0.tgz
 
 To publish the standalone MCP server to npm, publish the generated package
 directory, not the raw workspace package:
@@ -65,7 +65,7 @@ directory, not the raw workspace package:
 
 After publishing, users can install and run it with:
 
-    npm install -g @arpproject/vibarp-mcp
+    npm install -g @arpproject/vibearp-mcp
     rocrate-mcp-server
 
 To install the MCP server into a detected coding agent, run:
