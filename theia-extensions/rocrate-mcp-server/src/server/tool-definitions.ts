@@ -88,19 +88,25 @@ export const tools: ToolDefinition[] = [
   {
     name: 'set_agent_session_context',
     description:
-      'Set per-session agent launch context. Agents launched from AROMA should call this with launchContext="inside_aroma" before reading workflow docs.',
+      'Set per-session agent launch context. Agents launched from RocKIT should call this with launchContext="inside_rockit" and editorAlreadyOpen=true before reading workflow docs. Standalone agents should use launchContext="external". The inside_aroma value is accepted for compatibility with older clients.',
     inputSchema: {
       type: 'object',
       properties: {
         launchContext: {
           type: 'string',
-          enum: ['inside_aroma', 'external'],
-          description: 'Where the agent session was launched from.',
+          enum: ['inside_rockit', 'inside_aroma', 'external'],
+          description:
+            'Where the agent session was launched from. Use inside_rockit for RocKIT and external for standalone agents; inside_aroma remains accepted for older clients.',
+        },
+        editorAlreadyOpen: {
+          type: 'boolean',
+          description:
+            'Whether a RO-Crate editing application is already open for this workflow. Defaults to true for inside_rockit and inside_aroma, and false for external.',
         },
         aromaAlreadyOpen: {
           type: 'boolean',
           description:
-            'Whether AROMA is already open for this editing workflow. Defaults to true for inside_aroma.',
+            'Deprecated compatibility alias for editorAlreadyOpen. Use editorAlreadyOpen for new clients.',
         },
       },
       required: ['launchContext'],
