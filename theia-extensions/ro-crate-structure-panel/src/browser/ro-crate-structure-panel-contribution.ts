@@ -8,21 +8,24 @@ import type { MenuModelRegistry } from '@theia/core'
 import {
   AbstractViewContribution,
   ApplicationShell,
-  codicon,
   CommonMenus,
+  codicon,
   OpenerService,
   WidgetManager,
 } from '@theia/core/lib/browser'
-import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar'
+import {
+  TabBarToolbarContribution,
+  TabBarToolbarRegistry,
+} from '@theia/core/lib/browser/shell/tab-bar-toolbar'
 import { ApplicationServer } from '@theia/core/lib/common/application-protocol'
+import type { Command, CommandRegistry } from '@theia/core/lib/common/command'
 import { nls } from '@theia/core/lib/common/nls'
+import { inject, injectable } from 'inversify'
 import {
   openRockitDocumentationPage,
   ROCKIT_DOCUMENTATION_PAGES,
   RoCrateDeleteSelectedEntitiesCommand,
 } from 'rockit-common/lib/browser'
-import type { Command, CommandRegistry } from '@theia/core/lib/common/command'
-import { inject, injectable } from 'inversify'
 import {
   RO_CRATE_STRUCTURE_PANEL_CONTEXT_MENU,
   RoCrateStructurePanelWidget,
@@ -30,10 +33,7 @@ import {
 
 export const DatasetPanelCommand: Command = {
   id: 'dataset-panel:command',
-  label: nls.localize(
-    'rockit/structurePanel/openNew',
-    'Open New RO-Crate Structure',
-  ),
+  label: nls.localize('rockit/structurePanel/openNew', 'Open New RO-Crate Structure'),
 }
 
 export const RoCrateStructurePanelEditCommand: Command = {
@@ -56,7 +56,10 @@ export const RoCrateStructurePanelDocumentationCommand: Command = {
 }
 
 @injectable()
-export class RoCrateStructurePanelContribution extends AbstractViewContribution<RoCrateStructurePanelWidget> implements TabBarToolbarContribution {
+export class RoCrateStructurePanelContribution
+  extends AbstractViewContribution<RoCrateStructurePanelWidget>
+  implements TabBarToolbarContribution
+{
   constructor(
     @inject(WidgetManager) protected readonly widgetManager: WidgetManager,
     @inject(ApplicationShell) protected readonly shell: ApplicationShell,
@@ -65,10 +68,7 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
   ) {
     super({
       widgetId: RoCrateStructurePanelWidget.ID,
-      widgetName: nls.localize(
-        'rockit/structurePanel/title',
-        'RO-Crate Structure',
-      ),
+      widgetName: nls.localize('rockit/structurePanel/title', 'Structure'),
       defaultWidgetOptions: { area: 'main' },
     })
   }
@@ -106,9 +106,8 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
           await widget.deleteEntitiesFromContextMenu()
         }
       },
-      isEnabled: () => Boolean(
-        this.getActiveStructureWidget()?.canDeleteEntitiesFromContextMenu(),
-      ),
+      isEnabled: () =>
+        Boolean(this.getActiveStructureWidget()?.canDeleteEntitiesFromContextMenu()),
       isVisible: () => Boolean(this.getActiveStructureWidget()),
     })
 
@@ -122,7 +121,6 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
       isEnabled: (widget) => widget instanceof RoCrateStructurePanelWidget,
       isVisible: (widget) => widget instanceof RoCrateStructurePanelWidget,
     })
-
   }
 
   registerMenus(menus: MenuModelRegistry): void {
@@ -154,9 +152,9 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
       return current
     }
     const mainWidgets = this.shell.getWidgets('main')
-    return mainWidgets.find(
-      (widget) => widget instanceof RoCrateStructurePanelWidget,
-    ) as RoCrateStructurePanelWidget | undefined
+    return mainWidgets.find((widget) => widget instanceof RoCrateStructurePanelWidget) as
+      | RoCrateStructurePanelWidget
+      | undefined
   }
 
   async registerToolbarItems(toolbarRegistry: TabBarToolbarRegistry): Promise<void> {

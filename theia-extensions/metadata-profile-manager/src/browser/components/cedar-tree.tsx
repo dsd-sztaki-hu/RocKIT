@@ -118,10 +118,10 @@ function filterNodes(nodes: TreeNode[], query: string): { nodes: TreeNode[], exp
 }
 
 export type CedarTreeProps = {
-  onTemplateSelected: (templateId: string, templateName: string) => void
-  onFolderSelected: (folderId: string, folderName: string) => void
+  onSelectionChange: (templateIds: string[]) => void
   schemaApi: SchemaApi,
   alreadySelectedSchemaIds?: string[]
+  selectedTemplateIds: string[]
 }
 
 const CedarTree: React.FC<CedarTreeProps> = (props) => {
@@ -142,6 +142,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isTreeFullyLoaded, setIsTreeFullyLoaded] = useState(false);
+  const selectionAnchorRef = React.useRef<string | null>(null);
 
   // Initial Load
   useEffect(() => {
@@ -315,12 +316,37 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
   }, [rawSearchInput, treeData, isTreeFullyLoaded]);
 
 
+  const { displayedNodes, searchExpandedIds } = useMemo(() => {
+      if (!searchQuery) {
+          return { displayedNodes: treeData, searchExpandedIds: [] };
+      }
+      const result = filterNodes(treeData, searchQuery);
+      return { displayedNodes: result.nodes, searchExpandedIds: result.expandedIds };
+  }, [treeData, searchQuery]);
+
+  const visibleTemplateIds = useMemo(() => {
+      const ids: string[] = [];
+      const collectVisibleTemplates = (nodes: TreeNode[]) => {
+          for (const node of nodes) {
+              if (!node.isFolder && !node.disabled) {
+                  ids.push(node.id);
+              }
+              if (node.isFolder && expandedNodes.includes(node.id)) {
+                  collectVisibleTemplates(node.children);
+              }
+          }
+      };
+      collectVisibleTemplates(displayedNodes);
+      return ids;
+  }, [displayedNodes, expandedNodes]);
+
   const onNodeClick = (node: TreeNode, e: React.MouseEvent) => {
       e.stopPropagation();
       if (node.disabled) return;
 
       if (node.isFolder) {
-          props.onFolderSelected(node.id, node.name);
+          props.onSelectionChange([]);
+          selectionAnchorRef.current = null;
           
           const isExpanded = expandedNodes.includes(node.id);
           let nextExpanded = [...expandedNodes];
@@ -337,17 +363,46 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
               setExpandedNodes(nextExpanded);
           }
       } else {
-          props.onTemplateSelected(node.id, node.name);
+          let nextSelection: string[];
+
+          if (e.shiftKey) {
+              const anchorIndex = selectionAnchorRef.current
+                  ? visibleTemplateIds.indexOf(selectionAnchorRef.current)
+                  : -1;
+              const selectedIndex = visibleTemplateIds.indexOf(node.id);
+
+              if (anchorIndex >= 0 && selectedIndex >= 0) {
+                  const start = Math.min(anchorIndex, selectedIndex);
+                  const end = Math.max(anchorIndex, selectedIndex);
+                  nextSelection = Array.from(new Set([
+                      ...props.selectedTemplateIds,
+                      ...visibleTemplateIds.slice(start, end + 1)
+                  ]));
+              } else {
+                  nextSelection = Array.from(new Set([...props.selectedTemplateIds, node.id]));
+              }
+          } else if (e.ctrlKey || e.metaKey) {
+              nextSelection = props.selectedTemplateIds.includes(node.id)
+                  ? props.selectedTemplateIds.filter(id => id !== node.id)
+                  : [...props.selectedTemplateIds, node.id];
+          } else {
+              nextSelection = [node.id];
+          }
+
+          props.onSelectionChange(nextSelection);
+          selectionAnchorRef.current = nextSelection.includes(node.id)
+              ? node.id
+              : nextSelection[nextSelection.length - 1] ?? null;
       }
   }
 
-  const { displayedNodes, searchExpandedIds } = useMemo(() => {
-      if (!searchQuery) {
-          return { displayedNodes: treeData, searchExpandedIds: [] };
-      }
-      const result = filterNodes(treeData, searchQuery);
-      return { displayedNodes: result.nodes, searchExpandedIds: result.expandedIds };
-  }, [treeData, searchQuery]);
+  const handleTreeBodyClick = (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement;
+      if (target.closest('.MuiTreeItem-content')) return;
+
+      props.onSelectionChange([]);
+      selectionAnchorRef.current = null;
+  };
 
   useEffect(() => {
       if (searchQuery && searchExpandedIds.length > 0) {
@@ -392,16 +447,16 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
         sx={{
             color: 'var(--theia-foreground)',
             '& .MuiTreeItem-content': {
-                padding: '0px 8px',
-                borderRadius: '3px',
-                '&.Mui-selected': {
-                    backgroundColor: 'transparent !important', // No background on selection
-                    color: 'var(--theia-foreground) !important', // Keep text color visible
+                padding: 0,
+                width: 'fit-content !important',
+                maxWidth: '100%',
+                '&.Mui-selected, &.Mui-selected.Mui-focused': {
+                    backgroundColor: 'transparent !important',
                 },
                 '&.Mui-selected:hover': {
-                    backgroundColor: 'transparent !important', // No background on hover+selected
+                    backgroundColor: 'transparent !important',
                 },
-                '&.Mui-focused': {
+                '&.Mui-focused:not(.Mui-selected)': {
                     backgroundColor: 'transparent !important', // No background on focus
                 },
                 '&:hover': {
@@ -410,8 +465,23 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                 }
             },
             '& .MuiTreeItem-label': {
-                fontFamily: 'inherit'
-            }
+                fontFamily: 'inherit',
+                width: 'auto',
+                flexGrow: 0,
+                maxWidth: '100%',
+                padding: '0px 8px',
+                borderRadius: '3px',
+                boxSizing: 'border-box',
+            },
+            '& .MuiTreeItem-content.Mui-selected > .MuiTreeItem-label, & .MuiTreeItem-content.Mui-selected.Mui-focused > .MuiTreeItem-label': {
+                backgroundColor: 'rgba(24, 144, 255, 0.35) !important',
+                border: '1px solid rgba(24, 144, 255, 0.65)',
+                color: 'var(--theia-ui-font-color1) !important',
+                boxShadow: 'none',
+            },
+            '& .MuiTreeItem-content.Mui-selected:hover > .MuiTreeItem-label': {
+                backgroundColor: 'rgba(24, 144, 255, 0.45) !important',
+            },
         }}
       >
         {Array.isArray(node.children) && node.children.length > 0 
@@ -502,7 +572,7 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
           </div>
       </div>
 
-      <div className="cedar-tree__body">
+      <div className="cedar-tree__body" onClick={handleTreeBodyClick}>
           
           {isLoading && treeData.length === 0 && (
             <div className="cedar-tree__init-loading">
@@ -523,6 +593,8 @@ const CedarTree: React.FC<CedarTreeProps> = (props) => {
                 defaultExpandIcon={<ChevronRightIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
                 expanded={expandedNodes}
                 onNodeToggle={handleToggle}
+                multiSelect
+                selected={props.selectedTemplateIds}
                 sx={{
                     flexGrow: 1,
                     outline: 'none',

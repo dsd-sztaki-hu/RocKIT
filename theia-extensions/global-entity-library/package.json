@@ -1,0 +1,40 @@
+{
+  "name": "global-entity-library",
+  "keywords": [
+    "theia-extension"
+  ],
+  "version": "1.0.0",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "dependencies": {
+    "@theia/core": "1.65.2",
+    "@theia/filesystem": "1.65.2",
+    "@theia/workspace": "1.65.2",
+    "app-state": "0.0.1",
+    "antd": "^5.29.1",
+    "rockit-common": "1.0.0"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.0",
+    "typescript": "~5.4.5",
+    "@testing-library/react": "^11.2.7",
+    "@types/jest": "^26.0.20",
+    "jest": "^26.6.3",
+    "shx": "^0.3.3",
+    "ts-node": "^10.9.1",
+    "ts-jest": "^26.5.6"
+  },
+  "scripts": {
+    "clean": "rimraf lib",
+    "build": "tsc && yarn copy:assets",
+    "watch": "tsc -w",
+    "copy:assets": "shx mkdir -p lib/browser && shx cp -r src/browser/style lib/browser/"
+  },
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/global-entity-library-frontend-module"
+    }
+  ]
+}

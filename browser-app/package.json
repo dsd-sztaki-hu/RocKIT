@@ -27,12 +27,13 @@
     "rockit-loadmask": "1.0.0",
     "data-sources": "1.0.0",
     "open-editors": "1.0.0",
-    "multi-edit": "1.0.0"
+    "multi-edit": "1.0.0",
+    "global-entity-library": "1.0.0"
   },
   "devDependencies": {
     "@theia/cli": "1.65.2",
     "react-grab": "^0.0.53",
-    "@arpproject/recrate": "0.1.56"
+    "@arpproject/recrate": "0.1.58"
   },
   "scripts": {
     "bundle": "yarn run rebuild && theia build --mode development",
