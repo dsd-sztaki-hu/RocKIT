@@ -18,10 +18,10 @@ import {
   deleteCedarProvider,
   deleteMetadataProfile,
   importCedarTemplateFromUrl,
-  importRemoteSchema,
+  importRemoteTemplate,
   listCedarFolder,
   listLocalProfiles,
-  listRemoteSchemas,
+  listRemoteTemplates,
   loadCedarProviders,
   resolveProfileRootPath,
   resolveProfileStorage,
@@ -991,7 +991,7 @@ class DashboardApiHandlers {
     try {
       const query = parseQuery(req.url || '')
       const provider = await this.resolveMetadataProfileProvider(query.providerId)
-      const result = await listRemoteSchemas(
+      const result = await listRemoteTemplates(
         provider,
         query.query,
         resolveProfileRootPath(),
@@ -999,8 +999,8 @@ class DashboardApiHandlers {
       sendJson(res, {
         provider: redactMetadataProfileProvider(result.provider),
         storage: result.storage,
-        count: result.schemas.length,
-        schemas: result.schemas,
+        count: result.templates.length,
+        schemas: result.templates,
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -1079,7 +1079,7 @@ class DashboardApiHandlers {
       if (templateIdOrUrl === '') {
         throw new Error('templateIdOrUrl is required.')
       }
-      const result = await importRemoteSchema({
+      const result = await importRemoteTemplate({
         templateIdOrUrl,
         rootPath: resolveProfileRootPath(),
         provider:

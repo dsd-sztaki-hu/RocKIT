@@ -5,7 +5,7 @@ This note documents the ARP/RO-Crate to Dataverse native metadata mapping used f
 ## Source and Target
 
 - Source metadata: `ro-crate-metadata.json`
-- Source schema family: `metadata-schemas/ro-crate/*.json`
+- Source schema family: `metadata-profiles/ro-crate/*.json`
 - Target schema cache: `metadata-schemas/dataverse/*.json`
 - Target upload shape: Dataverse native dataset version JSON, specifically `metadataBlocks.{blockName}.fields`.
 

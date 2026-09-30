@@ -17,12 +17,12 @@ const { ensureProfileStorage } = require('metadata-profile-core');
 // --- CENTRALIZED CONFIGURATION ---
 const APP_FOLDER_NAME = '.rockit';
 
-// Feature: Metadata Schema Index
-const METADATA_SCHEMA_INDEX_FILENAME = 'metadata-schema-index.json';
+// Feature: Metadata Profile Index
+const METADATA_PROFILE_INDEX_FILENAME = 'metadata-profile-index.json';
 
-// Feature: Remote Schema Provider
-const REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME = 'remote-schema-providers.json';
-const REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteSchemaProvider';
+// Feature: Remote Profile Provider
+const REMOTE_PROFILE_PROVIDER_CONFIG_FILENAME = 'remote-profile-providers.json';
+const REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteProfileProvider';
 
 // Feature: Data Repository
 const DATA_REPOSITORY_CONFIG_FILENAME = 'data-repositories.json';
@@ -43,8 +43,8 @@ class AppSetup {
         try {
             const keytar = require('keytar');
             
-            // Clean up Remote Schema Providers
-            await this._cleanServiceKeys(keytar, REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME, REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE);
+            // Clean up Remote Profile Providers
+            await this._cleanServiceKeys(keytar, REMOTE_PROFILE_PROVIDER_CONFIG_FILENAME, REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE);
             
             // Clean up Data Repositories
             await this._cleanServiceKeys(keytar, DATA_REPOSITORY_CONFIG_FILENAME, DATA_REPOSITORY_KEYTAR_SERVICE);
@@ -104,8 +104,8 @@ class AppSetup {
 
         // 2. Create Directories & Base Files
         try {
-            process.env.ROCKIT_METADATA_SCHEMA_INDEX_FILE = METADATA_SCHEMA_INDEX_FILENAME;
-            process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME;
+            process.env.ROCKIT_METADATA_PROFILE_INDEX_FILE = METADATA_PROFILE_INDEX_FILENAME;
+            process.env.ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE = REMOTE_PROFILE_PROVIDER_CONFIG_FILENAME;
             ensureProfileStorage(paths.root);
 
             console.log('[AppSetup] Filesystem verified.');
@@ -118,12 +118,12 @@ class AppSetup {
         this._env.ROCKIT_ROOT_PATH = paths.root;
         this._env.THEIA_CONFIG_DIR = paths.root;
         
-        // Metadata Schema Env Vars
-        this._env.ROCKIT_METADATA_SCHEMA_INDEX_FILE = METADATA_SCHEMA_INDEX_FILENAME;
+        // Metadata Profile Env Vars
+        this._env.ROCKIT_METADATA_PROFILE_INDEX_FILE = METADATA_PROFILE_INDEX_FILENAME;
 
-        // Remote Schema Provider Env Vars
-        this._env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = REMOTE_SCHEMA_PROVIDER_CONFIG_FILENAME;
-        this._env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE;
+        // Remote Profile Provider Env Vars
+        this._env.ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE = REMOTE_PROFILE_PROVIDER_CONFIG_FILENAME;
+        this._env.ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE = REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE;
 
         // Data Repository Env Vars
         this._env.ROCKIT_DATA_REPOSITORY_CONFIG_FILE = DATA_REPOSITORY_CONFIG_FILENAME;

@@ -26,11 +26,8 @@ async function testHttpServer() {
   const originalBridgeEnabled = process.env.ROCRATE_LOCAL_FILE_BRIDGE_ENABLED
   const originalAllowedOrigins = process.env.ROCRATE_LOCAL_FILE_BRIDGE_ALLOWED_ORIGINS
   const originalRockitRootPath = process.env.ROCKIT_ROOT_PATH
-  const originalAromaRootPath = process.env.AROMA_ROOT_PATH
-  const originalRockitProviderConfigFile = process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
-  const originalAromaProviderConfigFile = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
-  const originalRockitProviderKeytarService = process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
-  const originalAromaProviderKeytarService = process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
+  const originalRockitProviderConfigFile = process.env.ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE
+  const originalRockitProviderKeytarService = process.env.ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE
   process.env.DATAVERSE_BASE_URL = 'https://dataverse.example.test/'
   process.env.DATAVERSE_API_KEY = 'test-dataverse-key'
   process.env.TAVILY_API_KEY = 'test-tavily-key'
@@ -42,11 +39,8 @@ async function testHttpServer() {
     path.join(os.tmpdir(), 'rocrate-dashboard-rockit-'),
   )
   process.env.ROCKIT_ROOT_PATH = profileRootPath
-  process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = 'remote-schema-providers.json'
-  process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteSchemaProvider'
-  delete process.env.AROMA_ROOT_PATH
-  delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
-  delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
+  process.env.ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE = 'remote-profile-providers.json'
+  process.env.ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE = 'RocKIT.RemoteProfileProvider'
 
   // Import modules
   const { TelemetryCollector } = await import('../lib/dashboard/collector.js')
@@ -547,12 +541,12 @@ async function testHttpServer() {
     assert.strictEqual(Array.isArray(providersData.providers), true)
     assert.strictEqual(providersData.providers[0].id, 'arp-prod')
     assert.strictEqual(
-      fs.existsSync(path.join(profileRootPath, 'remote-schema-providers.json')),
+      fs.existsSync(path.join(profileRootPath, 'remote-profile-providers.json')),
       true,
     )
     assert.strictEqual(
       JSON.parse(
-        fs.readFileSync(path.join(profileRootPath, 'remote-schema-providers.json'), 'utf8'),
+        fs.readFileSync(path.join(profileRootPath, 'remote-profile-providers.json'), 'utf8'),
       )[0].id,
       'arp-prod',
     )
@@ -781,30 +775,15 @@ async function testHttpServer() {
     } else {
       process.env.ROCKIT_ROOT_PATH = originalRockitRootPath
     }
-    if (originalAromaRootPath === undefined) {
-      delete process.env.AROMA_ROOT_PATH
-    } else {
-      process.env.AROMA_ROOT_PATH = originalAromaRootPath
-    }
     if (originalRockitProviderConfigFile === undefined) {
-      delete process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
+      delete process.env.ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE
     } else {
-      process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = originalRockitProviderConfigFile
-    }
-    if (originalAromaProviderConfigFile === undefined) {
-      delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE
-    } else {
-      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_CONFIG_FILE = originalAromaProviderConfigFile
+      process.env.ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE = originalRockitProviderConfigFile
     }
     if (originalRockitProviderKeytarService === undefined) {
-      delete process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
+      delete process.env.ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE
     } else {
-      process.env.ROCKIT_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = originalRockitProviderKeytarService
-    }
-    if (originalAromaProviderKeytarService === undefined) {
-      delete process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE
-    } else {
-      process.env.AROMA_REMOTE_SCHEMA_PROVIDER_KEYTAR_SERVICE = originalAromaProviderKeytarService
+      process.env.ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE = originalRockitProviderKeytarService
     }
   }
 }

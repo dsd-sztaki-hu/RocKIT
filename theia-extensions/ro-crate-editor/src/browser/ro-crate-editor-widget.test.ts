@@ -11,7 +11,7 @@ jest.mock('@theia/workspace/lib/browser', () => ({
   WorkspaceService: class WorkspaceService {},
 }))
 jest.mock('rockit-common/lib/browser', () => ({
-  MetadataSchemaManager: class MetadataSchemaManager {},
+  MetadataProfileManager: class MetadataProfileManager {},
   SchemaValidatorManager: class SchemaValidatorManager {},
   writeUtf8TextFile: jest.fn(),
 }))
@@ -115,8 +115,8 @@ describe('RoCrateEditorWidget entity fallback', () => {
     widget.updateTitleLabel = jest.fn()
     widget.validateCurrentCrate = jest.fn().mockResolvedValue(undefined)
     widget.updateProfileWithEntitySchemas = jest.fn().mockResolvedValue(undefined)
-    widget.schemaManagerService = {
-      onDidChangeSchemas: jest.fn().mockReturnValue(disposable),
+    widget.profileManagerService = {
+      onDidChangeProfiles: jest.fn().mockReturnValue(disposable),
     }
     widget.messageService = {
       info: jest.fn(),
@@ -202,8 +202,8 @@ describe('RoCrateEditorWidget entity fallback', () => {
     widget.updateTitleLabel = jest.fn()
     widget.validateCurrentCrate = jest.fn().mockResolvedValue(undefined)
     widget.updateProfileWithEntitySchemas = jest.fn().mockResolvedValue(undefined)
-    widget.schemaManagerService = {
-      onDidChangeSchemas: jest.fn().mockReturnValue(disposable),
+    widget.profileManagerService = {
+      onDidChangeProfiles: jest.fn().mockReturnValue(disposable),
     }
     widget.messageService = {
       info: jest.fn(),

@@ -17,7 +17,7 @@ import { inject, injectable } from '@theia/core/shared/inversify'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
 import { WorkspaceCommands, WorkspaceService } from '@theia/workspace/lib/browser'
 import {
-    MetadataSchemaManager,
+    MetadataProfileManager,
     RoCrateHtmlGenerator,
     readUtf8TextFile,
     writeUtf8TextFile,
@@ -87,8 +87,8 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     @inject(RoCrateHtmlGenerator)
     protected readonly roCrateHtmlGenerator: RoCrateHtmlGenerator
 
-    @inject(MetadataSchemaManager)
-    protected readonly schemaManagerService: MetadataSchemaManager
+    @inject(MetadataProfileManager)
+    protected readonly profileManagerService: MetadataProfileManager
 
     @inject(CommandService)
     protected readonly commandService: CommandService
@@ -1136,7 +1136,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
 
             try {
                 if (convertedContent) {
-                    mergedProfile = await this.schemaManagerService.getMergedProfile(
+                    mergedProfile = await this.profileManagerService.getMergedProfile(
                         crate,
                         convertedContent,
                         mergedProfile,
@@ -1154,7 +1154,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     }
 
     protected watchSchemaChanges(): void {
-        this.schemaManagerService.onDidChangeSchemas(() => {
+        this.profileManagerService.onDidChangeProfiles(() => {
             this.schemasByConformsToCache = undefined
             this.schemasByConformsToCachePromise = undefined
             this.convertedProfileContentCache.clear()
@@ -1230,14 +1230,14 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
     }
 
     protected async loadSchemasByConformsToUncached(): Promise<Map<string, any>> {
-        const allSchemas = await this.schemaManagerService.loadAllSchemas()
+        const allProfiles = await this.profileManagerService.loadAllProfiles()
         const byConformsTo = new Map<string, any>()
-        for (const schema of allSchemas) {
-            const conformsTo = (schema?.conformsTo ?? '').trim()
+        for (const profile of allProfiles) {
+            const conformsTo = (profile?.conformsTo ?? '').trim()
             if (!conformsTo || byConformsTo.has(conformsTo)) {
                 continue
             }
-            byConformsTo.set(conformsTo, schema)
+            byConformsTo.set(conformsTo, profile)
         }
         return byConformsTo
     }
@@ -1254,7 +1254,7 @@ export class RoCrateLoaderContribution implements FrontendApplicationContributio
         if (this.convertedProfileContentCache.has(key)) {
             return this.convertedProfileContentCache.get(key)
         }
-        const content = await this.schemaManagerService.getConvertedProfileContent(normalizedPath)
+        const content = await this.profileManagerService.getConvertedProfileContent(normalizedPath)
         this.convertedProfileContentCache.set(key, content)
         return content
     }
