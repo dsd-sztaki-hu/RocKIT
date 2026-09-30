@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 /**
  * In-memory telemetry collector for the RO-Crate MCP Dashboard
  * Bounded memory usage with automatic retention purging
@@ -19,6 +25,7 @@ import {
   sanitizeToolName,
   sanitizeAndMeasureArgs,
   createSanitizedErrorEvent,
+  redactSensitiveValues,
   truncateErrorMessage,
 } from './sanitize'
 
@@ -193,7 +200,9 @@ export class TelemetryCollector {
       durationMs: null,
       status: 'started',
       argsSizeBytes: argsSize,
-      params: this.config.detailedToolCallLogging ? this.truncateValue(args) : undefined,
+      params: this.config.detailedToolCallLogging
+        ? this.truncateValue(redactSensitiveValues(args))
+        : undefined,
     }
 
     this.toolCalls.set(toolCallId, toolCall)

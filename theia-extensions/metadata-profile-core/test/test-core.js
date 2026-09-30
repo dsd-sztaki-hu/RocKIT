@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -5,14 +11,55 @@ const path = require('node:path')
 
 async function main() {
   const core = require('../lib/index.js')
+
+  const profileEnvNames = [
+    'ROCKIT_ROOT_PATH',
+    'ROCKIT_METADATA_PROFILE_INDEX_FILE',
+    'ROCKIT_REMOTE_PROFILE_PROVIDER_CONFIG_FILE',
+    'ROCKIT_REMOTE_PROFILE_PROVIDER_KEYTAR_SERVICE',
+  ]
+  const originalProfileEnv = Object.fromEntries(
+    profileEnvNames.map((name) => [name, process.env[name]]),
+  )
+  try {
+    for (const name of profileEnvNames) {
+      delete process.env[name]
+    }
+    assert.equal(
+      core.resolveProfileRootPath(),
+      path.join(os.homedir(), '.rockit'),
+      'profile storage should default to ~/.rockit',
+    )
+
+    const rockitRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metadata-profile-rockit-'))
+    process.env.ROCKIT_ROOT_PATH = rockitRoot
+    process.env.ROCKIT_METADATA_PROFILE_INDEX_FILE = 'rockit-index.json'
+    const configuredStorage = core.ensureProfileStorage()
+    assert.equal(configuredStorage.rootPath, rockitRoot)
+    assert.equal(
+      configuredStorage.indexPath,
+      path.join(rockitRoot, 'rockit-index.json'),
+      'ROCKIT_* settings should select the configured profile storage',
+    )
+    assert.ok(fs.existsSync(configuredStorage.indexPath))
+  } finally {
+    for (const [name, value] of Object.entries(originalProfileEnv)) {
+      if (value === undefined) {
+        delete process.env[name]
+      } else {
+        process.env[name] = value
+      }
+    }
+  }
+
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'metadata-profile-core-test-'))
 
   const storage = core.ensureProfileStorage(root)
   assert.ok(fs.existsSync(storage.cedarDir), 'cedar directory should exist')
   assert.ok(fs.existsSync(storage.roCrateDir), 'ro-crate directory should exist')
-  assert.ok(fs.existsSync(storage.indexPath), 'schema index should exist')
-  const providerConfigPath = path.join(root, 'remote-schema-providers.json')
-  assert.ok(fs.existsSync(providerConfigPath), 'remote schema provider config should exist')
+  assert.ok(fs.existsSync(storage.indexPath), 'profile index should exist')
+  const providerConfigPath = path.join(root, 'remote-profile-providers.json')
+  assert.ok(fs.existsSync(providerConfigPath), 'remote profile provider config should exist')
   const seededProviders = JSON.parse(fs.readFileSync(providerConfigPath, 'utf8'))
   assert.equal(seededProviders.length, 1)
   assert.equal(seededProviders[0].id, 'arp-prod')

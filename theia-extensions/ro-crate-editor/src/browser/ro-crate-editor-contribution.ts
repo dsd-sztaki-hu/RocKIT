@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { MenuModelRegistry } from '@theia/core'
 import {
   AbstractViewContribution,
@@ -32,7 +38,7 @@ import { RoCrateEditorWidget } from './ro-crate-editor-widget'
 
 export const OpenRoCrateEditorCommand: Command = {
   id: 'rocrate.openEditor',
-  label: nls.localize('rockit/roCrateEditor/openNew', 'Open New RO-Crate Editor'),
+  label: nls.localize('rockit/roCrateEditor/openNew', 'Open New Metadata Editor'),
 }
 
 export const InitializeRoCrateCommand: Command = {
@@ -44,7 +50,7 @@ export const RoCrateEditorDocumentationCommand: Command = {
   id: 'rocrate.openEditorDocumentation',
   label: nls.localize(
     'rockit/roCrateEditor/openDocumentation',
-    'Open RO-Crate Editor Documentation',
+    'Open Metadata Editor Documentation',
   ),
   iconClass: codicon('info'),
 }
@@ -72,7 +78,7 @@ export class RoCrateEditorContribution
   ) {
     super({
       widgetId: RoCrateEditorWidget.ID,
-      widgetName: nls.localize('rockit/roCrateEditor/title', 'RO-Crate Editor'),
+      widgetName: nls.localize('rockit/roCrateEditor/title', 'Metadata Editor'),
       defaultWidgetOptions: { area: 'main' },
     })
   }

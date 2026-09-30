@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!-- ****************************************************************************************
+ * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ **************************************************************************************** -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -25,6 +30,9 @@
         </button>
         <button id="settingsBtn" class="btn btn-secondary">
           <span class="icon">⚙</span> Settings
+        </button>
+        <button id="shutdownBtn" class="btn btn-danger" type="button">
+          <span class="icon">⏻</span> Shut down MCP
         </button>
       </div>
     </header>
@@ -92,57 +100,6 @@
           <div id="errorsList" class="errors-list">
             <div class="loading">Loading...</div>
           </div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-header">
-          <h2>Test Tavily Search</h2>
-        </div>
-        <div class="panel-content">
-          <form id="tavilyTestForm" class="settings-form">
-            <div class="setting-row">
-              <label class="setting-label">
-                <strong>Search Query</strong>
-                <span class="setting-description">Enter a test query to verify Tavily search functionality</span>
-              </label>
-              <div class="setting-control">
-                <input type="text" id="tavilyQueryInput" class="number-input" style="width: 300px;" placeholder="e.g., RO-Crate metadata specification" required>
-              </div>
-            </div>
-
-            <div class="setting-row">
-              <label class="setting-label">
-                <strong>Max Results</strong>
-                <span class="setting-description">Number of results to return (1-10)</span>
-              </label>
-              <div class="setting-control">
-                <input type="number" id="tavilyMaxResults" class="number-input" min="1" max="10" value="3">
-              </div>
-            </div>
-
-            <div class="setting-row">
-              <label class="setting-label">
-                <strong>Search Depth</strong>
-                <span class="setting-description">Basic or advanced search</span>
-              </label>
-              <div class="setting-control">
-                <select id="tavilySearchDepth" class="time-range-select">
-                  <option value="basic">Basic</option>
-                  <option value="advanced">Advanced</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="setting-actions">
-              <button type="submit" class="btn btn-primary" id="tavilyTestBtn">
-                <span class="icon">🔍</span> Test Search
-              </button>
-              <button type="button" class="btn btn-secondary" id="tavilyClearBtn">Clear Results</button>
-            </div>
-
-            <div id="tavilyTestResult" class="hidden"></div>
-          </form>
         </div>
       </section>
 
@@ -267,6 +224,7 @@
             <div class="settings-section-header">
               <h3>Dataverse Upload Tool</h3>
             </div>
+            <p class="settings-help"><span>Environment variables are used by default. Dashboard values are saved in the RocKIT storage root (default: ~/.rockit/rocrate-mcp-settings.json) and override them for this and future MCP processes.</span> <span>Select “Use environment/default value” to clear a dashboard override.</span> <span>Saved API-key values stay masked; click the eye to view them after reload.</span></p>
             <div class="setting-row">
               <label class="setting-label">
                 <strong>Keep RO-Crate ZIPs</strong>
@@ -284,8 +242,12 @@
                 <strong>DATAVERSE_BASE_URL</strong>
                 <span class="setting-description" id="dataverseBaseUrlSource">Loading...</span>
               </label>
-              <div class="setting-control setting-value">
-                <code id="dataverseBaseUrlValue">Loading...</code>
+              <div class="setting-control setting-credential-control">
+                <input type="url" id="dataverseBaseUrlInput" class="text-input" autocomplete="url" placeholder="https://dataverse.example">
+                <label class="setting-reset">
+                  <input type="checkbox" id="dataverseBaseUrlUseEnv">
+                  Use environment/default value
+                </label>
               </div>
             </div>
             <div class="setting-row">
@@ -293,86 +255,119 @@
                 <strong>DATAVERSE_API_KEY</strong>
                 <span class="setting-description" id="dataverseApiKeySource">Loading...</span>
               </label>
-              <div class="setting-control setting-value">
-                <code id="dataverseApiKeyValue">Loading...</code>
+              <div class="setting-control setting-credential-control">
+                <div class="setting-input-with-action">
+                  <input type="password" id="dataverseApiKeyInput" class="text-input" autocomplete="new-password" placeholder="Enter a new dashboard override">
+                  <button type="button" class="password-visibility-button" id="dataverseApiKeyVisibilityBtn" title="Show API key" aria-label="Show API key">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+                      <circle cx="12" cy="12" r="2.5"></circle>
+                    </svg>
+                  </button>
+                </div>
+                <label class="setting-reset">
+                  <input type="checkbox" id="dataverseApiKeyUseEnv">
+                  Use environment value
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <div class="settings-section-header">
+              <h3>Web Search Tool</h3>
+            </div>
+            <p class="settings-help"><span>Configure the Tavily API key used by the</span> <code>search</code> <span>tool.</span> <span>Saved values stay masked; click the eye to view them.</span></p>
+            <div class="setting-row">
+              <label class="setting-label">
+                <strong>TAVILY_API_KEY</strong>
+                <span class="setting-description" id="tavilyApiKeySource">Loading...</span>
+              </label>
+              <div class="setting-control setting-credential-control">
+                <div class="setting-input-with-action">
+                  <input type="password" id="tavilyApiKeyInput" class="text-input" autocomplete="new-password" placeholder="Enter a new dashboard override">
+                  <button type="button" class="password-visibility-button" id="tavilyApiKeyVisibilityBtn" title="Show API key" aria-label="Show API key">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+                      <circle cx="12" cy="12" r="2.5"></circle>
+                    </svg>
+                  </button>
+                </div>
+                <label class="setting-reset">
+                  <input type="checkbox" id="tavilyApiKeyUseEnv">
+                  Use environment value
+                </label>
+                <button type="button" class="btn btn-secondary btn-sm settings-inline-action" id="openTavilyTestBtn">
+                  <span class="icon">🔍</span> Test Tavily Search
+                </button>
               </div>
             </div>
           </section>
 
           <div class="setting-actions">
-            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <button type="submit" class="btn btn-primary">Save Settings</button>
             <button type="button" class="btn btn-secondary" id="cancelSettingsBtn">Cancel</button>
           </div>
 
           <div id="settingsMessage" class="settings-message hidden"></div>
         </form>
 
-        <section class="settings-section schema-registry-section">
-          <div class="settings-section-header">
-            <h3>Schema Registry</h3>
-          </div>
-          <p class="setting-description" style="margin: 0 0 0.75rem 0;">
-            Manage ontology schema sources used by MCP ontology suggestion tools.
-          </p>
+      </div>
+    </div>
+  </div>
 
-          <div class="settings-table-wrap">
-            <table class="data-table" id="schemaRegistryTable">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Schema URL</th>
-                  <th>Matches Prefixes</th>
-                  <th>Specs</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td colspan="6" class="loading">Loading...</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="setting-row" style="margin-top: 0.75rem;">
+  <!-- Tavily Search Test Modal -->
+  <div id="tavilyTestModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="tavilyTestModalTitle">
+    <div class="modal-content tavily-test-modal-content">
+      <div class="modal-header">
+        <h2 id="tavilyTestModalTitle">Test Tavily Search</h2>
+        <button type="button" class="modal-close" id="closeTavilyTestModal" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="settings-help">The test uses the currently saved Tavily configuration. Save Settings first if you changed the API key.</p>
+        <form id="tavilyTestForm" class="settings-form">
+          <div class="setting-row">
             <label class="setting-label">
-              <strong>New Schema</strong>
-              <span class="setting-description">Create or replace a registry entry by ID.</span>
+              <strong>Search Query</strong>
+              <span class="setting-description">Enter a test query to verify Tavily search functionality</span>
             </label>
+            <div class="setting-control">
+              <input type="text" id="tavilyQueryInput" class="text-input tavily-query-input" placeholder="e.g., RO-Crate metadata specification" required>
+            </div>
           </div>
 
           <div class="setting-row">
-            <div class="setting-control" style="width: 100%;">
-              <input type="text" id="schemaIdInput" class="number-input" placeholder="id (e.g. codemeta3)">
+            <label class="setting-label">
+              <strong>Max Results</strong>
+              <span class="setting-description">Number of results to return (1-10)</span>
+            </label>
+            <div class="setting-control">
+              <input type="number" id="tavilyMaxResults" class="number-input" min="1" max="10" value="3">
             </div>
           </div>
+
           <div class="setting-row">
-            <div class="setting-control" style="width: 100%;">
-              <input type="text" id="schemaDisplayNameInput" class="number-input" placeholder="display name">
+            <label class="setting-label">
+              <strong>Search Depth</strong>
+              <span class="setting-description">Basic or advanced search</span>
+            </label>
+            <div class="setting-control">
+              <select id="tavilySearchDepth" class="time-range-select">
+                <option value="basic">Basic</option>
+                <option value="advanced">Advanced</option>
+              </select>
             </div>
           </div>
-          <div class="setting-row">
-            <div class="setting-control" style="width: 100%;">
-              <input type="text" id="schemaUrlInput" class="number-input" placeholder="schema URL">
-            </div>
-          </div>
-          <div class="setting-row">
-            <div class="setting-control" style="width: 100%;">
-              <input type="text" id="schemaMatchesInput" class="number-input" placeholder="matchesUrls (comma-separated)">
-            </div>
-          </div>
-          <div class="setting-row">
-            <div class="setting-control" style="width: 100%;">
-              <input type="text" id="schemaSpecsInput" class="number-input" placeholder="activeOnSpec (comma-separated, default: v1.1.3,v1.2.0)">
-            </div>
-          </div>
+
           <div class="setting-actions">
-            <button type="button" class="btn btn-primary" id="addSchemaBtn">Add / Replace</button>
-            <button type="button" class="btn btn-secondary" id="reloadSchemaBtn">Reload</button>
+            <button type="submit" class="btn btn-primary" id="tavilyTestBtn">
+              <span class="icon">🔍</span> Test Search
+            </button>
+            <button type="button" class="btn btn-secondary" id="tavilyClearBtn">Clear Results</button>
           </div>
-          <div id="schemaRegistryMessage" class="settings-message hidden"></div>
-        </section>
+
+          <div id="tavilyTestResult" class="hidden"></div>
+        </form>
       </div>
     </div>
   </div>
@@ -387,7 +382,7 @@
       <div class="profiles-modal-body">
         <div class="profiles-toolbar">
           <div>
-            <h3>CEDAR Schema Profiles</h3>
+            <h3>Metadata Profiles</h3>
             <p class="setting-description">Browse remote CEDAR repositories and manage locally converted recrate profiles.</p>
           </div>
           <div class="profiles-toolbar-actions">
@@ -460,7 +455,7 @@
           <div class="provider-dialog-icon provider-server-icon"></div>
           <div>
             <h3>Choose Repository</h3>
-            <p class="setting-description">Select a remote provider to browse schemas.</p>
+            <p class="setting-description">Select a remote provider to browse profiles.</p>
           </div>
         </div>
         <div id="remoteProviderSelectList" class="provider-select-list">
@@ -489,7 +484,7 @@
             <div class="provider-dialog-icon provider-sliders-icon"><span></span><span></span><span></span></div>
             <div>
               <h3>Configured Providers</h3>
-              <p class="setting-description">Manage connections to remote schema repositories.</p>
+              <p class="setting-description">Manage connections to remote profile providers.</p>
             </div>
           </div>
           <button type="button" class="btn btn-primary" id="addRemoteProviderBtn">
@@ -513,7 +508,15 @@
               <option value="apiKey">CEDAR API key</option>
             </select>
             <input type="text" id="remoteProviderProxyBaseUrlInput" class="text-input" placeholder="https://repo.researchdata.hu">
-            <input type="password" id="remoteProviderApiKeyInput" class="text-input provider-form-wide" placeholder="API key (stored in keytar when available)">
+            <div class="setting-input-with-action provider-form-wide" id="remoteProviderApiKeyControl">
+              <input type="password" id="remoteProviderApiKeyInput" class="text-input" placeholder="API key (stored in keytar when available)">
+              <button type="button" class="password-visibility-button" id="remoteProviderApiKeyVisibilityBtn" title="Show API key" aria-label="Show API key">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+                  <circle cx="12" cy="12" r="2.5"></circle>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="setting-actions">
             <button type="submit" class="btn btn-primary">Save Provider</button>

@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import type { MenuModelRegistry } from '@theia/core'
 import {
   AbstractViewContribution,
@@ -26,7 +32,7 @@ export const DatasetPanelCommand: Command = {
   id: 'dataset-panel:command',
   label: nls.localize(
     'rockit/structurePanel/openNew',
-    'Open New RO-Crate Structure Panel',
+    'Open New RO-Crate Structure',
   ),
 }
 
@@ -44,7 +50,7 @@ export const RoCrateStructurePanelDocumentationCommand: Command = {
   id: 'ro-crate-structure-panel:open-documentation',
   label: nls.localize(
     'rockit/structurePanel/openDocumentation',
-    'Open RO-Crate Structure Panel Documentation',
+    'Open RO-Crate Structure Documentation',
   ),
   iconClass: codicon('info'),
 }
@@ -61,7 +67,7 @@ export class RoCrateStructurePanelContribution extends AbstractViewContribution<
       widgetId: RoCrateStructurePanelWidget.ID,
       widgetName: nls.localize(
         'rockit/structurePanel/title',
-        'RO-Crate Structure Panel',
+        'RO-Crate Structure',
       ),
       defaultWidgetOptions: { area: 'main' },
     })

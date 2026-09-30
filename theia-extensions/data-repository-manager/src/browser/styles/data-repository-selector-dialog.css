@@ -1,3 +1,12 @@
+/********************************************************************************************
+ * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *******************************************************************************************/
+ 
 /* src/browser/styles/data-repository-selector-dialog.css */
 
 .data-repo-selector {
@@ -427,38 +436,78 @@
     font-size: 20px !important;
 }
 
-.data-repo-selector__delete-control { position: relative; display: flex; }
-.data-repo-selector__delete-menu {
+.data-repo-selector__delete-control,
+.data-repo-selector__sync-control { position: relative; display: flex; }
+.data-repo-selector__delete-menu,
+.data-repo-selector__options-menu {
     position: absolute; z-index: 10; top: calc(100% - 3px); right: 2px; width: 205px;
     padding: 5px; border: 1px solid var(--theia-menu-border, var(--theia-panel-border));
     border-radius: 5px; background: var(--theia-menu-background);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
 }
-.data-repo-selector__delete-menu--upward {
+.data-repo-selector__delete-menu--upward,
+.data-repo-selector__options-menu--upward {
     top: auto;
     bottom: calc(100% - 3px);
 }
-.data-repo-selector__delete-menu button {
+.data-repo-selector__delete-menu button,
+.data-repo-selector__options-menu button {
     display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 9px;
     border: 0; border-radius: 3px; background: transparent;
     color: var(--theia-menu-foreground); text-align: left; cursor: pointer;
 }
 .data-repo-selector__delete-menu button:hover,
-.data-repo-selector__delete-menu button:focus-visible {
+.data-repo-selector__delete-menu button:focus-visible,
+.data-repo-selector__options-menu button:hover,
+.data-repo-selector__options-menu button:focus-visible {
     background: var(--theia-menu-selectionBackground);
     color: var(--theia-menu-selectionForeground); outline: none;
 }
 .data-repo-selector__delete-menu button:hover *,
-.data-repo-selector__delete-menu button:focus-visible * {
+.data-repo-selector__delete-menu button:focus-visible *,
+.data-repo-selector__options-menu button:hover *,
+.data-repo-selector__options-menu button:focus-visible * {
     color: var(--theia-menu-selectionForeground) !important;
 }
-.data-repo-selector__delete-menu svg { flex: 0 0 auto; font-size: 18px; }
-.data-repo-selector__delete-menu span { display: flex; flex-direction: column; gap: 1px; }
-.data-repo-selector__delete-menu small {
+.data-repo-selector__delete-menu svg,
+.data-repo-selector__options-menu svg { flex: 0 0 auto; font-size: 18px; }
+.data-repo-selector__delete-menu span,
+.data-repo-selector__options-menu span { display: flex; flex-direction: column; gap: 1px; }
+.data-repo-selector__delete-menu small,
+.data-repo-selector__options-menu small {
     color: var(--theia-descriptionForeground); font-size: 11px;
 }
 .data-repo-selector__delete-menu-danger strong,
 .data-repo-selector__delete-menu-danger > svg { color: var(--theia-errorForeground); }
+
+.data-repo-selector__sync-menu { width: 270px; }
+
+.theia-hc .data-repo-selector__options-menu button:hover,
+.theia-hc .data-repo-selector__options-menu button:focus-visible,
+.theia-hc .data-repo-selector__delete-menu button:hover,
+.theia-hc .data-repo-selector__delete-menu button:focus-visible,
+body.hc-black .data-repo-selector__options-menu button:hover,
+body.hc-black .data-repo-selector__options-menu button:focus-visible,
+body.hc-black .data-repo-selector__delete-menu button:hover,
+body.hc-black .data-repo-selector__delete-menu button:focus-visible {
+    outline: 1px solid var(--theia-focusBorder, #f38518) !important;
+    outline-offset: -1px;
+}
+
+.theia-hc .data-repo-selector__options-menu button:hover > svg,
+.theia-hc .data-repo-selector__options-menu button:hover strong,
+.theia-hc .data-repo-selector__options-menu button:hover small,
+.theia-hc .data-repo-selector__options-menu button:focus-visible > svg,
+.theia-hc .data-repo-selector__options-menu button:focus-visible strong,
+.theia-hc .data-repo-selector__options-menu button:focus-visible small,
+body.hc-black .data-repo-selector__options-menu button:hover > svg,
+body.hc-black .data-repo-selector__options-menu button:hover strong,
+body.hc-black .data-repo-selector__options-menu button:hover small,
+body.hc-black .data-repo-selector__options-menu button:focus-visible > svg,
+body.hc-black .data-repo-selector__options-menu button:focus-visible strong,
+body.hc-black .data-repo-selector__options-menu button:focus-visible small {
+    color: var(--theia-focusBorder, #f38518) !important;
+}
 
 .data-repo-selector__validation-error-button {
     color: var(--theia-inputValidation-errorForeground, var(--theia-errorForeground));

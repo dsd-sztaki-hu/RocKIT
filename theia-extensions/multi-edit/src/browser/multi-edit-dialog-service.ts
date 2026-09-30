@@ -4,8 +4,8 @@ import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import { GlobalEntityLibraryService } from 'global-entity-library/lib/browser/global-entity-library-service'
 import {
-  type MetadataSchemaManager,
-  MetadataSchemaManager as MetadataSchemaManagerToken,
+  MetadataProfileManager as MetadataProfileManagerToken,
+  type MetadataProfileManager,
 } from 'rockit-common/lib/browser'
 import { LoadMaskService } from 'rockit-loadmask/lib/browser/loadmask-service'
 import { MultiEditDialog } from './multi-edit-dialog'
@@ -18,9 +18,9 @@ export class MultiEditDialogService {
   @inject(RoCrateHistoryService)
   protected readonly roCrateHistoryService!: RoCrateHistoryService
 
-  @inject(MetadataSchemaManagerToken)
+  @inject(MetadataProfileManagerToken)
   @optional()
-  protected readonly schemaManagerService?: MetadataSchemaManager
+  protected readonly profileManagerService?: MetadataProfileManager
 
   @inject(LoadMaskService)
   protected readonly loadMaskService!: LoadMaskService
@@ -45,7 +45,7 @@ export class MultiEditDialogService {
       const dialog = new MultiEditDialog(
         entityIds,
         this.appStateService,
-        this.schemaManagerService,
+        this.profileManagerService,
         this.roCrateHistoryService,
         this.loadMaskService,
         this.globalEntityLibraryService,

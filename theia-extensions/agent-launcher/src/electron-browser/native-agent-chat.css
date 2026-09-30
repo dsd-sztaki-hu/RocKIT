@@ -1,5 +1,105 @@
+/********************************************************************************************
+ * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *******************************************************************************************/
+ 
 .native-agent-chat {
   min-width: 320px;
+}
+
+.rocrate-mcp-conflict-content {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.rocrate-mcp-conflict-summary {
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
+.rocrate-mcp-conflict-socket {
+  margin-bottom: 14px;
+}
+
+.rocrate-mcp-conflict-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--theia-descriptionForeground);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.rocrate-mcp-conflict-socket code {
+  display: block;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 6px 8px;
+  border: 1px solid var(--theia-editorWidget-border);
+  border-radius: 4px;
+  background: var(--theia-textCodeBlock-background, var(--theia-editor-background));
+  font-family: var(--theia-editor-font-family, monospace);
+  font-size: 12px;
+}
+
+.rocrate-mcp-conflict-question {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--theia-focusBorder);
+  border-left-width: 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--theia-focusBorder) 9%, transparent);
+}
+
+.rocrate-mcp-conflict-question-title {
+  color: var(--theia-editor-foreground);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.rocrate-mcp-conflict-question-text {
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+.rocrate-mcp-conflict-code-section {
+  margin: 0 0 14px;
+}
+
+.rocrate-mcp-conflict-code-title {
+  margin-bottom: 5px;
+  color: var(--theia-editor-foreground);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rocrate-mcp-conflict-code {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  padding: 9px 10px;
+  border: 1px solid var(--theia-editorWidget-border);
+  border-radius: 4px;
+  background: var(--theia-textCodeBlock-background, var(--theia-editor-background));
+  color: var(--theia-editor-foreground);
+  font-family: var(--theia-editor-font-family, monospace);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .native-agent-chat-shell {

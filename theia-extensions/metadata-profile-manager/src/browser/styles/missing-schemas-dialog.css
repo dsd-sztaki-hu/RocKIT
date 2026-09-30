@@ -1,0 +1,66 @@
+/********************************************************************************************
+ * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *******************************************************************************************/
+ 
+/* src/browser/styles/missing-schemas-dialog.css */
+
+.missing-schemas {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--theia-editor-background);
+    color: var(--theia-foreground);
+    font-family: var(--theia-ui-font-family);
+}
+
+.missing-schemas__body {
+    padding: 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    flex: 1;
+}
+
+.missing-schemas__icon {
+    font-size: 32px !important;
+    color: var(--theia-infoForeground, #2196F3);
+}
+
+.missing-schemas__text-container {
+    padding-top: 4px;
+}
+
+.missing-schemas__title {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--theia-foreground);
+}
+
+.missing-schemas__message {
+    margin: 0;
+    font-size: 14px;
+    color: var(--theia-descriptionForeground);
+    line-height: 1.5;
+}
+
+/* Footer */
+.missing-schemas__footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 15px 20px;
+    background-color: var(--theia-layout-color2);
+    border-top: 1px solid var(--theia-panel-border);
+}
+
+.missing-schemas__btn-ok {
+    min-width: 80px;
+    color: var(--theia-button-foreground);
+    cursor: pointer;
+}

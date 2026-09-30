@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import type {
   FrontendApplication,
   FrontendApplicationContribution,
@@ -59,14 +65,12 @@ export class GrabHelperContribution implements FrontendApplicationContribution {
     }
 
     this.grabApi = init()
-    console.log('[grab-helper] React Grab initialized.')
   }
 
   protected disableReactGrab(): void {
     if (this.grabApi) {
       this.grabApi.dispose()
       this.grabApi = undefined
-      console.log('[grab-helper] React Grab disabled.')
     }
   }
 }

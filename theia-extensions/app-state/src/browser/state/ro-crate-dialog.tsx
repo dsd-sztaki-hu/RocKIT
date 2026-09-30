@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { CommandService } from '@theia/core/lib/common/command'
 import { MessageService } from '@theia/core/lib/common/message-service'
 import { DialogError } from '@theia/core/lib/browser/dialogs'

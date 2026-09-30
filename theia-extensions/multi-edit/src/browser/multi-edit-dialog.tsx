@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { ReactDialog } from '@theia/core/lib/browser/dialogs/react-dialog'
 import { nls } from '@theia/core/lib/common/nls'
 import * as React from '@theia/core/shared/react'
@@ -5,7 +11,7 @@ import { Alert, Button, DatePicker, Input, Select, Switch } from 'antd'
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
 import { RoCrateHistoryService } from 'app-state/lib/browser/state/ro-crate-history-service'
 import type { GlobalEntityLibraryService } from 'global-entity-library/lib/browser/global-entity-library-service'
-import type { MetadataSchemaManager, SchemaInfo } from 'rockit-common/lib/browser'
+import type { MetadataProfileManager, ProfileInfo } from 'rockit-common/lib/browser'
 import {
   type LoadMaskHandle,
   LoadMaskService,
@@ -183,7 +189,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   constructor(
     private readonly entityIds: string[],
     private readonly appStateService: AppStateService,
-    private readonly schemaManagerService?: MetadataSchemaManager,
+    private readonly profileManagerService?: MetadataProfileManager,
     private readonly roCrateHistoryService?: RoCrateHistoryService,
     private readonly loadMaskService?: LoadMaskService,
     private readonly globalEntityLibraryService?: GlobalEntityLibraryService,
@@ -587,7 +593,7 @@ export class MultiEditDialog extends ReactDialog<string> {
   }
 
   protected async ensureAssociatedSchemaProfiles(): Promise<void> {
-    if (!this.schemaManagerService) {
+    if (!this.profileManagerService) {
       return
     }
 
@@ -609,9 +615,9 @@ export class MultiEditDialog extends ReactDialog<string> {
       return
     }
 
-    const allSchemas = await this.schemaManagerService.loadAllSchemas()
+    const allProfiles = await this.profileManagerService.loadAllProfiles()
     const schemasByConformsTo = new Map(
-      allSchemas
+      allProfiles
         .filter((schema) => Boolean(schema.conformsTo?.trim()))
         .map((schema) => [schema.conformsTo!.trim(), schema]),
     )
@@ -622,7 +628,7 @@ export class MultiEditDialog extends ReactDialog<string> {
           return undefined
         }
         try {
-          const content = await this.schemaManagerService!.getConvertedProfileContent(
+          const content = await this.profileManagerService!.getConvertedProfileContent(
             schema.files.convertedPath,
           )
           return content ? { id: url, content, flag: '' } : undefined
@@ -651,27 +657,27 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected async loadDownloadedSchemaProfiles(): Promise<void> {
-    if (this.downloadedSchemasLoaded || !this.schemaManagerService) {
+    if (this.downloadedSchemasLoaded || !this.profileManagerService) {
       return
     }
     this.downloadedSchemasLoaded = true
 
-    let schemas: SchemaInfo[] = []
+    let profiles: ProfileInfo[] = []
     try {
-      schemas = await this.schemaManagerService.loadAllSchemas()
+      profiles = await this.profileManagerService.loadAllProfiles()
     } catch (error) {
       console.warn('Failed to load downloaded schemas for multi-edit.', error)
       return
     }
 
     let changed = false
-    for (const schema of schemas) {
-      const schemaStatus = (schema as SchemaInfo & { status?: string }).status
+    for (const schema of profiles) {
+      const schemaStatus = (schema as ProfileInfo & { status?: string }).status
       if (!schema?.files?.sourcePath || schemaStatus === 'downloading') {
         continue
       }
       try {
-        const schemaProfile = await this.schemaManagerService.getConvertedProfileContent(
+        const schemaProfile = await this.profileManagerService.getConvertedProfileContent(
           schema.files.sourcePath,
         )
         if (this.addDownloadedSchemaProfileFields(schema, schemaProfile)) {
@@ -696,7 +702,7 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected addDownloadedSchemaProfileFields(
-    schema: SchemaInfo,
+    schema: ProfileInfo,
     schemaProfile: Record<string, any>,
   ): boolean {
     if (!schemaProfile || typeof schemaProfile !== 'object') {
@@ -780,7 +786,7 @@ export class MultiEditDialog extends ReactDialog<string> {
    * @protected
    */
   protected resolveDownloadedSchemaLabel(
-    schema: SchemaInfo,
+    schema: ProfileInfo,
     schemaProfile: Record<string, any>,
   ): string {
     const rawName =
@@ -788,7 +794,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       schemaProfile.metadata.name.trim().length > 0
         ? schemaProfile.metadata.name.trim()
         : schema.name
-    const normalized = this.schemaManagerService?.nameWithoutMetadataSuffix(rawName)
+    const normalized = this.profileManagerService?.nameWithoutMetadataSuffix(rawName)
     return normalized?.trim() || rawName
   }
 
@@ -1015,8 +1021,8 @@ export class MultiEditDialog extends ReactDialog<string> {
         : ''
 
     if (rawName.length > 0) {
-      if (this.schemaManagerService) {
-        const normalized = this.schemaManagerService.nameWithoutMetadataSuffix(rawName)
+      if (this.profileManagerService) {
+        const normalized = this.profileManagerService.nameWithoutMetadataSuffix(rawName)
         if (normalized && normalized.trim().length > 0) {
           return normalized.trim()
         }
@@ -1897,7 +1903,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       errors.push(
         nls.localize(
           'rockit/multiEdit/schemaRequired',
-          'Select a schema or enable properties from other ontologies.',
+          'Select a profile or enable properties from other ontologies.',
         ),
       )
       return errors
@@ -1928,7 +1934,7 @@ export class MultiEditDialog extends ReactDialog<string> {
         errors.push(
           nls.localize(
             'rockit/multiEdit/rowInactiveProperty',
-            'Row {0}: selected property is not part of active schemas.',
+            'Row {0}: selected property is not part of the active profiles.',
             index + 1,
           ),
         )
@@ -3317,17 +3323,17 @@ export class MultiEditDialog extends ReactDialog<string> {
     }
 
     const lookup = new Map<string, string>()
-    if (!this.schemaManagerService) {
+    if (!this.profileManagerService) {
       return lookup
     }
-    let schemas: SchemaInfo[] = []
+    let profiles: ProfileInfo[] = []
     try {
-      schemas = await this.schemaManagerService.loadAllSchemas()
+      profiles = await this.profileManagerService.loadAllProfiles()
     } catch (error) {
       console.warn('Failed to load schemas for multi-edit lookup.', error)
       return lookup
     }
-    for (const schema of schemas) {
+    for (const schema of profiles) {
       const conformsTo = schema.conformsTo?.trim()
       const reference = schema.aux?.reference?.trim()
       if (reference && conformsTo) {
@@ -3336,7 +3342,7 @@ export class MultiEditDialog extends ReactDialog<string> {
       if (conformsTo) {
         lookup.set(conformsTo, conformsTo)
       }
-      const normalizedName = this.schemaManagerService.nameWithoutMetadataSuffix(
+      const normalizedName = this.profileManagerService.nameWithoutMetadataSuffix(
         schema.name,
       )
       const key = this.normalizeSchemaId(normalizedName ?? schema.name)
@@ -4251,7 +4257,7 @@ export class MultiEditDialog extends ReactDialog<string> {
 
         <div className="entities-overview-edit-modal-section">
           <span className="entities-overview-edit-modal-label">
-            {nls.localize('rockit/multiEdit/selectSchemas', 'Select schemas')}
+            {nls.localize('rockit/multiEdit/selectSchemas', 'Select profiles')}
           </span>
           <Select
             mode="multiple"
@@ -4261,7 +4267,7 @@ export class MultiEditDialog extends ReactDialog<string> {
               label: schema.label,
             }))}
             onChange={this.onSchemaSelectionChange}
-            placeholder={nls.localize('rockit/multiEdit/selectSchemas', 'Select schemas')}
+            placeholder={nls.localize('rockit/multiEdit/selectSchemas', 'Select profiles')}
             getPopupContainer={() => document.body}
             classNames={{ popup: { root: 'entities-overview-edit-modal-dropdown' } }}
             styles={{ popup: { root: { maxHeight: 260, overflowY: 'auto' } } }}
@@ -4300,11 +4306,11 @@ export class MultiEditDialog extends ReactDialog<string> {
                 this.schemaOrgEnabled
                   ? nls.localize(
                       'rockit/multiEdit/noPropertiesWithOntologies',
-                      'No properties are available for the selected schemas or other ontologies.',
+                      'No properties are available for the selected profiles or other ontologies.',
                     )
                   : nls.localize(
                       'rockit/multiEdit/noProperties',
-                      'No properties are available for the selected schemas.',
+                      'No properties are available for the selected profiles.',
                     )
               }
             />
@@ -4325,7 +4331,7 @@ export class MultiEditDialog extends ReactDialog<string> {
                 <li>
                   {nls.localize(
                     'rockit/multiEdit/setupSchemaInstruction',
-                    'Select a schema or enable properties from other ontologies.',
+                    'Select a profile or enable properties from other ontologies.',
                   )}
                 </li>
                 <li>

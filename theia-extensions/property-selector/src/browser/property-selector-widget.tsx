@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { MessageService } from '@theia/core'
 import type { Message } from '@theia/core/lib/browser'
 import { AlertMessage } from '@theia/core/lib/browser/widgets/alert-message'
@@ -73,10 +79,8 @@ const PropertyListView = React.memo<{ properties: SchemaProperty[] }>(
           <li
             key={index}
             className={'propertySelectorPropertyListItem'}
-            onClick={() => console.log(prop.label)}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = '#e3f2fd'
-              e.currentTarget.style.cursor = 'pointer'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'transparent'

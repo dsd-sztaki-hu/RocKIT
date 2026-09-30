@@ -1,8 +1,21 @@
-# Cedar Template to Describo Profile Converter (TypeScript)
+# CEDAR to RO-Crate
 
-TypeScript implementation of `CedarTemplateToDescriboProfileConverter` converted from Java.
+Converts CEDAR templates to Describo profile data for RocKIT.
 
-**This implementation is self-contained and portable** - all test resources are included in the `test-resources/` folder, allowing this folder to be moved independently of the main project.
+This package contains a TypeScript implementation of
+`CedarTemplateToDescriboProfileConverter` converted from Java.
+
+The implementation is self-contained and portable. Test resources are included
+in the `test-resources/` folder so this package can be moved independently of
+the main project.
+
+## Authorship
+
+This package is maintained by SZTAKI, Department of Distributed Systems
+(<https://dsd.sztaki.hu>).
+
+The TypeScript converter was ported from the original Java implementation by
+Norbert Finta, based on work by Balázs E. Pataki.
 
 ## Requirements
 
@@ -60,4 +73,9 @@ node cedar-converter.test.js
 ## Test Resources
 
 The tests use test resources located in the `test-resources/` folder within this directory. These are copies of the Java test resources, making this implementation self-contained and portable.
+
+## License
+
+This package is licensed under the Apache License, Version 2.0. See
+[LICENSE.md](./LICENSE.md) for details.
 

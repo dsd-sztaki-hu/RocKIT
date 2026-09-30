@@ -1,4 +1,10 @@
-import DescriboCrateBuilder from '@arpproject/recrate'
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
+import RecrateCrateBuilder from '@arpproject/recrate'
 import { nls } from '@theia/core/lib/common'
 import * as React from 'react'
 
@@ -23,8 +29,9 @@ type SingleEntityDropPayload = {
 }
 
 const ENTITIES_OVERVIEW_DND_MIME = 'application/x-rockit-entity-drag'
+const DROP_ERROR_TIMEOUT_MS = 5000
 
-export const DescriboCrateBuilderWrapper = ({
+export const RecrateCrateBuilderWrapper = ({
                                                 crate,
                                                 globalEntityLibraryService,
                                                 roCrateApproval,
@@ -75,6 +82,16 @@ export const DescriboCrateBuilderWrapper = ({
         onGlobalEntityAdded: (params: { recordId: string; entityId: string }) =>
             globalEntityLibraryService.mapAddedEntity(params),
     }), [globalEntityLibraryService])
+    const dropErrorTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+    const cancelDropErrorTimeout = React.useCallback(() => {
+        if (dropErrorTimeoutRef.current !== undefined) {
+            clearTimeout(dropErrorTimeoutRef.current)
+            dropErrorTimeoutRef.current = undefined
+        }
+    }, [])
+
+    React.useEffect(() => cancelDropErrorTimeout, [cancelDropErrorTimeout])
 
     React.useEffect(() => {
         if (!lastNavTarget.current && entityId && entityId !== currentEntityId) {
@@ -147,11 +164,20 @@ export const DescriboCrateBuilderWrapper = ({
         if (!node) return
 
         const clearState = () => {
+            cancelDropErrorTimeout()
             setDropState('idle')
             setDropMessage('')
         }
 
+        const showDropError = (message: string) => {
+            cancelDropErrorTimeout()
+            setDropState('invalid')
+            setDropMessage(message)
+            dropErrorTimeoutRef.current = setTimeout(clearState, DROP_ERROR_TIMEOUT_MS)
+        }
+
         const onDragOver = (event: DragEvent) => {
+            cancelDropErrorTimeout()
             // 🔑 ALWAYS allow drop
             event.preventDefault()
 
@@ -199,8 +225,7 @@ export const DescriboCrateBuilderWrapper = ({
 
             const payload = parsePayload(event)
             if (!payload?.entityIds || payload.entityIds.length === 0) {
-                setDropState('invalid')
-                setDropMessage(nls.localize(
+                showDropError(nls.localize(
                     'rockit/roCrateEditor/dropPayloadUnavailable',
                     'Drop payload was not available. Please drag again.',
                 ))
@@ -209,8 +234,7 @@ export const DescriboCrateBuilderWrapper = ({
 
             const destinationEntityId = currentEntityId
             if (!destinationEntityId) {
-                setDropState('invalid')
-                setDropMessage(nls.localize(
+                showDropError(nls.localize(
                     'rockit/roCrateEditor/noDropDestination',
                     'No active destination entity',
                 ))
@@ -222,8 +246,7 @@ export const DescriboCrateBuilderWrapper = ({
             const targetValid = targetTypes.includes('dataset')
 
             if (!targetValid) {
-                setDropState('invalid')
-                setDropMessage(nls.localize(
+                showDropError(nls.localize(
                     'rockit/roCrateEditor/dropDisabled',
                     'Drop disabled: destination must be Dataset',
                 ))
@@ -232,8 +255,7 @@ export const DescriboCrateBuilderWrapper = ({
 
             try {
                 if (!payload.entityIds || !payload.entityNames || !payload.entityTypes) {
-                    setDropState('invalid')
-                    setDropMessage(nls.localize(
+                    showDropError(nls.localize(
                         'rockit/roCrateEditor/dropPayloadUnavailable',
                         'Drop payload was not available. Please drag again.',
                     ))
@@ -251,11 +273,9 @@ export const DescriboCrateBuilderWrapper = ({
                         destinationEntityId,
                     )
                 }
-                setDropState('idle')
-                setDropMessage('')
+                clearState()
             } catch (error: any) {
-                setDropState('invalid')
-                setDropMessage(error?.message || nls.localize(
+                showDropError(error?.message || nls.localize(
                     'rockit/roCrateEditor/dropFailed',
                     'Failed to add dropped entity to hasPart',
                 ))
@@ -274,6 +294,7 @@ export const DescriboCrateBuilderWrapper = ({
             node.removeEventListener('dragend', clearState)
         }
     }, [
+        cancelDropErrorTimeout,
         currentEntityId,
         getEntityById,
         getEntityTypeNames,
@@ -315,7 +336,7 @@ export const DescriboCrateBuilderWrapper = ({
         [onOpenSchemaManager],
     )
 
-    const DescriboCrateBuilderComponent = DescriboCrateBuilder as React.ComponentType<any>
+    const RecrateCrateBuilderComponent = RecrateCrateBuilder as React.ComponentType<any>
 
     return (
         <div
@@ -335,7 +356,7 @@ export const DescriboCrateBuilderWrapper = ({
                 </div>
             )}
 
-            <DescriboCrateBuilderComponent
+            <RecrateCrateBuilderComponent
                 lookup={lookup}
                 crate={crate}
                 roCrateApproval={roCrateApproval}
@@ -349,7 +370,7 @@ export const DescriboCrateBuilderWrapper = ({
                 onSaveRoCrateApproval={onSaveRoCrateApproval}
                 onNavigation={handleNavigationWrapper}
                 onWarning={onWarning}
-                onError={(e: any) => console.log('error', e)}
+                // onError={(e: any) => console.log('error', e)}
                 enableReverseLinkBrowser={true}
                 enableBrowseEntities={false}
                 enableContextEditor={false}

@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import type { Key } from 'react';
 
 export interface DataRepositoryConfig {
@@ -53,7 +59,10 @@ export interface DataRepositorySelection {
     capabilities?: DataRepositoryCapabilities;
     exportTarget?: DataRepositoryExportTarget;
     action?: 'export' | 'sync' | 'import' | 'link';
+    syncMode?: RepositorySyncMode;
 }
+
+export type RepositorySyncMode = 'complete' | 'remote-additions' | 'local-additions';
 
 export interface DataRepositoryImportProgress {
     completedSteps: number;

@@ -1,21 +1,49 @@
 {
   "name": "file-preview",
-  "version": "0.0.0",
-  "description": "RocKIT - File Preview Extension",
+  "version": "1.0.0",
+  "description": "RocKIT file preview extension derived from Eclipse Theia Property View",
   "private": true,
   "keywords": [
     "theia-extension"
   ],
   "license": "EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/eclipse-theia/theia.git"
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
   },
-  "bugs": {
-    "url": "https://github.com/eclipse-theia/theia/issues"
+  "contributors": [
+    {
+      "name": "Balazs E. Pataki",
+      "email": "balazs.pataki@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Eclipse Theia Authors",
+      "url": "https://github.com/eclipse-theia/theia"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontosreka@sztaki.hu"
+    },
+    {
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Roland Tanacsi",
+      "email": "tanacsi.roland@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    }
+  ],
+  "upstream": {
+    "name": "@theia/property-view",
+    "version": "1.65.2",
+    "repository": "https://github.com/eclipse-theia/theia"
   },
-  "homepage": "https://github.com/eclipse-theia/theia",
   "files": [
+    "LICENSE-EPL.txt",
+    "LICENSE-GPL-2.0-ONLY-CLASSPATH-EXCEPTION",
     "lib",
     "src"
   ],
@@ -49,5 +77,6 @@
   "nyc": {
     "extends": "../../configs/nyc.json"
   },
+  "theiaPropertyViewBaseVersion": "1.65.2",
   "gitHead": "fe9aae0b3d5a6600472ab67cf495d5c0877b97fc"
 }

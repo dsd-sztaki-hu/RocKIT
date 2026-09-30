@@ -1,15 +1,23 @@
-import { spawn, type ChildProcess } from 'child_process'
-import * as fs from 'fs'
-import * as net from 'net'
-import * as path from 'path'
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
+import { type ChildProcess, spawn } from 'node:child_process'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 import { BackendApplicationContribution } from '@theia/core/lib/node'
 import { injectable } from 'inversify'
 import {
   getRocrateMcpServerPathCandidates,
   resolveRocrateMcpPidPath,
   resolveRocrateMcpSocketPath,
-  ROCRATE_MCP_SHUTDOWN_CONTROL_MESSAGE,
 } from '../common/rocrate-mcp-config'
+import {
+  isRocrateMcpDaemonAvailable,
+  shutdownRocrateMcpDaemon,
+} from './rocrate-mcp-daemon-control'
 
 type DaemonRuntime = {
   command: string
@@ -35,22 +43,31 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
   async onStop(): Promise<void> {
     const socketPath = this.resolveSocketPath()
     const pidPath = this.resolvePidPath()
+    const ownedProcess = this.daemonProcess
 
     if (!this.startedDaemon) {
       return
     }
 
-    await this.requestSocketShutdown(socketPath)
+    const shutdownResult = await shutdownRocrateMcpDaemon(socketPath)
 
-    if (this.daemonProcess?.pid) {
+    if (shutdownResult.status !== 'stopped' && ownedProcess?.pid) {
       try {
-        this.daemonProcess.kill()
+        ownedProcess.kill()
+        await this.waitForOwnedProcessExit(ownedProcess)
       } catch (error) {
         console.warn(
           '[rockit] failed to stop RO-Crate MCP daemon:',
           error instanceof Error ? error.message : String(error),
         )
       }
+    }
+
+    if (shutdownResult.status === 'failed') {
+      console.warn(
+        '[rockit] RO-Crate MCP daemon shutdown was not acknowledged:',
+        shutdownResult.reason,
+      )
     }
 
     this.removePidFile(pidPath)
@@ -68,7 +85,10 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
       return
     }
 
-    await this.stopExistingDaemon(socketPath, pidPath)
+    const previousDaemonStopped = await this.stopExistingDaemon(socketPath, pidPath)
+    if (!previousDaemonStopped) {
+      return
+    }
     this.cleanupStaleSocket(socketPath)
     this.ensureSocketDirectory(socketPath)
     this.ensurePidDirectory(pidPath)
@@ -111,8 +131,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
 
   protected publishFrontendRuntimeEnv(): void {
     if (!process.env.ROCKIT_ROCRATE_MCP_NODE_PATH) {
-      process.env.ROCKIT_ROCRATE_MCP_NODE_PATH =
-        process.execPath
+      process.env.ROCKIT_ROCRATE_MCP_NODE_PATH = process.execPath
     }
     if (process.versions.electron) {
       process.env.ROCKIT_ROCRATE_MCP_ELECTRON_RUN_AS_NODE = '1'
@@ -121,8 +140,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
 
   protected resolveDaemonRuntime(): DaemonRuntime {
     const env = { ...process.env }
-    const nodePath =
-      process.env.ROCKIT_ROCRATE_MCP_NODE_PATH
+    const nodePath = process.env.ROCKIT_ROCRATE_MCP_NODE_PATH
     if (
       process.env.ROCKIT_ROCRATE_MCP_ELECTRON_RUN_AS_NODE === '1' ||
       (!nodePath && process.versions.electron)
@@ -153,8 +171,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
     return resolveRocrateMcpSocketPath({
       homeDir: process.env.HOME || process.env.USERPROFILE,
       platform: process.platform,
-      socketPathOverride:
-        process.env.ROCKIT_ROCRATE_MCP_SOCKET_PATH,
+      socketPathOverride: process.env.ROCKIT_ROCRATE_MCP_SOCKET_PATH,
       username: process.env.USERNAME,
     })
   }
@@ -171,8 +188,7 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
     const candidates = getRocrateMcpServerPathCandidates({
       appProjectPath: process.env.THEIA_APP_PROJECT_PATH,
       resourcesPath: process.resourcesPath,
-      serverPathOverride:
-        process.env.ROCKIT_ROCRATE_MCP_SERVER_PATH,
+      serverPathOverride: process.env.ROCKIT_ROCRATE_MCP_SERVER_PATH,
     })
 
     return candidates.find((candidate) => fs.existsSync(candidate))
@@ -212,55 +228,18 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
   protected async stopExistingDaemon(
     socketPath: string,
     pidPath: string,
-  ): Promise<void> {
-    const stoppedByControl = await this.requestSocketShutdown(socketPath)
-    if (stoppedByControl) {
-      await this.waitForSocketClosed(socketPath)
+  ): Promise<boolean> {
+    const shutdownResult = await shutdownRocrateMcpDaemon(socketPath)
+    if (shutdownResult.status === 'failed') {
+      console.warn(
+        '[rockit] refusing to replace an existing RO-Crate MCP daemon:',
+        shutdownResult.reason,
+      )
+      return false
     }
 
-    const stoppedByPid = await this.stopPidFileProcess(pidPath)
-    if (stoppedByPid) {
-      await this.waitForSocketClosed(socketPath)
-    }
-  }
-
-  protected requestSocketShutdown(socketPath: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      let settled = false
-      let response = ''
-      const finish = (value: boolean) => {
-        if (settled) {
-          return
-        }
-        settled = true
-        clearTimeout(timer)
-        socket.destroy()
-        resolve(value)
-      }
-      const socket = net.createConnection(socketPath)
-      const timer = setTimeout(() => finish(false), 750)
-      socket.once('connect', () => {
-        socket.write(ROCRATE_MCP_SHUTDOWN_CONTROL_MESSAGE)
-      })
-      socket.on('data', (chunk) => {
-        response += chunk.toString('utf8')
-        if (response.includes('OK')) {
-          finish(true)
-        }
-      })
-      socket.once('error', () => finish(false))
-      socket.once('close', () => finish(response.includes('OK')))
-    })
-  }
-
-  protected readPidFile(pidPath: string): number | undefined {
-    try {
-      const raw = fs.readFileSync(pidPath, 'utf8').trim()
-      const pid = Number(raw)
-      return Number.isInteger(pid) && pid > 0 ? pid : undefined
-    } catch {
-      return undefined
-    }
+    this.removePidFile(pidPath)
+    return true
   }
 
   protected writePidFile(pidPath: string, pid: number): void {
@@ -284,72 +263,29 @@ export class RocrateMcpDaemonManager implements BackendApplicationContribution {
     }
   }
 
-  protected async stopPidFileProcess(pidPath: string): Promise<boolean> {
-    const pid = this.readPidFile(pidPath)
-    if (!pid || pid === process.pid) {
-      this.removePidFile(pidPath)
-      return false
+  protected async waitForOwnedProcessExit(child: ChildProcess): Promise<void> {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      return
     }
 
-    try {
-      process.kill(pid, 0)
-    } catch {
-      this.removePidFile(pidPath)
-      return false
-    }
-
-    try {
-      process.kill(pid)
-      this.removePidFile(pidPath)
-      await this.waitForPidExit(pid)
-      return true
-    } catch (error) {
-      console.warn(
-        '[rockit] failed to stop previous RO-Crate MCP daemon process:',
-        error instanceof Error ? error.message : String(error),
-      )
-      return false
-    }
-  }
-
-  protected async waitForPidExit(pid: number): Promise<void> {
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      try {
-        process.kill(pid, 0)
-      } catch {
-        return
+    await new Promise<void>((resolve) => {
+      let timer: NodeJS.Timeout | undefined
+      const finish = (): void => {
+        if (timer) {
+          clearTimeout(timer)
+        }
+        child.off('exit', finish)
+        resolve()
       }
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
-  }
-
-  protected probeSocket(socketPath: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      const socket = net.createConnection(socketPath)
-      socket.once('connect', () => {
-        socket.end()
-        resolve(true)
-      })
-      socket.once('error', () => {
-        socket.destroy()
-        resolve(false)
-      })
+      child.once('exit', finish)
+      timer = setTimeout(finish, 2000)
     })
-  }
-
-  protected async waitForSocketClosed(socketPath: string): Promise<void> {
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      if (!(await this.probeSocket(socketPath))) {
-        return
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
   }
 
   protected async waitForSocket(socketPath: string): Promise<void> {
     const attempts = 30
     for (let attempt = 0; attempt < attempts; attempt += 1) {
-      if (await this.probeSocket(socketPath)) {
+      if (await isRocrateMcpDaemonAvailable(socketPath)) {
         return
       }
       await new Promise((resolve) => setTimeout(resolve, 100))

@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
 import { FileUri } from '@theia/core/lib/common/file-uri'
 import { nls } from '@theia/core/lib/common/nls'
@@ -11,7 +17,7 @@ import {
 } from 'rockit-common/lib/common/ro-crate-export-file-references'
 import { inject, injectable } from 'inversify'
 import { RoCratePersistenceService } from 'save-ro-crate/lib/browser/ro-crate-persistence-service'
-import { DataRepositoryConfig, DataRepositoryExportTarget } from '../types'
+import { DataRepositoryConfig, DataRepositoryExportTarget, RepositorySyncMode } from '../types'
 import {
   appendExportLogEvent,
   ExportLogEntry,
@@ -27,6 +33,7 @@ import {
 } from './zenodo-metadata-crosswalk'
 import { ZenodoRequiredMetadataDialog } from '../components/zenodo-required-metadata-dialog'
 import { FileHashStoreService } from './file-hash-store-service'
+import { mergeRoCratesForSync } from './ro-crate-sync-merge'
 
 type RoCrateEntity = Record<string, unknown>
 type RoCrate = Record<string, unknown>
@@ -101,7 +108,7 @@ export interface ZenodoUpdateResult {
 }
 
 export interface ZenodoSyncOptions {
-  replaceLocalMetadataWithUploadedRoCrate: boolean
+  metadataMode: RepositorySyncMode
 }
 
 export interface ZenodoSyncResult {
@@ -111,7 +118,7 @@ export interface ZenodoSyncResult {
   downloadedFileCount: number
   replacedFileCount: number
   keptLocalFileCount: number
-  metadataSource: 'local' | 'uploaded'
+  metadataSource: RepositorySyncMode
   updatedMetadataFields: string[]
 }
 
@@ -776,8 +783,8 @@ export class ZenodoExportService {
    * list, so the local `.rockit` entity mapping is used to place remote files
    * back at their RO-Crate paths. Metadata transformation is separate and uses
    * the crosswalk in reverse, writing supported Zenodo deposition metadata
-   * fields into the local RO-Crate after the optional uploaded metadata file is
-   * localized.
+   * fields after the uploaded metadata file is localized and combined with the
+   * local graph using the selected sync policy.
    */
   public async syncFromZenodo(
     repository: DataRepositoryConfig,
@@ -839,19 +846,57 @@ export class ZenodoExportService {
     )
     const remoteFiles = await this.listDepositionFiles(baseUrl, token, depositionId)
     const remoteMetadataFile = remoteFiles.find((file) => file.filename === 'ro-crate-metadata.json')
+    if (!remoteMetadataFile) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/existingExportMissingMetadataMapping',
+        'The existing export does not contain ro-crate-metadata.json.',
+      ))
+    }
+    const remoteCrate = this.parseRemoteRoCrate(await this.downloadZenodoFile(remoteMetadataFile, token))
     const remoteToLocalMapping = this.invertEntityIdMapping(mapping)
     const filesToDownload = remoteFiles
       .filter((file) => file.filename !== 'ro-crate-metadata.json')
       .map((file) => ({
         remote: file,
-        localPath: this.localPathForZenodoRemoteFile(file, remoteToLocalMapping),
-        localId: this.localIdForZenodoRemoteFile(file, remoteToLocalMapping),
+        localPath: options.metadataMode === 'remote-additions'
+          ? this.localPathForZenodoRemoteFile(file, remoteToLocalMapping)
+          : this.remoteCratePathForZenodoFile(file, remoteCrate)
+            ?? this.localPathForZenodoRemoteFile(file, remoteToLocalMapping),
+        localId: options.metadataMode === 'remote-additions'
+          ? this.localIdForZenodoRemoteFile(file, remoteToLocalMapping)
+          : this.remoteCratePathForZenodoFile(file, remoteCrate)
+            ?? this.localIdForZenodoRemoteFile(file, remoteToLocalMapping),
       }))
       .filter((item) => !!item.localPath && !!item.localId) as Array<{
         remote: ZenodoRemoteFile
         localPath: string
         localId: string
       }>
+    const relocatedLocalIds: RoCrateEntityIdMapping = {}
+    for (const item of filesToDownload) {
+      const remoteIdentifiers = new Set(this.zenodoRemoteFileIdentifiers(item.remote))
+      const previousLocalId = Object.entries(mapping)
+        .find(([, remoteId]) => remoteIdentifiers.has(remoteId))?.[0]
+      const remoteId = this.zenodoRemoteFileIdentifiers(item.remote)
+        .find(identifier => Object.values(mapping).includes(identifier))
+        ?? item.remote.id
+        ?? this.extractUploadedFileRemoteId(item.remote.response)
+      if (options.metadataMode !== 'remote-additions') {
+        if (previousLocalId && previousLocalId !== item.localId) {
+          relocatedLocalIds[previousLocalId] = item.localId
+        }
+        if (remoteId) {
+          for (const [localId, mappedRemoteId] of Object.entries(mapping)) {
+            if (mappedRemoteId === remoteId) {
+              delete mapping[localId]
+            }
+          }
+        }
+      }
+      if (remoteId) {
+        mapping[item.localId] = remoteId
+      }
+    }
 
     const downloadPlan: Array<{
       remote: ZenodoRemoteFile
@@ -878,6 +923,8 @@ export class ZenodoExportService {
         )
         if (unchanged) {
           keptLocalFileCount += 1
+        } else if (options.metadataMode === 'remote-additions') {
+          keptLocalFileCount += 1
         } else {
           downloadPlan.push({ ...item, kind: 'changed' })
         }
@@ -886,7 +933,7 @@ export class ZenodoExportService {
 
     const totalSteps =
       downloadPlan.length +
-      (options.replaceLocalMetadataWithUploadedRoCrate && remoteMetadataFile ? 1 : 0) +
+      1 +
       2
     let completedSteps = 1
     reportProgress?.({
@@ -918,35 +965,43 @@ export class ZenodoExportService {
       completedSteps += 1
     }
 
-    let crateBase = localCrate
-    let metadataSource: ZenodoSyncResult['metadataSource'] = 'local'
-    if (options.replaceLocalMetadataWithUploadedRoCrate && remoteMetadataFile) {
-      reportProgress?.({
-        completedSteps,
-        totalSteps,
-        message: nls.localize(
-          'rockit/dataRepository/downloadingUploadedMetadata',
-          'Downloading uploaded ro-crate-metadata.json...',
-        ),
-      })
-      const remoteCrate = this.parseRemoteRoCrate(
-        await this.downloadZenodoFile(remoteMetadataFile, token),
-      )
-      crateBase = this.rewriteCrateEntityIds(remoteCrate, remoteToLocalMapping)
-      metadataSource = 'uploaded'
-      completedSteps += 1
-    }
+    reportProgress?.({
+      completedSteps,
+      totalSteps,
+      message: nls.localize(
+        'rockit/dataRepository/mergingUploadedMetadata',
+        'Merging uploaded ro-crate-metadata.json...',
+      ),
+    })
+    const localizedRemoteCrate = this.rewriteCrateEntityIds(
+      remoteCrate,
+      this.invertEntityIdMapping(mapping),
+    )
+    const repositoryMetadataResult = applyZenodoMetadataToRoCrate(
+      localizedRemoteCrate,
+      metadata,
+    )
+    const crateBase = mergeRoCratesForSync(
+      this.rewriteCrateEntityIds(localCrate, relocatedLocalIds),
+      repositoryMetadataResult.crate,
+      options.metadataMode,
+    )
+    completedSteps += 1
 
     reportProgress?.({
       completedSteps,
       totalSteps,
       message: nls.localize('rockit/dataRepository/applyingRemoteMetadata', 'Applying remote repository metadata...'),
     })
-    const reverseResult = applyZenodoMetadataToRoCrate(crateBase, metadata)
+    const reverseResult = {
+      crate: crateBase,
+      updatedFields: repositoryMetadataResult.updatedFields,
+    }
     await this.fileService.writeFile(
       metadataUri,
       BinaryBuffer.fromString(`${JSON.stringify(reverseResult.crate, null, 2)}\n`),
     )
+    await this.saveEntityIdMapping(rootUri, exportTarget.mappingFile, mapping)
     await this.appendExportLog(rootUri, {
       target: exportTarget.target,
       repository: baseUrl,
@@ -970,7 +1025,7 @@ export class ZenodoExportService {
       downloadedFileCount: downloadPlan.filter((file) => file.kind === 'new').length,
       replacedFileCount: downloadPlan.filter((file) => file.kind === 'changed').length,
       keptLocalFileCount,
-      metadataSource,
+      metadataSource: options.metadataMode,
       updatedMetadataFields: reverseResult.updatedFields,
     }
   }
@@ -1604,6 +1659,29 @@ export class ZenodoExportService {
       .map((identifier) => remoteToLocalMapping[identifier])
       .find((value): value is string => !!value)
       ?? this.localPathForZenodoRemoteFile(file, remoteToLocalMapping)
+  }
+
+  protected remoteCratePathForZenodoFile(
+    file: ZenodoRemoteFile,
+    remoteCrate: RoCrate,
+  ): string | undefined {
+    const normalizedChecksum = file.checksum?.replace(/^md5:/i, '').toLowerCase()
+    const flattenedPath = file.filename.replace(/__/g, '/')
+    const flattenedBase = this.parsePosixPath(flattenedPath).base
+    const candidates = this.readGraphEntities(remoteCrate)
+      .filter(entity => this.entityTypes(entity).includes('File'))
+      .filter(entity => this.readOptionalEntityString(entity, '@id') !== 'ro-crate-metadata.json')
+    const matched = candidates.find(entity => {
+      const hash = this.readOptionalEntityString(entity, 'hash')?.replace(/^md5:/i, '').toLowerCase()
+      return !!normalizedChecksum && hash === normalizedChecksum
+    }) ?? candidates.find(entity => {
+      const idPath = this.localCratePathFromEntityId(this.readOptionalEntityString(entity, '@id') ?? '')
+      const name = typeof entity.name === 'string' ? entity.name : undefined
+      return idPath === flattenedPath || name === file.filename || name === flattenedBase
+    })
+    return matched
+      ? this.localCratePathFromEntityId(this.readOptionalEntityString(matched, '@id') ?? '')
+      : undefined
   }
 
   protected zenodoRemoteFileIdentifiers(file: ZenodoRemoteFile): string[] {

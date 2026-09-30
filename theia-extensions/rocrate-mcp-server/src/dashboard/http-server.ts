@@ -1,45 +1,59 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 /**
  * HTTP server for the RO-Crate MCP Dashboard
- * Provides read-only APIs and static file serving for the dashboard UI
+ * Provides monitoring, configuration, lifecycle, and static file APIs for the dashboard UI
  */
 
+import * as fs from 'node:fs'
 import * as http from 'node:http'
 import * as path from 'node:path'
-import * as fs from 'node:fs'
-import type { TelemetryCollector } from './collector'
-import type { DashboardConfig } from './types'
+import {
+  type CedarProvider,
+  defaultCedarProvider,
+  deleteCedarProvider,
+  deleteMetadataProfile,
+  importCedarTemplateFromUrl,
+  importRemoteTemplate,
+  listCedarFolder,
+  listLocalProfiles,
+  listRemoteTemplates,
+  loadCedarProviders,
+  resolveProfileRootPath,
+  resolveProfileStorage,
+  saveCedarProvider,
+} from 'metadata-profile-core'
+import { DEFAULT_DATAVERSE_BASE_URL } from '../server/dataverse-defaults'
+import {
+  getRuntimeEnvOverride,
+  getRuntimeEnvValue,
+  RUNTIME_ENV_KEYS,
+  type RuntimeEnvKey,
+  setRuntimeEnvOverrides,
+} from '../server/runtime-config'
 import type {
-  SchemaRegistryEntry,
   RegisterSchemaInput,
+  SchemaRegistryEntry,
   UpdateSchemaInput,
 } from '../server/schema-registry-store'
 import {
   calculateSummaryStats,
   calculateToolStats,
+  computeTimeSeries,
+  filterByTimeWindow,
   formatDuration,
   formatLatency,
-  formatRelativeTime,
   formatPercentage,
+  formatRelativeTime,
   summarizeDependencyUsage,
-  filterByTimeWindow,
-  computeTimeSeries,
 } from './aggregates'
+import type { TelemetryCollector } from './collector'
 import { handleLocalFileBridgeRequest } from './local-file-bridge'
-import {
-  defaultCedarProvider,
-  deleteMetadataProfile,
-  importCedarTemplateFromUrl,
-  importRemoteSchema,
-  loadCedarProviders,
-  listCedarFolder,
-  listLocalProfiles,
-  listRemoteSchemas,
-  resolveProfileStorage,
-  saveCedarProvider,
-  deleteCedarProvider,
-  type CedarProvider,
-} from 'metadata-profile-core'
-import { DEFAULT_DATAVERSE_BASE_URL } from '../server/dataverse-defaults'
+import type { DashboardConfig } from './types'
 
 declare const __dirname: string
 
@@ -57,6 +71,8 @@ function resolveStaticRoot(): string {
 
 const STATIC_DIR = resolveStaticRoot()
 type AccessMode = 'local' | 'remote'
+
+export type DashboardShutdownHandler = () => void | Promise<void>
 
 type SchemaRegistryStore = {
   list: (mode: AccessMode) => { storage: unknown; schemas: SchemaRegistryEntry[] }
@@ -138,20 +154,56 @@ function readOptionalEnv(name: string): string | undefined {
   return trimmed === '' ? undefined : trimmed
 }
 
+function getRuntimeEnvSource(key: RuntimeEnvKey): 'dashboard' | 'env' | 'unset' {
+  if (getRuntimeEnvOverride(key) !== undefined) {
+    return 'dashboard'
+  }
+  return readOptionalEnv(key) ? 'env' : 'unset'
+}
+
 function getDataverseUploadConfig(): {
   baseUrl: string
-  baseUrlSource: 'env' | 'default'
-  apiKey: string | null
-  apiKeySource: 'env' | 'unset'
+  baseUrlSource: 'dashboard' | 'env' | 'default'
+  apiKeyPresent: boolean
+  apiKeySource: 'dashboard' | 'env' | 'unset'
 } {
-  const envBaseUrl = readOptionalEnv('DATAVERSE_BASE_URL')
-  const apiKey = readOptionalEnv('DATAVERSE_API_KEY')
+  const baseUrl = getRuntimeEnvValue('DATAVERSE_BASE_URL')
+  const apiKey = getRuntimeEnvValue('DATAVERSE_API_KEY')
+  const baseUrlSource = getRuntimeEnvSource('DATAVERSE_BASE_URL')
+  const apiKeySource = getRuntimeEnvSource('DATAVERSE_API_KEY')
 
   return {
-    baseUrl: (envBaseUrl ?? DEFAULT_DATAVERSE_BASE_URL).replace(/\/+$/, ''),
-    baseUrlSource: envBaseUrl ? 'env' : 'default',
-    apiKey: apiKey ?? null,
-    apiKeySource: apiKey ? 'env' : 'unset',
+    baseUrl: (baseUrl ?? DEFAULT_DATAVERSE_BASE_URL).replace(/\/+$/, ''),
+    baseUrlSource: baseUrlSource === 'unset' ? 'default' : baseUrlSource,
+    apiKeyPresent: apiKey !== undefined,
+    apiKeySource,
+  }
+}
+
+function getTavilyConfig(): {
+  apiKeyPresent: boolean
+  apiKeySource: 'dashboard' | 'env' | 'unset'
+} {
+  return {
+    apiKeyPresent: getRuntimeEnvValue('TAVILY_API_KEY') !== undefined,
+    apiKeySource: getRuntimeEnvSource('TAVILY_API_KEY'),
+  }
+}
+
+const RUNTIME_SECRET_KEYS = ['TAVILY_API_KEY', 'DATAVERSE_API_KEY'] as const
+type RuntimeSecretKey = (typeof RUNTIME_SECRET_KEYS)[number]
+
+function isRuntimeSecretKey(value: string): value is RuntimeSecretKey {
+  return (RUNTIME_SECRET_KEYS as readonly string[]).includes(value)
+}
+
+function getExternalServiceConfig(): {
+  dataverse: ReturnType<typeof getDataverseUploadConfig>
+  tavily: ReturnType<typeof getTavilyConfig>
+} {
+  return {
+    dataverse: getDataverseUploadConfig(),
+    tavily: getTavilyConfig(),
   }
 }
 
@@ -283,6 +335,7 @@ class DashboardApiHandlers {
     private readonly collector: TelemetryCollector,
     private readonly config: DashboardConfig,
     private readonly schemaRegistry: SchemaRegistryStore,
+    private readonly shutdownHandler?: DashboardShutdownHandler,
   ) {}
 
   /**
@@ -293,6 +346,32 @@ class DashboardApiHandlers {
       status: 'ok',
       uptime: this.collector.getUptimeSeconds(),
       timestamp: new Date().toISOString(),
+    })
+  }
+
+  /**
+   * POST /daemon/shutdown - Request a graceful MCP daemon shutdown.
+   */
+  shutdown(_req: http.IncomingMessage, res: http.ServerResponse): void {
+    const shutdownHandler = this.shutdownHandler
+    if (!shutdownHandler) {
+      sendJson(res, { error: 'MCP shutdown is not available' }, 503)
+      return
+    }
+
+    sendJson(res, { success: true, status: 'shutting-down' }, 202)
+    setImmediate(() => {
+      try {
+        void Promise.resolve(shutdownHandler()).catch((error) => {
+          const message = error instanceof Error ? error.message : String(error)
+          process.stderr.write(
+            `Dashboard shutdown handler failed: ${message}\n`,
+          )
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        process.stderr.write(`Dashboard shutdown handler failed: ${message}\n`)
+      }
     })
   }
 
@@ -543,7 +622,44 @@ class DashboardApiHandlers {
       keepDataverseUploadZips: this.config.keepDataverseUploadZips,
       retentionHours: this.config.retentionHours,
       enabled: this.config.enabled,
-      dataverse: getDataverseUploadConfig(),
+      ...getExternalServiceConfig(),
+    })
+  }
+
+  /**
+   * POST /config/secrets - Explicitly reveal one configured API key.
+   *
+   * The regular /config response intentionally contains only presence/source
+   * metadata. This endpoint is called only by the dashboard visibility control
+   * after the user explicitly asks to see a specific key.
+   */
+  async getConfigSecret(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    if (req.headers['x-rocrate-dashboard-intent'] !== 'reveal-secret') {
+      sendJson(res, { error: 'Dashboard reveal intent is required' }, 403)
+      return
+    }
+
+    let body: Record<string, unknown>
+    try {
+      body = await parseJsonObjectBody(req)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: message }, 400)
+      return
+    }
+
+    const key = typeof body.key === 'string' ? body.key : ''
+    if (!key || !isRuntimeSecretKey(key)) {
+      sendJson(res, { error: 'Unsupported secret key' }, 400)
+      return
+    }
+
+    sendJson(res, {
+      key,
+      value: getRuntimeEnvValue(key) ?? null,
     })
   }
 
@@ -563,11 +679,7 @@ class DashboardApiHandlers {
         return
       }
 
-      const apiKey =
-        typeof process.env.TAVILY_API_KEY === 'string' &&
-        process.env.TAVILY_API_KEY.trim() !== ''
-          ? process.env.TAVILY_API_KEY.trim()
-          : undefined
+      const apiKey = getRuntimeEnvValue('TAVILY_API_KEY')
 
       if (!apiKey) {
         sendJson(
@@ -642,9 +754,7 @@ class DashboardApiHandlers {
         {
           success: false,
           error: message,
-          apiKeyPresent:
-            typeof process.env.TAVILY_API_KEY === 'string' &&
-            process.env.TAVILY_API_KEY.trim() !== '',
+          apiKeyPresent: getRuntimeEnvValue('TAVILY_API_KEY') !== undefined,
         },
         200,
       )
@@ -676,11 +786,45 @@ class DashboardApiHandlers {
       return
     }
 
+    const updateRecord = updates as Record<string, unknown>
+    const runtimeUpdates: Array<{ key: RuntimeEnvKey; value: string | null }> = []
+    for (const key of RUNTIME_ENV_KEYS) {
+      if (key === 'ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS') {
+        continue
+      }
+      if (!(key in updateRecord)) {
+        continue
+      }
+
+      const value = updateRecord[key]
+      if (value !== null && typeof value !== 'string') {
+        sendJson(res, {
+          error: `${key} must be a string or null`,
+        }, 400)
+        return
+      }
+      runtimeUpdates.push({ key, value: value as string | null })
+    }
+
+    if ('keepDataverseUploadZips' in updateRecord) {
+      const value = updateRecord.keepDataverseUploadZips
+      if (typeof value !== 'boolean') {
+        sendJson(res, {
+          error: 'keepDataverseUploadZips must be a boolean',
+        }, 400)
+        return
+      }
+      runtimeUpdates.push({
+        key: 'ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS',
+        value: value ? 'true' : 'false',
+      })
+    }
+
     const changes: Record<string, unknown> = {}
 
     // Handle detailedToolCallLogging
     if ('detailedToolCallLogging' in updates) {
-      const value = (updates as Record<string, unknown>).detailedToolCallLogging
+      const value = updateRecord.detailedToolCallLogging
       if (typeof value === 'boolean') {
         this.config.detailedToolCallLogging = value
         changes.detailedToolCallLogging = value
@@ -691,7 +835,7 @@ class DashboardApiHandlers {
 
     // Handle retentionHours
     if ('retentionHours' in updates) {
-      const value = (updates as Record<string, unknown>).retentionHours
+      const value = updateRecord.retentionHours
       if (typeof value === 'number' && value > 0) {
         this.config.retentionHours = value
         changes.retentionHours = value
@@ -700,12 +844,27 @@ class DashboardApiHandlers {
     }
 
     if ('keepDataverseUploadZips' in updates) {
-      const value = (updates as Record<string, unknown>).keepDataverseUploadZips
+      const value = updateRecord.keepDataverseUploadZips
       if (typeof value === 'boolean') {
         this.config.keepDataverseUploadZips = value
         process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS = value ? 'true' : 'false'
         changes.keepDataverseUploadZips = value
       }
+    }
+
+    try {
+      setRuntimeEnvOverrides(runtimeUpdates)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      sendJson(res, { error: `Failed to persist runtime settings: ${message}` }, 500)
+      return
+    }
+
+    for (const { key, value } of runtimeUpdates) {
+      if (key === 'ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS') {
+        continue
+      }
+      changes[key] = value === null || value.trim() === '' ? 'fallback' : 'dashboard'
     }
 
     sendJson(res, {
@@ -716,6 +875,7 @@ class DashboardApiHandlers {
         keepDataverseUploadZips: this.config.keepDataverseUploadZips,
         retentionHours: this.config.retentionHours,
         enabled: this.config.enabled,
+        ...getExternalServiceConfig(),
       },
     })
   }
@@ -737,7 +897,7 @@ class DashboardApiHandlers {
 
   metadataProfilesList(req: http.IncomingMessage, res: http.ServerResponse): void {
     try {
-      const listing = listLocalProfiles()
+      const listing = listLocalProfiles(resolveProfileRootPath())
       sendJson(res, {
         storage: listing.storage,
         count: listing.profiles.length,
@@ -750,7 +910,7 @@ class DashboardApiHandlers {
   }
 
   metadataProfileProviders(req: http.IncomingMessage, res: http.ServerResponse): void {
-    void loadCedarProviders()
+    void loadCedarProviders(resolveProfileRootPath())
       .then((result) => {
         sendJson(res, {
           storage: result.storage,
@@ -772,7 +932,10 @@ class DashboardApiHandlers {
   ): Promise<void> {
     try {
       const body = await parseJsonObjectBody(req)
-      const result = await saveCedarProvider(parseMetadataProviderBody(body))
+      const result = await saveCedarProvider(
+        parseMetadataProviderBody(body),
+        resolveProfileRootPath(),
+      )
       sendJson(res, {
         saved: redactMetadataProfileProvider(result.saved),
         storage: result.storage,
@@ -797,7 +960,10 @@ class DashboardApiHandlers {
       return
     }
     try {
-      const result = await deleteCedarProvider(decodeURIComponent(match[1]))
+      const result = await deleteCedarProvider(
+        decodeURIComponent(match[1]),
+        resolveProfileRootPath(),
+      )
       sendJson(res, {
         deleted: result.deleted,
         storage: result.storage,
@@ -814,7 +980,7 @@ class DashboardApiHandlers {
 
   metadataProfileStorageStatus(req: http.IncomingMessage, res: http.ServerResponse): void {
     sendJson(res, {
-      storage: resolveProfileStorage(),
+      storage: resolveProfileStorage(resolveProfileRootPath()),
     })
   }
 
@@ -825,12 +991,16 @@ class DashboardApiHandlers {
     try {
       const query = parseQuery(req.url || '')
       const provider = await this.resolveMetadataProfileProvider(query.providerId)
-      const result = await listRemoteSchemas(provider, query.query)
+      const result = await listRemoteTemplates(
+        provider,
+        query.query,
+        resolveProfileRootPath(),
+      )
       sendJson(res, {
         provider: redactMetadataProfileProvider(result.provider),
         storage: result.storage,
-        count: result.schemas.length,
-        schemas: result.schemas,
+        count: result.templates.length,
+        schemas: result.templates,
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -848,6 +1018,7 @@ class DashboardApiHandlers {
       const result = await listCedarFolder({
         provider,
         folderId: readProviderId(query.folderId),
+        rootPath: resolveProfileRootPath(),
       })
       sendJson(res, {
         provider: redactMetadataProfileProvider(result.provider),
@@ -873,6 +1044,7 @@ class DashboardApiHandlers {
       }
       const result = await importCedarTemplateFromUrl({
         url,
+        rootPath: resolveProfileRootPath(),
         provider:
           parseMetadataProfileProvider(body.provider) ??
           (await this.resolveMetadataProfileProvider(readProviderId(body.providerId))),
@@ -907,8 +1079,9 @@ class DashboardApiHandlers {
       if (templateIdOrUrl === '') {
         throw new Error('templateIdOrUrl is required.')
       }
-      const result = await importRemoteSchema({
+      const result = await importRemoteTemplate({
         templateIdOrUrl,
+        rootPath: resolveProfileRootPath(),
         provider:
           parseMetadataProfileProvider(body.provider) ??
           (await this.resolveMetadataProfileProvider(readProviderId(body.providerId))),
@@ -938,7 +1111,10 @@ class DashboardApiHandlers {
       return
     }
     try {
-      const result = await deleteMetadataProfile({ id: decodeURIComponent(match[1]) })
+      const result = await deleteMetadataProfile({
+        id: decodeURIComponent(match[1]),
+        rootPath: resolveProfileRootPath(),
+      })
       sendJson(res, {
         deleted: Boolean(result.removed),
         storage: result.storage,
@@ -951,7 +1127,7 @@ class DashboardApiHandlers {
   }
 
   private async resolveMetadataProfileProvider(providerId?: string): Promise<CedarProvider> {
-    const listing = await loadCedarProviders()
+    const listing = await loadCedarProviders(resolveProfileRootPath())
     if (!providerId) {
       return listing.providers[0] ?? defaultCedarProvider()
     }
@@ -1111,12 +1287,18 @@ export class DashboardHttpServer {
     collector: TelemetryCollector,
     config: DashboardConfig,
     schemaRegistry: SchemaRegistryStore,
+    shutdownHandler?: DashboardShutdownHandler,
   ) {
     this.config = {
       ...config,
       keepDataverseUploadZips: config.keepDataverseUploadZips ?? false,
     }
-    this.apiHandlers = new DashboardApiHandlers(collector, this.config, schemaRegistry)
+    this.apiHandlers = new DashboardApiHandlers(
+      collector,
+      this.config,
+      schemaRegistry,
+      shutdownHandler,
+    )
   }
 
   /**
@@ -1181,6 +1363,17 @@ export class DashboardHttpServer {
     const urlPath = url.split('?')[0]
     const method = req.method || 'GET'
 
+    // Daemon lifecycle endpoint requires an explicit POST and is protected by
+    // the authentication check in the HTTP server wrapper.
+    if (urlPath === '/daemon/shutdown') {
+      if (method === 'POST') {
+        this.apiHandlers.shutdown(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
     // Config endpoint allows POST
     if (urlPath === '/config') {
       if (method === 'GET') {
@@ -1189,6 +1382,18 @@ export class DashboardHttpServer {
       }
       if (method === 'POST') {
         void this.apiHandlers.updateConfig(req, res)
+        return
+      }
+      sendJson(res, { error: 'Method not allowed' }, 405)
+      return
+    }
+
+    // Secret values are available only through an explicit dashboard request
+    // for a supported API-key field. The handler also requires a custom intent
+    // header, which prevents cross-origin browser requests from reading keys.
+    if (urlPath === '/config/secrets') {
+      if (method === 'POST') {
+        void this.apiHandlers.getConfigSecret(req, res)
         return
       }
       sendJson(res, { error: 'Method not allowed' }, 405)
@@ -1408,7 +1613,7 @@ export function parseDashboardConfig(): DashboardConfig {
     detailedToolCallLogging:
       process.env.ROCRATE_DASHBOARD_DETAILED_LOGGING !== 'false',
     keepDataverseUploadZips:
-      process.env.ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS === 'true',
+      getRuntimeEnvValue('ROCRATE_DATAVERSE_KEEP_UPLOAD_ZIPS') === 'true',
   }
 }
 
@@ -1419,6 +1624,7 @@ export function parseDashboardConfig(): DashboardConfig {
 export async function startDashboardIfNeeded(
   collector: TelemetryCollector,
   schemaRegistry: SchemaRegistryStore,
+  shutdownHandler?: DashboardShutdownHandler,
 ): Promise<DashboardHttpServer | null> {
   const config = parseDashboardConfig()
 
@@ -1431,7 +1637,12 @@ export async function startDashboardIfNeeded(
     return null
   }
 
-  const server = new DashboardHttpServer(collector, config, schemaRegistry)
+  const server = new DashboardHttpServer(
+    collector,
+    config,
+    schemaRegistry,
+    shutdownHandler,
+  )
 
   try {
     await server.start()

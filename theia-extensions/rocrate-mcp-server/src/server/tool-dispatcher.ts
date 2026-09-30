@@ -1,5 +1,15 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import type { McpToolTextResult, TransportMode } from './types'
 import type { SchemaRegistryEntry } from './schema-registry-store'
+import {
+  DataverseAuthenticationError,
+  DataversePreflightValidationError,
+} from './dataverse'
 import { readAgentWorkflowDoc } from './workflow-docs'
 import { registerLocalFileForAroma } from '../dashboard/local-file-bridge'
 import {
@@ -28,7 +38,7 @@ type DispatcherDeps = {
   getTelemetryCollector: () => TelemetryCollector | null
   parseWebSearchParams: (params: Record<string, unknown>) => unknown
   runWebSearch: (params: unknown) => Promise<unknown>
-  textResult: (payload: unknown) => McpToolTextResult
+  textResult: (payload: unknown, isError?: boolean) => McpToolTextResult
   parseDownloadUrlParams: (params: Record<string, unknown>) => unknown
   runDownloadUrl: (params: unknown) => Promise<unknown>
   parseDataverseUploadParams: (params: Record<string, unknown>) => {
@@ -433,7 +443,7 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         return textResult(result)
       }
 
-      if (toolName === 'list_well_known_schemas') {
+      if (toolName === 'list_remote_templates') {
         const result = await runInTelemetryContext(async () => listWellKnownSchemas(params))
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, result)
@@ -441,7 +451,7 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         return textResult(result)
       }
 
-      if (toolName === 'list_remote_schema_tree') {
+      if (toolName === 'list_remote_template_tree') {
         const result = await runInTelemetryContext(async () => listRemoteSchemaTree(params))
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, result)
@@ -449,7 +459,7 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         return textResult(result)
       }
 
-      if (toolName === 'import_well_known_schema') {
+      if (toolName === 'import_remote_template') {
         const result = await runInTelemetryContext(async () => importWellKnownSchema(params))
         if (collector && telemetryId) {
           collector.completeToolCallSuccess(telemetryId, result)
@@ -484,18 +494,31 @@ export function createToolDispatcher(deps: DispatcherDeps) {
       }
 
       if (toolName === 'upload_rocrate_to_dataverse') {
-        const { uploadParams, payload } = await runInTelemetryContext(async () => {
-          const uploadParams = parseDataverseUploadParams(params)
-          const payload = await runDataverseUpload(uploadParams)
-          return { uploadParams, payload }
-        })
-        if (collector && telemetryId) {
-          collector.completeToolCallSuccess(telemetryId, payload)
+        try {
+          const { uploadParams, payload } = await runInTelemetryContext(async () => {
+            const uploadParams = parseDataverseUploadParams(params)
+            const payload = await runDataverseUpload(uploadParams)
+            return { uploadParams, payload }
+          })
+          if (collector && telemetryId) {
+            collector.completeToolCallSuccess(telemetryId, payload)
+          }
+          if (uploadParams.responseMode === 'full') {
+            return textResult(payload)
+          }
+          return textResult(summarizeDataverseUploadPayload(payload))
+        } catch (error) {
+          if (
+            error instanceof DataversePreflightValidationError ||
+            error instanceof DataverseAuthenticationError
+          ) {
+            if (collector && telemetryId) {
+              collector.completeToolCallError(telemetryId, error)
+            }
+            return textResult(error.toMcpPayload(), true)
+          }
+          throw error
         }
-        if (uploadParams.responseMode === 'full') {
-          return textResult(payload)
-        }
-        return textResult(summarizeDataverseUploadPayload(payload))
       }
 
       if (toolName === 'adopt_pending_dataverse_rocrate') {
@@ -1035,11 +1058,11 @@ export function createToolDispatcher(deps: DispatcherDeps) {
         return textResult(payload)
       }
 
-      if (toolName === 'resolve_profile_schema') {
+      if (toolName === 'resolve_metadata_profile') {
         const profileUrl =
           typeof params.profileUrl === 'string' ? params.profileUrl.trim() : ''
         if (profileUrl === '') {
-          throw new Error('resolve_profile_schema requires profileUrl.')
+          throw new Error('resolve_metadata_profile requires profileUrl.')
         }
         const mode = parseAccessMode(params)
         const includeProfileContent = params.includeProfileContent === true

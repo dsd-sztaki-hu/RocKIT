@@ -1,7 +1,10 @@
 {
   "name": "@theia/navigator",
   "version": "1.65.2",
-  "description": "Theia - Navigator Extension",
+  "description": "RocKIT file explorer extension derived from Eclipse Theia Navigator",
+  "rockitPackageName": "@rockit/file-explorer",
+  "rockitPackageVersion": "1.0.0",
+  "private": true,
   "dependencies": {
     "@theia/core": "1.65.2",
     "@theia/file-search": "1.65.2",
@@ -10,13 +13,11 @@
     "@theia/workspace": "1.65.2",
     "app-state": "0.0.1",
     "rockit-common": "1.0.0",
+    "save-ro-crate": "1.0.0",
     "data-sources": "1.0.0",
     "minimatch": "^10.0.3",
     "open-editors": "1.0.0",
     "tslib": "^2.6.2"
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "theiaExtensions": [
     {
@@ -31,15 +32,43 @@
     "theia-extension"
   ],
   "license": "EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/eclipse-theia/theia.git"
+  "author": {
+    "name": "SZTAKI, Department of Distributed Systems",
+    "url": "https://dsd.sztaki.hu"
   },
-  "bugs": {
-    "url": "https://github.com/eclipse-theia/theia/issues"
+  "contributors": [
+    {
+      "name": "Balazs E. Pataki",
+      "email": "balazs.pataki@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Eclipse Theia Authors",
+      "url": "https://github.com/eclipse-theia/theia"
+    },
+    {
+      "name": "Kadosa Nagy",
+      "email": "nagykadosa@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    },
+    {
+      "name": "Reka Csontos",
+      "email": "csontosreka@sztaki.hu"
+    },
+    {
+      "name": "Zoltan Toth",
+      "email": "zoltan.toth@sztaki.hu",
+      "url": "https://dsd.sztaki.hu"
+    }
+  ],
+  "upstream": {
+    "name": "@theia/navigator",
+    "version": "1.65.2",
+    "repository": "https://github.com/eclipse-theia/theia"
   },
-  "homepage": "https://github.com/eclipse-theia/theia",
   "files": [
+    "LICENSE-EPL.txt",
+    "LICENSE-GPL-2.0-ONLY-CLASSPATH-EXCEPTION",
     "lib",
     "src"
   ],
@@ -59,5 +88,5 @@
   "nyc": {
     "extends": "../../configs/nyc.json"
   },
-  "gitHead": "21358137e41342742707f660b8e222f940a27652"
+  "theiaNavigatorBaseVersion": "1.65.2"
 }

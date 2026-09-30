@@ -1,5 +1,11 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { inject, injectable } from 'inversify';
-import { SchemaValidator, ValidationError, MetadataSchemaManager } from 'rockit-common/lib/browser';
+import { SchemaValidator, ValidationError, MetadataProfileManager } from 'rockit-common/lib/browser';
 import {
   validateEntities as runEntityValidation,
   validate,
@@ -11,7 +17,7 @@ type ValidationMode = 'full' | 'incremental' | 'cached';
 
 @injectable()
 export class SchemaValidatorService implements SchemaValidator {
-  @inject(MetadataSchemaManager) protected readonly schemaManagerService: MetadataSchemaManager;
+  @inject(MetadataProfileManager) protected readonly profileManagerService: MetadataProfileManager;
   @inject(AppStateService) protected readonly appStateService: AppStateService;
 
   protected lastBaseProfileRef?: Record<string, any>;
@@ -379,7 +385,7 @@ export class SchemaValidatorService implements SchemaValidator {
           crate,
           baseProfile,
           profileList,
-          this.schemaManagerService,
+          this.profileManagerService,
           {
             targetEntityIds: new Set(targetHashes.keys()),
             signal: controller.signal,
@@ -456,7 +462,7 @@ export class SchemaValidatorService implements SchemaValidator {
           crate,
           baseProfile,
           profileList,
-          this.schemaManagerService,
+          this.profileManagerService,
           {
             signal: controller.signal,
             yieldEvery: 75,
@@ -485,7 +491,7 @@ export class SchemaValidatorService implements SchemaValidator {
           crate,
           baseProfile,
           profileList,
-          this.schemaManagerService,
+          this.profileManagerService,
           {
             targetEntityIds,
             signal: controller.signal,
@@ -535,7 +541,7 @@ export class SchemaValidatorService implements SchemaValidator {
         crate,
         baseProfile,
         profileList,
-        this.schemaManagerService,
+        this.profileManagerService,
         {
           signal: controller.signal,
           yieldEvery: 75,

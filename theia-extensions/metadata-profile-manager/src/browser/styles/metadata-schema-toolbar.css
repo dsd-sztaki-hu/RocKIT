@@ -1,0 +1,140 @@
+/********************************************************************************************
+ * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *******************************************************************************************/
+ 
+/* src/browser/styles/metadata-schema-toolbar.css */
+
+/* --- Layout --- */
+.schema-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    width: 100%;
+}
+
+.schema-toolbar__spacer {
+    flex-grow: 1;
+}
+
+/* Vertical Separator mapped to native toolbar divider */
+.schema-toolbar__separator {
+    width: 1px;
+    height: 18px;
+    background-color: var(--theia-toolbar-dividerBackground, var(--theia-panel-border));
+    margin: 0 4px;
+}
+
+.schema-toolbar__delete-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* --- Standard Action Buttons --- */
+.schema-toolbar__btn {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 6px;
+    padding: 4px 12px;
+    font-size: var(--theia-ui-font-size1);
+    font-family: var(--theia-ui-font-family);
+    border-radius: 2px;
+    cursor: pointer;
+    outline: none;
+    /* High contrast support */
+    border: 1px solid var(--theia-contrastBorder, transparent);
+    transition: background-color 0.1s ease, border-color 0.1s ease, color 0.1s ease;
+}
+
+/* Primary Buttons */
+.schema-toolbar__btn--primary {
+    background-color: var(--theia-button-background);
+    color: var(--theia-button-foreground);
+}
+
+.schema-toolbar__btn--primary:hover {
+    background-color: var(--theia-button-hoverBackground);
+    color: var(--theia-button-foreground);
+    border-color: var(--theia-contrastActiveBorder, transparent);
+}
+
+/* Secondary Buttons */
+.schema-toolbar__btn--secondary {
+    background-color: var(--theia-button-secondaryBackground);
+    color: var(--theia-button-secondaryForeground);
+}
+
+.schema-toolbar__btn--secondary:hover {
+    background-color: var(--theia-button-secondaryHoverBackground);
+    color: var(--theia-button-secondaryForeground);
+    border-color: var(--theia-contrastActiveBorder, transparent);
+}
+
+/* Delete Button */
+.schema-toolbar__btn--delete {
+    background-color: var(--theia-button-secondaryBackground);
+    color: var(--theia-button-secondaryForeground);
+}
+
+.schema-toolbar__btn--delete:hover {
+    background-color: var(--theia-list-hoverBackground);
+    color: var(--theia-errorForeground);
+    border-color: var(--theia-errorForeground, var(--theia-contrastActiveBorder));
+}
+
+/* --- Icon-Only Buttons (Refresh, Configure) --- */
+.schema-toolbar__icon-btn {
+    color: var(--theia-icon-foreground) !important;
+    border-radius: 4px !important;
+    padding: 4px !important;
+    border: 1px solid var(--theia-contrastBorder, transparent) !important;
+    transition: background-color 0.1s ease, color 0.1s ease, border-color 0.1s ease !important;
+}
+
+.schema-toolbar__icon-btn:hover {
+    background-color: var(--theia-toolbar-hoverBackground, rgba(128, 128, 128, 0.1)) !important;
+    color: var(--theia-foreground) !important;
+    border-color: var(--theia-contrastActiveBorder, transparent) !important;
+}
+
+/* --- SVG Icon Sizing --- */
+.schema-toolbar__btn-icon {
+    display: flex;
+    align-items: center;
+}
+
+.schema-toolbar__icon-svg {
+    font-size: 16px !important;
+}
+
+.schema-toolbar__icon-svg--large {
+    font-size: 20px !important;
+}
+
+@container (max-width: 420px) {
+    .schema-toolbar {
+        gap: 4px;
+    }
+
+    .schema-toolbar__btn {
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        padding: 4px;
+    }
+
+    .schema-toolbar__btn-label {
+        display: none;
+    }
+
+    .schema-toolbar__separator {
+        margin: 0 2px;
+    }
+}

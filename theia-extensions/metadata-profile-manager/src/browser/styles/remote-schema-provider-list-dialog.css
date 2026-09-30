@@ -1,0 +1,199 @@
+/********************************************************************************************
+ * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *******************************************************************************************/
+ 
+/* src/browser/styles/remote-schema-provider-list-dialog.css */
+
+.remote-provider-list {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--theia-editor-background);
+    color: var(--theia-foreground);
+    font-family: var(--theia-ui-font-family);
+}
+
+.remote-provider-list__content {
+    padding: 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* Header Section */
+.remote-provider-list__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-shrink: 0;
+}
+
+.remote-provider-list__header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.remote-provider-list__icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    background-color: var(--theia-list-hoverBackground);
+    color: var(--theia-foreground);
+}
+
+.remote-provider-list__title {
+    font-weight: 600;
+    font-size: var(--theia-ui-font-size1);
+}
+
+.remote-provider-list__description {
+    font-size: var(--theia-ui-font-size0);
+    color: var(--theia-descriptionForeground);
+}
+
+.remote-provider-list__add-button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding-right: 12px;
+}
+
+/* List Container */
+.remote-provider-list__container {
+    flex: 1;
+    border: 1px solid var(--theia-panel-border);
+    border-radius: 4px;
+    overflow-y: auto;
+    background-color: var(--theia-input-background);
+}
+
+.remote-provider-list__loading,
+.remote-provider-list__empty-state {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    text-align: center;
+    color: var(--theia-descriptionForeground);
+    gap: 10px;
+}
+
+.remote-provider-list__empty-state {
+    opacity: 0.7;
+}
+
+/* List Items */
+.remote-provider-list__item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--theia-panel-border);
+    background-color: var(--theia-editor-background);
+    transition: background-color 0.2s;
+}
+
+.remote-provider-list__item:last-child {
+    border-bottom: none;
+}
+
+.remote-provider-list__item:hover {
+    background-color: var(--theia-list-hoverBackground);
+}
+
+.remote-provider-list__item-details {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    overflow: hidden;
+}
+
+.remote-provider-list__item-text {
+    overflow: hidden;
+}
+
+.remote-provider-list__item-title {
+    font-weight: 600;
+    color: var(--theia-foreground);
+    margin-bottom: 2px;
+    font-size: var(--theia-ui-font-size1);
+}
+
+.remote-provider-list__item-url {
+    font-size: 0.9em;
+    color: var(--theia-descriptionForeground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.remote-provider-list__item-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: 10px;
+}
+
+/* Footer */
+.remote-provider-list__footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 15px 20px;
+    background-color: var(--theia-layout-color2);
+    border-top: 1px solid var(--theia-panel-border);
+    flex-shrink: 0;
+}
+
+.remote-provider-list__close-button {
+    min-width: 80px;
+    border: 1px solid var(--theia-button-border, #ccc);
+}
+
+/* --- Internal Confirm Dialog Styles --- */
+.confirm-dialog {
+    display: flex;
+    padding: 20px;
+    gap: 15px;
+    align-items: flex-start;
+    background-color: var(--theia-editor-background);
+    color: var(--theia-foreground);
+}
+
+.confirm-dialog__icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(244, 135, 113, 0.1);
+    border-radius: 50%;
+    padding: 8px;
+    flex-shrink: 0;
+}
+
+.confirm-dialog__content {
+    flex: 1;
+}
+
+.confirm-dialog__title {
+    font-weight: 600;
+    margin-bottom: 6px;
+    font-size: var(--theia-ui-font-size1);
+}
+
+.confirm-dialog__message {
+    line-height: 1.5;
+    color: var(--theia-descriptionForeground);
+}

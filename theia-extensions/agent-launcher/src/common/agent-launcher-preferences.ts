@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import {
   createPreferenceProxy,
   PreferenceContribution,
@@ -22,7 +28,7 @@ export const AgentLauncherConfigSchema: PreferenceSchema = {
       type: 'boolean',
       default: false,
       description:
-        'Controls whether AROMA writes AGENTS.md/CLAUDE.md and .aroma workflow docs into RO-Crate workspaces when launching external agents. Disabled uses the pure MCP workflow-doc tool instead.',
+        'Controls whether RocKIT writes AGENTS.md/CLAUDE.md and .aroma workflow docs into RO-Crate workspaces when launching external agents. Disabled uses the pure MCP workflow-doc tool instead.',
     },
   },
 }

@@ -5,7 +5,7 @@ runtime crosswalks in [`../crosswalks/`](../crosswalks/).
 
 The JSON is a draft, declarative description of:
 
-- the metadata schemas supported by ARP plus one target repository;
+- the metadata profiles supported by ARP plus one target repository;
 - the semantic relationships between their fields;
 - the transformations needed when exporting metadata;
 - fields that intentionally have no equivalent in another repository;

@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import * as crypto from 'node:crypto'
 import * as fs from 'node:fs'
 import * as http from 'node:http'
@@ -267,10 +273,7 @@ export function registerLocalFileForAroma(params: Record<string, unknown>): Loca
     )
   }
   const inputPath = typeof params.path === 'string' ? params.path.trim() : ''
-  if (inputPath === '') {
-    throw new Error('open_aroma_for_local_file requires path.')
-  }
-  const absolutePath = path.resolve(inputPath)
+  const absolutePath = path.resolve(inputPath || 'ro-crate-metadata.json')
   if (path.basename(absolutePath) !== 'ro-crate-metadata.json') {
     throw new Error('Local file bridge only supports ro-crate-metadata.json files.')
   }

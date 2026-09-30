@@ -1,3 +1,8 @@
+# RocKIT
+
+RocKIT source code is available at
+<https://github.com/dsd-sztaki-hu/RocKIT>.
+
 ## Getting started
 
 Please install all necessary [prerequisites](https://github.com/eclipse-theia/theia/blob/master/doc/Developing.md#prerequisites).
@@ -45,12 +50,12 @@ To create the npm tarball:
 
 The tarball is written to:
 
-    theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-<version>.tgz
+    theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-<version>.tgz
 
-For example, if the MCP package version is `1.0.2`, install the local tarball
+For example, if the MCP package version is `1.2.0`, install the local tarball
 from the repo root with:
 
-    npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-rocrate-mcp-server-1.0.2.tgz
+    npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-1.2.0.tgz
 
 To publish the standalone MCP server to npm, publish the generated package
 directory, not the raw workspace package:
@@ -60,12 +65,22 @@ directory, not the raw workspace package:
 
 After publishing, users can install and run it with:
 
-    npm install -g @arpproject/rocrate-mcp-server
+    npm install -g @arpproject/vibearp-mcp
     rocrate-mcp-server
 
 To install the MCP server into a detected coding agent, run:
 
     rocrate-mcp-server -i
+
+Use the up/down arrows or an agent number to select the target. The installer
+shows the exact MCP section and destination before confirmation; pressing Enter
+accepts the default yes. To select an agent explicitly, for example:
+
+    rocrate-mcp-server -i codex
+
+Supported IDs are `codex`, `claude`, `opencode`, `kilo`, `roo`, `gemini`, and
+`qwen`. The generated configuration connects through the shared per-user
+RockIT socket at `~/.rockit/rocrate-mcp-server.sock`.
 
 The standalone package bundles the internal workspace code needed by the MCP
 server. The normal Theia/Electron build still uses the workspace package and
@@ -178,3 +193,6 @@ HTML selection. So, this is of minimal use for now.
 ## License
 
 RocKIT is licensed under the Apache License, Version 2.0. See [LICENSE.md](LICENSE.md) for details.
+
+Additional attribution and bundled third-party component information is available in
+[NOTICE](NOTICE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

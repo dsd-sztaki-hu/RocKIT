@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { BinaryBuffer } from '@theia/core/lib/common/buffer'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
@@ -12,6 +18,7 @@ import {
   normalizeExportLogEntries,
   serializeExportLogEntries,
 } from './export-log'
+import { extendMappingWithMetadataEntities } from './ro-crate-metadata-entity-mapping'
 
 type RoCrate = Record<string, any>
 type RoCrateEntity = Record<string, any>
@@ -250,9 +257,10 @@ export class ArpRoCrateLinkService {
       }
     }
 
-    return Object.fromEntries(
+    const operationalMapping = Object.fromEntries(
       Object.entries(mapping).sort((a, b) => a[0].localeCompare(b[0])),
     )
+    return extendMappingWithMetadataEntities(localCrate, remoteCrate, operationalMapping)
   }
 
   protected datasetMatchKey(entity: RoCrateEntity): string | undefined {

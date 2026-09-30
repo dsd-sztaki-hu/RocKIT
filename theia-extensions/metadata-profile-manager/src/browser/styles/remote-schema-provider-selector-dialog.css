@@ -1,0 +1,214 @@
+/********************************************************************************************
+ * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *******************************************************************************************/
+ 
+/* src/browser/styles/remote-schema-provider-selector-dialog.css */
+
+.remote-provider-selector {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--theia-editor-background);
+    color: var(--theia-foreground);
+    font-family: var(--theia-ui-font-family);
+}
+
+.remote-provider-selector__content {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* Header */
+.remote-provider-selector__header {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-shrink: 0;
+}
+
+.remote-provider-selector__icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--theia-list-hoverBackground);
+    border: 1px solid var(--theia-contrastBorder, transparent);
+    flex-shrink: 0;
+}
+
+.remote-provider-selector__header-icon {
+    color: var(--theia-textLink-foreground);
+    font-size: 22px !important;
+}
+
+.remote-provider-selector__title {
+    font-weight: 600;
+    font-size: var(--theia-ui-font-size1);
+}
+
+.remote-provider-selector__description {
+    font-size: var(--theia-ui-font-size0);
+    color: var(--theia-descriptionForeground);
+}
+
+/* Body / List */
+.remote-provider-selector__body {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 5px;
+}
+
+/* Loading & Empty States */
+.remote-provider-selector__state-msg {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--theia-descriptionForeground);
+    gap: 8px;
+    text-align: center;
+}
+
+.remote-provider-selector__empty-box {
+    border: 2px dashed var(--theia-panel-border);
+    border-radius: 6px;
+    padding: 20px;
+    background-color: var(--theia-input-background);
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.remote-provider-selector__empty-icon {
+    font-size: 48px !important;
+    color: var(--theia-descriptionForeground);
+    opacity: 0.4;
+    margin-bottom: 15px;
+}
+
+.remote-provider-selector__empty-title {
+    font-size: var(--theia-ui-font-size1);
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.remote-provider-selector__empty-desc {
+    color: var(--theia-descriptionForeground);
+    margin-bottom: 20px;
+    max-width: 80%;
+}
+
+/* Provider Item Button */
+.remote-provider-selector__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    padding: 12px 15px;
+    margin: 0 2px;
+    box-sizing: border-box;
+    border: 1px solid var(--theia-panel-border);
+    background-color: var(--theia-editor-background);
+    transition: transform 0.1s, border-color 0.2s, background-color 0.2s;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.remote-provider-selector__item:hover {
+    border-color: var(--theia-focusBorder);
+    background-color: var(--theia-list-hoverBackground);
+}
+
+.remote-provider-selector__item-content {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+
+.remote-provider-selector__item-icon-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    background-color: var(--theia-activityBar-background);
+    margin-right: 15px;
+    flex-shrink: 0;
+}
+
+.remote-provider-selector__item-icon {
+    font-size: 18px !important;
+    color: var(--theia-activityBar-foreground);
+}
+
+.remote-provider-selector__item-details {
+    overflow: hidden;
+}
+
+.remote-provider-selector__item-title {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: var(--theia-ui-font-size1);
+    color: var(--theia-foreground);
+    white-space: nowrap;
+}
+
+.remote-provider-selector__item-url {
+    font-size: 0.85em;
+    color: var(--theia-descriptionForeground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+    white-space: nowrap;
+}
+
+/* Footer */
+.remote-provider-selector__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background-color: var(--theia-layout-color2);
+    border-top: 1px solid var(--theia-panel-border);
+    flex-shrink: 0;
+}
+
+.remote-provider-selector__manage-btn {
+    display: flex;
+    align-items: center;
+    border: none;
+    background: transparent;
+    padding: 4px 8px;
+    color: var(--theia-textLink-foreground);
+    cursor: pointer;
+    font-size: var(--theia-ui-font-size0);
+}
+
+.remote-provider-selector__manage-btn:hover {
+    text-decoration: underline;
+}
+
+.remote-provider-selector__cancel-btn {
+    min-width: 80px;
+    border: 1px solid var(--theia-button-border, #ccc);
+}

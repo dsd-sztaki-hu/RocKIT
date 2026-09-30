@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import type { Disposable } from '@theia/core'
 //This is to avoid for AppStateContext.Provider:  TS2686: 'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'

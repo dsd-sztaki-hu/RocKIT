@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import {
   ApplicationShell,
   CommonMenus,
@@ -36,8 +42,7 @@ export class AppStatePanelContribution
   protected readonly shell: ApplicationShell
 
   onStart(): void {
-    // Panel will be opened manually via command or menu
-    console.log('[AppStatePanelContribution] started')
+    // Panel is opened manually through its command or menu item.
   }
 
   registerCommands(commands: CommandRegistry): void {

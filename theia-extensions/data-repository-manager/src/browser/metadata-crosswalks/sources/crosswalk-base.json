@@ -31,7 +31,7 @@
     }
   },
   "provenance": {
-    "arpAndRoCrate": "Runtime schemas from ROCKIT_ROOT_PATH/metadata-schemas on 2026-07-15.",
+    "arpAndRoCrate": "Runtime profiles from ROCKIT_ROOT_PATH/metadata-profiles on 2026-07-15.",
     "dataverse": "Cached Dataverse metadata blocks returned by /api/metadatablocks?returnDatasetFieldTypes=true.",
     "zenodoDocumentation": "https://developers.zenodo.org/#deposit-metadata",
     "zenodoUpdateEndpoint": "https://developers.zenodo.org/#update-deposition",

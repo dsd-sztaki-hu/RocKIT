@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import {
   Command,
   CommandContribution,
@@ -10,7 +16,12 @@ import {
   UriSelection,
 } from '@theia/core'
 import { ApplicationShell, CommonCommands, WidgetManager } from '@theia/core/lib/browser'
-import { ConfirmDialog } from '@theia/core/lib/browser/dialogs'
+import {
+  AbstractDialog,
+  ConfirmDialog,
+  DialogProps,
+} from '@theia/core/lib/browser/dialogs'
+import { StorageService } from '@theia/core/lib/browser/storage-service'
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables'
 import { FileUri } from '@theia/core/lib/common/file-uri'
 import { nls } from '@theia/core/lib/common/nls'
@@ -30,6 +41,16 @@ import {
   AgentLauncherPreferences,
 } from '../common/agent-launcher-preferences'
 import { NativeAgentProvider } from '../common/native-agent-protocol'
+import type { McpKeepSetting, ParsedMcpServer } from './mcp-config'
+import {
+  chooseMcpServerName,
+  forgetMcpKeepSetting,
+  hasRememberedMcpSetting,
+  mcpServerMatches,
+  mcpServerUsesSocket,
+  parseMcpServerEntries,
+  rememberMcpKeepSetting,
+} from './mcp-config'
 import { NativeAgentChatWidget } from './native-agent-chat-widget'
 
 type AgentSpec = {
@@ -59,6 +80,105 @@ type RocrateMcpRuntime = {
 
 type AgentInstructionPort = {
   ensureAgentFiles(directoryUri: URI, agentId: string): Promise<void>
+}
+
+type RocrateMcpConflictDecision = 'keep' | 'overwrite' | 'alongside'
+
+const MCP_KEEP_SETTINGS_STORAGE_KEY = 'rockit:agent-launcher:kept-mcp-settings'
+
+type RocrateMcpConflictDialogProps = DialogProps & {
+  summary: string
+  socketLabel: string
+  socketPath: string
+  questionTitle: string
+  question: string
+  overwriteTitle: string
+  alongsideTitle: string
+  overwriteSnippet: string
+  alongsideSnippet: string
+  keepLabel: string
+  alongsideLabel: string
+  overwriteLabel: string
+}
+
+class RocrateMcpConflictDialog extends AbstractDialog<RocrateMcpConflictDecision> {
+  protected decision: RocrateMcpConflictDecision = 'keep'
+
+  constructor(props: RocrateMcpConflictDialogProps) {
+    super(props)
+    this.contentNode.classList.add('rocrate-mcp-conflict-content')
+    this.appendText('p', 'rocrate-mcp-conflict-summary', props.summary)
+
+    const socket = this.node.ownerDocument.createElement('div')
+    socket.className = 'rocrate-mcp-conflict-socket'
+    const socketLabel = this.node.ownerDocument.createElement('span')
+    socketLabel.className = 'rocrate-mcp-conflict-label'
+    socketLabel.textContent = props.socketLabel
+    const socketValue = this.node.ownerDocument.createElement('code')
+    socketValue.textContent = props.socketPath
+    socket.append(socketLabel, socketValue)
+    this.contentNode.appendChild(socket)
+
+    const question = this.node.ownerDocument.createElement('div')
+    question.className = 'rocrate-mcp-conflict-question'
+    const questionTitle = this.node.ownerDocument.createElement('div')
+    questionTitle.className = 'rocrate-mcp-conflict-question-title'
+    questionTitle.textContent = props.questionTitle
+    const questionText = this.node.ownerDocument.createElement('div')
+    questionText.className = 'rocrate-mcp-conflict-question-text'
+    questionText.textContent = props.question
+    question.append(questionTitle, questionText)
+    this.contentNode.appendChild(question)
+
+    this.appendCodeSection(props.overwriteTitle, props.overwriteSnippet)
+    this.appendCodeSection(props.alongsideTitle, props.alongsideSnippet)
+
+    this.appendChoiceButton(props.overwriteLabel, 'overwrite', false)
+    this.appendChoiceButton(props.alongsideLabel, 'alongside', false)
+    this.appendChoiceButton(props.keepLabel, 'keep', true)
+  }
+
+  get value(): RocrateMcpConflictDecision {
+    return this.decision
+  }
+
+  protected appendChoiceButton(
+    text: string,
+    decision: RocrateMcpConflictDecision,
+    primary: boolean,
+  ): void {
+    const button = primary
+      ? this.appendAcceptButton(text)
+      : this.appendButton(text, false)
+    button.addEventListener('click', () => {
+      this.decision = decision
+      void this.accept()
+    })
+  }
+
+  protected appendText(
+    tagName: 'p',
+    className: string,
+    text: string,
+  ): void {
+    const element = this.node.ownerDocument.createElement(tagName)
+    element.className = className
+    element.textContent = text
+    this.contentNode.appendChild(element)
+  }
+
+  protected appendCodeSection(title: string, snippet: string): void {
+    const section = this.node.ownerDocument.createElement('section')
+    section.className = 'rocrate-mcp-conflict-code-section'
+    const heading = this.node.ownerDocument.createElement('div')
+    heading.className = 'rocrate-mcp-conflict-code-title'
+    heading.textContent = title
+    const code = this.node.ownerDocument.createElement('pre')
+    code.className = 'rocrate-mcp-conflict-code'
+    code.textContent = snippet
+    section.append(heading, code)
+    this.contentNode.appendChild(section)
+  }
 }
 
 const AGENT_SPECS: AgentSpec[] = [
@@ -97,21 +217,16 @@ const AGENT_SPECS: AgentSpec[] = [
 
 const sharedAvailableAgents = new Map<string, string>()
 const AGENT_TERMINAL_ICON_CLASS = 'codicon codicon-hubot'
-const INSIDE_AROMA_AGENT_CONTEXT_PROMPT = [
-  'You are launched from inside AROMA.',
+const INSIDE_ROCKIT_AGENT_CONTEXT_PROMPT = [
+  'You are launched from inside RocKIT.',
   '',
   'Before doing RO-Crate work, call the RO-Crate MCP tool `set_agent_session_context` with:',
-  '{"launchContext":"inside_aroma","aromaAlreadyOpen":true}',
+  '{"launchContext":"inside_rockit","editorAlreadyOpen":true}',
   '',
-  'Because AROMA is already open for this session, do not suggest opening AROMA after edits.',
+  'Because RocKIT is already open for this session, do not suggest opening AROMA after edits.',
 ].join('\n')
 
-const EDIT_WITH_AI_MENU_PATH = [
-  ...MAIN_MENU_BAR,
-  '4z_ro_crate',
-  '3_tools',
-  'edit_with_ai',
-]
+const RO_CRATE_AI_MENU_PATH = [...MAIN_MENU_BAR, '4z_ro_crate', '4_ai']
 
 function arraysEqual(a: string[] | undefined, b: string[] | undefined): boolean {
   if (!a || !b || a.length !== b.length) {
@@ -125,6 +240,35 @@ function arraysEqual(a: string[] | undefined, b: string[] | undefined): boolean 
   return true
 }
 
+function recordsEqual(
+  a: Record<string, string> | undefined,
+  b: Record<string, string> | undefined,
+): boolean {
+  if (!a || !b) {
+    return false
+  }
+  const aEntries = Object.entries(a)
+  const bEntries = Object.entries(b)
+  if (aEntries.length !== bEntries.length) {
+    return false
+  }
+  return aEntries.every(([key, value]) => b[key] === value)
+}
+
+function isMcpKeepSetting(value: unknown): value is McpKeepSetting {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false
+  }
+  const candidate = value as Record<string, unknown>
+  return (
+    typeof candidate.agentId === 'string' &&
+    typeof candidate.configPath === 'string' &&
+    (candidate.kind === 'toml' || candidate.kind === 'json') &&
+    typeof candidate.serverName === 'string' &&
+    typeof candidate.signature === 'string'
+  )
+}
+
 function joinPlatformPath(base: string, ...segments: string[]): string {
   const separator = isWindows ? '\\' : '/'
   const normalizedBase = base.replace(/[\\/]+$/, '')
@@ -136,6 +280,10 @@ function joinPlatformPath(base: string, ...segments: string[]): string {
 
 function basenamePlatformPath(value: string): string {
   return value.split(/[\\/]/).pop() ?? value
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function isElectronRuntimePath(value: string | undefined): boolean {
@@ -197,6 +345,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   @inject(FileService) protected readonly fileService: FileService
   @inject(TerminalService) protected readonly terminalService: TerminalService
   @inject(EnvVariablesServer) protected readonly envVariablesServer: EnvVariablesServer
+  @inject(StorageService) protected readonly storageService: StorageService
   @inject(WidgetManager) protected readonly widgetManager: WidgetManager
   @inject(ApplicationShell) protected readonly shell: ApplicationShell
   @inject(AgentLauncherPreferences)
@@ -277,48 +426,32 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   }
 
   registerMenus(menus: MenuModelRegistry): void {
-    menus.registerSubmenu(
-      EDIT_WITH_AI_MENU_PATH,
-      nls.localize('rockit/agentLauncher/editWithAi', 'Edit With AI Tool'),
-      { sortString: 'a10' },
-    )
-
     for (const [index, spec] of AGENT_SPECS.entries()) {
-      const orderPrefix = String(index).padStart(2, '0')
+      const orderPrefix = `a${String(index).padStart(2, '0')}`
       if (supportsNativeChat(spec.id)) {
-        menus.registerMenuAction(EDIT_WITH_AI_MENU_PATH, {
-          commandId: agentChatCommandId(spec.id),
-          label:
-            spec.id === 'codex'
-              ? nls.localize('rockit/agentLauncher/chatInRockit', 'Chat in RocKIT')
-              : nls.localize(
-                  'rockit/agentLauncher/chatInRockitWith',
-                  'Chat in RocKIT with {0}',
-                  this.formatAgentName(spec.id),
-                ),
-          order: `${orderPrefix}.a`,
+        const agentMenuPath = [
+          ...RO_CRATE_AI_MENU_PATH,
+          `edit_with_${spec.id}`,
+        ]
+        menus.registerSubmenu(agentMenuPath, this.editWithAgentLabel(spec.id), {
+          sortString: orderPrefix,
         })
-        menus.registerMenuAction(EDIT_WITH_AI_MENU_PATH, {
+        menus.registerMenuAction(agentMenuPath, {
+          commandId: agentChatCommandId(spec.id),
+          label: nls.localize('rockit/agentLauncher/inRockit', 'In RocKIT'),
+          order: 'a',
+        })
+        menus.registerMenuAction(agentMenuPath, {
           commandId: agentTerminalCommandId(spec.id),
-          label:
-            spec.id === 'codex'
-              ? nls.localize(
-                  'rockit/agentLauncher/openInTerminal',
-                  'Open in Terminal',
-                )
-              : nls.localize(
-                  'rockit/agentLauncher/openAgentInTerminal',
-                  'Open {0} in Terminal',
-                  this.formatAgentName(spec.id),
-                ),
-          order: `${orderPrefix}.b`,
+          label: nls.localize('rockit/agentLauncher/inTerminal', 'In terminal'),
+          order: 'b',
         })
         continue
       }
-      menus.registerMenuAction(EDIT_WITH_AI_MENU_PATH, {
+      menus.registerMenuAction(RO_CRATE_AI_MENU_PATH, {
         commandId: agentCommandId(spec.id),
         label: this.editWithAgentLabel(spec.id),
-        order: `${orderPrefix}.a`,
+        order: orderPrefix,
       })
     }
   }
@@ -343,8 +476,11 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       explicitUri instanceof URI
         ? explicitUri
         : UriSelection.getUri(this.selectionService.selection)
-    if (selectedUri && this.workspaceService.getWorkspaceRootUri(selectedUri)) {
-      return selectedUri
+    if (selectedUri) {
+      const rootUri = this.workspaceService.getWorkspaceRootUri(selectedUri)
+      if (rootUri) {
+        return rootUri
+      }
     }
     return this.workspaceService.tryGetRoots()[0]?.resource
   }
@@ -494,11 +630,11 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       return [
         executable,
         '-c',
-        `developer_instructions=${toTomlBasicString(INSIDE_AROMA_AGENT_CONTEXT_PROMPT)}`,
+        `developer_instructions=${toTomlBasicString(INSIDE_ROCKIT_AGENT_CONTEXT_PROMPT)}`,
       ]
     }
     if (agentId === 'claude') {
-      return [executable, '--append-system-prompt', INSIDE_AROMA_AGENT_CONTEXT_PROMPT]
+      return [executable, '--append-system-prompt', INSIDE_ROCKIT_AGENT_CONTEXT_PROMPT]
     }
     return [executable]
   }
@@ -559,32 +695,60 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       return false
     }
     if (agentId === 'claude') {
-      return this.ensureClaudeMcpConfigured(directoryUri, launchConfig, cwd)
+      return this.ensureClaudeMcpConfigured(directoryUri, launchConfig, cwd, spec)
     }
 
     if (await this.isRocrateMcpConfigured(spec, launchConfig)) return true
 
-    const snippet = this.buildRocrateMcpSnippet(spec, launchConfig)
-    const accepted = await new ConfirmDialog({
-      title: nls.localize(
-        'rockit/agentLauncher/mcpNotConfiguredTitle',
-        'RocKIT MCP Not Configured',
-      ),
-      msg: nls.localize(
-        'rockit/agentLauncher/mcpNotConfiguredMessage',
-        'RocKIT MCP has not yet been configured for {0}.\n\nConfig file: {1}\n\nAdd this configuration now?\n\n{2}',
-        this.formatAgentName(agentId),
-        spec.configPath,
-        snippet,
-      ),
-      ok: nls.localize('rockit/agentLauncher/addConfiguration', 'Add Configuration'),
-      cancel: nls.localize('rockit/common/cancel', 'Cancel'),
-    }).open()
+    const entries = await this.readMcpConfigEntries(spec)
+    const sameSocketConflict = this.findSameSocketConflict(entries, launchConfig)
+    let serverName = 'rocrate'
+    if (sameSocketConflict) {
+      if (await this.hasRememberedMcpKeep(spec, sameSocketConflict)) {
+        return true
+      }
+      const alternateName = chooseMcpServerName(entries.map((entry) => entry.name))
+      const decision = await this.promptMcpSocketConflict(
+        agentId,
+        spec,
+        launchConfig,
+        sameSocketConflict,
+        alternateName,
+      )
+      if (!decision) {
+        return false
+      }
+      if (decision === 'keep') {
+        await this.rememberMcpKeep(spec, sameSocketConflict)
+        return true
+      }
+      await this.forgetMcpKeep(spec, sameSocketConflict)
+      if (decision === 'alongside') {
+        serverName = alternateName
+      }
+    } else {
+      const snippet = this.buildRocrateMcpSnippet(spec, launchConfig)
+      const accepted = await new ConfirmDialog({
+        title: nls.localize(
+          'rockit/agentLauncher/mcpNotConfiguredTitle',
+          'RocKIT MCP Not Configured',
+        ),
+        msg: nls.localize(
+          'rockit/agentLauncher/mcpNotConfiguredMessage',
+          'RocKIT MCP has not yet been configured for {0}.\n\nConfig file: {1}\n\nAdd this configuration now?\n\n{2}',
+          this.formatAgentName(agentId),
+          spec.configPath,
+          snippet,
+        ),
+        ok: nls.localize('rockit/agentLauncher/addConfiguration', 'Add Configuration'),
+        cancel: nls.localize('rockit/common/cancel', 'Cancel'),
+      }).open()
 
-    if (!accepted) return false
+      if (!accepted) return false
+    }
 
     try {
-      await this.writeRocrateMcpConfig(spec, launchConfig)
+      await this.writeRocrateMcpConfig(spec, launchConfig, serverName)
       return true
     } catch {
       return false
@@ -630,6 +794,14 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const configUri = FileUri.create(spec.configPath)
     if (!(await this.fileService.exists(configUri))) return false
     const content = await this.readTextFile(configUri)
+    const entries = parseMcpServerEntries(content, spec.kind, spec.agentId)
+    if (entries.length > 0) {
+      return entries.some(
+        (entry) =>
+          mcpServerMatches(entry, launchConfig.command, launchConfig.args) &&
+          (spec.kind !== 'toml' || recordsEqual(entry.env, launchConfig.env)),
+      )
+    }
 
     if (spec.kind === 'toml') {
       return (
@@ -659,13 +831,179 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     }
   }
 
+  protected async readMcpConfigEntries(
+    spec: AgentMcpConfigSpec,
+  ): Promise<ParsedMcpServer[]> {
+    const configUri = FileUri.create(spec.configPath)
+    if (!(await this.fileService.exists(configUri))) {
+      return []
+    }
+    try {
+      return parseMcpServerEntries(
+        await this.readTextFile(configUri),
+        spec.kind,
+        spec.agentId,
+      )
+    } catch {
+      return []
+    }
+  }
+
+  protected findSameSocketConflict(
+    entries: ParsedMcpServer[],
+    launchConfig: RocrateMcpLaunchConfig,
+  ): ParsedMcpServer | undefined {
+    const socketPath = launchConfig.socketPath
+    if (!socketPath) {
+      return undefined
+    }
+    return entries.find(
+      (entry) =>
+        entry.name === 'rocrate' && mcpServerUsesSocket(entry, socketPath, isWindows),
+    )
+  }
+
+  protected createMcpKeepSetting(
+    spec: AgentMcpConfigSpec,
+    server: ParsedMcpServer,
+  ): McpKeepSetting {
+    return {
+      agentId: spec.agentId,
+      configPath: server.configPath ?? spec.configPath,
+      kind: spec.kind,
+      serverName: server.name,
+      signature: server.signature,
+    }
+  }
+
+  protected async hasRememberedMcpKeep(
+    spec: AgentMcpConfigSpec,
+    server: ParsedMcpServer,
+  ): Promise<boolean> {
+    const setting = this.createMcpKeepSetting(spec, server)
+    const storedSettings = await this.readRememberedMcpKeeps()
+    return hasRememberedMcpSetting(storedSettings, setting)
+  }
+
+  protected async rememberMcpKeep(
+    spec: AgentMcpConfigSpec,
+    server: ParsedMcpServer,
+  ): Promise<void> {
+    const setting = this.createMcpKeepSetting(spec, server)
+    const storedSettings = await this.readRememberedMcpKeeps()
+    const nextSettings = rememberMcpKeepSetting(storedSettings, setting)
+    try {
+      await this.storageService.setData(MCP_KEEP_SETTINGS_STORAGE_KEY, nextSettings)
+    } catch (error) {
+      console.warn('[agent-launcher] failed to remember MCP keep decision', error)
+    }
+  }
+
+  protected async forgetMcpKeep(
+    spec: AgentMcpConfigSpec,
+    server: ParsedMcpServer,
+  ): Promise<void> {
+    const setting = this.createMcpKeepSetting(spec, server)
+    const storedSettings = await this.readRememberedMcpKeeps()
+    const nextSettings = forgetMcpKeepSetting(storedSettings, setting)
+    if (nextSettings.length === storedSettings.length) {
+      return
+    }
+    try {
+      await this.storageService.setData(MCP_KEEP_SETTINGS_STORAGE_KEY, nextSettings)
+    } catch (error) {
+      console.warn('[agent-launcher] failed to clear MCP keep decision', error)
+    }
+  }
+
+  protected async readRememberedMcpKeeps(): Promise<McpKeepSetting[]> {
+    try {
+      const stored = await this.storageService.getData<unknown>(
+        MCP_KEEP_SETTINGS_STORAGE_KEY,
+      )
+      return Array.isArray(stored) ? stored.filter(isMcpKeepSetting) : []
+    } catch (error) {
+      console.warn('[agent-launcher] failed to read MCP keep decisions', error)
+      return []
+    }
+  }
+
+  protected async promptMcpSocketConflict(
+    agentId: string,
+    spec: AgentMcpConfigSpec,
+    launchConfig: RocrateMcpLaunchConfig,
+    conflict: ParsedMcpServer,
+    alternateName: string,
+  ): Promise<RocrateMcpConflictDecision | undefined> {
+    const rocrateSnippet = this.buildRocrateMcpSnippet(spec, launchConfig)
+    const alternateSnippet = this.buildRocrateMcpSnippet(
+      spec,
+      launchConfig,
+      alternateName,
+    )
+    const decision = await new RocrateMcpConflictDialog({
+      title: nls.localize(
+        'rockit/agentLauncher/mcpSocketConflictTitle',
+        'RocKIT MCP Conflict',
+      ),
+      maxWidth: 860,
+      wordWrap: 'break-word',
+      summary: nls.localize(
+        'rockit/agentLauncher/mcpSocketConflictSummary',
+        'An MCP server named "{0}" is already configured for {1}.',
+        conflict.name,
+        this.formatAgentName(agentId),
+      ),
+      socketLabel: nls.localize(
+        'rockit/agentLauncher/mcpSocketConflictSocketLabel',
+        'Shared socket',
+      ),
+      socketPath: launchConfig.socketPath ?? '',
+      questionTitle: nls.localize(
+        'rockit/agentLauncher/mcpSocketConflictQuestionTitle',
+        'Choose how RocKIT should handle this configuration',
+      ),
+      question: nls.localize(
+        'rockit/agentLauncher/mcpSocketConflictQuestion',
+        'Keep the current server, replace it with RocKIT, or add RocKIT alongside it as "{0}"?',
+        alternateName,
+      ),
+      overwriteTitle: nls.localize(
+        'rockit/agentLauncher/mcpSocketConflictOverwriteTitle',
+        'RocKIT configuration — replace "rocrate"',
+      ),
+      alongsideTitle: nls.localize(
+        'rockit/agentLauncher/mcpSocketConflictAlongsideTitle',
+        'RocKIT configuration — add as "{0}"',
+        alternateName,
+      ),
+      overwriteSnippet: rocrateSnippet,
+      alongsideSnippet: alternateSnippet,
+      keepLabel: nls.localize(
+        'rockit/agentLauncher/mcpSocketConflictKeep',
+        'Keep Current',
+      ),
+      alongsideLabel: nls.localize(
+        'rockit/agentLauncher/mcpSocketConflictAlongside',
+        'Add as "{0}"',
+        alternateName,
+      ),
+      overwriteLabel: nls.localize(
+        'rockit/agentLauncher/mcpSocketConflictOverwrite',
+        'Replace "rocrate"',
+      ),
+    }).open()
+    return decision
+  }
+
   protected buildRocrateMcpSnippet(
     spec: AgentMcpConfigSpec,
     launchConfig: RocrateMcpLaunchConfig,
+    serverName = 'rocrate',
   ): string {
     if (spec.kind === 'toml') {
       return [
-        '[mcp_servers.rocrate]',
+        `[mcp_servers.${serverName}]`,
         `command = ${toTomlBasicString(launchConfig.command)}`,
         `args = [${launchConfig.args.map((arg) => toTomlBasicString(arg)).join(', ')}]`,
         'startup_timeout_sec = 30',
@@ -676,7 +1014,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       return JSON.stringify(
         {
           mcp: {
-            rocrate: {
+            [serverName]: {
               type: 'local',
               enabled: true,
               command: [launchConfig.command, ...launchConfig.args],
@@ -689,7 +1027,11 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       )
     }
     return JSON.stringify(
-      { mcpServers: { rocrate: toSerializableLaunchConfig(launchConfig) } },
+      {
+        mcpServers: {
+          [serverName]: toSerializableLaunchConfig(launchConfig),
+        },
+      },
       null,
       2,
     )
@@ -949,16 +1291,20 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
   protected async writeRocrateMcpConfig(
     spec: AgentMcpConfigSpec,
     launchConfig: RocrateMcpLaunchConfig,
+    serverName = 'rocrate',
   ): Promise<void> {
     const configUri = FileUri.create(spec.configPath)
     await this.fileService.createFolder(configUri.parent)
     const exists = await this.fileService.exists(configUri)
 
     if (spec.kind === 'toml') {
-      const snippet = this.buildRocrateMcpSnippet(spec, launchConfig)
+      const snippet = this.buildRocrateMcpSnippet(spec, launchConfig, serverName)
       const content = exists ? await this.readTextFile(configUri) : ''
-      const updated = content.includes('[mcp_servers.rocrate]')
-        ? content.replace(/\[mcp_servers\.rocrate\][\s\S]*?(?=\n\[|$)/, snippet)
+      const sectionPattern = new RegExp(
+        `\\[mcp_servers\\.${escapeRegExp(serverName)}\\][\\s\\S]*?(?=\\n\\[|$)`,
+      )
+      const updated = sectionPattern.test(content)
+        ? content.replace(sectionPattern, snippet)
         : `${content}\n${snippet}`
       await this.fileService.write(configUri, updated)
       return
@@ -969,7 +1315,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     if (spec.agentId === 'opencode') {
       json.mcp = {
         ...(json.mcp || {}),
-        rocrate: {
+        [serverName]: {
           type: 'local',
           enabled: true,
           command: [launchConfig.command, ...launchConfig.args],
@@ -979,7 +1325,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     } else {
       json.mcpServers = {
         ...(json.mcpServers || {}),
-        rocrate: toSerializableLaunchConfig(launchConfig),
+        [serverName]: toSerializableLaunchConfig(launchConfig),
       }
     }
     await this.fileService.write(configUri, JSON.stringify(json, null, 2))
@@ -989,14 +1335,46 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     directoryUri: URI,
     launchConfig: RocrateMcpLaunchConfig,
     cwd: string,
+    spec: AgentMcpConfigSpec,
   ): Promise<boolean> {
     const home = this.resolveHomeDir(directoryUri)
     if (!home) {
       return false
     }
-    if (await this.isClaudeMcpConfigured(home, launchConfig)) {
+    const entries = await this.readClaudeMcpConfigEntries(home)
+    if (entries.some((entry) =>
+      mcpServerMatches(entry, launchConfig.command, launchConfig.args),
+    )) {
       return true
     }
+
+    let serverName = 'rocrate'
+    const sameSocketConflict = this.findSameSocketConflict(entries, launchConfig)
+    if (sameSocketConflict) {
+      if (await this.hasRememberedMcpKeep(spec, sameSocketConflict)) {
+        return true
+      }
+      const alternateName = chooseMcpServerName(entries.map((entry) => entry.name))
+      const decision = await this.promptMcpSocketConflict(
+        'claude',
+        spec,
+        launchConfig,
+        sameSocketConflict,
+        alternateName,
+      )
+      if (!decision) {
+        return false
+      }
+      if (decision === 'keep') {
+        await this.rememberMcpKeep(spec, sameSocketConflict)
+        return true
+      }
+      await this.forgetMcpKeep(spec, sameSocketConflict)
+      if (decision === 'alongside') {
+        serverName = alternateName
+      }
+    }
+
     const claudeExecutable =
       (await this.findExecutableAbsolutePath(['claude'])) ?? 'claude'
     const payload = this.buildClaudeAddMcpPayload(launchConfig)
@@ -1013,7 +1391,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         ),
         '',
         nls.localize('rockit/agentLauncher/rockitWillRun', 'RocKIT will run:'),
-        'claude mcp add-json --scope user rocrate <payload>',
+        `claude mcp add-json --scope user ${serverName} <payload>`,
         '',
         `claude: ${claudeExecutable}`,
         `node: ${launchConfig.command}`,
@@ -1031,7 +1409,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       return false
     }
     try {
-      if (!isWindows) {
+      if (!isWindows && serverName === 'rocrate') {
         await this.executeCommandArgs(
           cwd,
           [claudeExecutable, 'mcp', 'remove', '--scope', 'user', 'rocrate'],
@@ -1041,7 +1419,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       }
       await this.executeCommandArgs(
         cwd,
-        [claudeExecutable, 'mcp', 'add-json', '--scope', 'user', 'rocrate', payload],
+        [claudeExecutable, 'mcp', 'add-json', '--scope', 'user', serverName, payload],
         'claude.mcp.add',
       )
       return this.waitForClaudeMcpConfigured(home, launchConfig)
@@ -1063,31 +1441,36 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     homeDir: string,
     launchConfig: RocrateMcpLaunchConfig,
   ): Promise<boolean> {
+    const entries = await this.readClaudeMcpConfigEntries(homeDir)
+    return entries.some((entry) =>
+      mcpServerMatches(entry, launchConfig.command, launchConfig.args),
+    )
+  }
+
+  protected async readClaudeMcpConfigEntries(
+    homeDir: string,
+  ): Promise<ParsedMcpServer[]> {
     const candidates = [
       joinPlatformPath(homeDir, '.claude.json'),
       joinPlatformPath(homeDir, '.claude', '.mcp.json'),
     ]
+    const entries: ParsedMcpServer[] = []
     for (const candidate of candidates) {
       const uri = FileUri.create(candidate)
       if (!(await this.fileService.exists(uri))) {
         continue
       }
       try {
-        const parsed = JSON.parse(await this.readTextFile(uri))
-        const rocrate =
-          parsed?.mcpServers?.rocrate ??
-          parsed?.mcp?.servers?.rocrate ??
-          parsed?.servers?.rocrate
-        if (
-          rocrate?.command === launchConfig.command &&
-          Array.isArray(rocrate?.args) &&
-          arraysEqual(rocrate.args, launchConfig.args)
-        ) {
-          return true
-        }
+        entries.push(
+          ...parseMcpServerEntries(
+            await this.readTextFile(uri),
+            'json',
+            'claude',
+          ).map((entry) => ({ ...entry, configPath: candidate })),
+        )
       } catch {}
     }
-    return false
+    return entries
   }
 
   protected async waitForClaudeMcpConfigured(

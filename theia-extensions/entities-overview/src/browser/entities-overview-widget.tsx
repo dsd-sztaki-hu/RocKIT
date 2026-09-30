@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { MenuPath } from '@theia/core'
 import {
     ApplicationShell,
@@ -899,7 +905,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
             const entityId = node.data.entityId
 
             if (!entityId) {
-                console.warn('EntitiesOverviewWidget: missing entityId for selection')
                 return
             }
 
@@ -935,7 +940,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
         const entityId = node.data.entityId
 
         if (!entityId) {
-            console.warn('EntitiesOverviewWidget: missing entityId for open')
             return
         }
 
@@ -965,7 +969,6 @@ export class EntitiesOverviewWidget extends TreeWidget {
         options?: { forceNewWindow?: boolean },
     ): Promise<void> {
         if (!entityId) {
-            console.warn('EntitiesOverviewWidget: attempted to open editor without entityId')
             return
         }
 

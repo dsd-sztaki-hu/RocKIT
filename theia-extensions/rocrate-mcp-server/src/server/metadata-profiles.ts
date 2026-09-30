@@ -1,3 +1,9 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import * as fs from 'node:fs'
 import {
   defaultCedarProvider,
@@ -5,12 +11,13 @@ import {
   deleteMetadataProfile,
   importCedarTemplateContent,
   importCedarTemplateFromUrl,
-  importRemoteSchema,
+  importRemoteTemplate,
   listCedarFolder,
   listLocalProfiles,
   loadCedarProviders,
-  listRemoteSchemas,
+  listRemoteTemplates,
   resolveMissingConformsToUrls,
+  resolveProfileRootPath,
   type RemoteCedarResource,
   type CedarProvider,
 } from 'metadata-profile-core'
@@ -48,7 +55,7 @@ function parseProvider(params: Record<string, unknown>): CedarProvider | undefin
 function parseRootPath(params: Record<string, unknown>): string | undefined {
   return typeof params.rootPath === 'string' && params.rootPath.trim() !== ''
     ? params.rootPath.trim()
-    : undefined
+    : resolveProfileRootPath()
 }
 
 function parseProviders(params: Record<string, unknown>): CedarProvider[] {
@@ -115,12 +122,12 @@ export function createMetadataProfileHandlers(deps: MetadataProfilesDeps) {
   async function listWellKnownSchemas(params: Record<string, unknown>): Promise<Record<string, unknown>> {
     const provider = await resolveProvider(params)
     const query = typeof params.query === 'string' ? params.query : undefined
-    const result = await listRemoteSchemas(provider, query, parseRootPath(params))
+    const result = await listRemoteTemplates(provider, query, parseRootPath(params))
     return {
       provider: result.provider,
       storage: result.storage,
-      count: result.schemas.length,
-      schemas: result.schemas,
+      count: result.templates.length,
+      schemas: result.templates,
     }
   }
 
@@ -223,7 +230,7 @@ export function createMetadataProfileHandlers(deps: MetadataProfilesDeps) {
       skippedImported,
       count: visited,
       tree: tree.nodes,
-      note: 'Only unimported template leaves are listed. Import a selected template by calling import_well_known_schema with templateIdOrUrl=<templateId>, then associate profile.conformsTo with update_profile_conforms_to(write=true).',
+      note: 'Only unimported template leaves are listed. Import a selected template by calling import_remote_template with templateIdOrUrl=<templateId>, then associate profile.conformsTo with update_profile_conforms_to(write=true).',
     }
   }
 
@@ -240,18 +247,18 @@ export function createMetadataProfileHandlers(deps: MetadataProfilesDeps) {
     if (templateIdOrUrl === '' && typeof params.name === 'string') {
       const query = params.name.trim()
       if (query !== '') {
-        const remote = await listRemoteSchemas(provider, query, parseRootPath(params))
+        const remote = await listRemoteTemplates(provider, query, parseRootPath(params))
         const lower = query.toLowerCase()
         const match =
-          remote.schemas.find((schema) => schema.name.toLowerCase() === lower) ??
-          remote.schemas[0]
+          remote.templates.find((template) => template.name.toLowerCase() === lower) ??
+          remote.templates[0]
         templateIdOrUrl = match?.templateUrl ?? ''
       }
     }
     if (templateIdOrUrl === '') {
-      throw new Error('import_well_known_schema requires name, templateIdOrUrl, url, or conformsTo.')
+      throw new Error('import_remote_template requires name, templateIdOrUrl, url, or conformsTo.')
     }
-    const result = await importRemoteSchema({
+    const result = await importRemoteTemplate({
       provider,
       templateIdOrUrl,
       rootPath: parseRootPath(params),
