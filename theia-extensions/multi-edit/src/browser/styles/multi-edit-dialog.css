@@ -9,3 +9,46 @@
  * shared rules here; move rules here only after the Multi Edit dialog receives
  * its own multi-edit-* class names.
  */
+
+/* Entity selections must remain inside the Select's fixed one-line control. */
+.entities-overview-edit-modal-value
+  .ant-select-multiple
+  .ant-select-selection-overflow {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.entities-overview-edit-modal-value
+  .ant-select-multiple
+  .ant-select-selection-overflow-item {
+  min-width: 0;
+}
+
+.entities-overview-edit-modal-value .entities-overview-entity-tag {
+  min-width: 0;
+}
+
+.entities-overview-edit-modal-value
+  .entities-overview-entity-tag.is-create
+  .entities-overview-entity-option-name {
+  color: #ffffff;
+}
+
+.multi-edit-entity-overflow-trigger {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.06);
+  border: 0;
+  border-radius: 999px;
+  color: var(--theia-ui-font-color1);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  height: 24px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.multi-edit-entity-overflow-trigger:hover,
+.multi-edit-entity-overflow-trigger:focus-visible {
+  outline: 1px solid var(--theia-focusBorder);
+}

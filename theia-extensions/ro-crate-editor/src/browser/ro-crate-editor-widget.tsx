@@ -41,6 +41,7 @@ import {
   type RoCrateApprovalFile,
 } from 'app-state/lib/browser/state/ro-crate-approval'
 
+import { GlobalEntityLibraryService } from 'global-entity-library/lib/browser/global-entity-library-service'
 import { RecrateCrateBuilderWrapper } from './recrate-wrapper'
 
 interface RoCrateEditorWidgetOptions {
@@ -95,6 +96,9 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
 
   @inject(RoCratePersistenceService)
   protected readonly persistenceService: RoCratePersistenceService
+
+  @inject(GlobalEntityLibraryService)
+  protected readonly globalEntityLibraryService: GlobalEntityLibraryService
 
   protected readonly onDirtyChangedEmitter = new Emitter<void>()
   protected readonly onContentChangedEmitter = new Emitter<void>()
@@ -515,8 +519,12 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     this.assignEntity(fallbackEntityId)
                     entityId = fallbackEntityId
                 }
-                this.nextProfileListValidationScope = 'targeted'
-                await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always', 'targeted')
+                // A Recrate save can mutate entities other than the one currently
+                // displayed (for example, creating an Author while editing the
+                // root Dataset). Let the validator diff the complete graph so new
+                // and changed linked entities are included in this run.
+                this.nextProfileListValidationScope = 'full'
+                await this.updateProfileWithEntitySchemas(this.baseProfile!, entityId, 'always', 'full')
             },
         )
 
@@ -1121,6 +1129,7 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
                     }}
                 >
                     <RecrateCrateBuilderWrapper
+                        globalEntityLibraryService={this.globalEntityLibraryService}
                         crate={this.localCrate}
                         roCrateApproval={this.localRoCrateApproval}
                         profile={this.localProfile}
@@ -1336,7 +1345,11 @@ export class RoCrateEditorWidget extends ReactWidget implements Navigatable {
   protected updateTitleLabel(): void {
     const entityId = this.assignedEntityId ?? './'
     const entityDisplay = this.getEntityDisplayName(entityId)
-    this.title.label = `ROC-edit:${entityDisplay}`
+    this.title.label = nls.localize(
+      'rockit/roCrateEditor/tabTitle',
+      'Metadata: {0}',
+      entityDisplay,
+    )
     this.updateOpenEditorsLabel()
   }
 
