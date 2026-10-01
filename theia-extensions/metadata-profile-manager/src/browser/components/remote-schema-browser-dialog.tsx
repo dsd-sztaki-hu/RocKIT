@@ -77,7 +77,7 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string[] | undefin
         this.contentNode.style.height = '550px';
         this.contentNode.style.padding = '0';
         // Actions are rendered in the React footer, so the native Theia control row is unused.
-        this.controlPanel.style.display = 'none';
+        this.controlPanel.remove();
     }
 
     get value(): string[] | undefined {

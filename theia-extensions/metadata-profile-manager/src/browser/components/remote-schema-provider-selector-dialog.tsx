@@ -41,7 +41,7 @@ export class RemoteSchemaProviderSelectorDialog extends AbstractDialog<RemotePro
         this.contentNode.style.height = '400px';
         this.contentNode.style.padding = '0'; 
         // Actions are rendered in the React footer, so the native Theia control row is unused.
-        this.controlPanel.style.display = 'none';
+        this.controlPanel.remove();
     }
 
     get value(): RemoteProfileProviderConfig | undefined {

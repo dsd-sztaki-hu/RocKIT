@@ -40,6 +40,8 @@ export class RemoteSchemaProviderListDialog extends AbstractDialog<void> {
         this.contentNode.style.width = '600px';
         this.contentNode.style.height = '500px'; 
         this.contentNode.style.padding = '0'; 
+        // Actions are rendered in the React footer, so the native Theia control row is unused.
+        this.controlPanel.remove();
     }
 
     get value(): void {
@@ -251,9 +253,7 @@ class ConfirmDialog extends AbstractDialog<boolean> {
         }
         this.reactRoot.render(
             <div className="confirm-dialog">
-                <div className="confirm-dialog__icon-wrapper">
-                    <WarningAmberIcon style={{ color: 'var(--theia-errorForeground)', fontSize: '28px' }} />
-                </div>
+                <WarningAmberIcon className="confirm-dialog__icon" />
                 <div className="confirm-dialog__content">
                     <div className="confirm-dialog__title">{this.titleStr}</div>
                     <div className="confirm-dialog__message">{this.msgStr}</div>

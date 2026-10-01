@@ -52,6 +52,8 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         this.contentNode.style.padding = '0';
         this.contentNode.style.display = 'flex';
         this.contentNode.style.flexDirection = 'column';
+        // Actions are rendered in the React footer, so the native Theia control row is unused.
+        this.controlPanel.remove();
 
         if (repoToEdit) {
             this.titleValue = repoToEdit.title;
