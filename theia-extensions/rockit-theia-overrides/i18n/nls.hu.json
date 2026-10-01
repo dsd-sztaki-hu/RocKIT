@@ -639,7 +639,7 @@
       "hideApiKey": "API-kulcs elrejtése",
       "showApiKey": "API-kulcs megjelenítése",
       "change": "Módosítás",
-      "useArpDefaults": "ARP Production alapértékeinek használata",
+      "useArpDefaults": "Alapértelmezett",
       "verifying": "Ellenőrzés…",
       "browseProvider": "{0} böngészése",
       "initializingConnection": "Kapcsolat inicializálása…",
