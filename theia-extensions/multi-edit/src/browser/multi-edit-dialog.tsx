@@ -196,29 +196,41 @@ export class MultiEditDialog extends ReactDialog<string> {
     private readonly globalEntityLibraryService?: GlobalEntityLibraryService,
   ) {
     super({ title: nls.localize('rockit/multiEdit/title', 'Multi Edit') })
-    this.startButton = this.appendButton(
-      nls.localize('rockit/multiEdit/start', 'Start multi-edit'),
-      true,
-    )
-    this.startButton.addEventListener('click', () => void this.runOperations())
     this.appendCloseButton(nls.localize('rockit/multiEdit/close', 'Close'))
+    this.startButton = this.appendAcceptButton(
+      nls.localize('rockit/multiEdit/start', 'Start multi-edit'),
+    )
   }
 
   /**
-   * Lets expandable selectors consume Enter without accepting the entire dialog.
+   * Lets interactive controls consume Enter without starting multi-edit.
    * @param event Keyboard event dispatched by Theia's dialog overlay.
-   * @returns False for select interactions; otherwise the base dialog result.
+   * @returns False for controls with their own Enter behavior; otherwise the base dialog result.
    * @protected
    */
   protected handleEnter(event: KeyboardEvent): boolean | void {
     const target = event.target
     if (
       target instanceof Element &&
-      (target.closest('.ant-select') || target.closest('.ant-select-dropdown'))
+      (target.closest('.ant-select') ||
+        target.closest('.ant-select-dropdown') ||
+        target.closest('button'))
     ) {
       return false
     }
     return super.handleEnter(event)
+  }
+
+  /**
+   * Runs the configured operation instead of resolving and closing the reusable dialog.
+   * @returns Promise resolved when execution finishes or immediately when execution is disabled.
+   * @protected
+   */
+  protected async accept(): Promise<void> {
+    if (!this.startButton || this.startButton.disabled || this.isExecuting) {
+      return
+    }
+    await this.runOperations()
   }
 
   /**
