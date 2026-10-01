@@ -4,7 +4,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-import { FrontendApplicationContribution, WidgetFactory } from '@theia/core/lib/browser'
+import {
+  CommonFrontendContribution,
+  FrontendApplicationContribution,
+  WidgetFactory,
+} from '@theia/core/lib/browser'
 import { ShellLayoutTransformer } from '@theia/core/lib/browser/shell/shell-layout-restorer'
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common'
 import { ContainerModule } from '@theia/core/shared/inversify'
@@ -23,17 +27,20 @@ import { DisplayLanguageMenuContribution } from './display-language-menu-contrib
 import { EmptyWorkspaceWidget } from './empty-workspace-widget'
 import { FileEditorLanguageContribution } from './file-editor-language-contribution'
 import { HelpIconsToggleContribution } from './help-icons-toggle-contribution'
-import { RockitSplashContribution } from './rockit-splash-contribution'
-import { RockitPreferenceTreeLabelProvider } from './rockit-preference-tree-label-provider'
+import { RockitCommonFrontendContribution } from './rockit-common-frontend-contribution'
 import {
   RockitPreferenceSelectInputRenderer,
   RockitPreferenceSelectInputRendererContribution,
 } from './rockit-preference-select-input'
+import { RockitPreferenceTreeLabelProvider } from './rockit-preference-tree-label-provider'
+import { RockitSplashContribution } from './rockit-splash-contribution'
 import '../../src/browser/style/empty-workspace.css'
 import '../../src/browser/style/help-icons.css'
 import '../../src/browser/style/panel-backgrounds.css'
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
+  bind(RockitCommonFrontendContribution).toSelf().inSingletonScope()
+  rebind(CommonFrontendContribution).toService(RockitCommonFrontendContribution)
   bind(RockitPreferenceTreeLabelProvider).toSelf().inSingletonScope()
   rebind(PreferenceTreeLabelProvider).toService(RockitPreferenceTreeLabelProvider)
   bind(RockitPreferenceSelectInputRenderer).toSelf()
