@@ -29,7 +29,7 @@ import URI from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from 'react'
 import { buildDocumentationUrl } from 'rockit-common/lib/browser'
-import { ROCKIT_SPLASH_SHOW_AT_STARTUP } from '../common/rockit-splash-preferences'
+import { ROCKIT_SPLASH_SHOW_AT_STARTUP } from '../common/rockit-preferences'
 
 import '../../src/browser/style/rockit-splash.css'
 

@@ -450,6 +450,26 @@
       "doNotShowAgain": "Ne jelenjen meg többé ez az ablak",
       "close": "Bezárás"
     },
+    "updates": {
+      "check": "Frissítések keresése…",
+      "checkingTitle": "Frissítések keresése",
+      "checkingDescription": "A RocKIT megkeresi a GitHubon elérhető legújabb kiadást.",
+      "availableTitle": "Új verzió érhető el",
+      "availableDescription": "Elérhető a RocKIT {0} verziója. Jelenleg a {1} verziót használja.",
+      "availableRecommendation": "A legújabb fejlesztések és javítások használatához javasolt a frissítés.",
+      "currentTitle": "A RocKIT naprakész",
+      "currentDescription": "A RocKIT {0} verzióját használja, amely a legújabb elérhető verzió.",
+      "errorTitle": "Nem sikerült frissítéseket keresni",
+      "errorDescription": "A RocKIT nem tudta lekérni a legújabb kiadás adatait a GitHubról.",
+      "releaseLinkPrefix": "Az elérhető kiadásokat a következő oldalon tekintheti meg:",
+      "releaseLink": "A RocKIT kiadásai a GitHubon",
+      "doNotRemind": "Ne értesítsen automatikusan az elérhető frissítésekről",
+      "dialogTitle": "RocKIT-frissítés",
+      "close": "Bezárás",
+      "notImplemented": "Az automatikus frissítés még nincs megvalósítva.",
+      "update": "Frissítés",
+      "notifyAtStartupDescription": "Meghatározza, hogy a RocKIT megjelenítsen-e automatikus frissítési értesítéseket indításkor."
+    },
     "connection": {
       "restored": "A kapcsolat az alkalmazás háttérfolyamatával helyreállt.",
       "lost": "Megszakadt a kapcsolat az alkalmazás háttérfolyamatával. Egyes műveletek az újracsatlakozásig nem érhetők el."

@@ -26,7 +26,7 @@ import { EnvVariablesServer } from '@theia/core/lib/common/env-variables'
 import URI from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { RequestContext, RequestService } from '@theia/request'
-import { ROCKIT_UPDATE_NOTIFY_AT_STARTUP } from '../common/rockit-splash-preferences'
+import { ROCKIT_UPDATE_NOTIFY_AT_STARTUP } from '../common/rockit-preferences'
 import { isNewerVersion, normalizeVersion } from '../common/version-comparison'
 import { UpdateCheckDialog, UpdateCheckDialogState } from './update-check-dialog'
 
