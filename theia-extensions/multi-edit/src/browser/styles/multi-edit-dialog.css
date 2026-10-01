@@ -52,3 +52,11 @@
 .multi-edit-entity-overflow-trigger:focus-visible {
   outline: 1px solid var(--theia-focusBorder);
 }
+
+/* Keep Chromium's native number steppers consistent with dark Theia themes. */
+body.vs-dark .multi-edit-number-input,
+body.vs-dark .multi-edit-number-input input,
+body.hc-black .multi-edit-number-input,
+body.hc-black .multi-edit-number-input input {
+  color-scheme: dark;
+}

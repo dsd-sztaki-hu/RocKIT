@@ -1509,6 +1509,7 @@ export class MultiEditDialog extends ReactDialog<string> {
    */
   protected onSchemaSelectionChange = (schemaIds: string[]) => {
     this.selectedSchemaIds = new Set(schemaIds)
+    this.resetInactiveOperationFields()
     this.update()
   }
 
@@ -1523,7 +1524,35 @@ export class MultiEditDialog extends ReactDialog<string> {
       this.initializeSchemaOrgFields()
     }
     this.schemaOrgEnabled = enabled
+    this.resetInactiveOperationFields()
     this.update()
+  }
+
+  /**
+   * Clears operation values whose property is no longer offered by the active profiles.
+   * Rows that still point to a visible property are preserved.
+   * @returns void
+   * @protected
+   */
+  protected resetInactiveOperationFields(): void {
+    const visibleFieldKeys = new Set(this.getVisibleFields().map((field) => field.key))
+    for (const row of this.operations) {
+      const field = this.getFieldByKey(row.fieldKey)
+      if (!row.fieldKey || (field && visibleFieldKeys.has(field.key))) {
+        continue
+      }
+
+      row.fieldKey = undefined
+      row.operator = 'set'
+      row.value = ''
+      row.valueKind = undefined
+      this.operationSearch.delete(row.id)
+      for (const selectionKey of this.pendingMultiTextSelection.keys()) {
+        if (selectionKey.startsWith(`${row.id}::`)) {
+          this.pendingMultiTextSelection.delete(selectionKey)
+        }
+      }
+    }
   }
 
   /**
@@ -1902,6 +1931,7 @@ export class MultiEditDialog extends ReactDialog<string> {
 
     return (
       <Input
+        className={valueKind === 'number' ? 'multi-edit-number-input' : undefined}
         id={this.getMultiTextInputId(row.id, valueIndex)}
         value={value}
         onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
@@ -3391,6 +3421,7 @@ export class MultiEditDialog extends ReactDialog<string> {
     } else {
       editor = (
         <Input
+          className={valueKind === 'number' ? 'multi-edit-number-input' : undefined}
           value={row.value}
           onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
             this.setOperationValue(row.id, event.target.value)
