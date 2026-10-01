@@ -4,15 +4,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-import {
-  PreferenceContribution,
-  PreferenceSchema,
-} from '@theia/core'
+import { PreferenceContribution, PreferenceSchema } from '@theia/core'
 import { nls } from '@theia/core/lib/common/nls'
 import { interfaces } from '@theia/core/shared/inversify'
 
 export const ROCKIT_SPLASH_SHOW_AT_STARTUP = 'rockit.splash.showAtStartup'
 export const ROCKIT_HELP_ICONS_VISIBLE = 'rockit.helpIcons.visible'
+export const ROCKIT_UPDATE_NOTIFY_AT_STARTUP = 'rockit.updates.notifyAtStartup'
 
 export const RockitSplashConfigSchema: PreferenceSchema = {
   properties: {
@@ -28,6 +26,13 @@ export const RockitSplashConfigSchema: PreferenceSchema = {
       default: true,
       description: nls.localizeByDefault(
         'Controls whether RocKIT panel help icons are shown.',
+      ),
+    },
+    [ROCKIT_UPDATE_NOTIFY_AT_STARTUP]: {
+      type: 'boolean',
+      default: true,
+      description: nls.localizeByDefault(
+        'Controls whether RocKIT displays automatic update notifications at startup.',
       ),
     },
   },

@@ -34,6 +34,7 @@ import {
 } from './rockit-preference-select-input'
 import { RockitPreferenceTreeLabelProvider } from './rockit-preference-tree-label-provider'
 import { RockitSplashContribution } from './rockit-splash-contribution'
+import { UpdateCheckContribution } from './update-check-contribution'
 import '../../src/browser/style/empty-workspace.css'
 import '../../src/browser/style/help-icons.css'
 import '../../src/browser/style/panel-backgrounds.css'
@@ -94,4 +95,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
   bind(FrontendApplicationContribution).toService(HelpIconsToggleContribution)
   bind(CommandContribution).toService(HelpIconsToggleContribution)
   bind(MenuContribution).toService(HelpIconsToggleContribution)
+  bind(UpdateCheckContribution).toSelf().inSingletonScope()
+  bind(FrontendApplicationContribution).toService(UpdateCheckContribution)
+  bind(CommandContribution).toService(UpdateCheckContribution)
+  bind(MenuContribution).toService(UpdateCheckContribution)
 })

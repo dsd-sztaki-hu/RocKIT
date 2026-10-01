@@ -1,0 +1,67 @@
+/* ******************************************************************************************
+ * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * ******************************************************************************************/
+
+.rockit-update-dialog {
+  width: min(560px, 76vw);
+  color: var(--theia-ui-font-color1);
+}
+
+.rockit-update-dialog h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.rockit-update-dialog p {
+  margin: 0 0 12px;
+  color: var(--theia-descriptionForeground);
+  line-height: 1.5;
+}
+
+.rockit-update-release-link {
+  padding-top: 6px;
+}
+
+.rockit-update-release-link a {
+  color: var(--theia-textLink-foreground);
+}
+
+.rockit-update-error {
+  padding: 8px 10px;
+  border: 1px solid var(--theia-inputValidation-errorBorder);
+  border-radius: 3px;
+  background: var(--theia-inputValidation-errorBackground);
+  color: var(--theia-inputValidation-errorForeground);
+}
+
+.rockit-update-reminder {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  cursor: pointer;
+}
+
+.rockit-update-reminder input {
+  margin: 0;
+}
+
+.rockit-update-disabled-action {
+  display: inline-flex;
+}
+
+.rockit-update-disabled-action .theia-button.main:disabled {
+  background: var(--theia-button-background);
+  color: var(--theia-button-foreground);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+@media (max-width: 640px) {
+  .rockit-update-dialog {
+    width: min(420px, 82vw);
+  }
+}
