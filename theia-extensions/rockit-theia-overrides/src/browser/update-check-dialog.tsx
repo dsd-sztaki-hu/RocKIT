@@ -155,20 +155,6 @@ export class UpdateCheckDialog extends ReactDialog<boolean> {
     this.state = updateProps.state
     this.doNotRemind = updateProps.doNotRemind
     this.appendCloseButton(nls.localize('rockit/updates/close', 'Close'))
-
-    const updateButtonWrapper = this.node.ownerDocument.createElement('span')
-    updateButtonWrapper.classList.add('rockit-update-disabled-action')
-    updateButtonWrapper.title = nls.localize(
-      'rockit/updates/notImplemented',
-      'Automatic updating is not implemented yet.',
-    )
-    const updateButton = this.createButton(
-      nls.localize('rockit/updates/update', 'Update'),
-    )
-    updateButton.classList.add('main')
-    updateButton.disabled = true
-    updateButtonWrapper.appendChild(updateButton)
-    this.controlPanel.appendChild(updateButtonWrapper)
   }
 
   setState(state: UpdateCheckDialogState, doNotRemind = false): void {

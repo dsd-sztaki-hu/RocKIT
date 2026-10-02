@@ -466,8 +466,6 @@
       "doNotRemind": "Ne értesítsen automatikusan az elérhető frissítésekről",
       "dialogTitle": "RocKIT-frissítés",
       "close": "Bezárás",
-      "notImplemented": "Az automatikus frissítés még nincs megvalósítva.",
-      "update": "Frissítés",
       "notifyAtStartupDescription": "Meghatározza, hogy a RocKIT megjelenítsen-e automatikus frissítési értesítéseket indításkor."
     },
     "connection": {
