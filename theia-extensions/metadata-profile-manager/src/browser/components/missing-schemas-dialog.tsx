@@ -26,6 +26,8 @@ export class MissingSchemasDialog extends AbstractDialog<void> {
 
         this.contentNode.style.width = '450px';
         this.contentNode.style.padding = '0';
+        // Actions are rendered in the React footer, so the native Theia control row is unused.
+        this.controlPanel.remove();
     }
 
     get value(): void {

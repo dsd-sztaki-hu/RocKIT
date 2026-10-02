@@ -1,3 +1,12 @@
+/********************************************************************************************
+ * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *******************************************************************************************/
+
 .global-entity-library-widget {
     height: 100%;
     width: 100%;
@@ -190,28 +199,43 @@
     justify-content: space-between;
 }
 
-.global-entity-library-table .global-entity-library-edit-button.ant-btn:not(:disabled) {
-    background: transparent !important;
-    border-color: #1677ff !important;
-    color: #1677ff !important;
+.global-entity-library-actions-container {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
 }
 
-.global-entity-library-table .global-entity-library-edit-button.ant-btn:not(:disabled):hover,
-.global-entity-library-table .global-entity-library-edit-button.ant-btn:not(:disabled):focus-visible {
-    background: #1677ff !important;
-    border-color: #1677ff !important;
-    color: #ffffff !important;
+.global-entity-library-action-button {
+    color: var(--theia-icon-foreground) !important;
 }
 
-.global-entity-library-table .global-entity-library-delete-button.ant-btn-dangerous:not(:disabled):hover,
-.global-entity-library-table .global-entity-library-delete-button.ant-btn-dangerous:not(:disabled):focus-visible {
-    background: #d9363e !important;
-    border-color: #d9363e !important;
-    color: #ffffff !important;
+.global-entity-library-action-button--edit:hover {
+    color: var(--theia-textLink-foreground) !important;
+}
+
+.global-entity-library-action-button--delete:hover {
+    color: var(--theia-errorForeground) !important;
+}
+
+.global-entity-library-action-icon {
+    font-size: 18px !important;
 }
 
 .global-entity-library-toolbar .ant-input-search {
     max-width: 440px;
+}
+
+.global-entity-library-search .ant-input,
+.global-entity-library-search .ant-input-affix-wrapper {
+    border-color: var(--theia-panel-border) !important;
+}
+
+.global-entity-library-search .ant-input:hover,
+.global-entity-library-search .ant-input:focus,
+.global-entity-library-search .ant-input-affix-wrapper:hover,
+.global-entity-library-search .ant-input-affix-wrapper:focus-within,
+.global-entity-library-search .ant-input-affix-wrapper-focused {
+    border-color: var(--theia-focusBorder) !important;
 }
 
 .global-entity-library-toolbar .ant-btn {

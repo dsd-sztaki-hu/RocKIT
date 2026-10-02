@@ -14,6 +14,8 @@ the main project.
 This package is maintained by SZTAKI, Department of Distributed Systems
 (<https://dsd.sztaki.hu>).
 
+Contact: [rockit@dsd.sztaki.hu](mailto:rockit@dsd.sztaki.hu).
+
 The TypeScript converter was ported from the original Java implementation by
 Norbert Finta, based on work by Balázs E. Pataki.
 

@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
 const { spawn } = require('node:child_process')
 const path = require('node:path')
 

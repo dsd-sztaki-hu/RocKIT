@@ -31,7 +31,7 @@ export function documentationVersion(version: string): string {
 
 export function buildDocumentationUrl(version: string, pagePath = ''): string {
   const segment = encodeURIComponent(documentationVersion(version))
-  const baseUrl = `https://repo.researchdata.hu/rockit/${segment}/`
+  const baseUrl = `https://dsd-sztaki-hu.github.io/RocKIT/${segment}/`
   const normalizedPath = pagePath.trim().replace(/^\/+/, '')
   return normalizedPath ? `${baseUrl}${normalizedPath}` : baseUrl
 }

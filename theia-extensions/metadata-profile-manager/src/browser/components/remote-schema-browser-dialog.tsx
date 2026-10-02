@@ -14,9 +14,6 @@ import { Message } from '@lumino/messaging';
 import { MessageService } from '@theia/core/lib/common/message-service';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { nls } from '@theia/core/lib/common/nls';
-import { IconButton, Tooltip } from '@mui/material'; 
-import CenterFocusWeakIcon from '@mui/icons-material/CenterFocusWeak'; 
-import CancelIcon from '@mui/icons-material/Cancel'; 
 
 import { ProfileManagerService } from '../services/metadata-profile-manager-service';
 import { SchemaApi } from '../services/schema-api';
@@ -41,29 +38,31 @@ export class RemoteSchemaBrowserContribution implements FrontendApplicationContr
             this.envVariablesServer
         );
 
-        const selectedTemplateId = await dialog.open();
+        const selectedTemplateIds = await dialog.open();
 
-        if (selectedTemplateId) {
-            this.handleDownload(selectedTemplateId, provider);
+        if (selectedTemplateIds?.length) {
+            this.handleDownloads(selectedTemplateIds, provider);
         }
     }
 
-    protected async handleDownload(templateId: string, provider: RemoteProfileProviderConfig): Promise<void> {
-        try {
-            await this.profileManagerService.downloadRemoteProfile(templateId, provider);
-        } catch (error: any) {
-            // Avoid logging if the user actively aborted the process.
-            if (error.message !== 'Aborted') {
-                console.error("Download failed", error);
+    protected async handleDownloads(templateIds: string[], provider: RemoteProfileProviderConfig): Promise<void> {
+        await Promise.all(templateIds.map(async templateId => {
+            try {
+                await this.profileManagerService.downloadRemoteProfile(templateId, provider);
+            } catch (error: any) {
+                // Avoid logging if the user actively aborted the process.
+                if (error.message !== 'Aborted') {
+                    console.error(`Download failed for profile ${templateId}`, error);
+                }
             }
-        }
+        }));
     }
 }
 
-export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined> {
+export class RemoteSchemaBrowserDialog extends AbstractDialog<string[] | undefined> {
 
     private reactRoot: Root | undefined;
-    private result: string | undefined;
+    private result: string[] | undefined;
 
     constructor(
         private readonly provider: RemoteProfileProviderConfig,
@@ -77,13 +76,15 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
         this.contentNode.style.width = '600px';
         this.contentNode.style.height = '550px';
         this.contentNode.style.padding = '0';
+        // Actions are rendered in the React footer, so the native Theia control row is unused.
+        this.controlPanel.remove();
     }
 
-    get value(): string | undefined {
+    get value(): string[] | undefined {
         return this.result;
     }
 
-    protected handleAccept(value: string) {
+    protected handleAccept(value: string[]) {
         this.result = value;
         this.accept();
     }
@@ -102,7 +103,7 @@ export class RemoteSchemaBrowserDialog extends AbstractDialog<string | undefined
                 provider={this.provider}
                 profileManagerService={this.profileManagerService}
                 envVariablesServer={this.envVariablesServer}
-                onAccept={(id) => this.handleAccept(id)}
+                onAccept={(ids) => this.handleAccept(ids)}
                 onCancel={() => this.handleClose()}
             />
         );
@@ -126,26 +127,25 @@ interface BrowserContentProps {
     provider: RemoteProfileProviderConfig;
     profileManagerService: ProfileManagerService;
     envVariablesServer: EnvVariablesServer;
-    onAccept: (id: string) => void;
+    onAccept: (ids: string[]) => void;
     onCancel: () => void;
 }
 
-const BrowserContent: React.FC<BrowserContentProps> = ({ 
-    provider, 
+const BrowserContent: React.FC<BrowserContentProps> = ({
+    provider,
     profileManagerService,
-    onAccept, 
-    onCancel 
+    onAccept,
+    onCancel
 }) => {
     const [schemaApi, setSchemaApi] = React.useState<SchemaApi | null>(null);
     const [existingIds, setExistingIds] = React.useState<string[]>([]);
-    
-    const [selectedName, setSelectedName] = React.useState<string | null>(null);
-    const [selectedId, setSelectedId] = React.useState<string | null>(null);
+
+    const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
 
     React.useEffect(() => {
         if (provider) {
             let domain = provider.domainBase.replace(/(^\w+:|^)\/\//, '').replace(/\/+$/, '');
-            
+
             setSchemaApi(new SchemaApi({
                 domainBase: domain,
                 apiKey: providerApiKey(provider),
@@ -159,39 +159,16 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
         }
     }, [provider, profileManagerService]);
 
-    const handleTemplateSelected = (id: string, name: string) => {
-        setSelectedId(id);
-        setSelectedName(name);
-    };
-
-    const handleFolderSelected = (id: string, name: string) => {
-        setSelectedId(null);
-        setSelectedName(null);
-    };
-
-    const handleGoTo = () => {
-        if (!selectedId) return;
-        const element = document.getElementById(`cedar-node-${selectedId}`);
-        if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    };
-
-    const handleDeselect = () => {
-        setSelectedId(null);
-        setSelectedName(null);
-    };
-
     return (
         <div className="remote-browser-dialog">
-            
+
             <div className="remote-browser-dialog__tree-container">
                 {schemaApi ? (
                     <CedarTree
                         schemaApi={schemaApi}
                         alreadySelectedSchemaIds={existingIds}
-                        onTemplateSelected={handleTemplateSelected}
-                        onFolderSelected={handleFolderSelected}
+                        selectedTemplateIds={selectedIds}
+                        onSelectionChange={setSelectedIds}
                     />
                 ) : (
                     <div className="remote-browser-dialog__loading">
@@ -201,45 +178,17 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
             </div>
 
             <div className="remote-browser-dialog__footer">
-                
-                <div className="remote-browser-dialog__selection-info">
-                    {selectedName ? (
-                        <>
-                            <div className="remote-browser-dialog__controls">
-                                <Tooltip title={nls.localize('rockit/profileManager/locateInTree', 'Locate in Tree')} PopperProps={{ style: { zIndex: 99999 } }}>
-                                    <IconButton size="small" onClick={handleGoTo} style={{ padding: 2, color: 'var(--theia-icon-foreground)' }}>
-                                        <CenterFocusWeakIcon fontSize="small" />
-                                    </IconButton>
-                                </Tooltip>
-                                <Tooltip title={nls.localize('rockit/profileManager/deselect', 'Deselect')} PopperProps={{ style: { zIndex: 99999 } }}>
-                                    <IconButton size="small" onClick={handleDeselect} style={{ padding: 2, color: 'var(--theia-errorForeground)' }}>
-                                        <CancelIcon fontSize="small" />
-                                    </IconButton>
-                                </Tooltip>
-                            </div>
-                            
-                            <span className="remote-browser-dialog__selected-name">
-                                {selectedName}
-                            </span>
-                        </>
-                    ) : (
-                        <span className="remote-browser-dialog__placeholder">
-                            {nls.localize('rockit/profileManager/selectTemplate', 'Select a template to import...')}
-                        </span>
-                    )}
-                </div>
-
                 <div className="remote-browser-dialog__actions">
-                    <button 
+                    <button
                         className="theia-button secondary remote-browser-dialog__btn-cancel"
                         onClick={onCancel}
                     >
                         {nls.localize('rockit/common/cancel', 'Cancel')}
                     </button>
-                    <button 
+                    <button
                         className="theia-button main remote-browser-dialog__btn-add"
-                        onClick={() => selectedId && onAccept(selectedId)}
-                        disabled={!selectedId}
+                        onClick={() => selectedIds.length > 0 && onAccept(selectedIds)}
+                        disabled={selectedIds.length === 0}
                     >
                         {nls.localize('rockit/profileManager/add', 'Add')}
                     </button>

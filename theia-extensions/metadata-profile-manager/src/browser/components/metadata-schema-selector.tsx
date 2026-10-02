@@ -215,6 +215,8 @@ export class MetadataSchemaSelectorDialog extends AbstractDialog<ProfileInfo[] |
         
         this.contentNode.style.display = 'flex';
         this.contentNode.style.flexDirection = 'column';
+        // Actions are rendered in the React footer, so the native Theia control row is unused.
+        this.controlPanel.remove();
     }
 
     get value(): ProfileInfo[] | undefined {
