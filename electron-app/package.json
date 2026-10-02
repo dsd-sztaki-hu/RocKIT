@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "electron-app",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "homepage": "https://repo.researchdata.hu/rockit/",
   "repository": {
     "type": "git",
