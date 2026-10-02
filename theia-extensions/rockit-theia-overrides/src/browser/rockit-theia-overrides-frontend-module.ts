@@ -14,7 +14,7 @@ import { CommandContribution, MenuContribution } from '@theia/core/lib/common'
 import { ContainerModule } from '@theia/core/shared/inversify'
 import { PreferenceTreeLabelProvider } from '@theia/preferences/lib/browser/util/preference-tree-label-provider'
 import { PreferenceNodeRendererContribution } from '@theia/preferences/lib/browser/views/components/preference-node-renderer-creator'
-import { bindRockitSplashPreferences } from '../common/rockit-splash-preferences'
+import { bindRockitPreferences } from '../common/rockit-preferences'
 import { RoCrateDefaultLayoutContribution } from './application-default-layout-contribution'
 import { ApplicationEditMenuOverrides } from './application-edit-menu-overrides'
 import { ApplicationFileMenuOverrides } from './application-file-menu-overrides'
@@ -34,6 +34,7 @@ import {
 } from './rockit-preference-select-input'
 import { RockitPreferenceTreeLabelProvider } from './rockit-preference-tree-label-provider'
 import { RockitSplashContribution } from './rockit-splash-contribution'
+import { UpdateCheckContribution } from './update-check-contribution'
 import '../../src/browser/style/empty-workspace.css'
 import '../../src/browser/style/help-icons.css'
 import '../../src/browser/style/panel-backgrounds.css'
@@ -58,7 +59,7 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
       },
     }))
     .inSingletonScope()
-  bindRockitSplashPreferences(bind)
+  bindRockitPreferences(bind)
   bind(ApplicationEditMenuOverrides).toSelf().inSingletonScope()
   bind(FrontendApplicationContribution).toService(ApplicationEditMenuOverrides)
   bind(CommandContribution).toService(ApplicationEditMenuOverrides)
@@ -94,4 +95,8 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
   bind(FrontendApplicationContribution).toService(HelpIconsToggleContribution)
   bind(CommandContribution).toService(HelpIconsToggleContribution)
   bind(MenuContribution).toService(HelpIconsToggleContribution)
+  bind(UpdateCheckContribution).toSelf().inSingletonScope()
+  bind(FrontendApplicationContribution).toService(UpdateCheckContribution)
+  bind(CommandContribution).toService(UpdateCheckContribution)
+  bind(MenuContribution).toService(UpdateCheckContribution)
 })
