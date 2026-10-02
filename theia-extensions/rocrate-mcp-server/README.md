@@ -863,6 +863,8 @@ OpenCode expects `mcp` (not `mcpServers`):
 This package is maintained by SZTAKI, Department of Distributed Systems
 (<https://dsd.sztaki.hu>).
 
+Contact: [rockit@dsd.sztaki.hu](mailto:rockit@dsd.sztaki.hu).
+
 Individual contributors are listed in `package.json`.
 
 ## License

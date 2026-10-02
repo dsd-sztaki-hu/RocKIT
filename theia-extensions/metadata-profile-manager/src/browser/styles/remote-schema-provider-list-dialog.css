@@ -173,27 +173,26 @@
     color: var(--theia-foreground);
 }
 
-.confirm-dialog__icon-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: rgba(244, 135, 113, 0.1);
-    border-radius: 50%;
-    padding: 8px;
+.confirm-dialog__icon {
+    color: var(--theia-warnForeground, #FF9800);
+    font-size: 32px !important;
     flex-shrink: 0;
 }
 
 .confirm-dialog__content {
     flex: 1;
+    padding-top: 4px;
 }
 
 .confirm-dialog__title {
+    margin: 0 0 8px 0;
+    font-size: 16px;
     font-weight: 600;
-    margin-bottom: 6px;
-    font-size: var(--theia-ui-font-size1);
 }
 
 .confirm-dialog__message {
+    margin: 0;
+    font-size: 14px;
     line-height: 1.5;
     color: var(--theia-descriptionForeground);
 }

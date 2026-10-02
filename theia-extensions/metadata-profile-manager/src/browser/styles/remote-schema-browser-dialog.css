@@ -35,42 +35,12 @@
 /* Footer */
 .remote-browser-dialog__footer {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
     padding: 15px 20px;
     background-color: var(--theia-layout-color2);
     border-top: 1px solid var(--theia-panel-border);
     flex-shrink: 0;
-}
-
-.remote-browser-dialog__selection-info {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    overflow: hidden;
-    margin-right: 15px;
-}
-
-.remote-browser-dialog__controls {
-    display: flex;
-    margin-right: 10px;
-    flex-shrink: 0;
-    gap: 4px;
-}
-
-.remote-browser-dialog__selected-name {
-    font-weight: 600;
-    color: var(--theia-foreground);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: var(--theia-ui-font-size1);
-}
-
-.remote-browser-dialog__placeholder {
-    color: var(--theia-descriptionForeground);
-    font-style: italic;
-    font-size: var(--theia-ui-font-size0);
 }
 
 .remote-browser-dialog__actions {

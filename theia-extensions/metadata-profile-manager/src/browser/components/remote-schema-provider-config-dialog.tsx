@@ -56,6 +56,8 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
         
         this.contentNode.style.width = '500px';
         this.contentNode.style.padding = '0';
+        // Actions are rendered in the React footer, so the native Theia control row is unused.
+        this.controlPanel.remove();
 
         if (providerToEdit) {
             this.titleValue = providerToEdit.title;
@@ -381,7 +383,7 @@ export class RemoteProfileProviderConfigDialog extends AbstractDialog<RemoteProf
                             onClick={() => this.handlePrefillDefaults()}
                             disabled={this.isTesting}
                         >
-                            {nls.localize('rockit/profileManager/useArpDefaults', 'Use ARP Production defaults')}
+                            {nls.localize('rockit/profileManager/useArpDefaults', 'Set default')}
                         </button>
                     )}
                     <div className="remote-provider-config__footer-spacer" />

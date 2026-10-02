@@ -24,6 +24,8 @@ export class DataRepositoryDeleteDialog extends AbstractDialog<boolean> {
         this.contentNode.style.width = '400px';
         this.contentNode.style.maxWidth = '90vw';
         this.contentNode.style.padding = '0';
+        // Actions are rendered in the React footer, so the native Theia control row is unused.
+        this.controlPanel.remove();
     }
 
     get value(): boolean {

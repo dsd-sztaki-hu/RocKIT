@@ -1,4 +1,13 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
 import { nls } from '@theia/core/lib/common/nls'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import EditIcon from '@mui/icons-material/Edit'
+import { IconButton } from '@mui/material'
 import { Button, ConfigProvider, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd'
 import type { TableColumnsType } from 'antd'
 import * as React from 'react'
@@ -649,16 +658,19 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
             className: 'global-entity-library-actions-column',
             align: 'center',
             width: columnWidths.actions,
-            render: (_, record) => <Space size={4}>
-                <Button
-                    className='global-entity-library-edit-button'
+            render: (_, record) => <div className='global-entity-library-actions-container'>
+                <IconButton
+                    className='global-entity-library-action-button global-entity-library-action-button--edit'
                     size='small'
                     aria-label={nls.localize('rockit/globalEntities/edit', 'Edit')}
                     title={nls.localize('rockit/globalEntities/edit', 'Edit')}
-                    onClick={() => openEdit(record)}
+                    onClick={event => {
+                        event.stopPropagation()
+                        openEdit(record)
+                    }}
                 >
-                    <i className='fa fa-pencil' />
-                </Button>
+                    <EditIcon className='global-entity-library-action-icon' />
+                </IconButton>
                 <Popconfirm
                     title={nls.localize('rockit/globalEntities/deleteQuestion', 'Delete this global entity?')}
                     description={nls.localize(
@@ -669,17 +681,17 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
                     cancelText={nls.localize('rockit/common/cancel', 'Cancel')}
                     onConfirm={() => deleteRecord(record.recordId)}
                 >
-                    <Button
-                        className='global-entity-library-delete-button'
+                    <IconButton
+                        className='global-entity-library-action-button global-entity-library-action-button--delete'
                         size='small'
-                        danger
                         aria-label={nls.localize('rockit/globalEntities/delete', 'Delete')}
                         title={nls.localize('rockit/globalEntities/delete', 'Delete')}
+                        onClick={event => event.stopPropagation()}
                     >
-                        <i className='fa fa-trash' />
-                    </Button>
+                        <DeleteOutlineIcon className='global-entity-library-action-icon' />
+                    </IconButton>
                 </Popconfirm>
-            </Space>,
+            </div>,
         },
     ]
 
@@ -792,6 +804,7 @@ export const GlobalEntityLibraryTable: React.FC<GlobalEntityLibraryTableProps> =
                     components={{ header: { cell: ResizableHeaderCell } }}
                     rowKey='recordId'
                     size='small'
+                    showSorterTooltip={false}
                     loading={loading || deleting}
                     columns={columns}
                     dataSource={rows}
