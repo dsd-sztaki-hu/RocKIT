@@ -1,4 +1,10 @@
 /** @jest-environment node */
+
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
 import { GlobalEntityLibraryService } from 'global-entity-library/lib/browser/global-entity-library-service'
 import type { GlobalEntityCollection, GlobalEntityMapping } from 'global-entity-library/lib/browser/global-entity-library-types'
 

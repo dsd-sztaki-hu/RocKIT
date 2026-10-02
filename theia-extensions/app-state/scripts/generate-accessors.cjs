@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
 // Adds missing accessor get/set pairs for defaultAppState keys into app-state-service.ts.
 // Existing accessors are preserved; nothing is removed or overwritten.
 

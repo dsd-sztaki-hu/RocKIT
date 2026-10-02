@@ -34,7 +34,16 @@ const outPath = path.join(
 
 const recrateCss = fs.readFileSync(recratePath, 'utf8')
 const allotmentCss = fs.readFileSync(allotmentPath, 'utf8')
-const combinedCss = `/* Generated file: scoped RECrate + Allotment styles */\n${allotmentCss}\n${recrateCss}`
+const combinedCss = `/********************************************************************************************
+ * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *******************************************************************************************/
+
+/* Generated file: scoped RECrate + Allotment styles */\n${allotmentCss}\n${recrateCss}`
 
 const rootNode = postcss.parse(combinedCss)
 
