@@ -195,7 +195,6 @@ const AGENT_SPECS: AgentSpec[] = [
   {
     id: 'opencode',
     executables: ['opencode'],
-    markerPaths: ['.opencode'],
   },
   {
     id: 'kilo',
@@ -357,8 +356,12 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   @postConstruct()
   protected init(): void {
-    void this.loadHomeDirPath()
-    void this.detectAvailableAgents()
+    void this.initializeAgentDetection()
+  }
+
+  protected async initializeAgentDetection(): Promise<void> {
+    await this.loadHomeDirPath()
+    await this.detectAvailableAgents()
   }
 
   registerCommands(commands: CommandRegistry): void {
@@ -1515,7 +1518,11 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected async detectAvailableAgents(): Promise<void> {
     for (const spec of AGENT_SPECS) {
-      let executable = await this.findExecutableInPath(spec.executables)
+      let executable = await this.findExecutableInPath(
+        spec.executables,
+        spec.id === 'opencode' ? await this.getOpenCodeBinDirs() : [],
+        spec.id === 'opencode',
+      )
       if (!executable && (await this.hasAgentMarker(spec))) {
         executable = spec.executables[0]
       }
@@ -1527,8 +1534,13 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected async findExecutableInPath(
     candidates: string[],
+    additionalDirs: string[] = [],
+    preserveAbsolutePath = false,
   ): Promise<string | undefined> {
-    const abs = await this.findExecutableAbsolutePath(candidates)
+    const abs = await this.findExecutableAbsolutePath(candidates, additionalDirs)
+    if (preserveAbsolutePath) {
+      return abs
+    }
     return abs
       ? basenamePlatformPath(abs).replace(/\.(exe|cmd|bat)$/i, '')
       : undefined
@@ -1536,11 +1548,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
 
   protected async findExecutableAbsolutePath(
     candidates: string[],
+    additionalDirs: string[] = [],
   ): Promise<string | undefined> {
     const processEnv = (globalThis as any).process?.env
     const pathValue = processEnv?.PATH ?? ''
     const dirs = [
-      ...new Set([...pathValue.split(isWindows ? ';' : ':'), ...this.getCommonBinDirs()]),
+      ...new Set([
+        ...pathValue.split(isWindows ? ';' : ':'),
+        ...additionalDirs,
+        ...this.getCommonBinDirs(),
+      ]),
     ].filter((dir) =>
       isWindows
         ? /^[a-zA-Z]:[\\/]/.test(dir) || /^\\\\/.test(dir)
@@ -1557,6 +1574,47 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       }
     }
     return undefined
+  }
+
+  /**
+   * Returns every documented OpenCode install directory plus the Windows npm global bin.
+   * The executable itself is checked before OpenCode is exposed in the menu.
+   */
+  protected async getOpenCodeBinDirs(): Promise<string[]> {
+    const homes = this.getHomeDirs()
+    const [installDir, xdgBinDir, appData, npmPrefix] = await Promise.all([
+      this.getEnvironmentValue('OPENCODE_INSTALL_DIR'),
+      this.getEnvironmentValue('XDG_BIN_DIR'),
+      this.getEnvironmentValue('APPDATA'),
+      this.getEnvironmentValue('npm_config_prefix'),
+    ])
+    return [
+      installDir,
+      xdgBinDir,
+      ...homes.map((home) => joinPlatformPath(home, 'bin')),
+      ...homes.map((home) => joinPlatformPath(home, '.opencode', 'bin')),
+      isWindows && appData ? joinPlatformPath(appData, 'npm') : undefined,
+      ...(isWindows
+        ? homes.map((home) => joinPlatformPath(home, 'AppData', 'Roaming', 'npm'))
+        : []),
+      npmPrefix
+        ? isWindows
+          ? npmPrefix
+          : joinPlatformPath(npmPrefix, 'bin')
+        : undefined,
+    ].filter((directory): directory is string => !!directory)
+  }
+
+  protected async getEnvironmentValue(name: string): Promise<string | undefined> {
+    const processValue = (globalThis as any).process?.env?.[name]
+    if (processValue) {
+      return processValue
+    }
+    try {
+      return (await this.envVariablesServer.getValue(name))?.value
+    } catch {
+      return undefined
+    }
   }
 
   protected async hasAgentMarker(spec: AgentSpec): Promise<boolean> {

@@ -20,7 +20,7 @@ import {
   nls,
 } from '@theia/core/lib/common'
 import { inject, injectable, optional } from '@theia/core/shared/inversify'
-import { ROCKIT_HELP_ICONS_VISIBLE } from '../common/rockit-splash-preferences'
+import { ROCKIT_HELP_ICONS_VISIBLE } from '../common/rockit-preferences'
 
 export const TOGGLE_HELP_ICONS_COMMAND: Command = {
   id: 'rockit.helpIcons.toggle',

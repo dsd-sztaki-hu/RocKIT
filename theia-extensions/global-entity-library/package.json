@@ -9,6 +9,10 @@
     "src"
   ],
   "dependencies": {
+    "@emotion/react": "^11.11.0",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.15.0",
+    "@mui/material": "^5.15.0",
     "@theia/core": "1.65.2",
     "@theia/filesystem": "1.65.2",
     "@theia/workspace": "1.65.2",
