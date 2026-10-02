@@ -18,13 +18,16 @@
   "dependencies": {
     "@theia/core": "1.65.2",
     "@theia/preferences": "1.65.2",
+    "@theia/request": "1.65.2",
     "save-ro-crate": "1.0.0",
     "entities-overview": "1.0.0",
     "ro-crate-editor": "1.0.0",
     "ro-crate-structure-panel": "1.0.0",
-    "rockit-common": "1.0.0"
+    "rockit-common": "1.0.0",
+    "semver": "^7.7.4"
   },
   "devDependencies": {
+    "@types/semver": "^7.7.1",
     "rimraf": "^5.0.0",
     "typescript": "~5.4.5"
   },

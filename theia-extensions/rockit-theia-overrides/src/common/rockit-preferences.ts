@@ -4,17 +4,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-import {
-  PreferenceContribution,
-  PreferenceSchema,
-} from '@theia/core'
+import { PreferenceContribution, PreferenceSchema } from '@theia/core'
 import { nls } from '@theia/core/lib/common/nls'
 import { interfaces } from '@theia/core/shared/inversify'
 
 export const ROCKIT_SPLASH_SHOW_AT_STARTUP = 'rockit.splash.showAtStartup'
 export const ROCKIT_HELP_ICONS_VISIBLE = 'rockit.helpIcons.visible'
+export const ROCKIT_UPDATE_NOTIFY_AT_STARTUP = 'rockit.updates.notifyAtStartup'
 
-export const RockitSplashConfigSchema: PreferenceSchema = {
+export const RockitPreferenceSchema: PreferenceSchema = {
   properties: {
     [ROCKIT_SPLASH_SHOW_AT_STARTUP]: {
       type: 'boolean',
@@ -30,16 +28,22 @@ export const RockitSplashConfigSchema: PreferenceSchema = {
         'Controls whether RocKIT panel help icons are shown.',
       ),
     },
+    [ROCKIT_UPDATE_NOTIFY_AT_STARTUP]: {
+      type: 'boolean',
+      default: true,
+      description: nls.localize(
+        'rockit/updates/notifyAtStartupDescription',
+        'Controls whether RocKIT displays automatic update notifications at startup.',
+      ),
+    },
   },
 }
 
-export const RockitSplashPreferenceContribution = Symbol(
-  'RockitSplashPreferenceContribution',
-)
+export const RockitPreferenceContribution = Symbol('RockitPreferenceContribution')
 
-export function bindRockitSplashPreferences(bind: interfaces.Bind): void {
-  bind(RockitSplashPreferenceContribution).toConstantValue({
-    schema: RockitSplashConfigSchema,
+export function bindRockitPreferences(bind: interfaces.Bind): void {
+  bind(RockitPreferenceContribution).toConstantValue({
+    schema: RockitPreferenceSchema,
   })
-  bind(PreferenceContribution).toService(RockitSplashPreferenceContribution)
+  bind(PreferenceContribution).toService(RockitPreferenceContribution)
 }
