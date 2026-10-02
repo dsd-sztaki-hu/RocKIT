@@ -83,7 +83,50 @@ assert.deepEqual(opencode.mcp.rocrate.command, [
   expectedSocketPath,
 ])
 assert.equal(opencode.mcp.rocrate.type, 'local')
+assert.equal(opencode.mcp.rocrate.enabled, true)
 assert.deepEqual(opencodeSection, opencode)
+
+const opencodeV2 = JSON.parse(
+  upsertJsonMcpConfig(
+    JSON.stringify({
+      $schema: 'https://opencode.ai/config.json',
+      mcp: {
+        servers: {
+          existing: { type: 'local', command: ['existing-mcp'] },
+        },
+      },
+    }),
+    'opencode',
+    launchConfig,
+  ),
+)
+assert.deepEqual(opencodeV2.mcp.servers.rocrate.command, [
+  expectedCommand,
+  '--connect',
+  expectedSocketPath,
+])
+assert.equal(opencodeV2.mcp.servers.rocrate.type, 'local')
+assert.equal(opencodeV2.mcp.servers.rocrate.disabled, false)
+assert.equal('enabled' in opencodeV2.mcp.servers.rocrate, false)
+assert.deepEqual(opencodeV2.mcp.servers.existing, {
+  type: 'local',
+  command: ['existing-mcp'],
+})
+
+const opencodeV1NamedServers = JSON.parse(
+  upsertJsonMcpConfig(
+    JSON.stringify({
+      mcp: { servers: { type: 'local', command: ['legacy-server'] } },
+    }),
+    'opencode',
+    launchConfig,
+  ),
+)
+assert.deepEqual(opencodeV1NamedServers.mcp.servers, {
+  type: 'local',
+  command: ['legacy-server'],
+})
+assert.equal(opencodeV1NamedServers.mcp.rocrate.enabled, true)
 
 for (const agentId of ['claude', 'gemini', 'qwen', 'kilo', 'roo']) {
   const config = JSON.parse(upsertJsonMcpConfig('{}', agentId, launchConfig))
@@ -93,6 +136,7 @@ for (const agentId of ['claude', 'gemini', 'qwen', 'kilo', 'roo']) {
 
 const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'rocrate-mcp-installer-'))
 fs.mkdirSync(path.join(tempHome, '.codex'))
+fs.mkdirSync(path.join(tempHome, '.opencode'))
 const discovered = discoverInstalledAgents({
   homeDir: tempHome,
   pathValue: '',
@@ -102,6 +146,12 @@ const codex = discovered.find((agent) => agent.id === 'codex')
 assert.ok(codex, 'Codex should be discovered from its marker directory')
 assert.equal(codex.discoveredBy, 'marker')
 assert.equal(codex.configPath, path.join(tempHome, '.codex', 'config.toml'))
+const opencodeAgent = discovered.find((agent) => agent.id === 'opencode')
+assert.ok(opencodeAgent, 'OpenCode should be discovered from its marker directory')
+assert.equal(
+  opencodeAgent.configPath,
+  path.join(tempHome, '.config', 'opencode', 'opencode.json'),
+)
 const prepared = prepareMcpConfig(codex, launchConfig)
 assert.equal(prepared.configPath, codex.configPath)
 assert.equal(prepared.currentContent, '')

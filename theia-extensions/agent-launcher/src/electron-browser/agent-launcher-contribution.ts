@@ -41,10 +41,15 @@ import {
   AgentLauncherPreferences,
 } from '../common/agent-launcher-preferences'
 import { NativeAgentProvider } from '../common/native-agent-protocol'
-import type { McpKeepSetting, ParsedMcpServer } from './mcp-config'
+import type {
+  McpKeepSetting,
+  OpenCodeMcpConfigFormat,
+  ParsedMcpServer,
+} from './mcp-config'
 import {
   chooseMcpServerName,
   forgetMcpKeepSetting,
+  getOpenCodeMcpConfigFormat,
   hasRememberedMcpSetting,
   mcpServerMatches,
   mcpServerUsesSocket,
@@ -698,6 +703,9 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       return this.ensureClaudeMcpConfigured(directoryUri, launchConfig, cwd, spec)
     }
 
+    const openCodeMcpFormat =
+      agentId === 'opencode' ? await this.readOpenCodeMcpConfigFormat(spec) : undefined
+
     if (await this.isRocrateMcpConfigured(spec, launchConfig)) return true
 
     const entries = await this.readMcpConfigEntries(spec)
@@ -714,6 +722,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         launchConfig,
         sameSocketConflict,
         alternateName,
+        openCodeMcpFormat,
       )
       if (!decision) {
         return false
@@ -727,7 +736,12 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
         serverName = alternateName
       }
     } else {
-      const snippet = this.buildRocrateMcpSnippet(spec, launchConfig)
+      const snippet = this.buildRocrateMcpSnippet(
+        spec,
+        launchConfig,
+        'rocrate',
+        openCodeMcpFormat,
+      )
       const accepted = await new ConfirmDialog({
         title: nls.localize(
           'rockit/agentLauncher/mcpNotConfiguredTitle',
@@ -765,7 +779,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const configs: Record<string, { path: string; kind: AgentConfigKind }> = {
       codex: { path: `${home}${s}.codex${s}config.toml`, kind: 'toml' },
       claude: { path: `${home}${s}.claude.json`, kind: 'json' },
-      opencode: { path: `${home}${s}.config${s}opencode${s}config.json`, kind: 'json' },
+      opencode: { path: `${home}${s}.config${s}opencode${s}opencode.json`, kind: 'json' },
       kilo: { path: `${home}${s}.kilo${s}config.json`, kind: 'json' },
       roo: { path: `${home}${s}.roo${s}config.json`, kind: 'json' },
       gemini: { path: `${home}${s}.gemini${s}settings.json`, kind: 'json' },
@@ -815,7 +829,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     try {
       const parsed = JSON.parse(content)
       if (spec.agentId === 'opencode') {
-        const rocrate = parsed.mcp?.rocrate
+        const rocrate = parsed.mcp?.servers?.rocrate ?? parsed.mcp?.rocrate
         return (
           Array.isArray(rocrate?.command) &&
           arraysEqual(rocrate.command, [launchConfig.command, ...launchConfig.args])
@@ -847,6 +861,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     } catch {
       return []
     }
+  }
+
+  protected async readOpenCodeMcpConfigFormat(
+    spec: AgentMcpConfigSpec,
+  ): Promise<OpenCodeMcpConfigFormat> {
+    const configUri = FileUri.create(spec.configPath)
+    if (!(await this.fileService.exists(configUri))) {
+      return 'v1'
+    }
+    return getOpenCodeMcpConfigFormat(await this.readTextFile(configUri))
   }
 
   protected findSameSocketConflict(
@@ -934,12 +958,19 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     launchConfig: RocrateMcpLaunchConfig,
     conflict: ParsedMcpServer,
     alternateName: string,
+    openCodeMcpFormat?: OpenCodeMcpConfigFormat,
   ): Promise<RocrateMcpConflictDecision | undefined> {
-    const rocrateSnippet = this.buildRocrateMcpSnippet(spec, launchConfig)
+    const rocrateSnippet = this.buildRocrateMcpSnippet(
+      spec,
+      launchConfig,
+      'rocrate',
+      openCodeMcpFormat,
+    )
     const alternateSnippet = this.buildRocrateMcpSnippet(
       spec,
       launchConfig,
       alternateName,
+      openCodeMcpFormat,
     )
     const decision = await new RocrateMcpConflictDialog({
       title: nls.localize(
@@ -1000,6 +1031,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     spec: AgentMcpConfigSpec,
     launchConfig: RocrateMcpLaunchConfig,
     serverName = 'rocrate',
+    openCodeMcpFormat: OpenCodeMcpConfigFormat = 'v1',
   ): string {
     if (spec.kind === 'toml') {
       return [
@@ -1011,17 +1043,16 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
       ].join('\n')
     }
     if (spec.agentId === 'opencode') {
+      const server = {
+        type: 'local',
+        ...(openCodeMcpFormat === 'v2' ? { disabled: false } : { enabled: true }),
+        command: [launchConfig.command, ...launchConfig.args],
+        environment: launchConfig.env,
+      }
       return JSON.stringify(
-        {
-          mcp: {
-            [serverName]: {
-              type: 'local',
-              enabled: true,
-              command: [launchConfig.command, ...launchConfig.args],
-              environment: launchConfig.env,
-            },
-          },
-        },
+        openCodeMcpFormat === 'v2'
+          ? { mcp: { servers: { [serverName]: server } } }
+          : { mcp: { [serverName]: server } },
         null,
         2,
       )
@@ -1313,14 +1344,30 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const content = exists ? await this.readTextFile(configUri) : '{}'
     const json = JSON.parse(content)
     if (spec.agentId === 'opencode') {
-      json.mcp = {
-        ...(json.mcp || {}),
-        [serverName]: {
-          type: 'local',
-          enabled: true,
-          command: [launchConfig.command, ...launchConfig.args],
-          environment: launchConfig.env,
-        },
+      const existingMcp =
+        json.mcp && typeof json.mcp === 'object' && !Array.isArray(json.mcp)
+          ? json.mcp as Record<string, unknown>
+          : {}
+      const format = getOpenCodeMcpConfigFormat(content)
+      const server = {
+        type: 'local',
+        ...(format === 'v2' ? { disabled: false } : { enabled: true }),
+        command: [launchConfig.command, ...launchConfig.args],
+        environment: launchConfig.env,
+      }
+      if (format === 'v2') {
+        const existingServers =
+          existingMcp.servers &&
+          typeof existingMcp.servers === 'object' &&
+          !Array.isArray(existingMcp.servers)
+            ? existingMcp.servers as Record<string, unknown>
+            : {}
+        json.mcp = {
+          ...existingMcp,
+          servers: { ...existingServers, [serverName]: server },
+        }
+      } else {
+        json.mcp = { ...existingMcp, [serverName]: server }
       }
     } else {
       json.mcpServers = {
