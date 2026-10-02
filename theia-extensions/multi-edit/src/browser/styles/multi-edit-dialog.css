@@ -1,3 +1,12 @@
+/********************************************************************************************
+ * Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd.sztaki.hu).
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *******************************************************************************************/
+
 /*
  * Multi Edit currently reuses the shared entities-overview-edit-modal-* class
  * names from the entities overview modal system. The actual shared modal CSS is
