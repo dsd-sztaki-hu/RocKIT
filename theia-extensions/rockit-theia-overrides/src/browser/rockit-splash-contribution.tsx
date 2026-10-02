@@ -29,7 +29,7 @@ import URI from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import * as React from 'react'
 import { buildDocumentationUrl } from 'rockit-common/lib/browser'
-import { ROCKIT_SPLASH_SHOW_AT_STARTUP } from '../common/rockit-splash-preferences'
+import { ROCKIT_SPLASH_SHOW_AT_STARTUP } from '../common/rockit-preferences'
 
 import '../../src/browser/style/rockit-splash.css'
 
@@ -40,7 +40,7 @@ const DEFAULT_APP_INFO: ApplicationInfo = {
 }
 const RO_CRATE_DOCUMENTATION_URL = 'https://www.researchobject.org/ro-crate/'
 const DSD_URL = 'https://dsd.sztaki.hu/hu'
-const SUPPORT_EMAIL = 'zoltan.toth@sztaki.hu'
+const SUPPORT_EMAIL = 'rockit@dsd.sztaki.hu'
 
 export const ABOUT_ROCKIT_COMMAND: Command = {
   id: 'rockit.about',
