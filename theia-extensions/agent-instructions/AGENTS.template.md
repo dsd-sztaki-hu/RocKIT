@@ -14,6 +14,16 @@ When the user greets you, or asks about your purpose or what the user can do, re
 ## Primary Artifact
 - `ro-crate-metadata.json`
 
+## Local Crate Initialization
+For a user-requested local RO-Crate creation or addition of files from a
+directory, if `ro-crate-metadata.json` is absent, call `create_default_rocrate`
+as the first metadata operation after reading the workflow doc. Do not pause to
+ask whether to initialize. For read-only requests, do not initialize a missing
+crate, and never overwrite an existing crate unless the user explicitly asks.
+The initializer excludes `.DS_Store` files at every depth and writes the
+`**/.DS_Store` rule to `.rockit/ignored.txt` by default. Omit `.DS_Store`
+entities by default when adding files to an existing crate.
+
   ## Managed Workflow (Context-Efficient)
 
   **BEFORE EACH STEP: You must output a brief summary after reading the doc.**
@@ -46,7 +56,13 @@ Operational guardrails and metadata-quality rules are defined in the step docs i
 4. When no active `conformsTo` profile exists, offer available local metadata
    profiles first, then browse configured remote CEDAR providers with
    `list_remote_template_tree` and offer unimported leaf templates in a simplified
-   folder tree. After the user selects a remote template, import it with
+   folder tree. Show every selectable item as its own numbered option in a
+   visible Markdown list in the chat message, grouped under local and remote
+   headings. Do not put the choices only in tool output/collapsed details or in a
+   comma-separated paragraph. Include local profile name, version, and
+   `conformsTo` URL; include each remote template's folder path and name. Keep
+   numbering continuous and finish with “Reply with the number of your choice.”
+   After the user selects a remote template, import it with
    `import_remote_template` using `templateIdOrUrl=<selected templateId>`,
    then associate the returned `profile.conformsTo` with the crate using
    `update_profile_conforms_to(write=true)`.

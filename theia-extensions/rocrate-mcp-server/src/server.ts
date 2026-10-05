@@ -741,10 +741,11 @@ For a direct request to open, view, show, inspect, or launch a dataset in AROMAâ
 Before RO-Crate editing/advice, call read_agent_workflow_doc with name "rocrate_workflow.md" and follow it.
 Read the referenced step doc before each workflow step.
 Primary artifact is ro-crate-metadata.json.
-If no ro-crate-metadata.json exists in a local directory, offer create_default_rocrate before other metadata work; never overwrite existing metadata unless explicitly requested with overwrite=true.
+For a user-requested local RO-Crate creation or addition of files from a directory, if the target has no ro-crate-metadata.json, call create_default_rocrate as the first metadata operation after reading the workflow doc. Do not merely offer the tool or ask whether to initialize; the user's request authorizes this initialization. Then continue with get_rocrate_context and profile discovery before adding curated metadata. For read-only requests, do not initialize a missing crate. Never overwrite existing metadata unless the user explicitly requests it and the tool call uses overwrite=true.
+When adding files from a directory, omit .DS_Store entities by default. The default initialization excludes .DS_Store at every depth and writes the recursive .DS_Store ignore rule to .rockit/ignored.txt; preserve or add that ignore rule when maintaining the ignore file.
 Prefer RO-Crate tools over ad-hoc edits.
 The RO-Crate MCP dashboard is available at ${getDashboardUrl()}; open it when the user asks to inspect MCP activity or dashboard telemetry.
-First edit step is get_rocrate_context to discover active profile constraints; do not start with web search.
+After initialization when needed, call get_rocrate_context to discover active profile constraints before curated metadata edits; do not start with web search.
 Use update_profile_conforms_to to change profile URLs on conformsTo; apply_changes must not edit conformsTo.
 apply_changes writes by default; set dryRun=true to preview without persisting.
 Treat profile scope as entity-local (only entities explicitly declaring that profile URL in conformsTo).
