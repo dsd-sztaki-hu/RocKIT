@@ -102,7 +102,7 @@ export class RockitCommonFrontendContribution extends CommonFrontendContribution
         captions.length,
       ),
       msg: message,
-      dontSave: nls.localizeByDefault("Don't Save"),
+      dontSave: nls.localize('rockit/file/dontSave', "Don't Save"),
       save: nls.localizeByDefault('Save All'),
       cancel: Dialog.CANCEL,
     }).open()

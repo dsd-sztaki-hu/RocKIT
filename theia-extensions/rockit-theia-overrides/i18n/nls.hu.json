@@ -1473,6 +1473,23 @@
       "terminalCategory": "Terminál",
       "task": "Feladat"
     },
+    "task.contribution": {
+      "runningTasks": "Futó feladatok megjelenítése",
+      "miRunTask": "Feladat futtatása...",
+      "miRunningTask": "Futó feladatok megjelenítése...",
+      "miRestartTask": "Futó feladat újraindítása...",
+      "miTerminateTask": "Feladat megszakítása...",
+      "miConfigureTask": "Feladatok konfigurálása...",
+      "ShowTasksAction.label": "Futó feladatok megjelenítése",
+      "TerminateAction.label": "Feladat megszakítása"
+    },
+    "taskService": {
+      "TaskSystem.terminateTask": "Feladat megszakítása"
+    },
+    "terminalMenus": {
+      "workbench.action.tasks.runTask": "Feladat futtatása...",
+      "workbench.action.tasks.configureTaskRunner": "Feladatok konfigurálása..."
+    },
     "viewQuickAccess": {
       "channels": "Kimenet"
     },
@@ -1492,6 +1509,9 @@
     },
     "abstractFileDialogService": {
       "saveAll": "Összes mentése"
+    },
+    "callHierarchyTree": {
+      "tree.aria": "Hívási hierarchia"
     },
     "fileActions.contribution": {
       "miAutoSave": "Automatikus mentés",
@@ -1567,6 +1587,9 @@
     },
     "tunnelView": {
       "remote.tunnel.protocolHttp": "HTTP"
+    },
+    "typeHierarchyTree": {
+      "tree.aria": "Típushierarchia"
     },
     "keyboardLayoutService": {
       "keyboardConfigurationTitle": "Billentyűzet"
