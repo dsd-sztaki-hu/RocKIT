@@ -1,3 +1,21 @@
+## Preview the README
+
+From the repository root, start the local README preview:
+
+```sh
+node readme-assets/preview-server.js
+```
+
+Open [http://127.0.0.1:58040/](http://127.0.0.1:58040/) in a browser. The preview
+renders the current `README.md` and serves its images from `readme-assets/`;
+refresh the page after editing the README. Stop the server with **Ctrl+C** in
+the terminal. It listens on localhost only. To use a different port, set
+`ROCKIT_README_PREVIEW_PORT`, for example:
+
+```sh
+ROCKIT_README_PREVIEW_PORT=58041 node readme-assets/preview-server.js
+```
+
 ## Build from source
 
 Please install all necessary [prerequisites](https://github.com/eclipse-theia/theia/blob/master/doc/Developing.md#prerequisites).
