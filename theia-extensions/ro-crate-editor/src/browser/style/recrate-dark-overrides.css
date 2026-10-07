@@ -1958,6 +1958,21 @@ body.hc-black .rocrate-editor .recrate-scope .hover\:bg-green-200:hover {
   border-color: var(--recrate-accent-border) !important;
 }
 
+/* Keep the Add and Schemas toolbar buttons on the same hover treatment as the
+ * profile-rail actions. The generic primary-button rule above otherwise wins
+ * on specificity and replaces the accent hover with a flat panel colour. */
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn.ant-btn-primary:has(.anticon-plus):hover:not(:disabled),
+.theia-dark
+  .rocrate-editor
+  .recrate-scope
+  .ant-btn.ant-btn-primary:has(.anticon-database):hover:not(:disabled) {
+  background-color: rgba(55, 148, 255, 0.1) !important;
+  border-color: var(--recrate-accent-border) !important;
+}
+
 .theia-dark
   .rocrate-editor
   .recrate-scope
