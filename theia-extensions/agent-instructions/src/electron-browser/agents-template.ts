@@ -27,6 +27,11 @@ The initializer excludes \`.DS_Store\` files at every depth and writes the
 \`**/.DS_Store\` rule to \`.rockit/ignored.txt\` by default. Omit \`.DS_Store\`
 entities by default when adding files to an existing crate.
 
+## RO-Crate MCP Names
+The configured RO-Crate MCP server is called **RO-Crate MCP** and **VibeARP**.
+When the user says either call name, use the configured server's tools (often
+shown as \`rocrate\` or \`rocrate-mcp-server\`).
+
   ## Managed Workflow (Context-Efficient)
 
   **BEFORE EACH STEP: You must output a brief summary after reading the doc.**

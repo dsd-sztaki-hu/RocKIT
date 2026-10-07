@@ -2,7 +2,7 @@
 
 Always follow this sequence when curating RO-Crate metadata:
 
-0. Use MCP `rocrate` tools for metadata edits and validation. Do not edit JSON directly.
+0. Use the configured RO-Crate MCP tools for metadata edits and validation. The server's call names are "RO-Crate MCP" and "VibeARP". Do not look for another MCP server or edit JSON directly.
 1. If the user requested local crate creation or adding files from a directory
    and `ro-crate-metadata.json` is absent, call `create_default_rocrate` first.
    Do not pause to ask whether to initialize. Then call `get_rocrate_context`.

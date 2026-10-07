@@ -736,6 +736,7 @@ function getDashboardUrl(): string {
 
 function getMcpServerInstructions(): string {
   return `RO-CRATE TOOL ROUTING
+This MCP server is known by the call names "RO-Crate MCP" and "VibeARP". When a user mentions either name, use this configured RO-Crate MCP server's tools, regardless of the server label shown by the harness (commonly "rocrate" or "rocrate-mcp-server"). Do not search for or select a different MCP server based on these names.
 The canonical way to open a local RO-Crate dataset in AROMA is open_aroma_for_local_file.
 For a direct request to open, view, show, inspect, or launch a dataset in AROMA—including the exact request "open dataset in AROMA"—call open_aroma_for_local_file immediately as the first tool. Treat "dataset" as the RO-Crate in the current working directory and pass "ro-crate-metadata.json"; otherwise pass the dataset's ro-crate-metadata.json path.
 Before RO-Crate editing/advice, call read_agent_workflow_doc with name "rocrate_workflow.md" and follow it.

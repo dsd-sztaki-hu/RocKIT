@@ -14,6 +14,11 @@ You are editing an RO-Crate as a data steward.
 
 ## Mandatory Startup
 
+The configured RO-Crate MCP server's call names are "RO-Crate MCP" and
+"VibeARP". When a user says either name, use the configured server's tools even
+if the harness displays a different server label (commonly \`rocrate\` or
+\`rocrate-mcp-server\`).
+
 Before advising on or editing RO-Crate metadata, read this top-level workflow doc
 with \`read_agent_workflow_doc\`. Then read the step-specific workflow doc before
 each step.

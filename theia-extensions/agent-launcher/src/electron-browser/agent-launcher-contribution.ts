@@ -219,6 +219,8 @@ const AGENT_TERMINAL_ICON_CLASS = 'codicon codicon-hubot'
 const INSIDE_ROCKIT_AGENT_CONTEXT_PROMPT = [
   'You are launched from inside RocKIT.',
   '',
+  'The configured RO-Crate MCP server is called RO-Crate MCP and VibeARP. When the user says either call name, use the configured RO-Crate MCP tools (often shown as rocrate); do not search for another MCP server.',
+  '',
   'Before doing RO-Crate work, call the RO-Crate MCP tool `set_agent_session_context` with:',
   '{"launchContext":"inside_rockit","editorAlreadyOpen":true}',
   '',
