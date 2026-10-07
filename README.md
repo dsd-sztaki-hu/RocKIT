@@ -1,198 +1,111 @@
-# RocKIT
+<p align="center">
+  <img src="readme-assets/rockit-logo-wide.png" alt="RocKIT - RO-Crate Kit" width="480">
+</p>
 
-RocKIT source code is available at
-<https://github.com/dsd-sztaki-hu/RocKIT>.
+<h1 align="center">PRIVATE DESKTOP RO-CRATE EDITOR</h1>
 
-## Getting started
+<p align="center"><strong><small>YOUR RESEARCH DATA. YOUR MACHINE. YOUR CONTROL.</small></strong></p>
 
-Please install all necessary [prerequisites](https://github.com/eclipse-theia/theia/blob/master/doc/Developing.md#prerequisites).
+<p align="center">Organize local files, add FAIR metadata, validate, package and publish your dataset. Optional AI assistance can help with repetitive tasks while you review, reject or fix every change.</p>
 
-## Building the application and running the Electron
-1. yarn
-2. yarn build:browser
-3. yarn build:electron
-4. yarn start:electron
+<p align="center">
+  <img src="readme-assets/rockit-editor-ai-review.png" alt="RocKIT metadata editor showing an AI suggestion for review" width="900">
+</p>
 
-The browser and Electron build/start scripts automatically download pinned
-extensions for media/PDF previews, JSON language support, and CSV/TSV editing
-into the ignored `plugins/` directory. To refresh external plugins
-without building the applications, run:
+## Get RocKIT
 
-    yarn download:plugins
+Choose your platform to download the latest installer:
 
-The Electron packaging configuration copies this directory beside the packaged
-application so these editors are also available in release builds. A single
-click opens the appropriate preview/editor automatically, including media, PDF,
-and an editable CSV/TSV table UI. JSON and JSON-with-comments files receive syntax
-highlighting, validation, formatting, and schema-aware completion. Double-clicking
-a described file still opens its ReCrate entity editor.
+<table align="center" width="100%">
+  <tr>
+    <td align="center" valign="top" width="33.33%">
+      <img src="readme-assets/icon-windows.svg" width="32" height="32" alt="Windows"><br>
+      <strong>Windows</strong><br>
+      <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/RocKIT.-.RO-Crate.Kit.Setup.1.0.10.exe">Installer (.exe)</a>
+    </td>
+    <td align="center" valign="top" width="33.33%">
+      <img src="readme-assets/icon-apple.svg" width="32" height="32" alt="Apple"><br>
+      <strong>macOS</strong><br>
+      <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/RocKIT.-.RO-Crate.Kit-1.0.10-arm64.dmg">Apple silicon (.dmg)</a><br>
+      <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/RocKIT.-.RO-Crate.Kit-1.0.10.dmg">Intel (.dmg)</a>
+    </td>
+    <td align="center" valign="top" width="33.33%">
+      <img src="readme-assets/icon-linux.svg" width="32" height="32" alt="Linux"><br>
+      <strong>Linux</strong><br>
+      <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/RocKIT.-.RO-Crate.Kit-1.0.10.AppImage">AppImage</a><br>
+      <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/electron-app_1.0.10_amd64.deb">Debian/Ubuntu (.deb)</a>
+    </td>
+  </tr>
+</table>
 
-React Grab is disabled by default so it does not intercept normal selection and
-copy shortcuts. Developers can opt in with the
-`rockit.developer.reactGrab.enabled` preference in a development build.
+<p align="center"><small>Looking for older versions or all release files? <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases">Browse RocKIT releases on GitHub</a>.</small></p>
 
-## Building and packaging the standalone RO-Crate MCP server
+## Workflow
 
-The RO-Crate MCP server can be built as a standalone npm CLI package without
-building the full Electron application.
+<p align="center"><strong>From local files to a research dataset.</strong></p>
 
-From the repo root:
+Organize, describe, validate, review and package. Publish when you are ready.
 
-    yarn build:rocrate-mcp-standalone
+1. **Organize** — Open a folder or an existing RO-Crate. Work with files on your machine.
+2. **Describe** — Add FAIR metadata freely, or follow a profile for your research domain.
+3. **Validate & review** — Check requirements and inspect the metadata before sharing.
+4. **Package** — Export your dataset as an RO-Crate ZIP, with data and metadata together.
+5. **Publish** — Choose a repository. Deposit or update through supported integrations.
 
-This creates a publishable package directory at:
+**Your entire workflow in RocKIT.** RocKIT supports every step, from local files to publishing your research dataset.
 
-    theia-extensions/rocrate-mcp-server/dist/npm
+## Metadata
 
-To create the npm tarball:
+**Describe it your way.** Choose fields from available schemas. Import profiles to guide metadata editing and validation for your research dataset.
 
-    yarn pack:rocrate-mcp-standalone
+- **Choose schema elements:** Use the terms your dataset needs.
+- **Import a profile:** Follow its required fields and rules.
+- **Edit & validate:** Complete and check your metadata.
 
-The tarball is written to:
+RocKIT imports CEDAR templates from the ARP Schema Registry. You can also add individual fields from schema vocabularies such as Schema.org.
 
-    theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-<version>.tgz
+<p align="center">
+  <img src="readme-assets/rockit-schema-providers-borderless.png" alt="ARP Schema Registry, CEDAR and Schema.org" width="600">
+</p>
 
-For example, if the MCP package version is `1.2.0`, install the local tarball
-from the repo root with:
+## Repositories
 
-    npm install -g ./theia-extensions/rocrate-mcp-server/arpproject-vibearp-mcp-1.2.0.tgz
+**Prepare locally. Share when ready.** Keep authoring local, package your RO-Crate, or use a supported repository to deposit and maintain your dataset.
 
-To publish the standalone MCP server to npm, publish the generated package
-directory, not the raw workspace package:
+<p align="center">
+  <img src="readme-assets/rockit-repositories-borderless.png" alt="ARP Data Repository, Dataverse and Zenodo" width="600">
+</p>
 
-    cd theia-extensions/rocrate-mcp-server/dist/npm
-    npm publish --access public
+1. **Bring a dataset in:** Import a remote dataset as a local RO-Crate.
+2. **Work on your computer:** Edit descriptions, review files and validate metadata.
+3. **Send a reviewed package:** Create or update a deposit in your chosen repository.
 
-After publishing, users can install and run it with:
+> **One package, two parts.** Your research files and their linked metadata travel together in an RO-Crate ZIP.
 
-    npm install -g @arpproject/vibearp-mcp
-    rocrate-mcp-server
+## Agent assistance
 
-To install the MCP server into a detected coding agent, run:
+**Less repetition. You stay in control.** Use Codex, Claude or OpenCode. RocKIT provides an RO-Crate MCP server with tools to author and validate RO-Crates.
 
-    rocrate-mcp-server -i
+Available agent tools include web search, file extraction, image understanding, browser use, computer use and RO-Crate authoring and validation through MCP. Your agent works with a RocKIT dataset—local files and FAIR metadata. You choose the task and stay in control: review, reject or fix the agent's work.
 
-Use the up/down arrows or an agent number to select the target. The installer
-shows the exact MCP section and destination before confirmation; pressing Enter
-accepts the default yes. To select an agent explicitly, for example:
+<p align="center">
+  <img src="readme-assets/rockit-agent-assistance.png" alt="Agent workflow: you choose a task, the agent uses available tools to work with a RocKIT dataset, and you review, reject or fix its work" width="520">
+</p>
 
-    rocrate-mcp-server -i codex
+## Built on RO-Crate
 
-Supported IDs are `codex`, `claude`, `opencode`, `kilo`, `roo`, `gemini`, and
-`qwen`. The generated configuration connects through the shared per-user
-RockIT socket at `~/.rockit/rocrate-mcp-server.sock`.
+<p align="center">
+  <a href="https://www.researchobject.org/"><img src="readme-assets/ro-crate-wide.png" alt="RO-Crate" width="320"></a>
+</p>
 
-The standalone package bundles the internal workspace code needed by the MCP
-server. The normal Theia/Electron build still uses the workspace package and
-its `lib/` output.
+## Contact & team
 
-### Configuring Theia backend memory
+Contact the RocKIT team at [rockit@dsd.sztaki.hu](mailto:rockit@dsd.sztaki.hu) or visit [dsd.sztaki.hu](https://dsd.sztaki.hu).
 
-Set `ROCKIT_MEMORY_LIMIT_MB` to increase the V8 old-generation heap limit of the
-Theia backend Node.js process. The value is in MiB. For example, a value of
-`8192` results in a total backend V8 heap limit of approximately 8240 MiB.
-
-This is an upper limit, not a memory reservation. The backend consumes memory
-gradually as needed. When the variable is not set, the Node.js default is used.
-
-The Electron renderer also receives the requested setting, but Electron 37
-currently caps its effective JavaScript heap at approximately 3586 MiB. Setting
-`ROCKIT_MEMORY_LIMIT_MB` to `8192` therefore increases the backend limit but does
-not increase the renderer beyond that cap. Each process has a separate heap.
-
-PowerShell:
-
-    $env:ROCKIT_MEMORY_LIMIT_MB="8192"
-    yarn start:electron
-
-Command Prompt:
-
-    set ROCKIT_MEMORY_LIMIT_MB=8192
-    yarn start:electron
-
-Linux/macOS:
-
-    ROCKIT_MEMORY_LIMIT_MB=8192 yarn start:electron
-
-## Working on `recrate` (vendored in `dev-packages/recrate`)
-
-### One-time setup
-
-If `recrate` is checked in as a git submodule, initialize it after cloning:
-
-    git submodule update --init --recursive
-
-Install workspace dependencies from the repo root:
-
-    yarn
-
-### Build / run / test `recrate`
-
-From the repo root you can use the convenience scripts:
-
-    yarn recrate:build
-    yarn recrate:dev
-    yarn recrate:test
-
-Notes:
-- `@arpproject/recrate` exports built artifacts from `dist/`, so `recrate:build` must be run at least once after fresh installs.
-- Even if the upstream `recrate` project uses npm, running it via `yarn workspace` works fine in this monorepo because Yarn workspaces manage the dependencies.
-
-### Publish a new `recrate` version to npm
-
-Publishing is still done from inside the `recrate` package directory, but you can run it from the repo root:
-
-    yarn recrate:publish
-
-Typical release flow:
-1. Commit and push changes in `dev-packages/recrate` to the upstream git repository.
-2. Bump the version in `dev-packages/recrate/package.json`.
-3. Run `yarn recrate:publish` (requires npm authentication).
-4. Commit the updated submodule pointer in this repository (so this repo points at the released commit).
-
-Authentication note:
-- If your company GitLab uses AAI/SSO for the web UI, git operations typically use SSH keys or tokens. For submodules, SSH URLs are usually the most reliable.
-
-
-## Developing with the Electron example
-
-Start watching all packages, including `electron-app`, of your application with
-
-    yarn watch:electron
-
-and run the Electron with
-
-    yarn start:electron
-
-By doing this the changes are automatically reflected in the Electron window after refreshing (ctrl+r) the application.
-
-## How to create a new extension
-
-To create new extensions we use the [Theia generator](#https://github.com/eclipse-theia/generator-theia-extension) package, this has to be installed as a first step.
-  
-    npm install -g yo generator-theia-extension
-
-Then these are the steps to create a new extension:
-1. Run `yo theia-extension --skip-install`
-2. Select the extension type.
-3. Enter the extension name.
-4. The generator will ask you a few other questions about overwriting certain files (package.json, README, etc.), press "n" for all of them.
-5. The generator will create a new folder with the extension name and add some files inside.
-6. Move this folder to the `theia-extensions` folder where we keep all our custom extensions.
-7. Because we skipped the overwrites (it would mess up our package.json and other files), we need to add the new extension to the correct places. Open the electron-app's package.json and add the extension to the `dependencies` section by typing the extension name and version number (it can be checked in the extension's package.json, but it is generally 1.0.0 so the inserted part would look like "<extension-name>": "1.0.0"). (The nex extension does NOT have to be added to the root package.json file, because it is in the theia-extensions folder folder, and that is already added to the workspace)
-8. Run `yarn` to install all dependencies.
-
-### react-grab support
-
-https://github.com/aidenybai/react-grab has been added via the `react-grab` extension. 
-
-The UI part works
-with cmd+c, but it doesn't collect the React specific file paths, only the
-HTML selection. So, this is of minimal use for now.
-
-## Contact
-
-Contact the RocKIT team at [rockit@dsd.sztaki.hu](mailto:rockit@dsd.sztaki.hu).
+<p align="center">
+  <img src="readme-assets/rockit-dsd.png" alt="DSD - Department of Distributed Systems" width="64"><br>
+  SZTAKI · Department of Distributed Systems
+</p>
 
 ## License
 
@@ -200,3 +113,5 @@ RocKIT is licensed under the Apache License, Version 2.0. See [LICENSE.md](LICEN
 
 Additional attribution and bundled third-party component information is available in
 [NOTICE](NOTICE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+<p align="center"><small>Copyright © 2026 HUN-REN SZTAKI, DSD</small></p>

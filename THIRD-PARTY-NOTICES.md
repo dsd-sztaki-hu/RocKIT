@@ -1,5 +1,13 @@
 # Third-Party Notices
 
+## README Platform Icons
+
+The Windows, Apple, and Linux platform icons in `readme-assets/icon-windows.svg`,
+`readme-assets/icon-apple.svg`, and `readme-assets/icon-linux.svg` are from Font Awesome
+Free 6.7.2. They are licensed under CC BY 4.0 and are copyright 2024
+Fonticons, Inc. The source attribution and license links are also embedded in
+each SVG file.
+
 RocKIT Electron application distributions bundle third-party runtime
 components. This file records the external VS Code/OpenVSX plugins that are
 downloaded during the build and copied into the packaged Electron application.
