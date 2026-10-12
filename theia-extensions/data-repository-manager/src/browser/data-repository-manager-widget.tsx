@@ -37,6 +37,8 @@ import { DataRepositoryToolbar } from './components/data-repository-toolbar'
 import { DataverseCollectionBrowserDialog } from './components/dataverse-collection-browser-dialog'
 import { NativeDataverseDatasetMetadataDialog } from './components/native-dataverse-dataset-metadata-dialog'
 import { RepositorySyncOptionsDialog } from './components/repository-sync-options-dialog'
+import { RepositoryOperation } from './repository-provider-registry'
+import { RepositoryProviderService } from './repository-provider-service'
 import {
   ArpRoCrateExportService,
   ArpRoCrateValidationError,
@@ -121,6 +123,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly applicationServer: ApplicationServer,
     @inject(WorkspaceService)
     protected readonly workspaceService: WorkspaceService,
+    @inject(RepositoryProviderService)
+    protected readonly providerService: RepositoryProviderService,
   ) {
     super()
     this.id = DATA_REPOSITORY_MANAGER_WIDGET_ID
@@ -202,6 +206,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.storeService,
         this.dataverseService,
         this.capabilityService,
+        this.providerService,
         this.hasOpenWorkspace(),
       )
       repositorySelection = await selector.open()
@@ -212,7 +217,16 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
 
     const selectedRepo = repositorySelection.repository
     const capabilities = repositorySelection.capabilities
-    if (!selectedRepo || !capabilities) {
+    if (!selectedRepo) {
+      return
+    }
+    if (selectedRepo.providerId) {
+      await this.executePluginRepositoryOperation(selectedRepo, 'import', {
+        repository: selectedRepo,
+      })
+      return
+    }
+    if (!capabilities) {
       return
     }
     if (!capabilities.supportsNativeDataverseApi && !capabilities.supportsZenodoApi) {
@@ -372,6 +386,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.storeService,
         this.dataverseService,
         this.capabilityService,
+        this.providerService,
         this.hasOpenWorkspace(),
       )
       const repositorySelection = await selector.open()
@@ -564,6 +579,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.storeService,
       this.dataverseService,
       this.capabilityService,
+      this.providerService,
       hasWorkspace,
       exportTargetsByRepositoryId,
       this.recentArpValidationError
@@ -618,6 +634,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.storeService,
         this.dataverseService,
         this.capabilityService,
+        this.providerService,
         this.hasOpenWorkspace(),
         exportTargetsByRepositoryId,
         this.recentArpValidationError
@@ -645,7 +662,25 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const selectedRepo = repositorySelection.repository
     const capabilities = repositorySelection.capabilities
     const selectedExportTarget = repositorySelection.exportTarget
-    if (!selectedRepo || !capabilities) {
+    if (!selectedRepo) {
+      return
+    }
+
+    if (selectedRepo.providerId) {
+      const operation: RepositoryOperation = repositorySelection.action === 'sync'
+        ? 'sync'
+        : selectedExportTarget
+          ? 'update'
+          : 'create'
+      await this.executePluginRepositoryOperation(selectedRepo, operation, {
+        repository: selectedRepo,
+        exportTarget: selectedExportTarget,
+        syncMode: repositorySelection.syncMode,
+      })
+      return
+    }
+
+    if (!capabilities) {
       return
     }
 
@@ -1401,7 +1436,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   }
 
   protected handleAddRepository = async () => {
-    const dialog = new DataRepositoryConfigDialog(this.dataverseService)
+    const dialog = new DataRepositoryConfigDialog(
+      this.dataverseService,
+      undefined,
+      this.providerService.listProviders(),
+    )
     const result = await dialog.open()
     if (result) {
       await this.storeService.saveRepository(result)
@@ -1409,7 +1448,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   }
 
   protected handleEdit = async (repo: DataRepositoryConfig) => {
-    const dialog = new DataRepositoryConfigDialog(this.dataverseService, repo)
+    const dialog = new DataRepositoryConfigDialog(
+      this.dataverseService,
+      repo,
+      this.providerService.listProviders(),
+    )
     const result = await dialog.open()
     if (result) {
       await this.storeService.saveRepository(result)
@@ -1478,10 +1521,17 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     target: DataRepositoryExportTarget,
     action: ExportDeleteAction,
   ): Promise<boolean> {
-    const capabilities = await this.capabilityService.detectRepositoryCapabilities(
-      repository.baseUrl,
-      repository.apiKey,
-    )
+    const capabilities = repository.providerId
+      ? {
+          kind: 'unknown' as const,
+          supportsArpRoCrateZipUpload: false,
+          supportsNativeDataverseApi: false,
+          supportsZenodoApi: false,
+        }
+      : await this.capabilityService.detectRepositoryCapabilities(
+          repository.baseUrl,
+          repository.apiKey,
+        )
     const dialog = new DataRepositoryExportDeleteDialog(target, action, capabilities.kind)
     if (!(await dialog.open())) {
       return false
@@ -1503,12 +1553,19 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     })
     try {
       await this.waitForLoadMaskPaint()
-      await this.exportDeleteService.deleteExport(
-        repository,
-        capabilities,
-        target,
-        deleteRemote,
-      )
+      if (deleteRemote && repository.providerId) {
+        await this.providerService.executeForRepository(repository, 'delete', {
+          repository,
+          exportTarget: target,
+        })
+      } else {
+        await this.exportDeleteService.deleteExport(
+          repository,
+          capabilities,
+          target,
+          deleteRemote,
+        )
+      }
       return true
     } catch (error) {
       console.error('Export deletion failed:', error)
@@ -1535,6 +1592,36 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       setTimeout(finish, 50)
       requestAnimationFrame(() => requestAnimationFrame(finish))
     })
+  }
+
+  protected async executePluginRepositoryOperation(
+    repository: DataRepositoryConfig,
+    operation: RepositoryOperation,
+    input: unknown,
+  ): Promise<void> {
+    const provider = this.providerService.getProviderForRepository(repository)
+    try {
+      await this.providerService.executeForRepository(repository, operation, input)
+      this.messageService.info(
+        nls.localize(
+          'rockit/dataRepository/pluginOperationCompleted',
+          '{0} completed the {1} operation.',
+          provider?.displayName ?? repository.providerId ?? repository.title,
+          operation,
+        ),
+      )
+    } catch (error) {
+      console.error(`Repository plugin '${operation}' operation failed:`, error)
+      this.messageService.error(
+        nls.localize(
+          'rockit/dataRepository/pluginOperationFailed',
+          '{0} failed: {1}',
+          provider?.displayName ?? repository.providerId ?? repository.title,
+          error instanceof Error ? error.message : String(error),
+        ),
+        { timeout: 10000 },
+      )
+    }
   }
 
   protected async getMissingArpDatasetCreationMetadata(): Promise<string[]> {

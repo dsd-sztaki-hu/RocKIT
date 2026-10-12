@@ -19,6 +19,7 @@ import { nls } from '@theia/core/lib/common/nls';
 import { DataRepositoryConfig } from '../types';
 import { DataRepositorySuccessDialog } from './data-repository-success-dialog';
 import { DataverseService } from '../services/dataverse-service';
+import { RepositoryProviderRegistration } from '../repository-provider-registry';
 import '../styles/data-repository-config-dialog.css';
 
 export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryConfig | undefined> {
@@ -29,6 +30,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
     private titleValue: string = '';
     private baseUrlValue: string = '';
     private apiKeyValue: string = '';
+    private providerIdValue: string = '';
     
     private isEditingKey = true; 
     private showKey = false; 
@@ -38,7 +40,8 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
 
     constructor(
         private readonly dataverseService: DataverseService,
-        private readonly repoToEdit?: DataRepositoryConfig
+        private readonly repoToEdit?: DataRepositoryConfig,
+        private readonly providers: RepositoryProviderRegistration[] = []
     ) {
         super({
             title: repoToEdit
@@ -59,6 +62,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             this.titleValue = repoToEdit.title;
             this.baseUrlValue = repoToEdit.baseUrl;
             this.apiKeyValue = repoToEdit.apiKey || '';
+            this.providerIdValue = repoToEdit.providerId || '';
             this.isEditingKey = false; 
         }
     }
@@ -80,7 +84,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             this.errorMsg = nls.localize('rockit/dataRepository/baseUrlRequired', 'Base URL is required.');
             this.render(); return;
         }
-        if (!cleanApiKey) {
+        if (!cleanApiKey && !this.providerIdValue) {
             this.errorMsg = nls.localize('rockit/dataRepository/tokenRequired', 'API Token is required.');
             this.render(); return;
         }
@@ -99,6 +103,18 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         this.isTesting = true;
         this.errorMsg = null;
         this.render();
+
+        if (this.providerIdValue) {
+            this.result = {
+                id: this.repoToEdit ? this.repoToEdit.id : Date.now().toString(),
+                title: cleanTitle,
+                baseUrl: cleanBaseUrl,
+                apiKey: cleanApiKey || undefined,
+                providerId: this.providerIdValue
+            };
+            this.accept();
+            return;
+        }
 
         let expirationDate: string | undefined = undefined;
 
@@ -184,6 +200,32 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                 autoFocus
                             />
                         </div>
+
+                        {this.providers.length > 0 && (
+                            <div>
+                                <label className="data-repo-config__label">
+                                    {nls.localize('rockit/dataRepository/providerType', 'Repository Type')}
+                                </label>
+                                <select
+                                    className="theia-select data-repo-config__input"
+                                    value={this.providerIdValue}
+                                    disabled={this.isTesting || Boolean(this.repoToEdit)}
+                                    onChange={(event) => {
+                                        this.providerIdValue = event.target.value;
+                                        this.render();
+                                    }}
+                                >
+                                    <option value="">
+                                        {nls.localize('rockit/dataRepository/builtInProvider', 'Built-in automatic detection')}
+                                    </option>
+                                    {this.providers.map(provider => (
+                                        <option key={provider.id} value={provider.id}>
+                                            {provider.displayName}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         <div>
                             <label className="data-repo-config__label">

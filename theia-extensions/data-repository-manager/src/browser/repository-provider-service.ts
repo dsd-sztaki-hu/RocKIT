@@ -30,6 +30,10 @@ export class RepositoryProviderService {
     protected readonly commandService: CommandService,
   ) {}
 
+  listProviders() {
+    return this.registry.list()
+  }
+
   getProviderForRepository(repository: DataRepositoryConfig) {
     return repository.providerId ? this.registry.get(repository.providerId) : undefined
   }
