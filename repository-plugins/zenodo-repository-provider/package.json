@@ -7,6 +7,10 @@
   "license": "Apache-2.0",
   "private": true,
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "build": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
+    "test": "yarn build && node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "typescript": "~5.4.5"
   }
 }

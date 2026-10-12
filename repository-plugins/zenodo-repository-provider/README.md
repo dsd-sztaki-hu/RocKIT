@@ -3,10 +3,15 @@
 This directory is the reference implementation of a repository provider outside
 the RocKIT application bundle.
 
-The first extraction step contains only `ZenodoClient`, the transport boundary
-that owns Zenodo URLs, authentication headers, timeouts, response parsing, and
-HTTP errors. Workspace access, dialogs, crosswalk processing, and repository
-operation registration will move here in later steps.
+The extracted code currently contains:
+
+- `ZenodoClient`, the transport boundary that owns Zenodo URLs,
+  authentication headers, timeouts, response parsing, and HTTP errors;
+- the generated ARP/RO-Crate ↔ Zenodo metadata crosswalk and its framework-free
+  runtime.
+
+Workspace access, dialogs, and repository operation registration will move here
+in later steps.
 
 Run its focused tests with:
 
