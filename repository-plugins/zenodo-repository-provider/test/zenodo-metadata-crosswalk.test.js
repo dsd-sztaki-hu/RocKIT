@@ -77,4 +77,26 @@ describe('Zenodo metadata crosswalk', () => {
       ),
     )
   })
+
+  it('does not write Zenodo access policy into unrelated RO-Crate fields', () => {
+    const crate = minimalCrate()
+    const root = crate['@graph'][0]
+    root.conditionsOfAccess = 'Existing local access statement'
+    root.accessToSources = 'Existing source access instructions'
+    root.distributionDate = '2025-01-01'
+
+    const result = applyZenodoMetadataToRoCrate(crate, {
+      access_right: 'restricted',
+      access_conditions: 'Contact the Zenodo record owner.',
+      embargo_date: '2030-12-31',
+    })
+    const updatedRoot = result.crate['@graph'].find((entity) => entity['@id'] === './')
+
+    assert.equal(updatedRoot.conditionsOfAccess, 'Existing local access statement')
+    assert.equal(updatedRoot.accessToSources, 'Existing source access instructions')
+    assert.equal(updatedRoot.distributionDate, '2025-01-01')
+    assert.equal(result.updatedFields.includes('access_right'), false)
+    assert.equal(result.updatedFields.includes('access_conditions'), false)
+    assert.equal(result.updatedFields.includes('embargo_date'), false)
+  })
 })

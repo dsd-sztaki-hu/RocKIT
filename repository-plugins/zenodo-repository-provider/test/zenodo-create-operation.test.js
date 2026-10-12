@@ -40,6 +40,16 @@ function testEnvironment(crate = validCrate()) {
   const written = new Map()
   const calls = []
   const vscode = {
+    window: {
+      async showQuickPick(items, options) {
+        calls.push(['showQuickPick', options.placeHolder])
+        return items[0]
+      },
+      async showInputBox(options) {
+        calls.push(['showInputBox', options.prompt])
+        return options.value
+      },
+    },
     workspace: {
       workspaceFolders: [{ uri: 'workspace' }],
       fs: {
@@ -66,6 +76,10 @@ function testEnvironment(crate = validCrate()) {
   const uploads = []
   const metadataUpdates = []
   const client = {
+    async listLicenses() {
+      calls.push(['listLicenses'])
+      return { hits: { hits: [] } }
+    },
     async createDeposition() {
       calls.push(['createDeposition'])
       return {

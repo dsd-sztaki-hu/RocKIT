@@ -4,18 +4,21 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-const {
-  buildZenodoMetadataFromCrosswalk,
-  missingRequiredZenodoMetadataFields,
-} = require('../lib/zenodo-metadata-crosswalk')
+const { ZenodoMetadataPreparation } = require('./zenodo-metadata-preparation')
 
 const METADATA_FILE = 'ro-crate-metadata.json'
 const CROSSWALK_FILE = 'arp-zenodo-crosswalk.json'
 
 class ZenodoCreateOperation {
-  constructor({ vscode, clientFactory, now = () => new Date() }) {
+  constructor({
+    vscode,
+    clientFactory,
+    metadataPreparation = new ZenodoMetadataPreparation({ vscode }),
+    now = () => new Date(),
+  }) {
     this.vscode = vscode
     this.clientFactory = clientFactory
+    this.metadataPreparation = metadataPreparation
     this.now = now
   }
 
@@ -32,16 +35,9 @@ class ZenodoCreateOperation {
       `The workspace does not contain ${METADATA_FILE}.`,
     )
     const crate = this.parseCrate(crateBytes)
-    const { metadata } = buildZenodoMetadataFromCrosswalk(crate)
-    const missing = missingRequiredZenodoMetadataFields(metadata)
-    if (missing.length) {
-      throw new Error(
-        `The RO-Crate cannot be exported to Zenodo because these required metadata fields are missing: ${missing.join(', ')}.`,
-      )
-    }
-
-    const uploadFiles = await this.collectUploadFiles(rootUri, crate, crateBytes)
     const client = this.clientFactory(repository)
+    const metadata = await this.metadataPreparation.prepare(crate, client)
+    const uploadFiles = await this.collectUploadFiles(rootUri, crate, crateBytes)
 
     progress.report({ message: 'Creating Zenodo draft deposition...' })
     const deposition = await client.createDeposition()

@@ -82,6 +82,14 @@ class ZenodoClient {
     return payload
   }
 
+  listLicenses(size = 1000) {
+    return this.requestJson(
+      `/api/licenses/?size=${encodeURIComponent(String(size))}`,
+      { method: 'GET', headers: this.authorizationHeaders() },
+      'Zenodo licenses could not be loaded',
+    )
+  }
+
   uploadFile(bucketUrl, filename, content) {
     const url = `${requireText(bucketUrl, 'A Zenodo bucket URL is required.').replace(/\/+$/, '')}/${encodeURIComponent(requireText(filename, 'A filename is required.'))}`
     return this.requestJson(

@@ -178,8 +178,8 @@ function resolveReferences(value: MappingValue, graph: JsonObject[]): MappingVal
   const byId = new Map(
     graph
       .map((entity) => [entity['@id'], entity] as const)
-      .filter((entry): entry is readonly [string, JsonObject] =>
-        typeof entry[0] === 'string',
+      .filter(
+        (entry): entry is readonly [string, JsonObject] => typeof entry[0] === 'string',
       ),
   )
   const resolve = (item: unknown): unknown => {
@@ -205,9 +205,7 @@ function candidateValue(
     return EMPTY
   }
   const propertyName =
-    candidate.property === '@type' && localName === 'upload_type'
-      ? '@type'
-      : localName
+    candidate.property === '@type' && localName === 'upload_type' ? '@type' : localName
 
   if (candidate.entity === 'root' || !candidate.entity) {
     const direct = root[propertyName]
@@ -225,7 +223,10 @@ function candidateValue(
   return found.some(hasMeaningfulValue) ? found : EMPTY
 }
 
-function shouldSkipExportSource(mapping: ZenodoMapping, candidate: SourceCandidate): boolean {
+function shouldSkipExportSource(
+  mapping: ZenodoMapping,
+  candidate: SourceCandidate,
+): boolean {
   return (
     (mapping.target.field === 'access_right' && !!candidate.localName) ||
     (mapping.target.field === 'imprint_publisher' && candidate.localName === 'producer')
@@ -279,7 +280,7 @@ function omitValues(value: MappingValue, omitted: unknown[]): MappingValue {
 }
 
 function first(value: MappingValue): MappingValue {
-  return Array.isArray(value) ? value.find(hasMeaningfulValue) ?? EMPTY : value
+  return Array.isArray(value) ? (value.find(hasMeaningfulValue) ?? EMPTY) : value
 }
 
 function normalizeDate(value: MappingValue): MappingValue {
@@ -414,42 +415,35 @@ function inferResourceType(value: MappingValue): MappingValue {
 }
 
 function aggregateIdentifiers(value: MappingValue): MappingValue {
-  const aggregated = values(value)
-    .flatMap((item) => {
-      if (!isObject(item)) {
-        return strings(item).map((identifier) => ({
-          identifier,
-          relation: 'isRelatedTo',
-        }))
-      }
-      const identifier = strings(
-        item.otherIdValue ??
-          item.publicationIDNumber ??
-          item.identifier ??
-          item['@id'],
-      )[0]
-      if (!identifier) {
-        return []
-      }
-      return [{
+  const aggregated = values(value).flatMap((item) => {
+    if (!isObject(item)) {
+      return strings(item).map((identifier) => ({
         identifier,
-        relation: strings(item.relation ?? item.publicationRelationType)[0] ??
-          'isRelatedTo',
-      }]
-    })
+        relation: 'isRelatedTo',
+      }))
+    }
+    const identifier = strings(
+      item.otherIdValue ?? item.publicationIDNumber ?? item.identifier ?? item['@id'],
+    )[0]
+    if (!identifier) {
+      return []
+    }
+    return [
+      {
+        identifier,
+        relation:
+          strings(item.relation ?? item.publicationRelationType)[0] ?? 'isRelatedTo',
+      },
+    ]
+  })
   return aggregated.length ? aggregated : EMPTY
 }
 
-function mapVocabulary(
-  value: MappingValue,
-  operation: MappingOperation,
-): MappingValue {
+function mapVocabulary(value: MappingValue, operation: MappingOperation): MappingValue {
   const mappings = isObject(operation.values) ? operation.values : {}
   const mapped = values(value).flatMap((item) => {
     const source = strings(
-      isObject(item)
-        ? item['@id'] ?? item.identifier ?? item.name
-        : item,
+      isObject(item) ? (item['@id'] ?? item.identifier ?? item.name) : item,
     )[0]
     if (!source) {
       return []
@@ -485,7 +479,9 @@ function htmlToPlainText(value: string): string {
 }
 
 function inverseVocabularyValue(value: unknown, mapping: ZenodoMapping): unknown {
-  const operation = mapping.transformations.find((item) => item.operation === 'mapVocabulary')
+  const operation = mapping.transformations.find(
+    (item) => item.operation === 'mapVocabulary',
+  )
   const mappings = operation && isObject(operation.values) ? operation.values : undefined
   const text = strings(value)[0]
   if (!text || !mappings) {
@@ -500,23 +496,33 @@ function inverseVocabularyValue(value: unknown, mapping: ZenodoMapping): unknown
 function firstWritableCandidate(mapping: ZenodoMapping): SourceCandidate | undefined {
   const candidates = mapping.source?.canonicalCandidates ?? []
   return (
-    candidates.find((candidate) =>
-      candidate.entity !== 'root' && !!candidate.localName,
+    candidates.find(
+      (candidate) => candidate.entity !== 'root' && !!candidate.localName,
     ) ??
     candidates.find((candidate) => candidate.entity === 'root' && !!candidate.localName)
   )
 }
 
-function setRootValue(root: JsonObject, candidate: SourceCandidate, value: unknown, mapping: ZenodoMapping): boolean {
+function setRootValue(
+  root: JsonObject,
+  candidate: SourceCandidate,
+  value: unknown,
+  mapping: ZenodoMapping,
+): boolean {
   if (!candidate.localName || !hasMeaningfulValue(value)) {
     return false
   }
-  const nextValue = mapping.transformations.some((operation) => operation.operation === 'mapVocabulary')
+  const nextValue = mapping.transformations.some(
+    (operation) => operation.operation === 'mapVocabulary',
+  )
     ? inverseVocabularyValue(value, mapping)
     : value
-  root[candidate.localName] = candidate.localName === 'license' && typeof nextValue === 'string' && /^https?:\/\//i.test(nextValue)
-    ? { '@id': nextValue }
-    : nextValue
+  root[candidate.localName] =
+    candidate.localName === 'license' &&
+    typeof nextValue === 'string' &&
+    /^https?:\/\//i.test(nextValue)
+      ? { '@id': nextValue }
+      : nextValue
   return true
 }
 
@@ -525,11 +531,7 @@ function zenodoDescriptionText(value: unknown): string[] {
     .flatMap((item) => {
       if (isObject(item)) {
         return strings(
-          item.description ??
-            item.text ??
-            item.value ??
-            item.title ??
-            item.name,
+          item.description ?? item.text ?? item.value ?? item.title ?? item.name,
         )
       }
       return strings(item)
@@ -550,8 +552,9 @@ function collectZenodoDescriptionTexts(metadata: Record<string, unknown>): strin
 }
 
 function rootDescriptionIds(root: JsonObject): string[] {
-  return values(root.dsDescription)
-    .flatMap((item) => isObject(item) ? strings(item['@id']) : strings(item))
+  return values(root.dsDescription).flatMap((item) =>
+    isObject(item) ? strings(item['@id']) : strings(item),
+  )
 }
 
 function descriptionEntityId(root: JsonObject, index: number): string {
@@ -600,7 +603,9 @@ function matchExistingEntities<T>(
   const used = new Set<JsonObject>()
 
   incoming.forEach((incomingValue, index) => {
-    const exact = existing.find((entity) => !used.has(entity) && matches(incomingValue, entity))
+    const exact = existing.find(
+      (entity) => !used.has(entity) && matches(incomingValue, entity),
+    )
     if (exact) {
       assignments.set(index, exact)
       used.add(exact)
@@ -636,7 +641,11 @@ function availableGeneratedEntityId(
   return id
 }
 
-function generatedKeywordEntityId(root: JsonObject, keyword: string, index: number): string {
+function generatedKeywordEntityId(
+  root: JsonObject,
+  keyword: string,
+  index: number,
+): string {
   const arpPid = strings(root['@arpPid'])[0]
   if (arpPid) {
     return `https://w3id.org/arp/ro-id/${arpPid}/keyword/${encodeURIComponent(keyword)}`
@@ -667,7 +676,11 @@ function ensureContextTerm(crate: JsonObject, term: string, iri: string): void {
   crate['@context'] = [{ [term]: iri }]
 }
 
-function updateDescriptionEntities(root: JsonObject, graph: JsonObject[], descriptions: string[]): boolean {
+function updateDescriptionEntities(
+  root: JsonObject,
+  graph: JsonObject[],
+  descriptions: string[],
+): boolean {
   if (!descriptions.length) {
     return false
   }
@@ -681,9 +694,11 @@ function updateDescriptionEntities(root: JsonObject, graph: JsonObject[], descri
   const assignments = matchExistingEntities(
     descriptions,
     existingDescriptionEntities,
-    (description, entity) => normalizeComparableText(description) === normalizeComparableText(
-      strings(entity.dsDescriptionValue ?? entity.description ?? entity.name)[0] ?? '',
-    ),
+    (description, entity) =>
+      normalizeComparableText(description) ===
+      normalizeComparableText(
+        strings(entity.dsDescriptionValue ?? entity.description ?? entity.name)[0] ?? '',
+      ),
   )
   const refs: JsonObject[] = []
   descriptions.forEach((description, index) => {
@@ -707,7 +722,11 @@ function updateDescriptionEntities(root: JsonObject, graph: JsonObject[], descri
   return true
 }
 
-function availableDescriptionEntityId(root: JsonObject, graph: JsonObject[], preferredIndex: number): string {
+function availableDescriptionEntityId(
+  root: JsonObject,
+  graph: JsonObject[],
+  preferredIndex: number,
+): string {
   let index = preferredIndex
   let id = descriptionEntityId(root, index)
   while (graph.some((entity) => entity['@id'] === id)) {
@@ -717,7 +736,11 @@ function availableDescriptionEntityId(root: JsonObject, graph: JsonObject[], pre
   return id
 }
 
-function updateCreatorEntities(root: JsonObject, graph: JsonObject[], value: unknown): boolean {
+function updateCreatorEntities(
+  root: JsonObject,
+  graph: JsonObject[],
+  value: unknown,
+): boolean {
   const creators = values(value)
     .filter(isObject)
     .map((creator) => ({
@@ -729,8 +752,9 @@ function updateCreatorEntities(root: JsonObject, graph: JsonObject[], value: unk
   if (!creators.length) {
     return false
   }
-  const existingRefs = values(root.author)
-    .flatMap((item) => isObject(item) ? strings(item['@id']) : strings(item))
+  const existingRefs = values(root.author).flatMap((item) =>
+    isObject(item) ? strings(item['@id']) : strings(item),
+  )
   const existingAuthors = uniqueEntities([
     ...existingRefs
       .map((id) => graph.find((entity) => entity['@id'] === id))
@@ -774,31 +798,45 @@ function updateCreatorEntities(root: JsonObject, graph: JsonObject[], value: unk
 }
 
 function creatorMatchesEntity(
-  creator: { name: string | undefined; affiliation: string | undefined; orcid: string | undefined },
+  creator: {
+    name: string | undefined
+    affiliation: string | undefined
+    orcid: string | undefined
+  },
   entity: JsonObject,
 ): boolean {
-  const entityOrcid = strings(entity.authorIdentifier ?? entity.orcid ?? entity.identifier)[0]
+  const entityOrcid = strings(
+    entity.authorIdentifier ?? entity.orcid ?? entity.identifier,
+  )[0]
   if (creator.orcid && entityOrcid) {
     return normalizeComparableText(creator.orcid) === normalizeComparableText(entityOrcid)
   }
   const entityName = strings(entity.authorName ?? entity.name)[0]
   const entityAffiliation = strings(entity.authorAffiliation ?? entity.affiliation)[0]
   return (
-    normalizeComparableText(creator.name ?? '') === normalizeComparableText(entityName ?? '') &&
-    normalizeComparableText(creator.affiliation ?? '') === normalizeComparableText(entityAffiliation ?? '')
+    normalizeComparableText(creator.name ?? '') ===
+      normalizeComparableText(entityName ?? '') &&
+    normalizeComparableText(creator.affiliation ?? '') ===
+      normalizeComparableText(entityAffiliation ?? '')
   )
 }
 
-function updateKeywordEntities(crate: JsonObject, root: JsonObject, graph: JsonObject[], value: unknown): boolean {
-  const keywords = unique(strings(value).map(htmlToPlainText))
-    .filter((item): item is string => typeof item === 'string' && item.length > 0)
+function updateKeywordEntities(
+  crate: JsonObject,
+  root: JsonObject,
+  graph: JsonObject[],
+  value: unknown,
+): boolean {
+  const keywords = unique(strings(value).map(htmlToPlainText)).filter(
+    (item): item is string => typeof item === 'string' && item.length > 0,
+  )
   if (!keywords.length) {
     return false
   }
   ensureContextTerm(crate, 'keyword', 'https://dataverse.org/schema/citation/keyword')
   const existingKeywords = uniqueEntities([
     ...values(root.keyword)
-      .flatMap((item) => isObject(item) ? strings(item['@id']) : strings(item))
+      .flatMap((item) => (isObject(item) ? strings(item['@id']) : strings(item)))
       .map((id) => graph.find((entity) => entity['@id'] === id))
       .filter((entity): entity is JsonObject => !!entity),
     ...graph.filter((entity) => entityTypes(entity).includes('keyword')),
@@ -806,9 +844,9 @@ function updateKeywordEntities(crate: JsonObject, root: JsonObject, graph: JsonO
   const assignments = matchExistingEntities(
     keywords,
     existingKeywords,
-    (keyword, entity) => normalizeComparableText(keyword) === normalizeComparableText(
-      strings(entity.keywordValue ?? entity.name)[0] ?? '',
-    ),
+    (keyword, entity) =>
+      normalizeComparableText(keyword) ===
+      normalizeComparableText(strings(entity.keywordValue ?? entity.name)[0] ?? ''),
   )
   const refs: JsonObject[] = []
   keywords.forEach((keyword, index) => {
@@ -834,26 +872,26 @@ function updateKeywordEntities(crate: JsonObject, root: JsonObject, graph: JsonO
 }
 
 function reverseScalarValue(value: unknown, mapping: ZenodoMapping): unknown {
-  const mapped = mapping.transformations.some((operation) => operation.operation === 'mapVocabulary')
+  const mapped = mapping.transformations.some(
+    (operation) => operation.operation === 'mapVocabulary',
+  )
     ? inverseVocabularyValue(value, mapping)
     : value
   if (typeof mapped === 'string') {
     return htmlToPlainText(mapped)
   }
   if (Array.isArray(mapped)) {
-    const decoded = mapped.map((item) => typeof item === 'string' ? htmlToPlainText(item) : item)
+    const decoded = mapped.map((item) =>
+      typeof item === 'string' ? htmlToPlainText(item) : item,
+    )
     return mapping.target.type === 'array' ? decoded : decoded[0]
   }
   return mapped
 }
 
-export function zenodoMetadataOptions(
-  field: string,
-): ZenodoMetadataOption[] {
+export function zenodoMetadataOptions(field: string): ZenodoMetadataOption[] {
   const property = repositoryCrosswalk.repositories.zenodo.schema.properties[field]
-  const enumValues = property && Array.isArray(property.enum)
-    ? property.enum
-    : []
+  const enumValues = property && Array.isArray(property.enum) ? property.enum : []
   return enumValues
     .filter((value): value is string => typeof value === 'string')
     .map((value) => ({ value, label: value }))
@@ -904,9 +942,7 @@ function applyOperation(
     case 'mapVocabulary':
       return mapVocabulary(value, operation)
     default:
-      throw new Error(
-        `Unsupported crosswalk operation '${operation.operation}'.`,
-      )
+      throw new Error(`Unsupported crosswalk operation '${operation.operation}'.`)
   }
 }
 
@@ -957,13 +993,10 @@ function conditionMatches(
 export function missingRequiredZenodoMetadataFields(
   metadata: Record<string, unknown>,
 ): string[] {
-  const requirements =
-    repositoryCrosswalk.repositories.zenodo.officialRequirements
+  const requirements = repositoryCrosswalk.repositories.zenodo.officialRequirements
   const required = new Set(requirements.alwaysRequired)
 
-  for (const [field, requirement] of Object.entries(
-    requirements.conditionalRequired,
-  )) {
+  for (const [field, requirement] of Object.entries(requirements.conditionalRequired)) {
     if (conditionMatches(metadata, requirement.when)) {
       required.add(field)
     }
@@ -994,8 +1027,7 @@ export function buildZenodoMetadataFromCrosswalk(
 
   const metadata: Record<string, unknown> = {}
   const diagnostics: ZenodoMappingDiagnostic[] = []
-  const mappings =
-    repositoryCrosswalk.crosswalks.canonicalToZenodo.mappings
+  const mappings = repositoryCrosswalk.crosswalks.canonicalToZenodo.mappings
 
   for (const mapping of mappings) {
     const executable =
@@ -1005,8 +1037,7 @@ export function buildZenodoMetadataFromCrosswalk(
       diagnostics.push({
         mappingId: mapping.id,
         targetField: mapping.target.field,
-        outcome:
-          mapping.mappingStatus === 'needsReview' ? 'needsReview' : 'omitted',
+        outcome: mapping.mappingStatus === 'needsReview' ? 'needsReview' : 'omitted',
         message: `Mapping status is ${mapping.mappingStatus}; field was not uploaded automatically.`,
       })
       continue
@@ -1018,7 +1049,8 @@ export function buildZenodoMetadataFromCrosswalk(
       const before = value
       value = applyOperation(value, operation, graph)
       if (
-        (operation.operation === 'defaultValue' || operation.operation === 'deriveAccessRight') &&
+        (operation.operation === 'defaultValue' ||
+          operation.operation === 'deriveAccessRight') &&
         !hasMeaningfulValue(before) &&
         hasMeaningfulValue(value)
       ) {
@@ -1070,14 +1102,26 @@ export function applyZenodoMetadataToRoCrate(
   }
 
   const updatedFields: string[] = []
-  if (updateDescriptionEntities(root, graph, collectZenodoDescriptionTexts(zenodoMetadata))) {
+  if (
+    updateDescriptionEntities(root, graph, collectZenodoDescriptionTexts(zenodoMetadata))
+  ) {
     updatedFields.push('description')
   }
   for (const mapping of repositoryCrosswalk.crosswalks.canonicalToZenodo.mappings) {
     if (mapping.direction !== 'both' || mapping.mappingStatus === 'repositorySpecific') {
       continue
     }
-    if (['access_right', 'description', 'imprint_publisher', 'notes', 'upload_type'].includes(mapping.target.field)) {
+    if (
+      [
+        'access_right',
+        'access_conditions',
+        'description',
+        'embargo_date',
+        'imprint_publisher',
+        'notes',
+        'upload_type',
+      ].includes(mapping.target.field)
+    ) {
       continue
     }
     const remoteValue = zenodoMetadata[mapping.target.field]
@@ -1098,7 +1142,12 @@ export function applyZenodoMetadataToRoCrate(
         break
       default:
         if (candidate.entity === 'root') {
-          updated = setRootValue(root, candidate, reverseScalarValue(remoteValue, mapping), mapping)
+          updated = setRootValue(
+            root,
+            candidate,
+            reverseScalarValue(remoteValue, mapping),
+            mapping,
+          )
         }
         break
     }

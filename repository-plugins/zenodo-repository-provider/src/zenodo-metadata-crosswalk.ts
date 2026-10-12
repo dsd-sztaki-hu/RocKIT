@@ -1114,7 +1114,9 @@ export function applyZenodoMetadataToRoCrate(
     if (
       [
         'access_right',
+        'access_conditions',
         'description',
+        'embargo_date',
         'imprint_publisher',
         'notes',
         'upload_type',

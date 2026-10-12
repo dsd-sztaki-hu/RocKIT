@@ -11,12 +11,14 @@ The extension currently contains:
   runtime;
 - a registered `create` operation that reads the active RO-Crate workspace,
   creates a Zenodo draft, uploads local `File` entities and metadata, and saves
-  the resulting mapping in `.rockit`.
+  the resulting mapping in `.rockit`;
+- native extension prompts for Zenodo access right, license, embargo date, and
+  access conditions when the crosswalk cannot determine them unambiguously.
 
 Only `create` is advertised to RocKIT at this stage, so unsupported repository
-actions are not shown for connections using this provider. The crate must
-already contain all metadata required by Zenodo; metadata-completion UI remains
-a later step.
+actions are not shown for connections using this provider. Required descriptive
+metadata such as title, description, publication date, and creators must still
+be present in the RO-Crate.
 
 Run its focused tests with:
 

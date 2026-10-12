@@ -62,6 +62,24 @@ describe('ZenodoClient', () => {
     assert.equal(calls[0][1].body, JSON.stringify({ metadata: { title: 'Dataset' } }))
   })
 
+  it('loads the repository license vocabulary with the identified client', async () => {
+    const calls = []
+    const client = new ZenodoClient({
+      baseUrl: 'https://zenodo.org',
+      token: 'token',
+      fetchImpl: async (...args) => {
+        calls.push(args)
+        return jsonResponse({ hits: { hits: [] } })
+      },
+    })
+
+    await client.listLicenses()
+
+    assert.equal(calls[0][0], 'https://zenodo.org/api/licenses/?size=1000')
+    assert.equal(calls[0][1].method, 'GET')
+    assert.equal(calls[0][1].headers['user-agent'], DEFAULT_USER_AGENT)
+  })
+
   it('encodes uploaded filenames and preserves binary content', async () => {
     const calls = []
     const content = new Uint8Array([1, 2, 3])
