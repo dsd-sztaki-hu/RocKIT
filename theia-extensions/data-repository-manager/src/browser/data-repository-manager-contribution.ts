@@ -17,6 +17,7 @@ import {
     RepositoryProviderRegistration,
     RepositoryProviderRegistry
 } from './repository-provider-registry';
+import { RepositoryProviderService } from './repository-provider-service';
 
 export namespace DataRepositoryManagerCommands {
     export const OPEN: Command = {
@@ -54,7 +55,8 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
         @inject(ApplicationShell) protected readonly shell: ApplicationShell,
         @inject(ApplicationServer) protected readonly applicationServer: ApplicationServer,
         @inject(OpenerService) protected readonly openerService: OpenerService,
-        @inject(RepositoryProviderRegistry) protected readonly repositoryProviderRegistry: RepositoryProviderRegistry
+        @inject(RepositoryProviderRegistry) protected readonly repositoryProviderRegistry: RepositoryProviderRegistry,
+        @inject(RepositoryProviderService) protected readonly repositoryProviderService: RepositoryProviderService
     ) { }
 
     async initializeLayout(): Promise<void> {
@@ -82,6 +84,10 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
 
         commands.registerCommand({ id: RepositoryProviderCommands.LIST }, {
             execute: () => this.repositoryProviderRegistry.list()
+        });
+
+        commands.registerCommand({ id: RepositoryProviderCommands.EXECUTE }, {
+            execute: invocation => this.repositoryProviderService.execute(invocation)
         });
 
         commands.registerCommand(DataRepositoryManagerCommands.OPEN, {

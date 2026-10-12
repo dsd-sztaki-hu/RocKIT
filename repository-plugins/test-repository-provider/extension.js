@@ -10,8 +10,10 @@ const PROVIDER_ID = 'test-repository'
 const REGISTER_PROVIDER_COMMAND = 'rockit.repositories.registerProvider'
 const UNREGISTER_PROVIDER_COMMAND = 'rockit.repositories.unregisterProvider'
 const LIST_PROVIDERS_COMMAND = 'rockit.repositories.listProviders'
+const EXECUTE_OPERATION_COMMAND = 'rockit.repositories.executeOperation'
 const CREATE_COMMAND = 'rockit.testRepository.create'
 const VERIFY_REGISTRATION_COMMAND = 'rockit.testRepository.verifyRegistration'
+const VERIFY_CREATE_ROUND_TRIP_COMMAND = 'rockit.testRepository.verifyCreateRoundTrip'
 
 let registeredExtensionId
 
@@ -38,6 +40,18 @@ async function activate(context) {
 
       await vscode.window.showInformationMessage(message)
       return provider
+    }),
+    vscode.commands.registerCommand(VERIFY_CREATE_ROUND_TRIP_COMMAND, async () => {
+      const result = await vscode.commands.executeCommand(EXECUTE_OPERATION_COMMAND, {
+        providerId: PROVIDER_ID,
+        operation: 'create',
+        input: { title: 'Plugin boundary test' },
+      })
+
+      await vscode.window.showInformationMessage(
+        `RocKIT received remote id ${result.remoteId} from the test repository extension.`,
+      )
+      return result
     }),
   )
 

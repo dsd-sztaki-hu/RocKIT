@@ -21,6 +21,10 @@
       {
         "command": "rockit.testRepository.verifyRegistration",
         "title": "RocKIT: Verify Test Repository Provider"
+      },
+      {
+        "command": "rockit.testRepository.verifyCreateRoundTrip",
+        "title": "RocKIT: Test Repository Create Round-Trip"
       }
     ]
   }

@@ -12,6 +12,7 @@ export const RepositoryProviderCommands = {
   REGISTER: 'rockit.repositories.registerProvider',
   UNREGISTER: 'rockit.repositories.unregisterProvider',
   LIST: 'rockit.repositories.listProviders',
+  EXECUTE: 'rockit.repositories.executeOperation',
 } as const
 
 export type RepositoryOperation = 'import' | 'create' | 'update' | 'sync' | 'delete'
@@ -31,6 +32,12 @@ export interface RepositoryProviderRegistration {
   extensionId: string
   protocolVersion: string
   operations: RepositoryProviderOperations
+}
+
+export interface RepositoryOperationInvocation<TInput = unknown> {
+  providerId: string
+  operation: RepositoryOperation
+  input?: TInput
 }
 
 @injectable()
