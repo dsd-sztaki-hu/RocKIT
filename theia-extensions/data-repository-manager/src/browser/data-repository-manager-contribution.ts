@@ -12,6 +12,11 @@ import { ApplicationServer } from '@theia/core/lib/common/application-protocol';
 import { openRockitDocumentationPage, ROCKIT_DOCUMENTATION_PAGES } from 'rockit-common/lib/browser';
 import { DATA_REPOSITORY_MANAGER_WIDGET_ID, DATA_REPOSITORY_MANAGER_LABEL, DataRepositoryManagerWidget } from './data-repository-manager-widget';
 import { nls } from '@theia/core/lib/common/nls';
+import {
+    RepositoryProviderCommands,
+    RepositoryProviderRegistration,
+    RepositoryProviderRegistry
+} from './repository-provider-registry';
 
 export namespace DataRepositoryManagerCommands {
     export const OPEN: Command = {
@@ -48,7 +53,8 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
         @inject(WidgetManager) protected readonly widgetManager: WidgetManager,
         @inject(ApplicationShell) protected readonly shell: ApplicationShell,
         @inject(ApplicationServer) protected readonly applicationServer: ApplicationServer,
-        @inject(OpenerService) protected readonly openerService: OpenerService
+        @inject(OpenerService) protected readonly openerService: OpenerService,
+        @inject(RepositoryProviderRegistry) protected readonly repositoryProviderRegistry: RepositoryProviderRegistry
     ) { }
 
     async initializeLayout(): Promise<void> {
@@ -63,6 +69,21 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
     }
 
     registerCommands(commands: CommandRegistry): void {
+        commands.registerCommand({ id: RepositoryProviderCommands.REGISTER }, {
+            execute: (provider: RepositoryProviderRegistration) => {
+                this.repositoryProviderRegistry.register(provider);
+            }
+        });
+
+        commands.registerCommand({ id: RepositoryProviderCommands.UNREGISTER }, {
+            execute: (providerId: string, extensionId?: string) =>
+                this.repositoryProviderRegistry.unregister(providerId, extensionId)
+        });
+
+        commands.registerCommand({ id: RepositoryProviderCommands.LIST }, {
+            execute: () => this.repositoryProviderRegistry.list()
+        });
+
         commands.registerCommand(DataRepositoryManagerCommands.OPEN, {
             execute: async () => {
                 const widget = await this.widgetManager.getOrCreateWidget(DATA_REPOSITORY_MANAGER_WIDGET_ID);

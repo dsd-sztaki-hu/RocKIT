@@ -31,6 +31,7 @@ import { ZenodoExportService } from './services/zenodo-export-service';
 import { ZenodoImportService } from './services/zenodo-import-service';
 import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service';
 import { DataverseMetadataMappingService } from './services/dataverse-metadata-mapping-service';
+import { RepositoryProviderRegistry } from './repository-provider-registry';
 
 export default new ContainerModule(bind => {
     // 1. Services
@@ -48,6 +49,7 @@ export default new ContainerModule(bind => {
     bind(ZenodoImportService).toSelf().inSingletonScope();
     bind(DataRepositoryExportDeleteService).toSelf().inSingletonScope();
     bind(DataverseMetadataMappingService).toSelf().inSingletonScope();
+    bind(RepositoryProviderRegistry).toSelf().inSingletonScope();
 
     // 2. Widget
     bind(DataRepositoryManagerWidget).toSelf().inTransientScope();
