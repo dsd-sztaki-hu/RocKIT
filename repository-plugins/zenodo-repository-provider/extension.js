@@ -8,11 +8,13 @@ const vscode = require('vscode')
 
 const { ZenodoClient } = require('./src/zenodo-client')
 const { ZenodoCreateOperation } = require('./src/zenodo-create-operation')
+const { ZenodoUpdateOperation } = require('./src/zenodo-update-operation')
 
 const PROVIDER_ID = 'zenodo'
 const REGISTER_PROVIDER_COMMAND = 'rockit.repositories.registerProvider'
 const UNREGISTER_PROVIDER_COMMAND = 'rockit.repositories.unregisterProvider'
 const CREATE_COMMAND = 'rockit.zenodo.create'
+const UPDATE_COMMAND = 'rockit.zenodo.update'
 
 let registeredExtensionId
 
@@ -20,6 +22,14 @@ let registeredExtensionId
 async function activate(context) {
   registeredExtensionId = context.extension.id
   const createOperation = new ZenodoCreateOperation({
+    vscode,
+    clientFactory: (repository) =>
+      new ZenodoClient({
+        baseUrl: repository.baseUrl,
+        token: repository.apiKey,
+      }),
+  })
+  const updateOperation = new ZenodoUpdateOperation({
     vscode,
     clientFactory: (repository) =>
       new ZenodoClient({
@@ -39,6 +49,16 @@ async function activate(context) {
         (progress) => createOperation.execute(input, progress),
       ),
     ),
+    vscode.commands.registerCommand(UPDATE_COMMAND, (input) =>
+      vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'Updating Zenodo draft from RO-Crate',
+          cancellable: false,
+        },
+        (progress) => updateOperation.execute(input, progress),
+      ),
+    ),
   )
 
   await vscode.commands.executeCommand(REGISTER_PROVIDER_COMMAND, {
@@ -48,6 +68,7 @@ async function activate(context) {
     protocolVersion: '1.0',
     operations: {
       create: CREATE_COMMAND,
+      update: UPDATE_COMMAND,
     },
   })
 }

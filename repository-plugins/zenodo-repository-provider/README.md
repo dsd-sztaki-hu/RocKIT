@@ -13,12 +13,14 @@ The extension currently contains:
   creates a Zenodo draft, uploads local `File` entities and metadata, and saves
   the resulting mapping in `.rockit`;
 - native extension prompts for Zenodo access right, license, embargo date, and
-  access conditions when the crosswalk cannot determine them unambiguously.
+  access conditions when the crosswalk cannot determine them unambiguously;
+- a differential `update` operation for writable drafts that preserves Zenodo
+  access policy and reconciles added, changed, unchanged, and removed files.
 
-Only `create` is advertised to RocKIT at this stage, so unsupported repository
-actions are not shown for connections using this provider. Required descriptive
-metadata such as title, description, publication date, and creators must still
-be present in the RO-Crate.
+Only `create` and `update` are advertised to RocKIT at this stage, so unsupported
+repository actions are not shown for connections using this provider. Required
+descriptive metadata such as title, description, publication date, and creators
+must still be present in the RO-Crate.
 
 Run its focused tests with:
 

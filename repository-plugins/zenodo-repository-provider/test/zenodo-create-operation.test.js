@@ -62,6 +62,12 @@ function testEnvironment(crate = validCrate()) {
         async createDirectory(uri) {
           calls.push(['createDirectory', uri])
         },
+        async stat(uri) {
+          if (!files.has(uri)) {
+            throw new Error('File not found')
+          }
+          return { type: 1, mtime: 1000, size: files.get(uri).byteLength }
+        },
         async writeFile(uri, content) {
           written.set(uri, content)
         },
@@ -71,7 +77,14 @@ function testEnvironment(crate = validCrate()) {
       joinPath(base, ...parts) {
         return [base, ...parts].join('/')
       },
+      parse(value) {
+        return value
+      },
+      file(value) {
+        return value.replace(/\\/g, '/')
+      },
     },
+    FileType: { File: 1, Directory: 2 },
   }
   const uploads = []
   const metadataUpdates = []
@@ -127,9 +140,9 @@ describe('Zenodo create operation', () => {
 
     assert.deepEqual(
       env.uploads.map(({ filename }) => filename),
-      ['ro-crate-metadata.json', 'data__result.txt'],
+      ['data__result.txt', 'ro-crate-metadata.json'],
     )
-    assert.equal(decoder.decode(env.uploads[1].content), 'result')
+    assert.equal(decoder.decode(env.uploads[0].content), 'result')
     assert.equal(env.metadataUpdates.length, 1)
     assert.equal(env.metadataUpdates[0].id, '42')
     assert.equal(env.metadataUpdates[0].metadata.title, 'Plugin export test')
@@ -139,8 +152,8 @@ describe('Zenodo create operation', () => {
       decoder.decode(env.written.get('workspace/.rockit/zenodo-42-mapping.json')),
     )
     assert.deepEqual(mapping, {
-      'ro-crate-metadata.json': 'remote-ro-crate-metadata.json',
       'data/result.txt': 'remote-data__result.txt',
+      'ro-crate-metadata.json': 'remote-ro-crate-metadata.json',
     })
 
     const log = JSON.parse(
@@ -194,6 +207,36 @@ describe('Zenodo create operation', () => {
     assert.equal(
       env.calls.some(([name]) => name === 'createDeposition'),
       false,
+    )
+  })
+
+  it('localizes external local files only in the uploaded crate', async () => {
+    const crate = validCrate()
+    crate['@graph'][2] = {
+      '@id': 'file:///C:/outside/result.txt',
+      '@type': 'File',
+      name: 'result.txt',
+    }
+    const env = testEnvironment(crate)
+    env.files.set('file:///C:/outside/result.txt', encoder.encode('external result'))
+
+    await env.operation.execute({
+      repository: { baseUrl: 'https://sandbox.zenodo.org', apiKey: 'secret' },
+    })
+
+    assert.deepEqual(
+      env.uploads.map(({ filename }) => filename),
+      ['imported_resources__result.txt', 'ro-crate-metadata.json'],
+    )
+    const uploadedCrate = JSON.parse(decoder.decode(env.uploads[1].content))
+    assert.equal(uploadedCrate['@graph'][2]['@id'], 'imported_resources/result.txt')
+    assert.equal(crate['@graph'][2]['@id'], 'file:///C:/outside/result.txt')
+    const mapping = JSON.parse(
+      decoder.decode(env.written.get('workspace/.rockit/zenodo-42-mapping.json')),
+    )
+    assert.equal(
+      mapping['file:///C:/outside/result.txt'],
+      'remote-imported_resources__result.txt',
     )
   })
 })

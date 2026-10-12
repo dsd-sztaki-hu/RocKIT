@@ -5,8 +5,8 @@
 // ******************************************************************************************
 
 const { ZenodoMetadataPreparation } = require('./zenodo-metadata-preparation')
+const { METADATA_FILE, ZenodoUploadPackage } = require('./zenodo-upload-package')
 
-const METADATA_FILE = 'ro-crate-metadata.json'
 const CROSSWALK_FILE = 'arp-zenodo-crosswalk.json'
 
 class ZenodoCreateOperation {
@@ -14,11 +14,13 @@ class ZenodoCreateOperation {
     vscode,
     clientFactory,
     metadataPreparation = new ZenodoMetadataPreparation({ vscode }),
+    uploadPackage = new ZenodoUploadPackage({ vscode }),
     now = () => new Date(),
   }) {
     this.vscode = vscode
     this.clientFactory = clientFactory
     this.metadataPreparation = metadataPreparation
+    this.uploadPackage = uploadPackage
     this.now = now
   }
 
@@ -37,7 +39,8 @@ class ZenodoCreateOperation {
     const crate = this.parseCrate(crateBytes)
     const client = this.clientFactory(repository)
     const metadata = await this.metadataPreparation.prepare(crate, client)
-    const uploadFiles = await this.collectUploadFiles(rootUri, crate, crateBytes)
+    const upload = await this.uploadPackage.prepare(rootUri, crate)
+    const uploadFiles = upload.files
 
     progress.report({ message: 'Creating Zenodo draft deposition...' })
     const deposition = await client.createDeposition()
@@ -53,7 +56,7 @@ class ZenodoCreateOperation {
     for (const file of uploadFiles) {
       progress.report({ message: `Uploading ${file.filename}...` })
       const response = await client.uploadFile(bucketUrl, file.filename, file.content)
-      mapping[file.entityId] = this.uploadedFileId(response) ?? ''
+      mapping[file.localFileId || file.entityId] = this.uploadedFileId(response) ?? ''
     }
 
     progress.report({ message: 'Uploading Zenodo metadata...' })
@@ -116,83 +119,6 @@ class ZenodoCreateOperation {
     } catch (error) {
       throw new Error(`Could not parse ${METADATA_FILE}: ${this.errorMessage(error)}`)
     }
-  }
-
-  async collectUploadFiles(rootUri, crate, crateBytes) {
-    const files = [
-      {
-        entityId: METADATA_FILE,
-        filename: METADATA_FILE,
-        content: crateBytes,
-      },
-    ]
-    const seenFilenames = new Set([METADATA_FILE.toLowerCase()])
-
-    for (const entity of crate['@graph']) {
-      if (!this.isFileEntity(entity)) {
-        continue
-      }
-      const entityId = typeof entity['@id'] === 'string' ? entity['@id'].trim() : ''
-      const relativePath = this.safeRelativePath(entityId)
-      if (!relativePath || relativePath.toLowerCase() === METADATA_FILE) {
-        continue
-      }
-      const filename = this.zenodoFilename(relativePath)
-      if (seenFilenames.has(filename.toLowerCase())) {
-        throw new Error(`Multiple RO-Crate files would be uploaded as '${filename}'.`)
-      }
-      seenFilenames.add(filename.toLowerCase())
-      files.push({
-        entityId,
-        filename,
-        content: await this.readFile(
-          this.vscode.Uri.joinPath(rootUri, ...relativePath.split('/')),
-          `Referenced RO-Crate file not found: ${relativePath}.`,
-        ),
-      })
-    }
-    return files
-  }
-
-  isFileEntity(entity) {
-    if (!entity || typeof entity !== 'object' || Array.isArray(entity)) {
-      return false
-    }
-    const types = Array.isArray(entity['@type']) ? entity['@type'] : [entity['@type']]
-    return types.includes('File')
-  }
-
-  safeRelativePath(entityId) {
-    if (!entityId || entityId === './' || entityId.startsWith('#')) {
-      return undefined
-    }
-    let value
-    try {
-      value = decodeURIComponent(entityId).replace(/\\/g, '/')
-    } catch {
-      throw new Error(`RO-Crate File entity has an invalid encoded @id: ${entityId}`)
-    }
-    if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value) && !value.startsWith('file://./')) {
-      return undefined
-    }
-    value = value.startsWith('file://./')
-      ? value.slice('file://./'.length)
-      : value.replace(/^\.\//, '')
-    if (
-      !value ||
-      value.startsWith('/') ||
-      /^[a-zA-Z]:\//.test(value) ||
-      value.split('/').some((part) => !part || part === '.' || part === '..')
-    ) {
-      throw new Error(
-        `Only files inside the RO-Crate workspace can be uploaded: ${entityId}`,
-      )
-    }
-    return value
-  }
-
-  zenodoFilename(relativePath) {
-    return relativePath.replace(/\//g, '__')
   }
 
   depositionId(payload) {
