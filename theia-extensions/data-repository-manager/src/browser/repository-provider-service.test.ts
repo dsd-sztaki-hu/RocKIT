@@ -56,4 +56,39 @@ describe('RepositoryProviderService', () => {
     ).rejects.toThrow("Repository provider 'test-repository' does not support 'import'")
     expect(executeCommand).not.toHaveBeenCalled()
   })
+
+  it('resolves capabilities and executes through an associated repository connection', async () => {
+    const { service, executeCommand } = createService()
+    const repository = {
+      id: 'connection-1',
+      title: 'My Test Repository',
+      baseUrl: 'https://example.invalid',
+      providerId: 'test-repository',
+    }
+
+    expect(service.supports(repository, 'create')).toBe(true)
+    expect(service.supports(repository, 'import')).toBe(false)
+    await expect(
+      service.executeForRepository(repository, 'create', { title: 'Dataset' }),
+    ).resolves.toEqual({ remoteId: 'test-123' })
+    expect(executeCommand).toHaveBeenCalledWith('rockit.testRepository.create', {
+      title: 'Dataset',
+    })
+  })
+
+  it('keeps legacy repository connections outside plugin dispatch', async () => {
+    const { service, executeCommand } = createService()
+    const repository = {
+      id: 'legacy-connection',
+      title: 'Existing Repository',
+      baseUrl: 'https://example.invalid',
+    }
+
+    expect(service.getProviderForRepository(repository)).toBeUndefined()
+    expect(service.supports(repository, 'create')).toBe(false)
+    await expect(service.executeForRepository(repository, 'create')).rejects.toThrow(
+      "Repository connection 'legacy-connection' is not associated with an extension provider",
+    )
+    expect(executeCommand).not.toHaveBeenCalled()
+  })
 })

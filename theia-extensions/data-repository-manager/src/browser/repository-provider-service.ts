@@ -8,9 +8,11 @@ import { CommandService } from '@theia/core/lib/common'
 import { inject, injectable } from 'inversify'
 
 import {
+  RepositoryOperation,
   RepositoryOperationInvocation,
   RepositoryProviderRegistry,
 } from './repository-provider-registry'
+import { DataRepositoryConfig } from './types'
 
 /**
  * Application-side entry point for repository operations.
@@ -27,6 +29,31 @@ export class RepositoryProviderService {
     @inject(CommandService)
     protected readonly commandService: CommandService,
   ) {}
+
+  getProviderForRepository(repository: DataRepositoryConfig) {
+    return repository.providerId ? this.registry.get(repository.providerId) : undefined
+  }
+
+  supports(repository: DataRepositoryConfig, operation: RepositoryOperation): boolean {
+    return Boolean(this.getProviderForRepository(repository)?.operations[operation])
+  }
+
+  async executeForRepository<TInput = unknown, TResult = unknown>(
+    repository: DataRepositoryConfig,
+    operation: RepositoryOperation,
+    input?: TInput,
+  ): Promise<TResult | undefined> {
+    if (!repository.providerId) {
+      throw new Error(
+        `Repository connection '${repository.id}' is not associated with an extension provider.`,
+      )
+    }
+    return this.execute<TInput, TResult>({
+      providerId: repository.providerId,
+      operation,
+      input,
+    })
+  }
 
   async execute<TInput = unknown, TResult = unknown>(
     invocation: RepositoryOperationInvocation<TInput>,

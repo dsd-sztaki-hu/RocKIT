@@ -11,6 +11,13 @@ export interface DataRepositoryConfig {
     title: string;
     baseUrl: string;
     apiKey?: string;
+    /**
+     * Repository provider registered by an installed extension.
+     *
+     * Existing connections omit this value and continue through RocKIT's
+     * built-in URL capability detection until they are migrated.
+     */
+    providerId?: string;
 }
 
 export interface DataRepositoryTableProps {
