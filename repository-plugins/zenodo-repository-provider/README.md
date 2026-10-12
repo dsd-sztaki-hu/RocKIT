@@ -3,15 +3,20 @@
 This directory is the reference implementation of a repository provider outside
 the RocKIT application bundle.
 
-The extracted code currently contains:
+The extension currently contains:
 
 - `ZenodoClient`, the transport boundary that owns Zenodo URLs,
   authentication headers, timeouts, response parsing, and HTTP errors;
 - the generated ARP/RO-Crate ↔ Zenodo metadata crosswalk and its framework-free
-  runtime.
+  runtime;
+- a registered `create` operation that reads the active RO-Crate workspace,
+  creates a Zenodo draft, uploads local `File` entities and metadata, and saves
+  the resulting mapping in `.rockit`.
 
-Workspace access, dialogs, and repository operation registration will move here
-in later steps.
+Only `create` is advertised to RocKIT at this stage, so unsupported repository
+actions are not shown for connections using this provider. The crate must
+already contain all metadata required by Zenodo; metadata-completion UI remains
+a later step.
 
 Run its focused tests with:
 

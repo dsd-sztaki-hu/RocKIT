@@ -1,11 +1,21 @@
 {
-  "name": "@rockit/zenodo-repository-provider",
+  "name": "zenodo-repository-provider",
   "displayName": "RocKIT Zenodo Repository Provider",
   "description": "Reference Zenodo repository provider for RocKIT.",
   "version": "0.1.0",
   "publisher": "rockit",
   "license": "Apache-2.0",
   "private": true,
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
   "scripts": {
     "build": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
     "test": "yarn build && node --test test/*.test.js"

@@ -209,7 +209,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                 <select
                                     className="theia-select data-repo-config__input"
                                     value={this.providerIdValue}
-                                    disabled={this.isTesting || Boolean(this.repoToEdit)}
+                                    disabled={this.isTesting}
                                     onChange={(event) => {
                                         this.providerIdValue = event.target.value;
                                         this.render();

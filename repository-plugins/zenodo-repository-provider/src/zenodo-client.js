@@ -14,8 +14,17 @@ class ZenodoApiError extends Error {
   }
 }
 
+const DEFAULT_USER_AGENT =
+  'RocKIT-Zenodo-Repository-Provider/0.1.0 (+https://github.com/dsd-sztaki-hu/RocKIT)'
+
 class ZenodoClient {
-  constructor({ baseUrl, token, fetchImpl = globalThis.fetch, timeoutMs = 120000 }) {
+  constructor({
+    baseUrl,
+    token,
+    fetchImpl = globalThis.fetch,
+    timeoutMs = 120000,
+    userAgent = DEFAULT_USER_AGENT,
+  }) {
     if (typeof fetchImpl !== 'function') {
       throw new Error('A fetch implementation is required.')
     }
@@ -23,6 +32,7 @@ class ZenodoClient {
     this.token = requireText(token, 'A Zenodo API token is required.')
     this.fetchImpl = fetchImpl
     this.timeoutMs = timeoutMs
+    this.userAgent = requireText(userAgent, 'A user agent is required.')
   }
 
   createDeposition() {
@@ -97,7 +107,11 @@ class ZenodoClient {
   }
 
   authorizationHeaders() {
-    return { accept: 'application/json', authorization: `Bearer ${this.token}` }
+    return {
+      accept: 'application/json',
+      authorization: `Bearer ${this.token}`,
+      'user-agent': this.userAgent,
+    }
   }
 
   jsonHeaders() {
@@ -183,4 +197,4 @@ function payloadSummary(payload) {
   }
 }
 
-module.exports = { ZenodoApiError, ZenodoClient }
+module.exports = { DEFAULT_USER_AGENT, ZenodoApiError, ZenodoClient }

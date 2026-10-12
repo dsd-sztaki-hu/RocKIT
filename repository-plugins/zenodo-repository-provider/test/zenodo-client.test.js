@@ -7,7 +7,11 @@
 const assert = require('node:assert/strict')
 const { describe, it } = require('node:test')
 
-const { ZenodoApiError, ZenodoClient } = require('../src/zenodo-client')
+const {
+  DEFAULT_USER_AGENT,
+  ZenodoApiError,
+  ZenodoClient,
+} = require('../src/zenodo-client')
 
 const jsonResponse = (payload, options = {}) => ({
   ok: options.ok ?? true,
@@ -32,6 +36,7 @@ describe('ZenodoClient', () => {
     assert.equal(calls[0][0], 'https://sandbox.zenodo.org/api/deposit/depositions')
     assert.equal(calls[0][1].method, 'POST')
     assert.equal(calls[0][1].headers.authorization, 'Bearer secret-token')
+    assert.equal(calls[0][1].headers['user-agent'], DEFAULT_USER_AGENT)
     assert.equal(calls[0][1].body, '{}')
   })
 
