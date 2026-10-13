@@ -13,7 +13,14 @@ export const RepositoryProviderCommands = {
   UNREGISTER: 'rockit.repositories.unregisterProvider',
   LIST: 'rockit.repositories.listProviders',
   EXECUTE: 'rockit.repositories.executeOperation',
+  PROMPT_REQUIRED_METADATA: 'rockit.repositories.promptRequiredMetadata',
 } as const
+
+export interface RepositoryRequiredMetadataPrompt {
+  kind: 'zenodo-access-policy'
+  defaults: Record<string, unknown>
+  options: Array<{ value: string; label: string }>
+}
 
 export type RepositoryOperation = 'import' | 'create' | 'update' | 'sync' | 'delete'
 

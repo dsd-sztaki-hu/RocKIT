@@ -82,6 +82,23 @@ class ZenodoClient {
     return payload
   }
 
+  async getRecord(recordId, draft = false) {
+    const suffix = draft ? '/draft' : ''
+    return this.requestJson(
+      `/api/records/${encodeURIComponent(requireText(recordId, 'A record id is required.'))}${suffix}`,
+      { method: 'GET', headers: this.authorizationHeaders() },
+      'Zenodo record lookup failed',
+    )
+  }
+
+  downloadFile(downloadUrl) {
+    return this.requestBytes(
+      requireText(downloadUrl, 'A Zenodo file download URL is required.'),
+      { method: 'GET', headers: this.authorizationHeaders() },
+      'Zenodo file download failed',
+    )
+  }
+
   listLicenses(size = 1000) {
     return this.requestJson(
       `/api/licenses/?size=${encodeURIComponent(String(size))}`,
@@ -146,6 +163,31 @@ class ZenodoClient {
         )
       }
       return payload
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  async requestBytes(pathOrUrl, init, errorPrefix) {
+    const url = this.resolveUrl(pathOrUrl)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs)
+    try {
+      const response = await this.fetchImpl(url, {
+        ...init,
+        redirect: 'follow',
+        signal: controller.signal,
+      })
+      if (!response.ok) {
+        const payload = await readResponsePayload(response)
+        throw new ZenodoApiError(
+          errorPrefix,
+          response.status,
+          response.url || url,
+          payload,
+        )
+      }
+      return new Uint8Array(await response.arrayBuffer())
     } finally {
       clearTimeout(timeout)
     }

@@ -10,12 +10,7 @@ const {
   zenodoMetadataOptions,
 } = require('../lib/zenodo-metadata-crosswalk')
 
-const ACCESS_RIGHTS = [
-  { value: 'open', label: 'Open' },
-  { value: 'embargoed', label: 'Embargoed' },
-  { value: 'restricted', label: 'Restricted' },
-  { value: 'closed', label: 'Closed' },
-]
+const PROMPT_REQUIRED_METADATA_COMMAND = 'rockit.repositories.promptRequiredMetadata'
 
 class ZenodoMetadataPromptCancelledError extends Error {
   constructor() {
@@ -60,54 +55,32 @@ class ZenodoMetadataPreparation {
   }
 
   async promptForAccessPolicy(metadata, client) {
-    const currentAccessRight = this.text(metadata.access_right) || 'open'
-    const accessRight = await this.pick(
-      'Required Zenodo Metadata',
-      'Select the access right for this deposition',
-      ACCESS_RIGHTS,
-      currentAccessRight,
+    const defaultLicense =
+      this.text(metadata.license) ||
+      (metadata.upload_type === 'dataset' ? 'cc-zero' : 'cc-by')
+    const loadedLicenses = await this.loadLicenseOptions(client)
+    const licenses = loadedLicenses.some((option) => option.value === defaultLicense)
+      ? loadedLicenses
+      : [
+          { value: defaultLicense, label: `${defaultLicense} (current value)` },
+          ...loadedLicenses,
+        ]
+    const supplied = await this.vscode.commands.executeCommand(
+      PROMPT_REQUIRED_METADATA_COMMAND,
+      {
+        kind: 'zenodo-access-policy',
+        defaults: {
+          ...metadata,
+          access_right: this.text(metadata.access_right) || 'open',
+          license: defaultLicense,
+        },
+        options: licenses,
+      },
     )
-    const result = { access_right: accessRight }
-
-    if (accessRight === 'open' || accessRight === 'embargoed') {
-      const defaultLicense =
-        this.text(metadata.license) ||
-        (metadata.upload_type === 'dataset' ? 'cc-zero' : 'cc-by')
-      const loadedLicenses = await this.loadLicenseOptions(client)
-      const licenses = loadedLicenses.some((option) => option.value === defaultLicense)
-        ? loadedLicenses
-        : [
-            { value: defaultLicense, label: `${defaultLicense} (current value)` },
-            ...loadedLicenses,
-          ]
-      result.license = await this.pick(
-        'Required Zenodo Metadata',
-        'Select the license that applies to all files',
-        licenses,
-        defaultLicense,
-      )
+    if (!this.object(supplied)) {
+      throw new ZenodoMetadataPromptCancelledError()
     }
-
-    if (accessRight === 'embargoed') {
-      result.embargo_date = await this.input(
-        'Required Zenodo Metadata',
-        'Enter the embargo end date (YYYY-MM-DD)',
-        this.text(metadata.embargo_date),
-        (value) =>
-          /^\d{4}-\d{2}-\d{2}$/.test(value) ? undefined : 'Use the YYYY-MM-DD format.',
-      )
-    }
-
-    if (accessRight === 'restricted') {
-      result.access_conditions = await this.input(
-        'Required Zenodo Metadata',
-        'Describe the conditions under which access may be granted',
-        this.text(metadata.access_conditions),
-        (value) => (value.trim() ? undefined : 'Access conditions are required.'),
-      )
-    }
-
-    return result
+    return supplied
   }
 
   async loadLicenseOptions(client) {
@@ -158,39 +131,6 @@ class ZenodoMetadataPreparation {
     return Array.from(byValue.values())
   }
 
-  async pick(title, placeHolder, options, selectedValue) {
-    const ordered = [
-      ...options.filter((option) => option.value === selectedValue),
-      ...options.filter((option) => option.value !== selectedValue),
-    ]
-    const selected = await this.vscode.window.showQuickPick(
-      ordered.map((option) => ({
-        label: option.label,
-        description: option.value,
-        value: option.value,
-      })),
-      { title, placeHolder, matchOnDescription: true },
-    )
-    if (!selected) {
-      throw new ZenodoMetadataPromptCancelledError()
-    }
-    return selected.value
-  }
-
-  async input(title, prompt, value, validateInput) {
-    const selected = await this.vscode.window.showInputBox({
-      title,
-      prompt,
-      value: value || '',
-      ignoreFocusOut: true,
-      validateInput,
-    })
-    if (selected === undefined) {
-      throw new ZenodoMetadataPromptCancelledError()
-    }
-    return selected.trim()
-  }
-
   text(value) {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined
   }
@@ -201,7 +141,7 @@ class ZenodoMetadataPreparation {
 }
 
 module.exports = {
-  ACCESS_RIGHTS,
+  PROMPT_REQUIRED_METADATA_COMMAND,
   ZenodoMetadataPreparation,
   ZenodoMetadataPromptCancelledError,
 }

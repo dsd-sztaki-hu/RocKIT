@@ -10,6 +10,7 @@ const { describe, it } = require('node:test')
 const {
   ZenodoMetadataPreparation,
   ZenodoMetadataPromptCancelledError,
+  PROMPT_REQUIRED_METADATA_COMMAND,
 } = require('../src/zenodo-metadata-preparation')
 
 function crate() {
@@ -33,16 +34,14 @@ describe('Zenodo metadata preparation', () => {
   it('prompts for conditional access metadata and uses repository licenses', async () => {
     const prompts = []
     const vscode = {
-      window: {
-        async showQuickPick(items, options) {
-          prompts.push(options.placeHolder)
-          return options.placeHolder.includes('access right')
-            ? items.find((item) => item.value === 'embargoed')
-            : items.find((item) => item.value === 'custom-license')
-        },
-        async showInputBox(options) {
-          prompts.push(options.prompt)
-          return '2027-01-31'
+      commands: {
+        async executeCommand(command, prompt) {
+          prompts.push({ command, prompt })
+          return {
+            access_right: 'embargoed',
+            license: 'custom-license',
+            embargo_date: '2027-01-31',
+          }
         },
       },
     }
@@ -62,16 +61,21 @@ describe('Zenodo metadata preparation', () => {
     assert.equal(metadata.access_right, 'embargoed')
     assert.equal(metadata.license, 'custom-license')
     assert.equal(metadata.embargo_date, '2027-01-31')
-    assert.deepEqual(prompts, [
-      'Select the access right for this deposition',
-      'Select the license that applies to all files',
-      'Enter the embargo end date (YYYY-MM-DD)',
+    assert.equal(prompts.length, 1)
+    assert.equal(prompts[0].command, PROMPT_REQUIRED_METADATA_COMMAND)
+    assert.equal(prompts[0].prompt.kind, 'zenodo-access-policy')
+    assert.equal(prompts[0].prompt.defaults.access_right, 'open')
+    assert.equal(prompts[0].prompt.defaults.license, 'cc-zero')
+    assert.deepEqual(prompts[0].prompt.options, [
+      { value: 'custom-license', label: 'Custom License (custom-license)' },
+      { value: 'cc-zero', label: 'cc-zero' },
+      { value: 'cc-by', label: 'cc-by' },
     ])
   })
 
   it('stops before repository creation when the user cancels', async () => {
     const preparation = new ZenodoMetadataPreparation({
-      vscode: { window: { showQuickPick: async () => undefined } },
+      vscode: { commands: { executeCommand: async () => undefined } },
     })
 
     await assert.rejects(

@@ -40,14 +40,13 @@ function testEnvironment(crate = validCrate()) {
   const written = new Map()
   const calls = []
   const vscode = {
-    window: {
-      async showQuickPick(items, options) {
-        calls.push(['showQuickPick', options.placeHolder])
-        return items[0]
-      },
-      async showInputBox(options) {
-        calls.push(['showInputBox', options.prompt])
-        return options.value
+    commands: {
+      async executeCommand(command, prompt) {
+        calls.push(['executeCommand', command])
+        return {
+          access_right: prompt.defaults.access_right,
+          license: prompt.defaults.license,
+        }
       },
     },
     workspace: {

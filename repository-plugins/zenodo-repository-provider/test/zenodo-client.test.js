@@ -103,6 +103,31 @@ describe('ZenodoClient', () => {
     assert.equal(calls[0][1].body, content)
   })
 
+  it('downloads binary file content through the authenticated transport', async () => {
+    const calls = []
+    const content = new Uint8Array([4, 5, 6])
+    const client = new ZenodoClient({
+      baseUrl: 'https://zenodo.org',
+      token: 'token',
+      fetchImpl: async (...args) => {
+        calls.push(args)
+        return {
+          ok: true,
+          status: 200,
+          url: args[0],
+          arrayBuffer: async () => content.buffer,
+        }
+      },
+    })
+
+    assert.deepEqual(
+      await client.downloadFile('https://zenodo.org/api/files/bucket/result.txt'),
+      content,
+    )
+    assert.equal(calls[0][1].method, 'GET')
+    assert.equal(calls[0][1].headers.authorization, 'Bearer token')
+  })
+
   it('rejects invalid file-list responses', async () => {
     const client = new ZenodoClient({
       baseUrl: 'https://zenodo.org',

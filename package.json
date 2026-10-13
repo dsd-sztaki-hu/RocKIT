@@ -60,7 +60,7 @@
     "pack:rocrate-mcp-standalone": "yarn build:rocrate-mcp-standalone && yarn workspace @arpproject/rocrate-mcp-server pack:standalone",
     "test:rocrate-tools": "yarn workspace rocrate-context-core test && yarn workspace rockit-common test && yarn workspace @arpproject/rocrate-mcp-server test",
     "verify:rocrate-tools": "yarn build:rocrate-tools && yarn test:rocrate-tools",
-    "download:plugins": "theia download:plugins && node scripts/configure-viewer-plugins.js",
+    "download:plugins": "theia download:plugins && node scripts/configure-viewer-plugins.js && node scripts/stage-local-vscode-plugins.js",
     "build:browser": "yarn run build:extensions && yarn run download:plugins && yarn workspace browser-app run bundle",
     "build:electron": "node scripts/build-electron.js",
     "build:electron:impl": "yarn run build:extensions && yarn run download:plugins && yarn workspace electron-app run bundle",
@@ -113,5 +113,8 @@
     "vscode.json": "https://open-vsx.org/api/vscode/json/1.95.3/file/vscode.json-1.95.3.vsix",
     "vscode.json-language-features": "https://open-vsx.org/api/vscode/json-language-features/1.95.3/file/vscode.json-language-features-1.95.3.vsix",
     "janisdd.vscode-edit-csv": "https://open-vsx.org/api/janisdd/vscode-edit-csv/0.11.9/file/janisdd.vscode-edit-csv-0.11.9.vsix"
+  },
+  "rockitBundledPlugins": {
+    "rockit.zenodo-repository-provider": "repository-plugins/zenodo-repository-provider"
   }
 }

@@ -2296,7 +2296,31 @@ export class ZenodoExportService {
     if (creators.length) {
       merged.creators = creators
     }
+    const keywords = this.normalizeZenodoRecordKeywords(
+      recordMetadata.keywords ?? recordMetadata.subjects,
+    )
+    if (keywords.length) {
+      merged.keywords = keywords
+    }
     return merged
+  }
+
+  protected normalizeZenodoRecordKeywords(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return []
+    }
+    return this.uniqueStrings(
+      value.flatMap(item => {
+        if (typeof item === 'string') {
+          return [item]
+        }
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          return []
+        }
+        const subject = item as Record<string, unknown>
+        return [this.firstString(subject.subject, subject.term, subject.title)]
+      }).filter((item): item is string => !!item),
+    )
   }
 
   protected normalizeZenodoRecordCreators(value: unknown): Array<Record<string, unknown>> {

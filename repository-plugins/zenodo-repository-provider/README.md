@@ -16,8 +16,11 @@ The extension currently contains:
   access conditions when the crosswalk cannot determine them unambiguously;
 - a differential `update` operation for writable drafts that preserves Zenodo
   access policy and reconciles added, changed, unchanged, and removed files.
+- a `sync` operation that downloads remote files safely, applies the reverse
+  metadata crosswalk, and supports complete, remote-additions, and
+  local-additions merge policies.
 
-Only `create` and `update` are advertised to RocKIT at this stage, so unsupported
+Only `create`, `update`, and `sync` are advertised to RocKIT at this stage, so unsupported
 repository actions are not shown for connections using this provider. Required
 descriptive metadata such as title, description, publication date, and creators
 must still be present in the RO-Crate.
@@ -27,3 +30,8 @@ Run its focused tests with:
 ```sh
 yarn --cwd repository-plugins/zenodo-repository-provider test
 ```
+
+RocKIT currently has no user-facing extension installation flow. Reference
+repository providers that should ship with the application are therefore listed
+in the root `rockitBundledPlugins` configuration. `yarn download:plugins` builds
+and stages those local VS Code plugins beside the plugins downloaded by Theia.

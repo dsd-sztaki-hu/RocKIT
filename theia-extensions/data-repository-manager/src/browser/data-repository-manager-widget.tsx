@@ -1602,6 +1602,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     const provider = this.providerService.getProviderForRepository(repository)
     try {
       await this.providerService.executeForRepository(repository, operation, input)
+      if (operation === 'sync' || operation === 'import') {
+        await this.roCrateLoader.refresh()
+        await this.loadData()
+      }
       this.messageService.info(
         nls.localize(
           'rockit/dataRepository/pluginOperationCompleted',
