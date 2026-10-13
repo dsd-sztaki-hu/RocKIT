@@ -10,6 +10,7 @@ const test = require('node:test')
 const {
   chooseMcpServerName,
   hasRememberedMcpSetting,
+  forgetMcpKeepSetting,
   mcpServerMatches,
   mcpServerUsesSocket,
   parseMcpServerEntries,
@@ -110,4 +111,22 @@ test('remembers keep decisions by exact configuration snapshot', () => {
     }),
     false,
   )
+})
+
+test('replaces and forgets only the matching remembered configuration decision', () => {
+  const baseSetting = {
+    agentId: 'codex',
+    configPath: '/tmp/config.toml',
+    kind: 'toml',
+    serverName: 'rockitmcp',
+    signature: 'first',
+  }
+  const otherSetting = { ...baseSetting, serverName: 'other', signature: 'other' }
+  const stored = rememberMcpKeepSetting(
+    rememberMcpKeepSetting([otherSetting], baseSetting),
+    { ...baseSetting, signature: 'updated' },
+  )
+
+  assert.deepEqual(stored, [otherSetting, { ...baseSetting, signature: 'updated' }])
+  assert.deepEqual(forgetMcpKeepSetting(stored, baseSetting), [otherSetting])
 })

@@ -70,6 +70,9 @@ export function buildSchemaFetchCandidates(
   provider?: SchemaSourceProviderLike,
 ): string[] {
   const value = input.trim()
+  if (!value) {
+    return []
+  }
   const resourceBaseUrl = deriveResourceBaseUrl(provider, value)
   const providerTemplateCandidates = buildProviderTemplateCandidates(value, provider, resourceBaseUrl)
 

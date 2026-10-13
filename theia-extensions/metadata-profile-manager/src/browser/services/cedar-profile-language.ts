@@ -28,5 +28,9 @@ export function toLocalizedConvertedProfilePath(
   if (separator < 0) {
     return `${language}/${canonicalPath}`;
   }
-  return `${canonicalPath.slice(0, separator)}/${language}/${canonicalPath.slice(separator + 1)}`;
+  const directory = canonicalPath.slice(0, separator);
+  if (directory.split('/').pop() === language) {
+    return canonicalPath;
+  }
+  return `${directory}/${language}/${canonicalPath.slice(separator + 1)}`;
 }

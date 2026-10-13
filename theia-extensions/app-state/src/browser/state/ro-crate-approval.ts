@@ -113,6 +113,31 @@ export function maintainRoCrateApprovalFile(
   changedProperties: RoCrateChangedProperty[],
   now = new Date().toISOString(),
 ): RoCrateApprovalFile {
+  const renamedEntityIds = new Map<string, string>()
+  for (const change of changedProperties) {
+    const previousEntityId = typeof change.previousValue === 'string'
+      ? change.previousValue.trim()
+      : ''
+    if (
+      change.propertyName === '@id' &&
+      change.operation === 'update' &&
+      previousEntityId &&
+      change.entityId
+    ) {
+      renamedEntityIds.set(previousEntityId, change.entityId)
+    }
+  }
+
+  const resolveCurrentEntityId = (entityId: string): string => {
+    const visited = new Set<string>()
+    let current = entityId
+    while (renamedEntityIds.has(current) && !visited.has(current)) {
+      visited.add(current)
+      current = renamedEntityIds.get(current)!
+    }
+    return current
+  }
+
   const previousItemsByKey = new Map<string, RoCrateApprovalItem>()
   const previousEntityIdsByKey = new Map<string, string>()
 
@@ -120,10 +145,11 @@ export function maintainRoCrateApprovalFile(
     if (!entity || typeof entity !== 'object') {
       continue
     }
-    const entityId = typeof entity['@id'] === 'string' ? entity['@id'] : ''
-    if (!entityId) {
+    const storedEntityId = typeof entity['@id'] === 'string' ? entity['@id'] : ''
+    if (!storedEntityId) {
       continue
     }
+    const entityId = resolveCurrentEntityId(storedEntityId)
     const approval = Array.isArray(entity.approval)
       ? entity.approval
           .filter((item): item is RoCrateApprovalItem => Boolean(item) && typeof item === 'object')

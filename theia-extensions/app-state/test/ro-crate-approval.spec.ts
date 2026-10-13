@@ -7,6 +7,7 @@
 import {
   collectRoCrateChangedProperties,
   maintainRoCrateApprovalFile,
+  parseRoCrateApprovalFile,
   type RoCrateApprovalFile,
   removeRoCrateApprovalProperties,
 } from '../src/browser/state/ro-crate-approval'
@@ -180,6 +181,132 @@ describe('maintainRoCrateApprovalFile', () => {
       },
     ])
   })
+
+  it('preserves an approval only while the outstanding change is unchanged', () => {
+    const existing: RoCrateApprovalFile = [
+      {
+        '@id': './',
+        approval: [
+          {
+            propertyName: 'name',
+            previousValue: 'Original name',
+            operation: 'update',
+            approved: true,
+            timestamp: '2026-06-01T10:00:00.000Z',
+          },
+        ],
+      },
+    ]
+
+    const unchanged = maintainRoCrateApprovalFile(
+      existing,
+      [{
+        entityId: './',
+        propertyName: 'name',
+        operation: 'update',
+        previousValue: 'Original name',
+      }],
+      '2026-06-12T10:00:00.000Z',
+    )
+    const changedAgain = maintainRoCrateApprovalFile(
+      existing,
+      [{
+        entityId: './',
+        propertyName: 'name',
+        operation: 'update',
+        previousValue: 'Intermediate name',
+      }],
+      '2026-06-12T10:00:00.000Z',
+    )
+
+    expect(unchanged[0].approval[0]).toEqual(expect.objectContaining({
+      approved: true,
+      timestamp: '2026-06-01T10:00:00.000Z',
+    }))
+    expect(changedAgain[0].approval[0]).toEqual(expect.objectContaining({
+      approved: false,
+      timestamp: '2026-06-12T10:00:00.000Z',
+    }))
+  })
+
+  it('moves existing approvals to the live entity when its ID changes', () => {
+    const existing: RoCrateApprovalFile = [
+      {
+        '@id': 'old.txt',
+        approval: [
+          {
+            propertyName: 'name',
+            previousValue: 'Old name',
+            operation: 'update',
+            approved: false,
+            timestamp: '2026-06-01T10:00:00.000Z',
+          },
+        ],
+      },
+    ]
+
+    const result = maintainRoCrateApprovalFile(
+      existing,
+      [{
+        entityId: 'new.txt',
+        propertyName: '@id',
+        operation: 'update',
+        previousValue: 'old.txt',
+      }],
+      '2026-06-12T10:00:00.000Z',
+    )
+
+    expect(result).toEqual([
+      {
+        '@id': 'new.txt',
+        approval: [
+          expect.objectContaining({ propertyName: '@id', previousValue: 'old.txt' }),
+          expect.objectContaining({ propertyName: 'name', previousValue: 'Old name' }),
+        ],
+      },
+    ])
+  })
+})
+
+describe('parseRoCrateApprovalFile', () => {
+  it('migrates legacy approval entries and ignores malformed records', () => {
+    const result = parseRoCrateApprovalFile({
+      changes: [
+        {
+          entityId: './',
+          property: 'name',
+          previousValue: 'Before',
+          operation: 'add',
+          status: 'approved',
+          updatedAt: '2026-06-01T10:00:00.000Z',
+        },
+        { entityId: '', propertyName: 'description' },
+        null,
+      ],
+    })
+
+    expect(result).toEqual([
+      {
+        '@id': './',
+        approval: [
+          {
+            propertyName: 'name',
+            previousValue: 'Before',
+            operation: 'create',
+            approved: true,
+            timestamp: '2026-06-01T10:00:00.000Z',
+          },
+        ],
+      },
+    ])
+  })
+
+  it.each([null, {}, { changes: 'invalid' }])(
+    'returns undefined for unsupported approval data %#',
+    value => {
+      expect(parseRoCrateApprovalFile(value)).toBeUndefined()
+    },
+  )
 })
 
 describe('removeRoCrateApprovalProperties', () => {

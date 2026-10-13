@@ -1,0 +1,22 @@
+// ******************************************************************************************
+// Copyright (C) 2025-2026 SZTAKI, Department of Distributed Systems (https://dsd-sztaki.hu).
+//
+// SPDX-License-Identifier: Apache-2.0
+// ******************************************************************************************
+
+import type { Config } from '@jest/types'
+
+export default async (): Promise<Config.InitialOptions> => ({
+  preset: 'ts-jest',
+  testMatch: ['**.spec.ts', '**.test.ts'],
+  rootDir: '../',
+  transform: {
+    '^.+\\.(ts)$': 'ts-jest',
+  },
+  testEnvironment: 'jsdom',
+  setupFiles: ['<rootDir>/configs/jest-setup.js'],
+  moduleNameMapper: {
+    '^vscode-languageserver-types': require.resolve('vscode-languageserver-types'),
+    '^msgpackr': require.resolve('msgpackr'),
+  },
+})

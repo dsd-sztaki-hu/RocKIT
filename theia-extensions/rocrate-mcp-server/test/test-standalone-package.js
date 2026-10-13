@@ -13,6 +13,9 @@ const { execFileSync, spawn } = require('node:child_process')
 const packageRoot = path.resolve(__dirname, '..')
 const standaloneRoot = path.join(packageRoot, 'dist', 'npm')
 const packageJsonPath = path.join(standaloneRoot, 'package.json')
+const workspacePackageJson = JSON.parse(
+  fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'),
+)
 
 assert.ok(
   fs.existsSync(packageJsonPath),
@@ -21,7 +24,7 @@ assert.ok(
 
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
 assert.equal(packageJson.name, '@arpproject/vibearp-mcp')
-assert.equal(packageJson.version, '1.1.0')
+assert.equal(packageJson.version, workspacePackageJson.version)
 assert.equal(packageJson.description, 'VibeARP MCP Server')
 assert.deepEqual(packageJson.bin, { 'rocrate-mcp-server': 'lib/server.js' })
 assert.equal(packageJson.license, 'Apache-2.0')

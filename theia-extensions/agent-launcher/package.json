@@ -40,7 +40,8 @@
     "clean": "theiaext clean",
     "compile": "theiaext compile && node scripts/copy-css.js",
     "lint": "theiaext lint",
-    "test": "theiaext test",
+    "pretest": "yarn compile",
+    "test": "theiaext test && node test/test-mcp-config.js",
     "watch": "node scripts/copy-css.js && tsc -b -w --preserveWatchOutput"
   },
   "devDependencies": {

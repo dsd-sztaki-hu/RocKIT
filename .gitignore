@@ -17,6 +17,8 @@ node_modules
 *.log
 __pycache__/
 *.pyc
+coverage/
+.nyc_output/
 
 lib
 dist
