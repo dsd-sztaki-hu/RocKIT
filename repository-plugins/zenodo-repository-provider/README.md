@@ -22,8 +22,10 @@ The extension currently contains:
 - an `import` operation that downloads a Zenodo upload into a new RO-Crate,
   restores flattened file paths when metadata is available, applies the reverse
   crosswalk, and persists the record link needed by later updates and syncs.
+- a `delete` operation that removes a remote Zenodo draft while RocKIT retains
+  responsibility for cleaning up its repository-independent local link state.
 
-Only `create`, `update`, `sync`, and `import` are advertised to RocKIT at this stage, so unsupported
+Only `create`, `update`, `sync`, `import`, and `delete` are advertised to RocKIT at this stage, so unsupported
 repository actions are not shown for connections using this provider. Required
 descriptive metadata such as title, description, publication date, and creators
 must still be present in the RO-Crate.

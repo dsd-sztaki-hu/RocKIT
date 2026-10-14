@@ -62,6 +62,24 @@ describe('ZenodoClient', () => {
     assert.equal(calls[0][1].body, JSON.stringify({ metadata: { title: 'Dataset' } }))
   })
 
+  it('deletes a deposition through the authenticated deposit API', async () => {
+    const calls = []
+    const client = new ZenodoClient({
+      baseUrl: 'https://zenodo.org',
+      token: 'token',
+      fetchImpl: async (...args) => {
+        calls.push(args)
+        return jsonResponse({})
+      },
+    })
+
+    await client.deleteDeposition('42')
+
+    assert.equal(calls[0][0], 'https://zenodo.org/api/deposit/depositions/42')
+    assert.equal(calls[0][1].method, 'DELETE')
+    assert.equal(calls[0][1].headers.authorization, 'Bearer token')
+  })
+
   it('loads the repository license vocabulary with the identified client', async () => {
     const calls = []
     const client = new ZenodoClient({

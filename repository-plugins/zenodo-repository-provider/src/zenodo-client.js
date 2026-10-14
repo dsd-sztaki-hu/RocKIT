@@ -47,6 +47,14 @@ class ZenodoClient {
     )
   }
 
+  deleteDeposition(depositionId) {
+    return this.requestJson(
+      `/api/deposit/depositions/${encodeURIComponent(requireText(depositionId, 'A deposition id is required.'))}`,
+      { method: 'DELETE', headers: this.authorizationHeaders() },
+      'Zenodo deposition deletion failed',
+    )
+  }
+
   getDeposition(depositionId) {
     return this.requestJson(
       `/api/deposit/depositions/${encodeURIComponent(requireText(depositionId, 'A deposition id is required.'))}`,

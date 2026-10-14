@@ -1580,6 +1580,12 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           repository,
           exportTarget: target,
         })
+        await this.exportDeleteService.deleteExport(
+          repository,
+          capabilities,
+          target,
+          false,
+        )
       } else {
         await this.exportDeleteService.deleteExport(
           repository,
