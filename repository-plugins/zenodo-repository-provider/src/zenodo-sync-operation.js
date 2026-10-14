@@ -4,17 +4,27 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-const { createHash } = require('node:crypto')
-
 const { applyZenodoMetadataToRoCrate } = require('../lib/zenodo-metadata-crosswalk')
+const {
+  appendExportLogEvent,
+  normalizeExportLogEntries,
+  serializeExportLogEntries,
+} = require('./export-log')
 const { mergeRoCratesForSync } = require('./ro-crate-sync-merge')
 const { ZenodoCreateOperation } = require('./zenodo-create-operation')
+const { ZenodoFileHashStore } = require('./zenodo-file-hash-store')
 
 const CROSSWALK_FILE = 'arp-zenodo-crosswalk.json'
 const METADATA_FILE = 'ro-crate-metadata.json'
 const SYNC_MODES = new Set(['complete', 'remote-additions', 'local-additions'])
 
 class ZenodoSyncOperation extends ZenodoCreateOperation {
+  constructor(options) {
+    super(options)
+    this.fileHashStore =
+      options.fileHashStore || new ZenodoFileHashStore({ vscode: options.vscode, now: options.now })
+  }
+
   async execute(input, progress = { report() {} }) {
     const repository = input?.repository
     const exportTarget = input?.exportTarget
@@ -40,90 +50,139 @@ class ZenodoSyncOperation extends ZenodoCreateOperation {
     const mappingUri = this.vscode.Uri.joinPath(rootUri, '.rockit', exportTarget.mappingFile)
     const mapping = await this.readMapping(mappingUri)
     const client = this.clientFactory(repository)
-
-    progress.report({ message: 'Loading Zenodo deposition...' })
-    const deposition = await client.getDeposition(exportTarget.pid)
-    const depositionId = this.depositionId(deposition) || String(exportTarget.pid)
-    const metadata = await this.syncMetadata(client, deposition, depositionId)
-    const remoteFiles = this.normalizeRemoteFiles(
-      await client.listDepositionFiles(depositionId),
-    )
-    const remoteMetadata = remoteFiles.find((file) => file.filename === METADATA_FILE)
-    if (!remoteMetadata) {
-      throw new Error(`The existing Zenodo export does not contain ${METADATA_FILE}.`)
+    const logEntry = {
+      pid: String(exportTarget.pid),
+      target: exportTarget.target,
+      repository: this.normalizeBaseUrl(repository.baseUrl),
+      mappingFile: exportTarget.mappingFile,
+      crosswalkFile: CROSSWALK_FILE,
+      syncType: 'sync',
+      datasetName: exportTarget.datasetName,
+      lastSuccessfulActionAt: exportTarget.lastSuccessfulActionAt,
     }
-    const remoteCrate = this.parseCrate(await client.downloadFile(remoteMetadata.downloadUrl))
-    const remoteToLocal = this.invertMapping(mapping)
-    const plan = []
-    const relocatedIds = {}
-    let keptLocalFileCount = 0
+    await this.appendSyncLog(rootUri, { ...logEntry, status: 'cancelled' })
 
-    for (const remote of remoteFiles.filter((file) => file.filename !== METADATA_FILE)) {
-      const remotePath = this.remoteCratePath(remote, remoteCrate)
-      const mappedId = this.mappedLocalId(remote, remoteToLocal)
-      const fallbackId = this.fallbackPath(remote.filename)
-      const localId = mode === 'remote-additions'
-        ? mappedId || fallbackId
-        : remotePath || mappedId || fallbackId
-      const localPath = this.localPath(localId) || fallbackId
-      if (!localId || !localPath) continue
+    try {
+      progress.report({ message: 'Loading Zenodo deposition...' })
+      const deposition = await client.getDeposition(exportTarget.pid)
+      const depositionId = this.depositionId(deposition) || String(exportTarget.pid)
+      const metadata = await this.syncMetadata(client, deposition, depositionId)
+      const remoteFiles = this.normalizeRemoteFiles(
+        await client.listDepositionFiles(depositionId),
+      )
+      const remoteMetadata = remoteFiles.find((file) => file.filename === METADATA_FILE)
+      if (!remoteMetadata) {
+        throw new Error(`The existing Zenodo export does not contain ${METADATA_FILE}.`)
+      }
+      const remoteCrate = this.parseCrate(await client.downloadFile(remoteMetadata.downloadUrl))
+      const remoteToLocal = this.invertMapping(mapping)
+      const plan = []
+      const relocatedIds = {}
+      let keptLocalFileCount = 0
+      const storedFileHashes = await this.fileHashStore.readFileHashes(rootUri)
 
-      const previousLocalId = this.previousLocalId(remote, mapping)
-      const remoteId = this.remoteIdentifiers(remote).find((id) =>
-        Object.values(mapping).includes(id),
-      ) || remote.id || remote.filename
-      if (mode !== 'remote-additions' && previousLocalId && previousLocalId !== localId) {
-        relocatedIds[previousLocalId] = localId
-        for (const [id, mappedRemoteId] of Object.entries(mapping)) {
-          if (mappedRemoteId === remoteId) delete mapping[id]
+      for (const remote of remoteFiles.filter((file) => file.filename !== METADATA_FILE)) {
+        const remotePath = this.remoteCratePath(remote, remoteCrate)
+        const mappedId = this.mappedLocalId(remote, remoteToLocal)
+        const fallbackId = this.fallbackPath(remote.filename)
+        const localId = mode === 'remote-additions'
+          ? mappedId || fallbackId
+          : remotePath || mappedId || fallbackId
+        const localPath = this.localPath(localId) || fallbackId
+        if (!localId || !localPath) continue
+
+        const previousLocalId = this.previousLocalId(remote, mapping)
+        const remoteId = this.remoteIdentifiers(remote).find((id) =>
+          Object.values(mapping).includes(id),
+        ) || remote.id || remote.filename
+        if (mode !== 'remote-additions' && previousLocalId && previousLocalId !== localId) {
+          relocatedIds[previousLocalId] = localId
+          for (const [id, mappedRemoteId] of Object.entries(mapping)) {
+            if (mappedRemoteId === remoteId) delete mapping[id]
+          }
+        }
+        mapping[localId] = remoteId
+
+        const targetUri = this.joinRelative(rootUri, localPath)
+        const stat = await this.tryStat(targetUri)
+        if (!stat) {
+          plan.push({ remote, localId, localPath, targetUri, kind: 'new' })
+        } else if (
+          !this.isDirectory(stat) &&
+          this.fileHashStore.isFileRecordUnchanged(storedFileHashes[localId], {
+            localLastModified: stat.mtime,
+            localSize: stat.size,
+            remoteMd5: remote.checksum,
+            remoteSize: remote.size,
+          })
+        ) {
+          keptLocalFileCount += 1
+        } else if (mode === 'remote-additions') {
+          keptLocalFileCount += 1
+        } else {
+          plan.push({ remote, localId, localPath, targetUri, kind: 'changed' })
         }
       }
-      mapping[localId] = remoteId
 
-      const targetUri = this.joinRelative(rootUri, localPath)
-      const current = await this.tryRead(targetUri)
-      if (!current) {
-        plan.push({ remote, localId, localPath, targetUri, kind: 'new' })
-      } else if (mode === 'remote-additions' || this.sameContent(current, remote)) {
-        keptLocalFileCount += 1
-      } else {
-        plan.push({ remote, localId, localPath, targetUri, kind: 'changed' })
+      for (const item of plan) {
+        progress.report({ message: `Downloading ${item.localPath}...` })
+        await this.ensureParentFolders(rootUri, item.localPath)
+        await this.vscode.workspace.fs.writeFile(
+          item.targetUri,
+          await client.downloadFile(item.remote.downloadUrl),
+        )
+        const downloadedStat = await this.vscode.workspace.fs.stat(item.targetUri)
+        await this.fileHashStore.recordKnownHash(
+          rootUri,
+          item.localId,
+          downloadedStat.mtime,
+          downloadedStat.size,
+          item.remote.checksum,
+        )
       }
-    }
 
-    for (const item of plan) {
-      progress.report({ message: `Downloading ${item.localPath}...` })
-      await this.ensureParentFolders(rootUri, item.localPath)
-      await this.vscode.workspace.fs.writeFile(
-        item.targetUri,
-        await client.downloadFile(item.remote.downloadUrl),
+      progress.report({ message: `Merging ${METADATA_FILE}...` })
+      const localizedRemote = this.rewriteIds(remoteCrate, this.invertMapping(mapping))
+      const repositoryMetadata = applyZenodoMetadataToRoCrate(localizedRemote, metadata)
+      const merged = mergeRoCratesForSync(
+        this.rewriteIds(localCrate, relocatedIds),
+        repositoryMetadata.crate,
+        mode,
       )
-    }
+      await this.writeJson(metadataUri, merged)
+      await this.writeJson(mappingUri, this.compactMapping(mapping))
+      await this.appendSyncLog(rootUri, {
+        ...logEntry,
+        pid: depositionId,
+        status: 'success',
+        lastSuccessfulActionAt: this.now().toISOString(),
+        datasetName: this.rootDatasetName(merged),
+      })
+      progress.report({ message: 'Zenodo sync complete.' })
 
-    progress.report({ message: `Merging ${METADATA_FILE}...` })
-    const localizedRemote = this.rewriteIds(remoteCrate, this.invertMapping(mapping))
-    const repositoryMetadata = applyZenodoMetadataToRoCrate(localizedRemote, metadata)
-    const merged = mergeRoCratesForSync(
-      this.rewriteIds(localCrate, relocatedIds),
-      repositoryMetadata.crate,
-      mode,
-    )
-    await this.writeJson(metadataUri, merged)
-    await this.writeJson(mappingUri, this.compactMapping(mapping))
-    await this.persistSyncLog({ rootUri, repository, exportTarget, depositionId, merged })
-    progress.report({ message: 'Zenodo sync complete.' })
-
-    return {
-      providerId: 'zenodo',
-      remoteId: depositionId,
-      state: this.isPublished(deposition) ? 'published' : 'draft',
-      landingPage: exportTarget.target,
-      mappingFile: exportTarget.mappingFile,
-      downloadedFileCount: plan.filter((item) => item.kind === 'new').length,
-      replacedFileCount: plan.filter((item) => item.kind === 'changed').length,
-      keptLocalFileCount,
-      metadataSource: mode,
-      updatedMetadataFields: repositoryMetadata.updatedFields,
+      return {
+        providerId: 'zenodo',
+        remoteId: depositionId,
+        state: this.isPublished(deposition) ? 'published' : 'draft',
+        landingPage: exportTarget.target,
+        mappingFile: exportTarget.mappingFile,
+        downloadedFileCount: plan.filter((item) => item.kind === 'new').length,
+        replacedFileCount: plan.filter((item) => item.kind === 'changed').length,
+        keptLocalFileCount,
+        metadataSource: mode,
+        updatedMetadataFields: repositoryMetadata.updatedFields,
+      }
+    } catch (error) {
+      try {
+        await this.appendSyncLog(rootUri, {
+          ...logEntry,
+          status: 'failed',
+          errorMessage: this.errorMessage(error),
+        })
+      } catch (logError) {
+        console.warn('Failed to record the Zenodo sync failure.', logError)
+      }
+      throw error
     }
   }
 
@@ -147,15 +206,35 @@ class ZenodoSyncOperation extends ZenodoCreateOperation {
 
   mergeRecordMetadata(legacy, modern) {
     const merged = { ...legacy }
-    const descriptions = modern.additional_descriptions ?? modern.additionalDescriptions
+    const descriptions =
+      modern.additional_descriptions ??
+      modern.additionalDescriptions ??
+      modern.additional_description ??
+      modern.additionalDescription
     if (descriptions !== undefined) merged.additional_descriptions = descriptions
     if (Array.isArray(modern.creators) && modern.creators.length) {
       merged.creators = modern.creators.map((creator) => {
         const person = this.object(creator?.person_or_org)
+        const affiliation = this.text(creator?.affiliation) ||
+          (Array.isArray(creator?.affiliations)
+            ? creator.affiliations.map((item) =>
+                this.text(this.object(item)?.name) || this.text(item),
+              ).find(Boolean)
+            : undefined)
+        const orcid = this.text(creator?.orcid) ||
+          (Array.isArray(person?.identifiers)
+            ? person.identifiers.map((item) => {
+                const identifier = this.object(item)
+                return this.text(identifier?.scheme)?.toLowerCase() === 'orcid'
+                  ? this.text(identifier?.identifier)
+                  : undefined
+              }).find(Boolean)
+            : undefined)
         return {
-          ...creator,
           name: this.text(creator?.name) || this.text(person?.name) ||
             [this.text(person?.family_name), this.text(person?.given_name)].filter(Boolean).join(', '),
+          ...(affiliation ? { affiliation } : {}),
+          ...(orcid ? { orcid } : {}),
         }
       }).filter((creator) => creator.name)
     }
@@ -230,13 +309,6 @@ class ZenodoSyncOperation extends ZenodoCreateOperation {
     ].filter(Boolean))]
   }
 
-  sameContent(content, remote) {
-    if (!remote.checksum) return false
-    const bytes = Buffer.from(content.buffer, content.byteOffset, content.byteLength)
-    return (remote.size === undefined || remote.size === bytes.byteLength) &&
-      createHash('md5').update(bytes).digest('hex') === remote.checksum
-  }
-
   async readMapping(uri) {
     let parsed
     try {
@@ -250,8 +322,13 @@ class ZenodoSyncOperation extends ZenodoCreateOperation {
     )
   }
 
-  async tryRead(uri) {
-    try { return await this.vscode.workspace.fs.readFile(uri) } catch { return undefined }
+  async tryStat(uri) {
+    try { return await this.vscode.workspace.fs.stat(uri) } catch { return undefined }
+  }
+
+  isDirectory(stat) {
+    const directoryType = this.vscode.FileType?.Directory ?? 2
+    return (stat.type & directoryType) === directoryType
   }
 
   invertMapping(mapping) {
@@ -329,21 +406,10 @@ class ZenodoSyncOperation extends ZenodoCreateOperation {
     return payload?.submitted === true || payload?.state === 'done'
   }
 
-  async persistSyncLog({ rootUri, repository, exportTarget, depositionId, merged }) {
+  async appendSyncLog(rootUri, entry) {
     const logUri = this.vscode.Uri.joinPath(rootUri, '.rockit', 'export-log.json')
-    const entries = await this.readExportLog(logUri)
-    entries.push({
-      pid: depositionId,
-      target: exportTarget.target,
-      repository: this.normalizeBaseUrl(repository.baseUrl),
-      mappingFile: exportTarget.mappingFile,
-      crosswalkFile: CROSSWALK_FILE,
-      syncType: 'sync',
-      status: 'success',
-      lastSuccessfulActionAt: this.now().toISOString(),
-      datasetName: this.rootDatasetName(merged),
-    })
-    await this.writeJson(logUri, entries)
+    const entries = normalizeExportLogEntries(await this.readExportLog(logUri))
+    await this.writeJson(logUri, serializeExportLogEntries(appendExportLogEvent(entries, entry)))
   }
 
   safeMappingFile(value) {

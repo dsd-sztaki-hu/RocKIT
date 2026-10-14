@@ -68,7 +68,12 @@ function environment(mode = 'complete', recordMetadata) {
           if (!files.has(uri) && !written.has(uri) && !directories.includes(uri)) {
             throw new Error('File not found')
           }
-          return { type: directories.includes(uri) ? 2 : 1 }
+          const content = written.get(uri) || files.get(uri)
+          return {
+            type: directories.includes(uri) ? 2 : 1,
+            mtime: 1000,
+            size: content?.byteLength,
+          }
         },
         async createDirectory(uri) {
           directories.push(uri)
@@ -76,6 +81,7 @@ function environment(mode = 'complete', recordMetadata) {
       },
     },
     Uri: { joinPath: (base, ...parts) => [base, ...parts].join('/') },
+    FileType: { File: 1, Directory: 2 },
   }
   const downloads = new Map([
     ['https://zenodo.org/files/metadata', encoder.encode(JSON.stringify(remoteCrate))],
@@ -142,7 +148,7 @@ function environment(mode = 'complete', recordMetadata) {
     },
     syncMode: mode,
   }
-  return { input, operation, written, remoteResult, remoteNew }
+  return { input, operation, written, remoteResult, remoteNew, client, files }
 }
 
 describe('Zenodo sync operation', () => {
@@ -201,6 +207,94 @@ describe('Zenodo sync operation', () => {
     assert.equal(keyword.keywordValue, 'Cica')
     assert.equal(keyword.name, 'Cica')
     assert.ok(result.updatedMetadataFields.includes('keywords'))
+  })
+
+  it('normalizes modern creator details and singular additional descriptions', async () => {
+    const env = environment('complete')
+    const metadata = env.operation.mergeRecordMetadata({}, {
+      additional_description: [{ description: 'Methods note' }],
+      creators: [
+        {
+          person_or_org: {
+            family_name: 'Example',
+            given_name: 'Alice',
+            identifiers: [{ scheme: 'orcid', identifier: '0000-0001-2345-6789' }],
+          },
+          affiliations: [{ name: 'SZTAKI' }],
+        },
+      ],
+    })
+
+    assert.deepEqual(metadata.additional_descriptions, [{ description: 'Methods note' }])
+    assert.deepEqual(metadata.creators, [
+      {
+        name: 'Example, Alice',
+        affiliation: 'SZTAKI',
+        orcid: '0000-0001-2345-6789',
+      },
+    ])
+  })
+
+  it('records downloaded hashes and replaces the in-progress log with success', async () => {
+    const env = environment()
+    await env.operation.execute(env.input)
+
+    const hashes = JSON.parse(
+      decoder.decode(env.written.get('workspace/.rockit/file-hashes.json')),
+    )
+    assert.equal(hashes.files['data/result.txt'].md5, md5(env.remoteResult))
+    assert.equal(hashes.files['remote/new.txt'].md5, md5(env.remoteNew))
+    const log = JSON.parse(
+      decoder.decode(env.written.get('workspace/.rockit/export-log.json')),
+    )
+    assert.equal(log.length, 1)
+    assert.equal(log[0].status, 'success')
+    assert.equal(log[0].syncType, 'sync')
+  })
+
+  it('keeps a file whose local snapshot and stored remote hash still match', async () => {
+    const env = environment()
+    env.files.set('workspace/data/result.txt', env.remoteResult)
+    env.files.set(
+      'workspace/.rockit/file-hashes.json',
+      encoder.encode(
+        JSON.stringify({
+          files: {
+            'data/result.txt': {
+              md5: md5(env.remoteResult),
+              hashUpdatedAt: '2026-10-13T07:00:00.000Z',
+              sourceLastModifiedAt: new Date(1000).toISOString(),
+              sourceSize: env.remoteResult.byteLength,
+            },
+          },
+        }),
+      ),
+    )
+
+    const result = await env.operation.execute(env.input)
+
+    assert.equal(env.written.has('workspace/data/result.txt'), false)
+    assert.equal(result.keptLocalFileCount, 1)
+  })
+
+  it('records a failed sync when a download fails after synchronization starts', async () => {
+    const env = environment()
+    env.client.downloadFile = async (url) => {
+      if (url.endsWith('/new')) throw new Error('Download interrupted')
+      if (url.endsWith('/metadata')) {
+        const local = environment()
+        return local.client.downloadFile(url)
+      }
+      return env.remoteResult
+    }
+
+    await assert.rejects(env.operation.execute(env.input), /Download interrupted/)
+    const log = JSON.parse(
+      decoder.decode(env.written.get('workspace/.rockit/export-log.json')),
+    )
+    assert.equal(log.length, 1)
+    assert.equal(log[0].status, 'failed')
+    assert.equal(log[0].errorMessage, 'Download interrupted')
   })
 
   it('rejects unsafe mapping filenames before contacting the repository', async () => {
