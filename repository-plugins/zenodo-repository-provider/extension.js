@@ -12,6 +12,7 @@ const { ZenodoUpdateOperation } = require('./src/zenodo-update-operation')
 const { ZenodoSyncOperation } = require('./src/zenodo-sync-operation')
 const { ZenodoImportOperation } = require('./src/zenodo-import-operation')
 const { ZenodoDeleteOperation } = require('./src/zenodo-delete-operation')
+const { ZenodoLinkOperation } = require('./src/zenodo-link-operation')
 
 const PROVIDER_ID = 'zenodo'
 const REGISTER_PROVIDER_COMMAND = 'rockit.repositories.registerProvider'
@@ -21,6 +22,7 @@ const UPDATE_COMMAND = 'rockit.zenodo.update'
 const SYNC_COMMAND = 'rockit.zenodo.sync'
 const IMPORT_COMMAND = 'rockit.zenodo.import'
 const DELETE_COMMAND = 'rockit.zenodo.delete'
+const LINK_COMMAND = 'rockit.zenodo.link'
 
 let registeredExtensionId
 
@@ -60,6 +62,14 @@ async function activate(context) {
       }),
   })
   const deleteOperation = new ZenodoDeleteOperation({
+    clientFactory: (repository) =>
+      new ZenodoClient({
+        baseUrl: repository.baseUrl,
+        token: repository.apiKey,
+      }),
+  })
+  const linkOperation = new ZenodoLinkOperation({
+    vscode,
     clientFactory: (repository) =>
       new ZenodoClient({
         baseUrl: repository.baseUrl,
@@ -118,6 +128,16 @@ async function activate(context) {
         (progress) => deleteOperation.execute(input, progress),
       ),
     ),
+    vscode.commands.registerCommand(LINK_COMMAND, (input) =>
+      vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: input?.mode === 'preview' ? 'Checking Zenodo deposition' : 'Linking Zenodo deposition',
+          cancellable: false,
+        },
+        (progress) => linkOperation.execute(input, progress),
+      ),
+    ),
   )
 
   await vscode.commands.executeCommand(REGISTER_PROVIDER_COMMAND, {
@@ -131,6 +151,7 @@ async function activate(context) {
       sync: SYNC_COMMAND,
       import: IMPORT_COMMAND,
       delete: DELETE_COMMAND,
+      link: LINK_COMMAND,
     },
     importInput: {
       kind: 'url',

@@ -412,12 +412,12 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.hasOpenWorkspace(),
       )
       const repositorySelection = await selector.open()
-      if (!repositorySelection || !repositorySelection.repository || !repositorySelection.capabilities) {
+      if (!repositorySelection || !repositorySelection.repository) {
         return
       }
       selectedRepo = repositorySelection.repository
       selectedCapabilities = repositorySelection.capabilities
-    } else {
+    } else if (!selectedRepo.providerId) {
       selectedCapabilities = await this.capabilityService.detectRepositoryCapabilities(
         selectedRepo.baseUrl,
         selectedRepo.apiKey,
@@ -434,11 +434,23 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       })
       let shouldContinue = true
       try {
-        const preview = await this.arpLinkService.previewLocalDatasetLink(
-          selectedRepo,
-          selectedCapabilities,
-          linkInput.datasetUrl,
-        )
+        const preview = selectedRepo.providerId
+          ? await this.providerService.executeForRepository<
+              { repository: DataRepositoryConfig; datasetUrl: string; mode: 'preview' },
+              { localDatasetTitle?: string; remoteDatasetTitle?: string; titleMismatch: boolean }
+            >(selectedRepo, 'link', {
+              repository: selectedRepo,
+              datasetUrl: linkInput.datasetUrl,
+              mode: 'preview',
+            })
+          : await this.arpLinkService.previewLocalDatasetLink(
+              selectedRepo,
+              selectedCapabilities!,
+              linkInput.datasetUrl,
+            )
+        if (!preview) {
+          throw new Error('The repository provider did not return a link preview.')
+        }
         previewProgress.cancel()
         if (preview.titleMismatch) {
           shouldContinue =
@@ -474,11 +486,28 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         ),
       })
       try {
-        const result = await this.arpLinkService.linkLocalDatasetToRemote(
-          selectedRepo,
-          selectedCapabilities,
-          linkInput.datasetUrl,
-        )
+        const result = selectedRepo.providerId
+          ? await this.providerService.executeForRepository<
+              { repository: DataRepositoryConfig; datasetUrl: string; mode: 'link' },
+              {
+                target: string
+                mappedEntityCount: number
+                mappingFileName: string
+                unmappedEntityIds: string[]
+              }
+            >(selectedRepo, 'link', {
+              repository: selectedRepo,
+              datasetUrl: linkInput.datasetUrl,
+              mode: 'link',
+            })
+          : await this.arpLinkService.linkLocalDatasetToRemote(
+              selectedRepo,
+              selectedCapabilities!,
+              linkInput.datasetUrl,
+            )
+        if (!result) {
+          throw new Error('The repository provider did not return a link result.')
+        }
         this.showTargetNotification(
           nls.localize(
             'rockit/dataRepository/linkedLocalDataset',

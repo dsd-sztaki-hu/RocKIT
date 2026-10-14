@@ -24,8 +24,11 @@ The extension currently contains:
   crosswalk, and persists the record link needed by later updates and syncs.
 - a `delete` operation that removes a remote Zenodo draft while RocKIT retains
   responsibility for cleaning up its repository-independent local link state.
+- a two-phase `link` operation that previews title mismatches, maps local
+  RO-Crate files to an existing Zenodo deposition, and saves the link state used
+  by update, sync, and delete.
 
-Only `create`, `update`, `sync`, `import`, and `delete` are advertised to RocKIT at this stage, so unsupported
+The provider advertises `create`, `update`, `sync`, `import`, `delete`, and `link`; unsupported
 repository actions are not shown for connections using this provider. Required
 descriptive metadata such as title, description, publication date, and creators
 must still be present in the RO-Crate.

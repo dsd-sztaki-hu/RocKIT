@@ -22,7 +22,7 @@ export interface RepositoryRequiredMetadataPrompt {
   options: Array<{ value: string; label: string }>
 }
 
-export type RepositoryOperation = 'import' | 'create' | 'update' | 'sync' | 'delete'
+export type RepositoryOperation = 'import' | 'create' | 'update' | 'sync' | 'delete' | 'link'
 
 export type RepositoryProviderOperations = Partial<Record<RepositoryOperation, string>>
 
@@ -121,6 +121,7 @@ export class RepositoryProviderRegistry {
       'update',
       'sync',
       'delete',
+      'link',
     ]
     const supportedOperations = operationNames.filter(
       (operation) => provider.operations[operation] !== undefined,
