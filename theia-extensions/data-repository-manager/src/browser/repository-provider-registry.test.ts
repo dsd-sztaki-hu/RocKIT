@@ -48,6 +48,43 @@ describe('RepositoryProviderRegistry', () => {
     })
   })
 
+  it('copies and validates a provider-defined import input descriptor', () => {
+    const registry = new RepositoryProviderRegistry()
+    const provider: RepositoryProviderRegistration = {
+      ...testProvider(),
+      operations: { import: 'rockit.testRepository.import' },
+      importInput: {
+        kind: 'url',
+        title: 'Import Test Record',
+        description: 'Enter a test record URL.',
+        placeholder: 'https://example.org/records/123',
+        fieldLabel: 'Record URL',
+      },
+    }
+
+    registry.register(provider)
+    provider.importInput!.title = 'Changed title'
+
+    expect(registry.get('test-repository')?.importInput?.title).toBe(
+      'Import Test Record',
+    )
+  })
+
+  it('rejects import input descriptors without a matching import operation', () => {
+    const registry = new RepositoryProviderRegistry()
+
+    expect(() =>
+      registry.register({
+        ...testProvider(),
+        importInput: {
+          kind: 'url',
+          title: 'Import Test Record',
+          description: 'Enter a test record URL.',
+        },
+      }),
+    ).toThrow('declares import input without an import operation')
+  })
+
   it('rejects a conflicting provider id from another extension', () => {
     const registry = new RepositoryProviderRegistry()
     registry.register(testProvider())

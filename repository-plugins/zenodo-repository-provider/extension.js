@@ -10,6 +10,7 @@ const { ZenodoClient } = require('./src/zenodo-client')
 const { ZenodoCreateOperation } = require('./src/zenodo-create-operation')
 const { ZenodoUpdateOperation } = require('./src/zenodo-update-operation')
 const { ZenodoSyncOperation } = require('./src/zenodo-sync-operation')
+const { ZenodoImportOperation } = require('./src/zenodo-import-operation')
 
 const PROVIDER_ID = 'zenodo'
 const REGISTER_PROVIDER_COMMAND = 'rockit.repositories.registerProvider'
@@ -17,6 +18,7 @@ const UNREGISTER_PROVIDER_COMMAND = 'rockit.repositories.unregisterProvider'
 const CREATE_COMMAND = 'rockit.zenodo.create'
 const UPDATE_COMMAND = 'rockit.zenodo.update'
 const SYNC_COMMAND = 'rockit.zenodo.sync'
+const IMPORT_COMMAND = 'rockit.zenodo.import'
 
 let registeredExtensionId
 
@@ -40,6 +42,14 @@ async function activate(context) {
       }),
   })
   const syncOperation = new ZenodoSyncOperation({
+    vscode,
+    clientFactory: (repository) =>
+      new ZenodoClient({
+        baseUrl: repository.baseUrl,
+        token: repository.apiKey,
+      }),
+  })
+  const importOperation = new ZenodoImportOperation({
     vscode,
     clientFactory: (repository) =>
       new ZenodoClient({
@@ -79,6 +89,16 @@ async function activate(context) {
         (progress) => syncOperation.execute(input, progress),
       ),
     ),
+    vscode.commands.registerCommand(IMPORT_COMMAND, (input) =>
+      vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'Importing Zenodo record as an RO-Crate',
+          cancellable: false,
+        },
+        (progress) => importOperation.execute(input, progress),
+      ),
+    ),
   )
 
   await vscode.commands.executeCommand(REGISTER_PROVIDER_COMMAND, {
@@ -90,6 +110,14 @@ async function activate(context) {
       create: CREATE_COMMAND,
       update: UPDATE_COMMAND,
       sync: SYNC_COMMAND,
+      import: IMPORT_COMMAND,
+    },
+    importInput: {
+      kind: 'url',
+      title: 'Import Zenodo Record',
+      description: 'Enter a Zenodo upload URL in the format https://zenodo.org/uploads/{id}.',
+      placeholder: 'https://zenodo.org/uploads/1234567',
+      fieldLabel: 'Zenodo Upload URL',
     },
   })
 }

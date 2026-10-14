@@ -221,8 +221,30 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       return
     }
     if (selectedRepo.providerId) {
+      const provider = this.providerService.getProviderForRepository(selectedRepo)
+      const importInput = provider?.importInput
+      const importDialog = new ArpRoCrateImportDialog({
+        title: importInput?.title ?? nls.localize(
+          'rockit/dataRepository/importRepositoryRecord',
+          'Import Repository Record',
+        ),
+        description: importInput?.description ?? nls.localize(
+          'rockit/dataRepository/importRepositoryRecordDescription',
+          'Enter the URL of the remote repository record to import.',
+        ),
+        placeholder: importInput?.placeholder,
+        fieldLabel: importInput?.fieldLabel ?? nls.localize(
+          'rockit/dataRepository/recordUrl',
+          'Record URL',
+        ),
+      })
+      const importDialogInput = await importDialog.open()
+      if (!importDialogInput) {
+        return
+      }
       await this.executePluginRepositoryOperation(selectedRepo, 'import', {
         repository: selectedRepo,
+        recordUrl: importDialogInput.datasetUrl,
       })
       return
     }
@@ -1601,8 +1623,14 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   ): Promise<void> {
     const provider = this.providerService.getProviderForRepository(repository)
     try {
-      await this.providerService.executeForRepository(repository, operation, input)
-      if (operation === 'sync' || operation === 'import') {
+      const result = await this.providerService.executeForRepository(repository, operation, input)
+      const operationResult = result && typeof result === 'object'
+        ? result as { cancelled?: boolean; openedWorkspace?: boolean }
+        : undefined
+      if (operationResult?.cancelled) {
+        return
+      }
+      if (operation === 'sync' || (operation === 'import' && !operationResult?.openedWorkspace)) {
         await this.roCrateLoader.refresh()
         await this.loadData()
       }

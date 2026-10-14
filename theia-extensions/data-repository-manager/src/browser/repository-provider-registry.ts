@@ -26,6 +26,14 @@ export type RepositoryOperation = 'import' | 'create' | 'update' | 'sync' | 'del
 
 export type RepositoryProviderOperations = Partial<Record<RepositoryOperation, string>>
 
+export interface RepositoryProviderImportInput {
+  kind: 'url'
+  title: string
+  description: string
+  placeholder?: string
+  fieldLabel?: string
+}
+
 /**
  * Serializable descriptor sent by an installed repository extension.
  *
@@ -39,6 +47,7 @@ export interface RepositoryProviderRegistration {
   extensionId: string
   protocolVersion: string
   operations: RepositoryProviderOperations
+  importInput?: RepositoryProviderImportInput
 }
 
 export interface RepositoryOperationInvocation<TInput = unknown> {
@@ -128,6 +137,22 @@ export class RepositoryProviderRegistry {
         )
       }
     }
+    if (provider.importInput) {
+      if (!provider.operations.import) {
+        throw new Error(
+          `Repository provider '${provider.id}' declares import input without an import operation.`,
+        )
+      }
+      if (
+        provider.importInput.kind !== 'url' ||
+        !provider.importInput.title?.trim() ||
+        !provider.importInput.description?.trim()
+      ) {
+        throw new Error(
+          `Repository provider '${provider.id}' has an invalid import input descriptor.`,
+        )
+      }
+    }
   }
 
   protected copy(
@@ -136,6 +161,7 @@ export class RepositoryProviderRegistry {
     return {
       ...provider,
       operations: { ...provider.operations },
+      importInput: provider.importInput ? { ...provider.importInput } : undefined,
     }
   }
 

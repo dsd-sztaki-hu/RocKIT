@@ -128,6 +128,27 @@ describe('ZenodoClient', () => {
     assert.equal(calls[0][1].headers.authorization, 'Bearer token')
   })
 
+  it('does not disclose the API token to an external download host', async () => {
+    const calls = []
+    const client = new ZenodoClient({
+      baseUrl: 'https://zenodo.org',
+      token: 'token',
+      fetchImpl: async (...args) => {
+        calls.push(args)
+        return {
+          ok: true,
+          status: 200,
+          url: args[0],
+          arrayBuffer: async () => new ArrayBuffer(0),
+        }
+      },
+    })
+
+    await client.downloadFile('https://files.example.org/result.txt')
+
+    assert.deepEqual(calls[0][1].headers, {})
+  })
+
   it('rejects invalid file-list responses', async () => {
     const client = new ZenodoClient({
       baseUrl: 'https://zenodo.org',
@@ -159,5 +180,20 @@ describe('ZenodoClient', () => {
       assert.match(error.message, /token expired/)
       return true
     })
+  })
+
+  it('adds repository context to transport failures', async () => {
+    const client = new ZenodoClient({
+      baseUrl: 'https://zenodo.org',
+      token: 'token',
+      fetchImpl: async () => {
+        throw new TypeError('fetch failed')
+      },
+    })
+
+    await assert.rejects(
+      client.getDeposition('42'),
+      /Zenodo deposition lookup failed could not reach https:\/\/zenodo\.org\/api\/deposit\/depositions\/42: fetch failed/,
+    )
   })
 })

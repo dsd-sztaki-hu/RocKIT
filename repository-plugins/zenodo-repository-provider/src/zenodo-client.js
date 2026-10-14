@@ -92,9 +92,13 @@ class ZenodoClient {
   }
 
   downloadFile(downloadUrl) {
+    const url = requireText(downloadUrl, 'A Zenodo file download URL is required.')
     return this.requestBytes(
-      requireText(downloadUrl, 'A Zenodo file download URL is required.'),
-      { method: 'GET', headers: this.authorizationHeaders() },
+      url,
+      {
+        method: 'GET',
+        headers: this.sameOrigin(url) ? this.authorizationHeaders() : {},
+      },
       'Zenodo file download failed',
     )
   }
@@ -163,6 +167,9 @@ class ZenodoClient {
         )
       }
       return payload
+    } catch (error) {
+      if (error instanceof ZenodoApiError) throw error
+      throw transportError(errorPrefix, url, error, controller.signal.aborted)
     } finally {
       clearTimeout(timeout)
     }
@@ -188,6 +195,9 @@ class ZenodoClient {
         )
       }
       return new Uint8Array(await response.arrayBuffer())
+    } catch (error) {
+      if (error instanceof ZenodoApiError) throw error
+      throw transportError(errorPrefix, url, error, controller.signal.aborted)
     } finally {
       clearTimeout(timeout)
     }
@@ -200,6 +210,22 @@ class ZenodoClient {
       return new URL(pathOrUrl, `${this.baseUrl}/`).toString()
     }
   }
+
+  sameOrigin(value) {
+    try {
+      return new URL(value, `${this.baseUrl}/`).origin === new URL(this.baseUrl).origin
+    } catch {
+      return false
+    }
+  }
+}
+
+function transportError(prefix, url, error, timedOut) {
+  const detail = error instanceof Error ? error.message : String(error)
+  const message = timedOut
+    ? `${prefix} timed out at ${url}.`
+    : `${prefix} could not reach ${url}: ${detail}`
+  return new Error(message, { cause: error })
 }
 
 function normalizeBaseUrl(value) {
