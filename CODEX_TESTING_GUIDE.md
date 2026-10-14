@@ -6,19 +6,19 @@ SPDX-License-Identifier: Apache-2.0
 ******************************************************************************************
 -->
 
-# Codex implementation brief: RocKIT unit testing
+# Codex implementation brief: RocKIT testing
 
 > Use this entire document as the input prompt for a Codex session that improves
-> unit testing in this repository. This phase is deliberately limited to unit
-> tests. Do not expand it into integration, crosswalk, packaging, coverage-gate,
-> or end-to-end work.
+> testing in this repository. The unit-test phase was completed first and is
+> retained below as an implementation record. The current phase is the bounded
+> integration-test work described in the integration section; do not expand it
+> into crosswalk, remote-service, or browser/Electron end-to-end work.
 
 ## Objective
 
-Build a clear, fast, deterministic unit-test layer for RocKIT. First make the
-existing unit tests easy to identify and run. Then add focused tests for the
-highest-risk project-owned behavior that can be exercised in process with
-mocked boundaries.
+Maintain the clear, fast, deterministic unit-test layer already established for
+RocKIT, then build a separate integration layer for important filesystem,
+process, HTTP, socket, and packaging boundaries.
 
 The result should make it obvious:
 
@@ -55,9 +55,10 @@ The result should make it obvious:
    Preserve an original license banner when a file is copied from an upstream
    project under a different compatible license. Explain that provenance in the
    final report.
-5. Do not add or change integration tests, MCP lifecycle tests, socket tests,
-   standalone-package tests, browser/Electron end-to-end tests, or real remote
-   service tests in this phase.
+5. Integration work is limited to deterministic local filesystem workflows,
+   MCP lifecycle/HTTP/socket checks, and standalone-package checks. Do not add
+   browser/Electron end-to-end tests or tests against real remote services in
+   this phase.
 6. Do not use real API keys, credentials, user configuration, the developer's
    home directory, or public network services.
 
@@ -163,8 +164,8 @@ The isolation debt found during inventory was corrected on 2026-10-12:
 `property-selector` restores `global.fetch`, mocks the host-level Lumino update
 boundary, and keeps asynchronous React work inside `act(...)`.
 
-The following existing checks also stay outside this phase and outside the root
-unit command:
+The following checks remained outside the completed unit phase and outside the
+root unit command:
 
 - MCP protocol, HTTP, socket, CLI, installer, and standalone-package scripts;
 - metadata crosswalk generation and validation;
@@ -186,9 +187,9 @@ this unit-first plan:
 - The root `test:unit` command is now the canonical project-owned unit entry
   point. It excludes ReCrate, `metadata-profile-core`, and the real-disk
   navigator-diff spec.
-- MCP `test:all`, root integration/crosswalk commands, standalone-package test
-  changes, integration CI, and ReCrate coverage are outside this phase. Do not
-  extend them while following this guide.
+- MCP `test:all` and the standalone-package lifecycle now belong to the focused
+  root `test:integration:mcp` command and their own CI step. Crosswalk
+  validation stays separate, and ReCrate coverage remains out of scope.
 - Existing modifications inside `dev-packages/recrate` predate this rule. Do
   not touch, amend, revert, or build on them in this phase; report them as an
   out-of-scope dirty submodule.
@@ -347,6 +348,81 @@ of files loaded by those unit tests; the Node-script suites without Istanbul
 reports show `n/a`. It does not merge package coverage into one percentage or
 include ReCrate.
 
+## Integration phase — in progress 2026-10-13
+
+The integration layer has two explicit entry points. `yarn test:integration`
+runs the RocKIT-owned application integration suites.
+`yarn test:integration:mcp` runs only the pre-existing MCP core, CLI, HTTP,
+socket, and standalone-package checks. Both are separate from unit tests and
+crosswalk validation. `yarn test:all` runs unit, RocKIT integration, MCP
+integration, and crosswalk commands in that order. CI also runs the two
+integration commands as separate steps and keeps the known crosswalk failure
+handling in its own step.
+
+Completed integration steps:
+
+1. Re-baselined the repository and identified the existing local integration
+   boundaries without touching ReCrate or the crosswalk.
+2. Defined the first application workflow as open, edit, save, and reopen an
+   RO-Crate, including a failed metadata write followed by a successful retry.
+3. Added that workflow as a real-temporary-filesystem Jest integration test and
+   retained a focused root command for the existing MCP core, CLI, HTTP, socket,
+   and standalone-package checks.
+4. Consolidated the two previously orphaned integration suites—the
+   `metadata-profile-core` import/index/delete lifecycle and the file-explorer
+   navigator disk diff—under the same command. Added
+   `yarn test:integration --coverage`, with separate HTML and JSON reports plus
+   a final per-suite table.
+5. Added loading-failure integration coverage for missing and malformed
+   `ro-crate-metadata.json` files. Both cases use real temporary workspaces and
+   verify state cleanup, invalid-state classification, recovery requests, and
+   preservation of on-disk metadata.
+6. Added partial-save coverage for an HTML preview write failing after metadata
+   persistence. The test verifies that the edited JSON remains on disk, the app
+   remains dirty, save guards and the load mask are released, and a retry
+   creates the preview and marks the crate clean.
+7. Added an entity-lifecycle workflow that records add, entity-ID rename, and
+   delete transitions in history, persists the final graph, and reloads it into
+   fresh state. The reopened crate retains the renamed entity and updated
+   reference while the old ID, deleted file entity, and deleted `hasPart`
+   reference remain absent.
+8. Added undo/redo persistence coverage around the saved baseline. The test
+   verifies clean/dirty transitions before and after saving, confirms that redo
+   restores the saved state, and confirms a fresh reopen loads the saved crate
+   without carrying session history across restarts.
+9. Added profile-selection and validation coverage through persistence. The
+   workflow saves a selected profile reference, reloads its converted rules
+   into fresh application state, verifies the real validator reports the
+   profile's missing required field, then saves the correction and verifies a
+   second fresh reopen validates cleanly.
+10. Added a real-local-file omission and inclusion workflow. It verifies that
+    omission updates the ignore rules and removes the file entity and all
+    references as one undoable transaction, persists both files, and survives
+    reopen. Inclusion removes the persisted ignore rule without silently
+    recreating metadata, while the physical workspace file remains untouched
+    throughout the workflow.
+
+The root integration command currently covers these local boundaries:
+
+| Suite group | Boundary exercised |
+| --- | --- |
+| RO-Crate workflow | Real temporary workspace; missing/malformed loading, app state/history, metadata and preview persistence, profile validation, local-file include/omit rules, reopen, write failure, and retry |
+| Metadata profiles | Real temporary profile storage; provider configuration and import/list/delete lifecycle |
+| Navigator disk diff | Theia file service with a disk provider and local fixture files |
+
+The separate MCP integration command covers core/CLI behavior, child-process
+protocol, dashboard HTTP/authentication, Unix socket lifecycle, and standalone
+package lifecycle.
+
+Coverage percentages remain separate because the suite groups instrument
+different code sets. They describe code loaded by each integration suite, not
+whole-application coverage. Reports are ignored build artifacts under
+`coverage/integration/<suite>/`.
+
+The planned deterministic local integration cases are now complete. Reassess
+the remaining risk before adding another integration batch or considering
+full browser/Electron automation.
+
 ## Techniques to use
 
 - **Equivalence partitions and boundary values:** validation, cardinality,
@@ -373,15 +449,15 @@ Do not implement these items while following this guide:
 
 - ReCrate test additions or coverage work;
 - the known Zenodo crosswalk decision;
-- MCP/dashboard/socket/standalone integration changes;
-- real filesystem, HTTP, repository-service, packaging, or process tests;
+- tests against real remote repository or search services;
 - browser or Electron end-to-end tests;
 - merged coverage reports or coverage thresholds;
-- CI expansion beyond what is necessary to run the eventual unit command.
+- broad CI expansion unrelated to the unit and integration commands.
 
-They can be planned after the unit suite is understandable and stable.
+They can be planned after the local integration layer is understandable and
+stable.
 
-## Definition of done for a unit-testing batch
+## Definition of done for a testing batch
 
 A batch is complete only when:
 
@@ -392,21 +468,21 @@ A batch is complete only when:
 - success, important boundaries, and relevant failures are covered;
 - tests are deterministic, offline, isolated, and restore all mocks/state;
 - the narrow package suite passes;
-- `yarn test:unit` passes, or a clearly evidenced pre-existing failure is
-  reported without being hidden;
+- the relevant narrow suite and root unit or integration command pass, or a
+  clearly evidenced pre-existing failure is reported without being hidden;
 - exact commands and test counts are recorded.
 
 ## Final report expected from Codex
 
 Report:
 
-1. the unit-testing batch completed and why it was chosen;
+1. the testing batch completed and why it was chosen;
 2. files changed and behaviors covered;
 3. exact commands run, suite/case counts, and results;
 4. pre-existing failures or environment limitations;
 5. any production extraction made for testability;
 6. confirmation that ReCrate and the crosswalk were untouched; and
-7. the next smallest risk-ordered unit-testing batch.
+7. the next smallest risk-ordered testing batch.
 
 Do not claim the application is fully tested. State precisely what the unit
-suite protects and which integration and end-to-end risks remain deferred.
+and integration suites protect and which end-to-end risks remain deferred.
