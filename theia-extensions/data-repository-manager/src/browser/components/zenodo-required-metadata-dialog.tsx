@@ -9,11 +9,12 @@ import { nls } from '@theia/core/lib/common/nls'
 import { Input, Select } from 'antd'
 import * as React from 'react'
 import { createRoot, Root } from 'react-dom/client'
-import {
-  ZenodoMetadataOption,
-  zenodoMetadataOptions,
-} from '../services/zenodo-metadata-crosswalk'
 import '../styles/native-dataverse-dataset-metadata-dialog.css'
+
+interface ZenodoMetadataOption {
+  value: string
+  label: string
+}
 
 export interface ZenodoRequiredMetadata {
   access_right: string
@@ -40,7 +41,7 @@ export class ZenodoRequiredMetadataDialog extends AbstractDialog<
 
   constructor(
     defaults: Record<string, unknown>,
-    licenseOptions: ZenodoMetadataOption[] = zenodoMetadataOptions('license'),
+    licenseOptions: ZenodoMetadataOption[] = [],
   ) {
     super({
       title: nls.localize(
@@ -53,19 +54,12 @@ export class ZenodoRequiredMetadataDialog extends AbstractDialog<
     const repositoryDefaultLicense =
       defaults.upload_type === 'dataset' ? 'cc-zero' : 'cc-by'
     this.license =
-      typeof defaults.license === 'string'
-        ? defaults.license
-        : repositoryDefaultLicense
+      typeof defaults.license === 'string' ? defaults.license : repositoryDefaultLicense
     this.embargoDate =
       typeof defaults.embargo_date === 'string' ? defaults.embargo_date : ''
     this.accessConditions =
-      typeof defaults.access_conditions === 'string'
-        ? defaults.access_conditions
-        : ''
-    this.licenseOptions = this.withSelectedLicenseOption(
-      licenseOptions,
-      this.license,
-    )
+      typeof defaults.access_conditions === 'string' ? defaults.access_conditions : ''
+    this.licenseOptions = this.withSelectedLicenseOption(licenseOptions, this.license)
 
     this.contentNode.style.width = '620px'
     this.contentNode.style.maxWidth = '90vw'
@@ -104,9 +98,7 @@ export class ZenodoRequiredMetadataDialog extends AbstractDialog<
       ...(['open', 'embargoed'].includes(this.accessRight)
         ? { license: this.license }
         : {}),
-      ...(this.accessRight === 'embargoed'
-        ? { embargo_date: this.embargoDate }
-        : {}),
+      ...(this.accessRight === 'embargoed' ? { embargo_date: this.embargoDate } : {}),
       ...(this.accessRight === 'restricted'
         ? { access_conditions: this.accessConditions.trim() }
         : {}),
@@ -168,7 +160,10 @@ export class ZenodoRequiredMetadataDialog extends AbstractDialog<
           ) : undefined}
           {this.accessRight === 'embargoed'
             ? this.renderInput(
-                nls.localize('rockit/dataRepository/zenodoEmbargoDate', 'Embargo end date'),
+                nls.localize(
+                  'rockit/dataRepository/zenodoEmbargoDate',
+                  'Embargo end date',
+                ),
                 this.embargoDate,
                 'date',
                 (value) => {

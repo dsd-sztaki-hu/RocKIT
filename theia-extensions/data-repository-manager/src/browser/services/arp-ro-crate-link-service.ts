@@ -37,11 +37,6 @@ interface NativeDataverseRemoteFileRecord {
   path: string
 }
 
-interface ZenodoRemoteFileRecord {
-  id: string
-  filename: string
-}
-
 export interface ArpRoCrateLinkResult {
   pid: string
   target: string
@@ -118,7 +113,9 @@ export class ArpRoCrateLinkService {
       pid: state.pid,
       localDatasetTitle,
       remoteDatasetTitle: state.remoteDatasetTitle,
-      titleMismatch: this.normalizeTitle(localDatasetTitle) !== this.normalizeTitle(state.remoteDatasetTitle),
+      titleMismatch:
+        this.normalizeTitle(localDatasetTitle) !==
+        this.normalizeTitle(state.remoteDatasetTitle),
     }
   }
 
@@ -127,20 +124,19 @@ export class ArpRoCrateLinkService {
     capabilities: DataRepositoryCapabilities,
     datasetUrl: string,
   ): Promise<LocalDatasetLinkState> {
-    if (capabilities.supportsZenodoApi) {
-      return this.resolveZenodoLinkState(repository, datasetUrl)
-    }
     if (capabilities.supportsArpRoCrateZipUpload) {
       return this.resolveArpDataverseLinkState(repository, datasetUrl)
     }
     if (capabilities.supportsNativeDataverseApi) {
       return this.resolveNativeDataverseLinkState(repository, datasetUrl)
     }
-    throw new Error(nls.localize(
-      'rockit/dataRepository/linkUnsupportedRepository',
-      "Repository '{0}' does not expose a supported API for linking local datasets.",
-      repository.title,
-    ))
+    throw new Error(
+      nls.localize(
+        'rockit/dataRepository/linkUnsupportedRepository',
+        "Repository '{0}' does not expose a supported API for linking local datasets.",
+        repository.title,
+      ),
+    )
   }
 
   protected async resolveArpDataverseLinkState(
@@ -149,7 +145,12 @@ export class ArpRoCrateLinkService {
   ): Promise<LocalDatasetLinkState> {
     const pid = this.extractDatasetPid(datasetUrl)
     if (!pid) {
-      throw new Error(nls.localize('rockit/dataRepository/extractDatasetIdFailed', 'Could not extract a dataset handle or persistent ID from the dataset URL.'))
+      throw new Error(
+        nls.localize(
+          'rockit/dataRepository/extractDatasetIdFailed',
+          'Could not extract a dataset handle or persistent ID from the dataset URL.',
+        ),
+      )
     }
 
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
@@ -159,7 +160,10 @@ export class ArpRoCrateLinkService {
 
     return {
       pid,
-      target: this.buildDatasetPidTarget(pid) || this.buildDataverseDatasetUrl(baseUrl, pid) || datasetUrl.trim(),
+      target:
+        this.buildDatasetPidTarget(pid) ||
+        this.buildDataverseDatasetUrl(baseUrl, pid) ||
+        datasetUrl.trim(),
       localCrate,
       remoteDatasetTitle: this.getRootDatasetName(remoteCrate),
       mapping: this.buildArpEntityIdMapping(localCrate, remoteCrate),
@@ -172,49 +176,32 @@ export class ArpRoCrateLinkService {
   ): Promise<LocalDatasetLinkState> {
     const pid = this.extractDatasetPid(datasetUrl)
     if (!pid) {
-      throw new Error(nls.localize('rockit/dataRepository/extractPersistentIdFailed', 'Could not extract a dataset persistent ID from the dataset URL.'))
+      throw new Error(
+        nls.localize(
+          'rockit/dataRepository/extractPersistentIdFailed',
+          'Could not extract a dataset persistent ID from the dataset URL.',
+        ),
+      )
     }
 
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const rootUri = this.getWorkspaceRoot()
     const localCrate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const remoteDataset = await this.fetchNativeDataverseDataset(baseUrl, repository.apiKey, pid)
+    const remoteDataset = await this.fetchNativeDataverseDataset(
+      baseUrl,
+      repository.apiKey,
+      pid,
+    )
 
     return {
       pid,
-      target: this.buildDatasetPidTarget(pid) || this.buildDataverseDatasetUrl(baseUrl, pid) || datasetUrl.trim(),
+      target:
+        this.buildDatasetPidTarget(pid) ||
+        this.buildDataverseDatasetUrl(baseUrl, pid) ||
+        datasetUrl.trim(),
       localCrate,
       remoteDatasetTitle: remoteDataset.title,
       mapping: this.buildNativeDataverseEntityIdMapping(localCrate, remoteDataset.files),
-    }
-  }
-
-  protected async resolveZenodoLinkState(
-    repository: DataRepositoryConfig,
-    datasetUrl: string,
-  ): Promise<LocalDatasetLinkState> {
-    const depositionId = this.extractZenodoDepositionId(datasetUrl)
-    if (!depositionId) {
-      throw new Error(nls.localize('rockit/dataRepository/extractZenodoDepositionIdFailed', 'Could not extract a Zenodo deposition ID from the dataset URL.'))
-    }
-    const token = repository.apiKey?.trim()
-    if (!token) {
-      throw new Error(nls.localize('rockit/dataRepository/zenodoTokenMissing', 'Zenodo API token is missing.'))
-    }
-
-    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
-    const rootUri = this.getWorkspaceRoot()
-    const localCrate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
-    const deposition = await this.fetchZenodoDeposition(baseUrl, token, depositionId)
-    const files = await this.fetchZenodoDepositionFiles(baseUrl, token, depositionId)
-    const target = this.readNestedString(deposition, ['links', 'html']) ?? `${baseUrl}/deposit/${encodeURIComponent(depositionId)}`
-
-    return {
-      pid: depositionId,
-      target,
-      localCrate,
-      remoteDatasetTitle: this.readNestedString(deposition, ['metadata', 'title']),
-      mapping: this.buildZenodoEntityIdMapping(localCrate, files),
     }
   }
 
@@ -250,10 +237,10 @@ export class ArpRoCrateLinkService {
       }
       if (this.entityTypes(entity).includes('File')) {
         const path = this.dataverseFilePathFromEntity(entity)
-        mapping[id] = path ? remoteFilesByPath.get(path) ?? '' : ''
+        mapping[id] = path ? (remoteFilesByPath.get(path) ?? '') : ''
       } else if (this.entityTypes(entity).includes('Dataset')) {
         const name = this.datasetMatchKey(entity)
-        mapping[id] = name ? remoteDatasetsByName.get(name) ?? '' : ''
+        mapping[id] = name ? (remoteDatasetsByName.get(name) ?? '') : ''
       }
     }
 
@@ -295,41 +282,19 @@ export class ArpRoCrateLinkService {
     )
   }
 
-  protected buildZenodoEntityIdMapping(
-    localCrate: RoCrate,
-    remoteFiles: ZenodoRemoteFileRecord[],
-  ): RoCrateEntityIdMapping {
-    const localPaths = this.extractCrateFilePaths(localCrate)
-    const filenamesByPath = this.buildZenodoFilenameMap(localPaths)
-    const remoteFilesByFilename = new Map(remoteFiles.map((file) => [file.filename, file.id]))
-    const mapping: RoCrateEntityIdMapping = {}
-    const metadataFileId = remoteFilesByFilename.get('ro-crate-metadata.json')
-    if (metadataFileId) {
-      mapping['ro-crate-metadata.json'] = metadataFileId
-    }
-    for (const entity of this.readGraphEntities(localCrate)) {
-      if (!this.entityTypes(entity).includes('File')) {
-        continue
-      }
-      const id = this.readOptionalEntityString(entity, '@id')
-      const path = this.dataverseFilePathFromEntity(entity)
-      if (id && path) {
-        const filename = filenamesByPath.get(path) ?? this.sanitizeZenodoFilename(path)
-        mapping[id] = remoteFilesByFilename.get(filename) ?? ''
-      }
-    }
-    return Object.fromEntries(
-      Object.entries(mapping).sort((a, b) => a[0].localeCompare(b[0])),
-    )
-  }
-
   protected async fetchNativeDataverseDataset(
     baseUrl: string,
     apiKey: string | undefined,
     pid: string,
   ): Promise<{ title?: string; files: NativeDataverseRemoteFileRecord[] }> {
-    const data = await this.fetchNativeDataverseDatasetVersion(baseUrl, apiKey, pid, ':draft')
-      .catch(() => this.fetchNativeDataverseDatasetVersion(baseUrl, apiKey, pid, ':latest'))
+    const data = await this.fetchNativeDataverseDatasetVersion(
+      baseUrl,
+      apiKey,
+      pid,
+      ':draft',
+    ).catch(() =>
+      this.fetchNativeDataverseDatasetVersion(baseUrl, apiKey, pid, ':latest'),
+    )
     return {
       title: this.extractNativeDataverseDatasetTitle(data),
       files: this.extractNativeDataverseFileRecords(data),
@@ -350,24 +315,30 @@ export class ArpRoCrateLinkService {
     const response = await this.fetchWithTimeout(requestUrl, { headers })
     const payload = await this.readResponsePayload(response)
     if (!response.ok || this.payloadHasErrorStatus(payload)) {
-      throw new Error(nls.localize(
-        'rockit/dataRepository/datasetMetadataFetchFailed',
-        'Failed to retrieve Dataverse dataset metadata ({0}): {1}',
-        response.status,
-        this.payloadSummary(payload),
-      ))
+      throw new Error(
+        nls.localize(
+          'rockit/dataRepository/datasetMetadataFetchFailed',
+          'Failed to retrieve Dataverse dataset metadata ({0}): {1}',
+          response.status,
+          this.payloadSummary(payload),
+        ),
+      )
     }
     const data = this.readObjectProperty(payload, 'data')
     if (!data) {
-      throw new Error(nls.localize(
-        'rockit/dataRepository/datasetMetadataMissingData',
-        'Dataverse dataset metadata response did not contain a data object.',
-      ))
+      throw new Error(
+        nls.localize(
+          'rockit/dataRepository/datasetMetadataMissingData',
+          'Dataverse dataset metadata response did not contain a data object.',
+        ),
+      )
     }
     return data
   }
 
-  protected extractNativeDataverseDatasetTitle(data: Record<string, unknown>): string | undefined {
+  protected extractNativeDataverseDatasetTitle(
+    data: Record<string, unknown>,
+  ): string | undefined {
     const fields = this.extractObjects(data).filter((item) => item.typeName === 'title')
     for (const field of fields) {
       const value = field.value
@@ -378,7 +349,9 @@ export class ArpRoCrateLinkService {
     return undefined
   }
 
-  protected extractNativeDataverseFileRecords(value: unknown): NativeDataverseRemoteFileRecord[] {
+  protected extractNativeDataverseFileRecords(
+    value: unknown,
+  ): NativeDataverseRemoteFileRecord[] {
     if (Array.isArray(value)) {
       return value.flatMap((item) => this.extractNativeDataverseFileRecords(item))
     }
@@ -399,90 +372,9 @@ export class ArpRoCrateLinkService {
         return [{ id, path: this.joinRemoteFilePath(directoryLabel, label) }]
       }
     }
-    return Object.values(record).flatMap((child) => this.extractNativeDataverseFileRecords(child))
-  }
-
-  protected async fetchZenodoDeposition(
-    baseUrl: string,
-    token: string,
-    depositionId: string,
-  ): Promise<Record<string, unknown>> {
-    const requestUrl = new URL(
-      `/api/deposit/depositions/${encodeURIComponent(depositionId)}`,
-      `${baseUrl}/`,
-    ).toString()
-    const response = await this.fetchWithTimeout(requestUrl, {
-      headers: this.zenodoAuthorizationHeaders(token),
-    })
-    const payload = await this.readResponsePayload(response)
-    if (!response.ok) {
-      throw new Error(nls.localize(
-        'rockit/dataRepository/zenodoLookupFailedWithStatus',
-        'Zenodo deposition lookup failed ({0}) at {1}: {2}',
-        response.status,
-        response.url || requestUrl,
-        this.payloadSummary(payload),
-      ))
-    }
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-      throw new Error(nls.localize(
-        'rockit/dataRepository/invalidZenodoDepositionResponse',
-        'Zenodo returned an invalid deposition response.',
-      ))
-    }
-    return payload as Record<string, unknown>
-  }
-
-  protected async fetchZenodoDepositionFiles(
-    baseUrl: string,
-    token: string,
-    depositionId: string,
-  ): Promise<ZenodoRemoteFileRecord[]> {
-    const requestUrl = new URL(
-      `/api/deposit/depositions/${encodeURIComponent(depositionId)}/files`,
-      `${baseUrl}/`,
-    ).toString()
-    const response = await this.fetchWithTimeout(requestUrl, {
-      headers: this.zenodoAuthorizationHeaders(token),
-    })
-    const payload = await this.readResponsePayload(response)
-    if (!response.ok) {
-      throw new Error(nls.localize(
-        'rockit/dataRepository/zenodoFileListingFailedWithStatus',
-        'Zenodo file listing failed ({0}) at {1}: {2}',
-        response.status,
-        response.url || requestUrl,
-        this.payloadSummary(payload),
-      ))
-    }
-    if (!Array.isArray(payload)) {
-      throw new Error(nls.localize(
-        'rockit/dataRepository/invalidZenodoFileList',
-        'Zenodo returned an invalid deposition file list.',
-      ))
-    }
-    return payload.map((item) => this.toZenodoRemoteFileRecord(item))
-  }
-
-  protected toZenodoRemoteFileRecord(value: unknown): ZenodoRemoteFileRecord {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      throw new Error(nls.localize(
-        'rockit/dataRepository/invalidZenodoFileEntry',
-        'Zenodo returned an invalid deposition file entry.',
-      ))
-    }
-    const record = value as Record<string, unknown>
-    const filename = this.readOptionalString(record.filename) ?? this.readOptionalString(record.name) ?? this.readOptionalString(record.key)
-    if (!filename) {
-      throw new Error(nls.localize(
-        'rockit/dataRepository/zenodoFileMissingFilename',
-        'Zenodo returned a deposition file without a filename.',
-      ))
-    }
-    return {
-      id: this.readOptionalString(record.id) ?? this.extractUploadedFileRemoteId(record) ?? filename,
-      filename,
-    }
+    return Object.values(record).flatMap((child) =>
+      this.extractNativeDataverseFileRecords(child),
+    )
   }
 
   protected async fetchRemoteRoCrate(
@@ -510,7 +402,12 @@ export class ArpRoCrateLinkService {
     }
     const crate = this.extractDataverseCrate(payload)
     if (!crate) {
-      throw new Error(nls.localize('rockit/dataRepository/invalidRemoteRoCrateResponse', 'The ARP RO-Crate response did not contain a valid @graph.'))
+      throw new Error(
+        nls.localize(
+          'rockit/dataRepository/invalidRemoteRoCrateResponse',
+          'The ARP RO-Crate response did not contain a valid @graph.',
+        ),
+      )
     }
     return crate
   }
@@ -609,7 +506,12 @@ export class ArpRoCrateLinkService {
 
   protected async readRoCrate(metadataUri: URI): Promise<RoCrate> {
     if (!(await this.fileService.exists(metadataUri))) {
-      throw new Error(nls.localize('rockit/dataRepository/workspaceMetadataNotFound', 'ro-crate-metadata.json was not found in the workspace root.'))
+      throw new Error(
+        nls.localize(
+          'rockit/dataRepository/workspaceMetadataNotFound',
+          'ro-crate-metadata.json was not found in the workspace root.',
+        ),
+      )
     }
     const content = await this.fileService.readFile(metadataUri)
     try {
@@ -629,7 +531,9 @@ export class ArpRoCrateLinkService {
     const roots = this.workspaceService.tryGetRoots()
     const root = roots?.[0]?.resource
     if (!root) {
-      throw new Error(nls.localize('rockit/dataRepository/noWorkspace', 'No workspace is open.'))
+      throw new Error(
+        nls.localize('rockit/dataRepository/noWorkspace', 'No workspace is open.'),
+      )
     }
     return root
   }
@@ -667,7 +571,9 @@ export class ArpRoCrateLinkService {
     const nextEntries = appendExportLogEvent(entries, entry)
     await this.fileService.writeFile(
       historyUri,
-      BinaryBuffer.fromString(`${JSON.stringify(serializeExportLogEntries(nextEntries), null, 2)}\n`),
+      BinaryBuffer.fromString(
+        `${JSON.stringify(serializeExportLogEntries(nextEntries), null, 2)}\n`,
+      ),
     )
   }
 
@@ -687,7 +593,9 @@ export class ArpRoCrateLinkService {
           this.normalizeBaseUrl(entry.repository) === normalizedRepository &&
           this.normalizePid(entry.target) === normalizedPid,
       )
-      .sort((a, b) => (b.lastSuccessfulActionAt ?? '').localeCompare(a.lastSuccessfulActionAt ?? ''))[0]?.mappingFile
+      .sort((a, b) =>
+        (b.lastSuccessfulActionAt ?? '').localeCompare(a.lastSuccessfulActionAt ?? ''),
+      )[0]?.mappingFile
   }
 
   protected async readExportLogEntries(historyUri: URI): Promise<ExportLogEntry[]> {
@@ -695,10 +603,15 @@ export class ArpRoCrateLinkService {
       return []
     }
     try {
-      const parsed = JSON.parse((await this.fileService.readFile(historyUri)).value.toString())
+      const parsed = JSON.parse(
+        (await this.fileService.readFile(historyUri)).value.toString(),
+      )
       return normalizeExportLogEntries(parsed)
     } catch (error) {
-      console.warn('Failed to parse .rockit/export-log.json; starting a new export log.', error)
+      console.warn(
+        'Failed to parse .rockit/export-log.json; starting a new export log.',
+        error,
+      )
       return []
     }
   }
@@ -708,7 +621,10 @@ export class ArpRoCrateLinkService {
       return
     }
     const parent = uri.parent
-    if (parent.toString() !== uri.toString() && !(await this.fileService.exists(parent))) {
+    if (
+      parent.toString() !== uri.toString() &&
+      !(await this.fileService.exists(parent))
+    ) {
       await this.ensureFolder(parent)
     }
     await this.fileService.createFolder(uri)
@@ -741,21 +657,6 @@ export class ArpRoCrateLinkService {
     return trimmed.includes('/') ? undefined : trimmed
   }
 
-  protected extractZenodoDepositionId(value: string): string | undefined {
-    const trimmed = value.trim()
-    const direct = trimmed.match(/^(?:zenodo:)?(\d+)$/i)
-    if (direct) {
-      return direct[1]
-    }
-    try {
-      const url = new URL(trimmed)
-      const match = url.pathname.match(/\/(?:deposit|record)\/(\d+)/)
-      return match?.[1]
-    } catch {
-      return undefined
-    }
-  }
-
   protected buildDatasetPidTarget(pid?: string): string | undefined {
     if (!pid) {
       return undefined
@@ -778,9 +679,16 @@ export class ArpRoCrateLinkService {
   protected normalizeBaseUrl(baseUrl: string): string {
     const normalized = baseUrl.trim().replace(/\/+$/, '')
     if (!normalized) {
-      throw new Error(nls.localize('rockit/dataRepository/emptyRepositoryBaseUrl', 'Repository base URL is empty.'))
+      throw new Error(
+        nls.localize(
+          'rockit/dataRepository/emptyRepositoryBaseUrl',
+          'Repository base URL is empty.',
+        ),
+      )
     }
-    return normalized.endsWith('/api/v1') ? normalized.slice(0, -'/api/v1'.length) : normalized
+    return normalized.endsWith('/api/v1')
+      ? normalized.slice(0, -'/api/v1'.length)
+      : normalized
   }
 
   protected buildDataverseDatasetUrl(baseUrl: string, pid?: string): string | undefined {
@@ -789,74 +697,15 @@ export class ArpRoCrateLinkService {
       : undefined
   }
 
-  protected extractCrateFilePaths(crate: RoCrate): string[] {
-    const files = new Set<string>()
-    for (const entity of this.readGraphEntities(crate)) {
-      if (!this.entityTypes(entity).includes('File')) {
-        continue
-      }
-      const path = this.dataverseFilePathFromEntity(entity)
-      if (path && path !== 'ro-crate-metadata.json') {
-        files.add(path)
-      }
-    }
-    return Array.from(files).sort((a, b) => a.localeCompare(b))
-  }
-
-  protected buildZenodoFilenameMap(entryPaths: string[]): Map<string, string> {
-    const used = new Set<string>()
-    const filenames = new Map<string, string>()
-    for (const entryPath of entryPaths) {
-      const preferred = this.sanitizeZenodoFilename(entryPath)
-      let candidate = preferred
-      let suffix = 2
-      while (used.has(candidate)) {
-        candidate = this.addFilenameSuffix(preferred, suffix)
-        suffix += 1
-      }
-      used.add(candidate)
-      filenames.set(entryPath, candidate)
-    }
-    return filenames
-  }
-
-  protected sanitizeZenodoFilename(filename: string): string {
-    const sanitized = filename
-      .replace(/\\/g, '/')
-      .replace(/\//g, '__')
-      .replace(/[\u0000-\u001f]/g, '_')
-      .trim()
-    return sanitized || 'file'
-  }
-
-  protected addFilenameSuffix(filename: string, suffix: number): string {
-    const index = filename.lastIndexOf('.')
-    if (index <= 0) {
-      return `${filename}-${suffix}`
-    }
-    return `${filename.slice(0, index)}-${suffix}${filename.slice(index)}`
-  }
-
-  protected extractUploadedFileRemoteId(payload: unknown): string | undefined {
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-      return undefined
-    }
-    const record = payload as Record<string, unknown>
-    for (const key of ['id', 'key', 'filename']) {
-      const value = this.readOptionalString(record[key])
-      if (value) {
-        return value
-      }
-    }
-    return (
-      this.readNestedString(record, ['links', 'self']) ??
-      this.readNestedString(record, ['links', 'download'])
-    )
-  }
-
-  protected joinRemoteFilePath(directoryLabel: string | undefined, label: string): string {
+  protected joinRemoteFilePath(
+    directoryLabel: string | undefined,
+    label: string,
+  ): string {
     const name = label.replace(/^\/+/, '')
-    const directory = directoryLabel?.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '')
+    const directory = directoryLabel
+      ?.replace(/\\/g, '/')
+      .replace(/^\/+/, '')
+      .replace(/\/+$/, '')
     return directory ? `${directory}/${name}` : name
   }
 
@@ -883,7 +732,10 @@ export class ArpRoCrateLinkService {
       return []
     }
     const record = value as Record<string, unknown>
-    return [record, ...Object.values(record).flatMap((child) => this.extractObjects(child))]
+    return [
+      record,
+      ...Object.values(record).flatMap((child) => this.extractObjects(child)),
+    ]
   }
 
   protected readObjectProperty(
@@ -895,19 +747,8 @@ export class ArpRoCrateLinkService {
     }
     const property = (value as Record<string, unknown>)[key]
     return property && typeof property === 'object' && !Array.isArray(property)
-      ? property as Record<string, unknown>
+      ? (property as Record<string, unknown>)
       : undefined
-  }
-
-  protected readNestedString(value: unknown, path: string[]): string | undefined {
-    let current = value
-    for (const segment of path) {
-      if (!current || typeof current !== 'object' || Array.isArray(current)) {
-        return undefined
-      }
-      current = (current as Record<string, unknown>)[segment]
-    }
-    return this.readOptionalString(current)
   }
 
   protected readOptionalString(value: unknown): string | undefined {
@@ -927,10 +768,6 @@ export class ArpRoCrateLinkService {
       !Array.isArray(payload) &&
       (payload as Record<string, unknown>).status === 'ERROR'
     )
-  }
-
-  protected zenodoAuthorizationHeaders(token: string): Record<string, string> {
-    return { accept: 'application/json', authorization: `Bearer ${token}` }
   }
 
   protected readGraphEntities(crate: RoCrate): RoCrateEntity[] {
