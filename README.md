@@ -40,7 +40,7 @@ Choose your platform to download the latest installer:
 
 <p align="center"><small>Looking for older versions or all release files? <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases">Browse RocKIT releases on GitHub</a>.</small></p>
 
-<p align="center"><strong><a href="https://dsd-sztaki-hu.github.io/RocKIT/">Read the RocKIT documentation</a></strong></p>
+<p align="center"><strong><a href="https://dsd-sztaki-hu.github.io/RocKIT/en/">Read the RocKIT documentation</a></strong></p>
 
 ## Workflow
 
