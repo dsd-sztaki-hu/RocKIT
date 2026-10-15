@@ -561,20 +561,18 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       return
     }
     const repositories = await this.storeService.loadRepositories()
-    const targetsByRepository = this.mergeExportTargets(
-      await this.arpExportService.listExportTargets(repositories),
-      await this.nativeExportService.listExportTargets(repositories),
-      await this.zenodoExportService.listExportTargets(repositories),
-    )
+    const targetsByRepository = await this.listAllExportTargets(repositories)
     for (const repository of repositories) {
       for (const target of targetsByRepository[repository.id] ?? []) {
         if (target.status !== 'cancelled') {
           continue
         }
-        const capabilities = await this.capabilityService.detectRepositoryCapabilities(
-          repository.baseUrl,
-          repository.apiKey,
-        )
+        const capabilities = repository.providerId
+          ? undefined
+          : await this.capabilityService.detectRepositoryCapabilities(
+              repository.baseUrl,
+              repository.apiKey,
+            )
         const resume = await new ConfirmDialog({
           title: nls.localize(
             'rockit/dataRepository/interruptedExport',
@@ -600,9 +598,13 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
             'rockit/dataRepository/userDeclinedExportRecovery',
             'User chose not to continue the interrupted export.',
           )
-          if (capabilities.supportsZenodoApi) {
-            await this.zenodoExportService.markExportTargetFailed(target, message)
-          } else if (capabilities.supportsArpRoCrateZipUpload) {
+          if (repository.providerId) {
+            await this.providerService.executeForRepository(repository, 'markTargetFailed', {
+              repository,
+              exportTarget: target,
+              message,
+            })
+          } else if (capabilities!.supportsArpRoCrateZipUpload) {
             await this.arpExportService.markExportTargetFailed(target, message)
           } else {
             await this.nativeExportService.markExportTargetFailed(target, message)
@@ -618,11 +620,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     this.update()
     const hasWorkspace = this.hasOpenWorkspace()
     const exportTargetsByRepositoryId = hasWorkspace
-      ? this.mergeExportTargets(
-          await this.arpExportService.listExportTargets(repositories),
-          await this.nativeExportService.listExportTargets(repositories),
-          await this.zenodoExportService.listExportTargets(repositories),
-        )
+      ? await this.listAllExportTargets(repositories)
       : {}
 
     const selector = new DataRepositorySelectorDialog(
@@ -674,11 +672,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       const repositories = await this.storeService.loadRepositories()
       this.repositories = repositories
       this.update()
-      const exportTargetsByRepositoryId = this.mergeExportTargets(
-        await this.arpExportService.listExportTargets(repositories),
-        await this.nativeExportService.listExportTargets(repositories),
-        await this.zenodoExportService.listExportTargets(repositories),
-      )
+      const exportTargetsByRepositoryId = await this.listAllExportTargets(repositories)
 
       const selector = new DataRepositorySelectorDialog(
         repositories,
@@ -1545,6 +1539,32 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
     }
     return merged
+  }
+
+  protected async listAllExportTargets(
+    repositories: DataRepositoryConfig[],
+  ): Promise<Record<string, DataRepositoryExportTarget[]>> {
+    const builtInRepositories = repositories.filter((repository) => !repository.providerId)
+    const pluginTargets: Record<string, DataRepositoryExportTarget[]> = {}
+    await Promise.all(
+      repositories
+        .filter(
+          (repository) =>
+            repository.providerId && this.providerService.supports(repository, 'listTargets'),
+        )
+        .map(async (repository) => {
+          pluginTargets[repository.id] =
+            (await this.providerService.executeForRepository<
+              { repository: DataRepositoryConfig },
+              DataRepositoryExportTarget[]
+            >(repository, 'listTargets', { repository })) ?? []
+        }),
+    )
+    return this.mergeExportTargets(
+      await this.arpExportService.listExportTargets(builtInRepositories),
+      await this.nativeExportService.listExportTargets(builtInRepositories),
+      pluginTargets,
+    )
   }
 
   protected inferRepositoryFromDatasetUrl(

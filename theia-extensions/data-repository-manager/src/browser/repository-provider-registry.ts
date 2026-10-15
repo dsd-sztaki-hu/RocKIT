@@ -30,6 +30,8 @@ export type RepositoryOperation =
   | 'delete'
   | 'link'
   | 'validate'
+  | 'listTargets'
+  | 'markTargetFailed'
 
 export type RepositoryProviderOperations = Partial<Record<RepositoryOperation, string>>
 
@@ -135,6 +137,8 @@ export class RepositoryProviderRegistry {
       'delete',
       'link',
       'validate',
+      'listTargets',
+      'markTargetFailed',
     ]
     const supportedOperations = operationNames.filter(
       (operation) => provider.operations[operation] !== undefined,

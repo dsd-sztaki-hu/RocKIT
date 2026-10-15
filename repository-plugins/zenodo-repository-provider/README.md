@@ -30,8 +30,11 @@ The extension currently contains:
 - a provider-owned `validate` operation that verifies the configured Zenodo URL
   and token through the authenticated depositions API before RocKIT saves the
   connection.
+- provider-owned stored-target discovery and interrupted-export status handling,
+  so RocKIT no longer calls its built-in Zenodo service when reconstructing or
+  declining recovery for a plugin export.
 
-The provider advertises `create`, `update`, `sync`, `import`, `delete`, `link`, and `validate`; unsupported
+The provider advertises its repository operations and local target-management commands; unsupported
 repository actions are not shown for connections using this provider. Required
 descriptive metadata such as title, description, publication date, and creators
 must still be present in the RO-Crate.

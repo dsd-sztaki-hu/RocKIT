@@ -14,6 +14,7 @@ const { ZenodoImportOperation } = require('./src/zenodo-import-operation')
 const { ZenodoDeleteOperation } = require('./src/zenodo-delete-operation')
 const { ZenodoLinkOperation } = require('./src/zenodo-link-operation')
 const { ZenodoValidateOperation } = require('./src/zenodo-validate-operation')
+const { ZenodoTargetOperation } = require('./src/zenodo-target-operation')
 
 const PROVIDER_ID = 'zenodo'
 const REGISTER_PROVIDER_COMMAND = 'rockit.repositories.registerProvider'
@@ -25,6 +26,8 @@ const IMPORT_COMMAND = 'rockit.zenodo.import'
 const DELETE_COMMAND = 'rockit.zenodo.delete'
 const LINK_COMMAND = 'rockit.zenodo.link'
 const VALIDATE_COMMAND = 'rockit.zenodo.validate'
+const LIST_TARGETS_COMMAND = 'rockit.zenodo.listTargets'
+const MARK_TARGET_FAILED_COMMAND = 'rockit.zenodo.markTargetFailed'
 
 let registeredExtensionId
 
@@ -85,6 +88,7 @@ async function activate(context) {
         token: repository.apiKey,
       }),
   })
+  const targetOperation = new ZenodoTargetOperation({ vscode, clientFactory: () => undefined })
 
   context.subscriptions.push(
     vscode.commands.registerCommand(CREATE_COMMAND, (input) =>
@@ -157,6 +161,12 @@ async function activate(context) {
         (progress) => validateOperation.execute(input, progress),
       ),
     ),
+    vscode.commands.registerCommand(LIST_TARGETS_COMMAND, (input) =>
+      targetOperation.list(input),
+    ),
+    vscode.commands.registerCommand(MARK_TARGET_FAILED_COMMAND, (input) =>
+      targetOperation.markFailed(input),
+    ),
   )
 
   await vscode.commands.executeCommand(REGISTER_PROVIDER_COMMAND, {
@@ -172,6 +182,8 @@ async function activate(context) {
       delete: DELETE_COMMAND,
       link: LINK_COMMAND,
       validate: VALIDATE_COMMAND,
+      listTargets: LIST_TARGETS_COMMAND,
+      markTargetFailed: MARK_TARGET_FAILED_COMMAND,
     },
     importInput: {
       kind: 'url',
