@@ -21,19 +21,19 @@ Choose your platform to download the latest installer:
     <td align="center" valign="top" width="33.33%">
       <img src="readme-assets/icon-windows.svg" width="32" height="32" alt="Windows"><br>
       <strong>Windows</strong><br>
-      <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/RocKIT.-.RO-Crate.Kit.Setup.1.0.10.exe">Installer (.exe)</a>
+      <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/RocKIT.-.RO-Crate.Kit.Setup.1.0.10.exe">Installer&nbsp;(.exe)</a>
     </td>
     <td align="center" valign="top" width="33.33%">
       <img src="readme-assets/icon-apple.svg" width="32" height="32" alt="Apple"><br>
       <strong>macOS</strong><br>
-      <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/RocKIT.-.RO-Crate.Kit-1.0.10-arm64.dmg">Apple silicon (.dmg)</a><br>
-      <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/RocKIT.-.RO-Crate.Kit-1.0.10.dmg">Intel (.dmg)</a>
+      <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/RocKIT.-.RO-Crate.Kit-1.0.10-arm64.dmg">Apple&nbsp;silicon&nbsp;(.dmg)</a><br>
+      <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/RocKIT.-.RO-Crate.Kit-1.0.10.dmg">Intel&nbsp;(.dmg)</a>
     </td>
     <td align="center" valign="top" width="33.33%">
       <img src="readme-assets/icon-linux.svg" width="32" height="32" alt="Linux"><br>
       <strong>Linux</strong><br>
       <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/RocKIT.-.RO-Crate.Kit-1.0.10.AppImage">AppImage</a><br>
-      <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/electron-app_1.0.10_amd64.deb">Debian/Ubuntu (.deb)</a>
+      <a href="https://github.com/dsd-sztaki-hu/RocKIT/releases/download/v1.0.10/electron-app_1.0.10_amd64.deb">Debian/Ubuntu&nbsp;(.deb)</a>
     </td>
   </tr>
 </table>
