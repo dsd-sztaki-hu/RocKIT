@@ -28,14 +28,6 @@ export class DataverseCapabilityService {
                 supportsZenodoApi: false
             };
         }
-        if (await this.supportsZenodoApi(baseUrl, apiKey)) {
-            return {
-                kind: 'zenodo',
-                supportsArpRoCrateZipUpload: false,
-                supportsNativeDataverseApi: false,
-                supportsZenodoApi: true
-            };
-        }
         return {
             kind: 'unknown',
             supportsArpRoCrateZipUpload: false,
@@ -106,40 +98,4 @@ export class DataverseCapabilityService {
         }
     }
 
-    protected async supportsZenodoApi(baseUrl: string, apiKey?: string): Promise<boolean> {
-        const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '').replace(/\/api$/, '');
-        if (!normalizedBaseUrl) {
-            return false;
-        }
-
-        try {
-            const host = new URL(normalizedBaseUrl).hostname.toLowerCase();
-            if (host === 'zenodo.org' || host === 'sandbox.zenodo.org') {
-                return true;
-            }
-        } catch {
-            return false;
-        }
-
-        try {
-            const headers: Record<string, string> = { accept: 'application/json' };
-            if (apiKey) {
-                headers.authorization = `Bearer ${apiKey}`;
-            }
-            const response = await fetch(`${normalizedBaseUrl}/api/deposit/depositions`, {
-                headers
-            });
-            const contentType = response.headers.get('content-type') ?? '';
-            if (!contentType.toLowerCase().includes('application/json')) {
-                return false;
-            }
-            if (response.ok) {
-                return true;
-            }
-            return response.status === 401 || response.status === 403;
-        } catch (error) {
-            console.warn('Failed to detect Zenodo API capability:', error);
-            return false;
-        }
-    }
 }

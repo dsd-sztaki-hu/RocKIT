@@ -27,8 +27,11 @@ The extension currently contains:
 - a two-phase `link` operation that previews title mismatches, maps local
   RO-Crate files to an existing Zenodo deposition, and saves the link state used
   by update, sync, and delete.
+- a provider-owned `validate` operation that verifies the configured Zenodo URL
+  and token through the authenticated depositions API before RocKIT saves the
+  connection.
 
-The provider advertises `create`, `update`, `sync`, `import`, `delete`, and `link`; unsupported
+The provider advertises `create`, `update`, `sync`, `import`, `delete`, `link`, and `validate`; unsupported
 repository actions are not shown for connections using this provider. Required
 descriptive metadata such as title, description, publication date, and creators
 must still be present in the RO-Crate.

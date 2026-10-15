@@ -133,7 +133,8 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         const dialog = new DataRepositoryConfigDialog(
             this.dataverseService,
             undefined,
-            this.providerService.listProviders()
+            this.providerService.listProviders(),
+            this.providerService
         );
         const result = await dialog.open();
         if (result) {
@@ -145,7 +146,8 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         const dialog = new DataRepositoryConfigDialog(
             this.dataverseService,
             repo,
-            this.providerService.listProviders()
+            this.providerService.listProviders(),
+            this.providerService
         );
         const result = await dialog.open();
         if (result) {

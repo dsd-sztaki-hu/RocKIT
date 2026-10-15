@@ -98,6 +98,32 @@ describe('ZenodoClient', () => {
     assert.equal(calls[0][1].headers['user-agent'], DEFAULT_USER_AGENT)
   })
 
+  it('validates a connection by listing authenticated depositions', async () => {
+    const calls = []
+    const client = new ZenodoClient({
+      baseUrl: 'https://zenodo.org/api/',
+      token: 'secret-token',
+      fetchImpl: async (...args) => {
+        calls.push(args)
+        return jsonResponse([])
+      },
+    })
+
+    assert.deepEqual(await client.listDepositions(1), [])
+    assert.equal(calls[0][0], 'https://zenodo.org/api/deposit/depositions?size=1')
+    assert.equal(calls[0][1].headers.authorization, 'Bearer secret-token')
+  })
+
+  it('rejects a non-Zenodo response during connection validation', async () => {
+    const client = new ZenodoClient({
+      baseUrl: 'https://example.org',
+      token: 'secret-token',
+      fetchImpl: async () => jsonResponse({ status: 'ok' }),
+    })
+
+    await assert.rejects(client.listDepositions(), /invalid deposition list/)
+  })
+
   it('encodes uploaded filenames and preserves binary content', async () => {
     const calls = []
     const content = new Uint8Array([1, 2, 3])

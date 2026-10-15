@@ -20,6 +20,7 @@ import { DataRepositoryConfig } from '../types';
 import { DataRepositorySuccessDialog } from './data-repository-success-dialog';
 import { DataverseService } from '../services/dataverse-service';
 import { RepositoryProviderRegistration } from '../repository-provider-registry';
+import { RepositoryProviderService } from '../repository-provider-service';
 import '../styles/data-repository-config-dialog.css';
 
 export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryConfig | undefined> {
@@ -41,7 +42,8 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
     constructor(
         private readonly dataverseService: DataverseService,
         private readonly repoToEdit?: DataRepositoryConfig,
-        private readonly providers: RepositoryProviderRegistration[] = []
+        private readonly providers: RepositoryProviderRegistration[] = [],
+        private readonly providerService?: RepositoryProviderService
     ) {
         super({
             title: repoToEdit
@@ -84,7 +86,8 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             this.errorMsg = nls.localize('rockit/dataRepository/baseUrlRequired', 'Base URL is required.');
             this.render(); return;
         }
-        if (!cleanApiKey && !this.providerIdValue) {
+        const selectedProvider = this.providers.find(provider => provider.id === this.providerIdValue);
+        if (!cleanApiKey && (!this.providerIdValue || selectedProvider?.connection?.requiresApiKey)) {
             this.errorMsg = nls.localize('rockit/dataRepository/tokenRequired', 'API Token is required.');
             this.render(); return;
         }
@@ -104,34 +107,38 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         this.errorMsg = null;
         this.render();
 
-        if (this.providerIdValue) {
-            this.result = {
-                id: this.repoToEdit ? this.repoToEdit.id : Date.now().toString(),
-                title: cleanTitle,
-                baseUrl: cleanBaseUrl,
-                apiKey: cleanApiKey || undefined,
-                providerId: this.providerIdValue
-            };
-            this.accept();
-            return;
-        }
-
         let expirationDate: string | undefined = undefined;
+        const repository: DataRepositoryConfig = {
+            id: this.repoToEdit ? this.repoToEdit.id : Date.now().toString(),
+            title: cleanTitle,
+            baseUrl: cleanBaseUrl,
+            apiKey: cleanApiKey,
+            ...(this.providerIdValue ? { providerId: this.providerIdValue } : {})
+        };
 
         try {
-            const result = await this.dataverseService.validateToken(cleanBaseUrl, cleanApiKey);
-            expirationDate = result.expirationDate;
+            if (this.providerIdValue) {
+                if (!this.providerService) {
+                    throw new Error('The repository provider service is unavailable.');
+                }
+                const result = await this.providerService.executeForRepository<
+                    { repository: DataRepositoryConfig },
+                    { valid?: boolean; expirationDate?: string }
+                >(repository, 'validate', { repository });
+                if (!result?.valid) {
+                    throw new Error('The repository provider did not validate the connection.');
+                }
+                expirationDate = result.expirationDate;
+            } else {
+                const result = await this.dataverseService.validateToken(cleanBaseUrl, cleanApiKey);
+                expirationDate = result.expirationDate;
+            }
 
             const successDialog = new DataRepositorySuccessDialog(cleanTitle, expirationDate);
             const confirmed = await successDialog.open();
 
             if (confirmed) {
-                this.result = {
-                    id: this.repoToEdit ? this.repoToEdit.id : Date.now().toString(),
-                    title: cleanTitle,
-                    baseUrl: cleanBaseUrl,
-                    apiKey: cleanApiKey
-                };
+                this.result = repository;
                 this.accept(); 
             } else {
                 this.isTesting = false;

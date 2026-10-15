@@ -35,10 +35,6 @@ export class DataverseService {
      * Also attempts to retrieve the token's expiration date.
      */
     public async validateToken(baseUrl: string, apiKey: string): Promise<{ userName: string, expirationDate?: string }> {
-        if (this.isLikelyZenodoBaseUrl(baseUrl)) {
-            return this.validateZenodoToken(baseUrl, apiKey);
-        }
-
         this.initClient(baseUrl, apiKey);
 
         try {
@@ -66,27 +62,4 @@ export class DataverseService {
         }
     }
 
-    protected async validateZenodoToken(baseUrl: string, apiKey: string): Promise<{ userName: string, expirationDate?: string }> {
-        const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '').replace(/\/api$/, '');
-        const response = await fetch(`${normalizedBaseUrl}/api/deposit/depositions?size=1`, {
-            headers: {
-                accept: 'application/json',
-                authorization: `Bearer ${apiKey}`
-            }
-        });
-        if (!response.ok) {
-            const message = await response.text();
-            throw new Error(`Zenodo token validation failed (${response.status}): ${message || response.statusText}`);
-        }
-        return { userName: 'Zenodo' };
-    }
-
-    protected isLikelyZenodoBaseUrl(baseUrl: string): boolean {
-        try {
-            const host = new URL(baseUrl.trim()).hostname.toLowerCase();
-            return host === 'zenodo.org' || host === 'sandbox.zenodo.org';
-        } catch {
-            return false;
-        }
-    }
 }

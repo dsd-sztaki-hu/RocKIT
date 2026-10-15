@@ -1491,6 +1491,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.dataverseService,
       undefined,
       this.providerService.listProviders(),
+      this.providerService,
     )
     const result = await dialog.open()
     if (result) {
@@ -1503,6 +1504,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.dataverseService,
       repo,
       this.providerService.listProviders(),
+      this.providerService,
     )
     const result = await dialog.open()
     if (result) {

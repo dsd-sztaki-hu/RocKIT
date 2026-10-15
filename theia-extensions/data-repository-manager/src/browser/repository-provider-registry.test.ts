@@ -60,14 +60,17 @@ describe('RepositoryProviderRegistry', () => {
         placeholder: 'https://example.org/records/123',
         fieldLabel: 'Record URL',
       },
+      connection: { requiresApiKey: true },
     }
 
     registry.register(provider)
     provider.importInput!.title = 'Changed title'
+    provider.connection!.requiresApiKey = false
 
     expect(registry.get('test-repository')?.importInput?.title).toBe(
       'Import Test Record',
     )
+    expect(registry.get('test-repository')?.connection?.requiresApiKey).toBe(true)
   })
 
   it('rejects import input descriptors without a matching import operation', () => {

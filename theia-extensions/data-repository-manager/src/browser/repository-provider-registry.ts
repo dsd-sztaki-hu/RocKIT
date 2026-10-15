@@ -22,7 +22,14 @@ export interface RepositoryRequiredMetadataPrompt {
   options: Array<{ value: string; label: string }>
 }
 
-export type RepositoryOperation = 'import' | 'create' | 'update' | 'sync' | 'delete' | 'link'
+export type RepositoryOperation =
+  | 'import'
+  | 'create'
+  | 'update'
+  | 'sync'
+  | 'delete'
+  | 'link'
+  | 'validate'
 
 export type RepositoryProviderOperations = Partial<Record<RepositoryOperation, string>>
 
@@ -32,6 +39,10 @@ export interface RepositoryProviderImportInput {
   description: string
   placeholder?: string
   fieldLabel?: string
+}
+
+export interface RepositoryProviderConnection {
+  requiresApiKey?: boolean
 }
 
 /**
@@ -48,6 +59,7 @@ export interface RepositoryProviderRegistration {
   protocolVersion: string
   operations: RepositoryProviderOperations
   importInput?: RepositoryProviderImportInput
+  connection?: RepositoryProviderConnection
 }
 
 export interface RepositoryOperationInvocation<TInput = unknown> {
@@ -122,6 +134,7 @@ export class RepositoryProviderRegistry {
       'sync',
       'delete',
       'link',
+      'validate',
     ]
     const supportedOperations = operationNames.filter(
       (operation) => provider.operations[operation] !== undefined,
@@ -154,6 +167,16 @@ export class RepositoryProviderRegistry {
         )
       }
     }
+    if (
+      provider.connection &&
+      (typeof provider.connection !== 'object' ||
+        (provider.connection.requiresApiKey !== undefined &&
+          typeof provider.connection.requiresApiKey !== 'boolean'))
+    ) {
+      throw new Error(
+        `Repository provider '${provider.id}' has an invalid connection descriptor.`,
+      )
+    }
   }
 
   protected copy(
@@ -163,6 +186,7 @@ export class RepositoryProviderRegistry {
       ...provider,
       operations: { ...provider.operations },
       importInput: provider.importInput ? { ...provider.importInput } : undefined,
+      connection: provider.connection ? { ...provider.connection } : undefined,
     }
   }
 

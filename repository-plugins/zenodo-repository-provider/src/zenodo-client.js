@@ -63,6 +63,18 @@ class ZenodoClient {
     )
   }
 
+  async listDepositions(size = 1) {
+    const payload = await this.requestJson(
+      `/api/deposit/depositions?size=${encodeURIComponent(String(size))}`,
+      { method: 'GET', headers: this.authorizationHeaders() },
+      'Zenodo connection validation failed',
+    )
+    if (!Array.isArray(payload)) {
+      throw new Error('Zenodo returned an invalid deposition list.')
+    }
+    return payload
+  }
+
   updateDepositionMetadata(depositionId, metadata, selfUrl) {
     const path =
       selfUrl ||

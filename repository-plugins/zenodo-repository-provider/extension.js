@@ -13,6 +13,7 @@ const { ZenodoSyncOperation } = require('./src/zenodo-sync-operation')
 const { ZenodoImportOperation } = require('./src/zenodo-import-operation')
 const { ZenodoDeleteOperation } = require('./src/zenodo-delete-operation')
 const { ZenodoLinkOperation } = require('./src/zenodo-link-operation')
+const { ZenodoValidateOperation } = require('./src/zenodo-validate-operation')
 
 const PROVIDER_ID = 'zenodo'
 const REGISTER_PROVIDER_COMMAND = 'rockit.repositories.registerProvider'
@@ -23,6 +24,7 @@ const SYNC_COMMAND = 'rockit.zenodo.sync'
 const IMPORT_COMMAND = 'rockit.zenodo.import'
 const DELETE_COMMAND = 'rockit.zenodo.delete'
 const LINK_COMMAND = 'rockit.zenodo.link'
+const VALIDATE_COMMAND = 'rockit.zenodo.validate'
 
 let registeredExtensionId
 
@@ -70,6 +72,13 @@ async function activate(context) {
   })
   const linkOperation = new ZenodoLinkOperation({
     vscode,
+    clientFactory: (repository) =>
+      new ZenodoClient({
+        baseUrl: repository.baseUrl,
+        token: repository.apiKey,
+      }),
+  })
+  const validateOperation = new ZenodoValidateOperation({
     clientFactory: (repository) =>
       new ZenodoClient({
         baseUrl: repository.baseUrl,
@@ -138,6 +147,16 @@ async function activate(context) {
         (progress) => linkOperation.execute(input, progress),
       ),
     ),
+    vscode.commands.registerCommand(VALIDATE_COMMAND, (input) =>
+      vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'Validating Zenodo connection',
+          cancellable: false,
+        },
+        (progress) => validateOperation.execute(input, progress),
+      ),
+    ),
   )
 
   await vscode.commands.executeCommand(REGISTER_PROVIDER_COMMAND, {
@@ -152,6 +171,7 @@ async function activate(context) {
       import: IMPORT_COMMAND,
       delete: DELETE_COMMAND,
       link: LINK_COMMAND,
+      validate: VALIDATE_COMMAND,
     },
     importInput: {
       kind: 'url',
@@ -159,6 +179,9 @@ async function activate(context) {
       description: 'Enter a Zenodo upload URL in the format https://zenodo.org/uploads/{id}.',
       placeholder: 'https://zenodo.org/uploads/1234567',
       fieldLabel: 'Zenodo Upload URL',
+    },
+    connection: {
+      requiresApiKey: true,
     },
   })
 }
