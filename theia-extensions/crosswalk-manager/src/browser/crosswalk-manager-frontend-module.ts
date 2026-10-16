@@ -10,6 +10,7 @@ import { CrosswalkManagerContribution } from './crosswalk-manager-contribution'
 import { CrosswalkManagerWidget } from './crosswalk-manager-widget'
 import { CrosswalkRegistryService } from './crosswalk-registry-service'
 import { CrosswalkRegistryStore } from './crosswalk-registry-store'
+import { CrosswalkRegistry } from './crosswalk-registry'
 
 import '../../src/browser/style/index.css'
 
@@ -18,6 +19,7 @@ export default new ContainerModule(bind => {
     bind(CrosswalkManagerWidget).toSelf()
     bind(CrosswalkRegistryStore).toSelf().inSingletonScope()
     bind(CrosswalkRegistryService).toSelf().inSingletonScope()
+    bind(CrosswalkRegistry).toService(CrosswalkRegistryService)
     bind(WidgetFactory).toDynamicValue(context => ({
         id: CrosswalkManagerWidget.ID,
         createWidget: () => context.container.get<CrosswalkManagerWidget>(CrosswalkManagerWidget),

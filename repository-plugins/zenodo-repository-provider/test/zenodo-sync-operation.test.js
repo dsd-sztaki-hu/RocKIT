@@ -9,6 +9,7 @@ const assert = require('node:assert/strict')
 const { describe, it } = require('node:test')
 
 const { ZenodoSyncOperation } = require('../src/zenodo-sync-operation')
+const crosswalk = require('../../../theia-extensions/data-repository-manager/src/browser/crosswalks/arp-zenodo-crosswalk.json')
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -147,6 +148,7 @@ function environment(mode = 'complete', recordMetadata) {
       mappingFile: 'zenodo-42-mapping.json',
     },
     syncMode: mode,
+    crosswalk: { id: crosswalk.id, document: crosswalk },
   }
   return { input, operation, written, remoteResult, remoteNew, client, files }
 }

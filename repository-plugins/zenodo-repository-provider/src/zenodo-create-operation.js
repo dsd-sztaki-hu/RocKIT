@@ -7,7 +7,6 @@
 const { ZenodoMetadataPreparation } = require('./zenodo-metadata-preparation')
 const { METADATA_FILE, ZenodoUploadPackage } = require('./zenodo-upload-package')
 
-const CROSSWALK_FILE = 'arp-zenodo-crosswalk.json'
 
 class ZenodoCreateOperation {
   constructor({
@@ -176,7 +175,7 @@ class ZenodoCreateOperation {
       target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile,
-      crosswalkFile: crosswalkId || CROSSWALK_FILE,
+      crosswalkFile: crosswalkId,
       syncType: 'create',
       remoteState: 'draft',
       status: 'success',

@@ -16,10 +16,29 @@ export const RepositoryProviderCommands = {
   PROMPT_REQUIRED_METADATA: 'rockit.repositories.promptRequiredMetadata',
 } as const
 
+export interface RepositoryMetadataPromptCondition {
+  field: string
+  values: string[]
+}
+
+export interface RepositoryMetadataPromptField {
+  id: string
+  label: string
+  type: 'text' | 'date' | 'textarea' | 'select'
+  defaultValue?: string
+  description?: string
+  required?: boolean
+  searchable?: boolean
+  options?: Array<{ value: string; label: string }>
+  visibleWhen?: RepositoryMetadataPromptCondition
+}
+
 export interface RepositoryRequiredMetadataPrompt {
-  kind: 'zenodo-access-policy'
-  defaults: Record<string, unknown>
-  options: Array<{ value: string; label: string }>
+  kind: 'form'
+  title: string
+  description?: string
+  acceptLabel?: string
+  fields: RepositoryMetadataPromptField[]
 }
 
 export type RepositoryOperation =

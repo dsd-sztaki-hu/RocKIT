@@ -13,7 +13,6 @@ const {
 } = require('./export-log')
 const { ZenodoCreateOperation } = require('./zenodo-create-operation')
 
-const CROSSWALK_FILE = 'arp-zenodo-crosswalk.json'
 const METADATA_FILE = 'ro-crate-metadata.json'
 
 class ZenodoLinkOperation extends ZenodoCreateOperation {
@@ -83,7 +82,7 @@ class ZenodoLinkOperation extends ZenodoCreateOperation {
       target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile: mappingFileName,
-      crosswalkFile: input?.crosswalk?.id || CROSSWALK_FILE,
+      crosswalkFile: input?.crosswalk?.id,
       syncType: 'update',
       remoteState: this.isPublished(deposition) ? 'published' : 'draft',
       status: 'success',

@@ -8,6 +8,7 @@ const assert = require('node:assert/strict')
 const { describe, it } = require('node:test')
 
 const { ZenodoCreateOperation } = require('../src/zenodo-create-operation')
+const crosswalk = require('../../../theia-extensions/data-repository-manager/src/browser/crosswalks/arp-zenodo-crosswalk.json')
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -43,9 +44,12 @@ function testEnvironment(crate = validCrate()) {
     commands: {
       async executeCommand(command, prompt) {
         calls.push(['executeCommand', command])
+        const defaults = Object.fromEntries(
+          prompt.fields.map((field) => [field.id, field.defaultValue]),
+        )
         return {
-          access_right: prompt.defaults.access_right,
-          license: prompt.defaults.license,
+          access_right: defaults.access_right,
+          license: defaults.license,
         }
       },
     },
@@ -133,6 +137,7 @@ describe('Zenodo create operation', () => {
           apiKey: 'secret',
           providerId: 'zenodo',
         },
+        crosswalk: { id: crosswalk.id, document: crosswalk },
       },
       { report: ({ message }) => progressMessages.push(message) },
     )
@@ -183,6 +188,7 @@ describe('Zenodo create operation', () => {
     await assert.rejects(
       env.operation.execute({
         repository: { baseUrl: 'https://sandbox.zenodo.org', apiKey: 'secret' },
+        crosswalk: { id: crosswalk.id, document: crosswalk },
       }),
       /required metadata fields are missing: creators/,
     )
@@ -200,6 +206,7 @@ describe('Zenodo create operation', () => {
     await assert.rejects(
       env.operation.execute({
         repository: { baseUrl: 'https://sandbox.zenodo.org', apiKey: 'secret' },
+        crosswalk: { id: crosswalk.id, document: crosswalk },
       }),
       /Only files inside the RO-Crate workspace/,
     )
@@ -221,6 +228,7 @@ describe('Zenodo create operation', () => {
 
     await env.operation.execute({
       repository: { baseUrl: 'https://sandbox.zenodo.org', apiKey: 'secret' },
+      crosswalk: { id: crosswalk.id, document: crosswalk },
     })
 
     assert.deepEqual(

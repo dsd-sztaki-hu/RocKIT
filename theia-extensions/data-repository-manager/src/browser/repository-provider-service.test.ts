@@ -5,7 +5,7 @@
 // ******************************************************************************************
 
 import { CommandService } from '@theia/core/lib/common'
-import { CrosswalkRegistryService } from 'crosswalk-manager/lib/browser/crosswalk-registry-service'
+import type { CrosswalkRegistry } from 'crosswalk-manager/lib/browser/crosswalk-registry'
 
 import { RepositoryProviderRegistry } from './repository-provider-registry'
 import { RepositoryProviderService } from './repository-provider-service'
@@ -26,7 +26,7 @@ describe('RepositoryProviderService', () => {
     const readCrosswalk = jest.fn().mockResolvedValue(undefined)
     const crosswalkRegistryService = {
       read: readCrosswalk,
-    } as unknown as CrosswalkRegistryService
+    } as unknown as CrosswalkRegistry
 
     return {
       service: new RepositoryProviderService(

@@ -12,6 +12,7 @@ const {
   ZenodoMetadataPromptCancelledError,
   PROMPT_REQUIRED_METADATA_COMMAND,
 } = require('../src/zenodo-metadata-preparation')
+const crosswalk = require('../../../theia-extensions/data-repository-manager/src/browser/crosswalks/arp-zenodo-crosswalk.json')
 
 function crate() {
   return {
@@ -56,17 +57,19 @@ describe('Zenodo metadata preparation', () => {
       },
     }
 
-    const metadata = await preparation.prepare(crate(), client)
+    const metadata = await preparation.prepare(crate(), client, crosswalk)
 
     assert.equal(metadata.access_right, 'embargoed')
     assert.equal(metadata.license, 'custom-license')
     assert.equal(metadata.embargo_date, '2027-01-31')
     assert.equal(prompts.length, 1)
     assert.equal(prompts[0].command, PROMPT_REQUIRED_METADATA_COMMAND)
-    assert.equal(prompts[0].prompt.kind, 'zenodo-access-policy')
-    assert.equal(prompts[0].prompt.defaults.access_right, 'open')
-    assert.equal(prompts[0].prompt.defaults.license, 'cc-zero')
-    assert.deepEqual(prompts[0].prompt.options, [
+    assert.equal(prompts[0].prompt.kind, 'form')
+    const accessRight = prompts[0].prompt.fields.find((field) => field.id === 'access_right')
+    const license = prompts[0].prompt.fields.find((field) => field.id === 'license')
+    assert.equal(accessRight.defaultValue, 'open')
+    assert.equal(license.defaultValue, 'cc-zero')
+    assert.deepEqual(license.options, [
       { value: 'custom-license', label: 'Custom License (custom-license)' },
       { value: 'cc-zero', label: 'cc-zero' },
       { value: 'cc-by', label: 'cc-by' },
@@ -79,7 +82,7 @@ describe('Zenodo metadata preparation', () => {
     })
 
     await assert.rejects(
-      preparation.prepare(crate(), { listLicenses: async () => [] }),
+      preparation.prepare(crate(), { listLicenses: async () => [] }, crosswalk),
       ZenodoMetadataPromptCancelledError,
     )
   })

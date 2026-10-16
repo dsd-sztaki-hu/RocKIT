@@ -33,7 +33,7 @@ import { nls } from '@theia/core/lib/common/nls';
 import { ExportDeleteAction } from './data-repository-export-delete-dialog';
 import { RepositoryOperation } from '../repository-provider-registry';
 import { RepositoryProviderService } from '../repository-provider-service';
-import { CrosswalkRegistryService } from 'crosswalk-manager/lib/browser/crosswalk-registry-service';
+import type { CrosswalkRegistry } from 'crosswalk-manager/lib/browser/crosswalk-registry';
 
 export type DeleteExportTargetHandler = (
     repository: DataRepositoryConfig,
@@ -56,7 +56,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         private readonly dataverseService: DataverseService,
         private readonly capabilityService: DataverseCapabilityService,
         private readonly providerService: RepositoryProviderService,
-        private readonly crosswalkRegistryService: CrosswalkRegistryService,
+        private readonly crosswalkRegistryService: CrosswalkRegistry,
         private readonly hasWorkspace: boolean = true,
         private readonly exportTargetsByRepositoryId: Record<string, DataRepositoryExportTarget[]> = {},
         private readonly onShowRecentValidationResponse?: () => void,

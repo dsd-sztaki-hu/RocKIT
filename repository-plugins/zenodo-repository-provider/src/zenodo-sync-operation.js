@@ -14,7 +14,6 @@ const { mergeRoCratesForSync } = require('./ro-crate-sync-merge')
 const { ZenodoCreateOperation } = require('./zenodo-create-operation')
 const { ZenodoFileHashStore } = require('./zenodo-file-hash-store')
 
-const CROSSWALK_FILE = 'arp-zenodo-crosswalk.json'
 const METADATA_FILE = 'ro-crate-metadata.json'
 const SYNC_MODES = new Set(['complete', 'remote-additions', 'local-additions'])
 
@@ -55,7 +54,7 @@ class ZenodoSyncOperation extends ZenodoCreateOperation {
       target: exportTarget.target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile: exportTarget.mappingFile,
-      crosswalkFile: input?.crosswalk?.id || CROSSWALK_FILE,
+      crosswalkFile: input?.crosswalk?.id,
       syncType: 'sync',
       datasetName: exportTarget.datasetName,
       lastSuccessfulActionAt: exportTarget.lastSuccessfulActionAt,

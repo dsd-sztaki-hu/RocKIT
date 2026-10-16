@@ -12,7 +12,6 @@ const {
 } = require('../lib/zenodo-metadata-crosswalk')
 const { ZenodoCreateOperation } = require('./zenodo-create-operation')
 
-const CROSSWALK_FILE = 'arp-zenodo-crosswalk.json'
 const PRESERVED_ACCESS_FIELDS = [
   'access_right',
   'license',
@@ -236,7 +235,7 @@ class ZenodoUpdateOperation extends ZenodoCreateOperation {
       target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile: exportTarget.mappingFile,
-      crosswalkFile: crosswalkId || CROSSWALK_FILE,
+      crosswalkFile: crosswalkId,
       syncType: 'update',
       remoteState: 'draft',
       status: 'success',

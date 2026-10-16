@@ -19,7 +19,7 @@ import {
     RepositoryProviderRegistry
 } from './repository-provider-registry';
 import { RepositoryProviderService } from './repository-provider-service';
-import { ZenodoRequiredMetadataDialog } from './components/zenodo-required-metadata-dialog';
+import { RepositoryRequiredMetadataDialog } from './components/repository-required-metadata-dialog';
 
 export namespace DataRepositoryManagerCommands {
     export const OPEN: Command = {
@@ -94,13 +94,10 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
 
         commands.registerCommand({ id: RepositoryProviderCommands.PROMPT_REQUIRED_METADATA }, {
             execute: async (prompt: RepositoryRequiredMetadataPrompt) => {
-                if (prompt?.kind !== 'zenodo-access-policy') {
+                if (prompt?.kind !== 'form') {
                     throw new Error(`Unsupported repository metadata prompt '${String(prompt?.kind)}'.`);
                 }
-                return new ZenodoRequiredMetadataDialog(
-                    prompt.defaults ?? {},
-                    Array.isArray(prompt.options) ? prompt.options : []
-                ).open();
+                return new RepositoryRequiredMetadataDialog(prompt).open();
             }
         });
 

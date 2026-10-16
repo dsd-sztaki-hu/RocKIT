@@ -68,13 +68,47 @@ class ZenodoMetadataPreparation {
     const supplied = await this.vscode.commands.executeCommand(
       PROMPT_REQUIRED_METADATA_COMMAND,
       {
-        kind: 'zenodo-access-policy',
-        defaults: {
-          ...metadata,
-          access_right: this.text(metadata.access_right) || 'open',
-          license: defaultLicense,
-        },
-        options: licenses,
+        kind: 'form',
+        title: 'Required Zenodo Metadata',
+        description: 'Complete the repository-required values that could not be mapped from the RO-Crate.',
+        acceptLabel: 'Export',
+        fields: [
+          {
+            id: 'access_right',
+            label: 'Access right',
+            type: 'select',
+            required: true,
+            defaultValue: this.text(metadata.access_right) || 'open',
+            options: zenodoMetadataOptions('access_right', crosswalk),
+          },
+          {
+            id: 'license',
+            label: 'License',
+            type: 'select',
+            required: true,
+            searchable: true,
+            defaultValue: defaultLicense,
+            options: licenses,
+            visibleWhen: { field: 'access_right', values: ['open', 'embargoed'] },
+            description: 'The selected license applies to all files in this deposition. Zenodo licenses the metadata separately under Creative Commons Zero.',
+          },
+          {
+            id: 'embargo_date',
+            label: 'Embargo end date',
+            type: 'date',
+            required: true,
+            defaultValue: this.text(metadata.embargo_date) || '',
+            visibleWhen: { field: 'access_right', values: ['embargoed'] },
+          },
+          {
+            id: 'access_conditions',
+            label: 'Access conditions',
+            type: 'textarea',
+            required: true,
+            defaultValue: this.text(metadata.access_conditions) || '',
+            visibleWhen: { field: 'access_right', values: ['restricted'] },
+          },
+        ],
       },
     )
     if (!this.object(supplied)) {

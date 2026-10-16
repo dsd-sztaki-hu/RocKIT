@@ -13,7 +13,7 @@ const {
   missingRequiredZenodoMetadataFields,
   zenodoMetadataOptions,
 } = require('../lib/zenodo-metadata-crosswalk')
-const bundledCrosswalk = require('../src/crosswalks/arp-zenodo-crosswalk.json')
+const registeredCrosswalk = require('../../../theia-extensions/data-repository-manager/src/browser/crosswalks/arp-zenodo-crosswalk.json')
 
 const minimalCrate = () => ({
   '@context': 'https://w3id.org/ro/crate/1.1/context',
@@ -29,8 +29,15 @@ const minimalCrate = () => ({
 })
 
 describe('Zenodo metadata crosswalk', () => {
+  it('requires RocKIT to supply the repository crosswalk', () => {
+    assert.throws(
+      () => buildZenodoMetadataFromCrosswalk(minimalCrate()),
+      /Select a Zenodo-compatible metadata crosswalk/,
+    )
+  })
+
   it('maps an RO-Crate root dataset to Zenodo metadata', () => {
-    const result = buildZenodoMetadataFromCrosswalk(minimalCrate())
+    const result = buildZenodoMetadataFromCrosswalk(minimalCrate(), registeredCrosswalk)
 
     assert.equal(result.metadata.title, 'Example dataset')
     assert.equal(result.metadata.description, 'Example description')
@@ -41,10 +48,10 @@ describe('Zenodo metadata crosswalk', () => {
 
   it('derives required fields and schema-backed options from plugin-owned data', () => {
     assert.deepEqual(
-      zenodoMetadataOptions('access_right').map((option) => option.value),
+      zenodoMetadataOptions('access_right', registeredCrosswalk).map((option) => option.value),
       ['closed', 'embargoed', 'open', 'restricted'],
     )
-    assert.deepEqual(missingRequiredZenodoMetadataFields({}), [
+    assert.deepEqual(missingRequiredZenodoMetadataFields({}, registeredCrosswalk), [
       'access_right',
       'creators',
       'description',
@@ -55,7 +62,7 @@ describe('Zenodo metadata crosswalk', () => {
   })
 
   it('uses a crosswalk document supplied by RocKIT', () => {
-    const selectedCrosswalk = structuredClone(bundledCrosswalk)
+    const selectedCrosswalk = structuredClone(registeredCrosswalk)
     const titleMapping = selectedCrosswalk.crosswalks.canonicalToZenodo.mappings.find(
       (mapping) => mapping.target.field === 'title',
     )
@@ -77,7 +84,7 @@ describe('Zenodo metadata crosswalk', () => {
       description: 'Updated <b>description</b>',
       keywords: ['alpha', 'beta'],
       creators: [{ name: 'Jane Doe', orcid: '0000-0001' }],
-    })
+    }, registeredCrosswalk)
     const root = result.crate['@graph'].find((entity) => entity['@id'] === './')
 
     assert.equal(crate['@graph'].length, 1)
@@ -106,7 +113,7 @@ describe('Zenodo metadata crosswalk', () => {
       access_right: 'restricted',
       access_conditions: 'Contact the Zenodo record owner.',
       embargo_date: '2030-12-31',
-    })
+    }, registeredCrosswalk)
     const updatedRoot = result.crate['@graph'].find((entity) => entity['@id'] === './')
 
     assert.equal(updatedRoot.conditionsOfAccess, 'Existing local access statement')

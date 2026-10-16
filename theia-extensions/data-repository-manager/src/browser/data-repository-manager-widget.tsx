@@ -45,7 +45,7 @@ import { NativeDataverseDatasetMetadataDialog } from './components/native-datave
 import { RepositorySyncOptionsDialog } from './components/repository-sync-options-dialog'
 import { RepositoryOperation } from './repository-provider-registry'
 import { RepositoryProviderService } from './repository-provider-service'
-import { CrosswalkRegistryService } from 'crosswalk-manager/lib/browser/crosswalk-registry-service'
+import { CrosswalkRegistry } from 'crosswalk-manager/lib/browser/crosswalk-registry'
 import {
   ArpRoCrateExportService,
   ArpRoCrateValidationError,
@@ -123,8 +123,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly workspaceService: WorkspaceService,
     @inject(RepositoryProviderService)
     protected readonly providerService: RepositoryProviderService,
-    @inject(CrosswalkRegistryService)
-    protected readonly crosswalkRegistryService: CrosswalkRegistryService,
+    @inject(CrosswalkRegistry)
+    protected readonly crosswalkRegistryService: CrosswalkRegistry,
   ) {
     super()
     this.id = DATA_REPOSITORY_MANAGER_WIDGET_ID

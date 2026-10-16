@@ -6,7 +6,7 @@
 
 import { CommandService } from '@theia/core/lib/common'
 import { inject, injectable } from 'inversify'
-import { CrosswalkRegistryService } from 'crosswalk-manager/lib/browser/crosswalk-registry-service'
+import { CrosswalkRegistry } from 'crosswalk-manager/lib/browser/crosswalk-registry'
 
 import {
   RepositoryOperation,
@@ -29,8 +29,8 @@ export class RepositoryProviderService {
     protected readonly registry: RepositoryProviderRegistry,
     @inject(CommandService)
     protected readonly commandService: CommandService,
-    @inject(CrosswalkRegistryService)
-    protected readonly crosswalkRegistryService: CrosswalkRegistryService,
+    @inject(CrosswalkRegistry)
+    protected readonly crosswalkRegistryService: CrosswalkRegistry,
   ) {}
 
   listProviders() {

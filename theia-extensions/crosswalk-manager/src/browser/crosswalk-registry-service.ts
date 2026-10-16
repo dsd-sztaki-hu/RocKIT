@@ -9,9 +9,10 @@ import URI from '@theia/core/lib/common/uri'
 import { inject, injectable } from '@theia/core/shared/inversify'
 import { CrosswalkRegistryStore } from './crosswalk-registry-store'
 import { CrosswalkDocument, CrosswalkRegistryEntry } from './crosswalk-manager-types'
+import { CrosswalkRegistry } from './crosswalk-registry'
 
 @injectable()
-export class CrosswalkRegistryService {
+export class CrosswalkRegistryService implements CrosswalkRegistry {
     protected readonly didChangeEmitter = new Emitter<CrosswalkRegistryEntry[]>()
     readonly onDidChange: Event<CrosswalkRegistryEntry[]> = this.didChangeEmitter.event
 

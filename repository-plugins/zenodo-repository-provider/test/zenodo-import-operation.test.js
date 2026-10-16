@@ -8,6 +8,7 @@ const assert = require('node:assert/strict')
 const { describe, it } = require('node:test')
 
 const { ZenodoImportOperation } = require('../src/zenodo-import-operation')
+const crosswalk = require('../../../theia-extensions/data-repository-manager/src/browser/crosswalks/arp-zenodo-crosswalk.json')
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -157,6 +158,7 @@ describe('Zenodo import operation', () => {
       },
       recordUrl: 'https://sandbox.zenodo.org/uploads/42',
       targetParentUri: 'imports',
+      crosswalk: { id: crosswalk.id, document: crosswalk },
     })
 
     assert.equal(
@@ -205,6 +207,7 @@ describe('Zenodo import operation', () => {
       repository: { baseUrl: 'https://sandbox.zenodo.org', apiKey: 'secret' },
       recordUrl: 'https://sandbox.zenodo.org/uploads/42',
       targetParentUri: 'imports',
+      crosswalk: { id: crosswalk.id, document: crosswalk },
     })
     const crate = JSON.parse(
       decoder.decode(env.written.get('imports/zenodo-42/ro-crate-metadata.json')),

@@ -4,8 +4,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-import crosswalk = require('./crosswalks/arp-zenodo-crosswalk.json')
-
 type JsonObject = Record<string, unknown>
 
 interface RequirementCondition {
@@ -89,7 +87,6 @@ export interface ZenodoMetadataOption {
   label: string
 }
 
-const bundledRepositoryCrosswalk = crosswalk as RepositoryCrosswalk
 const EMPTY = Symbol('empty-crosswalk-value')
 type MappingValue = unknown | typeof EMPTY
 
@@ -97,8 +94,10 @@ function isObject(value: unknown): value is JsonObject {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
-function resolveRepositoryCrosswalk(value?: unknown): RepositoryCrosswalk {
-  if (value === undefined) return bundledRepositoryCrosswalk
+function resolveRepositoryCrosswalk(value: unknown): RepositoryCrosswalk {
+  if (value === undefined) {
+    throw new Error('Select a Zenodo-compatible metadata crosswalk for this repository.')
+  }
   if (!isObject(value)) {
     throw new Error('The selected Zenodo crosswalk must be a JSON object.')
   }
@@ -924,7 +923,7 @@ function reverseScalarValue(value: unknown, mapping: ZenodoMapping): unknown {
 
 export function zenodoMetadataOptions(
   field: string,
-  crosswalkDocument?: unknown,
+  crosswalkDocument: unknown,
 ): ZenodoMetadataOption[] {
   const activeCrosswalk = resolveRepositoryCrosswalk(crosswalkDocument)
   const property = activeCrosswalk.repositories.zenodo.schema.properties[field]
@@ -1029,7 +1028,7 @@ function conditionMatches(
 
 export function missingRequiredZenodoMetadataFields(
   metadata: Record<string, unknown>,
-  crosswalkDocument?: unknown,
+  crosswalkDocument: unknown,
 ): string[] {
   const activeCrosswalk = resolveRepositoryCrosswalk(crosswalkDocument)
   const requirements = activeCrosswalk.repositories.zenodo.officialRequirements
@@ -1057,7 +1056,7 @@ export function missingRequiredZenodoMetadataFields(
  */
 export function buildZenodoMetadataFromCrosswalk(
   crate: Record<string, unknown>,
-  crosswalkDocument?: unknown,
+  crosswalkDocument: unknown,
 ): ZenodoCrosswalkResult {
   const activeCrosswalk = resolveRepositoryCrosswalk(crosswalkDocument)
   const graph = readGraph(crate)
@@ -1134,7 +1133,7 @@ export function buildZenodoMetadataFromCrosswalk(
 export function applyZenodoMetadataToRoCrate(
   crate: Record<string, unknown>,
   zenodoMetadata: Record<string, unknown>,
-  crosswalkDocument?: unknown,
+  crosswalkDocument: unknown,
 ): ZenodoReverseCrosswalkResult {
   const activeCrosswalk = resolveRepositoryCrosswalk(crosswalkDocument)
   const nextCrate = JSON.parse(JSON.stringify(crate)) as Record<string, unknown>

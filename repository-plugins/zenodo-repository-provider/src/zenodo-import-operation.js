@@ -15,7 +15,6 @@ const {
 const { ZenodoCreateOperation } = require('./zenodo-create-operation')
 const { ZenodoFileHashStore } = require('./zenodo-file-hash-store')
 
-const CROSSWALK_FILE = 'arp-zenodo-crosswalk.json'
 const METADATA_FILE = 'ro-crate-metadata.json'
 
 class ZenodoImportOperation extends ZenodoCreateOperation {
@@ -400,7 +399,7 @@ class ZenodoImportOperation extends ZenodoCreateOperation {
       target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile,
-      crosswalkFile: crosswalkId || CROSSWALK_FILE,
+      crosswalkFile: crosswalkId,
       syncType: 'update',
       status: 'success',
       lastSuccessfulActionAt: this.now().toISOString(),

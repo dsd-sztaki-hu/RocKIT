@@ -7,13 +7,14 @@ The extension currently contains:
 
 - `ZenodoClient`, the transport boundary that owns Zenodo URLs,
   authentication headers, timeouts, response parsing, and HTTP errors;
-- the generated ARP/RO-Crate ↔ Zenodo metadata crosswalk and its framework-free
-  runtime;
+- a framework-free crosswalk runtime that consumes the crosswalk selected in
+  RocKIT's registry;
 - a registered `create` operation that reads the active RO-Crate workspace,
   creates a Zenodo draft, uploads local `File` entities and metadata, and saves
   the resulting mapping in `.rockit`;
-- native extension prompts for Zenodo access right, license, embargo date, and
-  access conditions when the crosswalk cannot determine them unambiguously;
+- a generic RocKIT metadata form request for Zenodo access right, license,
+  embargo date, and access conditions when the crosswalk cannot determine them
+  unambiguously;
 - a differential `update` operation for writable drafts that preserves Zenodo
   access policy and reconciles added, changed, unchanged, and removed files.
 - a `sync` operation that downloads remote files safely, applies the reverse
@@ -37,7 +38,8 @@ The extension currently contains:
 The provider advertises its repository operations and local target-management commands; unsupported
 repository actions are not shown for connections using this provider. Required
 descriptive metadata such as title, description, publication date, and creators
-must still be present in the RO-Crate.
+must still be present in the RO-Crate. The extension does not package an ARP
+crosswalk; RocKIT supplies the crosswalk selected for the repository connection.
 
 Run its focused tests with:
 
