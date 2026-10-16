@@ -5,7 +5,7 @@ the RocKIT application bundle.
 
 The extension currently contains:
 
-- `ZenodoClient`, the transport boundary that owns Zenodo URLs,
+- `ZenodoClient`, the transport boundary that contains the required Zenodo API endpoint URLs,
   authentication headers, timeouts, response parsing, and HTTP errors;
 - a framework-free crosswalk runtime that consumes the crosswalk selected in
   RocKIT's registry;
