@@ -266,11 +266,13 @@ export const CrosswalkTable: React.FC<CrosswalkTableProps> = React.memo(({
             key: 'importedAt',
             className: 'crosswalk-table-last-resizable-column',
             ...resizableColumn('imported', MIN_COLUMN_WIDTHS.imported),
-            sorter: (left, right) => left.importedAt.localeCompare(right.importedAt),
-            render: (value: string) => new Intl.DateTimeFormat(undefined, {
+            sorter: (left, right) => (left.importedAt ?? '').localeCompare(right.importedAt ?? ''),
+            render: (value: string | undefined, entry) => entry.builtIn
+                ? nls.localize('rockit/crosswalkManager/builtIn', 'Built-in')
+                : value ? new Intl.DateTimeFormat(undefined, {
                 dateStyle: 'medium',
                 timeStyle: 'short',
-            }).format(new Date(value)),
+            }).format(new Date(value)) : '—',
         },
         {
             title: nls.localize('rockit/crosswalkManager/actions', 'Action'),
@@ -280,6 +282,7 @@ export const CrosswalkTable: React.FC<CrosswalkTableProps> = React.memo(({
             align: 'center',
             render: (_value, entry) => <div className='crosswalk-table-actions-container'>
                 <Popconfirm
+                    disabled={entry.builtIn || deletingId === entry.id}
                     title={nls.localize('rockit/crosswalkManager/deleteQuestion', 'Delete this crosswalk?')}
                     description={nls.localize(
                         'rockit/crosswalkManager/deleteDescription',
@@ -290,11 +293,13 @@ export const CrosswalkTable: React.FC<CrosswalkTableProps> = React.memo(({
                     okButtonProps={{ danger: true }}
                     onConfirm={() => onDelete(entry)}
                 >
-                    <Tooltip title={nls.localize('rockit/crosswalkManager/delete', 'Delete')}>
+                    <Tooltip title={entry.builtIn
+                        ? nls.localize('rockit/crosswalkManager/builtInCannotDelete', 'Built-in crosswalks cannot be deleted.')
+                        : nls.localize('rockit/crosswalkManager/delete', 'Delete')}>
                         <span>
                             <IconButton
                                 size='small'
-                                disabled={deletingId === entry.id}
+                                disabled={entry.builtIn || deletingId === entry.id}
                                 className='crosswalk-table-action-button crosswalk-table-action-button-delete'
                                 aria-label={nls.localize('rockit/crosswalkManager/delete', 'Delete')}
                             >

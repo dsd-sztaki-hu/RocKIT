@@ -7,9 +7,10 @@
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables'
 import URI from '@theia/core/lib/common/uri'
 import { FileService } from '@theia/filesystem/lib/browser/file-service'
-import { inject, injectable } from '@theia/core/shared/inversify'
+import { inject, injectable, multiInject, optional } from '@theia/core/shared/inversify'
 import { readUtf8TextFile, writeUtf8TextFile } from 'rockit-common/lib/browser'
 import {
+    BundledCrosswalk,
     CrosswalkDocument,
     CrosswalkRegistryEntry,
     CrosswalkRegistryIndex,
@@ -45,12 +46,15 @@ export class CrosswalkRegistryStore {
     constructor(
         @inject(FileService) protected readonly fileService: FileService,
         @inject(EnvVariablesServer) protected readonly envVariablesServer: EnvVariablesServer,
+        @multiInject(BundledCrosswalk) @optional()
+        protected readonly bundledCrosswalks: BundledCrosswalk[] = [],
     ) {}
 
     async list(): Promise<CrosswalkRegistryEntry[]> {
         const index = await this.loadIndex()
         let changed = false
         for (const entry of index.crosswalks) {
+            if (this.findBundledCrosswalk(entry.id)) continue
             if (Array.isArray(entry.repositories) && typeof entry.ruleCount === 'number') continue
             const documentUri = (await this.getDirectoryUri()).resolve(entry.fileName)
             const content = await readUtf8TextFile(this.fileService, documentUri)
@@ -60,7 +64,21 @@ export class CrosswalkRegistryStore {
             changed = true
         }
         if (changed) await this.saveIndex(index)
-        return [...index.crosswalks].sort(compareEntries)
+        const defaults: CrosswalkRegistryEntry[] = this.bundledCrosswalks.map(({ fileName, document }) => ({
+            id: document.id,
+            name: document.name,
+            fileName,
+            sourceFileName: fileName,
+            builtIn: true,
+            ...summarizeCrosswalk(document),
+        }))
+        // Previously imported copies keep their files, but each built-in ID appears only once.
+        return [
+            ...defaults,
+            ...index.crosswalks
+                .filter(entry => !this.findBundledCrosswalk(entry.id))
+                .map(entry => ({ ...entry, builtIn: false })),
+        ].sort(compareEntries)
     }
 
     async importFile(sourceUri: URI): Promise<CrosswalkRegistryEntry> {
@@ -68,7 +86,7 @@ export class CrosswalkRegistryStore {
         const parsed = parseCrosswalk(content)
         const summary = summarizeCrosswalk(parsed.document)
         const index = await this.loadIndex()
-        if (index.crosswalks.some(entry => entry.id === parsed.id)) {
+        if (this.findBundledCrosswalk(parsed.id) || index.crosswalks.some(entry => entry.id === parsed.id)) {
             throw new Error(`A crosswalk with the identifier \"${parsed.id}\" is already registered.`)
         }
 
@@ -94,6 +112,9 @@ export class CrosswalkRegistryStore {
     }
 
     async delete(id: string): Promise<void> {
+        if (this.findBundledCrosswalk(id)) {
+            throw new Error('Built-in crosswalks cannot be deleted.')
+        }
         const index = await this.loadIndex()
         const entry = index.crosswalks.find(candidate => candidate.id === id)
         if (!entry) return
@@ -110,11 +131,19 @@ export class CrosswalkRegistryStore {
     }
 
     async read(id: string): Promise<CrosswalkDocument | undefined> {
+        const bundled = this.findBundledCrosswalk(id)
+        if (bundled) {
+            return JSON.parse(JSON.stringify(bundled.document)) as CrosswalkDocument
+        }
         const entry = (await this.loadIndex()).crosswalks.find(candidate => candidate.id === id)
         if (!entry) return undefined
         const directoryUri = await this.getDirectoryUri()
         const content = await readUtf8TextFile(this.fileService, directoryUri.resolve(entry.fileName))
         return parseCrosswalk(content).document
+    }
+
+    protected findBundledCrosswalk(id: string): BundledCrosswalk | undefined {
+        return this.bundledCrosswalks.find(crosswalk => crosswalk.document.id === id)
     }
 
     protected async loadIndex(): Promise<CrosswalkRegistryIndex> {

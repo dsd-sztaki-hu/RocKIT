@@ -10,12 +10,20 @@ export interface CrosswalkDocument extends Record<string, unknown> {
     displayName?: string
 }
 
+/** Application extensions contribute packaged defaults without storing user copies. */
+export const BundledCrosswalk = Symbol('BundledCrosswalk')
+export interface BundledCrosswalk {
+    fileName: string
+    document: CrosswalkDocument
+}
+
 export interface CrosswalkRegistryEntry {
     id: string
     name: string
     fileName: string
     sourceFileName: string
-    importedAt: string
+    importedAt?: string
+    builtIn?: boolean
     repositories?: string[]
     ruleCount?: number
 }

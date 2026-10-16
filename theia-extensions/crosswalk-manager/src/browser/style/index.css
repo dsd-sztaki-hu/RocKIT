@@ -228,6 +228,10 @@
     color: var(--theia-icon-foreground) !important;
 }
 
+.crosswalk-table-action-button.Mui-disabled {
+    opacity: 0.4;
+}
+
 .crosswalk-table-action-button-delete:hover {
     color: var(--theia-errorForeground) !important;
 }

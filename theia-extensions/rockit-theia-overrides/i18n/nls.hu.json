@@ -377,6 +377,8 @@
       "repositories": "Repozitóriumok",
       "rules": "Szabályszámláló",
       "importedAt": "Importálva",
+      "builtIn": "Beépített",
+      "builtInCannotDelete": "A beépített crosswalkok nem törölhetők.",
       "actions": "Művelet",
       "import": "Crosswalk importálása",
       "importedCount": "{0} crosswalk sikeresen importálva.",

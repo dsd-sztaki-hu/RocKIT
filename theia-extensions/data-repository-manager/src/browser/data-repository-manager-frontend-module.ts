@@ -28,8 +28,14 @@ import { DataRepositoryExportDeleteService } from './services/data-repository-ex
 import { DataverseMetadataMappingService } from './services/dataverse-metadata-mapping-service'
 import { RepositoryProviderRegistry } from './repository-provider-registry'
 import { RepositoryProviderService } from './repository-provider-service'
+import { BundledCrosswalk } from 'crosswalk-manager/lib/browser/crosswalk-manager-types'
+import { BUNDLED_REPOSITORY_CROSSWALKS } from './bundled-crosswalks'
 
 export default new ContainerModule((bind) => {
+  for (const crosswalk of BUNDLED_REPOSITORY_CROSSWALKS) {
+    bind<BundledCrosswalk>(BundledCrosswalk).toConstantValue(crosswalk)
+  }
+
   // 1. Services
   bind(DataRepositoryStoreService).toSelf().inSingletonScope()
   bind(DataverseService).toSelf().inSingletonScope()

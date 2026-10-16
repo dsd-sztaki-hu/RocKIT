@@ -117,6 +117,7 @@ export class CrosswalkManagerWidget extends ReactWidget {
     }
 
     protected readonly deleteCrosswalk = async (entry: CrosswalkRegistryEntry): Promise<void> => {
+        if (entry.builtIn) return
         this.deletingId = entry.id
         this.update()
         try {
