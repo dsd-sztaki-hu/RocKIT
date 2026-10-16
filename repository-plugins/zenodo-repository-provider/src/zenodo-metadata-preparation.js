@@ -24,9 +24,9 @@ class ZenodoMetadataPreparation {
     this.vscode = vscode
   }
 
-  async prepare(crate, client) {
-    const { metadata, diagnostics } = buildZenodoMetadataFromCrosswalk(crate)
-    let missing = missingRequiredZenodoMetadataFields(metadata)
+  async prepare(crate, client, crosswalk) {
+    const { metadata, diagnostics } = buildZenodoMetadataFromCrosswalk(crate, crosswalk)
+    let missing = missingRequiredZenodoMetadataFields(metadata, crosswalk)
     const fallbackAccessRight = diagnostics.some(
       (diagnostic) =>
         diagnostic.targetField === 'access_right' && diagnostic.outcome === 'defaulted',
@@ -36,14 +36,14 @@ class ZenodoMetadataPreparation {
     )
 
     if (fallbackAccessRight || needsAccessPolicy) {
-      const supplied = await this.promptForAccessPolicy(metadata, client)
+      const supplied = await this.promptForAccessPolicy(metadata, client, crosswalk)
       Object.assign(metadata, supplied)
       for (const field of ['license', 'embargo_date', 'access_conditions']) {
         if (!Object.hasOwn(supplied, field)) {
           delete metadata[field]
         }
       }
-      missing = missingRequiredZenodoMetadataFields(metadata)
+      missing = missingRequiredZenodoMetadataFields(metadata, crosswalk)
     }
 
     if (missing.length) {
@@ -54,11 +54,11 @@ class ZenodoMetadataPreparation {
     return metadata
   }
 
-  async promptForAccessPolicy(metadata, client) {
+  async promptForAccessPolicy(metadata, client, crosswalk) {
     const defaultLicense =
       this.text(metadata.license) ||
       (metadata.upload_type === 'dataset' ? 'cc-zero' : 'cc-by')
-    const loadedLicenses = await this.loadLicenseOptions(client)
+    const loadedLicenses = await this.loadLicenseOptions(client, crosswalk)
     const licenses = loadedLicenses.some((option) => option.value === defaultLicense)
       ? loadedLicenses
       : [
@@ -83,8 +83,8 @@ class ZenodoMetadataPreparation {
     return supplied
   }
 
-  async loadLicenseOptions(client) {
-    const fallback = this.withDefaultLicenses(zenodoMetadataOptions('license'))
+  async loadLicenseOptions(client, crosswalk) {
+    const fallback = this.withDefaultLicenses(zenodoMetadataOptions('license', crosswalk))
     try {
       const payload = await client.listLicenses()
       const options = this.licenseResources(payload).flatMap((resource) => {

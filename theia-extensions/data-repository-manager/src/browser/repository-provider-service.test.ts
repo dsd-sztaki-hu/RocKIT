@@ -5,6 +5,7 @@
 // ******************************************************************************************
 
 import { CommandService } from '@theia/core/lib/common'
+import { CrosswalkRegistryService } from 'crosswalk-manager/lib/browser/crosswalk-registry-service'
 
 import { RepositoryProviderRegistry } from './repository-provider-registry'
 import { RepositoryProviderService } from './repository-provider-service'
@@ -22,10 +23,19 @@ describe('RepositoryProviderService', () => {
 
     const executeCommand = jest.fn().mockResolvedValue({ remoteId: 'test-123' })
     const commandService = { executeCommand } as unknown as CommandService
+    const readCrosswalk = jest.fn().mockResolvedValue(undefined)
+    const crosswalkRegistryService = {
+      read: readCrosswalk,
+    } as unknown as CrosswalkRegistryService
 
     return {
-      service: new RepositoryProviderService(registry, commandService),
+      service: new RepositoryProviderService(
+        registry,
+        commandService,
+        crosswalkRegistryService,
+      ),
       executeCommand,
+      readCrosswalk,
     }
   }
 
@@ -37,6 +47,27 @@ describe('RepositoryProviderService', () => {
       service.execute({ providerId: 'test-repository', operation: 'create', input }),
     ).resolves.toEqual({ remoteId: 'test-123' })
     expect(executeCommand).toHaveBeenCalledWith('rockit.testRepository.create', input)
+  })
+
+  it('resolves the selected crosswalk for metadata operations', async () => {
+    const { service, executeCommand, readCrosswalk } = createService()
+    const document = { id: 'test-crosswalk', name: 'Test Crosswalk' }
+    readCrosswalk.mockResolvedValue(document)
+    const repository = {
+      id: 'connection-1',
+      title: 'My Test Repository',
+      baseUrl: 'https://example.invalid',
+      providerId: 'test-repository',
+      crosswalkId: 'test-crosswalk',
+    }
+
+    await service.executeForRepository(repository, 'create', { repository })
+
+    expect(readCrosswalk).toHaveBeenCalledWith('test-crosswalk')
+    expect(executeCommand).toHaveBeenCalledWith('rockit.testRepository.create', {
+      repository,
+      crosswalk: { id: 'test-crosswalk', document },
+    })
   })
 
   it('rejects an unknown provider', async () => {

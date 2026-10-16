@@ -55,7 +55,7 @@ class ZenodoSyncOperation extends ZenodoCreateOperation {
       target: exportTarget.target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile: exportTarget.mappingFile,
-      crosswalkFile: CROSSWALK_FILE,
+      crosswalkFile: input?.crosswalk?.id || CROSSWALK_FILE,
       syncType: 'sync',
       datasetName: exportTarget.datasetName,
       lastSuccessfulActionAt: exportTarget.lastSuccessfulActionAt,
@@ -143,7 +143,11 @@ class ZenodoSyncOperation extends ZenodoCreateOperation {
 
       progress.report({ message: `Merging ${METADATA_FILE}...` })
       const localizedRemote = this.rewriteIds(remoteCrate, this.invertMapping(mapping))
-      const repositoryMetadata = applyZenodoMetadataToRoCrate(localizedRemote, metadata)
+      const repositoryMetadata = applyZenodoMetadataToRoCrate(
+        localizedRemote,
+        metadata,
+        input?.crosswalk?.document,
+      )
       const merged = mergeRoCratesForSync(
         this.rewriteIds(localCrate, relocatedIds),
         repositoryMetadata.crate,

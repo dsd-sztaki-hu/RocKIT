@@ -38,7 +38,8 @@ class ZenodoCreateOperation {
     )
     const crate = this.parseCrate(crateBytes)
     const client = this.clientFactory(repository)
-    const metadata = await this.metadataPreparation.prepare(crate, client)
+    const crosswalk = input?.crosswalk?.document
+    const metadata = await this.metadataPreparation.prepare(crate, client, crosswalk)
     const upload = await this.uploadPackage.prepare(rootUri, crate)
     const uploadFiles = upload.files
 
@@ -80,6 +81,7 @@ class ZenodoCreateOperation {
       repository,
       target,
       crate,
+      crosswalkId: input?.crosswalk?.id,
     })
 
     progress.report({ message: 'Zenodo export complete.' })
@@ -160,6 +162,7 @@ class ZenodoCreateOperation {
     repository,
     target,
     crate,
+    crosswalkId,
   }) {
     const rockitUri = this.vscode.Uri.joinPath(rootUri, '.rockit')
     await this.vscode.workspace.fs.createDirectory(rockitUri)
@@ -173,7 +176,7 @@ class ZenodoCreateOperation {
       target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile,
-      crosswalkFile: CROSSWALK_FILE,
+      crosswalkFile: crosswalkId || CROSSWALK_FILE,
       syncType: 'create',
       remoteState: 'draft',
       status: 'success',

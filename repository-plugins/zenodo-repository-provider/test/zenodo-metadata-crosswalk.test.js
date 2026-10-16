@@ -13,6 +13,7 @@ const {
   missingRequiredZenodoMetadataFields,
   zenodoMetadataOptions,
 } = require('../lib/zenodo-metadata-crosswalk')
+const bundledCrosswalk = require('../src/crosswalks/arp-zenodo-crosswalk.json')
 
 const minimalCrate = () => ({
   '@context': 'https://w3id.org/ro/crate/1.1/context',
@@ -51,6 +52,22 @@ describe('Zenodo metadata crosswalk', () => {
       'title',
       'upload_type',
     ])
+  })
+
+  it('uses a crosswalk document supplied by RocKIT', () => {
+    const selectedCrosswalk = structuredClone(bundledCrosswalk)
+    const titleMapping = selectedCrosswalk.crosswalks.canonicalToZenodo.mappings.find(
+      (mapping) => mapping.target.field === 'title',
+    )
+    titleMapping.mappingStatus = 'repositorySpecific'
+
+    const result = buildZenodoMetadataFromCrosswalk(minimalCrate(), selectedCrosswalk)
+
+    assert.equal(result.metadata.title, undefined)
+    assert.equal(
+      result.diagnostics.find((diagnostic) => diagnostic.targetField === 'title')?.outcome,
+      'omitted',
+    )
   })
 
   it('maps Zenodo metadata back without mutating the input RO-Crate', () => {

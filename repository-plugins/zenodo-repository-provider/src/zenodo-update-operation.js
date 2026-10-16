@@ -61,7 +61,7 @@ class ZenodoUpdateOperation extends ZenodoCreateOperation {
     if (!bucketUrl) {
       throw new Error('Zenodo did not return a writable bucket for the selected draft.')
     }
-    const metadata = this.updateMetadata(crate, deposition)
+    const metadata = this.updateMetadata(crate, deposition, input?.crosswalk?.document)
     const remoteFiles = this.normalizeRemoteFiles(
       await client.listDepositionFiles(depositionId),
     )
@@ -107,6 +107,7 @@ class ZenodoUpdateOperation extends ZenodoCreateOperation {
       target,
       mapping,
       crate,
+      crosswalkId: input?.crosswalk?.id,
     })
     progress.report({ message: 'Zenodo update complete.' })
 
@@ -123,8 +124,8 @@ class ZenodoUpdateOperation extends ZenodoCreateOperation {
     }
   }
 
-  updateMetadata(crate, deposition) {
-    const { metadata } = buildZenodoMetadataFromCrosswalk(crate)
+  updateMetadata(crate, deposition, crosswalk) {
+    const { metadata } = buildZenodoMetadataFromCrosswalk(crate, crosswalk)
     const remoteMetadata = this.object(deposition)?.metadata
     const existing = this.object(remoteMetadata) || {}
     for (const field of PRESERVED_ACCESS_FIELDS) {
@@ -134,7 +135,7 @@ class ZenodoUpdateOperation extends ZenodoCreateOperation {
         delete metadata[field]
       }
     }
-    const missing = missingRequiredZenodoMetadataFields(metadata)
+    const missing = missingRequiredZenodoMetadataFields(metadata, crosswalk)
     if (missing.length) {
       throw new Error(
         `The RO-Crate cannot update Zenodo because these required metadata fields are missing: ${missing.join(', ')}.`,
@@ -220,6 +221,7 @@ class ZenodoUpdateOperation extends ZenodoCreateOperation {
     target,
     mapping,
     crate,
+    crosswalkId,
   }) {
     const rockitUri = this.vscode.Uri.joinPath(rootUri, '.rockit')
     await this.vscode.workspace.fs.createDirectory(rockitUri)
@@ -234,7 +236,7 @@ class ZenodoUpdateOperation extends ZenodoCreateOperation {
       target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile: exportTarget.mappingFile,
-      crosswalkFile: CROSSWALK_FILE,
+      crosswalkFile: crosswalkId || CROSSWALK_FILE,
       syncType: 'update',
       remoteState: 'draft',
       status: 'success',

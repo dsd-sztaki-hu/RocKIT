@@ -89,12 +89,45 @@ export interface ZenodoMetadataOption {
   label: string
 }
 
-const repositoryCrosswalk = crosswalk as RepositoryCrosswalk
+const bundledRepositoryCrosswalk = crosswalk as RepositoryCrosswalk
 const EMPTY = Symbol('empty-crosswalk-value')
 type MappingValue = unknown | typeof EMPTY
 
 function isObject(value: unknown): value is JsonObject {
   return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function resolveRepositoryCrosswalk(value?: unknown): RepositoryCrosswalk {
+  if (value === undefined) return bundledRepositoryCrosswalk
+  if (!isObject(value)) {
+    throw new Error('The selected Zenodo crosswalk must be a JSON object.')
+  }
+  const repositories = isObject(value.repositories) ? value.repositories : undefined
+  const zenodo = repositories && isObject(repositories.zenodo)
+    ? repositories.zenodo
+    : undefined
+  const schema = zenodo && isObject(zenodo.schema) ? zenodo.schema : undefined
+  const requirements = zenodo && isObject(zenodo.officialRequirements)
+    ? zenodo.officialRequirements
+    : undefined
+  const crosswalks = isObject(value.crosswalks) ? value.crosswalks : undefined
+  const canonicalToZenodo = crosswalks && isObject(crosswalks.canonicalToZenodo)
+    ? crosswalks.canonicalToZenodo
+    : undefined
+  if (
+    !schema ||
+    !isObject(schema.properties) ||
+    !requirements ||
+    !Array.isArray(requirements.alwaysRequired) ||
+    !isObject(requirements.conditionalRequired) ||
+    !canonicalToZenodo ||
+    !Array.isArray(canonicalToZenodo.mappings)
+  ) {
+    throw new Error(
+      'The selected crosswalk does not contain the Zenodo schema, requirements, and canonicalToZenodo mappings.',
+    )
+  }
+  return value as unknown as RepositoryCrosswalk
 }
 
 function values(value: unknown): unknown[] {
@@ -889,8 +922,12 @@ function reverseScalarValue(value: unknown, mapping: ZenodoMapping): unknown {
   return mapped
 }
 
-export function zenodoMetadataOptions(field: string): ZenodoMetadataOption[] {
-  const property = repositoryCrosswalk.repositories.zenodo.schema.properties[field]
+export function zenodoMetadataOptions(
+  field: string,
+  crosswalkDocument?: unknown,
+): ZenodoMetadataOption[] {
+  const activeCrosswalk = resolveRepositoryCrosswalk(crosswalkDocument)
+  const property = activeCrosswalk.repositories.zenodo.schema.properties[field]
   const enumValues = property && Array.isArray(property.enum) ? property.enum : []
   return enumValues
     .filter((value): value is string => typeof value === 'string')
@@ -992,8 +1029,10 @@ function conditionMatches(
 
 export function missingRequiredZenodoMetadataFields(
   metadata: Record<string, unknown>,
+  crosswalkDocument?: unknown,
 ): string[] {
-  const requirements = repositoryCrosswalk.repositories.zenodo.officialRequirements
+  const activeCrosswalk = resolveRepositoryCrosswalk(crosswalkDocument)
+  const requirements = activeCrosswalk.repositories.zenodo.officialRequirements
   const required = new Set(requirements.alwaysRequired)
 
   for (const [field, requirement] of Object.entries(requirements.conditionalRequired)) {
@@ -1018,7 +1057,9 @@ export function missingRequiredZenodoMetadataFields(
  */
 export function buildZenodoMetadataFromCrosswalk(
   crate: Record<string, unknown>,
+  crosswalkDocument?: unknown,
 ): ZenodoCrosswalkResult {
+  const activeCrosswalk = resolveRepositoryCrosswalk(crosswalkDocument)
   const graph = readGraph(crate)
   const root = graph.find((entity) => entity['@id'] === './')
   if (!root) {
@@ -1027,7 +1068,7 @@ export function buildZenodoMetadataFromCrosswalk(
 
   const metadata: Record<string, unknown> = {}
   const diagnostics: ZenodoMappingDiagnostic[] = []
-  const mappings = repositoryCrosswalk.crosswalks.canonicalToZenodo.mappings
+  const mappings = activeCrosswalk.crosswalks.canonicalToZenodo.mappings
 
   for (const mapping of mappings) {
     const executable =
@@ -1093,7 +1134,9 @@ export function buildZenodoMetadataFromCrosswalk(
 export function applyZenodoMetadataToRoCrate(
   crate: Record<string, unknown>,
   zenodoMetadata: Record<string, unknown>,
+  crosswalkDocument?: unknown,
 ): ZenodoReverseCrosswalkResult {
+  const activeCrosswalk = resolveRepositoryCrosswalk(crosswalkDocument)
   const nextCrate = JSON.parse(JSON.stringify(crate)) as Record<string, unknown>
   const graph = readMutableGraph(nextCrate)
   const root = graph.find((entity) => entity['@id'] === './')
@@ -1107,7 +1150,7 @@ export function applyZenodoMetadataToRoCrate(
   ) {
     updatedFields.push('description')
   }
-  for (const mapping of repositoryCrosswalk.crosswalks.canonicalToZenodo.mappings) {
+  for (const mapping of activeCrosswalk.crosswalks.canonicalToZenodo.mappings) {
     if (mapping.direction !== 'both' || mapping.mappingStatus === 'repositorySpecific') {
       continue
     }

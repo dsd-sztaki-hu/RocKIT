@@ -45,6 +45,7 @@ import { NativeDataverseDatasetMetadataDialog } from './components/native-datave
 import { RepositorySyncOptionsDialog } from './components/repository-sync-options-dialog'
 import { RepositoryOperation } from './repository-provider-registry'
 import { RepositoryProviderService } from './repository-provider-service'
+import { CrosswalkRegistryService } from 'crosswalk-manager/lib/browser/crosswalk-registry-service'
 import {
   ArpRoCrateExportService,
   ArpRoCrateValidationError,
@@ -122,6 +123,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly workspaceService: WorkspaceService,
     @inject(RepositoryProviderService)
     protected readonly providerService: RepositoryProviderService,
+    @inject(CrosswalkRegistryService)
+    protected readonly crosswalkRegistryService: CrosswalkRegistryService,
   ) {
     super()
     this.id = DATA_REPOSITORY_MANAGER_WIDGET_ID
@@ -208,6 +211,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.dataverseService,
         this.capabilityService,
         this.providerService,
+      this.crosswalkRegistryService,
         this.hasOpenWorkspace(),
       )
       repositorySelection = await selector.open()
@@ -385,6 +389,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.dataverseService,
         this.capabilityService,
         this.providerService,
+        this.crosswalkRegistryService,
         this.hasOpenWorkspace(),
       )
       const repositorySelection = await selector.open()
@@ -616,6 +621,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.dataverseService,
       this.capabilityService,
       this.providerService,
+      this.crosswalkRegistryService,
       hasWorkspace,
       exportTargetsByRepositoryId,
       this.recentArpValidationError
@@ -667,6 +673,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.dataverseService,
         this.capabilityService,
         this.providerService,
+        this.crosswalkRegistryService,
         this.hasOpenWorkspace(),
         exportTargetsByRepositoryId,
         this.recentArpValidationError
@@ -1270,6 +1277,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       undefined,
       this.providerService.listProviders(),
       this.providerService,
+      await this.crosswalkRegistryService.list(),
     )
     const result = await dialog.open()
     if (result) {
@@ -1283,6 +1291,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       repo,
       this.providerService.listProviders(),
       this.providerService,
+      await this.crosswalkRegistryService.list(),
     )
     const result = await dialog.open()
     if (result) {

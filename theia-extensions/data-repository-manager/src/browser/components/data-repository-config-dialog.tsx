@@ -21,6 +21,7 @@ import { DataRepositorySuccessDialog } from './data-repository-success-dialog';
 import { DataverseService } from '../services/dataverse-service';
 import { RepositoryProviderRegistration } from '../repository-provider-registry';
 import { RepositoryProviderService } from '../repository-provider-service';
+import type { CrosswalkRegistryEntry } from 'crosswalk-manager/lib/browser/crosswalk-manager-types';
 import '../styles/data-repository-config-dialog.css';
 
 export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryConfig | undefined> {
@@ -32,6 +33,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
     private baseUrlValue: string = '';
     private apiKeyValue: string = '';
     private providerIdValue: string = '';
+    private crosswalkIdValue: string = '';
     
     private isEditingKey = true; 
     private showKey = false; 
@@ -43,7 +45,8 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
         private readonly dataverseService: DataverseService,
         private readonly repoToEdit?: DataRepositoryConfig,
         private readonly providers: RepositoryProviderRegistration[] = [],
-        private readonly providerService?: RepositoryProviderService
+        private readonly providerService?: RepositoryProviderService,
+        private readonly crosswalks: CrosswalkRegistryEntry[] = []
     ) {
         super({
             title: repoToEdit
@@ -65,8 +68,10 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             this.baseUrlValue = repoToEdit.baseUrl;
             this.apiKeyValue = repoToEdit.apiKey || '';
             this.providerIdValue = repoToEdit.providerId || '';
+            this.crosswalkIdValue = repoToEdit.crosswalkId || '';
             this.isEditingKey = false; 
         }
+        this.selectSingleCompatibleCrosswalk();
     }
 
     get value(): DataRepositoryConfig | undefined {
@@ -113,7 +118,8 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             title: cleanTitle,
             baseUrl: cleanBaseUrl,
             apiKey: cleanApiKey,
-            ...(this.providerIdValue ? { providerId: this.providerIdValue } : {})
+            ...(this.providerIdValue ? { providerId: this.providerIdValue } : {}),
+            ...(this.crosswalkIdValue ? { crosswalkId: this.crosswalkIdValue } : {})
         };
 
         try {
@@ -160,6 +166,34 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
     private handleCancel() {
         this.result = undefined;
         this.close();
+    }
+
+    private compatibleCrosswalks(): CrosswalkRegistryEntry[] {
+        if (!this.providerIdValue) return this.crosswalks;
+        const providerId = this.providerIdValue.toLocaleLowerCase();
+        const compatible = this.crosswalks.filter(crosswalk =>
+            crosswalk.repositories?.some(repository =>
+                repository.toLocaleLowerCase() === providerId
+            )
+        );
+        return compatible.length ? compatible : this.crosswalks;
+    }
+
+    private selectSingleCompatibleCrosswalk(): void {
+        if (this.crosswalkIdValue) return;
+        const compatible = this.compatibleCrosswalks();
+        if (this.providerIdValue && compatible.length === 1) {
+            this.crosswalkIdValue = compatible[0].id;
+        }
+    }
+
+    private changeProvider(providerId: string): void {
+        this.providerIdValue = providerId;
+        if (!this.compatibleCrosswalks().some(crosswalk => crosswalk.id === this.crosswalkIdValue)) {
+            this.crosswalkIdValue = '';
+        }
+        this.selectSingleCompatibleCrosswalk();
+        this.render();
     }
 
     protected render(): void {
@@ -217,10 +251,7 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                     className="theia-select data-repo-config__input"
                                     value={this.providerIdValue}
                                     disabled={this.isTesting}
-                                    onChange={(event) => {
-                                        this.providerIdValue = event.target.value;
-                                        this.render();
-                                    }}
+                                    onChange={(event) => this.changeProvider(event.target.value)}
                                 >
                                     <option value="">
                                         {nls.localize('rockit/dataRepository/builtInProvider', 'Built-in automatic detection')}
@@ -231,6 +262,48 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                         </option>
                                     ))}
                                 </select>
+                            </div>
+                        )}
+
+                        {this.crosswalks.length > 0 && (
+                            <div>
+                                <label className="data-repo-config__label">
+                                    {nls.localize('rockit/dataRepository/crosswalk', 'Metadata Crosswalk')}
+                                </label>
+                                <select
+                                    className="theia-select data-repo-config__input"
+                                    value={this.crosswalkIdValue}
+                                    disabled={this.isTesting}
+                                    onChange={(event) => {
+                                        this.crosswalkIdValue = event.target.value;
+                                        this.render();
+                                    }}
+                                >
+                                    <option value="">
+                                        {nls.localize('rockit/dataRepository/noCrosswalk', 'No crosswalk')}
+                                    </option>
+                                    {this.compatibleCrosswalks().map(crosswalk => (
+                                        <option key={crosswalk.id} value={crosswalk.id}>
+                                            {crosswalk.name}
+                                        </option>
+                                    ))}
+                                    {this.crosswalkIdValue &&
+                                        !this.crosswalks.some(crosswalk => crosswalk.id === this.crosswalkIdValue) && (
+                                            <option value={this.crosswalkIdValue} disabled>
+                                                {nls.localize(
+                                                    'rockit/dataRepository/missingCrosswalk',
+                                                    'Missing crosswalk: {0}',
+                                                    this.crosswalkIdValue,
+                                                )}
+                                            </option>
+                                        )}
+                                </select>
+                                <div className="data-repo-config__field-hint">
+                                    {nls.localize(
+                                        'rockit/dataRepository/crosswalkHint',
+                                        'RocKIT uses this crosswalk for repository metadata import, export, update, and synchronization.',
+                                    )}
+                                </div>
                             </div>
                         )}
 

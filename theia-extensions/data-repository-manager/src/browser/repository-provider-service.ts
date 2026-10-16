@@ -6,6 +6,7 @@
 
 import { CommandService } from '@theia/core/lib/common'
 import { inject, injectable } from 'inversify'
+import { CrosswalkRegistryService } from 'crosswalk-manager/lib/browser/crosswalk-registry-service'
 
 import {
   RepositoryOperation,
@@ -28,6 +29,8 @@ export class RepositoryProviderService {
     protected readonly registry: RepositoryProviderRegistry,
     @inject(CommandService)
     protected readonly commandService: CommandService,
+    @inject(CrosswalkRegistryService)
+    protected readonly crosswalkRegistryService: CrosswalkRegistryService,
   ) {}
 
   listProviders() {
@@ -52,10 +55,32 @@ export class RepositoryProviderService {
         `Repository connection '${repository.id}' is not associated with an extension provider.`,
       )
     }
-    return this.execute<TInput, TResult>({
+    let operationInput: unknown = input
+    if (
+      repository.crosswalkId &&
+      ['create', 'update', 'sync', 'import', 'link'].includes(operation)
+    ) {
+      const document = await this.crosswalkRegistryService.read(repository.crosswalkId)
+      if (!document) {
+        throw new Error(
+          `The selected crosswalk '${repository.crosswalkId}' is no longer registered.`,
+        )
+      }
+      if (!input || typeof input !== 'object' || Array.isArray(input)) {
+        throw new Error(`The '${operation}' repository operation requires an object input.`)
+      }
+      operationInput = {
+        ...input,
+        crosswalk: {
+          id: repository.crosswalkId,
+          document,
+        },
+      }
+    }
+    return this.execute<unknown, TResult>({
       providerId: repository.providerId,
       operation,
-      input,
+      input: operationInput,
     })
   }
 

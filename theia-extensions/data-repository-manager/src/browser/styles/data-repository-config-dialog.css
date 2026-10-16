@@ -103,6 +103,13 @@
     border-color: var(--theia-focusBorder);
 }
 
+.data-repo-config__field-hint {
+    color: var(--theia-descriptionForeground);
+    font-size: var(--theia-ui-font-size0);
+    line-height: 1.35;
+    margin-top: 4px;
+}
+
 .data-repo-config__api-key-wrapper {
     display: flex;
     gap: 8px;

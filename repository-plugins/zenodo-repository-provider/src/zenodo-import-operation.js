@@ -73,6 +73,7 @@ class ZenodoImportOperation extends ZenodoCreateOperation {
     const importedCrate = applyZenodoMetadataToRoCrate(
       crateBase,
       this.normalizeRecordMetadata(loaded.metadata),
+      input?.crosswalk?.document,
     ).crate
     await this.writeJson(
       this.vscode.Uri.joinPath(targetUri, METADATA_FILE),
@@ -90,6 +91,7 @@ class ZenodoImportOperation extends ZenodoCreateOperation {
       target:
         this.recordHtmlUrl(loaded.payload) ||
         `${this.normalizeBaseUrl(repository.baseUrl)}/deposit/${encodeURIComponent(recordId)}`,
+      crosswalkId: input?.crosswalk?.id,
     })
 
     progress.report({ message: 'Opening imported RO-Crate...' })
@@ -357,6 +359,7 @@ class ZenodoImportOperation extends ZenodoCreateOperation {
     files,
     localPaths,
     target,
+    crosswalkId,
   }) {
     const mapping = {}
     for (const file of files) {
@@ -397,7 +400,7 @@ class ZenodoImportOperation extends ZenodoCreateOperation {
       target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile,
-      crosswalkFile: CROSSWALK_FILE,
+      crosswalkFile: crosswalkId || CROSSWALK_FILE,
       syncType: 'update',
       status: 'success',
       lastSuccessfulActionAt: this.now().toISOString(),
