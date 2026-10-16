@@ -70,16 +70,22 @@ export const RO_CRATE_MENU_ITEMS: readonly RoCrateMenuItem[] = [
     order: 'a08',
   },
   {
+    commandId: 'crosswalk-manager:open',
+    labelKey: 'rockit/menu/crosswalkManager',
+    label: 'Crosswalk Manager',
+    order: 'a09',
+  },
+  {
     commandId: 'RO-Crate Preview',
     labelKey: 'rockit/menu/roCratePreview',
     label: 'Preview',
-    order: 'a09',
+    order: 'a10',
   },
   {
     commandId: 'RemoteRoCrateConversion.command',
     labelKey: 'rockit/menu/remoteToLocalConversion',
     label: 'Remote to Local Conversion',
-    order: 'a10',
+    order: 'a11',
   },
 ]
 
@@ -91,8 +97,8 @@ export class ApplicationRoCrateMenuContribution implements MenuContribution {
       nls.localize('rockit/menu/roCrate', 'RO-Crate'),
     )
     this.registerMenuGroup(menus, RO_CRATE_WIDGETS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(0, 5))
-    this.registerMenuGroup(menus, RO_CRATE_MANAGERS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(5, 8))
-    this.registerMenuGroup(menus, RO_CRATE_TOOLS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(8))
+    this.registerMenuGroup(menus, RO_CRATE_MANAGERS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(5, 9))
+    this.registerMenuGroup(menus, RO_CRATE_TOOLS_MENU_PATH, RO_CRATE_MENU_ITEMS.slice(9))
   }
 
   protected registerMenuGroup(

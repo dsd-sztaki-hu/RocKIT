@@ -1,0 +1,40 @@
+{
+  "name": "crosswalk-manager",
+  "version": "1.0.0",
+  "description": "A Theia extension for managing RocKIT metadata crosswalks",
+  "license": "Apache-2.0",
+  "keywords": [
+    "theia-extension",
+    "frontend"
+  ],
+  "files": [
+    "lib",
+    "src"
+  ],
+  "theiaExtensions": [
+    {
+      "frontend": "lib/browser/crosswalk-manager-frontend-module"
+    }
+  ],
+  "dependencies": {
+    "@emotion/react": "^11.11.0",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.15.0",
+    "@mui/material": "^5.15.0",
+    "@theia/core": "1.65.2",
+    "@theia/filesystem": "1.65.2",
+    "antd": "^5.29.1",
+    "rockit-common": "1.0.0"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.0",
+    "shx": "^0.3.3",
+    "typescript": "~5.4.5"
+  },
+  "scripts": {
+    "clean": "rimraf lib",
+    "build": "tsc && yarn copy:assets",
+    "watch": "tsc -w",
+    "copy:assets": "shx mkdir -p lib/browser && shx cp -r src/browser/style lib/browser/"
+  }
+}

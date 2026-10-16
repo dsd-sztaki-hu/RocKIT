@@ -62,7 +62,8 @@
     "save-ro-crate": "1.0.0",
     "schema-validator": "1.0.0",
     "multi-edit": "1.0.0",
-    "global-entity-library": "1.0.0"
+    "global-entity-library": "1.0.0",
+    "crosswalk-manager": "1.0.0"
   },
   "devDependencies": {
     "@arpproject/recrate": "0.1.61",
