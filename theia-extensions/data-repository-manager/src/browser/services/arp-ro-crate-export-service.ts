@@ -71,6 +71,19 @@ interface LocalizedExternalFileReferences {
   originalToUploadIds: Map<string, string>
 }
 
+export interface PreparedArpCreateExport {
+  crate: RoCrate
+  uploadCrate: RoCrate
+  fileSources: Array<{
+    entityId: string
+    entryPath: string
+    sourceUri: string
+    lastModified?: number
+    sourceSize?: number
+  }>
+  originalToUploadIds: Record<string, string>
+}
+
 interface ArpUpdateUploadFile {
   entityId: string
   entryPath: string
@@ -174,21 +187,16 @@ export class ArpRoCrateExportService {
   ): Promise<ArpRoCrateExportResult> {
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
     const rootUri = this.getWorkspaceRoot()
-    const metadataUri = rootUri.resolve('ro-crate-metadata.json')
-    const crate = await this.readRoCrate(metadataUri)
-
-    const uploadCrate = await this.buildDataverseUploadCrate(crate, rootUri)
-    this.removeRootArpPid(uploadCrate)
-    const localizedExternalFiles = await this.localizeExternalLocalFileReferences(
-      uploadCrate,
-      rootUri,
-    )
-    const uploadFiles = await this.collectUploadFiles(
-      uploadCrate,
-      rootUri,
-      localizedExternalFiles.entries,
-      localizedExternalFiles.originalToUploadIds,
-    )
+    const { crate, uploadCrate, fileSources, originalToUploadIds: originalToUploadIdsRecord } =
+      await this.prepareCreateExport(rootUri)
+    const originalToUploadIds = new Map(Object.entries(originalToUploadIdsRecord))
+    const uploadFiles = await Promise.all(fileSources.map(async source => ({
+      entityId: source.entityId,
+      entryPath: source.entryPath,
+      content: (await this.fileService.readFile(new URI(source.sourceUri))).value.buffer,
+      lastModified: source.lastModified,
+      sourceSize: source.sourceSize,
+    })))
     const totalSteps = uploadFiles.length + 3
     reportProgress?.({
       completedSteps: 0,
@@ -238,7 +246,7 @@ export class ArpRoCrateExportService {
       this.toMetadataEntityIdMapping(
         crate,
         uploadIdMapping,
-        localizedExternalFiles.originalToUploadIds,
+        originalToUploadIds,
       ),
     )
     await this.appendExportLog(rootUri, {
@@ -272,7 +280,7 @@ export class ArpRoCrateExportService {
         crate,
         file.entityId,
         uploadCrate,
-        localizedExternalFiles.originalToUploadIds.get(file.entityId) ?? file.entityId,
+        originalToUploadIds.get(file.entityId) ?? file.entityId,
         uploadedFile.md5,
       )
       const uploadedFileEntityId = this.buildArpFileEntityId(
@@ -292,7 +300,7 @@ export class ArpRoCrateExportService {
         this.toMetadataEntityIdMapping(
           crate,
           uploadIdMapping,
-          localizedExternalFiles.originalToUploadIds,
+          originalToUploadIds,
         ),
       )
     }
@@ -320,7 +328,7 @@ export class ArpRoCrateExportService {
     const metadataIdMapping = this.toMetadataEntityIdMapping(
       crate,
       completeUploadIdMapping,
-      localizedExternalFiles.originalToUploadIds,
+      originalToUploadIds,
     )
     await this.saveEntityIdMapping(rootUri, mappingFileName, metadataIdMapping)
     const restoredCrate = this.buildRestoredCreatedCrate(uploadCrate, uploadIdMapping, pid)
@@ -811,6 +819,32 @@ export class ArpRoCrateExportService {
     }
   }
 
+  /** Prepare local content without making a repository API request. */
+  public async prepareCreateExport(rootUri: URI): Promise<PreparedArpCreateExport> {
+    const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
+    const uploadCrate = await this.buildDataverseUploadCrate(crate, rootUri)
+    this.removeRootArpPid(uploadCrate)
+    const localized = await this.localizeExternalLocalFileReferences(uploadCrate, rootUri)
+    const fileSources = await this.collectUploadFileSources(
+      uploadCrate,
+      rootUri,
+      localized.entries,
+      localized.originalToUploadIds,
+    )
+    return {
+      crate,
+      uploadCrate,
+      fileSources: fileSources.map(source => ({
+        entityId: source.entityId,
+        entryPath: source.entryPath,
+        sourceUri: source.uri.toString(),
+        lastModified: source.lastModified,
+        sourceSize: source.sourceSize,
+      })),
+      originalToUploadIds: Object.fromEntries(localized.originalToUploadIds),
+    }
+  }
+
   protected async buildDataverseUploadCrate(
     crate: RoCrate,
     rootUri: URI,
@@ -861,12 +895,12 @@ export class ArpRoCrateExportService {
     return uploadCrate
   }
 
-  protected async collectUploadFiles(
+  protected async collectUploadFileSources(
     crate: RoCrate,
     rootUri: URI,
     externalFileEntries: Map<string, URI>,
     originalToUploadIds: Map<string, string>,
-  ): Promise<ArpUpdateUploadFile[]> {
+  ): Promise<ArpUploadFileSource[]> {
     const entitiesByPath = new Map<string, RoCrateEntity>()
     for (const entity of this.readGraphEntities(crate)) {
       if (!this.entityTypes(entity).includes('File')) {
@@ -881,7 +915,7 @@ export class ArpRoCrateExportService {
       Array.from(entitiesByPath.entries())
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([, entity]) =>
-          this.readUploadFile(entity, rootUri, externalFileEntries, originalToUploadIds),
+          this.resolveUploadFileSource(entity, rootUri, externalFileEntries, originalToUploadIds),
         ),
     )
   }
