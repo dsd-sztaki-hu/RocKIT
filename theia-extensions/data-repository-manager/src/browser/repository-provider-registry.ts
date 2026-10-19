@@ -14,6 +14,7 @@ export const RepositoryProviderCommands = {
   LIST: 'rockit.repositories.listProviders',
   EXECUTE: 'rockit.repositories.executeOperation',
   PROMPT_REQUIRED_METADATA: 'rockit.repositories.promptRequiredMetadata',
+  CHECKPOINT_CREATE_EXPORT: 'rockit.repositories.checkpointCreateExport',
 } as const
 
 export interface RepositoryMetadataPromptCondition {
@@ -49,6 +50,7 @@ export type RepositoryOperation =
   | 'delete'
   | 'link'
   | 'validate'
+  | 'metadataLanguages'
   | 'listTargets'
   | 'markTargetFailed'
 
@@ -156,6 +158,7 @@ export class RepositoryProviderRegistry {
       'delete',
       'link',
       'validate',
+      'metadataLanguages',
       'listTargets',
       'markTargetFailed',
     ]

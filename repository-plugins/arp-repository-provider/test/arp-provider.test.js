@@ -11,13 +11,17 @@ const {
   activateArpProvider,
   deactivateArpProvider,
   VALIDATE_COMMAND,
+  CREATE_COMMAND,
+  METADATA_LANGUAGES_COMMAND,
 } = require('../src/arp-provider')
 
 describe('ARP provider command boundary', () => {
-  it('registers only read-only validation and dispatches it through the plugin command', async () => {
+  it('registers create, language lookup, and validation commands', async () => {
     const commands = new Map()
     const executions = []
     const vscode = {
+      window: { ProgressLocation: { Notification: 15 }, withProgress: async (_options, task) =>
+        task({ report() {} }) },
       commands: {
         registerCommand: (id, handler) => {
           commands.set(id, handler)
@@ -35,6 +39,10 @@ describe('ARP provider command boundary', () => {
       return {
         supportsRoCrateUpload: async () => { calls.push('probe'); return true },
         validateToken: async () => { calls.push('token') },
+        getAllowedMetadataLanguages: async id => {
+          calls.push(`languages:${id}`)
+          return { ok: true, payload: { data: ['en'] } }
+        },
       }
     })
 
@@ -43,11 +51,17 @@ describe('ARP provider command boundary', () => {
       displayName: 'ARP',
       extensionId: 'rockit.arp-repository-provider',
       protocolVersion: '1.0',
-      operations: { validate: VALIDATE_COMMAND },
+      operations: {
+        validate: VALIDATE_COMMAND,
+        create: CREATE_COMMAND,
+        metadataLanguages: METADATA_LANGUAGES_COMMAND,
+      },
       connection: { requiresApiKey: true },
     }])
     assert.deepEqual(await commands.get(VALIDATE_COMMAND)({ repository }), { valid: true })
-    assert.deepEqual(calls, ['probe', 'token'])
+    assert.deepEqual(await commands.get(METADATA_LANGUAGES_COMMAND)({ repository, collectionId: 'root' }),
+      { data: ['en'] })
+    assert.deepEqual(calls, ['probe', 'token', 'languages:root'])
 
     await deactivateArpProvider(vscode)
     assert.deepEqual(executions[1], [

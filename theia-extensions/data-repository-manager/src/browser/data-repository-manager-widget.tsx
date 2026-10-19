@@ -49,6 +49,8 @@ import { CrosswalkRegistry } from 'crosswalk-manager/lib/browser/crosswalk-regis
 import {
   ArpRoCrateExportService,
   ArpRoCrateValidationError,
+  ArpProviderCreateResult,
+  ArpProviderCreateValidationResult,
 } from './services/arp-ro-crate-export-service'
 import { ArpRoCrateImportService } from './services/arp-ro-crate-import-service'
 import { ArpRoCrateLinkService } from './services/arp-ro-crate-link-service'
@@ -712,6 +714,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           : selectedExportTarget
             ? 'update'
             : 'create'
+      if (selectedRepo.providerId === 'arp' && operation === 'create') {
+        await this.handlePluginArpCreate(selectedRepo)
+        return
+      }
       await this.executePluginRepositoryOperation(selectedRepo, operation, {
         repository: selectedRepo,
         exportTarget: selectedExportTarget,
@@ -1362,7 +1368,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         }),
     )
     return this.mergeExportTargets(
-      await this.arpExportService.listExportTargets(builtInRepositories),
+      await this.arpExportService.listExportTargets(repositories.filter(
+        repository => !repository.providerId || repository.providerId === 'arp')),
       await this.nativeExportService.listExportTargets(builtInRepositories),
       pluginTargets,
     )
@@ -1516,6 +1523,78 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           provider?.displayName ?? repository.providerId ?? repository.title,
           error instanceof Error ? error.message : String(error),
         ),
+        { timeout: 10000 },
+      )
+    }
+  }
+
+  protected async handlePluginArpCreate(repository: DataRepositoryConfig): Promise<void> {
+    try {
+      const missingMetadata = await this.getMissingArpDatasetCreationMetadata()
+      if (missingMetadata.length) {
+        this.messageService.error(
+          nls.localize('rockit/dataRepository/missingCitationMetadata',
+            'ARP export requires citation metadata before creating a Dataverse dataset: {0}. Fill these fields in the root Dataset citation metadata, then export again.',
+            missingMetadata.join(', ')),
+          { timeout: 15000 },
+        )
+        return
+      }
+      const selection = await new DataverseCollectionBrowserDialog(repository, this.collectionService).open()
+      if (!selection) return
+      const defaults = await this.nativeExportService.getDatasetCreationMetadataDefaults()
+      let languages: Array<{ value: string; label: string }>
+      try {
+        const payload = await this.providerService.executeForRepository(repository, 'metadataLanguages', {
+          repository, collectionId: selection.collection.alias || selection.collection.id,
+        })
+        languages = this.arpExportService.metadataLanguageOptionsFromPayload(payload)
+      } catch (error) {
+        console.warn('Could not load ARP metadata languages; using defaults.', error)
+        languages = this.arpExportService.metadataLanguageOptionsFromPayload(undefined)
+      }
+      const metadata = await new NativeDataverseDatasetMetadataDialog(defaults, {
+        title: nls.localize('rockit/dataRepository/requiredArpMetadata', 'Required ARP Dataset Metadata'),
+        metadataLanguageOptions: languages,
+        defaultMetadataLanguage: defaults.metadataLanguage ??
+          languages.find(option => option.value === 'en')?.value ?? languages[0]?.value,
+        requiredCitationFields: this.nativeExportService.requiredDatasetCreationFields(),
+        subjectOptions: this.nativeExportService.datasetCreationSubjectOptions(),
+      }).open()
+      if (!metadata) return
+      const result = await this.arpExportService.exportToArpWithProvider(
+        repository, selection.collection, metadata,
+        async input => {
+          const response = await this.providerService.executeForRepository<
+            typeof input, ArpProviderCreateResult | ArpProviderCreateValidationResult
+          >(
+            repository, 'create', input)
+          if (!response) throw new Error('The ARP provider returned no creation result.')
+          return response
+        },
+      )
+      const target = result.target || result.dataverseUrl || result.pid || result.requestUrl
+      this.showTargetNotification(
+        nls.localize('rockit/dataRepository/zipExportCompleted', 'RO-Crate ZIP export completed: {0}', target),
+        target, 8000)
+      if (result.unmappedEntityIds.length) {
+        this.messageService.warn(
+          nls.localize('rockit/dataRepository/exportUnmappedIds',
+            'RO-Crate export completed, but {0} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/{1}.',
+            result.unmappedEntityIds.length, result.mappingFileName),
+          { timeout: 10000 },
+        )
+      }
+    } catch (error) {
+      await this.arpExportService.markActiveExportFailed(error)
+      console.error('ARP provider export failed:', error)
+      if (error instanceof ArpRoCrateValidationError) {
+        await this.showArpValidationFailure(error)
+        return
+      }
+      this.messageService.error(
+        nls.localize('rockit/dataRepository/zipExportFailed', 'RO-Crate ZIP export failed: {0}',
+          error instanceof Error ? error.message : String(error)),
         { timeout: 10000 },
       )
     }

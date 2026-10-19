@@ -5,9 +5,12 @@
 // ******************************************************************************************
 
 const { ArpClient } = require('./arp-client')
+const { ArpCreateOperation } = require('./arp-create-operation')
 
 const PROVIDER_ID = 'arp'
 const VALIDATE_COMMAND = 'rockit.arp.validate'
+const CREATE_COMMAND = 'rockit.arp.create'
+const METADATA_LANGUAGES_COMMAND = 'rockit.arp.metadataLanguages'
 const REGISTER_COMMAND = 'rockit.repositories.registerProvider'
 const UNREGISTER_COMMAND = 'rockit.repositories.unregisterProvider'
 
@@ -18,6 +21,26 @@ async function activateArpProvider(vscode, context, clientFactory = repository =
   token: repository.apiKey,
 })) {
   registeredExtensionId = context.extension.id
+  const createOperation = new ArpCreateOperation({ vscode, clientFactory })
+  context.subscriptions.push(vscode.commands.registerCommand(CREATE_COMMAND, input =>
+    vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: 'Exporting RO-Crate to ARP',
+      cancellable: false,
+    }, progress => createOperation.execute(input, progress)),
+  ))
+  context.subscriptions.push(vscode.commands.registerCommand(METADATA_LANGUAGES_COMMAND, async input => {
+    const repository = input?.repository
+    const collectionId = input?.collectionId
+    if (!repository || typeof collectionId !== 'string' || !collectionId.trim()) {
+      throw new Error('ARP metadata languages require a repository and collection.')
+    }
+    const result = await clientFactory(repository).getAllowedMetadataLanguages(collectionId)
+    if (!result.ok || result.payload?.status === 'ERROR') {
+      throw new Error(`ARP metadata languages could not be loaded (${result.status}) at ${result.url}.`)
+    }
+    return result.payload
+  }))
   context.subscriptions.push(vscode.commands.registerCommand(VALIDATE_COMMAND, async input => {
     const repository = input?.repository
     if (!repository || typeof repository !== 'object') {
@@ -36,7 +59,11 @@ async function activateArpProvider(vscode, context, clientFactory = repository =
     displayName: 'ARP',
     extensionId: registeredExtensionId,
     protocolVersion: '1.0',
-    operations: { validate: VALIDATE_COMMAND },
+    operations: {
+      validate: VALIDATE_COMMAND,
+      create: CREATE_COMMAND,
+      metadataLanguages: METADATA_LANGUAGES_COMMAND,
+    },
     connection: { requiresApiKey: true },
   })
 }
@@ -52,4 +79,6 @@ module.exports = {
   deactivateArpProvider,
   PROVIDER_ID,
   VALIDATE_COMMAND,
+  CREATE_COMMAND,
+  METADATA_LANGUAGES_COMMAND,
 }

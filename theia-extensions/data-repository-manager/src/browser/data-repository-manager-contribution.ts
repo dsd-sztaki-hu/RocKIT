@@ -20,6 +20,7 @@ import {
 } from './repository-provider-registry';
 import { RepositoryProviderService } from './repository-provider-service';
 import { RepositoryRequiredMetadataDialog } from './components/repository-required-metadata-dialog';
+import { ArpProviderCreateCheckpoint, ArpRoCrateExportService } from './services/arp-ro-crate-export-service';
 
 export namespace DataRepositoryManagerCommands {
     export const OPEN: Command = {
@@ -58,7 +59,8 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
         @inject(ApplicationServer) protected readonly applicationServer: ApplicationServer,
         @inject(OpenerService) protected readonly openerService: OpenerService,
         @inject(RepositoryProviderRegistry) protected readonly repositoryProviderRegistry: RepositoryProviderRegistry,
-        @inject(RepositoryProviderService) protected readonly repositoryProviderService: RepositoryProviderService
+        @inject(RepositoryProviderService) protected readonly repositoryProviderService: RepositoryProviderService,
+        @inject(ArpRoCrateExportService) protected readonly arpExportService: ArpRoCrateExportService
     ) { }
 
     async initializeLayout(): Promise<void> {
@@ -90,6 +92,11 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
 
         commands.registerCommand({ id: RepositoryProviderCommands.EXECUTE }, {
             execute: invocation => this.repositoryProviderService.execute(invocation)
+        });
+
+        commands.registerCommand({ id: RepositoryProviderCommands.CHECKPOINT_CREATE_EXPORT }, {
+            execute: (checkpoint: ArpProviderCreateCheckpoint) =>
+                this.arpExportService.handleProviderCreateCheckpoint(checkpoint)
         });
 
         commands.registerCommand({ id: RepositoryProviderCommands.PROMPT_REQUIRED_METADATA }, {
