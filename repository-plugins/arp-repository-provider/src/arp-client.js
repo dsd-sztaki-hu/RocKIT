@@ -34,6 +34,24 @@ class ArpClient {
     })
   }
 
+  async supportsRoCrateUpload() {
+    const result = await this.request(`${this.baseUrl}/api/arp/uploadRoCrateZip`, {
+      method: 'OPTIONS',
+    })
+    return result.ok && (!result.allow || result.allow.split(',').some(
+      method => method.trim().toUpperCase() === 'POST',
+    ))
+  }
+
+  async validateToken() {
+    if (!this.token) throw new Error('An ARP API token is required.')
+    const result = await this.request(`${this.baseUrl}/api/v1/users/:me`)
+    if (!result.ok || result.payload?.status !== 'OK' || !result.payload?.data?.id) {
+      throw new Error(`ARP rejected the API token (${result.status}) at ${result.url}.`)
+    }
+    return result.payload.data
+  }
+
   async request(url, { method = 'GET', body } = {}) {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), this.timeoutMs)
@@ -57,6 +75,7 @@ class ArpClient {
         status: response.status,
         ok: response.ok,
         url: response.url || url,
+        allow: response.headers?.get('allow') || undefined,
         payload,
       }
     } finally {

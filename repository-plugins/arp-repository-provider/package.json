@@ -9,6 +9,10 @@
   "engines": {
     "vscode": "^1.95.0"
   },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
   "scripts": {
     "test": "node --test test/*.test.js"
   }

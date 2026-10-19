@@ -9,7 +9,7 @@ const { describe, it } = require('node:test')
 
 const { ArpClient } = require('../src/arp-client')
 
-function mockTransport(body = '{}', status = 200) {
+function mockTransport(body = '{}', status = 200, allow) {
   const calls = []
   return {
     calls,
@@ -19,6 +19,7 @@ function mockTransport(body = '{}', status = 200) {
         ok: status >= 200 && status < 300,
         status,
         url,
+        headers: { get: name => name === 'allow' ? allow : undefined },
         text: async () => body,
       }
     },
@@ -88,5 +89,39 @@ describe('ArpClient RO-Crate transport', () => {
 
     assert.equal(result.payload, 'Gateway timeout')
     assert.equal(result.status, 504)
+  })
+
+  it('probes the ARP ZIP upload endpoint without changing repository state', async () => {
+    const transport = mockTransport('', 200, 'GET, POST')
+    const client = new ArpClient({
+      baseUrl: 'https://repo.example.org', token: 'secret', fetchImpl: transport.fetchImpl,
+    })
+
+    assert.equal(await client.supportsRoCrateUpload(), true)
+    assert.equal(transport.calls[0].url, 'https://repo.example.org/api/arp/uploadRoCrateZip')
+    assert.equal(transport.calls[0].init.method, 'OPTIONS')
+    assert.equal(transport.calls[0].init.headers['x-dataverse-key'], 'secret')
+  })
+
+  it('checks the authenticated user before accepting the API token', async () => {
+    const transport = mockTransport('{"status":"OK","data":{"id":17,"displayName":"Alice"}}')
+    const client = new ArpClient({
+      baseUrl: 'https://repo.example.org', token: 'secret', fetchImpl: transport.fetchImpl,
+    })
+
+    assert.deepEqual(await client.validateToken(), { id: 17, displayName: 'Alice' })
+    assert.equal(transport.calls[0].url, 'https://repo.example.org/api/v1/users/:me')
+    assert.deepEqual(transport.calls[0].init.headers, {
+      accept: 'application/json', 'x-dataverse-key': 'secret',
+    })
+  })
+
+  it('rejects an expired or invalid token', async () => {
+    const transport = mockTransport('{"status":"ERROR"}', 403)
+    const client = new ArpClient({
+      baseUrl: 'https://repo.example.org', token: 'expired', fetchImpl: transport.fetchImpl,
+    })
+
+    await assert.rejects(client.validateToken(), /ARP rejected the API token \(403\)/)
   })
 })

@@ -115,6 +115,7 @@
     "janisdd.vscode-edit-csv": "https://open-vsx.org/api/janisdd/vscode-edit-csv/0.11.9/file/janisdd.vscode-edit-csv-0.11.9.vsix"
   },
   "rockitBundledPlugins": {
+    "rockit.arp-repository-provider": "repository-plugins/arp-repository-provider",
     "rockit.zenodo-repository-provider": "repository-plugins/zenodo-repository-provider"
   }
 }
