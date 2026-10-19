@@ -106,3 +106,41 @@ jobs:
           fi
 
           exit "$crosswalk_status"
+
+  electron-e2e:
+    name: Electron end-to-end tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository and ReCrate
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --non-interactive
+
+      - name: Build Electron application
+        run: yarn build:electron
+
+      - name: Run Electron end-to-end tests
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" yarn test:e2e
+
+      - name: Upload Electron end-to-end failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: electron-e2e-failure-artifacts
+          path: |
+            playwright-report/electron
+            test-results/e2e/electron
+          if-no-files-found: ignore
+          retention-days: 14

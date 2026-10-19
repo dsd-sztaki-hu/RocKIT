@@ -1,0 +1,27 @@
+{
+  "profiles": [
+    {
+      "id": "e2e-global-author-profile",
+      "name": "E2E Global Author",
+      "version": "1.0.0",
+      "source": "local",
+      "type": "ro-crate",
+      "files": {
+        "sourcePath": "metadata-profiles/source/e2e-global-author.json",
+        "convertedPath": "metadata-profiles/ro-crate/e2e-global-author.json"
+      },
+      "aux": {
+        "reference": "https://example.test/profiles/e2e-global-author"
+      },
+      "conformsTo": "https://example.test/profiles/e2e-global-author",
+      "downloadUrl": "",
+      "createdAt": "2026-10-19T00:00:00.000Z",
+      "updatedAt": "2026-10-19T00:00:00.000Z",
+      "downloadedAt": "2026-10-19T00:00:00.000Z",
+      "status": "ok"
+    }
+  ],
+  "conformsToIndex": {
+    "https://example.test/profiles/e2e-global-author": ["e2e-global-author-profile"]
+  }
+}

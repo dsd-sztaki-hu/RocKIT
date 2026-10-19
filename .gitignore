@@ -19,6 +19,8 @@ __pycache__/
 *.pyc
 coverage/
 .nyc_output/
+playwright-report/
+test-results/
 
 lib
 dist
