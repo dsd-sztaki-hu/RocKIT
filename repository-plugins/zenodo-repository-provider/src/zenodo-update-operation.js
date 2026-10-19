@@ -6,18 +6,7 @@
 
 const { createHash } = require('node:crypto')
 
-const {
-  buildZenodoMetadataFromCrosswalk,
-  missingRequiredZenodoMetadataFields,
-} = require('../lib/zenodo-metadata-crosswalk')
 const { ZenodoCreateOperation } = require('./zenodo-create-operation')
-
-const PRESERVED_ACCESS_FIELDS = [
-  'access_right',
-  'license',
-  'embargo_date',
-  'access_conditions',
-]
 
 /**
  * Updates a writable Zenodo draft.
@@ -60,7 +49,10 @@ class ZenodoUpdateOperation extends ZenodoCreateOperation {
     if (!bucketUrl) {
       throw new Error('Zenodo did not return a writable bucket for the selected draft.')
     }
-    const metadata = this.updateMetadata(crate, deposition, input?.crosswalk?.document)
+    const metadata = this.updateMetadata(
+      this.requirePreparedMetadata(input?.repositoryMetadata),
+      deposition,
+    )
     const remoteFiles = this.normalizeRemoteFiles(
       await client.listDepositionFiles(depositionId),
     )
@@ -106,7 +98,7 @@ class ZenodoUpdateOperation extends ZenodoCreateOperation {
       target,
       mapping,
       crate,
-      crosswalkId: input?.crosswalk?.id,
+      crosswalkId: input?.crosswalkId,
     })
     progress.report({ message: 'Zenodo update complete.' })
 
@@ -123,22 +115,15 @@ class ZenodoUpdateOperation extends ZenodoCreateOperation {
     }
   }
 
-  updateMetadata(crate, deposition, crosswalk) {
-    const { metadata } = buildZenodoMetadataFromCrosswalk(crate, crosswalk)
-    const remoteMetadata = this.object(deposition)?.metadata
-    const existing = this.object(remoteMetadata) || {}
-    for (const field of PRESERVED_ACCESS_FIELDS) {
-      if (Object.hasOwn(existing, field)) {
+  updateMetadata(preparedMetadata, deposition) {
+    const metadata = { ...preparedMetadata }
+    const existing = this.object(this.object(deposition)?.metadata) || {}
+    for (const field of ['access_right', 'license', 'embargo_date', 'access_conditions']) {
+      if (Object.prototype.hasOwnProperty.call(existing, field)) {
         metadata[field] = existing[field]
       } else {
         delete metadata[field]
       }
-    }
-    const missing = missingRequiredZenodoMetadataFields(metadata, crosswalk)
-    if (missing.length) {
-      throw new Error(
-        `The RO-Crate cannot update Zenodo because these required metadata fields are missing: ${missing.join(', ')}.`,
-      )
     }
     return metadata
   }
@@ -265,4 +250,4 @@ class ZenodoUpdateOperation extends ZenodoCreateOperation {
   }
 }
 
-module.exports = { PRESERVED_ACCESS_FIELDS, ZenodoUpdateOperation }
+module.exports = { ZenodoUpdateOperation }

@@ -30,6 +30,7 @@ import { RepositoryProviderRegistry } from './repository-provider-registry'
 import { RepositoryProviderService } from './repository-provider-service'
 import { BundledCrosswalk } from 'crosswalk-manager/lib/browser/crosswalk-manager-types'
 import { BUNDLED_REPOSITORY_CROSSWALKS } from './bundled-crosswalks'
+import { RepositoryCrosswalkService } from './services/repository-crosswalk-service'
 
 export default new ContainerModule((bind) => {
   for (const crosswalk of BUNDLED_REPOSITORY_CROSSWALKS) {
@@ -51,6 +52,7 @@ export default new ContainerModule((bind) => {
   bind(DataverseMetadataMappingService).toSelf().inSingletonScope()
   bind(RepositoryProviderRegistry).toSelf().inSingletonScope()
   bind(RepositoryProviderService).toSelf().inSingletonScope()
+  bind(RepositoryCrosswalkService).toSelf().inSingletonScope()
 
   // 2. Widget
   bind(DataRepositoryManagerWidget).toSelf().inTransientScope()

@@ -17,10 +17,6 @@
   ],
   "main": "./extension.js",
   "scripts": {
-    "build": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
-    "test": "yarn build && node --test test/*.test.js"
-  },
-  "devDependencies": {
-    "typescript": "~5.4.5"
+    "test": "node --test test/*.test.js"
   }
 }

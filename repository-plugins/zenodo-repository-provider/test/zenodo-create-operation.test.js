@@ -8,7 +8,15 @@ const assert = require('node:assert/strict')
 const { describe, it } = require('node:test')
 
 const { ZenodoCreateOperation } = require('../src/zenodo-create-operation')
-const crosswalk = require('../../../theia-extensions/data-repository-manager/src/browser/crosswalks/arp-zenodo-crosswalk.json')
+const repositoryMetadata = {
+  title: 'Plugin export test',
+  description: 'A crate exported by the Zenodo provider.',
+  publication_date: '2026-10-12',
+  upload_type: 'dataset',
+  creators: [{ name: 'Alice Example' }],
+  access_right: 'open',
+  license: 'cc-by',
+}
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -137,7 +145,8 @@ describe('Zenodo create operation', () => {
           apiKey: 'secret',
           providerId: 'zenodo',
         },
-        crosswalk: { id: crosswalk.id, document: crosswalk },
+        crosswalkId: 'arp-zenodo-crosswalk',
+        repositoryMetadata,
       },
       { report: ({ message }) => progressMessages.push(message) },
     )
@@ -179,18 +188,15 @@ describe('Zenodo create operation', () => {
     assert.equal(progressMessages.at(-1), 'Zenodo export complete.')
   })
 
-  it('validates metadata before creating a remote deposition', async () => {
-    const crate = validCrate()
-    delete crate['@graph'][0].author
-    crate['@graph'] = crate['@graph'].filter((entity) => entity['@id'] !== '#alice')
-    const env = testEnvironment(crate)
+  it('requires RocKIT to supply mapped metadata before creating a remote deposition', async () => {
+    const env = testEnvironment()
 
     await assert.rejects(
       env.operation.execute({
         repository: { baseUrl: 'https://sandbox.zenodo.org', apiKey: 'secret' },
-        crosswalk: { id: crosswalk.id, document: crosswalk },
+        crosswalkId: 'arp-zenodo-crosswalk',
       }),
-      /required metadata fields are missing: creators/,
+      /must supply prepared repository metadata/,
     )
     assert.equal(
       env.calls.some(([name]) => name === 'createDeposition'),
@@ -206,7 +212,8 @@ describe('Zenodo create operation', () => {
     await assert.rejects(
       env.operation.execute({
         repository: { baseUrl: 'https://sandbox.zenodo.org', apiKey: 'secret' },
-        crosswalk: { id: crosswalk.id, document: crosswalk },
+        crosswalkId: 'arp-zenodo-crosswalk',
+        repositoryMetadata,
       }),
       /Only files inside the RO-Crate workspace/,
     )
@@ -228,7 +235,8 @@ describe('Zenodo create operation', () => {
 
     await env.operation.execute({
       repository: { baseUrl: 'https://sandbox.zenodo.org', apiKey: 'secret' },
-      crosswalk: { id: crosswalk.id, document: crosswalk },
+      crosswalkId: 'arp-zenodo-crosswalk',
+      repositoryMetadata,
     })
 
     assert.deepEqual(

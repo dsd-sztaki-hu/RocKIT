@@ -9,7 +9,6 @@ const assert = require('node:assert/strict')
 const { describe, it } = require('node:test')
 
 const { ZenodoSyncOperation } = require('../src/zenodo-sync-operation')
-const crosswalk = require('../../../theia-extensions/data-repository-manager/src/browser/crosswalks/arp-zenodo-crosswalk.json')
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -148,23 +147,22 @@ function environment(mode = 'complete', recordMetadata) {
       mappingFile: 'zenodo-42-mapping.json',
     },
     syncMode: mode,
-    crosswalk: { id: crosswalk.id, document: crosswalk },
+    crosswalkId: 'arp-zenodo-crosswalk',
   }
   return { input, operation, written, remoteResult, remoteNew, client, files }
 }
 
 describe('Zenodo sync operation', () => {
-  it('downloads new and changed files and applies complete remote metadata', async () => {
+  it('downloads new and changed files and returns raw metadata for RocKIT', async () => {
     const env = environment()
     const result = await env.operation.execute(env.input)
 
     assert.deepEqual(env.written.get('workspace/data/result.txt'), env.remoteResult)
     assert.deepEqual(env.written.get('workspace/remote/new.txt'), env.remoteNew)
-    const crate = JSON.parse(decoder.decode(env.written.get('workspace/ro-crate-metadata.json')))
-    const root = crate['@graph'].find((entity) => entity['@id'] === './')
-    assert.equal(root.name, 'Uploaded title')
-    assert.equal(root.title, 'Repository title')
-    assert.equal(crate['@graph'].some((entity) => entity['@id'] === '#local-note'), false)
+    assert.equal(env.written.has('workspace/ro-crate-metadata.json'), false)
+    assert.equal(result.remoteCrate['@graph'][0].name, 'Uploaded title')
+    assert.equal(result.localCrate['@graph'][0].name, 'Local title')
+    assert.equal(result.repositoryMetadata.title, 'Repository title')
     const mapping = JSON.parse(decoder.decode(env.written.get('workspace/.rockit/zenodo-42-mapping.json')))
     assert.equal(mapping['remote/new.txt'], 'remote-new')
     assert.equal(result.downloadedFileCount, 1)
@@ -178,37 +176,28 @@ describe('Zenodo sync operation', () => {
 
     assert.equal(env.written.has('workspace/data/result.txt'), false)
     assert.deepEqual(env.written.get('workspace/remote/new.txt'), env.remoteNew)
-    const crate = JSON.parse(decoder.decode(env.written.get('workspace/ro-crate-metadata.json')))
-    assert.equal(crate['@graph'].find((entity) => entity['@id'] === './').name, 'Local title')
-    assert.equal(crate['@graph'].some((entity) => entity['@id'] === '#local-note'), true)
+    assert.equal(result.localCrate['@graph'][0].name, 'Local title')
+    assert.equal(result.localCrate['@graph'].some((entity) => entity['@id'] === '#local-note'), true)
     assert.equal(result.keptLocalFileCount, 1)
   })
 
-  it('uses remote shared entities while retaining local-only entities in local-additions mode', async () => {
+  it('returns both crates for RocKIT to merge in local-additions mode', async () => {
     const env = environment('local-additions')
-    await env.operation.execute(env.input)
+    const result = await env.operation.execute(env.input)
 
-    const crate = JSON.parse(decoder.decode(env.written.get('workspace/ro-crate-metadata.json')))
-    const root = crate['@graph'].find((entity) => entity['@id'] === './')
-    assert.equal(root.name, 'Uploaded title')
-    assert.equal(root.title, 'Repository title')
-    assert.equal(crate['@graph'].some((entity) => entity['@id'] === '#local-note'), true)
+    assert.equal(result.remoteCrate['@graph'][0].name, 'Uploaded title')
+    assert.equal(result.localCrate['@graph'].some((entity) => entity['@id'] === '#local-note'), true)
     assert.deepEqual(env.written.get('workspace/data/result.txt'), env.remoteResult)
   })
 
-  it('maps modern Zenodo subject metadata to keyword entities in remote-additions mode', async () => {
+  it('returns modern Zenodo subject metadata unchanged for RocKIT to map', async () => {
     const env = environment('remote-additions', {
       subjects: [{ subject: 'Cica' }],
     })
     const result = await env.operation.execute(env.input)
 
-    const crate = JSON.parse(decoder.decode(env.written.get('workspace/ro-crate-metadata.json')))
-    const root = crate['@graph'].find((entity) => entity['@id'] === './')
-    const keyword = crate['@graph'].find((entity) => entity['@id'] === '#Cica')
-    assert.deepEqual(root.keyword, { '@id': '#Cica' })
-    assert.equal(keyword.keywordValue, 'Cica')
-    assert.equal(keyword.name, 'Cica')
-    assert.ok(result.updatedMetadataFields.includes('keywords'))
+    assert.deepEqual(result.repositoryMetadata.keywords, ['Cica'])
+    assert.equal(result.remoteCrate['@graph'][0].keyword, undefined)
   })
 
   it('normalizes modern creator details and singular additional descriptions', async () => {
@@ -237,7 +226,7 @@ describe('Zenodo sync operation', () => {
     ])
   })
 
-  it('records downloaded hashes and replaces the in-progress log with success', async () => {
+  it('records downloaded hashes and leaves the log pending for RocKIT to complete', async () => {
     const env = environment()
     await env.operation.execute(env.input)
 
@@ -250,7 +239,7 @@ describe('Zenodo sync operation', () => {
       decoder.decode(env.written.get('workspace/.rockit/export-log.json')),
     )
     assert.equal(log.length, 1)
-    assert.equal(log[0].status, 'success')
+    assert.equal(log[0].status, 'cancelled')
     assert.equal(log[0].syncType, 'sync')
   })
 

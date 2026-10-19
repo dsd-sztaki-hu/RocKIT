@@ -55,6 +55,7 @@ interface RepositoryCrosswalk {
       officialRequirements: ZenodoRequirements
       schema: {
         properties: Record<string, JsonObject>
+        definitions?: Record<string, JsonObject>
       }
     }
   }
@@ -927,7 +928,16 @@ export function zenodoMetadataOptions(
 ): ZenodoMetadataOption[] {
   const activeCrosswalk = resolveRepositoryCrosswalk(crosswalkDocument)
   const property = activeCrosswalk.repositories.zenodo.schema.properties[field]
-  const enumValues = property && Array.isArray(property.enum) ? property.enum : []
+  const schema = activeCrosswalk.repositories.zenodo.schema
+  const direct = property && Array.isArray(property.enum) ? property.enum : []
+  const references = Array.isArray(property?.oneOf) ? property.oneOf : []
+  const referenced = references.flatMap(candidate => {
+    if (!isObject(candidate) || typeof candidate.$ref !== 'string') return []
+    const key = candidate.$ref.match(/^#\/definitions\/([a-zA-Z0-9_-]+)$/)?.[1]
+    const definition = key ? schema.definitions?.[key] : undefined
+    return definition && Array.isArray(definition.enum) ? definition.enum : []
+  })
+  const enumValues = [...new Set([...direct, ...referenced])]
   return enumValues
     .filter((value): value is string => typeof value === 'string')
     .map((value) => ({ value, label: value }))

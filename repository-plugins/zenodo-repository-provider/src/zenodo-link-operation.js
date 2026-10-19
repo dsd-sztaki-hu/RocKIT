@@ -82,7 +82,7 @@ class ZenodoLinkOperation extends ZenodoCreateOperation {
       target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile: mappingFileName,
-      crosswalkFile: input?.crosswalk?.id,
+      crosswalkFile: input?.crosswalkId,
       syncType: 'update',
       remoteState: this.isPublished(deposition) ? 'published' : 'draft',
       status: 'success',

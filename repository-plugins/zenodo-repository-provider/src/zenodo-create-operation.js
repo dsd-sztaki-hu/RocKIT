@@ -4,7 +4,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-const { ZenodoMetadataPreparation } = require('./zenodo-metadata-preparation')
 const { METADATA_FILE, ZenodoUploadPackage } = require('./zenodo-upload-package')
 
 
@@ -12,13 +11,11 @@ class ZenodoCreateOperation {
   constructor({
     vscode,
     clientFactory,
-    metadataPreparation = new ZenodoMetadataPreparation({ vscode }),
     uploadPackage = new ZenodoUploadPackage({ vscode }),
     now = () => new Date(),
   }) {
     this.vscode = vscode
     this.clientFactory = clientFactory
-    this.metadataPreparation = metadataPreparation
     this.uploadPackage = uploadPackage
     this.now = now
   }
@@ -37,8 +34,7 @@ class ZenodoCreateOperation {
     )
     const crate = this.parseCrate(crateBytes)
     const client = this.clientFactory(repository)
-    const crosswalk = input?.crosswalk?.document
-    const metadata = await this.metadataPreparation.prepare(crate, client, crosswalk)
+    const metadata = this.requirePreparedMetadata(input?.repositoryMetadata)
     const upload = await this.uploadPackage.prepare(rootUri, crate)
     const uploadFiles = upload.files
 
@@ -80,7 +76,7 @@ class ZenodoCreateOperation {
       repository,
       target,
       crate,
-      crosswalkId: input?.crosswalk?.id,
+      crosswalkId: input?.crosswalkId,
     })
 
     progress.report({ message: 'Zenodo export complete.' })
@@ -100,6 +96,13 @@ class ZenodoCreateOperation {
       throw new Error('Open an RO-Crate workspace before exporting to Zenodo.')
     }
     return folders[0].uri
+  }
+
+  requirePreparedMetadata(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('RocKIT must supply prepared repository metadata before exporting to Zenodo.')
+    }
+    return value
   }
 
   async readFile(uri, missingMessage) {

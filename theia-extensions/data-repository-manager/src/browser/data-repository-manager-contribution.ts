@@ -101,6 +101,7 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
             }
         });
 
+
         commands.registerCommand(DataRepositoryManagerCommands.OPEN, {
             execute: async () => {
                 const widget = await this.widgetManager.getOrCreateWidget(DATA_REPOSITORY_MANAGER_WIDGET_ID);

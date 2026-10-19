@@ -8,7 +8,6 @@ const assert = require('node:assert/strict')
 const { describe, it } = require('node:test')
 
 const { ZenodoImportOperation } = require('../src/zenodo-import-operation')
-const crosswalk = require('../../../theia-extensions/data-repository-manager/src/browser/crosswalks/arp-zenodo-crosswalk.json')
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -158,24 +157,18 @@ describe('Zenodo import operation', () => {
       },
       recordUrl: 'https://sandbox.zenodo.org/uploads/42',
       targetParentUri: 'imports',
-      crosswalk: { id: crosswalk.id, document: crosswalk },
+      crosswalkId: 'arp-zenodo-crosswalk',
     })
 
     assert.equal(
       decoder.decode(env.written.get('imports/zenodo-42/data/result.txt')),
       'result',
     )
-    const crate = JSON.parse(
-      decoder.decode(env.written.get('imports/zenodo-42/ro-crate-metadata.json')),
-    )
+    assert.equal(env.written.has('imports/zenodo-42/ro-crate-metadata.json'), false)
+    const crate = result.crate
     const root = crate['@graph'].find((entity) => entity['@id'] === './')
     assert.equal(root.name, 'Original title')
-    assert.equal(root.title, 'Imported title')
-    assert.ok(
-      crate['@graph'].some(
-        (entity) => entity.dsDescriptionValue === 'Imported description',
-      ),
-    )
+    assert.equal(result.repositoryMetadata.title, 'Imported title')
     assert.ok(root.hasPart.some((reference) => reference['@id'] === 'data/result.txt'))
 
     const mapping = JSON.parse(
@@ -190,28 +183,26 @@ describe('Zenodo import operation', () => {
     )
     assert.equal(log[0].pid, '42')
     assert.equal(log[0].syncType, 'update')
-    assert.equal(log[0].status, 'success')
+    assert.equal(log[0].status, 'cancelled')
     const hashes = JSON.parse(
       decoder.decode(env.written.get('imports/zenodo-42/.rockit/file-hashes.json')),
     )
     assert.equal(hashes.files['data/result.txt'].md5, '0123456789abcdef0123456789abcdef')
-    assert.deepEqual(env.commands, [['vscode.openFolder', 'imports/zenodo-42', true]])
-    assert.equal(result.openedWorkspace, true)
+    assert.deepEqual(env.commands, [])
+    assert.equal(result.importedWorkspaceUri, 'imports/zenodo-42')
     assert.equal(result.downloadedFileCount, 2)
     assert.equal(result.hasUploadedRoCrateMetadata, true)
   })
 
   it('creates a valid crate when the upload has no RO-Crate metadata', async () => {
     const env = testEnvironment({ includeMetadata: false })
-    await env.operation.execute({
+    const result = await env.operation.execute({
       repository: { baseUrl: 'https://sandbox.zenodo.org', apiKey: 'secret' },
       recordUrl: 'https://sandbox.zenodo.org/uploads/42',
       targetParentUri: 'imports',
-      crosswalk: { id: crosswalk.id, document: crosswalk },
+      crosswalkId: 'arp-zenodo-crosswalk',
     })
-    const crate = JSON.parse(
-      decoder.decode(env.written.get('imports/zenodo-42/ro-crate-metadata.json')),
-    )
+    const crate = result.crate
     assert.ok(crate['@graph'].some((entity) => entity['@id'] === 'result.txt'))
     assert.ok(
       crate['@graph'].some((entity) => entity['@id'] === 'ro-crate-metadata.json'),

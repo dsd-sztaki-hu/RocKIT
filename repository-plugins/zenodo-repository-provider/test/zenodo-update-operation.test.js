@@ -9,7 +9,6 @@ const assert = require('node:assert/strict')
 const { describe, it } = require('node:test')
 
 const { ZenodoUpdateOperation } = require('../src/zenodo-update-operation')
-const crosswalk = require('../../../theia-extensions/data-repository-manager/src/browser/crosswalks/arp-zenodo-crosswalk.json')
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -167,7 +166,14 @@ function environment({ published = false } = {}) {
       target: 'https://zenodo.org/deposit/42',
       mappingFile: 'zenodo-42-mapping.json',
     },
-    crosswalk: { id: crosswalk.id, document: crosswalk },
+    crosswalkId: 'arp-zenodo-crosswalk',
+    repositoryMetadata: {
+      title: 'Updated dataset',
+      description: 'Updated description',
+      publication_date: '2026-10-12',
+      upload_type: 'dataset',
+      creators: [{ name: 'Alice Example' }],
+    },
   }
   return { operation, input, calls, written, metadataUpdates }
 }

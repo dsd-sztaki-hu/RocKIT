@@ -6,7 +6,6 @@
 
 const { randomBytes } = require('node:crypto')
 
-const { applyZenodoMetadataToRoCrate } = require('../lib/zenodo-metadata-crosswalk')
 const {
   appendExportLogEvent,
   normalizeExportLogEntries,
@@ -69,32 +68,20 @@ class ZenodoImportOperation extends ZenodoCreateOperation {
     progress.report({ message: 'Generating imported RO-Crate metadata...' })
     const crateBase = uploadedCrate || this.createEmptyRoCrate()
     this.addDownloadedFilesToCrate(crateBase, loaded.files, localPaths)
-    const importedCrate = applyZenodoMetadataToRoCrate(
-      crateBase,
-      this.normalizeRecordMetadata(loaded.metadata),
-      input?.crosswalk?.document,
-    ).crate
-    await this.writeJson(
-      this.vscode.Uri.joinPath(targetUri, METADATA_FILE),
-      importedCrate,
-    )
-
     progress.report({ message: 'Writing local Zenodo link state...' })
     const link = await this.persistImportedRecordLink({
       rootUri: targetUri,
       repository,
       recordId,
-      crate: importedCrate,
+      crate: crateBase,
       files: loaded.files,
       localPaths,
       target:
         this.recordHtmlUrl(loaded.payload) ||
         `${this.normalizeBaseUrl(repository.baseUrl)}/deposit/${encodeURIComponent(recordId)}`,
-      crosswalkId: input?.crosswalk?.id,
+      crosswalkId: input?.crosswalkId,
     })
 
-    progress.report({ message: 'Opening imported RO-Crate...' })
-    await this.vscode.commands.executeCommand('vscode.openFolder', targetUri, true)
     return {
       providerId: 'zenodo',
       remoteId: recordId,
@@ -103,7 +90,9 @@ class ZenodoImportOperation extends ZenodoCreateOperation {
       mappingFile: link.mappingFile,
       downloadedFileCount: loaded.files.length,
       hasUploadedRoCrateMetadata: Boolean(uploadedCrate),
-      openedWorkspace: true,
+      importedWorkspaceUri: String(targetUri),
+      crate: crateBase,
+      repositoryMetadata: this.normalizeRecordMetadata(loaded.metadata),
     }
   }
 
@@ -401,7 +390,7 @@ class ZenodoImportOperation extends ZenodoCreateOperation {
       mappingFile,
       crosswalkFile: crosswalkId,
       syncType: 'update',
-      status: 'success',
+      status: 'cancelled',
       lastSuccessfulActionAt: this.now().toISOString(),
       datasetName: this.rootDatasetName(crate),
     })

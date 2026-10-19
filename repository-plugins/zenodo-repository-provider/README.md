@@ -7,22 +7,18 @@ The extension currently contains:
 
 - `ZenodoClient`, the transport boundary that contains the required Zenodo API endpoint URLs,
   authentication headers, timeouts, response parsing, and HTTP errors;
-- a framework-free crosswalk runtime that consumes the crosswalk selected in
-  RocKIT's registry;
+- operations that accept repository-ready metadata from RocKIT and return
+  downloaded repository metadata for RocKIT to interpret afterward;
 - a registered `create` operation that reads the active RO-Crate workspace,
   creates a Zenodo draft, uploads local `File` entities and metadata, and saves
   the resulting mapping in `.rockit`;
-- a generic RocKIT metadata form request for Zenodo access right, license,
-  embargo date, and access conditions when the crosswalk cannot determine them
-  unambiguously;
 - a differential `update` operation for writable drafts that preserves Zenodo
   access policy and reconciles added, changed, unchanged, and removed files.
-- a `sync` operation that downloads remote files safely, applies the reverse
-  metadata crosswalk, and supports complete, remote-additions, and
-  local-additions merge policies.
+- a `sync` operation that downloads remote files safely and returns the local
+  and remote RO-Crates plus Zenodo metadata for RocKIT to map and merge;
 - an `import` operation that downloads a Zenodo upload into a new RO-Crate,
-  restores flattened file paths when metadata is available, applies the reverse
-  crosswalk, and persists the record link needed by later updates and syncs.
+  restores flattened file paths when metadata is available, returns the
+  downloaded metadata, and persists the record link needed by later updates and syncs;
 - a `delete` operation that removes a remote Zenodo draft while RocKIT retains
   responsibility for cleaning up its repository-independent local link state.
 - a two-phase `link` operation that previews title mismatches, maps local
@@ -38,8 +34,12 @@ The extension currently contains:
 The provider advertises its repository operations and local target-management commands; unsupported
 repository actions are not shown for connections using this provider. Required
 descriptive metadata such as title, description, publication date, and creators
-must still be present in the RO-Crate. The extension does not package an ARP
-crosswalk; RocKIT supplies the crosswalk selected for the repository connection.
+must still be present in the RO-Crate. The extension packages neither a
+crosswalk nor a crosswalk interpreter. When a connection has a crosswalk,
+RocKIT applies it before invoking the plugin and after the plugin returns.
+Without a crosswalk, RocKIT passes the root dataset's properties through on
+export/update and preserves the returned RO-Crate on import/sync. Such properties
+must already be suitable for Zenodo's API; otherwise Zenodo may reject them.
 
 Run its focused tests with:
 

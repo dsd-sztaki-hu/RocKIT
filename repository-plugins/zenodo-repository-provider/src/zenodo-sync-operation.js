@@ -4,13 +4,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-const { applyZenodoMetadataToRoCrate } = require('../lib/zenodo-metadata-crosswalk')
 const {
   appendExportLogEvent,
   normalizeExportLogEntries,
   serializeExportLogEntries,
 } = require('./export-log')
-const { mergeRoCratesForSync } = require('./ro-crate-sync-merge')
 const { ZenodoCreateOperation } = require('./zenodo-create-operation')
 const { ZenodoFileHashStore } = require('./zenodo-file-hash-store')
 
@@ -54,7 +52,7 @@ class ZenodoSyncOperation extends ZenodoCreateOperation {
       target: exportTarget.target,
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile: exportTarget.mappingFile,
-      crosswalkFile: input?.crosswalk?.id,
+      crosswalkFile: input?.crosswalkId,
       syncType: 'sync',
       datasetName: exportTarget.datasetName,
       lastSuccessfulActionAt: exportTarget.lastSuccessfulActionAt,
@@ -142,26 +140,9 @@ class ZenodoSyncOperation extends ZenodoCreateOperation {
 
       progress.report({ message: `Merging ${METADATA_FILE}...` })
       const localizedRemote = this.rewriteIds(remoteCrate, this.invertMapping(mapping))
-      const repositoryMetadata = applyZenodoMetadataToRoCrate(
-        localizedRemote,
-        metadata,
-        input?.crosswalk?.document,
-      )
-      const merged = mergeRoCratesForSync(
-        this.rewriteIds(localCrate, relocatedIds),
-        repositoryMetadata.crate,
-        mode,
-      )
-      await this.writeJson(metadataUri, merged)
+      const localizedLocal = this.rewriteIds(localCrate, relocatedIds)
       await this.writeJson(mappingUri, this.compactMapping(mapping))
-      await this.appendSyncLog(rootUri, {
-        ...logEntry,
-        pid: depositionId,
-        status: 'success',
-        lastSuccessfulActionAt: this.now().toISOString(),
-        datasetName: this.rootDatasetName(merged),
-      })
-      progress.report({ message: 'Zenodo sync complete.' })
+      progress.report({ message: 'Zenodo download complete; applying metadata in RocKIT...' })
 
       return {
         providerId: 'zenodo',
@@ -173,7 +154,9 @@ class ZenodoSyncOperation extends ZenodoCreateOperation {
         replacedFileCount: plan.filter((item) => item.kind === 'changed').length,
         keptLocalFileCount,
         metadataSource: mode,
-        updatedMetadataFields: repositoryMetadata.updatedFields,
+        localCrate: localizedLocal,
+        remoteCrate: localizedRemote,
+        repositoryMetadata: metadata,
       }
     } catch (error) {
       try {
