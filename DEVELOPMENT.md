@@ -26,6 +26,33 @@ React Grab is disabled by default so it does not intercept normal selection and
 copy shortcuts. Developers can opt in with the
 `rockit.developer.reactGrab.enabled` preference in a development build.
 
+## Running tests
+
+Run tests from the repository root:
+
+    yarn test:unit
+    yarn test:unit --coverage
+    yarn test:integration
+    yarn test:integration --coverage
+    yarn test:integration:mcp
+    yarn test:crosswalk
+
+Unit tests cover isolated logic and components. Integration tests cover RocKIT
+workflows and filesystem boundaries; the MCP command runs its existing protocol
+and lifecycle tests. Coverage commands print a summary table and create HTML
+reports in the corresponding `coverage` directories.
+
+Electron E2E tests use Playwright and require a built application:
+
+    yarn build:electron
+    yarn test:e2e
+
+Use `yarn test:all` for unit, integration, MCP, and crosswalk tests. It does not
+run Electron E2E tests. CI runs the test layers in separate jobs and uploads
+coverage or Playwright failure artifacts. The known Zenodo `imprint_publisher`
+crosswalk failure is currently a CI warning; other crosswalk failures stop the
+job.
+
 ## Building and packaging the standalone RO-Crate MCP server
 
 The RO-Crate MCP server can be built as a standalone npm CLI package without
