@@ -34,6 +34,30 @@ class ArpClient {
     })
   }
 
+  getAllowedMetadataLanguages(collectionId) {
+    return this.request(`${this.baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/allowedMetadataLanguages`)
+  }
+
+  createDataset(collectionId, payload) {
+    return this.request(`${this.baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/datasets`, {
+      method: 'POST', body: JSON.stringify(payload),
+    })
+  }
+
+  uploadFile(pid, entryPath, content) {
+    const normalized = entryPath.replace(/\\/g, '/').replace(/\/+$/, '')
+    const separator = normalized.lastIndexOf('/')
+    const directory = separator === -1 ? '' : normalized.slice(0, separator)
+    const filename = normalized.slice(separator + 1)
+    if (!filename) throw new Error('Cannot upload a file without a filename.')
+    const form = new FormData()
+    form.append('file', new Blob([content]), filename)
+    form.append('jsonData', JSON.stringify(directory ? { directoryLabel: directory } : {}))
+    return this.request(`${this.baseUrl}/api/v1/datasets/:persistentId/add?persistentId=${encodeURIComponent(pid)}`, {
+      method: 'POST', body: form,
+    })
+  }
+
   async supportsRoCrateUpload() {
     const result = await this.request(`${this.baseUrl}/api/arp/uploadRoCrateZip`, {
       method: 'OPTIONS',
@@ -56,7 +80,7 @@ class ArpClient {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), this.timeoutMs)
     const headers = { accept: 'application/json' }
-    if (body !== undefined) headers['content-type'] = 'application/json'
+    if (typeof body === 'string') headers['content-type'] = 'application/json'
     if (this.token) headers['x-dataverse-key'] = this.token
     try {
       const response = await this.fetchImpl(url, {

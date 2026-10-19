@@ -124,4 +124,55 @@ describe('ArpClient RO-Crate transport', () => {
 
     await assert.rejects(client.validateToken(), /ARP rejected the API token \(403\)/)
   })
+
+  it('reads metadata languages from the selected Dataverse collection', async () => {
+    const transport = mockTransport('{"status":"OK","data":["en"]}')
+    const client = new ArpClient({
+      baseUrl: 'https://repo.example.org', token: 'secret', fetchImpl: transport.fetchImpl,
+    })
+
+    const result = await client.getAllowedMetadataLanguages('my collection')
+
+    assert.equal(transport.calls[0].url,
+      'https://repo.example.org/api/v1/dataverses/my%20collection/allowedMetadataLanguages')
+    assert.equal(transport.calls[0].init.method, 'GET')
+    assert.deepEqual(result.payload, { status: 'OK', data: ['en'] })
+  })
+
+  it('creates a dataset with the existing Dataverse JSON request shape', async () => {
+    const transport = mockTransport('{"status":"OK","data":{"persistentId":"doi:10.1/example"}}')
+    const client = new ArpClient({
+      baseUrl: 'https://repo.example.org', token: 'secret', fetchImpl: transport.fetchImpl,
+    })
+    const payload = { datasetVersion: { metadataBlocks: { citation: {} } } }
+
+    const result = await client.createDataset('collection/one', payload)
+
+    assert.equal(transport.calls[0].url,
+      'https://repo.example.org/api/v1/dataverses/collection%2Fone/datasets')
+    assert.equal(transport.calls[0].init.method, 'POST')
+    assert.equal(transport.calls[0].init.body, JSON.stringify(payload))
+    assert.equal(transport.calls[0].init.headers['content-type'], 'application/json')
+    assert.equal(result.payload.data.persistentId, 'doi:10.1/example')
+  })
+
+  it('uploads a file with directory metadata and lets FormData set its boundary', async () => {
+    const transport = mockTransport('{"status":"OK"}')
+    const client = new ArpClient({
+      baseUrl: 'https://repo.example.org', token: 'secret', fetchImpl: transport.fetchImpl,
+    })
+    const content = Uint8Array.from([0, 127, 255])
+
+    await client.uploadFile('doi:10.1/example', 'folder\\data.bin', content)
+
+    const { url, init } = transport.calls[0]
+    assert.equal(url,
+      'https://repo.example.org/api/v1/datasets/:persistentId/add?persistentId=doi%3A10.1%2Fexample')
+    assert.equal(init.method, 'POST')
+    assert.equal(init.headers.accept, 'application/json')
+    assert.equal(init.headers['content-type'], undefined)
+    assert.equal(init.body.get('jsonData'), '{"directoryLabel":"folder"}')
+    assert.equal(init.body.get('file').name, 'data.bin')
+    assert.deepEqual(new Uint8Array(await init.body.get('file').arrayBuffer()), content)
+  })
 })
