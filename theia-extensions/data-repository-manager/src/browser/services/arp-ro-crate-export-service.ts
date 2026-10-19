@@ -31,6 +31,7 @@ import {
   serializeExportLogEntries,
 } from './export-log'
 import { DataverseMetadataMappingService } from './dataverse-metadata-mapping-service'
+import { buildArpDatasetCreationPayload } from './arp-dataset-creation-payload'
 import { FileHashStoreService } from './file-hash-store-service'
 import { mergeRoCratesForSync } from './ro-crate-sync-merge'
 import { extendMappingWithMetadataEntities } from './ro-crate-metadata-entity-mapping'
@@ -89,13 +90,6 @@ interface ArpUploadFileSource {
 interface ArpDataverseFileUploadResult {
   fileId: string
   md5?: string
-}
-
-interface ArpDataverseMetadataField {
-  typeName: string
-  typeClass: 'primitive' | 'compound' | 'controlledVocabulary'
-  multiple: boolean
-  value: unknown
 }
 
 interface ArpExportTarget {
@@ -909,7 +903,10 @@ export class ArpRoCrateExportService {
     const response = await this.fetchWithTimeout(requestUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify(this.buildDatasetCreationPayload(datasetMetadata)),
+      body: JSON.stringify(buildArpDatasetCreationPayload(
+        datasetMetadata,
+        this.metadataMappingService.requiredFields('citation'),
+      )),
     })
     const payload = await this.readResponsePayload(response)
     if (!response.ok || this.payloadHasErrorStatus(payload)) {
@@ -924,83 +921,6 @@ export class ArpRoCrateExportService {
       )
     }
     return { requestUrl: response.url || requestUrl, payload }
-  }
-
-  protected buildDatasetCreationPayload(
-    datasetMetadata: NativeDataverseDatasetMetadata,
-  ): Record<string, unknown> {
-    const title = datasetMetadata.title.trim()
-    const authorNames = this.uniqueStrings(
-      datasetMetadata.authorNames.map((value) => value.trim()),
-    )
-    const contactEmails = this.uniqueStrings(
-      datasetMetadata.contactEmails.map((value) => value.trim()),
-    )
-    const descriptions = this.uniqueStrings(
-      datasetMetadata.descriptions.map((value) => value.trim()),
-    )
-    const subjects = this.uniqueStrings(
-      datasetMetadata.subjects.map((value) => value.trim()),
-    )
-    const metadataLanguage = datasetMetadata.metadataLanguage?.trim()
-    const requiredCitationFields =
-      this.metadataMappingService.requiredFields('citation')
-    const missing: string[] = []
-    if (requiredCitationFields.has('title') && !title) {
-      missing.push(nls.localize('rockit/dataRepository/metadataTitle', 'Title'))
-    }
-    if (requiredCitationFields.has('author') && !authorNames.length) {
-      missing.push(nls.localize('rockit/dataRepository/authorName', 'Author Name'))
-    }
-    if (requiredCitationFields.has('datasetContact') && !contactEmails.length) {
-      missing.push(
-        nls.localize('rockit/dataRepository/contactEmail', 'Point of Contact Email'),
-      )
-    }
-    if (requiredCitationFields.has('dsDescription') && !descriptions.length) {
-      missing.push(
-        nls.localize('rockit/dataRepository/descriptionText', 'Description Text'),
-      )
-    }
-    if (requiredCitationFields.has('subject') && !subjects.length) {
-      missing.push(nls.localize('rockit/dataRepository/subject', 'Subject'))
-    }
-    if (!metadataLanguage) {
-      missing.push(
-        nls.localize(
-          'rockit/dataRepository/metadataLanguage',
-          'Dataset Metadata Language',
-        ),
-      )
-    }
-    if (missing.length) {
-      throw new Error(
-        nls.localize(
-          'rockit/dataRepository/missingRequiredMetadata',
-          'Cannot create Dataverse dataset. Missing required metadata: {0}.',
-          missing.join(', '),
-        ),
-      )
-    }
-
-    return {
-      metadataLanguage,
-      datasetVersion: {
-        metadataBlocks: {
-          citation: {
-            displayName: 'Citation Metadata',
-            fields: this.buildDatasetCreationCitationFields(
-              requiredCitationFields,
-              title,
-              authorNames,
-              contactEmails,
-              descriptions,
-              subjects,
-            ),
-          },
-        },
-      },
-    }
   }
 
   public async syncFromArp(
@@ -1248,87 +1168,6 @@ export class ArpRoCrateExportService {
       unmappedEntityIds: Object.entries(completeMetadataMapping)
         .filter(([, remoteId]) => !remoteId)
         .map(([metadataId]) => metadataId),
-    }
-  }
-
-  protected buildDatasetCreationCitationFields(
-    requiredCitationFields: Set<string>,
-    title: string,
-    authorNames: string[],
-    contactEmails: string[],
-    descriptions: string[],
-    subjects: string[],
-  ): ArpDataverseMetadataField[] {
-    const fields: ArpDataverseMetadataField[] = []
-    if (requiredCitationFields.has('title') || title) {
-      fields.push(this.primitiveField('title', false, title))
-    }
-    if (requiredCitationFields.has('author') || authorNames.length) {
-      fields.push(
-        this.compoundField(
-          'author',
-          authorNames.map((authorName) => ({
-            authorName: this.primitiveField('authorName', false, authorName),
-          })),
-        ),
-      )
-    }
-    if (requiredCitationFields.has('datasetContact') || contactEmails.length) {
-      fields.push(
-        this.compoundField(
-          'datasetContact',
-          contactEmails.map((datasetContactEmail) => ({
-            datasetContactEmail: this.primitiveField(
-              'datasetContactEmail',
-              false,
-              datasetContactEmail,
-            ),
-          })),
-        ),
-      )
-    }
-    if (requiredCitationFields.has('dsDescription') || descriptions.length) {
-      fields.push(
-        this.compoundField(
-          'dsDescription',
-          descriptions.map((dsDescriptionValue) => ({
-            dsDescriptionValue: this.primitiveField(
-              'dsDescriptionValue',
-              false,
-              dsDescriptionValue,
-            ),
-          })),
-        ),
-      )
-    }
-    if (requiredCitationFields.has('subject') || subjects.length) {
-      fields.push({
-        typeName: 'subject',
-        typeClass: 'controlledVocabulary',
-        multiple: true,
-        value: subjects,
-      })
-    }
-    return fields
-  }
-
-  protected primitiveField(
-    typeName: string,
-    multiple: boolean,
-    value: unknown,
-  ): ArpDataverseMetadataField {
-    return { typeName, typeClass: 'primitive', multiple, value }
-  }
-
-  protected compoundField(
-    typeName: string,
-    values: Array<Record<string, ArpDataverseMetadataField>>,
-  ): ArpDataverseMetadataField {
-    return {
-      typeName,
-      typeClass: 'compound',
-      multiple: true,
-      value: values,
     }
   }
 
