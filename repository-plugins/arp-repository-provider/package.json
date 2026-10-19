@@ -1,0 +1,15 @@
+{
+  "name": "arp-repository-provider",
+  "displayName": "RocKIT ARP Repository Provider",
+  "description": "Reference ARP repository provider for RocKIT.",
+  "version": "0.1.0",
+  "publisher": "rockit",
+  "license": "Apache-2.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
