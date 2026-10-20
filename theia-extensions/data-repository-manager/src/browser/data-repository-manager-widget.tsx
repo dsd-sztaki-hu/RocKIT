@@ -718,6 +718,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         await this.handlePluginArpCreate(selectedRepo)
         return
       }
+      if (selectedRepo.providerId === 'arp' && operation === 'update' && selectedExportTarget) {
+        await this.handlePluginArpUpdate(selectedRepo, selectedExportTarget)
+        return
+      }
       await this.executePluginRepositoryOperation(selectedRepo, operation, {
         repository: selectedRepo,
         exportTarget: selectedExportTarget,
@@ -1595,6 +1599,67 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.messageService.error(
         nls.localize('rockit/dataRepository/zipExportFailed', 'RO-Crate ZIP export failed: {0}',
           error instanceof Error ? error.message : String(error)),
+        { timeout: 10000 },
+      )
+    }
+  }
+
+  protected async handlePluginArpUpdate(
+    repository: DataRepositoryConfig,
+    exportTarget: DataRepositoryExportTarget,
+  ): Promise<void> {
+    try {
+      const result = await this.arpExportService.updateArpWithProvider(
+        repository,
+        exportTarget,
+        async input => {
+          const response = await this.providerService.executeForRepository<
+            typeof input,
+            unknown
+          >(repository, 'update', input)
+          if (!response) throw new Error('The ARP provider returned no update result.')
+          return response
+        },
+      )
+      if (!result) return
+      this.showTargetNotification(
+        nls.localize(
+          'rockit/dataRepository/arpUpdateCompleted',
+          'ARP update completed for {0}. Uploaded {1} new file(s), replaced {2} changed file(s), and removed {3} file(s).',
+          result.target,
+          result.addedFileCount,
+          result.changedFileCount,
+          result.removedFileCount,
+        ),
+        result.target,
+        10000,
+      )
+      if (result.unmappedEntityIds.length && result.mappingFileName) {
+        const previewLimit = 15
+        const idPreview = result.unmappedEntityIds
+          .slice(0, previewLimit)
+          .map(id => `- ${id.length > 80 ? `${id.slice(0, 77)}...` : id}`)
+          .join('\n')
+        const remainingCount = result.unmappedEntityIds.length - previewLimit
+        this.messageService.warn(
+          `${nls.localize(
+            'rockit/dataRepository/updateUnmappedIds',
+            'ARP update completed, but {0} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/{1}.',
+            result.unmappedEntityIds.length,
+            result.mappingFileName,
+          )}\n${idPreview}${remainingCount > 0 ? `\n- ${nls.localize('rockit/dataRepository/andMore', '...and {0} more', remainingCount)}` : ''}`,
+          { timeout: 10000 },
+        )
+      }
+    } catch (error) {
+      await this.arpExportService.markActiveExportFailed(error)
+      console.error('ARP provider update failed:', error)
+      this.messageService.error(
+        nls.localize(
+          'rockit/dataRepository/arpUpdateFailed',
+          'ARP file update failed: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
         { timeout: 10000 },
       )
     }

@@ -120,6 +120,63 @@ export interface ArpProviderCreateCheckpoint {
   fileResult?: ArpProviderCreateResult['fileResults'][number]
 }
 
+export interface PreparedArpUpdateFile {
+  metadataEntityId: string
+  uploadEntityId: string
+  entryPath: string
+  sourceUri: string
+  lastModified?: number
+  sourceSize?: number
+  remoteId?: string
+  remoteFileId?: number
+  description?: string
+}
+
+export interface PreparedArpUpdateExport {
+  pid: string
+  target: string
+  crate: RoCrate
+  uploadCrate: RoCrate
+  remoteCrate: RoCrate
+  mappingFileName: string
+  metadataIdMapping: RoCrateEntityIdMapping
+  uploadIdMapping: RoCrateEntityIdMapping
+  originalToUploadIds: Record<string, string>
+  addedFiles: PreparedArpUpdateFile[]
+  changedFiles: PreparedArpUpdateFile[]
+  removedFiles: Array<{ remoteId: string; remoteFileId: number }>
+}
+
+export interface ArpProviderUpdateFileResult {
+  kind: 'added' | 'changed'
+  metadataEntityId: string
+  uploadEntityId: string
+  entryPath: string
+  remoteId: string
+  md5?: string
+  lastModified?: number
+  sourceSize?: number
+}
+
+export interface ArpProviderUpdateResult {
+  providerId: 'arp'
+  pid: string
+  processedRemoteCrate: RoCrate
+  uploadCrate: RoCrate
+  uploadIdMapping: RoCrateEntityIdMapping
+  fileResults: ArpProviderUpdateFileResult[]
+  removedRemoteIds: string[]
+}
+
+export interface ArpProviderUpdateCheckpoint {
+  operationId: string
+  providerId: 'arp'
+  stage: 'fileUploaded' | 'fileReplaced' | 'fileRemoved'
+  pid: string
+  fileResult?: ArpProviderUpdateFileResult
+  remoteId?: string
+}
+
 interface ActiveArpProviderCreate {
   rootUri: URI
   repository: DataRepositoryConfig
@@ -131,6 +188,15 @@ interface ActiveArpProviderCreate {
   pid?: string
   target?: string
   logStarted: boolean
+}
+
+interface ActiveArpProviderUpdate {
+  rootUri: URI
+  plan: PreparedArpUpdateExport
+  metadataIdMapping: RoCrateEntityIdMapping
+  uploadIdMapping: RoCrateEntityIdMapping
+  checkpointedFiles: Set<string>
+  removedRemoteIds: Set<string>
 }
 
 interface ArpUpdateUploadFile {
@@ -216,6 +282,7 @@ const DATAVERSE_CROSSWALK_FILE_NAME = 'arp-dataverse-crosswalk.json'
 export class ArpRoCrateExportService {
   protected activeExportLogEntry: ExportLogEntry | undefined
   protected readonly activeProviderCreates = new Map<string, ActiveArpProviderCreate>()
+  protected readonly activeProviderUpdates = new Map<string, ActiveArpProviderUpdate>()
   constructor(
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
@@ -287,8 +354,8 @@ export class ArpRoCrateExportService {
     const mappingFileName = await this.createUniqueMappingFileName(rootUri)
     const dataverseUrl = this.buildDataverseDatasetUrl(baseUrl, pid)
     const target =
-      this.buildDatasetPidTarget(pid) ||
       dataverseUrl ||
+      this.buildDatasetPidTarget(pid) ||
       creation.requestUrl
     await this.saveEntityIdMapping(
       rootUri,
@@ -563,8 +630,8 @@ export class ArpRoCrateExportService {
     await this.saveEntityIdMapping(rootUri, mappingFileName, metadataMapping)
     await this.appendExportLog(rootUri, {
       target:
-        this.buildDatasetPidTarget(exportTarget.pid) ||
         this.buildDataverseDatasetUrl(baseUrl, exportTarget.pid) ||
+        this.buildDatasetPidTarget(exportTarget.pid) ||
         exportTarget.pid,
       repository: baseUrl,
       mappingFile: mappingFileName,
@@ -762,8 +829,8 @@ export class ArpRoCrateExportService {
     await this.saveEntityIdMapping(rootUri, mappingFileName, completeMetadataMapping)
     await this.appendExportLog(rootUri, {
       target:
-        this.buildDatasetPidTarget(exportTarget.pid) ||
         this.buildDataverseDatasetUrl(baseUrl, exportTarget.pid) ||
+        this.buildDatasetPidTarget(exportTarget.pid) ||
         exportTarget.pid,
       repository: baseUrl,
       mappingFile: mappingFileName,
@@ -778,8 +845,8 @@ export class ArpRoCrateExportService {
       .map(([metadataId]) => metadataId)
 
     const target =
-      this.buildDatasetPidTarget(exportTarget.pid) ||
       this.buildDataverseDatasetUrl(baseUrl, exportTarget.pid) ||
+      this.buildDatasetPidTarget(exportTarget.pid) ||
       exportTarget.pid
     reportProgress?.({
       completedSteps: totalSteps,
@@ -984,7 +1051,8 @@ export class ArpRoCrateExportService {
 
       const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
       const dataverseUrl = this.buildDataverseDatasetUrl(baseUrl, remote.pid)
-      const target = checkpoint.target || this.buildDatasetPidTarget(remote.pid) || dataverseUrl || remote.pid
+      const target = dataverseUrl || checkpoint.target ||
+        this.buildDatasetPidTarget(remote.pid) || remote.pid
       const completeMapping = extendMappingWithMetadataEntities(
         remote.uploadCrate, remote.processedRemoteCrate!, remote.uploadIdMapping)
       const metadataIdMapping = this.toMetadataEntityIdMapping(plan.crate, completeMapping, originalToUploadIds)
@@ -1029,8 +1097,8 @@ export class ArpRoCrateExportService {
 
     if (!active.logStarted) {
       const baseUrl = this.normalizeBaseUrl(active.repository.baseUrl)
-      active.target = this.buildDatasetPidTarget(value.pid) ||
-        this.buildDataverseDatasetUrl(baseUrl, value.pid) || value.pid
+      active.target = this.buildDataverseDatasetUrl(baseUrl, value.pid) ||
+        this.buildDatasetPidTarget(value.pid) || value.pid
       await this.saveEntityIdMapping(
         active.rootUri, active.mappingFileName,
         this.toMetadataEntityIdMapping(
@@ -1070,6 +1138,245 @@ export class ArpRoCrateExportService {
 
   protected providerCreateFileKey(entityId: string, entryPath: string): string {
     return `${entityId}\0${entryPath}`
+  }
+
+  /** Prepare the local diff while leaving every repository HTTP request to the provider. */
+  public async prepareUpdateExport(
+    repository: DataRepositoryConfig,
+    remoteCrate: RoCrate,
+    exportTargetSelection?: DataRepositoryExportTarget,
+  ): Promise<PreparedArpUpdateExport | undefined> {
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const rootUri = this.getWorkspaceRoot()
+    const metadataCrate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
+    const exportTarget = await this.resolveExistingArpExportTarget(
+      rootUri, repository, metadataCrate, exportTargetSelection)
+    if (!exportTarget) return undefined
+    if (!exportTarget.exportLogEntry?.mappingFile || !exportTarget.mapping) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/arpMissingExportMapping',
+        'This workspace has an ARP PID, but no existing export-log mapping file could be loaded for this repository. Update will not create a second mapping file.',
+      ))
+    }
+
+    const uploadCrate = await this.buildDataverseUploadCrate(metadataCrate, rootUri)
+    const localized = await this.localizeExternalLocalFileReferences(uploadCrate, rootUri)
+    const metadataIdMapping = { ...exportTarget.mapping }
+    const uploadIdMapping = extendMappingWithMetadataEntities(
+      uploadCrate,
+      remoteCrate,
+      this.toUploadEntityIdMapping(metadataIdMapping, localized.originalToUploadIds),
+    )
+    const diff = this.diffRoCrates(uploadCrate, remoteCrate, uploadIdMapping, {
+      pid: exportTarget.pid,
+      repository: baseUrl,
+      exportLogEntry: exportTarget.exportLogEntry,
+    })
+    const localEntitiesById = new Map(this.readGraphEntities(uploadCrate)
+      .map(entity => [this.requireEntityId(entity), entity]))
+    const remoteEntitiesById = new Map(this.readGraphEntities(remoteCrate)
+      .map(entity => [this.requireEntityId(entity), entity]))
+    const uploadIdToMetadataId = this.toOriginalEntityIdMapping(localized.originalToUploadIds)
+    const newFileDiffs = diff.newFiles as Array<{ localId: string }>
+    const removedFileDiffs = diff.removedFiles as Array<{ remoteId: string }>
+    const newLocalFileIds = new Set<string>(newFileDiffs.map(file => file.localId))
+    const changedIds: Array<{ localId: string; remoteId: string }> = []
+    const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri)
+    for (const [localId, localEntity] of localEntitiesById) {
+      if (!this.entityTypes(localEntity).includes('File') || newLocalFileIds.has(localId)) continue
+      const remoteId = uploadIdMapping[localId] || localId
+      const remoteEntity = remoteEntitiesById.get(remoteId)
+      if (!remoteEntity) continue
+      const source = await this.resolveUploadFileSource(
+        localEntity, rootUri, localized.entries, localized.originalToUploadIds)
+      const remoteSizeValue = this.readOptionalEntityString(remoteEntity, 'contentSize')
+      const remoteSize = remoteSizeValue === undefined ? undefined : Number(remoteSizeValue)
+      if (!this.fileHashStoreService.isFileRecordUnchanged(storedFileHashes[source.entityId], {
+        localLastModified: source.lastModified,
+        localSize: source.sourceSize,
+        remoteMd5: this.readOptionalEntityString(remoteEntity, 'hash'),
+        remoteSize: remoteSize !== undefined && Number.isFinite(remoteSize) ? remoteSize : undefined,
+      })) {
+        changedIds.push({ localId, remoteId })
+      }
+    }
+
+    const toPreparedFile = async (
+      localId: string,
+      remoteId?: string,
+    ): Promise<PreparedArpUpdateFile> => {
+      const entity = localEntitiesById.get(localId)
+      if (!entity) throw new Error(`Cannot prepare ARP update file '${localId}'.`)
+      const source = await this.resolveUploadFileSource(
+        entity, rootUri, localized.entries, localized.originalToUploadIds)
+      const remoteEntity = remoteId ? remoteEntitiesById.get(remoteId) : undefined
+      return {
+        metadataEntityId: uploadIdToMetadataId[localId] ?? localId,
+        uploadEntityId: localId,
+        entryPath: source.entryPath,
+        sourceUri: source.uri.toString(),
+        lastModified: source.lastModified,
+        sourceSize: source.sourceSize,
+        ...(remoteId ? { remoteId } : {}),
+        ...(remoteEntity ? { remoteFileId: this.requireDataverseFileId(remoteEntity) } : {}),
+        ...(this.readOptionalEntityString(entity, 'description')
+          ? { description: this.readOptionalEntityString(entity, 'description') }
+          : {}),
+      }
+    }
+
+    const addedFiles = await Promise.all(newFileDiffs.map(
+      file => toPreparedFile(file.localId)))
+    const changedFiles = await Promise.all(changedIds.map(
+      file => toPreparedFile(file.localId, file.remoteId)))
+    const removedFiles = removedFileDiffs.map(file => {
+      const remoteEntity = remoteEntitiesById.get(file.remoteId)
+      if (!remoteEntity) throw new Error(`Cannot prepare removal of remote file '${file.remoteId}'.`)
+      return { remoteId: file.remoteId, remoteFileId: this.requireDataverseFileId(remoteEntity) }
+    })
+    const target = this.buildDataverseDatasetUrl(baseUrl, exportTarget.pid) ||
+      this.buildDatasetPidTarget(exportTarget.pid) || exportTarget.pid
+    return {
+      pid: exportTarget.pid,
+      target,
+      crate: metadataCrate,
+      uploadCrate,
+      remoteCrate,
+      mappingFileName: exportTarget.exportLogEntry.mappingFile,
+      metadataIdMapping,
+      uploadIdMapping,
+      originalToUploadIds: Object.fromEntries(localized.originalToUploadIds),
+      addedFiles,
+      changedFiles,
+      removedFiles,
+    }
+  }
+
+  public async updateArpWithProvider(
+    repository: DataRepositoryConfig,
+    exportTarget: DataRepositoryExportTarget,
+    invokeProvider: (input: Record<string, unknown>) => Promise<unknown>,
+  ): Promise<ArpRoCrateUpdateAnalysisResult | undefined> {
+    const lookup = await invokeProvider({
+      phase: 'loadRemote', repository, pid: exportTarget.pid,
+    })
+    const lookupRecord = lookup && typeof lookup === 'object' && !Array.isArray(lookup)
+      ? lookup as Record<string, unknown>
+      : undefined
+    const remoteCrate = lookupRecord?.remoteCrate as RoCrate | undefined
+    if (!remoteCrate || !Array.isArray(remoteCrate['@graph'])) {
+      throw new Error('The ARP provider did not return the remote RO-Crate needed for update analysis.')
+    }
+    const plan = await this.prepareUpdateExport(repository, remoteCrate, exportTarget)
+    if (!plan) return undefined
+
+    const rootUri = this.getWorkspaceRoot()
+    const operationId = this.randomId(32)
+    const active: ActiveArpProviderUpdate = {
+      rootUri,
+      plan,
+      metadataIdMapping: { ...plan.metadataIdMapping },
+      uploadIdMapping: { ...plan.uploadIdMapping },
+      checkpointedFiles: new Set(),
+      removedRemoteIds: new Set(),
+    }
+    this.activeProviderUpdates.set(operationId, active)
+    await this.saveEntityIdMapping(rootUri, plan.mappingFileName, active.metadataIdMapping)
+    await this.appendExportLog(rootUri, {
+      target: plan.target,
+      repository: this.normalizeBaseUrl(repository.baseUrl),
+      mappingFile: plan.mappingFileName,
+      crosswalkFile: repository.crosswalkId ?? DATAVERSE_CROSSWALK_FILE_NAME,
+      syncType: 'update',
+      status: 'cancelled',
+      datasetName: this.getRootDatasetName(plan.crate),
+    })
+
+    try {
+      const rawResult = await invokeProvider({
+        phase: 'apply', repository, plan, operationId,
+      })
+      const result = rawResult && typeof rawResult === 'object' && !Array.isArray(rawResult)
+        ? rawResult as ArpProviderUpdateResult
+        : undefined
+      if (!result || result.providerId !== 'arp' || result.pid !== plan.pid ||
+          !Array.isArray(result.processedRemoteCrate?.['@graph']) ||
+          !Array.isArray(result.uploadCrate?.['@graph']) || !result.uploadIdMapping ||
+          !Array.isArray(result.fileResults) || !Array.isArray(result.removedRemoteIds)) {
+        throw new Error('The ARP provider did not return a complete update result.')
+      }
+
+      const completeUploadMapping = extendMappingWithMetadataEntities(
+        result.uploadCrate, result.processedRemoteCrate, result.uploadIdMapping)
+      const completeMetadataMapping = this.toMetadataEntityIdMapping(
+        plan.crate, completeUploadMapping, new Map(Object.entries(plan.originalToUploadIds)))
+      await this.saveEntityIdMapping(rootUri, plan.mappingFileName, completeMetadataMapping)
+      await this.appendExportLog(rootUri, {
+        target: plan.target,
+        repository: this.normalizeBaseUrl(repository.baseUrl),
+        mappingFile: plan.mappingFileName,
+        crosswalkFile: repository.crosswalkId ?? DATAVERSE_CROSSWALK_FILE_NAME,
+        syncType: 'update',
+        status: 'success',
+        lastSuccessfulActionAt: new Date().toISOString(),
+        datasetName: this.getRootDatasetName(plan.crate),
+      })
+      return {
+        pid: plan.pid,
+        target: plan.target,
+        addedFileCount: plan.addedFiles.length,
+        changedFileCount: plan.changedFiles.length,
+        removedFileCount: plan.removedFiles.length,
+        mappingFileName: plan.mappingFileName,
+        unmappedEntityIds: Object.entries(completeMetadataMapping)
+          .filter(([, remoteId]) => !remoteId).map(([metadataId]) => metadataId),
+      }
+    } finally {
+      this.activeProviderUpdates.delete(operationId)
+    }
+  }
+
+  public async handleProviderUpdateCheckpoint(value: ArpProviderUpdateCheckpoint): Promise<void> {
+    if (!value || value.providerId !== 'arp' || typeof value.operationId !== 'string') {
+      throw new Error('The ARP update checkpoint is invalid.')
+    }
+    const active = this.activeProviderUpdates.get(value.operationId)
+    if (!active) throw new Error('The ARP update checkpoint no longer has an active update.')
+    if (value.pid !== active.plan.pid) {
+      throw new Error('The ARP update checkpoint refers to a different dataset PID.')
+    }
+
+    if (value.stage === 'fileRemoved') {
+      if (!value.remoteId || !active.plan.removedFiles.some(file => file.remoteId === value.remoteId)) {
+        throw new Error('The ARP removed-file checkpoint is inconsistent with the update plan.')
+      }
+      this.removeMappingEntriesByRemoteId(active.uploadIdMapping, value.remoteId)
+      this.removeMappingEntriesByRemoteId(active.metadataIdMapping, value.remoteId)
+      active.removedRemoteIds.add(value.remoteId)
+      await this.saveEntityIdMapping(
+        active.rootUri, active.plan.mappingFileName, active.metadataIdMapping)
+      return
+    }
+
+    const file = value.fileResult
+    const planned = file && [...active.plan.addedFiles, ...active.plan.changedFiles].find(
+      item => item.metadataEntityId === file.metadataEntityId &&
+        item.uploadEntityId === file.uploadEntityId && item.entryPath === file.entryPath)
+    if (!file || !planned || !file.remoteId) {
+      throw new Error('The ARP updated-file checkpoint is inconsistent with the update plan.')
+    }
+    active.uploadIdMapping[file.uploadEntityId] = file.remoteId
+    active.metadataIdMapping[file.metadataEntityId] = file.remoteId
+    await this.saveEntityIdMapping(
+      active.rootUri, active.plan.mappingFileName, active.metadataIdMapping)
+    if (file.md5) {
+      await this.fileHashStoreService.recordKnownHash(
+        active.rootUri, file.metadataEntityId, file.lastModified, file.sourceSize, file.md5)
+      await this.persistUploadedFileHash(
+        active.rootUri, active.plan.crate, file.metadataEntityId,
+        active.plan.uploadCrate, file.uploadEntityId, file.md5)
+    }
+    active.checkpointedFiles.add(`${file.kind}\0${file.uploadEntityId}`)
   }
 
   protected async buildDataverseUploadCrate(
@@ -1398,8 +1705,8 @@ export class ArpRoCrateExportService {
     await this.saveEntityIdMapping(rootUri, mappingFileName, completeMetadataMapping)
     await this.appendExportLog(rootUri, {
       target:
-        this.buildDatasetPidTarget(exportTarget.pid) ||
         this.buildDataverseDatasetUrl(baseUrl, exportTarget.pid) ||
+        this.buildDatasetPidTarget(exportTarget.pid) ||
         exportTarget.pid,
       repository: baseUrl,
       mappingFile: mappingFileName,
@@ -1411,8 +1718,8 @@ export class ArpRoCrateExportService {
     })
 
     const target =
-      this.buildDatasetPidTarget(exportTarget.pid) ||
       this.buildDataverseDatasetUrl(baseUrl, exportTarget.pid) ||
+      this.buildDatasetPidTarget(exportTarget.pid) ||
       exportTarget.pid
     reportProgress?.({
       completedSteps: totalSteps,
@@ -3635,9 +3942,13 @@ export class ArpRoCrateExportService {
   }
 
   protected buildDataverseDatasetUrl(baseUrl: string, pid?: string): string | undefined {
-    return pid
-      ? `${baseUrl}/dataset.xhtml?persistentId=${encodeURIComponent(pid)}`
-      : undefined
+    if (!pid) {
+      return undefined
+    }
+    const encodedPid = encodeURIComponent(pid)
+      .replace(/%3A/gi, ':')
+      .replace(/%2F/gi, '/')
+    return `${baseUrl}/dataset.xhtml?persistentId=${encodedPid}`
   }
 
   protected payloadSummary(payload: unknown): string {

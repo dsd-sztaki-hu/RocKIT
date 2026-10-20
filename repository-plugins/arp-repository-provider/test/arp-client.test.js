@@ -173,6 +173,39 @@ describe('ArpClient RO-Crate transport', () => {
     assert.deepEqual(result.payload, { status: 'OK' })
   })
 
+  it('replaces a file with the original metadata request shape', async () => {
+    const transport = mockTransport('{"status":"OK"}')
+    const client = new ArpClient({
+      baseUrl: 'https://repo.example.org', token: 'secret', fetchImpl: transport.fetchImpl,
+    })
+    const content = Uint8Array.from([1, 2, 3])
+
+    await client.replaceFile(42, 'folder/data.bin', 'Updated file', content)
+
+    const { url, init } = transport.calls[0]
+    assert.equal(url, 'https://repo.example.org/api/files/42/replace')
+    assert.equal(init.method, 'POST')
+    assert.equal(init.headers['content-type'], undefined)
+    assert.equal(init.headers['x-dataverse-key'], 'secret')
+    assert.equal(init.body.get('jsonData'),
+      '{"forceReplace":false,"description":"Updated file","directoryLabel":"folder"}')
+    assert.equal(init.body.get('file').name, 'data.bin')
+    assert.deepEqual(new Uint8Array(await init.body.get('file').arrayBuffer()), content)
+  })
+
+  it('deletes an individual Dataverse file', async () => {
+    const transport = mockTransport('{"status":"OK"}')
+    const client = new ArpClient({
+      baseUrl: 'https://repo.example.org', token: 'secret', fetchImpl: transport.fetchImpl,
+    })
+
+    await client.deleteFile('file/42')
+
+    assert.equal(transport.calls[0].url, 'https://repo.example.org/api/files/file%2F42')
+    assert.equal(transport.calls[0].init.method, 'DELETE')
+    assert.equal(transport.calls[0].init.headers['x-dataverse-key'], 'secret')
+  })
+
   it('uploads a file with directory metadata and lets FormData set its boundary', async () => {
     const transport = mockTransport('{"status":"OK"}')
     const client = new ArpClient({

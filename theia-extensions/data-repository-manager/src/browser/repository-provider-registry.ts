@@ -15,6 +15,7 @@ export const RepositoryProviderCommands = {
   EXECUTE: 'rockit.repositories.executeOperation',
   PROMPT_REQUIRED_METADATA: 'rockit.repositories.promptRequiredMetadata',
   CHECKPOINT_CREATE_EXPORT: 'rockit.repositories.checkpointCreateExport',
+  CHECKPOINT_UPDATE_EXPORT: 'rockit.repositories.checkpointUpdateExport',
 } as const
 
 export interface RepositoryMetadataPromptCondition {

@@ -50,6 +50,30 @@ class ArpClient {
     return this.request(url.toString(), { method: 'DELETE' })
   }
 
+  replaceFile(fileId, entryPath, description, content) {
+    const normalized = entryPath.replace(/\\/g, '/').replace(/\/+$/, '')
+    const separator = normalized.lastIndexOf('/')
+    const directory = separator === -1 ? '' : normalized.slice(0, separator)
+    const filename = normalized.slice(separator + 1)
+    if (!filename) throw new Error('Cannot replace a file without a filename.')
+    const form = new FormData()
+    form.append('file', new Blob([content]), filename)
+    form.append('jsonData', JSON.stringify({
+      forceReplace: false,
+      ...(description ? { description } : {}),
+      ...(directory ? { directoryLabel: directory } : {}),
+    }))
+    return this.request(`${this.baseUrl}/api/files/${encodeURIComponent(fileId)}/replace`, {
+      method: 'POST', body: form,
+    })
+  }
+
+  deleteFile(fileId) {
+    return this.request(`${this.baseUrl}/api/files/${encodeURIComponent(fileId)}`, {
+      method: 'DELETE',
+    })
+  }
+
   uploadFile(pid, entryPath, content) {
     const normalized = entryPath.replace(/\\/g, '/').replace(/\/+$/, '')
     const separator = normalized.lastIndexOf('/')

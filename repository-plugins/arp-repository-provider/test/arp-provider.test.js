@@ -13,15 +13,18 @@ const {
   VALIDATE_COMMAND,
   CREATE_COMMAND,
   DELETE_COMMAND,
+  UPDATE_COMMAND,
   METADATA_LANGUAGES_COMMAND,
 } = require('../src/arp-provider')
 
 describe('ARP provider command boundary', () => {
-  it('registers create, delete, language lookup, and validation commands', async () => {
+  it('registers create, update, delete, language lookup, and validation commands', async () => {
     const commands = new Map()
     const executions = []
     const vscode = {
       ProgressLocation: { Notification: 15 },
+      Uri: { parse: value => value },
+      workspace: { fs: { readFile: async () => Uint8Array.from([1]) } },
       window: { withProgress: async (_options, task) =>
         task({ report() {} }) },
       commands: {
@@ -49,6 +52,9 @@ describe('ARP provider command boundary', () => {
           calls.push(`delete:${pid}`)
           return { ok: true, status: 200, payload: { status: 'OK' } }
         },
+        updateRoCrate: async (_pid, crate) => ({
+          ok: true, status: 200, payload: { data: { roCrate: crate } },
+        }),
       }
     })
 
@@ -61,6 +67,7 @@ describe('ARP provider command boundary', () => {
         validate: VALIDATE_COMMAND,
         create: CREATE_COMMAND,
         delete: DELETE_COMMAND,
+        update: UPDATE_COMMAND,
         metadataLanguages: METADATA_LANGUAGES_COMMAND,
       },
       connection: { requiresApiKey: true },
@@ -71,6 +78,16 @@ describe('ARP provider command boundary', () => {
     assert.deepEqual(await commands.get(DELETE_COMMAND)({
       repository, exportTarget: { pid: 'doi:10.1/example' },
     }), { providerId: 'arp', remoteId: 'doi:10.1/example', deleted: true })
+    const updated = await commands.get(UPDATE_COMMAND)({
+      repository,
+      operationId: 'update-1',
+      plan: {
+        pid: 'doi:10.1/example', uploadCrate: { '@graph': [{ '@id': './' }] },
+        remoteCrate: { '@graph': [{ '@id': './' }] },
+        uploadIdMapping: { './': './' }, addedFiles: [], changedFiles: [], removedFiles: [],
+      },
+    })
+    assert.equal(updated.pid, 'doi:10.1/example')
     assert.deepEqual(calls, ['probe', 'token', 'languages:root', 'delete:doi:10.1/example'])
 
     await deactivateArpProvider(vscode)

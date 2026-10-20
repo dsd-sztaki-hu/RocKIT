@@ -73,6 +73,9 @@ describe('ARP plugin create export completion', () => {
     expect(f.appendExportLog.mock.calls[1][1].crosswalkFile).toBe('crosswalk-id')
     expect(f.saveEntityIdMapping).toHaveBeenCalled()
     expect(result.pid).toBe('doi:10.1/example')
+    expect(result.target).toBe(
+      'https://repo.example.org/dataset.xhtml?persistentId=doi:10.1/example')
+    expect(f.appendExportLog.mock.calls[1][1].target).toBe(result.target)
     expect(result.mappingFileName).toBe('mapping.json')
   })
 
@@ -85,7 +88,19 @@ describe('ARP plugin create export completion', () => {
       f.repository, f.collection, f.metadata, async () => interrupted,
     )).rejects.toThrow('File upload failed')
     expect(f.appendExportLog.mock.calls.map(call => call[1].status)).toEqual(['cancelled'])
-    expect(f.appendExportLog.mock.calls[0][1].target).toContain('doi:10.1/example')
+    expect(f.appendExportLog.mock.calls[0][1].target).toBe(
+      'https://repo.example.org/dataset.xhtml?persistentId=doi:10.1/example')
+  })
+
+  it('opens an HDL export on the configured repository dataset page', async () => {
+    const f = fixture()
+    f.remote.pid = 'hdl:21.15109/ARP/VYBLPE'
+
+    const result = await f.service.exportToArpWithProvider(
+      f.repository, f.collection, f.metadata, async () => f.remote)
+
+    expect(result.target).toBe(
+      'https://repo.example.org/dataset.xhtml?persistentId=hdl:21.15109/ARP/VYBLPE')
   })
 
   it('persists uploaded file hashes and the remote entity ID mapping', async () => {
