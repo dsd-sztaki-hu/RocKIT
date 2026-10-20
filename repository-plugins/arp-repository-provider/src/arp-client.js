@@ -44,6 +44,12 @@ class ArpClient {
     })
   }
 
+  deleteDraft(pid) {
+    const url = new URL(`${this.baseUrl}/api/v1/datasets/:persistentId/versions/:draft`)
+    url.searchParams.set('persistentId', pid)
+    return this.request(url.toString(), { method: 'DELETE' })
+  }
+
   uploadFile(pid, entryPath, content) {
     const normalized = entryPath.replace(/\\/g, '/').replace(/\/+$/, '')
     const separator = normalized.lastIndexOf('/')

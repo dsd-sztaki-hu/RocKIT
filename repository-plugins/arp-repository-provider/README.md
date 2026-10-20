@@ -3,7 +3,7 @@
 This is an incremental extraction of the ARP repository provider. `ArpClient`
 captures the current RO-Crate and Dataverse-style dataset/file HTTP requests in
 an independently tested transport module. The extension registers `validate`,
-`metadataLanguages`, and `create`. RocKIT still uses its existing ARP
+`metadataLanguages`, `create`, and `delete`. RocKIT still uses its existing ARP
 implementation for import, update, sync, and link, so those operations are not
 advertised for extension-backed connections yet.
 

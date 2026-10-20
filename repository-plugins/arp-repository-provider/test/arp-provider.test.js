@@ -12,15 +12,17 @@ const {
   deactivateArpProvider,
   VALIDATE_COMMAND,
   CREATE_COMMAND,
+  DELETE_COMMAND,
   METADATA_LANGUAGES_COMMAND,
 } = require('../src/arp-provider')
 
 describe('ARP provider command boundary', () => {
-  it('registers create, language lookup, and validation commands', async () => {
+  it('registers create, delete, language lookup, and validation commands', async () => {
     const commands = new Map()
     const executions = []
     const vscode = {
-      window: { ProgressLocation: { Notification: 15 }, withProgress: async (_options, task) =>
+      ProgressLocation: { Notification: 15 },
+      window: { withProgress: async (_options, task) =>
         task({ report() {} }) },
       commands: {
         registerCommand: (id, handler) => {
@@ -43,6 +45,10 @@ describe('ARP provider command boundary', () => {
           calls.push(`languages:${id}`)
           return { ok: true, payload: { data: ['en'] } }
         },
+        deleteDraft: async pid => {
+          calls.push(`delete:${pid}`)
+          return { ok: true, status: 200, payload: { status: 'OK' } }
+        },
       }
     })
 
@@ -54,6 +60,7 @@ describe('ARP provider command boundary', () => {
       operations: {
         validate: VALIDATE_COMMAND,
         create: CREATE_COMMAND,
+        delete: DELETE_COMMAND,
         metadataLanguages: METADATA_LANGUAGES_COMMAND,
       },
       connection: { requiresApiKey: true },
@@ -61,7 +68,10 @@ describe('ARP provider command boundary', () => {
     assert.deepEqual(await commands.get(VALIDATE_COMMAND)({ repository }), { valid: true })
     assert.deepEqual(await commands.get(METADATA_LANGUAGES_COMMAND)({ repository, collectionId: 'root' }),
       { data: ['en'] })
-    assert.deepEqual(calls, ['probe', 'token', 'languages:root'])
+    assert.deepEqual(await commands.get(DELETE_COMMAND)({
+      repository, exportTarget: { pid: 'doi:10.1/example' },
+    }), { providerId: 'arp', remoteId: 'doi:10.1/example', deleted: true })
+    assert.deepEqual(calls, ['probe', 'token', 'languages:root', 'delete:doi:10.1/example'])
 
     await deactivateArpProvider(vscode)
     assert.deepEqual(executions[1], [

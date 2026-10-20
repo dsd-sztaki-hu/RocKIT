@@ -156,6 +156,23 @@ describe('ArpClient RO-Crate transport', () => {
     assert.equal(result.payload.data.persistentId, 'doi:10.1/example')
   })
 
+  it('deletes the selected draft using the authenticated Dataverse endpoint', async () => {
+    const transport = mockTransport('{"status":"OK"}')
+    const client = new ArpClient({
+      baseUrl: 'https://repo.example.org/', token: 'secret', fetchImpl: transport.fetchImpl,
+    })
+
+    const result = await client.deleteDraft('doi:10.1/example with space')
+
+    assert.equal(transport.calls[0].url,
+      'https://repo.example.org/api/v1/datasets/:persistentId/versions/:draft?persistentId=doi%3A10.1%2Fexample+with+space')
+    assert.equal(transport.calls[0].init.method, 'DELETE')
+    assert.deepEqual(transport.calls[0].init.headers, {
+      accept: 'application/json', 'x-dataverse-key': 'secret',
+    })
+    assert.deepEqual(result.payload, { status: 'OK' })
+  })
+
   it('uploads a file with directory metadata and lets FormData set its boundary', async () => {
     const transport = mockTransport('{"status":"OK"}')
     const client = new ArpClient({

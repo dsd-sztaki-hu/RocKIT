@@ -6,10 +6,12 @@
 
 const { ArpClient } = require('./arp-client')
 const { ArpCreateOperation } = require('./arp-create-operation')
+const { ArpDeleteOperation } = require('./arp-delete-operation')
 
 const PROVIDER_ID = 'arp'
 const VALIDATE_COMMAND = 'rockit.arp.validate'
 const CREATE_COMMAND = 'rockit.arp.create'
+const DELETE_COMMAND = 'rockit.arp.delete'
 const METADATA_LANGUAGES_COMMAND = 'rockit.arp.metadataLanguages'
 const REGISTER_COMMAND = 'rockit.repositories.registerProvider'
 const UNREGISTER_COMMAND = 'rockit.repositories.unregisterProvider'
@@ -22,12 +24,20 @@ async function activateArpProvider(vscode, context, clientFactory = repository =
 })) {
   registeredExtensionId = context.extension.id
   const createOperation = new ArpCreateOperation({ vscode, clientFactory })
+  const deleteOperation = new ArpDeleteOperation({ clientFactory })
   context.subscriptions.push(vscode.commands.registerCommand(CREATE_COMMAND, input =>
     vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
       title: 'Exporting RO-Crate to ARP',
       cancellable: false,
     }, progress => createOperation.execute(input, progress)),
+  ))
+  context.subscriptions.push(vscode.commands.registerCommand(DELETE_COMMAND, input =>
+    vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: 'Deleting ARP draft',
+      cancellable: false,
+    }, progress => deleteOperation.execute(input, progress)),
   ))
   context.subscriptions.push(vscode.commands.registerCommand(METADATA_LANGUAGES_COMMAND, async input => {
     const repository = input?.repository
@@ -62,6 +72,7 @@ async function activateArpProvider(vscode, context, clientFactory = repository =
     operations: {
       validate: VALIDATE_COMMAND,
       create: CREATE_COMMAND,
+      delete: DELETE_COMMAND,
       metadataLanguages: METADATA_LANGUAGES_COMMAND,
     },
     connection: { requiresApiKey: true },
@@ -80,5 +91,6 @@ module.exports = {
   PROVIDER_ID,
   VALIDATE_COMMAND,
   CREATE_COMMAND,
+  DELETE_COMMAND,
   METADATA_LANGUAGES_COMMAND,
 }
