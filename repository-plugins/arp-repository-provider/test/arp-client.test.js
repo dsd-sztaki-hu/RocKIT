@@ -62,6 +62,48 @@ describe('ArpClient RO-Crate transport', () => {
     assert.deepEqual(result.payload, { '@graph': [] })
   })
 
+  it('downloads an authenticated ARP RO-Crate ZIP as bytes', async () => {
+    const calls = []
+    const bytes = Uint8Array.from([80, 75, 3, 4])
+    const client = new ArpClient({
+      baseUrl: 'https://repo.example.org', token: 'secret',
+      fetchImpl: async (url, init) => {
+        calls.push({ url, init })
+        return {
+          ok: true, status: 200, url,
+          arrayBuffer: async () => bytes.buffer,
+        }
+      },
+    })
+
+    const result = await client.downloadRoCrateZip('hdl:21.15109/ARP/VYBLPE')
+
+    assert.equal(calls[0].url,
+      'https://repo.example.org/api/access/datafiles/rocrate/hdl:21.15109/ARP/VYBLPE')
+    assert.deepEqual(calls[0].init.headers, {
+      accept: 'application/zip', 'x-dataverse-key': 'secret',
+    })
+    assert.deepEqual(result.bytes, bytes)
+  })
+
+  it('downloads an authenticated Dataverse file as bytes', async () => {
+    const calls = []
+    const bytes = Uint8Array.from([1, 2, 3])
+    const client = new ArpClient({
+      baseUrl: 'https://repo.example.org', token: 'secret',
+      fetchImpl: async (url, init) => {
+        calls.push({ url, init })
+        return { ok: true, status: 200, url, arrayBuffer: async () => bytes.buffer }
+      },
+    })
+
+    const result = await client.downloadFile('file/42')
+
+    assert.equal(calls[0].url, 'https://repo.example.org/api/access/datafile/file%2F42')
+    assert.equal(calls[0].init.headers.accept, 'application/octet-stream')
+    assert.deepEqual(result.bytes, bytes)
+  })
+
   it('posts a crate update and returns error payloads for operation-level handling', async () => {
     const transport = mockTransport('{"status":"ERROR","message":"Rejected"}', 400)
     const crate = { '@graph': [] }

@@ -7,12 +7,16 @@
 const { ArpClient } = require('./arp-client')
 const { ArpCreateOperation } = require('./arp-create-operation')
 const { ArpDeleteOperation } = require('./arp-delete-operation')
+const { ArpImportOperation } = require('./arp-import-operation')
+const { ArpSyncOperation } = require('./arp-sync-operation')
 const { ArpUpdateOperation } = require('./arp-update-operation')
 
 const PROVIDER_ID = 'arp'
 const VALIDATE_COMMAND = 'rockit.arp.validate'
 const CREATE_COMMAND = 'rockit.arp.create'
 const DELETE_COMMAND = 'rockit.arp.delete'
+const IMPORT_COMMAND = 'rockit.arp.import'
+const SYNC_COMMAND = 'rockit.arp.sync'
 const UPDATE_COMMAND = 'rockit.arp.update'
 const METADATA_LANGUAGES_COMMAND = 'rockit.arp.metadataLanguages'
 const REGISTER_COMMAND = 'rockit.repositories.registerProvider'
@@ -27,6 +31,8 @@ async function activateArpProvider(vscode, context, clientFactory = repository =
   registeredExtensionId = context.extension.id
   const createOperation = new ArpCreateOperation({ vscode, clientFactory })
   const deleteOperation = new ArpDeleteOperation({ clientFactory })
+  const importOperation = new ArpImportOperation({ vscode, clientFactory })
+  const syncOperation = new ArpSyncOperation({ vscode, clientFactory })
   const updateOperation = new ArpUpdateOperation({ vscode, clientFactory })
   context.subscriptions.push(vscode.commands.registerCommand(CREATE_COMMAND, input =>
     vscode.window.withProgress({
@@ -48,6 +54,20 @@ async function activateArpProvider(vscode, context, clientFactory = repository =
       title: 'Updating ARP dataset',
       cancellable: false,
     }, progress => updateOperation.execute(input, progress)),
+  ))
+  context.subscriptions.push(vscode.commands.registerCommand(IMPORT_COMMAND, input =>
+    vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: 'Importing ARP dataset',
+      cancellable: false,
+    }, progress => importOperation.execute(input, progress)),
+  ))
+  context.subscriptions.push(vscode.commands.registerCommand(SYNC_COMMAND, input =>
+    vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: 'Synchronizing ARP dataset',
+      cancellable: false,
+    }, progress => syncOperation.execute(input, progress)),
   ))
   context.subscriptions.push(vscode.commands.registerCommand(METADATA_LANGUAGES_COMMAND, async input => {
     const repository = input?.repository
@@ -83,8 +103,17 @@ async function activateArpProvider(vscode, context, clientFactory = repository =
       validate: VALIDATE_COMMAND,
       create: CREATE_COMMAND,
       delete: DELETE_COMMAND,
+      import: IMPORT_COMMAND,
+      sync: SYNC_COMMAND,
       update: UPDATE_COMMAND,
       metadataLanguages: METADATA_LANGUAGES_COMMAND,
+    },
+    importInput: {
+      kind: 'url',
+      title: 'Import ARP Dataset',
+      description: 'Enter an ARP dataset persistent ID or dataset URL to import.',
+      placeholder: 'https://repo.researchdata.hu/dataset.xhtml?persistentId=hdl:...',
+      fieldLabel: 'Dataset PID or URL',
     },
     connection: { requiresApiKey: true },
   })
@@ -103,6 +132,8 @@ module.exports = {
   VALIDATE_COMMAND,
   CREATE_COMMAND,
   DELETE_COMMAND,
+  IMPORT_COMMAND,
+  SYNC_COMMAND,
   UPDATE_COMMAND,
   METADATA_LANGUAGES_COMMAND,
 }

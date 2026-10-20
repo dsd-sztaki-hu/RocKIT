@@ -52,7 +52,10 @@ import {
   ArpProviderCreateResult,
   ArpProviderCreateValidationResult,
 } from './services/arp-ro-crate-export-service'
-import { ArpRoCrateImportService } from './services/arp-ro-crate-import-service'
+import {
+  ArpProviderImportDownload,
+  ArpRoCrateImportService,
+} from './services/arp-ro-crate-import-service'
 import { ArpRoCrateLinkService } from './services/arp-ro-crate-link-service'
 import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service'
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
@@ -68,6 +71,7 @@ import type {
   DataRepositoryCapabilities,
   DataRepositoryImportProgress,
   DataRepositorySelection,
+  RepositorySyncMode,
 } from './types'
 import { DataRepositoryConfig, DataRepositoryExportTarget } from './types'
 import './styles/index.css'
@@ -250,6 +254,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       })
       const importDialogInput = await importDialog.open()
       if (!importDialogInput) {
+        return
+      }
+      if (selectedRepo.providerId === 'arp') {
+        await this.handlePluginArpImport(selectedRepo, importDialogInput.datasetUrl)
         return
       }
       await this.executePluginRepositoryOperation(selectedRepo, 'import', {
@@ -720,6 +728,15 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
       if (selectedRepo.providerId === 'arp' && operation === 'update' && selectedExportTarget) {
         await this.handlePluginArpUpdate(selectedRepo, selectedExportTarget)
+        return
+      }
+      if (selectedRepo.providerId === 'arp' && operation === 'sync' && selectedExportTarget) {
+        const syncOptions = repositorySelection.syncMode
+          ? { metadataMode: repositorySelection.syncMode }
+          : await new RepositorySyncOptionsDialog().open()
+        if (!syncOptions) return
+        await this.handlePluginArpSync(
+          selectedRepo, selectedExportTarget, syncOptions.metadataMode)
         return
       }
       await this.executePluginRepositoryOperation(selectedRepo, operation, {
@@ -1532,6 +1549,42 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     }
   }
 
+  protected async handlePluginArpImport(
+    repository: DataRepositoryConfig,
+    recordUrl: string,
+  ): Promise<void> {
+    try {
+      const download = await this.providerService.executeForRepository<
+        { repository: DataRepositoryConfig; recordUrl: string },
+        ArpProviderImportDownload
+      >(repository, 'import', { repository, recordUrl })
+      if (!download) {
+        throw new Error('The ARP provider returned no import result.')
+      }
+      const result = await this.arpImportService.completeProviderImport(repository, download)
+      if ('cancelled' in result) return
+      this.messageService.info(
+        nls.localize(
+          'rockit/dataRepository/importedDataset',
+          'Dataset imported to {0}. Extracted {1} file(s).',
+          result.targetDirectory.path.fsPath(),
+          result.extractedFileCount,
+        ),
+        { timeout: 10000 },
+      )
+    } catch (error) {
+      console.error('ARP plugin import failed:', error)
+      this.messageService.error(
+        nls.localize(
+          'rockit/dataRepository/importFailed',
+          'Dataset import failed: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
+        { timeout: 10000 },
+      )
+    }
+  }
+
   protected async handlePluginArpCreate(repository: DataRepositoryConfig): Promise<void> {
     try {
       const missingMetadata = await this.getMissingArpDatasetCreationMetadata()
@@ -1658,6 +1711,67 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         nls.localize(
           'rockit/dataRepository/arpUpdateFailed',
           'ARP file update failed: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
+        { timeout: 10000 },
+      )
+    }
+  }
+
+  protected async handlePluginArpSync(
+    repository: DataRepositoryConfig,
+    exportTarget: DataRepositoryExportTarget,
+    metadataMode: RepositorySyncMode,
+  ): Promise<void> {
+    try {
+      const result = await this.arpExportService.syncArpWithProvider(
+        repository,
+        exportTarget,
+        metadataMode,
+        async input => {
+          const response = await this.providerService.executeForRepository<
+            typeof input, unknown
+          >(repository, 'sync', input)
+          if (!response) throw new Error('The ARP provider returned no sync result.')
+          return response
+        },
+      )
+      await this.roCrateLoader.refresh()
+      await this.loadData()
+      this.showTargetNotification(
+        nls.localize(
+          'rockit/dataRepository/arpSyncCompleted',
+          'ARP sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} local-only file(s).',
+          result.target,
+          result.downloadedFileCount,
+          result.replacedFileCount,
+          result.removedRemoteFileCount,
+        ),
+        result.target,
+        10000,
+      )
+      if (result.unmappedEntityIds.length && result.mappingFileName) {
+        const previewLimit = 15
+        const idPreview = result.unmappedEntityIds.slice(0, previewLimit)
+          .map(id => `- ${id.length > 80 ? `${id.slice(0, 77)}...` : id}`).join('\n')
+        const remainingCount = result.unmappedEntityIds.length - previewLimit
+        this.messageService.warn(
+          `${nls.localize(
+            'rockit/dataRepository/syncUnmappedIds',
+            'ARP sync completed, but {0} entity ID mapping(s) could not be inferred. Empty values remain in .rockit/{1}.',
+            result.unmappedEntityIds.length,
+            result.mappingFileName,
+          )}\n${idPreview}${remainingCount > 0 ? `\n- ${nls.localize('rockit/dataRepository/andMore', '...and {0} more', remainingCount)}` : ''}`,
+          { timeout: 10000 },
+        )
+      }
+    } catch (error) {
+      await this.arpExportService.markActiveExportFailed(error)
+      console.error('ARP provider sync failed:', error)
+      this.messageService.error(
+        nls.localize(
+          'rockit/dataRepository/arpSyncFailed',
+          'ARP sync failed: {0}',
           error instanceof Error ? error.message : String(error),
         ),
         { timeout: 10000 },

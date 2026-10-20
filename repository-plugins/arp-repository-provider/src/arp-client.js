@@ -28,6 +28,21 @@ class ArpClient {
     return this.request(`${this.baseUrl}/api/arp/rocrate/${pid}`)
   }
 
+  async downloadRoCrateZip(pid) {
+    const encodedPid = String(pid).split('/')
+      .map(segment => encodeURIComponent(segment).replace(/%3A/gi, ':'))
+      .join('/')
+    const url = `${this.baseUrl}/api/access/datafiles/rocrate/${encodedPid}`
+    return this.downloadBytes(url, 'application/zip')
+  }
+
+  downloadFile(fileId) {
+    return this.downloadBytes(
+      `${this.baseUrl}/api/access/datafile/${encodeURIComponent(fileId)}`,
+      'application/octet-stream',
+    )
+  }
+
   updateRoCrate(pid, crate) {
     return this.request(`${this.baseUrl}/api/arp/rocrate/${pid}`, {
       method: 'POST', body: JSON.stringify(crate),
@@ -132,6 +147,32 @@ class ArpClient {
         allow: response.headers?.get('allow') || undefined,
         payload,
       }
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  async downloadBytes(url, accept) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs)
+    const headers = { accept }
+    if (this.token) headers['x-dataverse-key'] = this.token
+    try {
+      const response = await this.fetchImpl(url, {
+        method: 'GET', headers, redirect: 'follow', signal: controller.signal,
+      })
+      if (response.ok) {
+        return {
+          status: response.status, ok: true, url: response.url || url,
+          bytes: new Uint8Array(await response.arrayBuffer()),
+        }
+      }
+      const text = await response.text()
+      let payload = text
+      if (text) {
+        try { payload = JSON.parse(text) } catch { /* Preserve the response text. */ }
+      }
+      return { status: response.status, ok: false, url: response.url || url, payload }
     } finally {
       clearTimeout(timer)
     }

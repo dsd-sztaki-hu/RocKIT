@@ -20,7 +20,7 @@ import {
 } from './repository-provider-registry';
 import { RepositoryProviderService } from './repository-provider-service';
 import { RepositoryRequiredMetadataDialog } from './components/repository-required-metadata-dialog';
-import { ArpProviderCreateCheckpoint, ArpProviderUpdateCheckpoint, ArpRoCrateExportService } from './services/arp-ro-crate-export-service';
+import { ArpProviderCreateCheckpoint, ArpProviderSyncCheckpoint, ArpProviderUpdateCheckpoint, ArpRoCrateExportService } from './services/arp-ro-crate-export-service';
 
 export namespace DataRepositoryManagerCommands {
     export const OPEN: Command = {
@@ -102,6 +102,11 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
         commands.registerCommand({ id: RepositoryProviderCommands.CHECKPOINT_UPDATE_EXPORT }, {
             execute: (checkpoint: ArpProviderUpdateCheckpoint) =>
                 this.arpExportService.handleProviderUpdateCheckpoint(checkpoint)
+        });
+
+        commands.registerCommand({ id: RepositoryProviderCommands.CHECKPOINT_SYNC_EXPORT }, {
+            execute: (checkpoint: ArpProviderSyncCheckpoint) =>
+                this.arpExportService.handleProviderSyncCheckpoint(checkpoint)
         });
 
         commands.registerCommand({ id: RepositoryProviderCommands.PROMPT_REQUIRED_METADATA }, {

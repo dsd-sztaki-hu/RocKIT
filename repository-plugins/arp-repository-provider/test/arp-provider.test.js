@@ -13,12 +13,14 @@ const {
   VALIDATE_COMMAND,
   CREATE_COMMAND,
   DELETE_COMMAND,
+  IMPORT_COMMAND,
+  SYNC_COMMAND,
   UPDATE_COMMAND,
   METADATA_LANGUAGES_COMMAND,
 } = require('../src/arp-provider')
 
 describe('ARP provider command boundary', () => {
-  it('registers create, update, delete, language lookup, and validation commands', async () => {
+  it('registers create, update, import, sync, delete, language lookup, and validation commands', async () => {
     const commands = new Map()
     const executions = []
     const vscode = {
@@ -67,8 +69,17 @@ describe('ARP provider command boundary', () => {
         validate: VALIDATE_COMMAND,
         create: CREATE_COMMAND,
         delete: DELETE_COMMAND,
+        import: IMPORT_COMMAND,
+        sync: SYNC_COMMAND,
         update: UPDATE_COMMAND,
         metadataLanguages: METADATA_LANGUAGES_COMMAND,
+      },
+      importInput: {
+        kind: 'url',
+        title: 'Import ARP Dataset',
+        description: 'Enter an ARP dataset persistent ID or dataset URL to import.',
+        placeholder: 'https://repo.researchdata.hu/dataset.xhtml?persistentId=hdl:...',
+        fieldLabel: 'Dataset PID or URL',
       },
       connection: { requiresApiKey: true },
     }])

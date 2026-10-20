@@ -3,8 +3,8 @@
 This is an incremental extraction of the ARP repository provider. `ArpClient`
 captures the current RO-Crate and Dataverse-style dataset/file HTTP requests in
 an independently tested transport module. The extension registers `validate`,
-`metadataLanguages`, `create`, `update`, and `delete`. RocKIT still uses its existing ARP
-implementation for import, sync, and link, so those operations are not
+`metadataLanguages`, `create`, `update`, `import`, `sync`, and `delete`. RocKIT still uses its existing ARP
+implementation for link, so that operation is not
 advertised for extension-backed connections yet.
 
 `ArpCreateOperation` performs the remote creation sequence from a
@@ -18,5 +18,14 @@ file hashes without repeatedly rewriting the visible RO-Crate or HTML preview.
 RocKIT-prepared diff using plugin-owned add, replace, delete, and metadata API
 requests. Each completed file mutation is checkpointed so interrupted updates
 retain their mappings and hashes for recovery.
+
+`ArpImportOperation` parses the selected dataset URL or PID, downloads the
+authenticated ARP RO-Crate ZIP, and stages it in a unique import workspace.
+RocKIT safely extracts that archive and writes the local mapping, hash, and
+export-log state before opening the imported workspace.
+
+`ArpSyncOperation` loads the remote crate and downloads every file in a
+RocKIT-prepared synchronization plan. Each completed write is checkpointed so
+RocKIT can persist hashes and mappings before merging the remote metadata.
 
 Run the focused tests with `npm test` in this directory.

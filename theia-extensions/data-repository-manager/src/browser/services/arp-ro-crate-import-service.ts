@@ -33,6 +33,15 @@ export interface ArpRoCrateImportResult {
   mappingFileName: string
 }
 
+export interface ArpProviderImportDownload {
+  providerId: 'arp'
+  cancelled?: boolean
+  datasetPid?: string
+  importedWorkspaceUri?: string
+  archiveUri?: string
+  landingPage?: string
+}
+
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
 
 @injectable()
@@ -114,6 +123,53 @@ export class ArpRoCrateImportService {
       targetDirectory,
       extractedFileCount,
       mappingFileName,
+    }
+  }
+
+  public async completeProviderImport(
+    repository: DataRepositoryConfig,
+    download: ArpProviderImportDownload,
+  ): Promise<(ArpRoCrateImportResult & { openedWorkspace: true }) | { cancelled: true }> {
+    if (download.cancelled) {
+      return { cancelled: true }
+    }
+    if (download.providerId !== 'arp' || !download.datasetPid ||
+        !download.importedWorkspaceUri || !download.archiveUri) {
+      throw new Error('The ARP provider returned an incomplete import download.')
+    }
+    const targetDirectory = new URI(download.importedWorkspaceUri)
+    const archiveUri = new URI(download.archiveUri)
+    if (targetDirectory.isEqual(archiveUri) || !targetDirectory.isEqualOrParent(archiveUri)) {
+      throw new Error('The ARP provider returned an import archive outside its workspace.')
+    }
+
+    let extractedFileCount: number
+    try {
+      const archive = await this.fileService.readFile(archiveUri)
+      extractedFileCount = await this.extractZip(archive.value.buffer, targetDirectory)
+    } finally {
+      if (await this.fileService.exists(archiveUri)) {
+        await this.fileService.delete(archiveUri)
+      }
+    }
+    const metadataUri = targetDirectory.resolve('ro-crate-metadata.json')
+    if (!(await this.fileService.exists(metadataUri))) {
+      throw new Error(nls.localize(
+        'rockit/dataRepository/missingDownloadedMetadata',
+        'The downloaded ZIP did not contain ro-crate-metadata.json.',
+      ))
+    }
+    const crate = await this.readRoCrate(metadataUri)
+    const mappingFileName = await this.persistImportedExportState(
+      targetDirectory, repository, download.datasetPid, crate)
+    await this.persistImportedFileHashes(targetDirectory, crate, download.datasetPid)
+    this.workspaceService.open(targetDirectory, { preserveWindow: false })
+    return {
+      datasetPid: download.datasetPid,
+      targetDirectory,
+      extractedFileCount,
+      mappingFileName,
+      openedWorkspace: true,
     }
   }
 
@@ -371,9 +427,11 @@ export class ArpRoCrateImportService {
     const mappingFileName = await this.createUniqueMappingFileName(rootUri)
     await this.saveEntityIdMapping(rootUri, mappingFileName, mapping)
     await this.appendExportLog(rootUri, {
-      target: this.buildDatasetPidTarget(datasetPid),
+      target: this.buildDataverseDatasetUrl(repository.baseUrl, datasetPid) ||
+        this.buildDatasetPidTarget(datasetPid),
       repository: this.normalizeBaseUrl(repository.baseUrl),
       mappingFile: mappingFileName,
+      crosswalkFile: repository.crosswalkId,
       syncType: 'update',
       status: 'success',
       lastSuccessfulActionAt: new Date().toISOString(),
@@ -523,6 +581,13 @@ export class ArpRoCrateImportService {
       return `https://hdl.handle.net/${trimmed.slice('hdl:'.length)}`
     }
     return trimmed
+  }
+
+  protected buildDataverseDatasetUrl(baseUrl: string, pid: string): string {
+    const encodedPid = encodeURIComponent(pid)
+      .replace(/%3A/gi, ':')
+      .replace(/%2F/gi, '/')
+    return `${this.normalizeBaseUrl(baseUrl)}/dataset.xhtml?persistentId=${encodedPid}`
   }
 
   protected normalizePid(value: string): string {
