@@ -11,6 +11,8 @@ import { nls } from '@theia/core/lib/common/nls';
 import { FileService } from '@theia/filesystem/lib/browser/file-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service'
+import { CrosswalkRegistry } from 'crosswalk-manager/lib/browser/crosswalk-registry'
+import type { CrosswalkDocument } from 'crosswalk-manager/lib/browser/crosswalk-manager-types'
 import { inject, injectable } from 'inversify';
 import {
   collectRoCrateExportFileReferences,
@@ -381,6 +383,8 @@ export class NativeDataverseExportService {
     protected readonly appStateService: AppStateService,
     @inject(RoCratePersistenceService)
     protected readonly roCratePersistenceService: RoCratePersistenceService,
+    @inject(CrosswalkRegistry)
+    protected readonly crosswalkRegistry: CrosswalkRegistry,
   ) {}
 
   /**
@@ -650,10 +654,12 @@ export class NativeDataverseExportService {
       repository.apiKey,
       collectionId,
     )
+    const selectedCrosswalk = await this.readSelectedCrosswalk(repository)
     const datasetCreationPayload = await this.buildDatasetCreationPayload(
       datasetMetadata,
       crate,
       enabledMetadataBlocks,
+      selectedCrosswalk,
     )
     const uploadCollection = await this.collectRoCrateUploadFiles(crate, rootUri)
     const plan: PreparedDataverseCreateExport = {
@@ -1402,12 +1408,27 @@ export class NativeDataverseExportService {
     }
   }
 
-  public async getDatasetCreationMetadataDefaults(): Promise<NativeDataverseDatasetMetadata> {
+  public async getDatasetCreationMetadataDefaults(
+    repository?: DataRepositoryConfig,
+  ): Promise<NativeDataverseDatasetMetadata> {
     const rootUri = this.getWorkspaceRoot()
     const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
+    const selectedCrosswalk = repository
+      ? await this.readSelectedCrosswalk(repository)
+      : undefined
+    if (repository && !selectedCrosswalk) {
+      return {
+        title: '',
+        authorNames: [],
+        contactEmails: [],
+        descriptions: [],
+        subjects: [],
+      }
+    }
     const blocks = await this.metadataMappingService.buildMetadataBlocks(
       crate,
       new Set(['citation']),
+      selectedCrosswalk,
     )
     return this.datasetCreationMetadataFromCrosswalkBlocks(blocks)
   }
@@ -1505,7 +1526,8 @@ export class NativeDataverseExportService {
     protected async buildDatasetCreationPayload(
         datasetMetadata: NativeDataverseDatasetMetadata,
         crate?: RoCrate,
-        enabledMetadataBlocks?: Set<string>
+        enabledMetadataBlocks?: Set<string>,
+        selectedCrosswalk?: CrosswalkDocument | null
     ): Promise<Record<string, unknown>> {
         const title = datasetMetadata.title.trim();
         const authors = this.uniqueStrings(datasetMetadata.authorNames.map(value => value.trim()));
@@ -1583,10 +1605,11 @@ export class NativeDataverseExportService {
         fields,
       },
     }
-    if (crate) {
+    if (crate && selectedCrosswalk !== null) {
       const mappedBlocks = await this.buildMappedNativeMetadataBlocks(
         crate,
         enabledMetadataBlocks,
+        selectedCrosswalk,
       )
       for (const [blockAlias, block] of Object.entries(mappedBlocks)) {
         metadataBlocks[blockAlias] = this.mergeNativeMetadataBlockFields(
@@ -1883,11 +1906,26 @@ export class NativeDataverseExportService {
   protected async buildMappedNativeMetadataBlocks(
     crate: RoCrate,
     enabledMetadataBlocks?: Set<string>,
+    crosswalkDocument?: unknown,
   ): Promise<Record<string, { displayName: string; fields: DataverseMetadataField[] }>> {
     return (await this.metadataMappingService.buildMetadataBlocks(
       crate,
       enabledMetadataBlocks,
+      crosswalkDocument,
     )) as Record<string, { displayName: string; fields: DataverseMetadataField[] }>
+  }
+
+  protected async readSelectedCrosswalk(
+    repository: DataRepositoryConfig,
+  ): Promise<CrosswalkDocument | null> {
+    if (!repository.crosswalkId) {
+      return null
+    }
+    const selected = await this.crosswalkRegistry.read(repository.crosswalkId)
+    if (!selected) {
+      throw new Error(`The selected crosswalk '${repository.crosswalkId}' is no longer registered.`)
+    }
+    return selected
   }
 
   protected mergeNativeMetadataBlockFields(

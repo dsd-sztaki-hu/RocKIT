@@ -30,6 +30,16 @@ function fixture() {
   const recordKnownHash = jest.fn(async () => true)
   const persistenceWrite = jest.fn(async () => ({ previewLimited: false }))
   const appState = { roCrate: crate }
+  const selectedCrosswalk = {
+    id: 'crosswalk-id',
+    name: 'Test Dataverse crosswalk',
+    repositories: { dataverse: { blocks: {} } },
+    crosswalks: { canonicalToDataverse: { mappings: [] } },
+  }
+  const readCrosswalk = jest.fn(async () => selectedCrosswalk)
+  const buildDatasetCreationPayload = jest.fn(
+    async () => ({ datasetVersion: { metadataBlocks: {} } }),
+  )
   const service = new NativeDataverseExportService(
     {} as never,
     {} as never,
@@ -37,12 +47,13 @@ function fixture() {
     { recordKnownHash } as never,
     appState as never,
     { write: persistenceWrite } as never,
+    { read: readCrosswalk } as never,
   )
   Object.assign(service, {
     getWorkspaceRoot: () => root,
     readRoCrate: async () => crate,
     fetchCollectionMetadataBlockAliases: async () => new Set(['citation']),
-    buildDatasetCreationPayload: async () => ({ datasetVersion: { metadataBlocks: {} } }),
+    buildDatasetCreationPayload,
     collectRoCrateUploadFiles: async () => ({
       files: [{
         entryPath: 'file.txt',
@@ -106,6 +117,9 @@ function fixture() {
     appendExportLog,
     recordKnownHash,
     persistenceWrite,
+    readCrosswalk,
+    selectedCrosswalk,
+    buildDatasetCreationPayload,
   }
 }
 
@@ -151,6 +165,13 @@ describe('Dataverse plugin create export completion', () => {
       '900150983cd24fb0d6963f7d28e17f72',
     )
     expect(f.persistenceWrite).toHaveBeenCalledTimes(1)
+    expect(f.readCrosswalk).toHaveBeenCalledWith('crosswalk-id')
+    expect(f.buildDatasetCreationPayload).toHaveBeenCalledWith(
+      f.metadata,
+      expect.anything(),
+      new Set(['citation']),
+      f.selectedCrosswalk,
+    )
     expect(f.saveEntityIdMapping).toHaveBeenLastCalledWith(
       expect.anything(),
       'mapping.json',
@@ -180,5 +201,25 @@ describe('Dataverse plugin create export completion', () => {
       'cancelled',
       'failed',
     ])
+  })
+
+  it('skips automatic RO-Crate mapping when the repository has no crosswalk', async () => {
+    const f = fixture()
+    const repository = { ...f.repository, crosswalkId: undefined }
+
+    await f.service.exportToDataverseWithProvider(
+      repository,
+      f.collection,
+      f.metadata,
+      async () => f.remote,
+    )
+
+    expect(f.readCrosswalk).not.toHaveBeenCalled()
+    expect(f.buildDatasetCreationPayload).toHaveBeenCalledWith(
+      f.metadata,
+      expect.anything(),
+      new Set(['citation']),
+      null,
+    )
   })
 })

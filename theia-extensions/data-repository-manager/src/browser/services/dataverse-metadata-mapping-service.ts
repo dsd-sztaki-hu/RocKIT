@@ -87,10 +87,12 @@ export class DataverseMetadataMappingService {
 
     public async buildMetadataBlocks(
         crate: RoCrate,
-        enabledMetadataBlocks?: Set<string>
+        enabledMetadataBlocks?: Set<string>,
+        crosswalkDocument?: unknown
     ): Promise<Record<string, DataverseMetadataBlockDto>> {
-        const schemas = this.readCrosswalkBlockSchemas();
-        const mappings = repositoryCrosswalk.crosswalks.canonicalToDataverse.mappings
+        const activeCrosswalk = this.resolveCrosswalk(crosswalkDocument);
+        const schemas = this.readCrosswalkBlockSchemas(activeCrosswalk);
+        const mappings = activeCrosswalk.crosswalks.canonicalToDataverse.mappings
             .filter(mapping => this.isExecutableMapping(mapping.mappingStatus));
         const graph = this.readGraph(crate);
         const root = graph.find(entity => entity['@id'] === './');
@@ -121,9 +123,10 @@ export class DataverseMetadataMappingService {
         return blocks;
     }
 
-    public requiredFields(blockName: string): Set<string> {
+    public requiredFields(blockName: string, crosswalkDocument?: unknown): Set<string> {
+        const activeCrosswalk = this.resolveCrosswalk(crosswalkDocument);
         return new Set(
-            repositoryCrosswalk.crosswalks.canonicalToDataverse.mappings
+            activeCrosswalk.crosswalks.canonicalToDataverse.mappings
                 .filter(mapping =>
                     mapping.target.block === blockName &&
                     this.isExecutableMapping(mapping.mappingStatus) &&
@@ -133,13 +136,25 @@ export class DataverseMetadataMappingService {
         );
     }
 
-    public controlledVocabularyValues(blockName: string, fieldName: string): string[] {
-        const values = this.fieldSchema(blockName, fieldName)?.controlledVocabularyValues;
+    public controlledVocabularyValues(
+        blockName: string,
+        fieldName: string,
+        crosswalkDocument?: unknown
+    ): string[] {
+        const values = this.fieldSchema(
+            blockName,
+            fieldName,
+            this.resolveCrosswalk(crosswalkDocument)
+        )?.controlledVocabularyValues;
         return Array.isArray(values) ? values : [];
     }
 
-    public fieldDisplayName(blockName: string, fieldName: string): string {
-        return this.fieldSchema(blockName, fieldName)?.displayName ?? fieldName;
+    public fieldDisplayName(blockName: string, fieldName: string, crosswalkDocument?: unknown): string {
+        return this.fieldSchema(
+            blockName,
+            fieldName,
+            this.resolveCrosswalk(crosswalkDocument)
+        )?.displayName ?? fieldName;
     }
 
     /**
@@ -154,8 +169,10 @@ export class DataverseMetadataMappingService {
      */
     public applyMetadataBlocksToRoCrate(
         crate: RoCrate,
-        datasetVersionData: Record<string, unknown>
+        datasetVersionData: Record<string, unknown>,
+        crosswalkDocument?: unknown
     ): DataverseReverseCrosswalkResult {
+        const activeCrosswalk = this.resolveCrosswalk(crosswalkDocument);
         const nextCrate = JSON.parse(JSON.stringify(crate)) as RoCrate;
         const graph = this.readMutableGraph(nextCrate);
         const root = graph.find(entity => entity['@id'] === './');
@@ -165,11 +182,11 @@ export class DataverseMetadataMappingService {
 
         const updatedFields: string[] = [];
         const schemasByName = new Map(
-            this.readCrosswalkBlockSchemas()
+            this.readCrosswalkBlockSchemas(activeCrosswalk)
                 .filter(schema => !!schema.name)
                 .map(schema => [schema.name as string, schema])
         );
-        const mappings = repositoryCrosswalk.crosswalks.canonicalToDataverse.mappings
+        const mappings = activeCrosswalk.crosswalks.canonicalToDataverse.mappings
             .filter(mapping => this.isExecutableMapping(mapping.mappingStatus));
 
         for (const mapping of mappings) {
@@ -193,8 +210,12 @@ export class DataverseMetadataMappingService {
         return { crate: nextCrate, updatedFields: this.uniqueStrings(updatedFields) };
     }
 
-    protected fieldSchema(blockName: string, fieldName: string): DataverseFieldSchema | undefined {
-        return repositoryCrosswalk.repositories.dataverse.blocks[blockName]?.schema.fields?.[fieldName];
+    protected fieldSchema(
+        blockName: string,
+        fieldName: string,
+        activeCrosswalk: DataverseCrosswalk = repositoryCrosswalk
+    ): DataverseFieldSchema | undefined {
+        return activeCrosswalk.repositories.dataverse.blocks[blockName]?.schema.fields?.[fieldName];
     }
 
     protected applyRootField(
@@ -524,11 +545,31 @@ export class DataverseMetadataMappingService {
         return 'primitive';
     }
 
-    protected readCrosswalkBlockSchemas(): DataverseMetadataBlockSchema[] {
-        return Object.values(repositoryCrosswalk.repositories.dataverse.blocks)
+    protected readCrosswalkBlockSchemas(
+        activeCrosswalk: DataverseCrosswalk = repositoryCrosswalk
+    ): DataverseMetadataBlockSchema[] {
+        return Object.values(activeCrosswalk.repositories.dataverse.blocks)
             .map(block => block.schema)
             .filter(schema => !!schema.name && !!schema.fields)
             .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    }
+
+    protected resolveCrosswalk(value?: unknown): DataverseCrosswalk {
+        if (value === undefined) {
+            return repositoryCrosswalk;
+        }
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            throw new Error('The selected crosswalk is not a valid Dataverse crosswalk.');
+        }
+        const candidate = value as Partial<DataverseCrosswalk>;
+        const blocks = candidate.repositories?.dataverse?.blocks;
+        const mappings = candidate.crosswalks?.canonicalToDataverse?.mappings;
+        if (!blocks || typeof blocks !== 'object' || !Array.isArray(mappings)) {
+            throw new Error(
+                'The selected crosswalk does not contain Dataverse schemas and canonicalToDataverse mappings.'
+            );
+        }
+        return candidate as DataverseCrosswalk;
     }
 
     protected readDataverseMetadataBlock(

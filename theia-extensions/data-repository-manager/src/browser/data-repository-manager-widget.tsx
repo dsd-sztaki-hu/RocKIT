@@ -1669,7 +1669,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         this.collectionService,
       ).open()
       if (!selection) return
-      const defaults = await this.nativeExportService.getDatasetCreationMetadataDefaults()
+      const defaults = await this.nativeExportService.getDatasetCreationMetadataDefaults(repository)
       const metadata = await new NativeDataverseDatasetMetadataDialog(defaults, {
         requiredCitationFields: this.nativeExportService.requiredDatasetCreationFields(),
         subjectOptions: this.nativeExportService.datasetCreationSubjectOptions(),
