@@ -2,7 +2,8 @@
 
 This extension is the native Dataverse repository provider for RocKIT. The
 extension registers Dataverse as an extension-backed repository type and
-implements authenticated connection validation and dataset creation/export.
+implements authenticated connection validation, dataset creation/export, and
+remote draft deletion.
 
 Repository operations are advertised only after they have been migrated into
 the extension. This prevents RocKIT from displaying actions that still lack a
@@ -15,5 +16,9 @@ endpoint calls required by the provider.
 payload and file manifest, creates the remote draft, uploads its files, and
 uploads rewritten RO-Crate metadata. It checkpoints the dataset and every
 uploaded file so RocKIT can maintain recoverable local mappings and hashes.
+
+`DataverseDeleteOperation` deletes the latest draft for a selected persistent
+dataset identifier. RocKIT removes the local export link only after the remote
+operation succeeds.
 
 Run the focused tests with `npm test` in this directory.

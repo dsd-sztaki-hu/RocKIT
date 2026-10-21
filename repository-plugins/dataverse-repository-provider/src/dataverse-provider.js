@@ -6,9 +6,11 @@
 
 const { DataverseClient } = require('./dataverse-client')
 const { DataverseCreateOperation } = require('./dataverse-create-operation')
+const { DataverseDeleteOperation } = require('./dataverse-delete-operation')
 
 const PROVIDER_ID = 'dataverse'
 const CREATE_COMMAND = 'rockit.dataverse.create'
+const DELETE_COMMAND = 'rockit.dataverse.delete'
 const VALIDATE_COMMAND = 'rockit.dataverse.validate'
 const REGISTER_COMMAND = 'rockit.repositories.registerProvider'
 const UNREGISTER_COMMAND = 'rockit.repositories.unregisterProvider'
@@ -26,6 +28,19 @@ async function activateDataverseProvider(
 ) {
   registeredExtensionId = context.extension.id
   const createOperation = new DataverseCreateOperation({ vscode, clientFactory })
+  const deleteOperation = new DataverseDeleteOperation({ clientFactory })
+  context.subscriptions.push(
+    vscode.commands.registerCommand(DELETE_COMMAND, (input) =>
+      vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'Deleting Dataverse draft',
+          cancellable: false,
+        },
+        (progress) => deleteOperation.execute(input, progress),
+      ),
+    ),
+  )
   context.subscriptions.push(
     vscode.commands.registerCommand(CREATE_COMMAND, (input) =>
       vscode.window.withProgress(
@@ -65,6 +80,7 @@ async function activateDataverseProvider(
     protocolVersion: '1.0',
     operations: {
       create: CREATE_COMMAND,
+      delete: DELETE_COMMAND,
       validate: VALIDATE_COMMAND,
     },
     connection: { requiresApiKey: true },
@@ -86,5 +102,6 @@ module.exports = {
   deactivateDataverseProvider,
   PROVIDER_ID,
   CREATE_COMMAND,
+  DELETE_COMMAND,
   VALIDATE_COMMAND,
 }

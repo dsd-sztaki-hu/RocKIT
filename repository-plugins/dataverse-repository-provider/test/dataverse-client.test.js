@@ -133,4 +133,25 @@ describe('DataverseClient connection transport', () => {
     assert.equal(calls[1].init.headers['content-type'], undefined)
     assert.equal(calls[1].init.body.get('jsonData'), '{"directoryLabel":"data"}')
   })
+
+  it('deletes the latest draft using the native Dataverse API endpoint', async () => {
+    const calls = []
+    const client = new DataverseClient({
+      baseUrl: 'https://demo.dataverse.org',
+      token: 'secret',
+      fetchImpl: async (url, init) => {
+        calls.push({ url, init })
+        return response({ status: 'OK' }, 200, url)
+      },
+    })
+
+    await client.deleteDraft('doi:10.1/example')
+
+    assert.equal(
+      calls[0].url,
+      'https://demo.dataverse.org/api/datasets/:persistentId/versions/:draft?persistentId=doi%3A10.1%2Fexample',
+    )
+    assert.equal(calls[0].init.method, 'DELETE')
+    assert.equal(calls[0].init.headers['x-dataverse-key'], 'secret')
+  })
 })

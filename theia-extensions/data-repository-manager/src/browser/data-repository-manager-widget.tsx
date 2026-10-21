@@ -1428,7 +1428,11 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   ): Promise<boolean> {
     const capabilities = repository.providerId
       ? {
-          kind: 'unknown' as const,
+          kind: repository.providerId === 'dataverse'
+            ? 'dataverse' as const
+            : repository.providerId === 'arp'
+              ? 'arp-dataverse' as const
+              : 'unknown' as const,
           supportsArpRoCrateZipUpload: false,
           supportsNativeDataverseApi: false,
         }

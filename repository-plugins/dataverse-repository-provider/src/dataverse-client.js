@@ -35,6 +35,12 @@ class DataverseClient {
     )
   }
 
+  deleteDraft(persistentId) {
+    const url = new URL(`${this.baseUrl}/api/datasets/:persistentId/versions/:draft`)
+    url.searchParams.set('persistentId', persistentId)
+    return this.request(url.toString(), { method: 'DELETE' })
+  }
+
   uploadFile(persistentId, entryPath, content) {
     const normalized = String(entryPath || '')
       .replace(/\\/g, '/')

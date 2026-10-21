@@ -11,11 +11,12 @@ const {
   activateDataverseProvider,
   deactivateDataverseProvider,
   CREATE_COMMAND,
+  DELETE_COMMAND,
   VALIDATE_COMMAND,
 } = require('../src/dataverse-provider')
 
 describe('Dataverse provider command boundary', () => {
-  it('registers create and validation operations and unregisters on deactivation', async () => {
+  it('registers create, delete and validation operations and unregisters on deactivation', async () => {
     const commands = new Map()
     const executions = []
     const vscode = {
@@ -63,7 +64,11 @@ describe('Dataverse provider command boundary', () => {
         displayName: 'Dataverse',
         extensionId: 'rockit.dataverse-repository-provider',
         protocolVersion: '1.0',
-        operations: { create: CREATE_COMMAND, validate: VALIDATE_COMMAND },
+        operations: {
+          create: CREATE_COMMAND,
+          delete: DELETE_COMMAND,
+          validate: VALIDATE_COMMAND,
+        },
         connection: { requiresApiKey: true },
       },
     ])
