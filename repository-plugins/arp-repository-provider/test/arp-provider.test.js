@@ -14,13 +14,14 @@ const {
   CREATE_COMMAND,
   DELETE_COMMAND,
   IMPORT_COMMAND,
+  LINK_COMMAND,
   SYNC_COMMAND,
   UPDATE_COMMAND,
   METADATA_LANGUAGES_COMMAND,
 } = require('../src/arp-provider')
 
 describe('ARP provider command boundary', () => {
-  it('registers create, update, import, sync, delete, language lookup, and validation commands', async () => {
+  it('registers create, update, import, sync, delete, link, language lookup, and validation commands', async () => {
     const commands = new Map()
     const executions = []
     const vscode = {
@@ -70,6 +71,7 @@ describe('ARP provider command boundary', () => {
         create: CREATE_COMMAND,
         delete: DELETE_COMMAND,
         import: IMPORT_COMMAND,
+        link: LINK_COMMAND,
         sync: SYNC_COMMAND,
         update: UPDATE_COMMAND,
         metadataLanguages: METADATA_LANGUAGES_COMMAND,

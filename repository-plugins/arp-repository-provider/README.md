@@ -1,11 +1,9 @@
-# RocKIT ARP repository provider (in progress)
+# RocKIT ARP repository provider
 
 This is an incremental extraction of the ARP repository provider. `ArpClient`
 captures the current RO-Crate and Dataverse-style dataset/file HTTP requests in
 an independently tested transport module. The extension registers `validate`,
-`metadataLanguages`, `create`, `update`, `import`, `sync`, and `delete`. RocKIT still uses its existing ARP
-implementation for link, so that operation is not
-advertised for extension-backed connections yet.
+`metadataLanguages`, `create`, `update`, `import`, `sync`, `delete`, and `link`.
 
 `ArpCreateOperation` performs the remote creation sequence from a
 RocKIT-prepared crate, dataset payload, and file-source manifest. It does not
@@ -27,5 +25,9 @@ export-log state before opening the imported workspace.
 `ArpSyncOperation` loads the remote crate and downloads every file in a
 RocKIT-prepared synchronization plan. Each completed write is checkpointed so
 RocKIT can persist hashes and mappings before merging the remote metadata.
+
+`ArpLinkOperation` retrieves an existing remote ARP RO-Crate, previews title
+differences, and creates the local entity mapping and export-log entry used by
+subsequent update and synchronization operations.
 
 Run the focused tests with `npm test` in this directory.

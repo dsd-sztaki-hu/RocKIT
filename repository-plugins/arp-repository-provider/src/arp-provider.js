@@ -8,6 +8,7 @@ const { ArpClient } = require('./arp-client')
 const { ArpCreateOperation } = require('./arp-create-operation')
 const { ArpDeleteOperation } = require('./arp-delete-operation')
 const { ArpImportOperation } = require('./arp-import-operation')
+const { ArpLinkOperation } = require('./arp-link-operation')
 const { ArpSyncOperation } = require('./arp-sync-operation')
 const { ArpUpdateOperation } = require('./arp-update-operation')
 
@@ -16,6 +17,7 @@ const VALIDATE_COMMAND = 'rockit.arp.validate'
 const CREATE_COMMAND = 'rockit.arp.create'
 const DELETE_COMMAND = 'rockit.arp.delete'
 const IMPORT_COMMAND = 'rockit.arp.import'
+const LINK_COMMAND = 'rockit.arp.link'
 const SYNC_COMMAND = 'rockit.arp.sync'
 const UPDATE_COMMAND = 'rockit.arp.update'
 const METADATA_LANGUAGES_COMMAND = 'rockit.arp.metadataLanguages'
@@ -32,6 +34,7 @@ async function activateArpProvider(vscode, context, clientFactory = repository =
   const createOperation = new ArpCreateOperation({ vscode, clientFactory })
   const deleteOperation = new ArpDeleteOperation({ clientFactory })
   const importOperation = new ArpImportOperation({ vscode, clientFactory })
+  const linkOperation = new ArpLinkOperation({ vscode, clientFactory })
   const syncOperation = new ArpSyncOperation({ vscode, clientFactory })
   const updateOperation = new ArpUpdateOperation({ vscode, clientFactory })
   context.subscriptions.push(vscode.commands.registerCommand(CREATE_COMMAND, input =>
@@ -61,6 +64,13 @@ async function activateArpProvider(vscode, context, clientFactory = repository =
       title: 'Importing ARP dataset',
       cancellable: false,
     }, progress => importOperation.execute(input, progress)),
+  ))
+  context.subscriptions.push(vscode.commands.registerCommand(LINK_COMMAND, input =>
+    vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: 'Linking RO-Crate to ARP dataset',
+      cancellable: false,
+    }, progress => linkOperation.execute(input, progress)),
   ))
   context.subscriptions.push(vscode.commands.registerCommand(SYNC_COMMAND, input =>
     vscode.window.withProgress({
@@ -104,6 +114,7 @@ async function activateArpProvider(vscode, context, clientFactory = repository =
       create: CREATE_COMMAND,
       delete: DELETE_COMMAND,
       import: IMPORT_COMMAND,
+      link: LINK_COMMAND,
       sync: SYNC_COMMAND,
       update: UPDATE_COMMAND,
       metadataLanguages: METADATA_LANGUAGES_COMMAND,
@@ -133,6 +144,7 @@ module.exports = {
   CREATE_COMMAND,
   DELETE_COMMAND,
   IMPORT_COMMAND,
+  LINK_COMMAND,
   SYNC_COMMAND,
   UPDATE_COMMAND,
   METADATA_LANGUAGES_COMMAND,
