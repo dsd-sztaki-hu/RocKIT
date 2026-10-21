@@ -116,6 +116,7 @@
   },
   "rockitBundledPlugins": {
     "rockit.arp-repository-provider": "repository-plugins/arp-repository-provider",
+    "rockit.dataverse-repository-provider": "repository-plugins/dataverse-repository-provider",
     "rockit.zenodo-repository-provider": "repository-plugins/zenodo-repository-provider"
   }
 }

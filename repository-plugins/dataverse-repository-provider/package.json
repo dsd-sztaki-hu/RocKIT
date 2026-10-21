@@ -1,0 +1,19 @@
+{
+  "name": "dataverse-repository-provider",
+  "displayName": "RocKIT Dataverse Repository Provider",
+  "description": "Reference Dataverse repository provider for RocKIT.",
+  "version": "0.1.0",
+  "publisher": "rockit",
+  "license": "Apache-2.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}
