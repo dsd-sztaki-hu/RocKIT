@@ -28,6 +28,33 @@ class DataverseClient {
     return this.request(`${this.baseUrl}/api/v1/users/token`)
   }
 
+  createDataset(collectionId, payload) {
+    return this.request(
+      `${this.baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/datasets`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    )
+  }
+
+  uploadFile(persistentId, entryPath, content) {
+    const normalized = String(entryPath || '')
+      .replace(/\\/g, '/')
+      .replace(/\/+$/, '')
+    const separator = normalized.lastIndexOf('/')
+    const directory = separator === -1 ? '' : normalized.slice(0, separator)
+    const filename = normalized.slice(separator + 1)
+    if (!filename) throw new Error('Cannot upload a file without a filename.')
+    const form = new FormData()
+    form.append('file', new Blob([content]), filename)
+    form.append(
+      'jsonData',
+      JSON.stringify(directory ? { directoryLabel: directory } : {}),
+    )
+    return this.request(
+      `${this.baseUrl}/api/v1/datasets/:persistentId/add?persistentId=${encodeURIComponent(persistentId)}`,
+      { method: 'POST', body: form },
+    )
+  }
+
   async validateConnection() {
     if (!this.token) throw new Error('A Dataverse API token is required.')
 

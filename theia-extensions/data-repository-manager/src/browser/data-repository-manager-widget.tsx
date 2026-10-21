@@ -63,6 +63,7 @@ import { DataverseCapabilityService } from './services/dataverse-capability-serv
 import { DataverseCollectionService } from './services/dataverse-collection-service'
 import { DataverseService } from './services/dataverse-service'
 import {
+  DataverseProviderCreateResult,
   NativeDataverseDatasetMetadata,
   NativeDataverseExportService,
 } from './services/native-dataverse-export-service'
@@ -726,6 +727,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         await this.handlePluginArpCreate(selectedRepo)
         return
       }
+      if (selectedRepo.providerId === 'dataverse' && operation === 'create') {
+        await this.handlePluginDataverseCreate(selectedRepo)
+        return
+      }
       if (selectedRepo.providerId === 'arp' && operation === 'update' && selectedExportTarget) {
         await this.handlePluginArpUpdate(selectedRepo, selectedExportTarget)
         return
@@ -1369,9 +1374,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
   protected async listAllExportTargets(
     repositories: DataRepositoryConfig[],
   ): Promise<Record<string, DataRepositoryExportTarget[]>> {
-    const builtInRepositories = repositories.filter(
-      (repository) => !repository.providerId,
-    )
     const pluginTargets: Record<string, DataRepositoryExportTarget[]> = {}
     await Promise.all(
       repositories
@@ -1391,7 +1393,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     return this.mergeExportTargets(
       await this.arpExportService.listExportTargets(repositories.filter(
         repository => !repository.providerId || repository.providerId === 'arp')),
-      await this.nativeExportService.listExportTargets(builtInRepositories),
+      await this.nativeExportService.listExportTargets(repositories.filter(
+        repository => !repository.providerId || repository.providerId === 'dataverse')),
       pluginTargets,
     )
   }
@@ -1652,6 +1655,72 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       this.messageService.error(
         nls.localize('rockit/dataRepository/zipExportFailed', 'RO-Crate ZIP export failed: {0}',
           error instanceof Error ? error.message : String(error)),
+        { timeout: 10000 },
+      )
+    }
+  }
+
+  protected async handlePluginDataverseCreate(
+    repository: DataRepositoryConfig,
+  ): Promise<void> {
+    try {
+      const selection = await new DataverseCollectionBrowserDialog(
+        repository,
+        this.collectionService,
+      ).open()
+      if (!selection) return
+      const defaults = await this.nativeExportService.getDatasetCreationMetadataDefaults()
+      const metadata = await new NativeDataverseDatasetMetadataDialog(defaults, {
+        requiredCitationFields: this.nativeExportService.requiredDatasetCreationFields(),
+        subjectOptions: this.nativeExportService.datasetCreationSubjectOptions(),
+      }).open()
+      if (!metadata) return
+      const result = await this.nativeExportService.exportToDataverseWithProvider(
+        repository,
+        selection.collection,
+        metadata,
+        async input => {
+          const response = await this.providerService.executeForRepository<
+            typeof input,
+            DataverseProviderCreateResult
+          >(repository, 'create', input)
+          if (!response) {
+            throw new Error('The Dataverse provider returned no creation result.')
+          }
+          return response
+        },
+      )
+      const createdDataset =
+        result.persistentId || result.datasetId || result.requestUrl
+      this.showTargetNotification(
+        nls.localize(
+          'rockit/dataRepository/datasetCreated',
+          'Dataverse dataset created: {0}. Uploaded {1} files.',
+          result.target || createdDataset,
+          result.uploadedFiles.length,
+        ),
+        String(result.target || createdDataset),
+        8000,
+      )
+      if (result.unmappedEntityIds.length) {
+        this.messageService.warn(
+          nls.localize(
+            'rockit/dataRepository/creationUnmappedIds',
+            'Dataverse dataset created, but {0} entity ID mapping(s) could not be inferred. Empty values were written to .rockit/{1}.',
+            result.unmappedEntityIds.length,
+            result.mappingFileName,
+          ),
+          { timeout: 10000 },
+        )
+      }
+    } catch (error) {
+      console.error('Dataverse provider export failed:', error)
+      this.messageService.error(
+        nls.localize(
+          'rockit/dataRepository/dataverseCreationFailed',
+          'Dataverse dataset creation failed: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
         { timeout: 10000 },
       )
     }

@@ -21,6 +21,7 @@ import {
 import { RepositoryProviderService } from './repository-provider-service';
 import { RepositoryRequiredMetadataDialog } from './components/repository-required-metadata-dialog';
 import { ArpProviderCreateCheckpoint, ArpProviderSyncCheckpoint, ArpProviderUpdateCheckpoint, ArpRoCrateExportService } from './services/arp-ro-crate-export-service';
+import { DataverseProviderCreateCheckpoint, NativeDataverseExportService } from './services/native-dataverse-export-service';
 
 export namespace DataRepositoryManagerCommands {
     export const OPEN: Command = {
@@ -60,7 +61,8 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
         @inject(OpenerService) protected readonly openerService: OpenerService,
         @inject(RepositoryProviderRegistry) protected readonly repositoryProviderRegistry: RepositoryProviderRegistry,
         @inject(RepositoryProviderService) protected readonly repositoryProviderService: RepositoryProviderService,
-        @inject(ArpRoCrateExportService) protected readonly arpExportService: ArpRoCrateExportService
+        @inject(ArpRoCrateExportService) protected readonly arpExportService: ArpRoCrateExportService,
+        @inject(NativeDataverseExportService) protected readonly nativeDataverseExportService: NativeDataverseExportService
     ) { }
 
     async initializeLayout(): Promise<void> {
@@ -95,8 +97,10 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
         });
 
         commands.registerCommand({ id: RepositoryProviderCommands.CHECKPOINT_CREATE_EXPORT }, {
-            execute: (checkpoint: ArpProviderCreateCheckpoint) =>
-                this.arpExportService.handleProviderCreateCheckpoint(checkpoint)
+            execute: (checkpoint: ArpProviderCreateCheckpoint | DataverseProviderCreateCheckpoint) =>
+                checkpoint?.providerId === 'dataverse'
+                    ? this.nativeDataverseExportService.handleProviderCreateCheckpoint(checkpoint)
+                    : this.arpExportService.handleProviderCreateCheckpoint(checkpoint)
         });
 
         commands.registerCommand({ id: RepositoryProviderCommands.CHECKPOINT_UPDATE_EXPORT }, {

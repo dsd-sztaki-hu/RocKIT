@@ -99,4 +99,38 @@ describe('DataverseClient connection transport', () => {
     await assert.rejects(client.validateConnection(), /API token is required/)
     assert.equal(called, false)
   })
+
+  it('creates a dataset and uploads a file with Dataverse directory metadata', async () => {
+    const calls = []
+    const client = new DataverseClient({
+      baseUrl: 'https://demo.dataverse.org',
+      token: 'secret',
+      fetchImpl: async (url, init) => {
+        calls.push({ url, init })
+        return response({ status: 'OK' }, 200, url)
+      },
+    })
+    const payload = { datasetVersion: { metadataBlocks: { citation: {} } } }
+
+    await client.createDataset('collection/one', payload)
+    await client.uploadFile(
+      'doi:10.1/example',
+      'data/result.txt',
+      Uint8Array.from([1, 2]),
+    )
+
+    assert.equal(
+      calls[0].url,
+      'https://demo.dataverse.org/api/v1/dataverses/collection%2Fone/datasets',
+    )
+    assert.equal(calls[0].init.body, JSON.stringify(payload))
+    assert.equal(calls[0].init.headers['content-type'], 'application/json')
+    assert.equal(
+      calls[1].url,
+      'https://demo.dataverse.org/api/v1/datasets/:persistentId/add?persistentId=doi%3A10.1%2Fexample',
+    )
+    assert.ok(calls[1].init.body instanceof FormData)
+    assert.equal(calls[1].init.headers['content-type'], undefined)
+    assert.equal(calls[1].init.body.get('jsonData'), '{"directoryLabel":"data"}')
+  })
 })
