@@ -392,7 +392,12 @@ export class DataverseMetadataMappingService {
                     }
                     const sourceName =
                         childMapping.sourceCandidates?.[0]?.localName ?? childName;
-                    const childValues = this.collectEntityPrimitiveValues(entity, sourceName, child);
+                const childValues = this.collectEntityPrimitiveValues(
+                    entity,
+                    sourceName,
+                    child,
+                    this.isPrimaryCompoundName(typeName, sourceName)
+                );
                     const childValue = this.buildPrimitiveValue(childValues, child);
                     if (childValue !== undefined) {
                         value[childName] = {
@@ -435,9 +440,11 @@ export class DataverseMetadataMappingService {
     protected collectEntityPrimitiveValues(
         entity: RoCrateEntity,
         fieldName: string,
-        schema: DataverseFieldSchema
+        schema: DataverseFieldSchema,
+        fallbackToEntityName = false
     ): DataverseValue[] {
-        const values = this.readScalarValues(this.readPrimitiveValue(entity, fieldName));
+        const values = this.readScalarValues(
+            this.readPrimitiveValue(entity, fieldName, fallbackToEntityName));
         return this.uniqueValues(
             values
                 .map(value => this.normalizeValue(fieldName, value, schema))
@@ -465,7 +472,11 @@ export class DataverseMetadataMappingService {
         return root[typeName];
     }
 
-    protected readPrimitiveValue(entity: RoCrateEntity, fieldName: string): unknown {
+    protected readPrimitiveValue(
+        entity: RoCrateEntity,
+        fieldName: string,
+        fallbackToEntityName = false
+    ): unknown {
         if (fieldName === 'title') {
             return entity.title ?? entity.name;
         }
@@ -493,7 +504,13 @@ export class DataverseMetadataMappingService {
         if (fieldName === 'dsDescriptionValue') {
             return entity.dsDescriptionValue;
         }
-        return entity[fieldName] ?? entity.value ?? entity.name;
+        return entity[fieldName] ?? (fallbackToEntityName ? entity.value ?? entity.name : undefined);
+    }
+
+    protected isPrimaryCompoundName(typeName: string, fieldName: string): boolean {
+        return fieldName === 'name' ||
+            fieldName === `${typeName}Name` ||
+            fieldName === `${typeName}Value`;
     }
 
     protected buildPrimitiveValue(values: DataverseValue[], schema: DataverseFieldSchema): DataverseValue | DataverseValue[] | undefined {

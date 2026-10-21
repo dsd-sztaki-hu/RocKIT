@@ -191,4 +191,23 @@ describe('DataverseClient connection transport', () => {
     assert.ok(calls[2].init.body instanceof FormData)
     assert.equal(calls[4].init.body, JSON.stringify({ metadataBlocks: {} }))
   })
+
+  it('downloads Dataverse file bytes for sync', async () => {
+    const client = new DataverseClient({
+      baseUrl: 'https://demo.dataverse.org',
+      token: 'secret',
+      fetchImpl: async (url, init) => ({
+        ok: true,
+        status: 200,
+        url,
+        arrayBuffer: async () => Uint8Array.from([4, 5]).buffer,
+        init,
+      }),
+    })
+
+    const result = await client.downloadFile('51')
+
+    assert.deepEqual([...result.bytes], [4, 5])
+    assert.equal(result.url, 'https://demo.dataverse.org/api/access/datafile/51')
+  })
 })

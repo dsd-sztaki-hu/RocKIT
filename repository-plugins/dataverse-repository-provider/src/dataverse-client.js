@@ -53,6 +53,12 @@ class DataverseClient {
     )
   }
 
+  downloadFile(fileId) {
+    return this.downloadBytes(
+      `${this.baseUrl}/api/access/datafile/${encodeURIComponent(fileId)}`,
+    )
+  }
+
   replaceFile(fileId, entryPath, content) {
     const normalized = String(entryPath || '')
       .replace(/\\/g, '/')
@@ -202,6 +208,25 @@ class DataverseClient {
         url: response.url || url,
         payload,
       }
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  async downloadBytes(url) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs)
+    const headers = {}
+    if (this.token) headers['x-dataverse-key'] = this.token
+    try {
+      const response = await this.fetchImpl(url, {
+        method: 'GET',
+        headers,
+        redirect: 'follow',
+        signal: controller.signal,
+      })
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      return { status: response.status, ok: response.ok, url: response.url || url, bytes }
     } finally {
       clearTimeout(timer)
     }

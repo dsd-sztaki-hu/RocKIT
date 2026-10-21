@@ -748,6 +748,15 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
           selectedRepo, selectedExportTarget, syncOptions.metadataMode)
         return
       }
+      if (selectedRepo.providerId === 'dataverse' && operation === 'sync' && selectedExportTarget) {
+        const syncOptions = repositorySelection.syncMode
+          ? { metadataMode: repositorySelection.syncMode }
+          : await new RepositorySyncOptionsDialog().open()
+        if (!syncOptions) return
+        await this.handlePluginDataverseSync(
+          selectedRepo, selectedExportTarget, syncOptions.metadataMode)
+        return
+      }
       await this.executePluginRepositoryOperation(selectedRepo, operation, {
         repository: selectedRepo,
         exportTarget: selectedExportTarget,
@@ -1831,6 +1840,53 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         nls.localize(
           'rockit/dataRepository/dataverseUpdateFailed',
           'Dataverse update failed: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
+        { timeout: 10000 },
+      )
+    }
+  }
+
+  protected async handlePluginDataverseSync(
+    repository: DataRepositoryConfig,
+    exportTarget: DataRepositoryExportTarget,
+    metadataMode: RepositorySyncMode,
+  ): Promise<void> {
+    try {
+      const result = await this.nativeExportService.syncDataverseWithProvider(
+        repository,
+        exportTarget,
+        { metadataMode },
+        async input => {
+          const response = await this.providerService.executeForRepository<
+            typeof input,
+            unknown
+          >(repository, 'sync', input)
+          if (!response) throw new Error('The Dataverse provider returned no sync result.')
+          return response
+        },
+      )
+      if (!result) return
+      await this.roCrateLoader.refresh()
+      await this.loadData()
+      this.showTargetNotification(
+        nls.localize(
+          'rockit/dataRepository/dataverseSyncCompleted',
+          'Dataverse sync completed for {0}. Downloaded {1} new file(s), replaced {2} changed file(s), and kept {3} unchanged file(s).',
+          result.target,
+          result.downloadedFileCount,
+          result.replacedFileCount,
+          result.keptLocalFileCount,
+        ),
+        result.target,
+        12000,
+      )
+    } catch (error) {
+      console.error('Dataverse provider sync failed:', error)
+      this.messageService.error(
+        nls.localize(
+          'rockit/dataRepository/dataverseSyncFailed',
+          'Dataverse sync failed: {0}',
           error instanceof Error ? error.message : String(error),
         ),
         { timeout: 10000 },

@@ -21,7 +21,7 @@ import {
 import { RepositoryProviderService } from './repository-provider-service';
 import { RepositoryRequiredMetadataDialog } from './components/repository-required-metadata-dialog';
 import { ArpProviderCreateCheckpoint, ArpProviderSyncCheckpoint, ArpProviderUpdateCheckpoint, ArpRoCrateExportService } from './services/arp-ro-crate-export-service';
-import { DataverseProviderCreateCheckpoint, DataverseProviderUpdateCheckpoint, NativeDataverseExportService } from './services/native-dataverse-export-service';
+import { DataverseProviderCreateCheckpoint, DataverseProviderSyncCheckpoint, DataverseProviderUpdateCheckpoint, NativeDataverseExportService } from './services/native-dataverse-export-service';
 
 export namespace DataRepositoryManagerCommands {
     export const OPEN: Command = {
@@ -111,8 +111,10 @@ export class DataRepositoryManagerContribution implements CommandContribution, M
         });
 
         commands.registerCommand({ id: RepositoryProviderCommands.CHECKPOINT_SYNC_EXPORT }, {
-            execute: (checkpoint: ArpProviderSyncCheckpoint) =>
-                this.arpExportService.handleProviderSyncCheckpoint(checkpoint)
+            execute: (checkpoint: ArpProviderSyncCheckpoint | DataverseProviderSyncCheckpoint) =>
+                checkpoint?.providerId === 'dataverse'
+                    ? this.nativeDataverseExportService.handleProviderSyncCheckpoint(checkpoint)
+                    : this.arpExportService.handleProviderSyncCheckpoint(checkpoint)
         });
 
         commands.registerCommand({ id: RepositoryProviderCommands.PROMPT_REQUIRED_METADATA }, {

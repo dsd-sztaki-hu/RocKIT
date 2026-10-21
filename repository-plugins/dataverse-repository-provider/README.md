@@ -3,7 +3,7 @@
 This extension is the native Dataverse repository provider for RocKIT. The
 extension registers Dataverse as an extension-backed repository type and
 implements authenticated connection validation, dataset creation/export, and
-remote draft deletion and updates.
+remote draft deletion, updates, and synchronization.
 
 Repository operations are advertised only after they have been migrated into
 the extension. This prevents RocKIT from displaying actions that still lack a
@@ -24,5 +24,8 @@ operation succeeds.
 `DataverseUpdateOperation` loads a remote draft snapshot for RocKIT's local
 comparison, then applies RocKIT's prepared file and mapped metadata update in a
 single provider operation with incremental recovery checkpoints.
+
+`DataverseSyncOperation` downloads the remote files selected by RocKIT's diff.
+RocKIT then applies the chosen merge mode and optional reverse crosswalk locally.
 
 Run the focused tests with `npm test` in this directory.
