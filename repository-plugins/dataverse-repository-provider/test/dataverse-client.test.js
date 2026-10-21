@@ -154,4 +154,41 @@ describe('DataverseClient connection transport', () => {
     assert.equal(calls[0].init.method, 'DELETE')
     assert.equal(calls[0].init.headers['x-dataverse-key'], 'secret')
   })
+
+  it('uses the native Dataverse endpoints required for dataset updates', async () => {
+    const calls = []
+    const client = new DataverseClient({
+      baseUrl: 'https://demo.dataverse.org',
+      token: 'secret',
+      fetchImpl: async (url, init) => {
+        calls.push({ url, init })
+        return response({ status: 'OK', data: {} }, 200, url)
+      },
+    })
+
+    await client.getDatasetVersion('doi:10.1/example')
+    await client.downloadJsonFile('41')
+    await client.replaceFile('42', 'data/result.txt', Uint8Array.from([1]))
+    await client.deleteFile('43')
+    await client.updateDraftMetadata('doi:10.1/example', { metadataBlocks: {} })
+
+    assert.deepEqual(
+      calls.map((call) => [call.init.method, call.url]),
+      [
+        [
+          'GET',
+          'https://demo.dataverse.org/api/datasets/:persistentId/versions/:draft?persistentId=doi%3A10.1%2Fexample',
+        ],
+        ['GET', 'https://demo.dataverse.org/api/access/datafile/41'],
+        ['POST', 'https://demo.dataverse.org/api/files/42/replace'],
+        ['DELETE', 'https://demo.dataverse.org/api/files/43'],
+        [
+          'PUT',
+          'https://demo.dataverse.org/api/datasets/:persistentId/versions/:draft?persistentId=doi%3A10.1%2Fexample',
+        ],
+      ],
+    )
+    assert.ok(calls[2].init.body instanceof FormData)
+    assert.equal(calls[4].init.body, JSON.stringify({ metadataBlocks: {} }))
+  })
 })

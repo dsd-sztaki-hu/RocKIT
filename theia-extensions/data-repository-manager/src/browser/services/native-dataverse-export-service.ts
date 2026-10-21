@@ -55,7 +55,7 @@ interface NativeDataverseRemoteFileReference {
   remoteId: string
 }
 
-interface NativeDataverseDraftFileRecord {
+export interface NativeDataverseDraftFileRecord {
   id: string
   label: string
   persistentId?: string
@@ -198,6 +198,67 @@ export interface DataverseProviderCreateCheckpoint {
   metadataRemoteId?: string
 }
 
+export interface DataverseProviderUpdateInspection {
+  providerId: 'dataverse'
+  persistentId: string
+  datasetVersionData: Record<string, unknown>
+  draftFiles: NativeDataverseDraftFileRecord[]
+  metadataFileId: string
+  remoteMetadataCrate: RoCrate
+}
+
+export interface DataverseProviderUpdateFileResult {
+  kind: 'added' | 'changed'
+  localFileId: string
+  entryPath: string
+  remoteId: string
+  md5?: string
+  lastModified?: number
+  sourceSize?: number
+}
+
+export interface DataverseProviderUpdateResult {
+  providerId: 'dataverse'
+  persistentId: string
+  fileResults: DataverseProviderUpdateFileResult[]
+  removedRemoteFileIds: string[]
+  metadataRemoteId: string
+}
+
+export interface DataverseProviderUpdateCheckpoint {
+  operationId: string
+  providerId: 'dataverse'
+  persistentId: string
+  stage: 'fileUploaded' | 'fileReplaced' | 'fileRemoved' | 'metadataReplaced'
+  fileResult?: DataverseProviderUpdateFileResult
+  remoteFileId?: string
+  metadataRemoteId?: string
+}
+
+interface PreparedDataverseUpdateFile {
+  localFileId: string
+  entryPath: string
+  sourceUri: string
+  remoteFileId?: string
+  lastModified?: number
+  sourceSize?: number
+}
+
+interface PreparedDataverseUpdateExport {
+  persistentId: string
+  target: string
+  crate: RoCrate
+  metadataCrate: RoCrate
+  mappingFileName: string
+  mapping: RoCrateEntityIdMapping
+  originalToUploadIds: Record<string, string>
+  addedFiles: PreparedDataverseUpdateFile[]
+  changedFiles: PreparedDataverseUpdateFile[]
+  removedFiles: Array<{ remoteFileId: string }>
+  metadataFileId: string
+  nativeMetadataPayload?: Record<string, unknown>
+}
+
 interface ActiveDataverseProviderCreate {
   rootUri: URI
   repository: DataRepositoryConfig
@@ -209,6 +270,17 @@ interface ActiveDataverseProviderCreate {
   persistentId?: string
   target?: string
   logStarted: boolean
+  metadataCheckpointed: boolean
+  hashUpdated: boolean
+}
+
+interface ActiveDataverseProviderUpdate {
+  rootUri: URI
+  repository: DataRepositoryConfig
+  plan: PreparedDataverseUpdateExport
+  mapping: RoCrateEntityIdMapping
+  checkpointedFiles: Set<string>
+  removedRemoteFileIds: Set<string>
   metadataCheckpointed: boolean
   hashUpdated: boolean
 }
@@ -372,6 +444,7 @@ const DATAVERSE_SEMANTIC_METADATA_BLOCKS: Record<
 export class NativeDataverseExportService {
   protected activeExportLogEntry: ExportLogEntry | undefined
   protected readonly activeProviderCreates = new Map<string, ActiveDataverseProviderCreate>()
+  protected readonly activeProviderUpdates = new Map<string, ActiveDataverseProviderUpdate>()
   constructor(
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
     @inject(FileService) protected readonly fileService: FileService,
@@ -1177,6 +1250,280 @@ export class NativeDataverseExportService {
     }
   }
 
+  /** Prepare the Dataverse diff locally and delegate all repository transport to the provider. */
+  public async updateDataverseWithProvider(
+    repository: DataRepositoryConfig,
+    exportTargetSelection: DataRepositoryExportTarget,
+    invokeProvider: (input: Record<string, unknown>) => Promise<unknown>,
+  ): Promise<NativeDataverseUpdateResult | undefined> {
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const rootUri = this.getWorkspaceRoot()
+    const crate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
+    const exportTarget = await this.resolveExistingExportTarget(
+      rootUri, repository, exportTargetSelection)
+    if (!exportTarget) return undefined
+
+    const rawInspection = await invokeProvider({
+      phase: 'inspect', repository, persistentId: exportTarget.persistentId,
+    })
+    const inspection = rawInspection && typeof rawInspection === 'object' &&
+      !Array.isArray(rawInspection)
+      ? rawInspection as DataverseProviderUpdateInspection
+      : undefined
+    if (!inspection || inspection.providerId !== 'dataverse' ||
+        inspection.persistentId !== exportTarget.persistentId ||
+        !Array.isArray(inspection.draftFiles) ||
+        !Array.isArray(inspection.remoteMetadataCrate?.['@graph']) ||
+        !inspection.metadataFileId || !inspection.datasetVersionData) {
+      throw new Error('The Dataverse provider did not return a complete draft inspection.')
+    }
+
+    const uploadCollection = await this.collectRoCrateUploadFiles(crate, rootUri)
+    this.normalizeMappingToDatabaseIds(exportTarget.mapping, inspection.draftFiles)
+    this.normalizeLocalizedMappingKeys(
+      exportTarget.mapping, uploadCollection.originalToUploadIds)
+    exportTarget.mapping['ro-crate-metadata.json'] = inspection.metadataFileId
+    const draftFilesById = new Map(inspection.draftFiles.map(file => [file.id, file]))
+    const localReachableIds = this.collectReachableEntityIds(crate)
+    const localFilesById = new Map(
+      this.readGraph(crate)
+        .filter(entity => this.entityTypes(entity).includes('File'))
+        .filter(entity => localReachableIds.has(this.requireEntityId(entity)))
+        .map(entity => [this.requireEntityId(entity), entity]),
+    )
+    const remoteEntitiesById = new Map(
+      this.readGraph(inspection.remoteMetadataCrate)
+        .map(entity => [this.requireEntityId(entity), entity]),
+    )
+    const uploadFilesByPath = new Map(
+      uploadCollection.files.map(file => [file.entryPath, file]),
+    )
+    const addedIds: string[] = []
+    const changedIds: string[] = []
+    const unchangedIds: string[] = []
+    const matchedRemoteIds = new Set<string>()
+    const storedFileHashes = await this.fileHashStoreService.readFileHashes(rootUri)
+    for (const [localId] of localFilesById) {
+      const remoteId = exportTarget.mapping[localId]
+      const remoteEntity = remoteId ? remoteEntitiesById.get(remoteId) : undefined
+      if (!remoteId || !remoteEntity) {
+        addedIds.push(localId)
+        continue
+      }
+      matchedRemoteIds.add(remoteId)
+      const uploadFile = this.requireUploadFile(
+        localId, uploadCollection, uploadFilesByPath)
+      const draftFile = draftFilesById.get(remoteId)
+      const unchanged = this.fileHashStoreService.isFileRecordUnchanged(
+        storedFileHashes[localId], {
+          localLastModified: uploadFile.lastModified,
+          localSize: uploadFile.sourceSize,
+          remoteMd5: draftFile?.md5 ?? this.fileEntityHash(remoteEntity),
+          remoteSize: draftFile?.size ?? this.fileEntitySize(remoteEntity),
+        })
+      if (unchanged) unchangedIds.push(localId)
+      else changedIds.push(localId)
+    }
+    const removedRemoteFileIds = this.readGraph(inspection.remoteMetadataCrate)
+      .filter(entity => this.entityTypes(entity).includes('File'))
+      .map(entity => this.requireEntityId(entity))
+      .filter(remoteId => remoteId !== 'ro-crate-metadata.json')
+      .filter(remoteId => !matchedRemoteIds.has(remoteId))
+
+    const prepareFile = (localId: string, replacement: boolean): PreparedDataverseUpdateFile => {
+      const file = this.requireUploadFile(localId, uploadCollection, uploadFilesByPath)
+      if (!file.sourceUri) {
+        throw new Error(`Cannot prepare Dataverse update source '${file.entryPath}'.`)
+      }
+      return {
+        localFileId: localId,
+        entryPath: file.entryPath,
+        sourceUri: file.sourceUri,
+        lastModified: file.lastModified,
+        sourceSize: file.sourceSize,
+        ...(replacement ? { remoteFileId: exportTarget.mapping[localId] } : {}),
+      }
+    }
+    const enabledMetadataBlocks = this.datasetVersionMetadataBlockAliases(
+      inspection.datasetVersionData)
+    const selectedCrosswalk = await this.readSelectedCrosswalk(repository)
+    const nativeMetadataPayload = await this.buildDatasetNativeMetadataUpdatePayload(
+      inspection.datasetVersionData,
+      crate,
+      enabledMetadataBlocks,
+      selectedCrosswalk,
+    )
+    const target = this.buildDataverseDatasetUrl(baseUrl, exportTarget.persistentId) ||
+      this.buildPidTarget(exportTarget.persistentId) || exportTarget.persistentId
+    const plan: PreparedDataverseUpdateExport = {
+      persistentId: exportTarget.persistentId,
+      target,
+      crate,
+      metadataCrate: uploadCollection.metadataCrate,
+      mappingFileName: exportTarget.exportLogEntry.mappingFile,
+      mapping: { ...exportTarget.mapping },
+      originalToUploadIds: Object.fromEntries(uploadCollection.originalToUploadIds),
+      addedFiles: addedIds.map(id => prepareFile(id, false)),
+      changedFiles: changedIds.map(id => prepareFile(id, true)),
+      removedFiles: removedRemoteFileIds.map(remoteFileId => ({ remoteFileId })),
+      metadataFileId: inspection.metadataFileId,
+      ...(nativeMetadataPayload ? { nativeMetadataPayload } : {}),
+    }
+    const operationId = this.randomId(32)
+    const active: ActiveDataverseProviderUpdate = {
+      rootUri,
+      repository,
+      plan,
+      mapping: { ...plan.mapping },
+      checkpointedFiles: new Set(),
+      removedRemoteFileIds: new Set(),
+      metadataCheckpointed: false,
+      hashUpdated: false,
+    }
+    this.activeProviderUpdates.set(operationId, active)
+    await this.saveEntityIdMapping(rootUri, plan.mappingFileName, active.mapping)
+    await this.appendExportLog(rootUri, {
+      target,
+      repository: baseUrl,
+      mappingFile: plan.mappingFileName,
+      crosswalkFile: repository.crosswalkId,
+      syncType: 'update',
+      status: 'cancelled',
+      collectionId: exportTarget.exportLogEntry.collectionId,
+      datasetName: this.getRootDatasetName(crate),
+    })
+    for (const localId of unchangedIds) {
+      const uploadId = uploadCollection.originalToUploadIds.get(localId) ?? localId
+      active.hashUpdated = (await this.persistUploadedFileHash(
+        rootUri, crate, localId, uploadCollection.metadataCrate, uploadId,
+        storedFileHashes[localId]?.md5, false)) || active.hashUpdated
+    }
+
+    try {
+      const rawResult = await invokeProvider({
+        phase: 'apply', repository, persistentId: plan.persistentId, plan, operationId,
+      })
+      const result = rawResult && typeof rawResult === 'object' && !Array.isArray(rawResult)
+        ? rawResult as DataverseProviderUpdateResult
+        : undefined
+      if (!result || result.providerId !== 'dataverse' ||
+          result.persistentId !== plan.persistentId || !Array.isArray(result.fileResults) ||
+          !Array.isArray(result.removedRemoteFileIds) || !result.metadataRemoteId) {
+        throw new Error('The Dataverse provider did not return a complete update result.')
+      }
+      for (const fileResult of result.fileResults) {
+        const key = `${fileResult.kind}\0${fileResult.localFileId}`
+        if (!active.checkpointedFiles.has(key)) {
+          await this.handleProviderUpdateCheckpoint({
+            operationId, providerId: 'dataverse', persistentId: plan.persistentId,
+            stage: fileResult.kind === 'added' ? 'fileUploaded' : 'fileReplaced',
+            fileResult,
+          })
+        }
+      }
+      for (const remoteFileId of result.removedRemoteFileIds) {
+        if (!active.removedRemoteFileIds.has(remoteFileId)) {
+          await this.handleProviderUpdateCheckpoint({
+            operationId, providerId: 'dataverse', persistentId: plan.persistentId,
+            stage: 'fileRemoved', remoteFileId,
+          })
+        }
+      }
+      if (!active.metadataCheckpointed) {
+        await this.handleProviderUpdateCheckpoint({
+          operationId, providerId: 'dataverse', persistentId: plan.persistentId,
+          stage: 'metadataReplaced', metadataRemoteId: result.metadataRemoteId,
+        })
+      }
+      if (active.hashUpdated && this.appStateService.roCrate) {
+        await this.roCratePersistenceService.write(rootUri, this.appStateService.roCrate)
+      }
+      await this.saveEntityIdMapping(rootUri, plan.mappingFileName, active.mapping)
+      await this.appendExportLog(rootUri, {
+        target,
+        repository: baseUrl,
+        mappingFile: plan.mappingFileName,
+        crosswalkFile: repository.crosswalkId,
+        syncType: 'update',
+        status: 'success',
+        lastSuccessfulActionAt: new Date().toISOString(),
+        collectionId: exportTarget.exportLogEntry.collectionId,
+        datasetName: this.getRootDatasetName(crate),
+      })
+      return {
+        persistentId: plan.persistentId,
+        target,
+        addedFileCount: plan.addedFiles.length,
+        replacedFileCount: plan.changedFiles.length,
+        removedFileCount: plan.removedFiles.length,
+        mappingFileName: plan.mappingFileName,
+      }
+    } catch (error) {
+      await this.appendExportLog(rootUri, {
+        target,
+        repository: baseUrl,
+        mappingFile: plan.mappingFileName,
+        crosswalkFile: repository.crosswalkId,
+        syncType: 'update',
+        status: 'failed',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        collectionId: exportTarget.exportLogEntry.collectionId,
+        datasetName: this.getRootDatasetName(crate),
+      })
+      throw error
+    } finally {
+      this.activeProviderUpdates.delete(operationId)
+    }
+  }
+
+  public async handleProviderUpdateCheckpoint(
+    value: DataverseProviderUpdateCheckpoint,
+  ): Promise<void> {
+    if (!value || value.providerId !== 'dataverse' || typeof value.operationId !== 'string') {
+      throw new Error('The Dataverse update checkpoint is invalid.')
+    }
+    const active = this.activeProviderUpdates.get(value.operationId)
+    if (!active) throw new Error('The Dataverse update checkpoint no longer has an active update.')
+    if (value.persistentId !== active.plan.persistentId) {
+      throw new Error('The Dataverse update checkpoint refers to a different dataset.')
+    }
+    if (value.stage === 'fileRemoved') {
+      if (!value.remoteFileId ||
+          !active.plan.removedFiles.some(file => file.remoteFileId === value.remoteFileId)) {
+        throw new Error('The Dataverse removed-file checkpoint is inconsistent with the plan.')
+      }
+      this.removeMappedRemoteFileId(active.mapping, value.remoteFileId)
+      active.removedRemoteFileIds.add(value.remoteFileId)
+    } else if (value.stage === 'metadataReplaced') {
+      if (!value.metadataRemoteId) {
+        throw new Error('The Dataverse metadata checkpoint has no remote file ID.')
+      }
+      active.mapping['ro-crate-metadata.json'] = value.metadataRemoteId
+      active.metadataCheckpointed = true
+    } else {
+      const file = value.fileResult
+      const planned = file && [...active.plan.addedFiles, ...active.plan.changedFiles]
+        .find(candidate => candidate.localFileId === file.localFileId &&
+          candidate.entryPath === file.entryPath)
+      if (!file || !planned || !file.remoteId) {
+        throw new Error('The Dataverse updated-file checkpoint is inconsistent with the plan.')
+      }
+      active.mapping[file.localFileId] = file.remoteId
+      active.hashUpdated = (await this.persistUploadedFileHash(
+        active.rootUri,
+        active.plan.crate,
+        file.localFileId,
+        active.plan.metadataCrate,
+        active.plan.originalToUploadIds[file.localFileId] ?? file.localFileId,
+        file.md5,
+        false,
+      )) || active.hashUpdated
+      active.checkpointedFiles.add(`${file.kind}\0${file.localFileId}`)
+    }
+    await this.saveEntityIdMapping(
+      active.rootUri, active.plan.mappingFileName, active.mapping)
+  }
+
   /**
    * Pulls changes from a previously exported native Dataverse dataset into the
    * local workspace.
@@ -1876,8 +2223,12 @@ export class NativeDataverseExportService {
     protected async buildDatasetNativeMetadataUpdatePayload(
         currentData: Record<string, unknown>,
         crate: RoCrate,
-        enabledMetadataBlocks?: Set<string>
+        enabledMetadataBlocks?: Set<string>,
+        selectedCrosswalk?: CrosswalkDocument | null
     ): Promise<Record<string, unknown> | undefined> {
+        if (selectedCrosswalk === null) {
+            return undefined;
+        }
         const metadataBlocks = currentData.metadataBlocks;
         if (!metadataBlocks || typeof metadataBlocks !== 'object' || Array.isArray(metadataBlocks)) {
             return undefined;
@@ -1891,6 +2242,7 @@ export class NativeDataverseExportService {
     const localBlocks = await this.buildMappedNativeMetadataBlocks(
       crate,
       enabledMetadataBlocks,
+      selectedCrosswalk,
     )
     for (const [blockAlias, block] of Object.entries(localBlocks)) {
       updatedMetadataBlocks[blockAlias] = this.mergeNativeMetadataBlockFields(
@@ -1901,6 +2253,15 @@ export class NativeDataverseExportService {
     }
     updatePayload.metadataBlocks = updatedMetadataBlocks
     return updatePayload
+  }
+
+  protected datasetVersionMetadataBlockAliases(
+    datasetVersionData: Record<string, unknown>,
+  ): Set<string> | undefined {
+    const blocks = datasetVersionData.metadataBlocks
+    return blocks && typeof blocks === 'object' && !Array.isArray(blocks)
+      ? new Set(Object.keys(blocks))
+      : undefined
   }
 
   protected async buildMappedNativeMetadataBlocks(

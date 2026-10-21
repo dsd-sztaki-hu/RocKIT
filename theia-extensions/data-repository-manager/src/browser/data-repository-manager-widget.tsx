@@ -735,6 +735,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         await this.handlePluginArpUpdate(selectedRepo, selectedExportTarget)
         return
       }
+      if (selectedRepo.providerId === 'dataverse' && operation === 'update' && selectedExportTarget) {
+        await this.handlePluginDataverseUpdate(selectedRepo, selectedExportTarget)
+        return
+      }
       if (selectedRepo.providerId === 'arp' && operation === 'sync' && selectedExportTarget) {
         const syncOptions = repositorySelection.syncMode
           ? { metadataMode: repositorySelection.syncMode }
@@ -1784,6 +1788,49 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         nls.localize(
           'rockit/dataRepository/arpUpdateFailed',
           'ARP file update failed: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
+        { timeout: 10000 },
+      )
+    }
+  }
+
+  protected async handlePluginDataverseUpdate(
+    repository: DataRepositoryConfig,
+    exportTarget: DataRepositoryExportTarget,
+  ): Promise<void> {
+    try {
+      const result = await this.nativeExportService.updateDataverseWithProvider(
+        repository,
+        exportTarget,
+        async input => {
+          const response = await this.providerService.executeForRepository<
+            typeof input,
+            unknown
+          >(repository, 'update', input)
+          if (!response) throw new Error('The Dataverse provider returned no update result.')
+          return response
+        },
+      )
+      if (!result) return
+      this.showTargetNotification(
+        nls.localize(
+          'rockit/dataRepository/dataverseUpdateCompleted',
+          'Dataverse update completed for {0}. Uploaded {1} new file(s), replaced {2} changed file(s), and removed {3} file(s).',
+          result.target,
+          result.addedFileCount,
+          result.replacedFileCount,
+          result.removedFileCount,
+        ),
+        result.target,
+        10000,
+      )
+    } catch (error) {
+      console.error('Dataverse provider update failed:', error)
+      this.messageService.error(
+        nls.localize(
+          'rockit/dataRepository/dataverseUpdateFailed',
+          'Dataverse update failed: {0}',
           error instanceof Error ? error.message : String(error),
         ),
         { timeout: 10000 },
