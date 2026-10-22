@@ -65,7 +65,6 @@ export interface DataverseCollectionSelection {
 
 export interface DataRepositorySelection {
   repository?: DataRepositoryConfig
-  capabilities?: DataRepositoryCapabilities
   exportTarget?: DataRepositoryExportTarget
   action?: 'export' | 'sync' | 'import' | 'link'
   syncMode?: RepositorySyncMode
@@ -73,23 +72,7 @@ export interface DataRepositorySelection {
 
 export type RepositorySyncMode = 'complete' | 'remote-additions' | 'local-additions'
 
-export interface DataRepositoryImportProgress {
-  completedSteps: number
-  totalSteps: number
-  message: string
-}
-
-export type DataRepositoryImportProgressReporter = (
-  progress: DataRepositoryImportProgress,
-) => void
-
 export type DataRepositoryKind = 'arp-dataverse' | 'dataverse' | 'unknown'
-
-export interface DataRepositoryCapabilities {
-  kind: DataRepositoryKind
-  supportsArpRoCrateZipUpload: boolean
-  supportsNativeDataverseApi: boolean
-}
 
 export interface DataRepositoryExportTarget {
   pid: string

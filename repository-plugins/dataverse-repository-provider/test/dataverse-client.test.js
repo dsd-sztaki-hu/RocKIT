@@ -134,6 +134,26 @@ describe('DataverseClient connection transport', () => {
     assert.equal(calls[1].init.body.get('jsonData'), '{"directoryLabel":"data"}')
   })
 
+  it('loads the metadata blocks enabled for a collection', async () => {
+    const calls = []
+    const client = new DataverseClient({
+      baseUrl: 'https://demo.dataverse.org',
+      token: 'secret',
+      fetchImpl: async (url, init) => {
+        calls.push({ url, init })
+        return response({ status: 'OK', data: [{ name: 'citation' }] }, 200, url)
+      },
+    })
+
+    await client.getCollectionMetadataBlocks('collection/one')
+
+    assert.equal(
+      calls[0].url,
+      'https://demo.dataverse.org/api/dataverses/collection%2Fone/metadatablocks',
+    )
+    assert.equal(calls[0].init.headers['x-dataverse-key'], 'secret')
+  })
+
   it('deletes the latest draft using the native Dataverse API endpoint', async () => {
     const calls = []
     const client = new DataverseClient({

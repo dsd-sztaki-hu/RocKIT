@@ -14,6 +14,7 @@ const {
   DELETE_COMMAND,
   IMPORT_COMMAND,
   LINK_COMMAND,
+  METADATA_BLOCKS_COMMAND,
   UPDATE_COMMAND,
   SYNC_COMMAND,
   VALIDATE_COMMAND,
@@ -58,6 +59,14 @@ describe('Dataverse provider command boundary', () => {
           userName: 'Alice',
           expirationDate: '2027-02-03T04:05:06.000Z',
         }),
+        getCollectionMetadataBlocks: async collectionId => {
+          assert.equal(collectionId, 'root')
+          return {
+            ok: true,
+            status: 200,
+            payload: { status: 'OK', data: [{ name: 'citation' }, { name: 'geospatial' }] },
+          }
+        },
       }
     })
 
@@ -73,6 +82,7 @@ describe('Dataverse provider command boundary', () => {
           delete: DELETE_COMMAND,
           import: IMPORT_COMMAND,
           link: LINK_COMMAND,
+          metadataBlocks: METADATA_BLOCKS_COMMAND,
           update: UPDATE_COMMAND,
           sync: SYNC_COMMAND,
           validate: VALIDATE_COMMAND,
@@ -92,6 +102,10 @@ describe('Dataverse provider command boundary', () => {
       userName: 'Alice',
       expirationDate: '2027-02-03T04:05:06.000Z',
     })
+    assert.deepEqual(
+      await commands.get(METADATA_BLOCKS_COMMAND)({ repository, collectionId: 'root' }),
+      { aliases: ['citation', 'geospatial'] },
+    )
 
     await deactivateDataverseProvider(vscode)
     assert.deepEqual(executions[1], [

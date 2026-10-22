@@ -35,7 +35,6 @@ describe('Dataverse plugin import completion', () => {
       target: 'https://dv.example/dataset.xhtml?persistentId=doi:10.1/example',
     }))
     const service = new NativeDataverseImportService(
-      {} as never,
       {
         readFile: async () => ({ value: BinaryBuffer.wrap(Uint8Array.from([80, 75])) }),
         exists: async (uri: URI) => existing.has(uri.toString()),

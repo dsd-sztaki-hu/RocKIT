@@ -17,6 +17,7 @@ const CREATE_COMMAND = 'rockit.dataverse.create'
 const DELETE_COMMAND = 'rockit.dataverse.delete'
 const IMPORT_COMMAND = 'rockit.dataverse.import'
 const LINK_COMMAND = 'rockit.dataverse.link'
+const METADATA_BLOCKS_COMMAND = 'rockit.dataverse.metadataBlocks'
 const UPDATE_COMMAND = 'rockit.dataverse.update'
 const SYNC_COMMAND = 'rockit.dataverse.sync'
 const VALIDATE_COMMAND = 'rockit.dataverse.validate'
@@ -41,6 +42,26 @@ async function activateDataverseProvider(
   const linkOperation = new DataverseLinkOperation({ vscode, clientFactory })
   const updateOperation = new DataverseUpdateOperation({ vscode, clientFactory })
   const syncOperation = new DataverseSyncOperation({ vscode, clientFactory })
+  context.subscriptions.push(
+    vscode.commands.registerCommand(METADATA_BLOCKS_COMMAND, async (input) => {
+      const repository = input?.repository
+      const collectionId = input?.collectionId
+      if (!repository || typeof collectionId !== 'string' || !collectionId.trim()) {
+        throw new Error('Dataverse metadata blocks require a repository and collection.')
+      }
+      const result = await clientFactory(repository)
+        .getCollectionMetadataBlocks(collectionId)
+      if (!result?.ok || result.payload?.status === 'ERROR') {
+        throw new Error(
+          `Dataverse metadata blocks could not be loaded (${result?.status ?? 'unknown'}).`,
+        )
+      }
+      const aliases = (Array.isArray(result.payload?.data) ? result.payload.data : [])
+        .map(block => typeof block?.name === 'string' ? block.name.trim() : '')
+        .filter(Boolean)
+      return { aliases: [...new Set(['citation', ...aliases])] }
+    }),
+  )
   context.subscriptions.push(
     vscode.commands.registerCommand(LINK_COMMAND, (input) =>
       vscode.window.withProgress(
@@ -143,6 +164,7 @@ async function activateDataverseProvider(
       delete: DELETE_COMMAND,
       import: IMPORT_COMMAND,
       link: LINK_COMMAND,
+      metadataBlocks: METADATA_BLOCKS_COMMAND,
       update: UPDATE_COMMAND,
       sync: SYNC_COMMAND,
       validate: VALIDATE_COMMAND,
@@ -176,6 +198,7 @@ module.exports = {
   DELETE_COMMAND,
   IMPORT_COMMAND,
   LINK_COMMAND,
+  METADATA_BLOCKS_COMMAND,
   UPDATE_COMMAND,
   SYNC_COMMAND,
   VALIDATE_COMMAND,

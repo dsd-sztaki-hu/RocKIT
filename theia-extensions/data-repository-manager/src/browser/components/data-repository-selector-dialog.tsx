@@ -26,8 +26,6 @@ import {
 } from '../types';
 import { DataRepositoryConfigDialog } from './data-repository-config-dialog';
 import { DataRepositoryStoreService } from '../services/data-repository-store-service';
-import { DataverseService } from '../services/dataverse-service';
-import { DataverseCapabilityService } from '../services/dataverse-capability-service';
 import '../styles/data-repository-selector-dialog.css';
 import { nls } from '@theia/core/lib/common/nls';
 import { ExportDeleteAction } from './data-repository-export-delete-dialog';
@@ -53,8 +51,6 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
     constructor(
         private repositories: DataRepositoryConfig[],
         private readonly storeService: DataRepositoryStoreService,
-        private readonly dataverseService: DataverseService,
-        private readonly capabilityService: DataverseCapabilityService,
         private readonly providerService: RepositoryProviderService,
         private readonly crosswalkRegistryService: CrosswalkRegistry,
         private readonly hasWorkspace: boolean = true,
@@ -116,13 +112,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         action: 'export' | 'sync' | 'import' = 'export',
         syncMode?: RepositorySyncMode
     ) {
-        if (repo.providerId) {
-            this.result = { repository: repo, exportTarget, action, syncMode };
-            this.accept();
-            return;
-        }
-        const capabilities = await this.capabilityService.detectRepositoryCapabilities(repo.baseUrl, repo.apiKey);
-        this.result = { repository: repo, capabilities, exportTarget, action, syncMode };
+        this.result = { repository: repo, exportTarget, action, syncMode };
         this.accept();
     }
 
@@ -133,7 +123,6 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
 
     protected async handleAddRepository() {
         const dialog = new DataRepositoryConfigDialog(
-            this.dataverseService,
             undefined,
             this.providerService.listProviders(),
             this.providerService,
@@ -147,7 +136,6 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
 
     protected async handleEditRepository(repo: DataRepositoryConfig) {
         const dialog = new DataRepositoryConfigDialog(
-            this.dataverseService,
             repo,
             this.providerService.listProviders(),
             this.providerService,
@@ -245,7 +233,7 @@ export class DataRepositorySelectorDialog extends AbstractDialog<DataRepositoryS
         const exportTargets = this.exportTargetsByRepositoryId[repo.id] ?? [];
         const provider = this.providerService.getProviderForRepository(repo);
         const supports = (operation: RepositoryOperation) =>
-            !repo.providerId || this.providerService.supports(repo, operation);
+            !!repo.providerId && this.providerService.supports(repo, operation);
         return (
             <div key={repo.id} className="data-repo-selector__repo-group">
                 <div

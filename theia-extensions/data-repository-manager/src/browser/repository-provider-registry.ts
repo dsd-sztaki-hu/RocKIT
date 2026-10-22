@@ -53,6 +53,7 @@ export type RepositoryOperation =
   | 'link'
   | 'validate'
   | 'metadataLanguages'
+  | 'metadataBlocks'
   | 'listTargets'
   | 'markTargetFailed'
 
@@ -161,6 +162,7 @@ export class RepositoryProviderRegistry {
       'link',
       'validate',
       'metadataLanguages',
+      'metadataBlocks',
       'listTargets',
       'markTargetFailed',
     ]

@@ -35,6 +35,12 @@ class DataverseClient {
     )
   }
 
+  getCollectionMetadataBlocks(collectionId) {
+    return this.request(
+      `${this.baseUrl}/api/dataverses/${encodeURIComponent(collectionId)}/metadatablocks`,
+    )
+  }
+
   deleteDraft(persistentId) {
     const url = new URL(`${this.baseUrl}/api/datasets/:persistentId/versions/:draft`)
     url.searchParams.set('persistentId', persistentId)

@@ -28,7 +28,7 @@ describe('ARP provider import completion', () => {
       delete: jest.fn(async (uri: URI) => { deleted.push(uri.toString()) }),
     }
     const service = new ArpRoCrateImportService(
-      {} as never, fileService as never, { open } as never, {} as never)
+      fileService as never, { open } as never, {} as never)
     const crate = { '@graph': [{ '@id': './', '@type': 'Dataset', name: 'Imported' }] }
     const extractZip = jest.fn(async (_bytes: Uint8Array, _target: URI) => 3)
     const persistImportedExportState = jest.fn(async (
@@ -74,7 +74,7 @@ describe('ARP provider import completion', () => {
 
   it('rejects a staged archive outside the provider-created workspace', async () => {
     const service = new ArpRoCrateImportService(
-      {} as never, {} as never, {} as never, {} as never)
+      {} as never, {} as never, {} as never)
 
     await expect(service.completeProviderImport({
       id: 'arp', title: 'ARP', baseUrl: 'https://repo.example.org', providerId: 'arp',

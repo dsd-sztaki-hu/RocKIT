@@ -130,6 +130,7 @@ describe('Dataverse plugin create export completion', () => {
       f.repository,
       f.collection,
       f.metadata,
+      new Set(['citation']),
       async input => {
         await f.service.handleProviderCreateCheckpoint({
           operationId: input.operationId,
@@ -194,6 +195,7 @@ describe('Dataverse plugin create export completion', () => {
         f.repository,
         f.collection,
         f.metadata,
+        new Set(['citation']),
         async () => interrupted,
       ),
     ).rejects.toThrow('Upload failed')
@@ -211,6 +213,7 @@ describe('Dataverse plugin create export completion', () => {
       repository,
       f.collection,
       f.metadata,
+      new Set(['citation']),
       async () => f.remote,
     )
 

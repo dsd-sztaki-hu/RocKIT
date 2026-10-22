@@ -18,7 +18,6 @@ import { nls } from '@theia/core/lib/common/nls';
 
 import { DataRepositoryConfig } from '../types';
 import { DataRepositorySuccessDialog } from './data-repository-success-dialog';
-import { DataverseService } from '../services/dataverse-service';
 import { RepositoryProviderRegistration } from '../repository-provider-registry';
 import { RepositoryProviderService } from '../repository-provider-service';
 import type { CrosswalkRegistryEntry } from 'crosswalk-manager/lib/browser/crosswalk-manager-types';
@@ -42,7 +41,6 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
     private result: DataRepositoryConfig | undefined;
 
     constructor(
-        private readonly dataverseService: DataverseService,
         private readonly repoToEdit?: DataRepositoryConfig,
         private readonly providers: RepositoryProviderRegistration[] = [],
         private readonly providerService?: RepositoryProviderService,
@@ -92,7 +90,11 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             this.render(); return;
         }
         const selectedProvider = this.providers.find(provider => provider.id === this.providerIdValue);
-        if (!cleanApiKey && (!this.providerIdValue || selectedProvider?.connection?.requiresApiKey)) {
+        if (!this.providerIdValue) {
+            this.errorMsg = nls.localize('rockit/dataRepository/providerRequired', 'Repository Type is required.');
+            this.render(); return;
+        }
+        if (!cleanApiKey && selectedProvider?.connection?.requiresApiKey) {
             this.errorMsg = nls.localize('rockit/dataRepository/tokenRequired', 'API Token is required.');
             this.render(); return;
         }
@@ -118,27 +120,22 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
             title: cleanTitle,
             baseUrl: cleanBaseUrl,
             apiKey: cleanApiKey,
-            ...(this.providerIdValue ? { providerId: this.providerIdValue } : {}),
+            providerId: this.providerIdValue,
             ...(this.crosswalkIdValue ? { crosswalkId: this.crosswalkIdValue } : {})
         };
 
         try {
-            if (this.providerIdValue) {
-                if (!this.providerService) {
-                    throw new Error('The repository provider service is unavailable.');
-                }
-                const result = await this.providerService.executeForRepository<
-                    { repository: DataRepositoryConfig },
-                    { valid?: boolean; expirationDate?: string }
-                >(repository, 'validate', { repository });
-                if (!result?.valid) {
-                    throw new Error('The repository provider did not validate the connection.');
-                }
-                expirationDate = result.expirationDate;
-            } else {
-                const result = await this.dataverseService.validateToken(cleanBaseUrl, cleanApiKey);
-                expirationDate = result.expirationDate;
+            if (!this.providerService) {
+                throw new Error('The repository provider service is unavailable.');
             }
+            const result = await this.providerService.executeForRepository<
+                { repository: DataRepositoryConfig },
+                { valid?: boolean; expirationDate?: string }
+            >(repository, 'validate', { repository });
+            if (!result?.valid) {
+                throw new Error('The repository provider did not validate the connection.');
+            }
+            expirationDate = result.expirationDate;
 
             const successDialog = new DataRepositorySuccessDialog(cleanTitle, expirationDate);
             const confirmed = await successDialog.open();
@@ -253,8 +250,8 @@ export class DataRepositoryConfigDialog extends AbstractDialog<DataRepositoryCon
                                     disabled={this.isTesting}
                                     onChange={(event) => this.changeProvider(event.target.value)}
                                 >
-                                    <option value="">
-                                        {nls.localize('rockit/dataRepository/builtInProvider', 'Built-in automatic detection')}
+                                    <option value="" disabled>
+                                        {nls.localize('rockit/dataRepository/selectProvider', 'Select a repository type')}
                                     </option>
                                     {this.providers.map(provider => (
                                         <option key={provider.id} value={provider.id}>
