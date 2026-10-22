@@ -59,6 +59,12 @@ class DataverseClient {
     )
   }
 
+  downloadDatasetZip(persistentId) {
+    const url = new URL(`${this.baseUrl}/api/access/dataset/:persistentId/`)
+    url.searchParams.set('persistentId', persistentId)
+    return this.downloadBytes(url.toString(), { accept: 'application/zip' })
+  }
+
   replaceFile(fileId, entryPath, content) {
     const normalized = String(entryPath || '')
       .replace(/\\/g, '/')
@@ -213,10 +219,10 @@ class DataverseClient {
     }
   }
 
-  async downloadBytes(url) {
+  async downloadBytes(url, additionalHeaders = {}) {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), this.timeoutMs)
-    const headers = {}
+    const headers = { ...additionalHeaders }
     if (this.token) headers['x-dataverse-key'] = this.token
     try {
       const response = await this.fetchImpl(url, {

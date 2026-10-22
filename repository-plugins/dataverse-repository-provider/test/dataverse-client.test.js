@@ -210,4 +210,27 @@ describe('DataverseClient connection transport', () => {
     assert.deepEqual([...result.bytes], [4, 5])
     assert.equal(result.url, 'https://demo.dataverse.org/api/access/datafile/51')
   })
+
+  it('downloads a Dataverse dataset ZIP for import', async () => {
+    const calls = []
+    const client = new DataverseClient({
+      baseUrl: 'https://demo.dataverse.org',
+      token: 'secret',
+      fetchImpl: async (url, init) => {
+        calls.push({ url, init })
+        return {
+          ok: true, status: 200, url,
+          arrayBuffer: async () => Uint8Array.from([80, 75, 3, 4]).buffer,
+        }
+      },
+    })
+
+    const result = await client.downloadDatasetZip('doi:10.1/example')
+
+    assert.deepEqual([...result.bytes], [80, 75, 3, 4])
+    assert.equal(calls[0].url,
+      'https://demo.dataverse.org/api/access/dataset/:persistentId/?persistentId=doi%3A10.1%2Fexample')
+    assert.equal(calls[0].init.headers.accept, 'application/zip')
+    assert.equal(calls[0].init.headers['x-dataverse-key'], 'secret')
+  })
 })

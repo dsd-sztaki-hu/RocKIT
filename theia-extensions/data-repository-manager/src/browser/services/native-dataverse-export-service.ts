@@ -508,17 +508,33 @@ export class NativeDataverseExportService {
     rootUri: URI,
     repository: DataRepositoryConfig,
     persistentId: string,
+    importedDatasetVersionData?: Record<string, unknown>,
   ): Promise<NativeDataverseImportedLinkResult> {
     const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
-    const datasetVersionData = await this.fetchDatasetVersionDataWithFallback(
-      baseUrl,
-      repository.apiKey,
-      persistentId,
-    )
+    const datasetVersionData = importedDatasetVersionData ??
+      await this.fetchDatasetVersionDataWithFallback(
+        baseUrl,
+        repository.apiKey,
+        persistentId,
+      )
     const metadataUri = rootUri.resolve('ro-crate-metadata.json')
-    const crate = await this.fileService.exists(metadataUri)
+    let crate = await this.fileService.exists(metadataUri)
       ? await this.readRoCrate(metadataUri)
       : undefined
+    const selectedCrosswalk = crate
+      ? await this.readSelectedCrosswalk(repository)
+      : undefined
+    if (crate && selectedCrosswalk) {
+      crate = this.metadataMappingService.applyMetadataBlocksToRoCrate(
+        crate,
+        datasetVersionData,
+        selectedCrosswalk,
+      ).crate
+      await this.fileService.writeFile(
+        metadataUri,
+        BinaryBuffer.fromString(`${JSON.stringify(crate, null, 2)}\n`),
+      )
+    }
     const remoteReferences = this.extractRemoteFileReferences(datasetVersionData)
     const mapping = crate
       ? this.buildEntityIdMapping(crate, [{
@@ -574,7 +590,7 @@ export class NativeDataverseExportService {
       target,
       repository: baseUrl,
       mappingFile: mappingFileName,
-      crosswalkFile: DATAVERSE_CROSSWALK_FILE_NAME,
+      crosswalkFile: repository.crosswalkId ?? DATAVERSE_CROSSWALK_FILE_NAME,
       syncType: 'update',
       status: 'success',
       lastSuccessfulActionAt: new Date().toISOString(),

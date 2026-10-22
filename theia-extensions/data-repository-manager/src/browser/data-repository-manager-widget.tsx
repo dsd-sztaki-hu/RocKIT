@@ -67,7 +67,10 @@ import {
   NativeDataverseDatasetMetadata,
   NativeDataverseExportService,
 } from './services/native-dataverse-export-service'
-import { NativeDataverseImportService } from './services/native-dataverse-import-service'
+import {
+  DataverseProviderImportDownload,
+  NativeDataverseImportService,
+} from './services/native-dataverse-import-service'
 import type {
   DataRepositoryCapabilities,
   DataRepositoryImportProgress,
@@ -259,6 +262,10 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       }
       if (selectedRepo.providerId === 'arp') {
         await this.handlePluginArpImport(selectedRepo, importDialogInput.datasetUrl)
+        return
+      }
+      if (selectedRepo.providerId === 'dataverse') {
+        await this.handlePluginDataverseImport(selectedRepo, importDialogInput.datasetUrl)
         return
       }
       await this.executePluginRepositoryOperation(selectedRepo, 'import', {
@@ -1594,6 +1601,50 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       )
     } catch (error) {
       console.error('ARP plugin import failed:', error)
+      this.messageService.error(
+        nls.localize(
+          'rockit/dataRepository/importFailed',
+          'Dataset import failed: {0}',
+          error instanceof Error ? error.message : String(error),
+        ),
+        { timeout: 10000 },
+      )
+    }
+  }
+
+  protected async handlePluginDataverseImport(
+    repository: DataRepositoryConfig,
+    recordUrl: string,
+  ): Promise<void> {
+    try {
+      const download = await this.providerService.executeForRepository<
+        { repository: DataRepositoryConfig; recordUrl: string },
+        DataverseProviderImportDownload
+      >(repository, 'import', { repository, recordUrl })
+      if (!download) {
+        throw new Error('The Dataverse provider returned no import result.')
+      }
+      const result = await this.nativeImportService.completeProviderImport(
+        repository,
+        download,
+      )
+      if ('cancelled' in result) return
+      const message = result.hasRoCrateMetadata
+        ? nls.localize(
+            'rockit/dataRepository/importedDataset',
+            'Dataset imported to {0}. Extracted {1} file(s).',
+            result.targetDirectory.path.fsPath(),
+            result.extractedFileCount,
+          )
+        : nls.localize(
+            'rockit/dataRepository/importedWithoutMetadata',
+            'Dataverse dataset imported to {0}. Extracted {1} file(s). No ro-crate-metadata.json was included, so the workspace can create one after opening.',
+            result.targetDirectory.path.fsPath(),
+            result.extractedFileCount,
+          )
+      this.messageService.info(message, { timeout: 10000 })
+    } catch (error) {
+      console.error('Dataverse plugin import failed:', error)
       this.messageService.error(
         nls.localize(
           'rockit/dataRepository/importFailed',

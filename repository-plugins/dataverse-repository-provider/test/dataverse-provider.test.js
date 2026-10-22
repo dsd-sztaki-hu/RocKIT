@@ -12,13 +12,14 @@ const {
   deactivateDataverseProvider,
   CREATE_COMMAND,
   DELETE_COMMAND,
+  IMPORT_COMMAND,
   UPDATE_COMMAND,
   SYNC_COMMAND,
   VALIDATE_COMMAND,
 } = require('../src/dataverse-provider')
 
 describe('Dataverse provider command boundary', () => {
-  it('registers create, delete, update, sync and validation operations and unregisters on deactivation', async () => {
+  it('registers create, delete, import, update, sync and validation operations and unregisters on deactivation', async () => {
     const commands = new Map()
     const executions = []
     const vscode = {
@@ -69,9 +70,17 @@ describe('Dataverse provider command boundary', () => {
         operations: {
           create: CREATE_COMMAND,
           delete: DELETE_COMMAND,
+          import: IMPORT_COMMAND,
           update: UPDATE_COMMAND,
           sync: SYNC_COMMAND,
           validate: VALIDATE_COMMAND,
+        },
+        importInput: {
+          kind: 'url',
+          title: 'Import Dataverse Dataset',
+          description: 'Enter a Dataverse dataset persistent ID or dataset URL to import.',
+          placeholder: 'https://demo.dataverse.org/dataset.xhtml?persistentId=doi:...',
+          fieldLabel: 'Dataset PID or URL',
         },
         connection: { requiresApiKey: true },
       },

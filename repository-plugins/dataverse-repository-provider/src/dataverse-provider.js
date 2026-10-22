@@ -7,12 +7,14 @@
 const { DataverseClient } = require('./dataverse-client')
 const { DataverseCreateOperation } = require('./dataverse-create-operation')
 const { DataverseDeleteOperation } = require('./dataverse-delete-operation')
+const { DataverseImportOperation } = require('./dataverse-import-operation')
 const { DataverseUpdateOperation } = require('./dataverse-update-operation')
 const { DataverseSyncOperation } = require('./dataverse-sync-operation')
 
 const PROVIDER_ID = 'dataverse'
 const CREATE_COMMAND = 'rockit.dataverse.create'
 const DELETE_COMMAND = 'rockit.dataverse.delete'
+const IMPORT_COMMAND = 'rockit.dataverse.import'
 const UPDATE_COMMAND = 'rockit.dataverse.update'
 const SYNC_COMMAND = 'rockit.dataverse.sync'
 const VALIDATE_COMMAND = 'rockit.dataverse.validate'
@@ -33,8 +35,21 @@ async function activateDataverseProvider(
   registeredExtensionId = context.extension.id
   const createOperation = new DataverseCreateOperation({ vscode, clientFactory })
   const deleteOperation = new DataverseDeleteOperation({ clientFactory })
+  const importOperation = new DataverseImportOperation({ vscode, clientFactory })
   const updateOperation = new DataverseUpdateOperation({ vscode, clientFactory })
   const syncOperation = new DataverseSyncOperation({ vscode, clientFactory })
+  context.subscriptions.push(
+    vscode.commands.registerCommand(IMPORT_COMMAND, (input) =>
+      vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'Importing Dataverse dataset',
+          cancellable: false,
+        },
+        (progress) => importOperation.execute(input, progress),
+      ),
+    ),
+  )
   context.subscriptions.push(
     vscode.commands.registerCommand(SYNC_COMMAND, (input) =>
       vscode.window.withProgress(
@@ -111,9 +126,17 @@ async function activateDataverseProvider(
     operations: {
       create: CREATE_COMMAND,
       delete: DELETE_COMMAND,
+      import: IMPORT_COMMAND,
       update: UPDATE_COMMAND,
       sync: SYNC_COMMAND,
       validate: VALIDATE_COMMAND,
+    },
+    importInput: {
+      kind: 'url',
+      title: 'Import Dataverse Dataset',
+      description: 'Enter a Dataverse dataset persistent ID or dataset URL to import.',
+      placeholder: 'https://demo.dataverse.org/dataset.xhtml?persistentId=doi:...',
+      fieldLabel: 'Dataset PID or URL',
     },
     connection: { requiresApiKey: true },
   })
@@ -135,6 +158,7 @@ module.exports = {
   PROVIDER_ID,
   CREATE_COMMAND,
   DELETE_COMMAND,
+  IMPORT_COMMAND,
   UPDATE_COMMAND,
   SYNC_COMMAND,
   VALIDATE_COMMAND,

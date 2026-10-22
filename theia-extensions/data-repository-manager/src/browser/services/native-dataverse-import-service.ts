@@ -25,6 +25,16 @@ export interface NativeDataverseImportResult {
   mappingFileName: string
 }
 
+export interface DataverseProviderImportDownload {
+  providerId: 'dataverse'
+  cancelled?: boolean
+  persistentId?: string
+  importedWorkspaceUri?: string
+  archiveUri?: string
+  datasetVersionData?: Record<string, unknown>
+  landingPage?: string
+}
+
 @injectable()
 export class NativeDataverseImportService {
   constructor(
@@ -100,6 +110,55 @@ export class NativeDataverseImportService {
 
     return {
       persistentId,
+      targetDirectory,
+      zipPath,
+      extractedFileCount,
+      hasRoCrateMetadata,
+      mappingFileName: link.mappingFileName,
+    }
+  }
+
+  public async completeProviderImport(
+    repository: DataRepositoryConfig,
+    download: DataverseProviderImportDownload,
+  ): Promise<NativeDataverseImportResult | { cancelled: true }> {
+    if (download.cancelled) return { cancelled: true }
+    if (
+      download.providerId !== 'dataverse' ||
+      !download.persistentId ||
+      !download.importedWorkspaceUri ||
+      !download.archiveUri ||
+      !download.datasetVersionData
+    ) {
+      throw new Error('The Dataverse provider returned an incomplete import download.')
+    }
+    const targetDirectory = new URI(download.importedWorkspaceUri)
+    const zipPath = new URI(download.archiveUri)
+    if (targetDirectory.isEqual(zipPath) || !targetDirectory.isEqualOrParent(zipPath)) {
+      throw new Error('The Dataverse provider returned an import archive outside its workspace.')
+    }
+
+    let extractedFileCount: number
+    try {
+      const archive = await this.fileService.readFile(zipPath)
+      extractedFileCount = await this.extractZip(archive.value.buffer, targetDirectory)
+    } finally {
+      if (await this.fileService.exists(zipPath)) {
+        await this.fileService.delete(zipPath)
+      }
+    }
+    const hasRoCrateMetadata = await this.fileService.exists(
+      targetDirectory.resolve('ro-crate-metadata.json'),
+    )
+    const link = await this.exportService.persistImportedDatasetLink(
+      targetDirectory,
+      repository,
+      download.persistentId,
+      download.datasetVersionData,
+    )
+    this.workspaceService.open(targetDirectory, { preserveWindow: false })
+    return {
+      persistentId: download.persistentId,
       targetDirectory,
       zipPath,
       extractedFileCount,
