@@ -56,7 +56,10 @@ import {
   ArpProviderImportDownload,
   ArpRoCrateImportService,
 } from './services/arp-ro-crate-import-service'
-import { ArpRoCrateLinkService } from './services/arp-ro-crate-link-service'
+import {
+  ArpRoCrateLinkService,
+  DataverseProviderLinkSnapshot,
+} from './services/arp-ro-crate-link-service'
 import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service'
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
 import { DataverseCapabilityService } from './services/dataverse-capability-service'
@@ -433,8 +436,18 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
       })
       let shouldContinue = true
       try {
-        const preview = selectedRepo.providerId
-          ? await this.providerService.executeForRepository<
+        const preview = selectedRepo.providerId === 'dataverse'
+          ? await this.arpLinkService.previewDataverseLinkWithProvider(
+              selectedRepo,
+              linkInput.datasetUrl,
+              input => this.providerService.executeForRepository<
+                Record<string, unknown>, DataverseProviderLinkSnapshot
+              >(
+                selectedRepo, 'link', input,
+              ),
+            )
+          : selectedRepo.providerId
+            ? await this.providerService.executeForRepository<
               { repository: DataRepositoryConfig; datasetUrl: string; mode: 'preview' },
               {
                 localDatasetTitle?: string
@@ -445,8 +458,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               repository: selectedRepo,
               datasetUrl: linkInput.datasetUrl,
               mode: 'preview',
-            })
-          : await this.arpLinkService.previewLocalDatasetLink(
+              })
+            : await this.arpLinkService.previewLocalDatasetLink(
               selectedRepo,
               selectedCapabilities!,
               linkInput.datasetUrl,
@@ -489,8 +502,18 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         ),
       })
       try {
-        const result = selectedRepo.providerId
-          ? await this.providerService.executeForRepository<
+        const result = selectedRepo.providerId === 'dataverse'
+          ? await this.arpLinkService.linkDataverseWithProvider(
+              selectedRepo,
+              linkInput.datasetUrl,
+              input => this.providerService.executeForRepository<
+                Record<string, unknown>, DataverseProviderLinkSnapshot
+              >(
+                selectedRepo, 'link', input,
+              ),
+            )
+          : selectedRepo.providerId
+            ? await this.providerService.executeForRepository<
               { repository: DataRepositoryConfig; datasetUrl: string; mode: 'link' },
               {
                 target: string
@@ -502,8 +525,8 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
               repository: selectedRepo,
               datasetUrl: linkInput.datasetUrl,
               mode: 'link',
-            })
-          : await this.arpLinkService.linkLocalDatasetToRemote(
+              })
+            : await this.arpLinkService.linkLocalDatasetToRemote(
               selectedRepo,
               selectedCapabilities!,
               linkInput.datasetUrl,

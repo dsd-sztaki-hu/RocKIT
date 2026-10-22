@@ -54,6 +54,14 @@ export interface ArpRoCrateLinkPreview {
   titleMismatch: boolean
 }
 
+export interface DataverseProviderLinkSnapshot {
+  providerId: 'dataverse'
+  persistentId: string
+  target: string
+  remoteDatasetTitle?: string
+  remoteFiles: NativeDataverseRemoteFileRecord[]
+}
+
 const EXPORT_LOG_FILE_NAME = 'export-log.json'
 
 @injectable()
@@ -117,6 +125,90 @@ export class ArpRoCrateLinkService {
         this.normalizeTitle(localDatasetTitle) !==
         this.normalizeTitle(state.remoteDatasetTitle),
     }
+  }
+
+  public async previewDataverseLinkWithProvider(
+    repository: DataRepositoryConfig,
+    datasetUrl: string,
+    invokeProvider: (input: Record<string, unknown>) =>
+      Promise<DataverseProviderLinkSnapshot | undefined>,
+  ): Promise<ArpRoCrateLinkPreview> {
+    const rootUri = this.getWorkspaceRoot()
+    const localCrate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
+    const remote = await this.inspectDataverseLinkWithProvider(
+      repository, datasetUrl, invokeProvider,
+    )
+    const localDatasetTitle = this.getRootDatasetName(localCrate)
+    return {
+      pid: remote.persistentId,
+      localDatasetTitle,
+      remoteDatasetTitle: remote.remoteDatasetTitle,
+      titleMismatch:
+        this.normalizeTitle(localDatasetTitle) !==
+        this.normalizeTitle(remote.remoteDatasetTitle),
+    }
+  }
+
+  public async linkDataverseWithProvider(
+    repository: DataRepositoryConfig,
+    datasetUrl: string,
+    invokeProvider: (input: Record<string, unknown>) =>
+      Promise<DataverseProviderLinkSnapshot | undefined>,
+  ): Promise<ArpRoCrateLinkResult> {
+    const rootUri = this.getWorkspaceRoot()
+    const localCrate = await this.readRoCrate(rootUri.resolve('ro-crate-metadata.json'))
+    const remote = await this.inspectDataverseLinkWithProvider(
+      repository, datasetUrl, invokeProvider,
+    )
+    const baseUrl = this.normalizeBaseUrl(repository.baseUrl)
+    const mapping = this.buildNativeDataverseEntityIdMapping(
+      localCrate, remote.remoteFiles,
+    )
+    const mappingFileName =
+      (await this.findExistingMappingFile(rootUri, baseUrl, remote.persistentId)) ??
+      (await this.createUniqueMappingFileName(rootUri))
+    await this.saveEntityIdMapping(rootUri, mappingFileName, mapping)
+    const datasetName = this.getRootDatasetName(localCrate) ?? remote.remoteDatasetTitle
+    await this.appendExportLog(rootUri, {
+      target: remote.target,
+      repository: baseUrl,
+      mappingFile: mappingFileName,
+      syncType: 'update',
+      status: 'success',
+      lastSuccessfulActionAt: new Date().toISOString(),
+      datasetName,
+    })
+    const unmappedEntityIds = Object.entries(mapping)
+      .filter(([, remoteId]) => !remoteId)
+      .map(([localId]) => localId)
+    return {
+      pid: remote.persistentId,
+      target: remote.target,
+      repository: baseUrl,
+      mappingFileName,
+      mappedEntityCount: Object.keys(mapping).length - unmappedEntityIds.length,
+      unmappedEntityIds,
+      datasetName,
+    }
+  }
+
+  protected async inspectDataverseLinkWithProvider(
+    repository: DataRepositoryConfig,
+    datasetUrl: string,
+    invokeProvider: (input: Record<string, unknown>) =>
+      Promise<DataverseProviderLinkSnapshot | undefined>,
+  ): Promise<DataverseProviderLinkSnapshot> {
+    const remote = await invokeProvider({ repository, datasetUrl })
+    if (
+      !remote ||
+      remote.providerId !== 'dataverse' ||
+      !remote.persistentId ||
+      !remote.target ||
+      !Array.isArray(remote.remoteFiles)
+    ) {
+      throw new Error('The Dataverse provider did not return a valid link snapshot.')
+    }
+    return remote
   }
 
   protected async resolveLinkState(

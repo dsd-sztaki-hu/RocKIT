@@ -13,13 +13,14 @@ const {
   CREATE_COMMAND,
   DELETE_COMMAND,
   IMPORT_COMMAND,
+  LINK_COMMAND,
   UPDATE_COMMAND,
   SYNC_COMMAND,
   VALIDATE_COMMAND,
 } = require('../src/dataverse-provider')
 
 describe('Dataverse provider command boundary', () => {
-  it('registers create, delete, import, update, sync and validation operations and unregisters on deactivation', async () => {
+  it('registers create, delete, import, link, update, sync and validation operations and unregisters on deactivation', async () => {
     const commands = new Map()
     const executions = []
     const vscode = {
@@ -71,6 +72,7 @@ describe('Dataverse provider command boundary', () => {
           create: CREATE_COMMAND,
           delete: DELETE_COMMAND,
           import: IMPORT_COMMAND,
+          link: LINK_COMMAND,
           update: UPDATE_COMMAND,
           sync: SYNC_COMMAND,
           validate: VALIDATE_COMMAND,

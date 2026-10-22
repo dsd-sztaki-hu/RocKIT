@@ -32,4 +32,8 @@ RocKIT then applies the chosen merge mode and optional reverse crosswalk locally
 metadata. RocKIT extracts the archive, applies the selected reverse crosswalk, and
 persists the local repository link.
 
+`DataverseLinkOperation` resolves a dataset URL or persistent identifier and returns
+the remote title and file identifiers. RocKIT compares that snapshot with the open
+RO-Crate and owns the resulting `.rockit` mapping and export-log entries.
+
 Run the focused tests with `npm test` in this directory.
