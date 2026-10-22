@@ -6,7 +6,7 @@
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import * as path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { FileUri } from '@theia/core/lib/common/file-uri'
 import type { Page } from '@playwright/test'
 import {
   unexpectedMainProcessErrors,
@@ -45,7 +45,7 @@ test.describe('Electron data-source registration', () => {
 
     const sourcePath = path.join(electronRuntime.paths.home, dataSourceDirectoryName)
     const payloadPath = path.join(sourcePath, payloadName)
-    const sourceUri = pathToFileURL(sourcePath).toString()
+    const sourceUri = FileUri.create(sourcePath).toString()
     await mkdir(sourcePath, { recursive: true })
     await writeFile(payloadPath, payloadContents)
     const originalMetadata = await readFile(testWorkspace.metadataPath, 'utf8')

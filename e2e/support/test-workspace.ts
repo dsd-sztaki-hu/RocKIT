@@ -62,7 +62,7 @@ export const test = base.extend<WorkspaceOptions & WorkspaceFixtures>({
         path: workspacePath,
       })
     } finally {
-      await rm(temporaryRoot, { force: true, recursive: true })
+      await rm(temporaryRoot, { force: true, recursive: true, maxRetries: 5, retryDelay: 200 })
     }
   },
 })

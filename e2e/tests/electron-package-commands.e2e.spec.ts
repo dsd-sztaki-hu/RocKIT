@@ -109,8 +109,10 @@ test.describe('Electron package and native command boundaries', () => {
 
     const expectedPayloadPath = await realpath(path.join(testWorkspace.path, 'data.txt'))
     const interactions = await electronRuntime.readMainProcessInteractions()
-    expect(interactions.showItemInFolder).toEqual([expectedPayloadPath])
-    expect(interactions.openExternal).toEqual([expectedPayloadPath])
+    expect(await Promise.all(interactions.showItemInFolder.map((value) => realpath(value))))
+      .toEqual([expectedPayloadPath])
+    expect(await Promise.all(interactions.openExternal.map((value) => realpath(value))))
+      .toEqual([expectedPayloadPath])
     expect(interactions.saveDialogs).toEqual([])
 
     expect(

@@ -5,7 +5,7 @@
 // ******************************************************************************************
 
 import { type ChildProcess, execFileSync } from 'node:child_process'
-import { cp, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import * as path from 'node:path'
 import type { ElectronApplication, Page, TestInfo, Video } from '@playwright/test'
@@ -34,6 +34,7 @@ const forcedShutdownTimeout = 5_000
 export interface ElectronRuntimePaths {
   electronUserData: string
   home: string
+  plugins: string
   rockitRoot: string
 }
 
@@ -206,7 +207,15 @@ const closeElectronApplication = async (
 
   try {
     await withTimeout(
-      application.close(),
+      Promise.all([
+        application.close(),
+        ...application.windows().map((page) =>
+          // Test workspaces are disposable. Discard only during shutdown,
+          // after persistence assertions and failure artifacts have completed.
+          page.getByRole('button', { name: "Don't Save", exact: true })
+            .click({ timeout: gracefulShutdownTimeout }).catch(() => undefined),
+        ),
+      ]),
       gracefulShutdownTimeout,
       `Electron did not close within ${gracefulShutdownTimeout} ms`,
     )
@@ -382,14 +391,38 @@ const prepareRuntimePaths = async (
   const paths: ElectronRuntimePaths = {
     electronUserData: path.join(sessionRoot, 'electron-user-data'),
     home: path.join(sessionRoot, 'home'),
+    plugins: path.join(sessionRoot, 'plugins'),
     rockitRoot: path.join(sessionRoot, 'rockit-root'),
   }
 
   await Promise.all([
     mkdir(paths.electronUserData, { recursive: true }),
     mkdir(paths.home, { recursive: true }),
+    mkdir(paths.plugins, { recursive: true }),
     mkdir(paths.rockitRoot, { recursive: true }),
   ])
+
+  // Only load plugins declared by this checkout. The shared download directory
+  // can retain incompatible plugins after switching branches.
+  const packageJson = JSON.parse(
+    await readFile(path.join(repositoryRoot, 'package.json'), 'utf8'),
+  ) as { theiaPlugins: Record<string, string>; theiaPluginsDir: string }
+  await Promise.all(Object.keys(packageJson.theiaPlugins).map(async (pluginId) => {
+    const source = path.join(repositoryRoot, packageJson.theiaPluginsDir, pluginId)
+    if (!(await stat(source).catch(() => undefined))?.isDirectory()) {
+      throw new Error(`Missing E2E plugin ${pluginId}. Run yarn download:plugins first.`)
+    }
+    await cp(source, path.join(paths.plugins, pluginId), { recursive: true })
+  }))
+
+  if (process.platform === 'win32') {
+    // Electron needs these redirected system folders during early startup,
+    // before Theia handles the --electronUserData argument.
+    await Promise.all([
+      mkdir(path.join(paths.home, 'AppData', 'Roaming'), { recursive: true }),
+      mkdir(path.join(paths.home, 'AppData', 'Local'), { recursive: true }),
+    ])
+  }
 
   if (fixtureName) {
     const fixturePath = path.resolve(rockitRuntimeFixtureDirectory, fixtureName)
@@ -415,6 +448,9 @@ const prepareRuntimePaths = async (
       {
         'rockit.splash.showAtStartup': false,
         'rockit.updates.notifyAtStartup': false,
+        // Match Electron's initial style so Theia does not edit settings.json
+        // during startup and leave that preference change on its undo stack.
+        'window.titleBarStyle': process.platform === 'win32' ? 'custom' : 'native',
         ...(externalChangeAction
           ? { 'rockit.roCrate.externalChangeAction': externalChangeAction }
           : {}),
@@ -441,6 +477,8 @@ const launchEnvironment = (paths: ElectronRuntimePaths): Record<string, string> 
     XDG_DATA_HOME: path.join(paths.home, '.local', 'share'),
   })
   delete environment.ELECTRON_RUN_AS_NODE
+  delete environment.THEIA_DEFAULT_PLUGINS
+  delete environment.THEIA_PLUGINS
   return environment
 }
 
@@ -463,6 +501,7 @@ const launchElectronSession = async ({
         electronMainPath,
         testWorkspacePath,
         `--electronUserData=${paths.electronUserData}`,
+        `--plugins=local-dir:${paths.plugins}`,
       ],
       artifactsDir: artifactDirectory,
       cwd: repositoryRoot,
@@ -722,7 +761,7 @@ export const test = workspaceTest.extend<ElectronOptions & ElectronFixtures>({
     await attachVideos(videos, testInfo).catch((error) => {
       teardownError ??= error
     })
-    await rm(runtimeRoot, { force: true, recursive: true }).catch((error) => {
+    await rm(runtimeRoot, { force: true, recursive: true, maxRetries: 5, retryDelay: 200 }).catch((error) => {
       teardownError ??= error
     })
 

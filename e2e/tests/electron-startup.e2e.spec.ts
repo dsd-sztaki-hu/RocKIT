@@ -34,7 +34,10 @@ test.describe('Electron startup', () => {
     await expect(rockit.editor.property('@type')).toContainText('Dataset')
     await expect(rockit.editor.propertyInput('name')).toHaveValue('RocKIT E2E Fixture')
 
-    expect(decodeURI(appPage.url())).toContain(testWorkspace.path)
+    const workspaceUrlPath = testWorkspace.path
+      .replaceAll('\\', '/')
+      .replace(/^([A-Z]):/, (_match, drive: string) => `${drive.toLowerCase()}:`)
+    expect(decodeURI(appPage.url())).toContain(workspaceUrlPath)
     expect(electronApp.process().exitCode).toBeNull()
 
     expect(

@@ -52,6 +52,19 @@ Electron E2E tests use Playwright and require a built application:
     yarn build:electron
     yarn test:e2e
 
+The E2E commands install Playwright's FFmpeg executable for video recording
+automatically. The first run needs network access; subsequent runs reuse the
+cached executable. A missing FFmpeg executable can leave Electron's window blank.
+
+E2E sessions load only the plugins declared in this checkout's `package.json`,
+copied into a temporary plugin directory. Extra plugins left in `plugins/` by
+another branch are excluded so they cannot affect the tests.
+
+History workflows select Undo and Redo through the command palette so the tests
+work with keyboard layouts such as Hungarian QWERTZ. During test shutdown,
+unsaved changes in temporary workspaces are discarded after assertions and
+failure artifacts have completed.
+
 Use `yarn test:all` for unit, integration, MCP, and crosswalk tests. It does not
 run Electron E2E tests. CI runs the test layers in separate jobs and uploads
 coverage or Playwright failure artifacts. Crosswalk checks require an explicit

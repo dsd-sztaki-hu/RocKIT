@@ -130,19 +130,25 @@ export class RocKitRoCrateEditor {
   }
 
   async undo(): Promise<void> {
-    await this.focusHistoryTarget()
-    await this.page.keyboard.press(process.platform === 'darwin' ? 'Meta+Z' : 'Control+Z')
+    await this.runHistoryCommand('Undo')
   }
 
   async redo(): Promise<void> {
-    await this.focusHistoryTarget()
-    await this.page.keyboard.press(
-      process.platform === 'darwin' ? 'Meta+Shift+Z' : 'Control+Shift+Z',
-    )
+    await this.runHistoryCommand('Redo')
   }
 
-  private async focusHistoryTarget(): Promise<void> {
+  private async runHistoryCommand(command: 'Undo' | 'Redo'): Promise<void> {
     await this.button('Schemas').focus()
+    // Physical shortcut keys can resolve to a different command on layouts
+    // such as Hungarian QWERTZ. Select the intended command through the UI.
+    await this.page.keyboard.press('F1')
+    const palette = this.page.locator('.quick-input-widget')
+    await palette.waitFor({ state: 'visible' })
+    await palette.locator('.monaco-inputbox .input').fill(`>${command}`)
+    await palette.locator('.monaco-list-row').filter({
+      has: this.page.getByText(command, { exact: true }),
+    }).first().click()
+    await palette.waitFor({ state: 'hidden' })
   }
 
   async openAddProperty(): Promise<Locator> {
