@@ -9,6 +9,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { execFileSync, spawn } = require('node:child_process')
+const { sync: spawnSync } = require('cross-spawn')
 
 const packageRoot = path.resolve(__dirname, '..')
 const standaloneRoot = path.join(packageRoot, 'dist', 'npm')
@@ -57,6 +58,17 @@ const npmEnvironment = {
   NPM_CONFIG_LOGS_DIR: path.join(temporaryRoot, 'npm-logs'),
 }
 
+function runNpm(args, env = npmEnvironment) {
+  const result = spawnSync('npm', args, {
+    cwd: packageRoot,
+    encoding: 'utf8',
+    env,
+  })
+  if (result.error) throw result.error
+  assert.equal(result.status, 0, result.stderr || `npm stopped by ${result.signal}`)
+  return result.stdout
+}
+
 function waitForOutput(child, pattern) {
   return new Promise((resolve, reject) => {
     let output = ''
@@ -99,14 +111,8 @@ function waitForExit(child) {
 async function run() {
   let daemon
   try {
-    const packOutput = execFileSync(
-      'npm',
+    const packOutput = runNpm(
       ['pack', '--json', '--pack-destination', temporaryRoot, standaloneRoot],
-      {
-        cwd: packageRoot,
-        encoding: 'utf8',
-        env: npmEnvironment,
-      },
     )
     const packReport = JSON.parse(packOutput)[0]
     assert.ok(
@@ -145,13 +151,9 @@ async function run() {
       },
     )
     await waitForOutput(daemon, `listening on ${socketPath}`)
-    execFileSync('npm', ['install', '--offline', '--prefix', installRoot, tarballPath], {
-      cwd: packageRoot,
-      encoding: 'utf8',
-      env: {
-        ...npmEnvironment,
-        ROCKIT_ROCRATE_MCP_SOCKET_PATH: socketPath,
-      },
+    runNpm(['install', '--offline', '--prefix', installRoot, tarballPath], {
+      ...npmEnvironment,
+      ROCKIT_ROCRATE_MCP_SOCKET_PATH: socketPath,
     })
     assert.equal(await waitForExit(daemon), 0)
 

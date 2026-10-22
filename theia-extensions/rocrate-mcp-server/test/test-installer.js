@@ -24,7 +24,9 @@ const {
 const launchConfig = getInstallLaunchConfig()
 const expectedSocketPath =
   process.env.ROCKIT_ROCRATE_MCP_SOCKET_PATH ||
-  path.join(os.homedir(), '.rockit', 'rocrate-mcp-server.sock')
+  (process.platform === 'win32'
+    ? `\\\\.\\pipe\\rockit-rocrate-mcp-${process.env.USERNAME ?? 'user'}`
+    : path.join(os.homedir(), '.rockit', 'rocrate-mcp-server.sock'))
 const expectedCommand = process.env.ROCRATE_MCP_INSTALL_COMMAND || 'rocrate-mcp-server'
 const expectedLocale = process.env.ROCRATE_DASHBOARD_LOCALE || 'en'
 
@@ -50,8 +52,10 @@ const toml = upsertTomlMcpConfig(
   launchConfig,
 )
 assert.match(toml, /\[mcp_servers\.other\]/)
-assert.match(toml, /command = "rocrate-mcp-server"/)
-assert.match(toml, /args = \["--connect", ".*rocrate-mcp-server\.sock"\]/)
+assert.ok(toml.includes(`command = ${JSON.stringify(expectedCommand)}`))
+const tomlArgs = toml.match(/^args = (\[.*\])$/m)
+assert.ok(tomlArgs, 'TOML config should include connection arguments')
+assert.deepEqual(JSON.parse(tomlArgs[1]), ['--connect', expectedSocketPath])
 assert.match(toml, /\[mcp_servers\.rocrate\.tools\.search\]/)
 assert.doesNotMatch(toml, /command = "old"/)
 
@@ -65,11 +69,11 @@ const json = JSON.parse(
 )
 assert.equal(json.existing, true)
 assert.deepEqual(json.mcpServers.rocrate, {
-  command: 'rocrate-mcp-server',
+  command: expectedCommand,
   args: ['--connect', expectedSocketPath],
   env: {
     ROCRATE_MCP_DEFAULT_MODE: 'local',
-    ROCRATE_DASHBOARD_LOCALE: 'en',
+    ROCRATE_DASHBOARD_LOCALE: expectedLocale,
   },
 })
 
@@ -78,7 +82,7 @@ const opencodeSection = JSON.parse(
   buildMcpConfigSection({ id: 'opencode', configKind: 'json' }, launchConfig),
 )
 assert.deepEqual(opencode.mcp.rocrate.command, [
-  'rocrate-mcp-server',
+  expectedCommand,
   '--connect',
   expectedSocketPath,
 ])
@@ -108,7 +112,9 @@ assert.equal(prepared.currentContent, '')
 assert.equal(prepared.changed, true)
 assert.equal(prepared.updatedContent, upsertTomlMcpConfig('', launchConfig))
 assert.equal(installMcpConfig(codex, launchConfig).changed, true)
-assert.match(fs.readFileSync(codex.configPath, 'utf8'), /command = "rocrate-mcp-server"/)
+assert.ok(
+  fs.readFileSync(codex.configPath, 'utf8').includes(`command = ${JSON.stringify(expectedCommand)}`),
+)
 assert.equal(installMcpConfig(codex, launchConfig).changed, false)
 fs.rmSync(tempHome, { recursive: true, force: true })
 
