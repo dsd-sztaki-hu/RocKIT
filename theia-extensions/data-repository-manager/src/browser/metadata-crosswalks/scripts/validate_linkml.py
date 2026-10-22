@@ -76,6 +76,8 @@ def execute_example() -> dict[str, Any]:
     session.set_source_schema(SOURCE_SCHEMA)
     session.set_object_transformer(TRANSFORM)
     actual = without_none(session.transform(source))
+    if "imprint_publisher" in actual:
+        raise AssertionError("An unverified imprint publisher must be omitted, even when producer is present.")
 
     differences = {
         key: {"expected": expected_value, "actual": actual.get(key)}

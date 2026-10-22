@@ -75,6 +75,13 @@ the installed LinkML-Map library and executes the example transformation in
 present with `repositorySpecific` (or another explicit unmapped status) and
 an explanation. It is never silently discarded.
 
+For an intentionally unmapped field, use an empty `canonicalCandidates` list,
+an `unmappedReason`, and `onMissing: { action: "omit" }`. Its LinkML slot uses
+`expr: None` so an unrelated source cannot populate it. For example,
+`imprint_publisher` is omitted because a dataset producer is not a verified
+publication imprint publisher. New fields still require a reviewed decision;
+they are not automatically paired with a similarly named source.
+
 The LinkML files model the portable, declarative part of the mapping using the
 real LinkML-Map `TransformationSpecification`, `class_derivations`, and
 `slot_derivations` models. Generation stops unless LinkML-Map reports that
@@ -341,12 +348,14 @@ Transformations are arrays and must be applied in their listed order. For
 example:
 
 ```json
-"transform": [
-  { "operation": "omitEmpty" },
-  { "operation": "omitValues", "values": ["./", "."] },
-  { "operation": "trim" },
-  { "operation": "first" }
-]
+{
+  "transform": [
+    { "operation": "omitEmpty" },
+    { "operation": "omitValues", "values": ["./", "."] },
+    { "operation": "trim" },
+    { "operation": "first" }
+  ]
+}
 ```
 
 This means:

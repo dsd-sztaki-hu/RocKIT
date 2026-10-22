@@ -35,7 +35,12 @@ Run tests from the repository root:
     yarn test:integration
     yarn test:integration --coverage
     yarn test:integration:mcp
+
+For the crosswalk tests Python dependency is required, yarn doesn’t install Python dependencies. Below is how to run the tests using virtual environment:
+          
+    .\.venv-crosswalk\Scripts\Activate.ps1
     yarn test:crosswalk
+    deactivate
 
 Unit tests cover isolated logic and components. Integration tests cover RocKIT
 workflows and filesystem boundaries; the MCP command runs its existing protocol
@@ -49,9 +54,9 @@ Electron E2E tests use Playwright and require a built application:
 
 Use `yarn test:all` for unit, integration, MCP, and crosswalk tests. It does not
 run Electron E2E tests. CI runs the test layers in separate jobs and uploads
-coverage or Playwright failure artifacts. The known Zenodo `imprint_publisher`
-crosswalk failure is currently a CI warning; other crosswalk failures stop the
-job.
+coverage or Playwright failure artifacts. Crosswalk checks require an explicit
+decision for every target field, including an omission with a reason when no
+verified equivalent exists. Crosswalk failures stop the job.
 
 ## Building and packaging the standalone RO-Crate MCP server
 
