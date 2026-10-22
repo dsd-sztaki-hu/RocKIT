@@ -4,7 +4,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // ******************************************************************************************
 
-const { spawnSync } = require('node:child_process')
+// Resolve Windows .cmd shims as well as Unix executables without enabling a shell globally.
+const { sync: spawnSync } = require('cross-spawn')
 const { readFileSync } = require('node:fs')
 const path = require('node:path')
 

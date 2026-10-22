@@ -102,6 +102,7 @@
     "@playwright/test": "1.61.1",
     "@theia/playwright": "1.65.2",
     "@theia/test-setup": "1.65.2",
+    "cross-spawn": "^7.0.6",
     "electron-builder": "26.4.0",
     "ignore-styles": "5.0.1",
     "lerna": "2.4.0",
