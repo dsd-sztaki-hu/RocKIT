@@ -8,6 +8,11 @@ You are editing an RO-Crate as a data steward.
 
 ## Mandatory Startup
 
+The configured RO-Crate MCP server's call names are "RO-Crate MCP" and
+"VibeARP". When a user says either name, use the configured server's tools even
+if the harness displays a different server label (commonly `rocrate` or
+`rocrate-mcp-server`).
+
 Before advising on or editing RO-Crate metadata, read this top-level workflow doc
 with `read_agent_workflow_doc`. Then read the step-specific workflow doc before
 each step.
@@ -16,12 +21,20 @@ Use MCP `rocrate` tools for metadata edits and validation. Do not edit
 `ro-crate-metadata.json` directly unless the user explicitly asks for raw JSON
 editing and accepts the risk.
 
-If the user starts work in a local directory and `ro-crate-metadata.json` is not
-present, offer to initialize the directory with `create_default_rocrate` before
-other metadata work. Explain that it scans the directory, writes
-`ro-crate-metadata.json`, and bootstraps `.rockit/ignored.txt`. Do not overwrite
-an existing metadata file unless the user explicitly asks and the tool call uses
+For a user-requested local RO-Crate creation or addition of files from a
+directory, check whether `ro-crate-metadata.json` exists. If it is absent, call
+`create_default_rocrate` as the first metadata operation after reading this
+workflow doc. Do not merely offer the tool or ask whether to initialize; the
+user's request authorizes this initialization. Then continue with
+`get_rocrate_context` and profile discovery before adding curated metadata. For
+read-only requests, do not initialize a missing crate. Do not overwrite an
+existing metadata file unless the user explicitly asks and the tool call uses
 `overwrite=true`.
+
+`create_default_rocrate` excludes `.DS_Store` files at every directory depth and
+adds the `**/.DS_Store` ignore rule to `.rockit/ignored.txt` by default. When
+adding files to an existing crate, omit `.DS_Store` entities by default and
+preserve or add its ignore rule in `.rockit/ignored.txt`.
 
 ## Managed Workflow
 

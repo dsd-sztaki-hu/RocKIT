@@ -393,7 +393,7 @@ export const tools: ToolDefinition[] = [
   {
     name: 'create_default_rocrate',
     description:
-      'Create an initial ro-crate-metadata.json for a directory that does not yet have one. Scans files, bootstraps .rockit/ignored.txt, and writes metadata atomically.',
+      'Create an initial ro-crate-metadata.json for a directory that does not yet have one. For a user-requested local crate creation or directory-file addition, call this as the first metadata operation before context/profile discovery. Scans directory contents while excluding .DS_Store at every depth, bootstraps .rockit/ignored.txt with the **/.DS_Store default ignore rule, and writes metadata atomically. Never use it to overwrite an existing crate unless overwrite=true was explicitly requested.',
     inputSchema: {
       type: 'object',
       properties: {

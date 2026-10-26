@@ -14,6 +14,11 @@ You are editing an RO-Crate as a data steward.
 
 ## Mandatory Startup
 
+The configured RO-Crate MCP server's call names are "RO-Crate MCP" and
+"VibeARP". When a user says either name, use the configured server's tools even
+if the harness displays a different server label (commonly \`rocrate\` or
+\`rocrate-mcp-server\`).
+
 Before advising on or editing RO-Crate metadata, read this top-level workflow doc
 with \`read_agent_workflow_doc\`. Then read the step-specific workflow doc before
 each step.
@@ -22,12 +27,20 @@ Use MCP \`rocrate\` tools for metadata edits and validation. Do not edit
 \`ro-crate-metadata.json\` directly unless the user explicitly asks for raw JSON
 editing and accepts the risk.
 
-If the user starts work in a local directory and \`ro-crate-metadata.json\` is not
-present, offer to initialize the directory with \`create_default_rocrate\` before
-other metadata work. Explain that it scans the directory, writes
-\`ro-crate-metadata.json\`, and bootstraps \`.rockit/ignored.txt\`. Do not overwrite
-an existing metadata file unless the user explicitly asks and the tool call uses
+For a user-requested local RO-Crate creation or addition of files from a
+directory, check whether \`ro-crate-metadata.json\` exists. If it is absent, call
+\`create_default_rocrate\` as the first metadata operation after reading this
+workflow doc. Do not merely offer the tool or ask whether to initialize; the
+user's request authorizes this initialization. Then continue with
+\`get_rocrate_context\` and profile discovery before adding curated metadata. For
+read-only requests, do not initialize a missing crate. Do not overwrite an
+existing metadata file unless the user explicitly asks and the tool call uses
 \`overwrite=true\`.
+
+\`create_default_rocrate\` excludes \`.DS_Store\` files at every directory depth and
+adds the \`**/.DS_Store\` ignore rule to \`.rockit/ignored.txt\` by default. When
+adding files to an existing crate, omit \`.DS_Store\` entities by default and
+preserve or add its ignore rule in \`.rockit/ignored.txt\`.
 
 ## Managed Workflow
 
@@ -173,7 +186,11 @@ These rules are mandatory for RO-Crate metadata quality.
 Always follow this sequence when curating RO-Crate metadata:
 
 0. Use MCP \`rocrate\` tools for metadata edits and validation. Do not edit JSON directly.
-1. Call \`get_rocrate_context\` before any edit.
+1. If the user requested local crate creation or adding files from a directory
+   and \`ro-crate-metadata.json\` is absent, call \`create_default_rocrate\` first.
+   This initializes the requested crate; do not stop to ask whether to do it.
+   Then call \`get_rocrate_context\`. For an existing crate, call
+   \`get_rocrate_context\` before any edit.
    In local mode this must be treated as a profile-resolution step as well as a context read.
    If the crate already contains \`conformsTo\` URLs, do not proceed until the corresponding
    profiles have been downloaded into the local profile store or the resolution failure
@@ -196,7 +213,9 @@ Always follow this sequence when curating RO-Crate metadata:
      locally,
    - do not collapse the list to only the profile you recommend,
    - if one profile seems best, mark it as recommended while still listing the other available profiles,
-   - offer a numbered menu in this order: all listed local profiles and remote templates first, then "provide another metadata profile URL", then "continue without a profile",
+   - show the choices in the visible chat message as a clearly formatted Markdown menu, not only in tool output or collapsed details. Use a numbered list with one selectable profile/template per item; do not combine choices into a comma-separated paragraph.
+   - group local profiles and remote CEDAR templates under separate short headings. Include each local profile's name, version, and \`conformsTo\` URL. For each remote leaf template, show its provider/folder path and template name; keep each choice on its own numbered line. Mark a recommendation inline without hiding other choices.
+   - offer a numbered menu in this order: all listed local profiles and remote templates first, then "provide another metadata profile URL", then "continue without a profile". End with a direct prompt such as "Reply with the number of your choice." Keep the numbering continuous across groups.
    - stop and wait for the user's choice before planning fields, searching the web, or writing metadata,
    - for an already-downloaded local profile, call \`update_profile_conforms_to\`
      with its \`conformsTo\` URL after the user chooses it,
