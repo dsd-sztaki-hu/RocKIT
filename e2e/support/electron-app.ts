@@ -20,7 +20,9 @@ const rockitRuntimeFixtureDirectory = path.resolve(
   'fixtures',
   'rockit-runtime',
 )
-const electronMainPath = path.join(
+const electronMainPath = process.env.ROCKIT_E2E_ELECTRON_MAIN
+  ? path.resolve(repositoryRoot, process.env.ROCKIT_E2E_ELECTRON_MAIN)
+  : path.join(
   repositoryRoot,
   'electron-app',
   'lib',
@@ -448,6 +450,8 @@ const prepareRuntimePaths = async (
       {
         'rockit.splash.showAtStartup': false,
         'rockit.updates.notifyAtStartup': false,
+        // Tests use generated local fixtures and an isolated user configuration.
+        'security.workspace.trust.enabled': false,
         // Match Electron's initial style so Theia does not edit settings.json
         // during startup and leave that preference change on its undo stack.
         'window.titleBarStyle': process.platform === 'win32' ? 'custom' : 'native',
@@ -479,6 +483,9 @@ const launchEnvironment = (paths: ElectronRuntimePaths): Record<string, string> 
   delete environment.ELECTRON_RUN_AS_NODE
   delete environment.THEIA_DEFAULT_PLUGINS
   delete environment.THEIA_PLUGINS
+  if (environment.FORCE_COLOR !== undefined) {
+    delete environment.NO_COLOR
+  }
   return environment
 }
 
@@ -540,6 +547,10 @@ const launchElectronSession = async ({
 
     return { application, artifactDirectory, page, paths }
   } catch (error) {
+    await writeFile(
+      path.join(artifactDirectory, 'launch-diagnostics.json'),
+      JSON.stringify(diagnostics, null, 2),
+    ).catch(() => undefined)
     if (application) {
       await closeElectronApplication(application).catch(() => undefined)
     }

@@ -19,12 +19,12 @@ const nodeGypPackageRoot = path.dirname(
     paths: [projectRoot],
   }),
 )
-const ripgrepPackagePath = require.resolve('@vscode/ripgrep/package.json', {
+// Ripgrep 1.18+ ships its executable in a platform-specific optional package.
+const ripgrepExecutable = process.platform === 'win32' ? 'rg.exe' : 'rg'
+const ripgrepPlatformPackage = `@vscode/ripgrep-${process.platform}-${process.arch}`
+const ripgrepBinaryPath = require.resolve(`${ripgrepPlatformPackage}/bin/${ripgrepExecutable}`, {
   paths: [projectRoot],
 })
-const ripgrepPackageRoot = path.dirname(ripgrepPackagePath)
-const ripgrepExecutable = process.platform === 'win32' ? 'rg.exe' : 'rg'
-const ripgrepBinaryPath = path.join(ripgrepPackageRoot, 'bin', ripgrepExecutable)
 
 const getPlatformExecutable = (platform) => {
   switch (platform) {
@@ -114,30 +114,9 @@ const ensureRipgrepBinary = () => {
     return
   }
 
-  console.log('@vscode/ripgrep binary is missing; installing it now...')
-  const installResult = spawnSync(
-    process.execPath,
-    [path.join(ripgrepPackageRoot, 'lib', 'postinstall.js'), '--force'],
-    {
-      cwd: ripgrepPackageRoot,
-      env: process.env,
-      stdio: 'inherit',
-    },
+  throw new Error(
+    `Ripgrep executable is missing from ${ripgrepPlatformPackage}. Re-run yarn install with optional dependencies enabled.`,
   )
-
-  if (installResult.error) {
-    throw new Error(
-      `Failed to run the @vscode/ripgrep installer: ${installResult.error.message}`,
-    )
-  }
-
-  if (installResult.status !== 0 || !hasRipgrepBinary()) {
-    throw new Error(
-      'The @vscode/ripgrep binary could not be installed. Check network access and proxy settings.',
-    )
-  }
-
-  console.log('@vscode/ripgrep binary is ready.')
 }
 
 const canLoadFfmpegAddon = () => {

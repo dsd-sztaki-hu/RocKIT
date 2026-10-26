@@ -6,7 +6,7 @@
 
 import * as React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { TreeView } from '@mui/x-tree-view/TreeView';
+import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -243,7 +243,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
         nodes.map((node) => (
             <TreeItem
                 key={node.id}
-                nodeId={node.id}
+                itemId={node.id}
                 label={
                     <div 
                         className={`dataverse-tree__node${props.selectedCollectionId === node.id ? ' dataverse-tree__node--selected' : ''}`}
@@ -286,7 +286,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                         ? renderTree(node.children)
                         : (
                             <TreeItem
-                                nodeId={`${node.id}::__loading-placeholder`}
+                                itemId={`${node.id}::__loading-placeholder`}
                                 label={loadingNodeIds.has(node.id)
                                     ? (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' }}>
@@ -365,12 +365,11 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                     <div className="dataverse-tree__empty">{nls.localize('rockit/dataRepository/noMatchingCollections', 'No matching collections found.')}</div>
                 )}
                 {visibleNodes.length > 0 && (
-                    <TreeView
-                        defaultCollapseIcon={<ExpandMoreIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
-                        defaultExpandIcon={<ChevronRightIcon style={{ color: 'var(--theia-icon-foreground)' }} />}
-                        expanded={searchQuery ? [] : expandedNodes}
-                        onNodeToggle={searchQuery ? undefined : handleToggle}
-                        selected={props.selectedCollectionId ?? ''}
+                    <SimpleTreeView
+                        slots={{ collapseIcon: ExpandMoreIcon, expandIcon: ChevronRightIcon }}
+                        expandedItems={searchQuery ? [] : expandedNodes}
+                        onExpandedItemsChange={searchQuery ? undefined : handleToggle}
+                        selectedItems={props.selectedCollectionId ?? ''}
                         sx={{
                             flexGrow: 1,
                             overflowY: 'auto',
@@ -381,7 +380,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                         }}
                     >
                         {renderedTree}
-                    </TreeView>
+                    </SimpleTreeView>
                 )}
             </div>
         </div>

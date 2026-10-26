@@ -11,7 +11,7 @@
     "url": "https://dsd.sztaki.hu"
   },
   "dependencies": {
-    "@theia/core": "1.65.2",
+    "@theia/core": "1.76.0",
     "react-grab": "^0.0.53"
   },
   "files": [
@@ -20,7 +20,7 @@
   ],
   "devDependencies": {
     "rimraf": "^5.0.0",
-    "typescript": "~5.4.5"
+    "typescript": "~5.9.3"
   },
   "scripts": {
     "clean": "rimraf lib",

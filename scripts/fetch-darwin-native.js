@@ -8,7 +8,7 @@
 //
 // Only RUNTIME prebuilt families (which ship in the app) are arch-managed. Build-tooling
 // prebuilts (esbuild/rollup/@tailwindcss/...) stay at host arch because they execute during
-// the build itself. ripgrep's bin/rg is made universal (fat) once so it works on any arch.
+// the build itself. The bundled ripgrep executable is made universal for both arches.
 
 const fs = require('fs')
 const https = require('https')
@@ -121,48 +121,49 @@ async function ensureRuntimeFamily(family, target) {
   }
 }
 
-// @vscode/ripgrep ships a single bin/rg for the host arch. Make it universal (fat) once so
-// it runs regardless of which arch we are building.
+// Theia's esbuild bundle carries a copy of ripgrep under lib/backend/native.
+// Make that executable universal as well as the host package's source binary.
 async function ensureRipgrepUniversal() {
-  const rgDir = path.join(nodeModules, '@vscode', 'ripgrep')
-  const rgBin = path.join(rgDir, 'bin', 'rg')
-  if (!fs.existsSync(rgBin)) {
-    log('@vscode/ripgrep not found; skipping ripgrep step')
-    return
+  const rgPackage = readJson(path.join(nodeModules, '@vscode', 'ripgrep', 'package.json'))
+  const binaries = []
+  for (const arch of ARCHES) {
+    const name = `@vscode/ripgrep-darwin-${arch}`
+    const packageDir = path.join(nodeModules, name)
+    const binary = path.join(packageDir, 'bin', 'rg')
+    if (!fs.existsSync(binary)) {
+      const version = rgPackage.optionalDependencies[name]
+      if (!version) throw new Error(`${name} is not declared by @vscode/ripgrep`)
+      const archive = path.join(os.tmpdir(), `ripgrep-darwin-${arch}-${version}.tgz`)
+      await download(`${registry}/${name}/-/ripgrep-darwin-${arch}-${version}.tgz`, archive)
+      fs.mkdirSync(packageDir, { recursive: true })
+      execFileSync('tar', ['-xzf', archive, '--strip-components', '1', '-C', packageDir], { stdio: 'inherit' })
+      fs.unlinkSync(archive)
+    }
+    binaries.push(binary)
   }
-
-  const archs = lipoArchs(rgBin)
-  if (archs.has('x86_64') && archs.has('arm64')) {
-    log('ripgrep bin/rg already universal, skipping')
-    return
+  const hostBinary = binaries[ARCHES.indexOf(process.arch)]
+  const archs = lipoArchs(hostBinary)
+  if (!archs.has('x86_64') || !archs.has('arm64')) {
+    const fatDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rockit-rg-'))
+    const fatBinary = path.join(fatDir, 'rg')
+    execFileSync('lipo', ['-create', ...binaries, '-output', fatBinary], { stdio: 'inherit' })
+    fs.copyFileSync(fatBinary, hostBinary)
+    fs.unlinkSync(fatBinary)
+    fs.rmdirSync(fatDir)
   }
-  const missingArch = archs.has('arm64') ? 'x64' : 'arm64'
-  const target = missingArch === 'x64' ? 'x86_64-apple-darwin' : 'aarch64-apple-darwin'
+  const stagedBinary = path.join(workspaceRoot, 'electron-app', 'lib', 'backend', 'native', 'rg')
+  fs.mkdirSync(path.dirname(stagedBinary), { recursive: true })
+  fs.copyFileSync(hostBinary, stagedBinary)
+  fs.chmodSync(stagedBinary, 0o755)
+  log('staged universal ripgrep in the esbuild backend')
+}
 
-  const postinstall = fs.readFileSync(path.join(rgDir, 'lib', 'postinstall.js'), 'utf8')
-  const versionMatch = postinstall.match(/const VERSION = ['"]([^'"]+)['"]/)
-  const version = versionMatch ? versionMatch[1] : 'v15.0.1'
-  const asset = `ripgrep-${version}-${target}.tar.gz`
-  const tarballUrl = `https://github.com/microsoft/ripgrep-prebuilt/releases/download/${version}/${asset}`
-  const tmpTar = path.join(os.tmpdir(), asset)
-
-  log(`downloading ${asset} to make bin/rg universal`)
-  await download(tarballUrl, tmpTar)
-
-  const extractDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rg-'))
-  execFileSync('tar', ['-xzf', tmpTar, '-C', extractDir], { stdio: 'inherit' })
-  fs.unlinkSync(tmpTar)
-
-  const rgOther = findFile(extractDir, 'rg')
-  if (!rgOther) throw new Error("'rg' binary not found in ripgrep archive")
-
-  const fatTmp = path.join(os.tmpdir(), 'rg.fat')
-  execFileSync('lipo', ['-create', rgBin, rgOther, '-output', fatTmp], { stdio: 'inherit' })
-  fs.copyFileSync(fatTmp, rgBin)
-  fs.unlinkSync(fatTmp)
-  fs.rmSync(extractDir, { recursive: true, force: true })
-  fs.chmodSync(rgBin, 0o755)
-  log(`ripgrep bin/rg is now universal (${[...lipoArchs(rgBin)].join(' ')})`)
+function stageNodePtyPrebuilds(target) {
+  const dist = `darwin-${target}`
+  const source = path.join(nodeModules, 'node-pty', 'prebuilds', dist)
+  const destination = path.join(workspaceRoot, 'electron-app', 'lib', 'prebuilds', dist)
+  fs.cpSync(source, destination, { recursive: true })
+  log(`staged node-pty prebuilds for ${dist}`)
 }
 
 async function main() {
@@ -180,12 +181,9 @@ async function main() {
     }
   }
 
-  try {
-    await ensureRipgrepUniversal()
-  } catch (err) {
-    log(`warning: ripgrep: ${err.message}`)
-  }
+  await ensureRipgrepUniversal()
 
+  stageNodePtyPrebuilds(target)
   log('done')
 }
 

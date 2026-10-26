@@ -33,7 +33,7 @@
     "esbuild": "^0.25.0",
     "rimraf": "^5.0.0",
     "shx": "^0.3.3",
-    "typescript": "~5.4.5"
+    "typescript": "~5.9.3"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",

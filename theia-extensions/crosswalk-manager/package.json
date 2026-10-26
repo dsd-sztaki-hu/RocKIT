@@ -21,15 +21,15 @@
     "@emotion/styled": "^11.11.0",
     "@mui/icons-material": "^5.15.0",
     "@mui/material": "^5.15.0",
-    "@theia/core": "1.65.2",
-    "@theia/filesystem": "1.65.2",
+    "@theia/core": "1.76.0",
+    "@theia/filesystem": "1.76.0",
     "antd": "^5.29.1",
     "rockit-common": "1.0.0"
   },
   "devDependencies": {
     "rimraf": "^5.0.0",
     "shx": "^0.3.3",
-    "typescript": "~5.4.5"
+    "typescript": "~5.9.3"
   },
   "scripts": {
     "clean": "rimraf lib",

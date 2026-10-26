@@ -50,7 +50,7 @@
   ],
   "packageManager": "yarn@1.22.22",
   "engines": {
-    "node": ">=18",
+    "node": ">=24",
     "npm": ">=8"
   },
   "scripts": {
@@ -104,16 +104,24 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.2",
-    "@playwright/test": "1.61.1",
-    "@theia/playwright": "1.65.2",
-    "@theia/test-setup": "1.65.2",
+    "@playwright/test": "1.62.1",
+    "@theia/playwright": "1.76.0",
+    "@theia/test-setup": "1.76.0",
     "cross-spawn": "^7.0.6",
     "electron-builder": "26.4.0",
     "ignore-styles": "5.0.1",
     "lerna": "2.4.0",
     "mocha": "10.8.2",
     "nyc": "15.1.0",
-    "playwright": "1.61.1"
+    "playwright": "1.62.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@testing-library/dom": "^10.4.0",
+    "typescript": "~5.9.3",
+    "node-gyp": "11.5.0",
+    "esbuild": "^0.28.2",
+    "esbuild-plugin-copy": "^2.1.1",
+    "esbuild-plugins-node-modules-polyfill": "^1.8.3"
   },
   "workspaces": [
     "dev-packages/*",
@@ -124,14 +132,18 @@
   ],
   "dependencies": {
     "dotenv": "17.2.3",
-    "generator-theia-extension": "0.1.44"
+    "generator-theia-extension": "0.1.44",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "resolutions": {
-    "@playwright/test": "1.61.1",
+    "@playwright/test": "1.62.1",
     "@types/minimatch": "3.0.5",
-    "@types/react": "18.3.27",
-    "@types/react-dom": "18.3.7",
-    "playwright": "1.61.1"
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "playwright": "1.62.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "theiaPluginsDir": "plugins",
   "theiaPlugins": {

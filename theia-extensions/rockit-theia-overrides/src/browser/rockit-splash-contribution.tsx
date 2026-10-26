@@ -189,6 +189,7 @@ export class RockitSplashContribution implements FrontendApplicationContribution
   async onStart(): Promise<void> {
     const [appInfo] = await Promise.all([
       this.applicationServer.getApplicationInfo(),
+      this.preferenceService.ready,
     ])
 
     this.appInfo = {

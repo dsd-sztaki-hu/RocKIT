@@ -16,9 +16,9 @@
     "src"
   ],
   "dependencies": {
-    "@theia/core": "1.65.2",
-    "@theia/preferences": "1.65.2",
-    "@theia/request": "1.65.2",
+    "@theia/core": "1.76.0",
+    "@theia/preferences": "1.76.0",
+    "@theia/request": "1.76.0",
     "save-ro-crate": "1.0.0",
     "entities-overview": "1.0.0",
     "ro-crate-editor": "1.0.0",
@@ -29,7 +29,7 @@
   "devDependencies": {
     "@types/semver": "^7.7.1",
     "rimraf": "^5.0.0",
-    "typescript": "~5.4.5"
+    "typescript": "~5.9.3"
   },
   "scripts": {
     "clean": "rimraf lib",
