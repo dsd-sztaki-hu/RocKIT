@@ -18,6 +18,9 @@ const {
   SYNC_COMMAND,
   UPDATE_COMMAND,
   METADATA_LANGUAGES_COMMAND,
+  LIST_DESTINATIONS_COMMAND,
+  SEARCH_DESTINATIONS_COMMAND,
+  CHECK_DESTINATION_COMMAND,
 } = require('../src/arp-provider')
 
 describe('ARP provider command boundary', () => {
@@ -75,6 +78,9 @@ describe('ARP provider command boundary', () => {
         sync: SYNC_COMMAND,
         update: UPDATE_COMMAND,
         metadataLanguages: METADATA_LANGUAGES_COMMAND,
+        listDestinations: LIST_DESTINATIONS_COMMAND,
+        searchDestinations: SEARCH_DESTINATIONS_COMMAND,
+        checkDestination: CHECK_DESTINATION_COMMAND,
       },
       importInput: {
         kind: 'url',

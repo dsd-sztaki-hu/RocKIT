@@ -53,6 +53,30 @@ class ArpClient {
     return this.request(`${this.baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/allowedMetadataLanguages`)
   }
 
+  getCollection(collectionId) {
+    return this.request(`${this.baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}`)
+  }
+
+  getCollectionContents(collectionId) {
+    return this.request(`${this.baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/contents`)
+  }
+
+  searchCollections({ query = '*', subtree, perPage = 100, start = 0 } = {}) {
+    const url = new URL(`${this.baseUrl}/api/v1/search`)
+    url.searchParams.set('q', query)
+    url.searchParams.set('type', 'dataverse')
+    url.searchParams.set('sort', 'name')
+    url.searchParams.set('order', 'asc')
+    url.searchParams.set('per_page', String(perPage))
+    url.searchParams.set('start', String(start))
+    if (subtree) url.searchParams.set('subtree', subtree)
+    return this.request(url.toString())
+  }
+
+  getCollectionUserPermissions(collectionId) {
+    return this.request(`${this.baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/userPermissions`)
+  }
+
   createDataset(collectionId, payload) {
     return this.request(`${this.baseUrl}/api/v1/dataverses/${encodeURIComponent(collectionId)}/datasets`, {
       method: 'POST', body: JSON.stringify(payload),

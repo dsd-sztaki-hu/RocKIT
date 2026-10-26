@@ -15,7 +15,6 @@ import {
 } from './data-repository-manager-widget'
 import { DataRepositoryManagerContribution } from './data-repository-manager-contribution'
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
-import { DataverseCollectionService } from './services/dataverse-collection-service'
 import { ArpRoCrateExportService } from './services/arp-ro-crate-export-service'
 import { ArpRoCrateImportService } from './services/arp-ro-crate-import-service'
 import { ArpRoCrateLinkService } from './services/arp-ro-crate-link-service'
@@ -37,7 +36,6 @@ export default new ContainerModule((bind) => {
 
   // 1. Services
   bind(DataRepositoryStoreService).toSelf().inSingletonScope()
-  bind(DataverseCollectionService).toSelf().inSingletonScope()
   bind(ArpRoCrateExportService).toSelf().inSingletonScope()
   bind(ArpRoCrateImportService).toSelf().inSingletonScope()
   bind(ArpRoCrateLinkService).toSelf().inSingletonScope()

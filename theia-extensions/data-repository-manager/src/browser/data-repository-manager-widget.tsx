@@ -62,7 +62,6 @@ import {
 } from './services/arp-ro-crate-link-service'
 import { DataRepositoryExportDeleteService } from './services/data-repository-export-delete-service'
 import { DataRepositoryStoreService } from './services/data-repository-store-service'
-import { DataverseCollectionService } from './services/dataverse-collection-service'
 import {
   DataverseProviderCreateResult,
   NativeDataverseExportService,
@@ -102,8 +101,6 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     protected readonly storeService: DataRepositoryStoreService,
     @inject(DataRepositoryExportDeleteService)
     protected readonly exportDeleteService: DataRepositoryExportDeleteService,
-    @inject(DataverseCollectionService)
-    protected readonly collectionService: DataverseCollectionService,
     @inject(NativeDataverseExportService)
     protected readonly nativeExportService: NativeDataverseExportService,
     @inject(ArpRoCrateExportService)
@@ -1026,7 +1023,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
         )
         return
       }
-      const selection = await new DataverseCollectionBrowserDialog(repository, this.collectionService).open()
+      const selection = await new DataverseCollectionBrowserDialog(repository, this.providerService).open()
       if (!selection) return
       const defaults = await this.nativeExportService.getDatasetCreationMetadataDefaults()
       let languages: Array<{ value: string; label: string }>
@@ -1092,7 +1089,7 @@ export class DataRepositoryManagerWidget extends BaseWidget implements StatefulW
     try {
       const selection = await new DataverseCollectionBrowserDialog(
         repository,
-        this.collectionService,
+        this.providerService,
       ).open()
       if (!selection) return
       const defaults = await this.nativeExportService.getDatasetCreationMetadataDefaults(repository)

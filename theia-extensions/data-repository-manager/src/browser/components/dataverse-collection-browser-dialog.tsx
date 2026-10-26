@@ -10,9 +10,9 @@ import { nls } from '@theia/core/lib/common/nls';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 
-import { DataverseCollectionService } from '../services/dataverse-collection-service';
 import DataverseTree from './dataverse-tree';
 import { DataRepositoryConfig, DataverseCollection, DataverseCollectionSelection } from '../types';
+import { RepositoryProviderService } from '../repository-provider-service';
 import '../styles/dataverse-collection-browser-dialog.css';
 
 export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCollectionSelection | undefined> {
@@ -22,7 +22,7 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
 
     constructor(
         private readonly repository: DataRepositoryConfig,
-        private readonly collectionService: DataverseCollectionService
+        private readonly providerService: RepositoryProviderService
     ) {
         super({
             title: nls.localize('rockit/dataRepository/browseRepository', 'Browse {0}', repository.title)
@@ -58,7 +58,7 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
         this.reactRoot.render(
             <BrowserContent
                 repository={this.repository}
-                collectionService={this.collectionService}
+                providerService={this.providerService}
                 onSelectionChanged={(selection) => this.handleSelectionChanged(selection)}
             />
         );
@@ -80,24 +80,16 @@ export class DataverseCollectionBrowserDialog extends AbstractDialog<DataverseCo
 
 interface BrowserContentProps {
     repository: DataRepositoryConfig;
-    collectionService: DataverseCollectionService;
+    providerService: RepositoryProviderService;
     onSelectionChanged: (selection: DataverseCollectionSelection) => void;
 }
 
 const BrowserContent: React.FC<BrowserContentProps> = ({
     repository,
-    collectionService,
+    providerService,
     onSelectionChanged
 }) => {
     const [selectedCollection, setSelectedCollection] = React.useState<DataverseCollection | null>(null);
-    const [isClientReady, setIsClientReady] = React.useState(false);
-
-    React.useEffect(() => {
-        setIsClientReady(false);
-        collectionService.initClient(repository.baseUrl, repository.apiKey || '');
-        setIsClientReady(true);
-    }, [repository, collectionService]);
-
     const handleCollectionSelected = (collection: DataverseCollection) => {
         setSelectedCollection(collection);
         onSelectionChanged({ collection });
@@ -106,13 +98,12 @@ const BrowserContent: React.FC<BrowserContentProps> = ({
     return (
         <div className="dataverse-browser-dialog">
             <div className="dataverse-browser-dialog__tree-container">
-                {isClientReady && (
-                    <DataverseTree
-                        collectionService={collectionService}
-                        selectedCollectionId={selectedCollection?.id}
-                        onCollectionSelected={handleCollectionSelected}
-                    />
-                )}
+                <DataverseTree
+                    repository={repository}
+                    providerService={providerService}
+                    selectedCollectionId={selectedCollection?.id}
+                    onCollectionSelected={handleCollectionSelected}
+                />
             </div>
 
         </div>

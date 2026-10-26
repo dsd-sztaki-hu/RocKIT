@@ -54,6 +54,9 @@ export type RepositoryOperation =
   | 'validate'
   | 'metadataLanguages'
   | 'metadataBlocks'
+  | 'listDestinations'
+  | 'searchDestinations'
+  | 'checkDestination'
   | 'listTargets'
   | 'markTargetFailed'
 
@@ -69,6 +72,22 @@ export interface RepositoryProviderImportInput {
 
 export interface RepositoryProviderConnection {
   requiresApiKey?: boolean
+}
+
+/** Provider-neutral location in which a repository can create a dataset. */
+export interface RepositoryDestination {
+  id: string
+  label: string
+  parentId?: string
+  hasChildren?: boolean
+}
+
+export interface RepositoryDestinationListResult {
+  destinations: RepositoryDestination[]
+}
+
+export interface RepositoryDestinationCheckResult {
+  selectable: boolean
 }
 
 /**
@@ -163,6 +182,9 @@ export class RepositoryProviderRegistry {
       'validate',
       'metadataLanguages',
       'metadataBlocks',
+      'listDestinations',
+      'searchDestinations',
+      'checkDestination',
       'listTargets',
       'markTargetFailed',
     ]

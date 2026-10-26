@@ -12,6 +12,10 @@ provider implementation.
 `DataverseClient` is the transport boundary containing the Dataverse API
 endpoint calls required by the provider.
 
+`DataverseDestinationOperation` lists and searches Dataverse collections and
+checks whether the configured user may create a dataset in the selected
+collection. RocKIT only renders the returned provider-neutral destinations.
+
 `DataverseCreateOperation` receives a RocKIT-prepared Dataverse metadata
 payload and file manifest, creates the remote draft, uploads its files, and
 uploads rewritten RO-Crate metadata. It checkpoints the dataset and every

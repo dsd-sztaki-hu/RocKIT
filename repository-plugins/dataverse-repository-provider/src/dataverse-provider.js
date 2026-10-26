@@ -11,6 +11,7 @@ const { DataverseImportOperation } = require('./dataverse-import-operation')
 const { DataverseLinkOperation } = require('./dataverse-link-operation')
 const { DataverseUpdateOperation } = require('./dataverse-update-operation')
 const { DataverseSyncOperation } = require('./dataverse-sync-operation')
+const { DataverseDestinationOperation } = require('./dataverse-destination-operation')
 
 const PROVIDER_ID = 'dataverse'
 const CREATE_COMMAND = 'rockit.dataverse.create'
@@ -18,6 +19,9 @@ const DELETE_COMMAND = 'rockit.dataverse.delete'
 const IMPORT_COMMAND = 'rockit.dataverse.import'
 const LINK_COMMAND = 'rockit.dataverse.link'
 const METADATA_BLOCKS_COMMAND = 'rockit.dataverse.metadataBlocks'
+const LIST_DESTINATIONS_COMMAND = 'rockit.dataverse.listDestinations'
+const SEARCH_DESTINATIONS_COMMAND = 'rockit.dataverse.searchDestinations'
+const CHECK_DESTINATION_COMMAND = 'rockit.dataverse.checkDestination'
 const UPDATE_COMMAND = 'rockit.dataverse.update'
 const SYNC_COMMAND = 'rockit.dataverse.sync'
 const VALIDATE_COMMAND = 'rockit.dataverse.validate'
@@ -42,6 +46,18 @@ async function activateDataverseProvider(
   const linkOperation = new DataverseLinkOperation({ vscode, clientFactory })
   const updateOperation = new DataverseUpdateOperation({ vscode, clientFactory })
   const syncOperation = new DataverseSyncOperation({ vscode, clientFactory })
+  const destinationOperation = new DataverseDestinationOperation({ clientFactory })
+  context.subscriptions.push(
+    vscode.commands.registerCommand(LIST_DESTINATIONS_COMMAND, input =>
+      destinationOperation.list(input),
+    ),
+    vscode.commands.registerCommand(SEARCH_DESTINATIONS_COMMAND, input =>
+      destinationOperation.search(input),
+    ),
+    vscode.commands.registerCommand(CHECK_DESTINATION_COMMAND, input =>
+      destinationOperation.check(input),
+    ),
+  )
   context.subscriptions.push(
     vscode.commands.registerCommand(METADATA_BLOCKS_COMMAND, async (input) => {
       const repository = input?.repository
@@ -165,6 +181,9 @@ async function activateDataverseProvider(
       import: IMPORT_COMMAND,
       link: LINK_COMMAND,
       metadataBlocks: METADATA_BLOCKS_COMMAND,
+      listDestinations: LIST_DESTINATIONS_COMMAND,
+      searchDestinations: SEARCH_DESTINATIONS_COMMAND,
+      checkDestination: CHECK_DESTINATION_COMMAND,
       update: UPDATE_COMMAND,
       sync: SYNC_COMMAND,
       validate: VALIDATE_COMMAND,
@@ -199,6 +218,9 @@ module.exports = {
   IMPORT_COMMAND,
   LINK_COMMAND,
   METADATA_BLOCKS_COMMAND,
+  LIST_DESTINATIONS_COMMAND,
+  SEARCH_DESTINATIONS_COMMAND,
+  CHECK_DESTINATION_COMMAND,
   UPDATE_COMMAND,
   SYNC_COMMAND,
   VALIDATE_COMMAND,

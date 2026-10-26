@@ -5,6 +5,10 @@ captures the current RO-Crate and Dataverse-style dataset/file HTTP requests in
 an independently tested transport module. The extension registers `validate`,
 `metadataLanguages`, `create`, `update`, `import`, `sync`, `delete`, and `link`.
 
+The provider also lists and searches its Dataverse collections and checks
+dataset-creation permission. RocKIT renders those provider-neutral
+destinations without knowing the ARP/Dataverse API endpoints.
+
 `ArpCreateOperation` performs the remote creation sequence from a
 RocKIT-prepared crate, dataset payload, and file-source manifest. It does not
 interpret crosswalks or write local mappings and logs; RocKIT performs those

@@ -11,6 +11,7 @@ const { ArpImportOperation } = require('./arp-import-operation')
 const { ArpLinkOperation } = require('./arp-link-operation')
 const { ArpSyncOperation } = require('./arp-sync-operation')
 const { ArpUpdateOperation } = require('./arp-update-operation')
+const { DataverseDestinationOperation } = require('./dataverse-destination-operation')
 
 const PROVIDER_ID = 'arp'
 const VALIDATE_COMMAND = 'rockit.arp.validate'
@@ -21,6 +22,9 @@ const LINK_COMMAND = 'rockit.arp.link'
 const SYNC_COMMAND = 'rockit.arp.sync'
 const UPDATE_COMMAND = 'rockit.arp.update'
 const METADATA_LANGUAGES_COMMAND = 'rockit.arp.metadataLanguages'
+const LIST_DESTINATIONS_COMMAND = 'rockit.arp.listDestinations'
+const SEARCH_DESTINATIONS_COMMAND = 'rockit.arp.searchDestinations'
+const CHECK_DESTINATION_COMMAND = 'rockit.arp.checkDestination'
 const REGISTER_COMMAND = 'rockit.repositories.registerProvider'
 const UNREGISTER_COMMAND = 'rockit.repositories.unregisterProvider'
 
@@ -37,6 +41,18 @@ async function activateArpProvider(vscode, context, clientFactory = repository =
   const linkOperation = new ArpLinkOperation({ vscode, clientFactory })
   const syncOperation = new ArpSyncOperation({ vscode, clientFactory })
   const updateOperation = new ArpUpdateOperation({ vscode, clientFactory })
+  const destinationOperation = new DataverseDestinationOperation({ clientFactory })
+  context.subscriptions.push(
+    vscode.commands.registerCommand(LIST_DESTINATIONS_COMMAND, input =>
+      destinationOperation.list(input),
+    ),
+    vscode.commands.registerCommand(SEARCH_DESTINATIONS_COMMAND, input =>
+      destinationOperation.search(input),
+    ),
+    vscode.commands.registerCommand(CHECK_DESTINATION_COMMAND, input =>
+      destinationOperation.check(input),
+    ),
+  )
   context.subscriptions.push(vscode.commands.registerCommand(CREATE_COMMAND, input =>
     vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
@@ -118,6 +134,9 @@ async function activateArpProvider(vscode, context, clientFactory = repository =
       sync: SYNC_COMMAND,
       update: UPDATE_COMMAND,
       metadataLanguages: METADATA_LANGUAGES_COMMAND,
+      listDestinations: LIST_DESTINATIONS_COMMAND,
+      searchDestinations: SEARCH_DESTINATIONS_COMMAND,
+      checkDestination: CHECK_DESTINATION_COMMAND,
     },
     importInput: {
       kind: 'url',
@@ -148,4 +167,7 @@ module.exports = {
   SYNC_COMMAND,
   UPDATE_COMMAND,
   METADATA_LANGUAGES_COMMAND,
+  LIST_DESTINATIONS_COMMAND,
+  SEARCH_DESTINATIONS_COMMAND,
+  CHECK_DESTINATION_COMMAND,
 }

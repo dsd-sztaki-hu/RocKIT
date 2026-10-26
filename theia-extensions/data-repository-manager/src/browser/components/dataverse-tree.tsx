@@ -14,8 +14,13 @@ import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import { LinearProgress, CircularProgress, IconButton, Tooltip, TextField, InputAdornment } from '@mui/material';
 
-import { DataverseCollectionService } from '../services/dataverse-collection-service';
-import { DataverseCollection } from '../types';
+import { RepositoryProviderService } from '../repository-provider-service';
+import {
+    RepositoryDestination,
+    RepositoryDestinationCheckResult,
+    RepositoryDestinationListResult,
+} from '../repository-provider-registry';
+import { DataRepositoryConfig, DataverseCollection } from '../types';
 import { DataverseIcon } from './icons';
 import { nls } from '@theia/core/lib/common/nls';
 import '../styles/dataverse-collection-browser-dialog.css';
@@ -35,11 +40,13 @@ type TreeNode = {
 
 export type DataverseTreeProps = {
     onCollectionSelected: (collection: DataverseCollection) => void;
-    collectionService: DataverseCollectionService;
+    repository: DataRepositoryConfig;
+    providerService: RepositoryProviderService;
     selectedCollectionId?: string;
 };
 
 const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
+    const canSearch = props.providerService.supports(props.repository, 'searchDestinations');
     const [treeData, setTreeData] = useState<TreeNode[]>([]);
     const [expandedNodes, setExpandedNodes] = useState<string[]>([]);
 
@@ -55,15 +62,15 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
     const [isSearchLoading, setIsSearchLoading] = useState(false);
     const [searchErrorMsg, setSearchErrorMsg] = useState<string | null>(null);
 
-    const toTreeNode = (collection: any): TreeNode => ({
-        id: collection.alias,
-        name: collection.name,
-        alias: collection.alias,
-        parentAlias: collection.parentAlias,
+    const toTreeNode = (destination: RepositoryDestination): TreeNode => ({
+        id: destination.id,
+        name: destination.label,
+        alias: destination.id,
+        parentAlias: destination.parentId,
         children: [],
-        childrenLoaded: !collection.hasChildren,
-        hasChildren: collection.hasChildren,
-        isFolder: collection.hasChildren,
+        childrenLoaded: !destination.hasChildren,
+        hasChildren: Boolean(destination.hasChildren),
+        isFolder: Boolean(destination.hasChildren),
         expanded: false,
         disabled: false
     });
@@ -88,10 +95,13 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
         setIsLoading(true);
         setExpandedNodes([]);
         
-        props.collectionService.getRootCollections()
+        props.providerService.executeForRepository<
+            { repository: DataRepositoryConfig },
+            RepositoryDestinationListResult
+        >(props.repository, 'listDestinations', { repository: props.repository })
             .then(res => {
                 if (ignore) return;
-                const newData = res.map(toTreeNode);
+                const newData = (res?.destinations ?? []).map(toTreeNode);
                 setTreeData(newData);
                 setIsLoading(false);
             })
@@ -103,7 +113,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
             });
 
         return () => { ignore = true; };
-    }, [props.collectionService]);
+    }, [props.providerService, props.repository]);
 
     const findNode = (nodes: TreeNode[], nodeId: string): TreeNode | undefined => {
         for (const node of nodes) {
@@ -119,7 +129,14 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
 
         setLoadingNodeIds(prev => new Set(prev).add(node.id));
         try {
-            const children = await props.collectionService.getChildCollections(node.alias);
+            const result = await props.providerService.executeForRepository<
+                { repository: DataRepositoryConfig; parentId: string },
+                RepositoryDestinationListResult
+            >(props.repository, 'listDestinations', {
+                repository: props.repository,
+                parentId: node.id,
+            });
+            const children = result?.destinations ?? [];
             setTreeData(prev => replaceNode(prev, node.id, current => ({
                 ...current,
                 children: children.map(toTreeNode),
@@ -152,16 +169,24 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
         e.preventDefault();
         e.stopPropagation();
         
-        const canWrite = await props.collectionService.canAddDataset(node.id);
+        const result = props.providerService.supports(props.repository, 'checkDestination')
+            ? await props.providerService.executeForRepository<
+                { repository: DataRepositoryConfig; destinationId: string },
+                RepositoryDestinationCheckResult
+            >(props.repository, 'checkDestination', {
+                repository: props.repository,
+                destinationId: node.id,
+            })
+            : { selectable: true };
         
         props.onCollectionSelected({
             id: node.id,
             name: node.name,
             alias: node.alias,
-            isWritable: canWrite
+            isWritable: result?.selectable === true
         });
 
-    }, [props.collectionService, props.onCollectionSelected]);
+    }, [props.providerService, props.repository, props.onCollectionSelected]);
 
     useEffect(() => {
         const handle = window.setTimeout(() => {
@@ -172,7 +197,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
 
     useEffect(() => {
         let ignore = false;
-        if (!searchQuery) {
+        if (!searchQuery || !canSearch) {
             setSearchResults([]);
             setIsSearchLoading(false);
             setSearchErrorMsg(null);
@@ -181,11 +206,17 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
 
         setIsSearchLoading(true);
         setSearchErrorMsg(null);
-        props.collectionService.searchDataverseCollections(searchQuery)
+        props.providerService.executeForRepository<
+            { repository: DataRepositoryConfig; query: string },
+            RepositoryDestinationListResult
+        >(props.repository, 'searchDestinations', {
+            repository: props.repository,
+            query: searchQuery,
+        })
             .then(results => {
                 if (ignore) return;
-                setSearchResults(results.map(collection => ({
-                    ...toTreeNode(collection),
+                setSearchResults((results?.destinations ?? []).map(destination => ({
+                    ...toTreeNode(destination),
                     hasChildren: false,
                     isFolder: false,
                     childrenLoaded: true
@@ -204,7 +235,7 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
             });
 
         return () => { ignore = true; };
-    }, [props.collectionService, searchQuery]);
+    }, [canSearch, props.providerService, props.repository, searchQuery]);
 
     const visibleNodes = searchQuery ? searchResults : treeData;
 
@@ -302,13 +333,13 @@ const DataverseTree: React.FC<DataverseTreeProps> = (props) => {
                                 )
                             }}
                         />
-                    ) : (
+                    ) : canSearch ? (
                         <Tooltip title={nls.localize('rockit/dataRepository/searchCollectionsTooltip', 'Search Collections')} slotProps={{ popper: { sx: { zIndex: 2147483647 } } }}>
                             <IconButton size="small" onClick={() => setIsSearchExpanded(true)} style={{ color: 'var(--theia-icon-foreground)' }}>
                                 <SearchIcon fontSize="small" />
                             </IconButton>
                         </Tooltip>
-                    )}
+                    ) : null}
                 </div>
 
             </div>

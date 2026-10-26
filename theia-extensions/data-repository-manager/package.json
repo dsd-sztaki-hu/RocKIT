@@ -27,7 +27,6 @@
     "@mui/icons-material": "^5.15.0",
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
-    "@iqss/dataverse-client-javascript": "2.1.0",
     "jszip": "^3.10.1",
     "rockit-common": "1.0.0",
     "rockit-loadmask": "1.0.0",

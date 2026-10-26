@@ -267,4 +267,24 @@ describe('ArpClient RO-Crate transport', () => {
     assert.equal(init.body.get('file').name, 'data.bin')
     assert.deepEqual(new Uint8Array(await init.body.get('file').arrayBuffer()), content)
   })
+
+  it('keeps Dataverse collection browsing requests inside the ARP provider transport', async () => {
+    const transport = mockTransport('{"status":"OK","data":[]}')
+    const client = new ArpClient({
+      baseUrl: 'https://repo.example.org', token: 'secret', fetchImpl: transport.fetchImpl,
+    })
+
+    await client.getCollection('research/data')
+    await client.getCollectionContents('research/data')
+    await client.searchCollections({ query: 'science*', subtree: 'root', perPage: 25, start: 50 })
+    await client.getCollectionUserPermissions('research/data')
+
+    assert.deepEqual(transport.calls.map(call => call.url), [
+      'https://repo.example.org/api/v1/dataverses/research%2Fdata',
+      'https://repo.example.org/api/v1/dataverses/research%2Fdata/contents',
+      'https://repo.example.org/api/v1/search?q=science*&type=dataverse&sort=name&order=asc&per_page=25&start=50&subtree=root',
+      'https://repo.example.org/api/v1/dataverses/research%2Fdata/userPermissions',
+    ])
+    assert.ok(transport.calls.every(call => call.init.headers['x-dataverse-key'] === 'secret'))
+  })
 })
