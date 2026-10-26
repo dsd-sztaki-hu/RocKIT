@@ -394,7 +394,8 @@ export class CedarTemplateToDescriboProfileConverter {
     private cedarDescriboDateTypes: Map<string, string[]>;
 
     constructor(language?: string) {
-        this.language = language ?? 'en';
+        const normalizedLanguage = language?.trim().toLowerCase().split(/[-_]/, 1)[0];
+        this.language = normalizedLanguage === 'hu' ? 'hu' : 'en';
 
         // Initialize field type mappings
         this.cedarDescriboFieldTypes = new Map([
@@ -876,7 +877,7 @@ export class CedarTemplateToDescriboProfileConverter {
         if (this.language === 'hu') {
             const hunLabel = obj.hunLabel;
             if (hunLabel == null || typeof hunLabel !== 'string' || hunLabel.length === 0) {
-                label = engLabel + ' (magyarul)';
+                label = engLabel;
             } else {
                 label = hunLabel;
             }
@@ -893,8 +894,17 @@ export class CedarTemplateToDescriboProfileConverter {
         let help: string | undefined = undefined;
         if (this.language === 'hu') {
             const hunDescription = obj.hunDescription;
-            if (hunDescription != null && typeof hunDescription === 'string') {
+            if (
+                hunDescription != null &&
+                typeof hunDescription === 'string' &&
+                hunDescription.length > 0
+            ) {
                 help = hunDescription;
+            } else {
+                const schemaDescription = obj['schema:description'];
+                if (schemaDescription != null && typeof schemaDescription === 'string') {
+                    help = schemaDescription;
+                }
             }
         } else {
             const schemaDescription = obj['schema:description'];

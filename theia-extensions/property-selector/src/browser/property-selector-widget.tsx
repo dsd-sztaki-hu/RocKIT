@@ -22,15 +22,12 @@ const SCHEMA_ORG_PROPERTIES_URL =
   'https://schema.org/version/latest/schemaorg-current-http-properties.csv'
 
 export const parseCsv = (csvText: string): SchemaProperty[] => {
-  const lines = csvText.split('\n').filter((line) => line.trim() !== '')
-  if (lines.length <= 1) {
+  const rows = parseCsvRows(csvText)
+  if (!rows || rows.length <= 1) {
     return []
   }
 
-  const headerLine = lines[0]
-  const headers = headerLine
-    .split(',')
-    .map((header) => header.trim().replace(/^"|"$/g, ''))
+  const headers = rows[0].map((header) => header.trim())
 
   const labelIndex = headers.indexOf('label')
   const commentIndex = headers.indexOf('comment')
@@ -42,13 +39,11 @@ export const parseCsv = (csvText: string): SchemaProperty[] => {
 
   const properties: SchemaProperty[] = []
 
-  for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',')
+  for (let i = 1; i < rows.length; i++) {
+    const values = rows[i]
 
     if (values.length > commentIndex) {
-      const rawLabel = values[labelIndex]
-        ? values[labelIndex].trim().replace(/^"|"$/g, '')
-        : ''
+      const rawLabel = values[labelIndex] ? values[labelIndex].trim() : ''
 
       if (!rawLabel) {
         continue
@@ -56,13 +51,54 @@ export const parseCsv = (csvText: string): SchemaProperty[] => {
 
       properties.push({
         label: rawLabel,
-        comment: values[commentIndex]
-          ? values[commentIndex].trim().replace(/^"|"$/g, '')
-          : 'No description provided',
+        comment: values[commentIndex] ? values[commentIndex].trim() : 'No description provided',
       })
     }
   }
   return properties
+}
+
+const parseCsvRows = (csvText: string): string[][] | undefined => {
+  const rows: string[][] = []
+  let row: string[] = []
+  let field = ''
+  let quoted = false
+
+  for (let index = 0; index < csvText.length; index += 1) {
+    const character = csvText[index]
+    if (quoted) {
+      if (character === '"') {
+        if (csvText[index + 1] === '"') {
+          field += '"'
+          index += 1
+        } else {
+          quoted = false
+        }
+      } else {
+        field += character
+      }
+      continue
+    }
+    if (character === '"' && field.trim().length === 0) {
+      field = ''
+      quoted = true
+    } else if (character === ',') {
+      row.push(field)
+      field = ''
+    } else if (character === '\n') {
+      row.push(field.replace(/\r$/, ''))
+      if (row.some((value) => value.trim() !== '')) rows.push(row)
+      row = []
+      field = ''
+    } else {
+      field += character
+    }
+  }
+
+  if (quoted) return undefined
+  row.push(field.replace(/\r$/, ''))
+  if (row.some((value) => value.trim() !== '')) rows.push(row)
+  return rows
 }
 
 // --- POPUP/MODAL COMPONENT ---
@@ -265,6 +301,8 @@ export class PropertySelectorWidget extends ReactWidget {
     isModalOpen: false,
   }
 
+  private fetchGeneration = 0
+
   @postConstruct()
   protected init(): void {
     this.doInit()
@@ -280,19 +318,28 @@ export class PropertySelectorWidget extends ReactWidget {
   }
 
   private async fetchSchemaProperties(): Promise<void> {
+    const generation = ++this.fetchGeneration
+    this.propertiesState.loading = true
+    this.propertiesState.error = null
     try {
       const response = await fetch(SCHEMA_ORG_PROPERTIES_URL)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
       const csvText = await response.text()
-      this.propertiesState.properties = parseCsv(csvText)
+      if (generation === this.fetchGeneration) {
+        this.propertiesState.properties = parseCsv(csvText)
+      }
     } catch (err: any) {
-      this.propertiesState.error = `Failed to fetch or parse properties: ${err.message}`
+      if (generation === this.fetchGeneration) {
+        this.propertiesState.error = `Failed to fetch or parse properties: ${err.message}`
+      }
       console.error('Error fetching Schema.org properties:', err)
     } finally {
-      this.propertiesState.loading = false
-      this.update()
+      if (generation === this.fetchGeneration) {
+        this.propertiesState.loading = false
+        this.update()
+      }
     }
   }
 

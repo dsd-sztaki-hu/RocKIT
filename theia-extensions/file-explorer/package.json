@@ -78,7 +78,10 @@
     "clean": "theiaext clean",
     "compile": "theiaext compile",
     "lint": "theiaext lint",
+    "pretest": "yarn compile",
+    "pretest:unit": "yarn compile",
     "test": "theiaext test",
+    "test:unit": "mocha --config ../../configs/mocharc.yml \"./lib/browser/navigator-filter.spec.js\"",
     "watch": "tsc -b -w --preserveWatchOutput"
   },
   "devDependencies": {

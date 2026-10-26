@@ -16,7 +16,6 @@
 // ******************************************************************************************
 
 import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
-import { Minimatch } from 'minimatch';
 import { MaybePromise } from '@theia/core/lib/common/types';
 import { Event, Emitter } from '@theia/core/lib/common/event';
 import { FileSystemPreferences, FileSystemConfiguration } from '@theia/filesystem/lib/common/filesystem-preferences';
@@ -24,6 +23,9 @@ import { FileNavigatorPreferences, FileNavigatorConfiguration } from '../common/
 import { PreferenceChangeEvent } from '@theia/core';
 import { DirNode, FileStatNode } from '@theia/filesystem/lib/browser';
 import { AppStateService } from 'app-state/lib/browser/state/app-state-service';
+import { FileNavigatorFilterPredicate } from './navigator-filter-predicate';
+
+export { FileNavigatorFilterPredicate } from './navigator-filter-predicate';
 
 /**
  * Filter for omitting elements from the navigator. For more details on the exclusion patterns,
@@ -240,30 +242,5 @@ export namespace FileNavigatorFilter {
     }
 
     export type RoCrateFilter = 'all' | 'with-description' | 'without-description';
-
-}
-
-/**
- * Concrete filter navigator filter predicate that is decoupled from the preferences.
- */
-export class FileNavigatorFilterPredicate implements FileNavigatorFilter.Predicate {
-
-    private readonly delegate: FileNavigatorFilter.Predicate;
-
-    constructor(exclusions: FileNavigatorFilter.Exclusions) {
-        const patterns = Object.keys(exclusions).map(pattern => ({ pattern, enabled: exclusions[pattern] })).filter(object => object.enabled).map(object => object.pattern);
-        this.delegate = FileNavigatorFilter.Predicate.and(...patterns.map(pattern => this.createDelegate(pattern)));
-    }
-
-    filter(item: { id: string }): boolean {
-        return this.delegate.filter(item);
-    }
-
-    protected createDelegate(pattern: string): FileNavigatorFilter.Predicate {
-        const delegate = new Minimatch(pattern, { matchBase: true });
-        return {
-            filter: item => !delegate.match(item.id)
-        };
-    }
 
 }

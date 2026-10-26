@@ -1,0 +1,22 @@
+{
+  "metadata": {
+    "name": "E2E Required Note",
+    "version": "1.0.0",
+    "description": "Local deterministic profile used only by Electron E2E tests."
+  },
+  "classes": {
+    "Dataset": {
+      "inputs": [
+        {
+          "id": "https://example.test/properties/e2e-required-note",
+          "name": "e2eRequiredNote",
+          "label": "E2E required note",
+          "help": "A required value supplied by the local E2E profile.",
+          "type": ["Text"],
+          "required": true,
+          "multiple": false
+        }
+      ]
+    }
+  }
+}

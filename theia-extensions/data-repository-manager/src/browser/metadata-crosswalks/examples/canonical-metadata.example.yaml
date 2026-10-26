@@ -18,3 +18,5 @@ keyword:
   - 3D
 language: eng
 softwareVersion: "2.1"
+# A dataset producer must not be exported as a publication imprint publisher.
+producer: Dataset production team

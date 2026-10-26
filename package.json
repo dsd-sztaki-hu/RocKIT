@@ -74,6 +74,20 @@
     "start:rocrate-mcp": "yarn workspace @arpproject/rocrate-mcp-server start",
     "watch:browser": "lerna run --parallel watch --ignore electron-app",
     "watch:electron": "lerna run --parallel watch --ignore browser-app",
+    "test": "yarn test:unit",
+    "test:unit": "node scripts/run-unit-tests.js",
+    "test:integration:mcp": "yarn workspace @arpproject/rocrate-mcp-server test:all",
+    "test:crosswalk": "yarn workspace data-repository-manager crosswalk:check",
+    "test:integration": "node scripts/run-integration-tests.js",
+    "pretest:e2e": "playwright install ffmpeg",
+    "test:e2e": "playwright test --project=electron",
+    "pretest:e2e:debug": "playwright install ffmpeg",
+    "test:e2e:debug": "playwright test --project=electron --debug",
+    "pretest:e2e:ui": "playwright install ffmpeg",
+    "test:e2e:ui": "playwright test --project=electron --ui",
+    "test:e2e:report": "playwright show-report playwright-report/electron",
+    "test:all": "yarn test:unit && yarn test:integration && yarn test:integration:mcp && yarn test:crosswalk",
+    "test:coverage": "yarn workspace @arpproject/recrate test:coverage",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "format": "biome format .",
@@ -87,9 +101,17 @@
     "recrate:publish": "yarn workspace @arpproject/recrate build && (cd dev-packages/recrate && npm publish)"
   },
   "devDependencies": {
-    "lerna": "2.4.0",
     "@biomejs/biome": "2.3.2",
-    "electron-builder": "26.4.0"
+    "@playwright/test": "1.61.1",
+    "@theia/playwright": "1.65.2",
+    "@theia/test-setup": "1.65.2",
+    "cross-spawn": "^7.0.6",
+    "electron-builder": "26.4.0",
+    "ignore-styles": "5.0.1",
+    "lerna": "2.4.0",
+    "mocha": "10.8.2",
+    "nyc": "15.1.0",
+    "playwright": "1.61.1"
   },
   "workspaces": [
     "dev-packages/*",
@@ -98,13 +120,15 @@
     "electron-app"
   ],
   "dependencies": {
-    "generator-theia-extension": "0.1.44",
-    "dotenv": "17.2.3"
+    "dotenv": "17.2.3",
+    "generator-theia-extension": "0.1.44"
   },
   "resolutions": {
+    "@playwright/test": "1.61.1",
     "@types/minimatch": "3.0.5",
     "@types/react": "18.3.27",
-    "@types/react-dom": "18.3.7"
+    "@types/react-dom": "18.3.7",
+    "playwright": "1.61.1"
   },
   "theiaPluginsDir": "plugins",
   "theiaPlugins": {
