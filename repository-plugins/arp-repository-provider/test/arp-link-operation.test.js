@@ -5,7 +5,6 @@
 // ******************************************************************************************
 
 const assert = require('node:assert/strict')
-const { describe, it } = require('node:test')
 
 const { ArpLinkOperation } = require('../src/arp-link-operation')
 

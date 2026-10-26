@@ -14,6 +14,9 @@
   ],
   "main": "./extension.js",
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "jest --runInBand"
+  },
+  "devDependencies": {
+    "jest": "^29.5.0"
   }
 }

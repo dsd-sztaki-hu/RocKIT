@@ -6,7 +6,6 @@
 
 const { createHash } = require('node:crypto')
 const assert = require('node:assert/strict')
-const { describe, it } = require('node:test')
 
 const { ZenodoUpdateOperation } = require('../src/zenodo-update-operation')
 

@@ -5,7 +5,6 @@
 // ******************************************************************************************
 
 const assert = require('node:assert/strict')
-const { describe, it } = require('node:test')
 
 const { ZenodoImportOperation } = require('../src/zenodo-import-operation')
 

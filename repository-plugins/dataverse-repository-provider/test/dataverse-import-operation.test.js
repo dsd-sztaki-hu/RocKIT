@@ -5,7 +5,6 @@
 // ******************************************************************************************
 
 const assert = require('node:assert/strict')
-const { describe, it } = require('node:test')
 
 const { DataverseImportOperation, ARCHIVE_NAME } = require('../src/dataverse-import-operation')
 

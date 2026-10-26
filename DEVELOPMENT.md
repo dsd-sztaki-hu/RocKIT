@@ -47,6 +47,14 @@ workflows and filesystem boundaries; the MCP command runs its existing protocol
 and lifecycle tests. Coverage commands print a summary table and create HTML
 reports in the corresponding `coverage` directories.
 
+Repository tests are included in `yarn test:unit` and can also be run separately:
+
+    yarn test:data-repository-manager
+    yarn test:repository-plugins
+    yarn --cwd repository-plugins/arp-repository-provider test
+    yarn --cwd repository-plugins/dataverse-repository-provider test
+    yarn --cwd repository-plugins/zenodo-repository-provider test
+
 Electron E2E tests use Playwright and require a built application:
 
     yarn build:electron

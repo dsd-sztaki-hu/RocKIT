@@ -5,7 +5,6 @@
 // ******************************************************************************************
 
 const assert = require('node:assert/strict')
-const { describe, it } = require('node:test')
 
 const { ArpImportOperation, ARCHIVE_NAME } = require('../src/arp-import-operation')
 

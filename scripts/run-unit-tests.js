@@ -25,6 +25,10 @@ const suites = [
   { name: 'property-selector', workspace: 'property-selector', directory: 'theia-extensions/property-selector', runner: 'jest' },
   { name: 'metadata-profile-manager', workspace: 'metadata-profile-manager', directory: 'theia-extensions/metadata-profile-manager', runner: 'jest' },
   { name: 'global-entity-library', workspace: 'global-entity-library', directory: 'theia-extensions/global-entity-library', runner: 'jest' },
+  { name: 'data-repository-manager', workspace: 'data-repository-manager', directory: 'theia-extensions/data-repository-manager', runner: 'jest' },
+  { name: 'arp-repository-provider', directory: 'repository-plugins/arp-repository-provider', runner: 'plugin-jest' },
+  { name: 'dataverse-repository-provider', directory: 'repository-plugins/dataverse-repository-provider', runner: 'plugin-jest' },
+  { name: 'zenodo-repository-provider', directory: 'repository-plugins/zenodo-repository-provider', runner: 'plugin-jest' },
   { name: 'cedar-template-converter', workspace: 'cedar-template-converter' },
   { name: 'rockit-common', workspace: 'rockit-common' },
   { name: '@theia/navigator', workspace: '@theia/navigator', directory: 'theia-extensions/file-explorer', runner: 'navigator' },
@@ -54,6 +58,13 @@ function run(command, args, cwd = root) {
 }
 
 function runWorkspace(suite) {
+  if (suite.runner === 'plugin-jest') {
+    const args = ['--cwd', path.join(root, suite.directory), 'test']
+    if (coverage) args.push('--coverage')
+    run('yarn', args)
+    return
+  }
+
   if (coverage && (suite.runner === 'navigator' || suite.runner === 'nyc')) {
     run('yarn', ['workspace', suite.workspace, 'compile'])
     const testPattern = suite.runner === 'navigator'
@@ -94,7 +105,9 @@ function percent(summary, metric) {
 function printCoverageTable() {
   const headers = ['Workspace', 'Statements', 'Branches', 'Functions', 'Lines']
   const rows = suites.map(suite => {
-    if (!suite.runner) return [suite.name, 'n/a', 'n/a', 'n/a', 'n/a']
+    if (!suite.runner) {
+      return [suite.name, 'n/a', 'n/a', 'n/a', 'n/a']
+    }
     const filename = path.join(root, suite.directory, 'coverage/coverage-summary.json')
     const summary = JSON.parse(readFileSync(filename, 'utf8'))
     return [
