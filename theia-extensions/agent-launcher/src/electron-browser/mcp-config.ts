@@ -5,6 +5,7 @@
 // ******************************************************************************************
 
 export type McpConfigKind = 'toml' | 'json'
+export type OpenCodeMcpConfigFormat = 'v1' | 'v2'
 
 export type ParsedMcpServer = {
   name: string
@@ -31,6 +32,19 @@ export function parseMcpServerEntries(
   return kind === 'toml'
     ? parseTomlMcpServerEntries(content)
     : parseJsonMcpServerEntries(content, agentId)
+}
+
+export function getOpenCodeMcpConfigFormat(content: string): OpenCodeMcpConfigFormat {
+  try {
+    const parsed: unknown = JSON.parse(content)
+    return isRecord(parsed) &&
+      isRecord(parsed.mcp) &&
+      isOpenCodeV2ServerMap(parsed.mcp.servers)
+      ? 'v2'
+      : 'v1'
+  } catch {
+    return 'v1'
+  }
 }
 
 export function mcpServerMatches(
@@ -239,15 +253,20 @@ function parseJsonMcpServerEntries(content: string, agentId?: string): ParsedMcp
   const containers = getJsonMcpContainers(parsed, agentId)
   const entries: ParsedMcpServer[] = []
   const seenContainers = new Set<Record<string, unknown>>()
+  const seenNames = new Set<string>()
   for (const container of containers) {
     if (!isRecord(container) || seenContainers.has(container)) {
       continue
     }
     seenContainers.add(container)
     for (const [name, value] of Object.entries(container)) {
+      if (seenNames.has(name)) {
+        continue
+      }
       const server = parseJsonMcpServer(name, value)
       if (server) {
         entries.push(server)
+        seenNames.add(name)
       }
     }
   }
@@ -259,13 +278,31 @@ function getJsonMcpContainers(
   agentId?: string,
 ): unknown[] {
   if (agentId === 'opencode') {
-    return [parsed.mcp]
+    const mcp = isRecord(parsed.mcp) ? parsed.mcp : undefined
+    // Native V2 entries take precedence when V1 and V2 forms coexist.
+    return [
+      mcp && isOpenCodeV2ServerMap(mcp.servers) ? mcp.servers : undefined,
+      mcp,
+    ]
   }
   if (agentId === 'claude') {
     const mcp = isRecord(parsed.mcp) ? parsed.mcp : undefined
     return [parsed.mcpServers, mcp?.servers, parsed.servers]
   }
   return [parsed.mcpServers]
+}
+
+function isOpenCodeV2ServerMap(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) {
+    return false
+  }
+  // In V1, "servers" could itself be a server name. V2's map has no
+  // `type`/`command` fields; those belong to the entries inside it.
+  return !(
+    typeof value.type === 'string' ||
+    typeof value.command === 'string' ||
+    Array.isArray(value.command)
+  )
 }
 
 function parseJsonMcpServer(name: string, value: unknown): ParsedMcpServer | undefined {

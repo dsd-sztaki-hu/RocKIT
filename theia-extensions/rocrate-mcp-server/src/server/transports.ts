@@ -166,9 +166,10 @@ export async function startServerWithTransports(
     const mcpServer = new McpServer(
       {
         name: 'rocrate-mcp-server',
+        title: 'RO-Crate MCP / VibeARP',
         version: getBuildInfo().version,
         description:
-          'RO-Crate metadata tools. The canonical way to open a local RO-Crate dataset in AROMA is open_aroma_for_local_file.',
+          'RO-Crate metadata tools, also known as RO-Crate MCP or VibeARP. These names refer to this same server. The canonical way to open a local RO-Crate dataset in AROMA is open_aroma_for_local_file.',
       },
       {
         capabilities: {
