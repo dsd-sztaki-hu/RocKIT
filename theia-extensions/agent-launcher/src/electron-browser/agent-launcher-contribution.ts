@@ -561,7 +561,8 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     const agentName = this.formatAgentName(agentId)
     log('target', { cwd, executable: sharedAvailableAgents.get(agentId), isWindows })
     const terminal = await step('create-widget', () => this.terminalService.newTerminal({
-      cwd,
+      // Terminal creation expects a URI; a raw Windows path loses its drive.
+      cwd: directoryUri.toString(),
       title: agentName,
       iconClass: AGENT_TERMINAL_ICON_CLASS,
     }))
@@ -1611,7 +1612,7 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     label: string,
     ignoreFailures = false,
   ): Promise<void> {
-    const terminal = await this.terminalService.newTerminal({ cwd })
+    const terminal = await this.terminalService.newTerminal({ cwd: FileUri.create(cwd).toString() })
     await terminal.start()
     await this.waitForTerminalOpen(terminal, 2000)
     try {
