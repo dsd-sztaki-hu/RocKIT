@@ -1599,8 +1599,9 @@ export class AgentLauncherContribution implements MenuContribution, CommandContr
     candidates: string[],
     additionalDirs: string[] = [],
   ): Promise<string | undefined> {
-    const processEnv = (globalThis as any).process?.env
-    const pathValue = processEnv?.PATH ?? ''
+    // The isolated Electron renderer has no process.env. Read the backend's
+    // environment so installations outside the common bin directories are found.
+    const pathValue = (await this.getEnvironmentValue('PATH')) ?? ''
     const dirs = [
       ...new Set([
         ...pathValue.split(isWindows ? ';' : ':'),
